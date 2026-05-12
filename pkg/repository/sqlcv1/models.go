@@ -3116,6 +3116,7 @@ type V1Dag struct {
 	WorkflowID           uuid.UUID          `json:"workflow_id"`
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
+	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
 }
 
 type V1DagData struct {
@@ -3166,17 +3167,21 @@ type V1DurableEventLogBranchPoint struct {
 }
 
 type V1DurableEventLogEntry struct {
-	TenantID              uuid.UUID             `json:"tenant_id"`
-	ExternalID            uuid.UUID             `json:"external_id"`
-	InsertedAt            pgtype.Timestamptz    `json:"inserted_at"`
-	ID                    int64                 `json:"id"`
-	DurableTaskID         int64                 `json:"durable_task_id"`
-	DurableTaskInsertedAt pgtype.Timestamptz    `json:"durable_task_inserted_at"`
-	Kind                  V1DurableEventLogKind `json:"kind"`
-	NodeID                int64                 `json:"node_id"`
-	BranchID              int64                 `json:"branch_id"`
-	IdempotencyKey        []byte                `json:"idempotency_key"`
-	IsSatisfied           bool                  `json:"is_satisfied"`
+	TenantID                uuid.UUID             `json:"tenant_id"`
+	ExternalID              uuid.UUID             `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
+	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
+	ID                      int64                 `json:"id"`
+	DurableTaskID           int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                    V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                 `json:"node_id"`
+	BranchID                int64                 `json:"branch_id"`
+	IdempotencyKey          []byte                `json:"idempotency_key"`
+	IsSatisfied             bool                  `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage             pgtype.Text           `json:"user_message"`
+	WaitData                []byte                `json:"wait_data"`
 }
 
 type V1DurableEventLogFile struct {
@@ -3277,6 +3282,7 @@ type V1IncomingWebhook struct {
 	EventKeyExpression           string                             `json:"event_key_expression"`
 	ScopeExpression              pgtype.Text                        `json:"scope_expression"`
 	StaticPayload                []byte                             `json:"static_payload"`
+	ReturnEventAsResponsePayload bool                               `json:"return_event_as_response_payload"`
 	AuthMethod                   V1IncomingWebhookAuthType          `json:"auth_method"`
 	AuthBasicUsername            pgtype.Text                        `json:"auth__basic__username"`
 	AuthBasicPassword            []byte                             `json:"auth__basic__password"`
@@ -3354,6 +3360,9 @@ type V1Match struct {
 	TriggerExistingTaskID         pgtype.Int8        `json:"trigger_existing_task_id"`
 	TriggerExistingTaskInsertedAt pgtype.Timestamptz `json:"trigger_existing_task_inserted_at"`
 	TriggerPriority               pgtype.Int4        `json:"trigger_priority"`
+	TriggerEventExternalID        *uuid.UUID         `json:"trigger_event_external_id"`
+	TriggerEventKey               pgtype.Text        `json:"trigger_event_key"`
+	TriggerDesiredWorkerLabels    []byte             `json:"trigger_desired_worker_labels"`
 	DurableEventLogEntryNodeID    pgtype.Int8        `json:"durable_event_log_entry_node_id"`
 	DurableEventLogEntryBranchID  pgtype.Int8        `json:"durable_event_log_entry_branch_id"`
 }
@@ -3422,14 +3431,17 @@ type V1Payload struct {
 }
 
 type V1PayloadCutoverJobOffset struct {
-	Key            pgtype.Date        `json:"key"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LastTenantID   uuid.UUID          `json:"last_tenant_id"`
-	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
-	LastID         int64              `json:"last_id"`
-	LastType       V1PayloadType      `json:"last_type"`
+	Key                      pgtype.Date        `json:"key"`
+	IsCompleted              bool               `json:"is_completed"`
+	LeaseProcessID           uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt           pgtype.Timestamptz `json:"lease_expires_at"`
+	LastTenantID             uuid.UUID          `json:"last_tenant_id"`
+	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
+	LastID                   int64              `json:"last_id"`
+	LastType                 V1PayloadType      `json:"last_type"`
+	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
+	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
+	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
 }
 
 type V1PayloadsOlap struct {
@@ -3443,13 +3455,16 @@ type V1PayloadsOlap struct {
 }
 
 type V1PayloadsOlapCutoverJobOffset struct {
-	Key            pgtype.Date        `json:"key"`
-	IsCompleted    bool               `json:"is_completed"`
-	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
-	LastTenantID   uuid.UUID          `json:"last_tenant_id"`
-	LastExternalID uuid.UUID          `json:"last_external_id"`
-	LastInsertedAt pgtype.Timestamptz `json:"last_inserted_at"`
+	Key                      pgtype.Date        `json:"key"`
+	IsCompleted              bool               `json:"is_completed"`
+	LeaseProcessID           uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt           pgtype.Timestamptz `json:"lease_expires_at"`
+	LastTenantID             uuid.UUID          `json:"last_tenant_id"`
+	LastExternalID           uuid.UUID          `json:"last_external_id"`
+	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
+	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
+	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
+	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
 }
 
 type V1Queue struct {
@@ -3604,6 +3619,8 @@ type V1Task struct {
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 	IsDurable                    pgtype.Bool        `json:"is_durable"`
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
+	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
+	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
 }
 
 type V1TaskEvent struct {
@@ -3718,6 +3735,7 @@ type V1TasksOlap struct {
 	DagID                pgtype.Int8          `json:"dag_id"`
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IsDurable            bool                 `json:"is_durable"`
 }
 
 type V1WorkerSlotConfig struct {

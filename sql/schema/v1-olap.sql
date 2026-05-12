@@ -89,40 +89,6 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION create_v1_olap_partition_with_date_and_status(
-    targetTableName text,
-    targetDate date
-) RETURNS integer
-    LANGUAGE plpgsql AS
-$$
-DECLARE
-    targetDateStr varchar;
-    targetDatePlusOneDayStr varchar;
-    newTableName varchar;
-BEGIN
-    SELECT to_char(targetDate, 'YYYYMMDD') INTO targetDateStr;
-    SELECT to_char(targetDate + INTERVAL '1 day', 'YYYYMMDD') INTO targetDatePlusOneDayStr;
-    SELECT format('%s_%s', targetTableName, targetDateStr) INTO newTableName;
-    IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = newTableName) THEN
-        EXECUTE format('CREATE TABLE %s (LIKE %s INCLUDING INDEXES) PARTITION BY LIST (readable_status)', newTableName, targetTableName);
-    END IF;
-
-    PERFORM create_v1_partition_with_status(newTableName, 'QUEUED');
-    PERFORM create_v1_partition_with_status(newTableName, 'RUNNING');
-    PERFORM create_v1_partition_with_status(newTableName, 'COMPLETED');
-    PERFORM create_v1_partition_with_status(newTableName, 'CANCELLED');
-    PERFORM create_v1_partition_with_status(newTableName, 'FAILED');
-    PERFORM create_v1_partition_with_status(newTableName, 'EVICTED');
-
-    -- If it's not already attached, attach the partition
-    IF NOT EXISTS (SELECT 1 FROM pg_inherits WHERE inhrelid = newTableName::regclass) THEN
-        EXECUTE format('ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (''%s'') TO (''%s'')', targetTableName, newTableName, targetDateStr, targetDatePlusOneDayStr);
-    END IF;
-
-    RETURN 1;
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION create_v1_hash_partitions(
     targetTableName text,
     num_partitions INT
@@ -189,15 +155,14 @@ CREATE TABLE v1_tasks_olap (
     dag_id BIGINT,
     dag_inserted_at TIMESTAMPTZ,
     parent_task_external_id UUID,
+    is_durable BOOLEAN NOT NULL DEFAULT FALSE,
 
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
 
 CREATE INDEX v1_tasks_olap_worker_id_idx ON v1_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
-
-SELECT create_v1_olap_partition_with_date_and_status('v1_tasks_olap', CURRENT_DATE);
 
 -- DAG DEFINITIONS --
 CREATE TABLE v1_dags_olap (
@@ -213,12 +178,10 @@ CREATE TABLE v1_dags_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_id);
-
-SELECT create_v1_olap_partition_with_date_and_status('v1_dags_olap', CURRENT_DATE);
 
 -- RUN DEFINITIONS --
 CREATE TYPE v1_run_kind AS ENUM ('TASK', 'DAG');
@@ -240,10 +203,8 @@ CREATE TABLE v1_runs_olap (
     PRIMARY KEY (inserted_at, id, readable_status, kind)
 ) PARTITION BY RANGE(inserted_at);
 
-SELECT create_v1_olap_partition_with_date_and_status('v1_runs_olap', CURRENT_DATE);
-
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
-CREATE INDEX ix_v1_runs_olap_tenant_id ON v1_runs_olap (tenant_id, inserted_at, id, readable_status, kind);
+CREATE INDEX ix_v1_runs_olap_tenant_status_ins_at ON v1_runs_olap (tenant_id, readable_status, inserted_at DESC);
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
@@ -410,6 +371,8 @@ CREATE TABLE v1_payloads_olap (
         (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
     )
 ) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v1_payloads_olap_external_id_idx ON v1_payloads_olap (external_id ASC);
 
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
@@ -586,7 +549,7 @@ BEGIN
         parent_task_external_id
     FROM new_rows
     WHERE dag_id IS NULL
-    ON CONFLICT (inserted_at, id, readable_status, kind) DO NOTHING;
+    ON CONFLICT (inserted_at, id) DO NOTHING;
 
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
@@ -667,19 +630,6 @@ BEGIN
         AND r.inserted_at = n.inserted_at
         AND r.kind = 'TASK';
 
-    -- insert tmp events into task status updates table if we have a dag_id
-    INSERT INTO v1_task_status_updates_tmp (
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    )
-    SELECT
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    FROM new_rows
-    WHERE dag_id IS NOT NULL;
-
     RETURN NULL;
 END;
 $$
@@ -719,7 +669,7 @@ BEGIN
         additional_metadata,
         parent_task_external_id
     FROM new_rows
-    ON CONFLICT (inserted_at, id, readable_status, kind) DO NOTHING;
+    ON CONFLICT (inserted_at, id) DO NOTHING;
 
     INSERT INTO v1_lookup_table_olap (
         tenant_id,
@@ -888,7 +838,10 @@ CREATE TABLE v1_payloads_olap_cutover_job_offset (
 
     last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
     last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
+    final_source_table_row_count BIGINT,
+    final_target_table_row_count BIGINT,
+    final_row_count_diff BIGINT
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payloads_olap_partition_structure(

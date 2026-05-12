@@ -193,13 +193,15 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
 			&l,
-			100,                 // singleQueueLimit
-			20,                  // schedulerConcurrencyRateLimit
-			10*time.Millisecond, // schedulerConcurrencyPollingMinInterval
-			50*time.Millisecond, // schedulerConcurrencyPollingMaxInterval
-			5*time.Millisecond,  // schedulerAdvisoryLockTimeout
-			false,               // optimisticSchedulingEnabled
-			1,                   // optimisticSlots
+			100,                  // singleQueueLimit
+			20,                   // schedulerConcurrencyRateLimit
+			10*time.Millisecond,  // schedulerConcurrencyPollingMinInterval
+			50*time.Millisecond,  // schedulerConcurrencyPollingMaxInterval
+			50*time.Millisecond,  // schedulerCheckActiveMinInterval
+			100*time.Millisecond, // schedulerCheckActiveMaxInterval
+			5*time.Millisecond,   // schedulerAdvisoryLockTimeout
+			false,                // optimisticSchedulingEnabled
+			1,                    // optimisticSlots
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -240,6 +242,8 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 			20,
 			10*time.Millisecond,
 			50*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
 			5*time.Millisecond,
 			false,
 			1,
@@ -279,6 +283,8 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 			20,
 			10*time.Millisecond,
 			50*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
 			5*time.Millisecond,
 			false,
 			1,
@@ -332,6 +338,8 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 			20,
 			10*time.Millisecond,
 			50*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
 			5*time.Millisecond,
 			false,
 			1,

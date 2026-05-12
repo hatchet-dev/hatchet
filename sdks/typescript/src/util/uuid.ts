@@ -1,5 +1,5 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 export function isValidUUID(uuid: string): boolean {
-  return z.string().uuid().safeParse(uuid).success;
+  return z.uuid().safeParse(uuid).success;
 }

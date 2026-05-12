@@ -40,6 +40,10 @@ You can report issues in our [Github issues](https://github.com/hatchet-dev/hatc
 
 ## Changelog
 
+### 0.2.1
+
+- **Fix memory leak** — workspace annotation scanning now reads files via `vscode.workspace.fs.readFile` instead of `openTextDocument`, preventing Monaco text models from being created for every `.ts`/`.tsx` file in the workspace.
+
 ### 0.2.0
 
 - **Custom wrapper support** — annotate any factory function with `@hatchet-workflow` to get DAG visualization for variables it creates, with no other config required. Use `@hatchet-task-method` and `@hatchet-task-parents` to match your wrapper's API when it differs from the Hatchet defaults.

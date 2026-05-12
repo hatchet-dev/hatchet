@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    hatchet-sdk (0.2.0)
+    hatchet-sdk (0.3.0)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart
@@ -19,7 +19,7 @@ GEM
     concurrent-ruby (1.3.6)
     date (3.5.1)
     diff-lcs (1.6.2)
-    erb (4.0.4)
+    erb (4.0.4.1)
       cgi (>= 0.3.3)
     faraday (2.14.1)
       faraday-net_http (>= 2.0, < 3.5)
@@ -52,12 +52,12 @@ GEM
       googleapis-common-protos-types (~> 1.0)
     grpc-tools (1.80.0)
     io-console (0.8.2)
-    irb (1.17.0)
+    irb (1.18.0)
       pp (>= 0.6.0)
       prism (>= 1.3.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
-    json (2.19.3)
+    json (2.19.5)
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
     logger (1.7.0)
@@ -78,12 +78,12 @@ GEM
       stringio
     racc (1.8.1)
     rainbow (3.1.1)
-    rake (13.3.1)
+    rake (13.4.2)
     rdoc (7.2.0)
       erb
       psych (>= 4.0.0)
       tsort
-    regexp_parser (2.11.3)
+    regexp_parser (2.12.0)
     reline (0.6.3)
       io-console (~> 0.5)
     rspec (3.13.2)
@@ -99,11 +99,11 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.7)
-    rubocop (1.86.0)
+    rubocop (1.86.1)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.1.0)
-      parallel (~> 1.10)
+      parallel (>= 1.10)
       parser (>= 3.3.0.2)
       rainbow (>= 2.2.2, < 4.0)
       regexp_parser (>= 2.9.3, < 3.0)
@@ -134,7 +134,7 @@ DEPENDENCIES
   hatchet-sdk!
   irb
   json (~> 2.19)
-  rake (~> 13.3)
+  rake (~> 13.4)
   rspec (~> 3.13)
   rubocop (~> 1.86)
 

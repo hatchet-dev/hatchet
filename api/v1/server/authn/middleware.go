@@ -213,21 +213,75 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
 
-	// a tenant id must exist in the context in order for the bearer auth to succeed, since
-	// these tokens are tenant-scoped
 	ctx := c.Request().Context()
-	queriedTenant, ok := c.Get("tenant").(*sqlcv1.Tenant)
 
-	if !ok {
-		a.l.Debug().Ctx(ctx).Msgf("tenant not found in context")
-
-		return fmt.Errorf("tenant not found in context")
-	}
-
-	token, err := getBearerTokenFromRequest(c.Request())
+	token, isExchangeToken, err := getBearerTokenFromRequest(c.Request())
 
 	if err != nil {
 		a.l.Debug().Ctx(ctx).Err(err).Msg("error getting bearer token from request")
+
+		return forbidden
+	}
+
+	queriedTenant, isTenantScoped := c.Get("tenant").(*sqlcv1.Tenant)
+
+	if isExchangeToken {
+		if a.config.Auth.ExchangeTokenClient == nil {
+			a.l.Error().Msgf("exchange token client is not configured")
+
+			return forbidden
+		}
+
+		tenantId, userId, validationErr := a.config.Auth.ExchangeTokenClient.ValidateExchangeToken(c.Request().Context(), token)
+
+		if validationErr != nil {
+			a.l.Error().Err(validationErr).Msg("error validating exchange token")
+
+			return forbidden
+		}
+
+		// we permit exchange token auth if the token is valid and represents a user if the endpoint is not tenant-scoped, because
+		// this is effectively a PAT without the tenant scoping
+		if isTenantScoped && *tenantId != queriedTenant.ID {
+			a.l.Error().Msgf("tenant id in token does not match tenant id in context")
+
+			return forbidden
+		}
+
+		user, getUserErr := a.config.V1.User().GetUserByID(c.Request().Context(), *userId)
+
+		if getUserErr != nil {
+			a.l.Error().Err(getUserErr).Msg("error getting user by id from exchange token")
+
+			if errors.Is(getUserErr, pgx.ErrNoRows) {
+				return forbidden
+			}
+
+			return fmt.Errorf("error getting user by id from exchange token: %w", getUserErr)
+		}
+
+		// important: user is validated later in the authz step
+		c.Set("user", user)
+		c.Set(middleware.IsExchangeTokenContextKey, true)
+
+		ctx = context.WithValue(ctx, analytics.UserIDKey, *userId)
+		ctx = context.WithValue(ctx, analytics.TenantIDKey, *tenantId)
+		ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceAPI)
+
+		span := trace.SpanFromContext(ctx)
+		telemetry.WithAttributes(span,
+			telemetry.AttributeKV{Key: "tenant.id", Value: *tenantId},
+			telemetry.AttributeKV{Key: "user.id", Value: *userId},
+		)
+
+		c.SetRequest(c.Request().WithContext(ctx))
+
+		return nil
+	}
+
+	// If we've reached this point, and it's not tenant-scoped, this endpoint is forbidden
+	if !isTenantScoped {
+		a.l.Debug().Ctx(ctx).Msgf("bearer token auth attempted on non-tenant-scoped endpoint")
 
 		return forbidden
 	}
@@ -273,17 +327,24 @@ func (a *AuthN) handleCustomAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return a.config.Auth.CustomAuthenticator.Authenticate(c, r)
 }
 
+const exchangeTokenHeader = "X-Exchange-Token"
+
 var errInvalidAuthHeader = fmt.Errorf("invalid authorization header in request")
 
-func getBearerTokenFromRequest(r *http.Request) (string, error) {
+func getBearerTokenFromRequest(r *http.Request) (token string, isExchangeToken bool, err error) {
 	reqToken := r.Header.Get("Authorization")
 	splitToken := strings.Split(reqToken, "Bearer")
 
 	if len(splitToken) != 2 {
-		return "", errInvalidAuthHeader
+		return "", false, errInvalidAuthHeader
 	}
 
 	reqToken = strings.TrimSpace(splitToken[1])
 
-	return reqToken, nil
+	// if there's also an X-Exchange-Token header, then this is an exchange token request
+	if r.Header.Get(exchangeTokenHeader) != "" {
+		return reqToken, true, nil
+	}
+
+	return reqToken, false, nil
 }

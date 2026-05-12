@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+/** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+export enum OrganizationAvailableShardClass {
+  SHARED = "SHARED",
+  DEDICATED = "DEDICATED",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -38,23 +44,63 @@ export interface APIControlPlaneMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  auth?: APIMetaAuth;
+  /**
+   * the Pylon app ID for usepylon.com chat support
+   * @example "12345678-1234-1234-1234-123456789012"
+   */
+  pylonAppId?: string;
+  posthog?: APIMetaPosthog;
+  /**
+   * whether or not users can sign up for this instance
+   * @example true
+   */
+  allowSignup?: boolean;
+  /**
+   * whether or not users can invite other users to this instance
+   * @example true
+   */
+  allowInvites?: boolean;
+  /**
+   * whether or not users can create new tenants
+   * @example true
+   */
+  allowCreateTenant?: boolean;
+  /**
+   * whether or not users can change their password
+   * @example true
+   */
+  allowChangePassword?: boolean;
+  /**
+   * whether or not observability (trace collection) is enabled on this instance
+   * @example false
+   */
+  observabilityEnabled?: boolean;
 }
 
-export type { APIErrors } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIMetaAuth } from '@/lib/api/generated/data-contracts';
 
-export type { APIError } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIMetaPosthog } from '@/lib/api/generated/data-contracts';
 
-export type { PaginationResponse } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIErrors } from '@/lib/api/generated/data-contracts';
 
-export type { APIResourceMeta } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIError } from '@/lib/api/generated/data-contracts';
 
-export type { User } from '@/lib/api/generated/cloud/data-contracts';
+import type { PaginationResponse } from '@/lib/api/generated/data-contracts';
 
-export type { UserLoginRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIResourceMeta } from '@/lib/api/generated/data-contracts';
 
-export type { UserChangePasswordRequest } from '@/lib/api/generated/cloud/data-contracts';
+export type ListAPIMetaIntegration = APIMetaIntegration[];
 
-export type { UserRegisterRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { APIMetaIntegration } from '@/lib/api/generated/data-contracts';
+
+import type { User } from '@/lib/api/generated/data-contracts';
+
+import type { UserLoginRequest } from '@/lib/api/generated/data-contracts';
+
+import type { UserChangePasswordRequest } from '@/lib/api/generated/data-contracts';
+
+import type { UserRegisterRequest } from '@/lib/api/generated/data-contracts';
 
 export interface Organization {
   metadata: APIResourceMeta;
@@ -62,6 +108,11 @@ export interface Organization {
   name: string;
   tenants?: OrganizationTenant[];
   members?: OrganizationMember[];
+  /**
+   * Time of inactivity to force log out a user (ms)
+   * @format int64
+   */
+  inactivity_timeout?: number;
 }
 
 export interface OrganizationForUser {
@@ -93,7 +144,9 @@ export interface UpdateOrganizationRequest {
    * @minLength 1
    * @maxLength 256
    */
-  name: string;
+  name?: string;
+  /** Inactivity timeout */
+  inactivity_timeout?: string;
 }
 
 export interface OrganizationMember {
@@ -126,6 +179,10 @@ export interface OrganizationTenant {
    * @format uuid
    */
   id: string;
+  /** Name of the tenant */
+  name?: string;
+  /** Slug of the tenant */
+  slug?: string;
   /** Status of the tenant */
   status: TenantStatusType;
   /**
@@ -133,6 +190,8 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
+  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
+  region?: string;
 }
 
 export interface OrganizationTenantList {
@@ -144,6 +203,11 @@ export interface CreateNewTenantForOrganizationRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /**
+   * Optional shard region (e.g. aws:us-east-1). When omitted, the server picks one.
+   * @example "aws:us-east-1"
+   */
+  region?: string;
 }
 
 export interface CreateManagementTokenRequest {
@@ -171,6 +235,11 @@ export interface ManagementToken {
    * @format date-time
    */
   expiresAt?: string;
+}
+
+export interface CreateOrganizationSsoDomainRequest {
+  /** @format uri */
+  ssoDomain: string;
 }
 
 export interface ManagementTokenList {
@@ -235,29 +304,29 @@ export interface RejectOrganizationInviteRequest {
   id: string;
 }
 
-export type { TenantMemberRole } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMemberRole } from '@/lib/api/generated/data-contracts';
 
-export type { UserTenantPublic } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserTenantPublic } from '@/lib/api/generated/data-contracts';
 
-export type { TenantMember } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMember } from '@/lib/api/generated/data-contracts';
 
-export type { TenantMemberList } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantMemberList } from '@/lib/api/generated/data-contracts';
 
-export type { UpdateTenantMemberRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UpdateTenantMemberRequest } from '@/lib/api/generated/data-contracts';
 
-export type { TenantInvite } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantInvite } from '@/lib/api/generated/data-contracts';
 
-export type { TenantInviteList } from '@/lib/api/generated/cloud/data-contracts';
+import type { TenantInviteList } from '@/lib/api/generated/data-contracts';
 
-export type { CreateTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { CreateTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { UpdateTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { UpdateTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { AcceptInviteRequest as AcceptTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { AcceptInviteRequest as AcceptTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { RejectInviteRequest as RejectTenantInviteRequest } from '@/lib/api/generated/cloud/data-contracts';
+import type { RejectInviteRequest as RejectTenantInviteRequest } from '@/lib/api/generated/data-contracts';
 
-export type { UserTenantMembershipsList } from '@/lib/api/generated/cloud/data-contracts';
+import type { UserTenantMembershipsList } from '@/lib/api/generated/data-contracts';
 
 export interface TenantExchangeToken {
   /** The signed exchange token for the tenant */
@@ -269,4 +338,64 @@ export interface TenantExchangeToken {
    * @format date-time
    */
   expiresAt: string;
+}
+
+export interface APIToken {
+  metadata: APIResourceMeta;
+  /** The name of the API token */
+  name: string;
+  /**
+   * The timestamp at which the token expires
+   * @format date-time
+   */
+  expiresAt: string;
+}
+
+export interface APITokenList {
+  rows: APIToken[];
+  pagination?: PaginationResponse;
+}
+
+export interface CreateTenantAPITokenRequest {
+  /** The name of the API token */
+  name: string;
+  /** The duration for which the token should be valid (e.g., "30d", "90d") */
+  expiresIn?: string;
+}
+
+export interface CreateTenantAPITokenResponse {
+  /** The generated API token */
+  token: string;
+}
+
+export interface OrganizationAvailableShard {
+  /** Cloud provider for this deployment target (e.g. aws). */
+  provider: string;
+  /** Region within the provider (e.g. us-east-1). */
+  region: string;
+  /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+  shardClass: OrganizationAvailableShardClass;
+}
+
+export interface OrganizationAvailableShardList {
+  rows: OrganizationAvailableShard[];
+}
+
+export interface SsoDomain {
+  /**
+   * @format uri
+   * @example "acme.com"
+   */
+  ssoDomain: string;
+  /** @example false */
+  verified: boolean;
+  /** @format uuid */
+  verificationToken: string;
+}
+
+export type SsoDomainArray = SsoDomain[];
+
+export interface SsoConfig {
+  /** @example false */
+  forceSSO: boolean;
 }

@@ -145,6 +145,110 @@ V1TriggerWorkflowRunRequest:
     - workflowName
     - input
 
+V1DurableEventLogKind:
+  type: string
+  enum:
+    - RUN
+    - WAIT_FOR
+    - MEMO
+
+V1DurableWaitConditionKind:
+  type: string
+  enum:
+    - SLEEP
+    - USER_EVENT
+    - CHILD_WORKFLOW
+
+V1DurableWaitCondition:
+  type: object
+  properties:
+    kind:
+      $ref: "#/V1DurableWaitConditionKind"
+    sleepDurationMs:
+      type: integer
+      format: int64
+    eventKey:
+      type: string
+    workflowName:
+      type: string
+  required:
+    - kind
+
+V1WaitItem:
+  type: object
+  properties:
+    kind:
+      $ref: "#/V1DurableWaitConditionKind"
+    sleepDurationMs:
+      type: integer
+      format: int64
+    eventKey:
+      type: string
+    workflowName:
+      type: string
+    or:
+      type: array
+      items:
+        $ref: "#/V1DurableWaitCondition"
+
+V1WaitData:
+  type: array
+  items:
+    $ref: "#/V1WaitItem"
+
+V1DurableEventLogEntry:
+  type: object
+  properties:
+    nodeId:
+      type: integer
+      format: int64
+      description: The monotonically increasing node id in the event log.
+    branchId:
+      type: integer
+      format: int64
+      description: The branch id when this entry was first seen.
+    kind:
+      $ref: "#/V1DurableEventLogKind"
+    waitData:
+      $ref: "#/V1WaitData"
+    isSatisfied:
+      type: boolean
+      description: Whether this entry has been satisfied.
+    satisfiedAt:
+      type: string
+      format: date-time
+      description: When this entry was satisfied, if it has been satisfied.
+    insertedAt:
+      type: string
+      format: date-time
+      description: When this entry was inserted.
+    userMessage:
+      type: string
+      description: A user-provided message or label, sent when establishing a durable wait.
+    taskExternalId:
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      description: The external id of the durable task this event log entry is associated with.
+    taskDisplayName:
+      type: string
+      description: The display name of the durable task this event log entry is associated with.
+  required:
+    - nodeId
+    - branchId
+    - kind
+    - isSatisfied
+    - insertedAt
+    - taskExternalId
+    - taskDisplayName
+
+V1DurableEventLogList:
+  type: array
+  items:
+    $ref: "#/V1DurableEventLogEntry"
+
+
 V1BranchDurableTaskRequest:
   properties:
     taskExternalId:

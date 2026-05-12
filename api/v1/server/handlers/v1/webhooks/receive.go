@@ -327,7 +327,12 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
+	if !webhook.ReturnEventAsResponsePayload {
+		return gen.V1WebhookReceive204Response{}, nil
+	}
+
 	res, err := transformers.ToV1WebhookResponse(repository.StringPtr("ok"), nil, ev)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform response: %w", err)
 	}

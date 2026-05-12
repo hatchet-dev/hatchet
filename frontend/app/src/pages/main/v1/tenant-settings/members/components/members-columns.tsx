@@ -1,7 +1,6 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import useCloud from '@/hooks/use-cloud';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -17,15 +16,18 @@ export function MemberActions({
   member,
   onChangePasswordClick,
   onEditRoleClick,
+  tenantId,
+  onDeleteSuccess,
 }: {
   member: TenantMember;
   onChangePasswordClick: (member: TenantMember) => void;
   onEditRoleClick: (member: TenantMember) => void;
+  tenantId: string;
+  onDeleteSuccess?: () => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
-  const { tenantId } = useCurrentTenantId();
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
 
@@ -39,8 +41,13 @@ export function MemberActions({
       queryClient.invalidateQueries({
         queryKey: ['tenant-member:list', tenantId],
       });
+      onDeleteSuccess?.();
+      setShowDeleteDialog(false);
     },
-    onError: handleApiError,
+    onError: (error: unknown) => {
+      handleApiError(error as Parameters<typeof handleApiError>[0]);
+      setShowDeleteDialog(false);
+    },
   });
 
   const isOwnerRole = member.role === 'OWNER';

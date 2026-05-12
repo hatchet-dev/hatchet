@@ -425,6 +425,7 @@ WITH tasks_on_inactive_workers AS (
         v1_task_runtime runtime ON w."id" = runtime.worker_id
     WHERE
         w."tenantId" = @tenantId::uuid
+        AND w."tenantId" = runtime.tenant_id
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
@@ -646,7 +647,10 @@ WITH RECURSIVE augmented_tasks AS (
         t.parent_task_inserted_at,
         t.step_index,
         t.child_index,
-        t.child_key
+        t.child_key,
+        t.desired_worker_label,
+        t.triggering_event_external_id,
+        t.triggering_event_key
     FROM
         v1_task t
     WHERE
@@ -692,6 +696,9 @@ SELECT
     t.step_index,
     t.child_index,
     t.child_key,
+    t.desired_worker_label,
+    t.triggering_event_external_id,
+    t.triggering_event_key,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -1100,12 +1107,19 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
 WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE cs.task_id = vt.id
-            AND cs.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE cs.task_id = vt.id
+                AND cs.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = cs.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED

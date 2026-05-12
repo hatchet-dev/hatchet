@@ -307,6 +307,8 @@ CREATE TABLE v1_task (
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
     desired_worker_label JSONB,
+    triggering_event_external_id UUID,
+    triggering_event_key TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -406,7 +408,7 @@ CREATE INDEX v1_queue_item_list_idx ON v1_queue_item (
     id ASC
 );
 
-CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
+CREATE UNIQUE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     task_inserted_at ASC,
     retry_count ASC
@@ -558,6 +560,10 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
+    trigger_event_external_id UUID,
+    trigger_event_key TEXT,
+    trigger_desired_worker_labels JSONB,
+
     durable_event_log_entry_node_id bigint,
     durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
@@ -634,6 +640,7 @@ CREATE TABLE v1_incoming_webhook (
     event_key_expression TEXT NOT NULL,
     scope_expression TEXT,
     static_payload JSONB,
+    return_event_as_response_payload BOOLEAN NOT NULL DEFAULT TRUE,
 
     auth_method v1_incoming_webhook_auth_type NOT NULL,
 
@@ -703,6 +710,7 @@ CREATE TABLE v1_dag (
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
+    desired_worker_labels JSONB,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -1132,7 +1140,9 @@ BEGIN
         retry_count,
         desired_worker_label
     FROM new_table
-    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
+    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
     IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
@@ -1349,7 +1359,9 @@ BEGIN
     WHERE nt.initial_state = 'QUEUED'
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
-        AND ot.retry_count IS DISTINCT FROM nt.retry_count;
+        AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1487,7 +1499,9 @@ BEGIN
         desired_worker_id,
         retry_count,
         desired_worker_label
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1628,7 +1642,9 @@ BEGIN
         desired_worker_id,
         retry_count,
         desired_worker_label
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1742,6 +1758,8 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
+CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
+
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
@@ -1751,7 +1769,10 @@ CREATE TABLE v1_payload_cutover_job_offset (
     last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
     last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
     last_id BIGINT NOT NULL DEFAULT 0,
-    last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT'
+    last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT',
+    final_source_table_row_count BIGINT,
+    final_target_table_row_count BIGINT,
+    final_row_count_diff BIGINT
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
@@ -2322,6 +2343,8 @@ CREATE TABLE v1_durable_event_log_entry (
 
     -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
+    result_payload_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+
     -- The id and inserted_at of the durable task which created this entry
     -- The inserted_at time of this event from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
@@ -2348,6 +2371,10 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+    satisfied_at TIMESTAMPTZ,
+
+    user_message TEXT,
+    wait_data JSONB,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);

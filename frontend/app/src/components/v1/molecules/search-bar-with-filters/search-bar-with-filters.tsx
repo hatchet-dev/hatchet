@@ -29,12 +29,12 @@ export interface SearchSuggestion<TType extends string = string> {
   metadata?: Record<string, unknown>;
 }
 
-export interface AutocompleteResult<TSuggestion extends SearchSuggestion> {
+interface AutocompleteResult<TSuggestion extends SearchSuggestion> {
   suggestions: TSuggestion[];
   mode?: string;
 }
 
-export interface FilterChip {
+interface FilterChip {
   key: string;
   label: string;
   description?: string;
@@ -44,14 +44,14 @@ export interface FilterChip {
   requiresCustomInput?: boolean;
 }
 
-export interface CustomFilterInputProps {
+interface CustomFilterInputProps {
   filterKey: string;
   currentValue: string;
   onComplete: (value: string) => void;
   onCancel: () => void;
 }
 
-export interface SearchBarWithFiltersProps<
+interface SearchBarWithFiltersProps<
   TSuggestion extends SearchSuggestion,
   TContext,
 > {

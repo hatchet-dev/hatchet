@@ -62,7 +62,7 @@ DO UPDATE SET
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $1::UUID
-RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type, final_source_table_row_count, final_target_table_row_count, final_row_count_diff
 `
 
 type AcquireOrExtendCutoverJobLeaseParams struct {
@@ -95,6 +95,9 @@ func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, a
 		&i.LastInsertedAt,
 		&i.LastID,
 		&i.LastType,
+		&i.FinalSourceTableRowCount,
+		&i.FinalTargetTableRowCount,
+		&i.FinalRowCountDiff,
 	)
 	return &i, err
 }
@@ -472,6 +475,32 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		return nil, err
 	}
 	return items, nil
+}
+
+const setFinalPayloadCutoverRowCounts = `-- name: SetFinalPayloadCutoverRowCounts :exec
+UPDATE v1_payload_cutover_job_offset
+SET
+    final_source_table_row_count = $1::BIGINT,
+    final_target_table_row_count = $2::BIGINT,
+    final_row_count_diff = $3::BIGINT
+WHERE key = $4::DATE
+`
+
+type SetFinalPayloadCutoverRowCountsParams struct {
+	Finalsourcetablerowcount int64       `json:"finalsourcetablerowcount"`
+	Finaltargettablerowcount int64       `json:"finaltargettablerowcount"`
+	Finalrowcountdiff        int64       `json:"finalrowcountdiff"`
+	Key                      pgtype.Date `json:"key"`
+}
+
+func (q *Queries) SetFinalPayloadCutoverRowCounts(ctx context.Context, db DBTX, arg SetFinalPayloadCutoverRowCountsParams) error {
+	_, err := db.Exec(ctx, setFinalPayloadCutoverRowCounts,
+		arg.Finalsourcetablerowcount,
+		arg.Finaltargettablerowcount,
+		arg.Finalrowcountdiff,
+		arg.Key,
+	)
+	return err
 }
 
 const swapV1PayloadPartitionWithTemp = `-- name: SwapV1PayloadPartitionWithTemp :exec

@@ -375,6 +375,8 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 			20,
 			5*time.Millisecond,
 			6*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
 			5*time.Millisecond,
 			false,
 			1,

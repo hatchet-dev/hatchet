@@ -1,4 +1,4 @@
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
   queries,
   V1CreateWebhookRequest,
@@ -14,6 +14,7 @@ import { z } from 'zod';
 export const useWebhooks = (onDeleteSuccess?: () => void) => {
   const queryClient = useQueryClient();
   const { tenantId } = useCurrentTenantId();
+  const { tenant } = useTenantDetails();
 
   const { data, isLoading, error } = useQuery({
     ...queries.v1Webhooks.list(tenantId),
@@ -62,7 +63,14 @@ export const useWebhooks = (onDeleteSuccess?: () => void) => {
   });
 
   const createWebhookURL = (name: string) => {
-    return `${window.location.protocol}//${window.location.hostname}/api/v1/stable/tenants/${tenantId}/webhooks/${name}`;
+    const suffix = `/api/v1/stable/tenants/${tenantId}/webhooks/${name}`;
+
+    // if the tenant has a serverUrl defined, use that to construct the webhook URL. Otherwise, fall back to using the current window location
+    if (tenant?.serverUrl) {
+      return `${tenant.serverUrl}${suffix}`;
+    }
+
+    return `${window.location.protocol}//${window.location.hostname}${suffix}`;
   };
 
   return {
@@ -105,6 +113,7 @@ export const webhookFormSchema = z.object({
   eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   scopeExpression: z.string().optional(),
   staticPayload: optionalJsonString,
+  returnEventAsResponsePayload: z.boolean().optional(),
   authType: z.nativeEnum(V1WebhookAuthType),
   username: z.string().optional(),
   password: z.string().optional(),
@@ -122,6 +131,7 @@ export const webhookUpdateFormSchema = z.object({
   eventKeyExpression: z.string().min(1, 'Event key expression is required'),
   scopeExpression: z.string().optional(),
   staticPayload: optionalJsonString,
+  returnEventAsResponsePayload: z.boolean().optional(),
 });
 
 export type WebhookUpdateFormData = z.infer<typeof webhookUpdateFormSchema>;

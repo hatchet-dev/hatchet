@@ -285,6 +285,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithOperationsConfig(sc.Operations),
 			olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 			olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+			olap.WithMQQos(sc.Operations.OLAPMQQos),
+			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 		)
 
 		if err != nil {
@@ -664,6 +666,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+				olap.WithMQQos(sc.Operations.OLAPMQQos),
+				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 			)
 
 			if err != nil {

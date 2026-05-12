@@ -184,10 +184,10 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
-			pool:       pgbouncerPool,
-			directPool: directPool,
-			l:          &logger,
-			queries:    queries,
+			pool:    pgbouncerPool,
+			ddlPool: directPool,
+			l:       &logger,
+			queries: queries,
 		},
 		taskRetentionPeriod:   24 * time.Hour, // 1 day retention means 3-day-old partitions get detached
 		maxInternalRetryCount: 3,
@@ -210,7 +210,7 @@ func TestUpdateTablePartitions_PgBouncer(t *testing.T) {
 // TestUpdateTablePartitions_PgBouncer_CreateOnly verifies that basic partition creation
 // (non-DDL operations) works through pgbouncer.
 func TestUpdateTablePartitions_PgBouncer_CreateOnly(t *testing.T) {
-	_, pgbouncerPool, cleanup := setupPostgresWithPgBouncer(t)
+	directPool, pgbouncerPool, cleanup := setupPostgresWithPgBouncer(t)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -235,6 +235,7 @@ func TestUpdateTablePartitions_PgBouncer_CreateOnly(t *testing.T) {
 	repo := &TaskRepositoryImpl{
 		sharedRepository: &sharedRepository{
 			pool:    pgbouncerPool,
+			ddlPool: directPool,
 			l:       &logger,
 			queries: queries,
 		},

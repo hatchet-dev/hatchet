@@ -17,7 +17,7 @@ type ParamState = {
   q?: string;
 };
 
-export type RunDetailSearchState = {
+type RunDetailSearchState = {
   tab: string | undefined;
   focusedTaskRunId: string | undefined;
   selectedSpanId: string | undefined;

@@ -21,12 +21,12 @@ type engineSpanEvent struct {
 	insertedAt         time.Time
 	taskInsertedAt     time.Time
 	eventTimestamp     time.Time
-	eventType          sqlcv1.V1EventTypeOlap
+	eventMessage       string
 	stepReadableID     string
-	additionalMetadata []byte
 	actionID           string
 	displayName        string
-	eventMessage       string
+	eventType          sqlcv1.V1EventTypeOlap
+	additionalMetadata []byte
 	taskID             int64
 	retryCount         int32
 	externalID         uuid.UUID

@@ -18,7 +18,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { CronWorkflows } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export default function CronsTable() {
   const { tenantId } = useCurrentTenantId();
@@ -69,6 +69,21 @@ export default function CronsTable() {
     }
   };
 
+  const tableColumns = useMemo(
+    () =>
+      columns({
+        tenantId,
+        onDeleteClick: handleDeleteClick,
+        onEnableClick,
+        selectedJobId,
+        setSelectedJobId,
+        isUpdatePending,
+        updatingCronId,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenantId, selectedJobId, isUpdatePending, updatingCronId],
+  );
+
   const filters: ToolbarFilters = [
     {
       columnId: workflowKey,
@@ -112,15 +127,7 @@ export default function CronsTable() {
       <DataTable
         error={error}
         isLoading={isLoading}
-        columns={columns({
-          tenantId,
-          onDeleteClick: handleDeleteClick,
-          onEnableClick,
-          selectedJobId,
-          setSelectedJobId,
-          isUpdatePending,
-          updatingCronId,
-        })}
+        columns={tableColumns}
         data={crons}
         filters={filters}
         showColumnToggle={true}

@@ -23,6 +23,9 @@ V1Webhook:
     authType:
       $ref: "#/V1WebhookAuthType"
       description: The type of authentication to use for the webhook
+    returnEventAsResponsePayload:
+      type: boolean
+      description: Whether to return the triggered event as the response payload when this webhook is triggered
   required:
     - metadata
     - tenantId
@@ -141,6 +144,9 @@ V1CreateWebhookRequestBase:
     staticPayload:
       type: object
       description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
+    returnEventAsResponsePayload:
+      type: boolean
+      description: Whether to return the triggered event as the response payload when this webhook is triggered
   required:
     - name
     - sourceName
@@ -212,6 +218,9 @@ V1UpdateWebhookRequest:
     staticPayload:
       type: object
       description: The static payload to use for the webhook. This is used to send a static payload with the webhook.
+    returnEventAsResponsePayload:
+      type: boolean
+      description: Whether to return the triggered event as the response payload when this webhook is triggered
 
 V1WebhookResponse:
   type: object

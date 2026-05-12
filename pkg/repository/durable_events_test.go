@@ -356,7 +356,7 @@ func TestFormatCall_WaitFor(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, "waitFor(sleep(10s), waitForEvent(user:signup))", opts.formatCall())
+	assert.Equal(t, "any of: sleep(10s), event(user:signup)", opts.formatCall())
 }
 
 func TestFormatCall_Memo(t *testing.T) {
@@ -381,7 +381,7 @@ func TestFormatCall_RunBulkWithDuplicates(t *testing.T) {
 		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
 		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
 	}
-	assert.Equal(t, "run(6x wf-a, wf-b, wf-c)", opts.formatCall())
+	assert.Equal(t, "run(wf-a, wf-a, wf-a, wf-a, wf-a, wf-a, wf-b, wf-c)", opts.formatCall())
 }
 
 func TestFormatCall_RunBulkExceedsMaxLabels(t *testing.T) {
@@ -396,7 +396,7 @@ func TestFormatCall_RunBulkExceedsMaxLabels(t *testing.T) {
 		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindRUN},
 		TriggerRuns:         &IngestTriggerRunsOpts{TriggerOpts: triggers},
 	}
-	assert.Equal(t, "run(a, b, c, d, e, ... +2 more unique)", opts.formatCall())
+	assert.Equal(t, "run(a, b, c, d, e, f, g)", opts.formatCall())
 }
 
 func TestFormatCall_WaitForBulkMixed(t *testing.T) {
@@ -416,7 +416,7 @@ func TestFormatCall_WaitForBulkMixed(t *testing.T) {
 		BaseIngestEventOpts: &BaseIngestEventOpts{Kind: sqlcv1.V1DurableEventLogKindWAITFOR},
 		WaitFor:             &IngestWaitForOpts{WaitForConditions: conditions},
 	}
-	assert.Equal(t, "waitFor(4x sleep(5s), waitForEvent(ev1), waitForEvent(ev2), waitForEvent(ev3), waitForEvent(ev4))", opts.formatCall())
+	assert.Equal(t, "any of: sleep(5s), sleep(5s), sleep(5s), sleep(5s), event(ev1), event(ev2), event(ev3), event(ev4)", opts.formatCall())
 }
 
 func TestFormatCall_RunExactlyAtMaxLabels(t *testing.T) {
@@ -445,7 +445,7 @@ func TestFormatStoredPayload_WaitFor(t *testing.T) {
 	payload, _ := json.Marshal([]CreateExternalSignalConditionOpt{
 		{Kind: CreateExternalSignalConditionKindSLEEP, SleepFor: strPtr("2s")},
 	})
-	assert.Equal(t, "waitFor(sleep(2s))", formatStoredPayload(sqlcv1.V1DurableEventLogKindWAITFOR, payload))
+	assert.Equal(t, "sleep(2s)", formatStoredPayload(sqlcv1.V1DurableEventLogKindWAITFOR, payload))
 }
 
 func TestFormatStoredPayload_NoPayload(t *testing.T) {
@@ -466,8 +466,8 @@ func TestNonDeterminismDetail_WithPayload(t *testing.T) {
 		},
 	}
 	detail := nonDeterminismDetail(opts, sqlcv1.V1DurableEventLogKindWAITFOR, existingPayload)
-	assert.Equal(t, "waitFor(sleep(2s))", detail.Expected)
-	assert.Equal(t, "waitFor(sleep(4s))", detail.Received)
+	assert.Equal(t, "sleep(2s)", detail.Expected)
+	assert.Equal(t, "sleep(4s)", detail.Received)
 }
 
 func TestNonDeterminismDetail_KindMismatch(t *testing.T) {

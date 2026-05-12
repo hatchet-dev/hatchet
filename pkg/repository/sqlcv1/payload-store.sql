@@ -216,3 +216,13 @@ SELECT compute_payload_batch_size(
     @lastType::v1_payload_type,
     @batchSize::INTEGER
 ) AS total_size_bytes;
+
+
+-- name: SetFinalPayloadCutoverRowCounts :exec
+UPDATE v1_payload_cutover_job_offset
+SET
+    final_source_table_row_count = @finalSourceTableRowCount::BIGINT,
+    final_target_table_row_count = @finalTargetTableRowCount::BIGINT,
+    final_row_count_diff = @finalRowCountDiff::BIGINT
+WHERE key = @key::DATE
+;

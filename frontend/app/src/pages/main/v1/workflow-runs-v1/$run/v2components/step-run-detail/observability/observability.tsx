@@ -29,7 +29,7 @@ import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { Activity } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
@@ -299,24 +299,6 @@ export const Observability = (props: ObservabilityProps) => {
     return markContextOnly(filtered, relevantSpanIds);
   }, [spanTrees, parsedQuery, relevantSpanIds]);
 
-  const handleAddFilter = useCallback(
-    (key: string, value: string) => {
-      const token = `${key}:${value}`;
-      const trimmed = queryString.trim();
-      setQueryString(trimmed ? `${trimmed} ${token}` : token);
-    },
-    [queryString, setQueryString],
-  );
-
-  const handleRemoveFilter = useCallback(
-    (key: string, value: string) => {
-      const token = `${key}:${value}`;
-      const parts = queryString.split(/\s+/).filter((p) => p !== token);
-      setQueryString(parts.join(' '));
-    },
-    [queryString, setQueryString],
-  );
-
   if (!tracesQuery.isFetched) {
     return <Loading />;
   }
@@ -419,9 +401,6 @@ export const Observability = (props: ObservabilityProps) => {
       <TaskRunTrace
         spanTrees={filteredTrees}
         isRunning={isRunning}
-        activeFilters={parsedQuery}
-        onAddFilter={handleAddFilter}
-        onRemoveFilter={handleRemoveFilter}
         contextTaskRunId={props.taskRunId}
         onClearFilters={queryString ? () => setQueryString('') : undefined}
       />

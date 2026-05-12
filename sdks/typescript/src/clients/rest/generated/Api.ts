@@ -37,15 +37,13 @@ import {
   EventOrderByField,
   EventSearch,
   Events,
+  FeatureFlagEvaluationResult,
+  FeatureFlagId,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
   ListSNSIntegrations,
   ListSlackWebhooks,
-  LogLineLevelField,
-  LogLineList,
-  LogLineOrderByDirection,
-  LogLineOrderByField,
-  LogLineSearch,
+  OtelSpanList,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -108,6 +106,7 @@ import {
   V1LogLineLevel,
   V1LogLineList,
   V1LogLineOrderByDirection,
+  V1LogsPointMetrics,
   V1ReplayTaskRequest,
   V1ReplayedTasks,
   V1RestoreTaskResponse,
@@ -276,6 +275,101 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists log lines for a tenant
+   *
+   * @tags Log
+   * @name V1TenantLogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/stable/tenants/{tenant}/logs
+   * @secure
+   */
+  v1TenantLogLineList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
+      /** The task external ID(s) to filter by */
+      taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1LogLineList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/logs`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of log metrics for a tenant
+   *
+   * @tags Log
+   * @name V1TenantLogLineGetPointMetrics
+   * @summary Get log point metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/log-point-metrics
+   * @secure
+   */
+  v1TenantLogLineGetPointMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The task external ID(s) to filter by */
+      taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1LogsPointMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/log-point-metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -595,6 +689,46 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1TaskEventList, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get OTel trace for a workflow run
+   *
+   * @tags Observability
+   * @name V1ObservabilityGetTrace
+   * @summary Get OTel trace
+   * @request GET:/api/v1/stable/tenants/{tenant}/traces
+   * @secure
+   */
+  v1ObservabilityGetTrace = (
+    tenant: string,
+    query: {
+      /**
+       * The workflow run external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      run_external_id: string;
+      /**
+       * The number of spans to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number of spans to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<OtelSpanList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/traces`,
       method: 'GET',
       query: query,
       secure: true,
@@ -2668,47 +2802,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Lists log lines for a step run.
-   *
-   * @tags Log
-   * @name LogLineList
-   * @summary List log lines
-   * @request GET:/api/v1/step-runs/{step-run}/logs
-   * @secure
-   */
-  logLineList = (
-    stepRun: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** A list of levels to filter by */
-      levels?: LogLineLevelField;
-      /** The search query to filter for */
-      search?: LogLineSearch;
-      /** What to order by */
-      orderByField?: LogLineOrderByField;
-      /** The order direction */
-      orderByDirection?: LogLineOrderByDirection;
-    },
-    params: RequestParams = {}
-  ) =>
-    this.request<LogLineList, APIErrors>({
-      path: `/api/v1/step-runs/${stepRun}/logs`,
-      method: 'GET',
-      query: query,
-      secure: true,
-      format: 'json',
-      ...params,
-    });
-  /**
    * @description List events for a step run
    *
    * @tags Step Run
@@ -3317,6 +3410,33 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Evaluate a feature flag for a tenant
+   *
+   * @tags Feature Flags
+   * @name TenantFeatureFlagEvaluate
+   * @summary Evaluate a feature flag for a tenant
+   * @request GET:/api/v1/tenants/{tenant}/feature-flags
+   * @secure
+   */
+  tenantFeatureFlagEvaluate = (
+    tenant: string,
+    query: {
+      /** The feature flag id to evaluate */
+      featureFlagId: FeatureFlagId;
+      /** A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable */
+      isEnabledIfNoPosthog: boolean;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<FeatureFlagEvaluationResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/feature-flags`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

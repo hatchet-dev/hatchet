@@ -18,4 +18,4 @@ Please note that we do not operate a bug bounty program, but we genuinely apprec
 
 This policy applies to the open-source repositories under the [hatchet-dev organization](https://github.com/hatchet-dev) on GitHub.
 
-For security concerns related to the hosted service at `cloud.onhatchet.run`, please contact [security@hatchet.run](mailto:security@hatchet.run) directly.
+For security concerns related to the hosted service at `cloud.hatchet.run`, please contact [security@hatchet.run](mailto:security@hatchet.run) directly.

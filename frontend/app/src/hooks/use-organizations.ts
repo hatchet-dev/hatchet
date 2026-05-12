@@ -184,10 +184,15 @@ export function useOrganizations() {
   });
 
   const updateOrganizationMutation = useMutation({
-    mutationFn: async (data: { organizationId: string; name: string }) => {
-      return orgApi
-        .organizationUpdateMutation(data.organizationId)
-        .mutationFn({ name: data.name });
+    mutationFn: async (data: {
+      organizationId: string;
+      name?: string;
+      inactivity_timeout?: string;
+    }) => {
+      return orgApi.organizationUpdateMutation(data.organizationId).mutationFn({
+        name: data.name,
+        inactivity_timeout: data.inactivity_timeout,
+      });
     },
     onError: handleApiError,
   });
@@ -199,6 +204,24 @@ export function useOrganizations() {
     onSuccess: () => {
       organizationListQuery.refetch();
     },
+  });
+
+  const createOrganizationSsoDomainMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
+      return orgApi
+        .organizationSsoDomainCreateMutation(data.organizationId)
+        .mutationFn(data.ssoDomain);
+    },
+    onError: handleApiError,
+  });
+
+  const deleteOrganizationSsoDomainMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
+      return orgApi
+        .organizationSsoDomainDeleteMutation(data.organizationId)
+        .mutationFn(data.ssoDomain);
+    },
+    onError: handleApiError,
   });
 
   const handleCreateToken = useCallback(
@@ -308,6 +331,22 @@ export function useOrganizations() {
     [updateOrganizationMutation],
   );
 
+  const handleUpdateOrganizationTimeout = (
+    organizationId: string,
+    inactivityTimeoutMs: number,
+    onSuccess: () => void,
+  ) => {
+    updateOrganizationMutation.mutate(
+      { organizationId, inactivity_timeout: `${inactivityTimeoutMs}ms` },
+      {
+        onSuccess: () => {
+          onSuccess();
+        },
+        onError: () => {},
+      },
+    );
+  };
+
   const handleCreateOrganization = useCallback(
     (name: string, onSuccess: (organizationId: string) => void) => {
       createOrganizationMutation.mutate(
@@ -323,6 +362,49 @@ export function useOrganizations() {
       );
     },
     [createOrganizationMutation],
+  );
+
+  const handleCreateOrganizationSsoDomain = useCallback(
+    (
+      organizationId: string,
+      ssoDomain: string,
+      onSuccess: (organizationId: string) => void,
+      onError?: () => void,
+    ) => {
+      createOrganizationSsoDomainMutation.mutate(
+        { organizationId, ssoDomain },
+        {
+          onSuccess: () => {
+            onSuccess(organizationId);
+          },
+          onError: () => {
+            onError?.();
+          },
+        },
+      );
+    },
+    [createOrganizationSsoDomainMutation],
+  );
+
+  const handleDeleteOrganizationSsoDomain = useCallback(
+    (
+      organizationId: string,
+      ssoDomain: string,
+      onSuccess: (organizationId: string) => void,
+    ) => {
+      deleteOrganizationSsoDomainMutation.mutate(
+        { organizationId, ssoDomain },
+        {
+          onSuccess: () => {
+            onSuccess(organizationId);
+          },
+          onError: () => {
+            // Error handling is done by the mutation itself via handleApiError
+          },
+        },
+      );
+    },
+    [deleteOrganizationSsoDomainMutation],
   );
 
   return {
@@ -342,7 +424,10 @@ export function useOrganizations() {
     handleDeleteToken,
     handleDeleteTenant,
     handleUpdateOrganization,
+    handleUpdateOrganizationTimeout,
     handleCreateOrganization,
+    handleCreateOrganizationSsoDomain,
+    handleDeleteOrganizationSsoDomain,
     // Loading states for mutations
     cancelInviteLoading: cancelInviteMutation.isPending,
     createTokenLoading: createTokenMutation.isPending,

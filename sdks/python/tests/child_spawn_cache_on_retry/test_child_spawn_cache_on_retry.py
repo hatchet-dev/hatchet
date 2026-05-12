@@ -14,7 +14,7 @@ from tests.child_spawn_cache_on_retry.worker import (
 
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [(["poetry", "run", "python", "tests/worker.py", "--slots", "5"], 8005)],
+    [["poetry", "run", "python", "tests/worker.py", "--slots", "5"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")

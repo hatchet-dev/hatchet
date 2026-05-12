@@ -129,34 +129,17 @@ export function RunStatus({
 export function V1RunStatus({
   status,
   errorMessage,
-  isEvicted,
   className,
 }: {
   status: V1TaskStatus;
   errorMessage?: string;
-  isEvicted?: boolean;
   className?: string;
 }) {
   const { text, variant } = createV1RunStatusVariant(status);
 
   const StatusBadge = () => (
     <Badge variant={variant} className={className}>
-      <span className="flex items-center gap-1">
-        {capitalize(isEvicted ? 'Running' : text)}
-        {isEvicted && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>&#x23FE;</span>
-              </TooltipTrigger>
-              <TooltipContent>
-                This task was evicted from a worker and is waiting to be
-                restored
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
-      </span>
+      <span className="flex items-center gap-1">{capitalize(text)}</span>
     </Badge>
   );
 

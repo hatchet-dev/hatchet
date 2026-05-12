@@ -69,8 +69,8 @@ export class WorkflowAnnotationCache {
 
     if (!remove) {
       try {
-        const doc = await vscode.workspace.openTextDocument(uri);
-        const text = doc.getText();
+        const bytes = await vscode.workspace.fs.readFile(uri);
+        const text = new TextDecoder().decode(bytes);
         const found = scanFileForWorkflowAnnotations(text, uri.fsPath);
         if (found.length > 0) {
           this._byFile.set(

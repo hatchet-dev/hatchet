@@ -15,7 +15,7 @@ from tests.concurrency_strategies.workflow import (
 
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [(["poetry", "run", "python", "tests/worker.py", "--slots", "1"], 8002)],
+    [["poetry", "run", "python", "tests/worker.py", "--slots", "1"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")

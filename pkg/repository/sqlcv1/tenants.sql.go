@@ -299,16 +299,37 @@ func (q *Queries) DeleteSchedulerPartition(ctx context.Context, db DBTX, id stri
 	return &i, err
 }
 
-const deleteTenant = `-- name: DeleteTenant :exec
+const deleteTenant = `-- name: DeleteTenant :one
 UPDATE "Tenant"
 SET "deletedAt" = NOW(),
     slug = slug || '_deleted_' || gen_random_uuid()
 WHERE "id" = $1::uuid
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
 `
 
-func (q *Queries) DeleteTenant(ctx context.Context, db DBTX, id uuid.UUID) error {
-	_, err := db.Exec(ctx, deleteTenant, id)
-	return err
+func (q *Queries) DeleteTenant(ctx context.Context, db DBTX, id uuid.UUID) (*Tenant, error) {
+	row := db.QueryRow(ctx, deleteTenant, id)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.UiVersion,
+		&i.Name,
+		&i.Slug,
+		&i.AnalyticsOptOut,
+		&i.AlertMemberEmails,
+		&i.ControllerPartitionId,
+		&i.WorkerPartitionId,
+		&i.DataRetentionPeriod,
+		&i.SchedulerPartitionId,
+		&i.CanUpgradeV1,
+		&i.OnboardingData,
+		&i.Environment,
+	)
+	return &i, err
 }
 
 const deleteTenantAlertGroup = `-- name: DeleteTenantAlertGroup :exec
@@ -994,52 +1015,27 @@ func (q *Queries) ListTenants(ctx context.Context, db DBTX) ([]*Tenant, error) {
 }
 
 const listTenantsByControllerPartitionId = `-- name: ListTenantsByControllerPartitionId :many
-SELECT
-    id, "createdAt", "updatedAt", "deletedAt", version, "uiVersion", name, slug, "analyticsOptOut", "alertMemberEmails", "controllerPartitionId", "workerPartitionId", "dataRetentionPeriod", "schedulerPartitionId", "canUpgradeV1", "onboardingData", environment
-FROM
-    "Tenant" as tenants
+SELECT "id"
+FROM "Tenant"
 WHERE
     "controllerPartitionId" = $1::text
-    AND "version" = $2::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-type ListTenantsByControllerPartitionIdParams struct {
-	ControllerPartitionId string                   `json:"controllerPartitionId"`
-	Majorversion          TenantMajorEngineVersion `json:"majorversion"`
-}
-
-func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, arg ListTenantsByControllerPartitionIdParams) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, arg.ControllerPartitionId, arg.Majorversion)
+func (q *Queries) ListTenantsByControllerPartitionId(ctx context.Context, db DBTX, controllerpartitionid string) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listTenantsByControllerPartitionId, controllerpartitionid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*Tenant
+	var items []uuid.UUID
 	for rows.Next() {
-		var i Tenant
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Version,
-			&i.UiVersion,
-			&i.Name,
-			&i.Slug,
-			&i.AnalyticsOptOut,
-			&i.AlertMemberEmails,
-			&i.ControllerPartitionId,
-			&i.WorkerPartitionId,
-			&i.DataRetentionPeriod,
-			&i.SchedulerPartitionId,
-			&i.CanUpgradeV1,
-			&i.OnboardingData,
-			&i.Environment,
-		); err != nil {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1054,17 +1050,12 @@ FROM
     "Tenant" as tenants
 WHERE
     "schedulerPartitionId" = $1::text
-    AND "version" = $2::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-type ListTenantsBySchedulerPartitionIdParams struct {
-	SchedulerPartitionId string                   `json:"schedulerPartitionId"`
-	Majorversion         TenantMajorEngineVersion `json:"majorversion"`
-}
-
-func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, arg ListTenantsBySchedulerPartitionIdParams) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsBySchedulerPartitionId, arg.SchedulerPartitionId, arg.Majorversion)
+func (q *Queries) ListTenantsBySchedulerPartitionId(ctx context.Context, db DBTX, schedulerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsBySchedulerPartitionId, schedulerpartitionid)
 	if err != nil {
 		return nil, err
 	}
@@ -1108,17 +1099,12 @@ FROM
     "Tenant" as tenants
 WHERE
     "workerPartitionId" = $1::text
-    AND "version" = $2::"TenantMajorEngineVersion"
+    AND "version" = 'V1'::"TenantMajorEngineVersion"
     AND "deletedAt" IS NULL
 `
 
-type ListTenantsByTenantWorkerPartitionIdParams struct {
-	WorkerPartitionId string                   `json:"workerPartitionId"`
-	Majorversion      TenantMajorEngineVersion `json:"majorversion"`
-}
-
-func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, arg ListTenantsByTenantWorkerPartitionIdParams) ([]*Tenant, error) {
-	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, arg.WorkerPartitionId, arg.Majorversion)
+func (q *Queries) ListTenantsByTenantWorkerPartitionId(ctx context.Context, db DBTX, workerpartitionid string) ([]*Tenant, error) {
+	rows, err := db.Query(ctx, listTenantsByTenantWorkerPartitionId, workerpartitionid)
 	if err != nil {
 		return nil, err
 	}

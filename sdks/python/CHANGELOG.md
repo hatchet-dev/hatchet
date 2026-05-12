@@ -5,6 +5,67 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.5] - 2026-05-12
+
+### Security
+
+- Bump urllib to `2.7.0` to address CVE-2026-44432
+
+## [1.33.4] - 2026-05-08
+
+### Changed
+
+- Fixes a bug where TLS credentials are not passed to the OTLP span exporter.
+
+## [1.33.3] - 2026-04-29
+
+### Changed
+
+- Fixes a bug where passing `wait_for_result=False` when spawning children out of a durable task would not be respected, causing unexpected errors and broken functionality.
+
+## [1.33.2] - 2026-04-22
+
+### Added
+
+- Adds `triggering_event_id` and `triggering_event_key` to the `Context`
+
+## [1.33.1] - 2026-04-21
+
+### Changed
+
+- Adds an optional `label` on durable event waits, which will propagate through to the dashboard
+
+## [1.33.0] - 2026-04-16
+
+### Changed
+
+- Adds `wait` and `before_sleep` parameters to `TenacityConfig` to allow custom retry strategies and retry callbacks.
+
+## [1.32.3] - 2026-04-16
+
+### Changed
+
+- Fixes a couple of internal uses of deprecated methods
+
+## [1.32.2] - 2026-04-15
+
+### Changed
+
+- Fixes a bug where failures sending a completed or failed event from the worker to the engine would fail the task and bypass any retries, even if some were configured on the task
+
+## [1.32.1] - 2026-04-09
+
+### Changed
+
+- Fixes a bug in the shutdown handlers that wouldn't correctly trigger graceful shutdown if only the parent process received a shutdown signal like `SIGTERM`, which might often be the case on e.g. Kubernetes.
+- Fixes an issue where we generated protobufs using a more recent grpcio version than the minimum allowed, causing breakages on older versions.
+
+## [1.32.0] - 2026-04-07
+
+### Added
+
+- Adds `scope` and `lookback_window` arguments for the `DurableContext.aio_wait_for_event`, which allows durable tasks to look back in time for events that may have been emitted before the task started.
+
 ## [1.31.0] - 2026-04-03
 
 ### Added

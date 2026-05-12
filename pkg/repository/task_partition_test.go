@@ -85,6 +85,7 @@ func createTaskRepository(pool *pgxpool.Pool) *TaskRepositoryImpl {
 	logger := zerolog.Nop()
 	shared := &sharedRepository{
 		pool:    pool,
+		ddlPool: pool,
 		l:       &logger,
 		queries: sqlcv1.New(),
 	}

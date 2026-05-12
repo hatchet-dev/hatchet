@@ -15,11 +15,13 @@ EVICTION_TTL_SECONDS = 5
 LONG_SLEEP_SECONDS = 15
 EVENT_KEY = "durable-eviction:event"
 
+# > Eviction Policy
 EVICTION_POLICY = EvictionPolicy(
     ttl=timedelta(seconds=EVICTION_TTL_SECONDS),
     allow_capacity_eviction=True,
     priority=0,
 )
+# !!
 
 
 @hatchet.task()
@@ -29,6 +31,7 @@ async def child_task(input: None, ctx: Context) -> dict[str, Any]:
     return {"child_status": "completed"}
 
 
+# > Evictable Sleep
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
@@ -37,6 +40,9 @@ async def evictable_sleep(input: None, ctx: DurableContext) -> dict[str, Any]:
     """Sleeps long enough for the TTL-based eviction to kick in."""
     await ctx.aio_sleep_for(timedelta(seconds=LONG_SLEEP_SECONDS))
     return {"status": "completed"}
+
+
+# !!
 
 
 @hatchet.durable_task(
@@ -128,6 +134,7 @@ async def capacity_evictable_sleep(input: None, ctx: DurableContext) -> dict[str
     return {"status": "completed"}
 
 
+# > Non Evictable Sleep
 @hatchet.durable_task(
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EvictionPolicy(
@@ -140,6 +147,9 @@ async def non_evictable_sleep(input: None, ctx: DurableContext) -> dict[str, Any
     """Has eviction disabled -- should never be evicted."""
     await ctx.aio_sleep_for(timedelta(seconds=10))
     return {"status": "completed"}
+
+
+# !!
 
 
 def main() -> None:

@@ -44,6 +44,9 @@ from examples.durable.worker import (
     durable_replay_reset,
     memo_task,
     memo_now_caching,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_two_events_second_pushed_first,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -72,13 +75,21 @@ from examples.return_exceptions.worker import (
 )
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
+from examples.pdf_pipeline.worker import pdf_pipeline
 from examples.simple.worker import simple, simple_durable
+from examples.support_agent.worker import (
+    escalate_ticket,
+    generate_reply,
+    support_agent,
+    triage_ticket,
+)
 from examples.timeout.worker import refresh_timeout_wf, timeout_wf
 from examples.webhook_with_scope.worker import (
     webhook_with_scope,
     webhook_with_static_payload,
 )
 from examples.webhooks.worker import webhook
+from examples.welcome_email.worker import welcome_email
 from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
     otel_simple_task,
@@ -162,9 +173,18 @@ def main() -> None:
             eviction_child_task,
             eviction_bulk_child_task,
             memo_now_caching,
+            wait_for_event_lookback,
+            wait_for_or_event_lookback,
+            wait_for_two_events_second_pushed_first,
             otel_simple_task,
             otel_spawn_parent,
             otel_workflow,
+            pdf_pipeline,
+            support_agent,
+            triage_ticket,
+            generate_reply,
+            escalate_ticket,
+            welcome_email,
         ],
         lifespan=lifespan,
     )

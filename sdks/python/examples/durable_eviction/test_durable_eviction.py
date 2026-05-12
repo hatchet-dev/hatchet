@@ -304,10 +304,7 @@ async def test_multiple_eviction_cycle(hatchet: Hatchet) -> None:
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
-        (
-            ["poetry", "run", "python", "-m", "examples.durable_eviction.worker"],
-            8004,
-        )
+        ["poetry", "run", "python", "-m", "examples.durable_eviction.worker"],
     ],
     indirect=True,
 )
@@ -373,16 +370,13 @@ async def test_evictable_cancel_after_eviction(hatchet: Hatchet) -> None:
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
-        (
-            [
-                "poetry",
-                "run",
-                "python",
-                "-m",
-                "examples.durable_eviction.capacity_worker",
-            ],
-            8005,
-        )
+        [
+            "poetry",
+            "run",
+            "python",
+            "-m",
+            "examples.durable_eviction.capacity_worker",
+        ]
     ],
     indirect=True,
 )
@@ -406,16 +400,13 @@ async def test_capacity_eviction_fires(
 @pytest.mark.parametrize(
     "on_demand_worker",
     [
-        (
-            [
-                "poetry",
-                "run",
-                "python",
-                "-m",
-                "examples.durable_eviction.capacity_worker",
-            ],
-            8005,
-        )
+        [
+            "poetry",
+            "run",
+            "python",
+            "-m",
+            "examples.durable_eviction.capacity_worker",
+        ]
     ],
     indirect=True,
 )

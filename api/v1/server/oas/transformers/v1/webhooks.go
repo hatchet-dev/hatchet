@@ -22,10 +22,11 @@ func ToV1Webhook(webhook *sqlcv1.V1IncomingWebhook) gen.V1Webhook {
 			UpdatedAt: webhook.UpdatedAt.Time,
 			Id:        id.String(),
 		},
-		TenantId:           webhook.TenantID.String(),
-		EventKeyExpression: webhook.EventKeyExpression,
-		Name:               webhook.Name,
-		SourceName:         gen.V1WebhookSourceName(webhook.SourceName),
+		TenantId:                     webhook.TenantID.String(),
+		EventKeyExpression:           webhook.EventKeyExpression,
+		Name:                         webhook.Name,
+		SourceName:                   gen.V1WebhookSourceName(webhook.SourceName),
+		ReturnEventAsResponsePayload: &webhook.ReturnEventAsResponsePayload,
 	}
 
 	if webhook.ScopeExpression.Valid {

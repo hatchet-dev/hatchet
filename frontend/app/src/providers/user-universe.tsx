@@ -3,7 +3,16 @@ import useControlPlane from '@/hooks/use-control-plane';
 import api, { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
 import { TenantMember } from '@/lib/api/generated/data-contracts';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useApiError } from '@/lib/hooks';
+import { appRoutes } from '@/router';
+import {
+  useMutation,
+  UseMutationResult,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { AxiosError } from 'axios';
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -12,9 +21,16 @@ import invariant from 'tiny-invariant';
 type UserUniverse = {
   isCloudEnabled: boolean;
   isLoaded: boolean;
+  isFetching: boolean;
   organizations: OrganizationForUserList['rows'] | null;
   tenantMemberships: TenantMember[] | null;
-  invalidate: () => void;
+  invalidate: () => Promise<void>;
+  logoutMutation: UseMutationResult<
+    void,
+    AxiosError<unknown, any>,
+    void,
+    unknown
+  >;
 } & (
   | ({
       isCloudEnabled: true;
@@ -93,17 +109,18 @@ export const userUniverseQuery = ({
       ...org,
       tenants: org.tenants || [],
     }));
+    const membershipRows = tenantMemberships.data.rows || [];
 
     return isCloudEnabled
       ? {
           isCloudEnabled,
           organizations,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships: membershipRows,
         }
       : {
           isCloudEnabled,
           organizations: null,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships: membershipRows,
         };
   },
   enabled: isCloudLoaded,
@@ -115,6 +132,8 @@ export function UserUniverseProvider({
   children: React.ReactNode;
 }) {
   const { isCloudEnabled, isCloudLoaded } = useCloud();
+  const navigate = useNavigate();
+  const { handleApiError } = useApiError({});
   const { isControlPlaneEnabled } = useControlPlane();
   const tenantMembershipAndOrganizationsQuery = useQuery(
     userUniverseQuery({ isCloudEnabled, isCloudLoaded, isControlPlaneEnabled }),
@@ -122,11 +141,30 @@ export function UserUniverseProvider({
 
   const queryClient = useQueryClient();
 
-  const invalidate = useCallback(() => {
-    queryClient.resetQueries({
-      queryKey: ['user-universe'],
-    });
-  }, [queryClient]);
+  const invalidate = useCallback(
+    () =>
+      queryClient.resetQueries({
+        queryKey: ['user-universe'],
+      }),
+    [queryClient],
+  );
+
+  const logoutMutation = useMutation({
+    mutationKey: ['user:update:logout'],
+    mutationFn: async () => {
+      if (isControlPlaneEnabled) {
+        await controlPlaneApi.cloudUserUpdateLogout();
+        return;
+      }
+      await api.userUpdateLogout();
+    },
+    onError: handleApiError,
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
+      queryClient.clear();
+      navigate({ to: appRoutes.authLoginRoute.to });
+    },
+  });
 
   const get = useCallback(
     () =>
@@ -147,6 +185,7 @@ export function UserUniverseProvider({
   const value = useMemo<UserUniverse>(() => {
     const tenantMembershipAndOrganizationsAreLoaded =
       tenantMembershipAndOrganizationsQuery.isSuccess;
+    const isFetching = tenantMembershipAndOrganizationsQuery.isFetching;
     if (isCloudEnabled) {
       const getWithOrganizations = get as () => Promise<{
         organizations: OrganizationForUserList['rows'];
@@ -159,22 +198,26 @@ export function UserUniverseProvider({
         return {
           isCloudEnabled,
           isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+          isFetching,
           organizations:
             tenantMembershipAndOrganizationsQuery.data.organizations,
           tenantMemberships:
             tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
           get: getWithOrganizations,
           invalidate,
+          logoutMutation,
         };
       }
 
       return {
         isCloudEnabled,
         isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+        isFetching,
         organizations: null,
         tenantMemberships: null,
         get: getWithOrganizations,
         invalidate,
+        logoutMutation,
       };
     } else {
       const getWithoutOrganizations = get as () => Promise<{
@@ -185,22 +228,32 @@ export function UserUniverseProvider({
         ? {
             isCloudEnabled,
             isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+            isFetching,
             organizations: null,
             tenantMemberships:
               tenantMembershipAndOrganizationsQuery.data.tenantMemberships,
             get: getWithoutOrganizations,
             invalidate,
+            logoutMutation,
           }
         : {
             isCloudEnabled,
             isLoaded: tenantMembershipAndOrganizationsAreLoaded,
+            isFetching,
             organizations: null,
             tenantMemberships: null,
             get: getWithoutOrganizations,
             invalidate,
+            logoutMutation,
           };
     }
-  }, [tenantMembershipAndOrganizationsQuery, isCloudEnabled, get, invalidate]);
+  }, [
+    tenantMembershipAndOrganizationsQuery,
+    isCloudEnabled,
+    get,
+    invalidate,
+    logoutMutation,
+  ]);
 
   return (
     <UserUniverseContext.Provider value={value}>

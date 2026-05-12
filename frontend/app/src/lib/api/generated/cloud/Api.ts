@@ -46,6 +46,8 @@ import {
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
+  RedeemOfferRequest,
+  RedeemOfferResponse,
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
@@ -58,6 +60,7 @@ import {
   UpdateOrganizationTenantRequest,
   UpdateTenantSubscriptionRequest,
   UpdateTenantSubscriptionResponse,
+  UserOffer,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
 } from "./data-contracts";
@@ -905,6 +908,44 @@ export class Api<
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
+  /**
+   * @description List all offers for the authenticated user
+   *
+   * @tags Billing
+   * @name UserOffersList
+   * @summary List offers for the authenticated user
+   * @request GET:/api/v1/billing/offers
+   * @secure
+   */
+  userOffersList = Object.assign((params: RequestParams = {}) =>
+    this.request<UserOffer[], APIErrors>({
+      path: `/api/v1/billing/offers`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
+  /**
+   * @description Redeem an offer for the authenticated user, applying credit to the specified organization
+   *
+   * @tags Billing
+   * @name UserOfferRedeem
+   * @summary Redeem an offer
+   * @request POST:/api/v1/billing/offers/redeem
+   * @secure
+   */
+  userOfferRedeem = Object.assign((data: RedeemOfferRequest, params: RequestParams = {}) =>
+    this.request<RedeemOfferResponse, APIErrors>({
+      path: `/api/v1/billing/offers/redeem`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Get all feature flags for the tenant
    *

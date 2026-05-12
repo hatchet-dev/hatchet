@@ -11,7 +11,7 @@ import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { z } from 'zod';
 
 const workersQuerySchema = z
@@ -31,6 +31,9 @@ export default function Workers() {
     usePagination({
       key: paramKey,
     });
+  const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
+    null,
+  );
 
   const {
     state: { s: statuses },
@@ -40,6 +43,16 @@ export default function Workers() {
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
 
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  const handleSetOpenLabelsPopover = useCallback(
+    (id: string | null) => setOpenLabelsPopover(id),
+    [],
+  );
+
+  const tableColumns = useMemo(
+    () => columns(tenantId, openLabelsPopover, handleSetOpenLabelsPopover),
+    [tenantId, openLabelsPopover, handleSetOpenLabelsPopover],
+  );
 
   const listWorkersQuery = useQuery({
     ...queries.workers.list(tenantId),
@@ -69,7 +82,7 @@ export default function Workers() {
 
   return (
     <DataTable
-      columns={columns(tenantId)}
+      columns={tableColumns}
       data={paginatedData}
       filters={[
         {
