@@ -95,6 +95,10 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_simple_task,
     otel_spawn_parent,
 )
+from examples.child_keys.worker import (
+    child_key_caching_test_parent,
+    child_key_caching_test_child,
+)
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -185,6 +189,8 @@ def main() -> None:
             generate_reply,
             escalate_ticket,
             welcome_email,
+            child_key_caching_test_child,
+            child_key_caching_test_parent,
         ],
         lifespan=lifespan,
     )
