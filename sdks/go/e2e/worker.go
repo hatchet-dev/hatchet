@@ -196,7 +196,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		return map[string]float64{"runtime": time.Since(start).Seconds()}, nil
 	})
 
-	testSpawnChildTask = client.NewStandaloneDurableTask("spawn-child-task", func(ctx hatchet.Context, input DurableBulkSpawnInput) (map[string]string, error) {
+	testSpawnChildTask = client.NewStandaloneDurableTask("spawn-child-task", func(ctx hatchet.DurableContext, input DurableBulkSpawnInput) (map[string]string, error) {
 		return map[string]string{"message": fmt.Sprintf("hello from child %d", input.N)}, nil
 	})
 
