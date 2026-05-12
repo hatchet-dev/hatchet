@@ -557,13 +557,11 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, extractCreatedTaskData(createTaskOpts))
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Int("count", len(createTaskOpts)).Int("attempt", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to create tasks, republishing to MQ")
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+			return fmt.Errorf("failed to create tasks: %w", err)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Int("count", len(createTaskOpts)).Int("attempt", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to notify status updates for created tasks, republishing to MQ")
-			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
+			return fmt.Errorf("failed to notify status updates: %w", err)
 		}
 
 		failedOpts := make([]*tasktypes.CreatedTaskPayload, 0)
@@ -658,9 +656,9 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		attempts++
 
 		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, extractCreatedDAGData(createDAGOpts))
+
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Int("count", len(createDAGOpts)).Int("attempt", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to create DAGs, republishing to MQ")
-			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
+			return fmt.Errorf("failed to create DAGs: %w", err)
 		}
 
 		failedOpts := make([]*tasktypes.CreatedDAGPayload, 0)
@@ -1062,12 +1060,11 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Int("count", len(opts)).Int("attempt", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to create task events, republishing to MQ")
-			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
+			return fmt.Errorf("failed to create task events: %w", err)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created monitoring events, continuing to process remaining events")
+			return fmt.Errorf("failed to notify status updates: %w", err)
 		}
 
 		var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
