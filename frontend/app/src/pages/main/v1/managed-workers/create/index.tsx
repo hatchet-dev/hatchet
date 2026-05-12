@@ -1,30 +1,51 @@
 import { BillingRequired } from '../components/billing-required';
 import CreateWorkerForm from './components/create-worker-form';
 import { Separator } from '@/components/v1/ui/separator';
+import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
+import { NotFound } from '@/pages/error/components/not-found';
 import { appRoutes } from '@/router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { Spinner } from '@/components/v1/ui/loading';
 
 export default function CreateWorker() {
+  // ── Hooks ────────────────────────────────────────────────────────────────
   const navigate = useNavigate();
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
+  const { isCloudEnabled, isCloudLoading } = useCloud();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
-  // Check if billing is required
+  const createManagedWorkerMutation = useMutation({
+    mutationKey: ['managed-worker:create', tenantId],
+    mutationFn: async (data: CreateManagedWorkerRequest) => {
+      const res = await cloudApi.managedWorkerCreate(tenantId, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      navigate({
+        to: appRoutes.tenantManagedWorkerRoute.to,
+        params: { tenant: tenantId, managedWorker: data.metadata.id },
+      });
+    },
+    onError: handleApiError,
+  });
+
+  // ── Derived values ───────────────────────────────────────────────────────
   const [, rejectReason] = can(managedCompute.create());
   const isBillingRequired = rejectReason === RejectReason.BILLING_REQUIRED;
 
@@ -44,20 +65,21 @@ export default function CreateWorker() {
     }
   };
 
-  const createManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:create', tenantId],
-    mutationFn: async (data: CreateManagedWorkerRequest) => {
-      const res = await cloudApi.managedWorkerCreate(tenantId, data);
-      return res.data;
-    },
-    onSuccess: (data) => {
-      navigate({
-        to: appRoutes.tenantManagedWorkerRoute.to,
-        params: { tenant: tenantId, managedWorker: data.metadata.id },
-      });
-    },
-    onError: handleApiError,
-  });
+  // ── Early returns ─────────────────────────────────────────────────────────
+
+  // Wait for cloud metadata to resolve
+  if (isCloudLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Spinner />
+      </div>
+    );
+  }
+
+  // Managed Compute is cloud-only; show 404 in self-hosted mode
+  if (!isCloudEnabled) {
+    return <NotFound />;
+  }
 
   // Show billing required page if billing is required
   if (isBillingRequired) {
@@ -71,6 +93,7 @@ export default function CreateWorker() {
     );
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">

@@ -4,12 +4,14 @@ import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
+import { NotFound } from '@/pages/error/components/not-found';
 import { appRoutes } from '@/router';
 import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -17,8 +19,11 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 export default function ManagedWorkers() {
+  // ── Hooks (must all be called unconditionally, before any early returns) ──
+
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
+  const { isCloudEnabled, isCloudLoading } = useCloud();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -31,12 +36,6 @@ export default function ManagedWorkers() {
     ...queries.cloud.listManagedWorkers(tenantId),
   });
 
-  // Check if the user can create more worker pools
-  const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
-  const [canCreateMoreWorkerPools] = can(
-    managedCompute.canCreateWorkerPool(workerPoolCount),
-  );
-
   // stop polling billing if there are payment methods
   useEffect(() => {
     if (billing?.hasPaymentMethods) {
@@ -44,11 +43,9 @@ export default function ManagedWorkers() {
     }
   }, [billing, billing?.hasPaymentMethods]);
 
-  const [, rejectReason] = can(managedCompute.create());
-
   const { handleApiError } = useApiError({});
 
-  const manageClicked = async () => {
+   const manageClicked = async () => {
     try {
       if (portalLoading) {
         return;
@@ -67,9 +64,31 @@ export default function ManagedWorkers() {
     }
   };
 
-  // Only show BillingRequired if there are no managed workers AND billing is required
+  // ── Derived values (not hooks) ──────────────────────────────────────────
+
+  const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
+  const [canCreateMoreWorkerPools] = can(
+    managedCompute.canCreateWorkerPool(workerPoolCount),
+  );
+  const [, rejectReason] = can(managedCompute.create());
   const hasExistingWorkers =
     (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
+
+  // ── Early returns ───────────────────────────────────────────────────────
+
+  // Wait for cloud metadata to resolve before rendering
+  if (isCloudLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Spinner />
+      </div>
+    );
+  }
+
+  // Managed Compute is a cloud-only feature; show 404 in self-hosted mode
+  if (!isCloudEnabled) {
+    return <NotFound />;
+  }
 
   // Show loader while billing data is loading
   if (billing?.isLoading) {
@@ -92,12 +111,14 @@ export default function ManagedWorkers() {
     );
   }
 
-  // Get limit based on plan
+  // ── Handlers & helpers (safe after early returns) ───────────────────────
+
+ 
+
   const getWorkerPoolLimit = () => {
     if (!billing?.plan) {
       return 0;
     }
-
     switch (billing.plan) {
       case 'free':
         return 1;
@@ -106,12 +127,10 @@ export default function ManagedWorkers() {
       case 'growth':
         return 5;
       default:
-        // This covers 'enterprise' and any other plans
         return 5;
     }
   };
 
-  // Handler for when a user tries to add a worker pool but has reached their limit
   const handleAddWorkerPool = () => {
     if (!canCreateMoreWorkerPools) {
       setShowUpgradeModal(true);
@@ -155,6 +174,8 @@ export default function ManagedWorkers() {
       </div>
     );
   };
+
+  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full w-full flex-grow">
