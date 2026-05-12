@@ -5,7 +5,7 @@ import sleep from '@hatchet/util/sleep';
 import { durationToMs } from '@hatchet/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
-export const EVENT_KEY = 'durable-example:event';
+export const EVENT_KEY = 'ts-durable-example:event';
 export const SLEEP_TIME_SECONDS = 2;
 export const SLEEP_TIME = `${SLEEP_TIME_SECONDS}s` as const;
 
@@ -115,7 +115,7 @@ durableWorkflow.durableTask({
 });
 
 export const waitForSleepTwice = hatchet.durableTask({
-  name: 'wait-for-sleep-twice',
+  name: 'ts-wait-for-sleep-twice',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     try {
@@ -131,14 +131,14 @@ export const waitForSleepTwice = hatchet.durableTask({
 // --- Spawn child from durable task ---
 
 export const spawnChildTask = hatchet.task({
-  name: 'spawn-child-task',
+  name: 'ts-spawn-child-task',
   fn: async (input: { n?: number }) => {
     return { message: `hello from child ${input.n ?? 1}` };
   },
 });
 
 export const durableWithSpawn = hatchet.durableTask({
-  name: 'durable-with-spawn',
+  name: 'ts-durable-with-spawn',
   executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const childResult = await spawnChildTask.run({});
@@ -147,7 +147,7 @@ export const durableWithSpawn = hatchet.durableTask({
 });
 
 export const durableWithBulkSpawn = hatchet.durableTask({
-  name: 'durable-with-bulk-spawn',
+  name: 'ts-durable-with-bulk-spawn',
   executionTimeout: '10m',
   fn: async (input: { n?: number }, ctx) => {
     const n = input.n ?? 10;
@@ -158,7 +158,7 @@ export const durableWithBulkSpawn = hatchet.durableTask({
 });
 
 export const durableSleepEventSpawn = hatchet.durableTask({
-  name: 'durable-sleep-event-spawn',
+  name: 'ts-durable-sleep-event-spawn',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const start = Date.now();
@@ -190,7 +190,7 @@ export const durableWithExplicitSpawn = hatchet.durableTask({
 // --- Non-determinism detection ---
 
 export const durableNonDeterminism = hatchet.durableTask({
-  name: 'durable-non-determinism',
+  name: 'ts-durable-non-determinism',
   executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepTime = ctx.invocationCount * 2;
@@ -225,7 +225,7 @@ export const REPLAY_RESET_MEMOIZED_MAX_SECONDS = 5;
 const REPLAY_RESET_SLEEP = `${REPLAY_RESET_SLEEP_SECONDS}s` as const;
 
 export const durableReplayReset = hatchet.durableTask({
-  name: 'durable-replay-reset',
+  name: 'ts-durable-replay-reset',
   executionTimeout: '20s',
   fn: async (_input, ctx) => {
     let start = Date.now();
@@ -338,7 +338,7 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
 });
 
 export const memoNowCaching = hatchet.durableTask({
-  name: 'memo-now-caching',
+  name: 'ts-memo-now-caching',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const now = await ctx.now();
@@ -370,7 +370,7 @@ dagChildWorkflow.task({
 });
 
 export const durableSpawnDag = hatchet.durableTask({
-  name: 'durable-spawn-dag',
+  name: 'ts-durable-spawn-dag',
   executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepStart = Date.now();

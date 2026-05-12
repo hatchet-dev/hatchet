@@ -11,7 +11,7 @@ EPHEMERAL_WORKFLOW = HATCHET.workflow(name: "EphemeralWorkflow")
 # !!
 
 # > Add durable task
-DURABLE_EVENT_KEY = "durable-example:event"
+DURABLE_EVENT_KEY = "rb-durable-example:event"
 DURABLE_SLEEP_TIME = 5
 
 DURABLE_WORKFLOW.task(:ephemeral_task) do |input, ctx|

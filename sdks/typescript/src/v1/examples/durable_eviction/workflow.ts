@@ -4,7 +4,7 @@ import { hatchet } from '../hatchet-client';
 
 export const EVICTION_TTL_SECONDS = 5;
 export const LONG_SLEEP_SECONDS = 15;
-export const EVENT_KEY = 'durable-eviction:event';
+export const EVENT_KEY = 'ts-durable-eviction:event';
 
 // > Eviction Policy
 const EVICTION_POLICY: EvictionPolicy = {
@@ -15,7 +15,7 @@ const EVICTION_POLICY: EvictionPolicy = {
 // !!
 
 export const childTask = hatchet.task({
-  name: 'eviction-child-task',
+  name: 'ts-eviction-child-task',
   fn: async () => {
     await sleep(LONG_SLEEP_SECONDS * 1000);
     return { child_status: 'completed' };
@@ -24,7 +24,7 @@ export const childTask = hatchet.task({
 
 // > Evictable Sleep
 export const evictableSleep = hatchet.durableTask({
-  name: 'evictable-sleep',
+  name: 'ts-evictable-sleep',
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
@@ -50,7 +50,7 @@ export const evictableSleepForGracefulTermination = hatchet.durableTask({
 });
 
 export const evictableWaitForEvent = hatchet.durableTask({
-  name: 'evictable-wait-for-event',
+  name: 'ts-evictable-wait-for-event',
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
@@ -60,7 +60,7 @@ export const evictableWaitForEvent = hatchet.durableTask({
 });
 
 export const evictableChildSpawn = hatchet.durableTask({
-  name: 'evictable-child-spawn',
+  name: 'ts-evictable-child-spawn',
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
@@ -70,7 +70,7 @@ export const evictableChildSpawn = hatchet.durableTask({
 });
 
 export const multipleEviction = hatchet.durableTask({
-  name: 'multiple-eviction',
+  name: 'ts-multiple-eviction',
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
@@ -81,7 +81,7 @@ export const multipleEviction = hatchet.durableTask({
 });
 
 export const bulkChildTask = hatchet.task({
-  name: 'eviction-bulk-child-task',
+  name: 'ts-eviction-bulk-child-task',
   fn: async (input: { sleepSeconds: number }) => {
     await sleep(input.sleepSeconds * 1000);
     return { sleepSeconds: input.sleepSeconds, status: 'completed' };
@@ -89,7 +89,7 @@ export const bulkChildTask = hatchet.task({
 });
 
 export const evictableChildBulkSpawn = hatchet.durableTask({
-  name: 'evictable-child-bulk-spawn',
+  name: 'ts-evictable-child-bulk-spawn',
   executionTimeout: '5m',
   evictionPolicy: EVICTION_POLICY,
   fn: async (_input, ctx) => {
@@ -104,7 +104,7 @@ export const evictableChildBulkSpawn = hatchet.durableTask({
 export const CAPACITY_SLEEP_SECONDS = 20;
 
 export const capacityEvictableSleep = hatchet.durableTask({
-  name: 'capacity-evictable-sleep',
+  name: 'ts-capacity-evictable-sleep',
   executionTimeout: '5m',
   evictionPolicy: {
     ttl: undefined,
@@ -119,7 +119,7 @@ export const capacityEvictableSleep = hatchet.durableTask({
 
 // > Non Evictable Sleep
 export const nonEvictableSleep = hatchet.durableTask({
-  name: 'non-evictable-sleep',
+  name: 'ts-non-evictable-sleep',
   executionTimeout: '5m',
   evictionPolicy: {
     ttl: undefined,
