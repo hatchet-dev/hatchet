@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+/** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+export enum OrganizationAvailableShardClass {
+  SHARED = "SHARED",
+  DEDICATED = "DEDICATED",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -102,6 +108,11 @@ export interface Organization {
   name: string;
   tenants?: OrganizationTenant[];
   members?: OrganizationMember[];
+  /**
+   * Time of inactivity to force log out a user (ms)
+   * @format int64
+   */
+  inactivity_timeout?: number;
 }
 
 export interface OrganizationForUser {
@@ -133,7 +144,9 @@ export interface UpdateOrganizationRequest {
    * @minLength 1
    * @maxLength 256
    */
-  name: string;
+  name?: string;
+  /** Inactivity timeout */
+  inactivity_timeout?: string;
 }
 
 export interface OrganizationMember {
@@ -177,6 +190,8 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
+  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
+  region?: string;
 }
 
 export interface OrganizationTenantList {
@@ -188,6 +203,11 @@ export interface CreateNewTenantForOrganizationRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
+  /**
+   * Optional shard region (e.g. aws:us-east-1). When omitted, the server picks one.
+   * @example "aws:us-east-1"
+   */
+  region?: string;
 }
 
 export interface CreateManagementTokenRequest {
@@ -348,6 +368,19 @@ export interface CreateTenantAPITokenResponse {
   token: string;
 }
 
+export interface OrganizationAvailableShard {
+  /** Cloud provider for this deployment target (e.g. aws). */
+  provider: string;
+  /** Region within the provider (e.g. us-east-1). */
+  region: string;
+  /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
+  shardClass: OrganizationAvailableShardClass;
+}
+
+export interface OrganizationAvailableShardList {
+  rows: OrganizationAvailableShard[];
+}
+
 export interface SsoDomain {
   /**
    * @format uri
@@ -361,3 +394,8 @@ export interface SsoDomain {
 }
 
 export type SsoDomainArray = SsoDomain[];
+
+export interface SsoConfig {
+  /** @example false */
+  forceSSO: boolean;
+}

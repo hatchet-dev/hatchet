@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/google/uuid"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -22,9 +22,15 @@ func (rc *RetentionControllerImpl) runCleanupOldWorkers(ctx context.Context) fun
 	}
 }
 
-func (rc *RetentionControllerImpl) cleanupOldWorkersForTenant(ctx context.Context, tenant sqlcv1.Tenant) error {
+func (rc *RetentionControllerImpl) cleanupOldWorkersForTenant(ctx context.Context, tenantId uuid.UUID) error {
 	ctx, span := telemetry.NewSpan(ctx, "cleanup-old-workers-tenant")
 	defer span.End()
+
+	tenant, err := rc.repo.Tenant().GetTenantByID(ctx, tenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not get tenant %s: %w", tenantId.String(), err)
+	}
 
 	cutoff, err := GetDataRetentionExpiredTime(tenant.DataRetentionPeriod)
 	if err != nil {

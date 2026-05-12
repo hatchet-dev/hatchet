@@ -136,6 +136,10 @@ func NewMatchData(mcAggregatedData []byte) (*MatchData, error) {
 			action = sqlcv1.V1MatchConditionActionCANCEL
 		case "SKIP":
 			action = sqlcv1.V1MatchConditionActionSKIP
+		// we already handled this case in the loop above, skip it
+		// so we don't end up with a null action
+		case "CREATE_MATCH":
+			continue
 		}
 
 		triggerDataKeys := map[string][]interface{}{}

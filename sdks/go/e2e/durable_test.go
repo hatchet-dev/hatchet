@@ -294,6 +294,7 @@ func TestDurableReplayReset(t *testing.T) {
 			require.NoError(t, err)
 
 			start := time.Now()
+			pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 			resetResult, err := ref.Result()
 			require.NoError(t, err)
 			resetElapsed := time.Since(start).Seconds()
@@ -340,7 +341,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	require.NoError(t, err)
 
 	start := time.Now()
-	time.Sleep(1 * time.Second)
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 	resetResult, err := ref.Result()
 	require.NoError(t, err)
 	resetElapsed := time.Since(start).Seconds()
@@ -359,7 +360,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	require.NoError(t, err)
 
 	start = time.Now()
-	time.Sleep(1 * time.Second)
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 	resetResult2, err := ref.Result()
 	require.NoError(t, err)
 	resetElapsed2 := time.Since(start).Seconds()
