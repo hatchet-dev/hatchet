@@ -814,6 +814,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
+		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
 }
 
