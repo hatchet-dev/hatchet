@@ -540,8 +540,15 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 	attempts := 0
 	for len(createTaskOpts) > 0 {
+		maxRequeueCount := 0
+		for _, opt := range createTaskOpts {
+			if opt.RequeueCount > maxRequeueCount {
+				maxRequeueCount = opt.RequeueCount
+			}
+		}
+
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskOpts), attempts)
+			tc.l.Error().Ctx(ctx).Int("requeue_count", maxRequeueCount).Msgf("failed to acquire locks for %d tasks after %d attempts, republishing to MQ", len(createTaskOpts), attempts)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
@@ -550,12 +557,12 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, extractCreatedTaskData(createTaskOpts))
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskOpts), attempts)
+			tc.l.Error().Ctx(ctx).Err(err).Int("requeue_count", maxRequeueCount).Msgf("failed to create %d tasks on attempt %d, republishing to MQ", len(createTaskOpts), attempts)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
 		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("failed to notify status updates for created tasks")
+			tc.l.Error().Ctx(ctx).Err(err).Int("requeue_count", maxRequeueCount).Msg("failed to notify status updates for created tasks, republishing to MQ")
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
@@ -636,8 +643,15 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 	attempts := 0
 	for len(createDAGOpts) > 0 {
+		maxRequeueCount := 0
+		for _, opt := range createDAGOpts {
+			if opt.RequeueCount > maxRequeueCount {
+				maxRequeueCount = opt.RequeueCount
+			}
+		}
+
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGOpts), attempts)
+			tc.l.Error().Ctx(ctx).Int("requeue_count", maxRequeueCount).Msgf("failed to acquire locks for %d DAGs after %d attempts, republishing to MQ", len(createDAGOpts), attempts)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
@@ -645,7 +659,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, extractCreatedDAGData(createDAGOpts))
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGOpts), attempts)
+			tc.l.Error().Ctx(ctx).Err(err).Int("requeue_count", maxRequeueCount).Msgf("failed to create %d DAGs on attempt %d, republishing to MQ", len(createDAGOpts), attempts)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
@@ -1031,8 +1045,15 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	attempts := 0
 	for len(opts) > 0 {
+		maxRequeueCount := 0
+		for _, msg := range externalIdToMsg {
+			if msg.RequeueCount > maxRequeueCount {
+				maxRequeueCount = msg.RequeueCount
+			}
+		}
+
 		if attempts >= 10 {
-			tc.l.Error().Ctx(ctx).Msgf("failed to acquire locks for %d monitoring events after %d attempts, republishing to MQ", len(opts), attempts)
+			tc.l.Error().Ctx(ctx).Int("requeue_count", maxRequeueCount).Msgf("failed to acquire locks for %d monitoring events after %d attempts, republishing to MQ", len(opts), attempts)
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
 
@@ -1041,7 +1062,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msgf("failed to create %d task events on attempt %d, republishing to MQ", len(opts), attempts)
+			tc.l.Error().Ctx(ctx).Err(err).Int("requeue_count", maxRequeueCount).Msgf("failed to create %d task events on attempt %d, republishing to MQ", len(opts), attempts)
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
 
