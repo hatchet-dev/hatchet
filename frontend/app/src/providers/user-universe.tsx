@@ -109,17 +109,18 @@ export const userUniverseQuery = ({
       ...org,
       tenants: org.tenants || [],
     }));
+    const membershipRows = tenantMemberships.data.rows || [];
 
     return isCloudEnabled
       ? {
           isCloudEnabled,
           organizations,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships: membershipRows,
         }
       : {
           isCloudEnabled,
           organizations: null,
-          tenantMemberships: tenantMemberships.data.rows || [],
+          tenantMemberships: membershipRows,
         };
   },
   enabled: isCloudLoaded,
@@ -157,11 +158,12 @@ export function UserUniverseProvider({
       }
       await api.userUpdateLogout();
     },
-    onSuccess: () => {
+    onError: handleApiError,
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
-    onError: handleApiError,
   });
 
   const get = useCallback(

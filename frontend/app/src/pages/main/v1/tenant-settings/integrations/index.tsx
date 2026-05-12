@@ -275,7 +275,11 @@ function EmailGroupsList() {
       />
       <Separator className="my-4" />
       {groups.length > 0 ? (
-        <SimpleTable columns={emailGroupColumns} data={groups} />
+        <SimpleTable
+          columns={emailGroupColumns}
+          data={groups}
+          rowKey={(row) => row.metadata.id}
+        />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
           No email groups found. Create a group to receive alerts via email.
@@ -440,6 +444,7 @@ function SlackWebhooksList() {
         <SimpleTable
           columns={slackColumns}
           data={listWebhooksQuery.data?.rows || []}
+          rowKey={(row) => row.metadata.id}
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
@@ -553,6 +558,7 @@ function SNSIntegrationsList() {
         <SimpleTable
           columns={snsColumns}
           data={listIntegrationsQuery.data?.rows || []}
+          rowKey={(row) => row.metadata.id}
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
@@ -745,6 +751,7 @@ function GithubInstallationsList() {
         <SimpleTable
           columns={githubColumns}
           data={listInstallationsQuery.data?.rows || []}
+          rowKey={(row) => row.metadata.id}
         />
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">

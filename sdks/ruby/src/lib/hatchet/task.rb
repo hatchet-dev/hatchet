@@ -65,6 +65,9 @@ module Hatchet
     # @return [Boolean] Whether this is a durable task
     attr_reader :durable
 
+    # @return [Hatchet::EvictionPolicy, nil] Eviction policy for durable tasks
+    attr_reader :eviction_policy
+
     # @return [Proc, nil] The task execution block
     attr_reader :fn
 
@@ -108,6 +111,7 @@ module Hatchet
       wait_for: [],
       skip_if: [],
       durable: false,
+      eviction_policy: nil,
       workflow: nil,
       client: nil,
       deps: nil,
@@ -126,6 +130,7 @@ module Hatchet
       @wait_for = wait_for
       @skip_if = skip_if
       @durable = durable
+      @eviction_policy = eviction_policy
       @workflow = workflow
       @client = client
       @deps = deps
@@ -183,6 +188,8 @@ module Hatchet
       # Conditions (wait_for, skip_if)
       conditions_proto = conditions_to_proto(config)
       opts[:conditions] = conditions_proto if conditions_proto
+
+      opts[:is_durable] = @durable
 
       ::V1::CreateTaskOpts.new(**opts)
     end

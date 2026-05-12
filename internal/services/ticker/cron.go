@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
@@ -90,14 +91,40 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 
 	cronUUID := uuid.New()
 
+	var job gocron.Job
+	var scheduledAtPtr atomic.Pointer[time.Time]
+
 	// schedule the cron
-	_, err := t.userCronScheduler.NewJob(
+	job, err := t.userCronScheduler.NewJob(
 		// the gocron library accepts either 5 or 6 term crontabs when withSeconds is true
 		gocron.CronJob(cron.Cron, true),
-		gocron.NewTask(
-			t.runCronWorkflow(tenantId, workflowVersionId, cron.Cron, cronParentId, &cron.Name.String, cron.Input, additionalMetadata, &cron.Priority),
-		),
+		gocron.NewTask(func() {
+			scheduledAt := scheduledAtPtr.Load()
+			if scheduledAt == nil {
+				// this should be pretty rare in practice, since we're assigning the `scheduledAtPtr` immediately before
+				// it triggers, but just here for nil safety
+				now := time.Now().UTC()
+				scheduledAt = &now
+			}
+
+			t.runCronWorkflow(
+				tenantId, workflowVersionId, cron.Cron,
+				cronParentId, &cron.Name.String, cron.Input,
+				additionalMetadata, &cron.Priority,
+				*scheduledAt,
+			)()
+		}),
 		gocron.WithIdentifier(cronUUID),
+		gocron.WithEventListeners(
+			// this runs sync before the gocron task in the same goroutine,
+			// and before gocron reschedules the job — so NextRun() here returns the
+			// scheduled fire time for the current run, not the subsequent one.
+			gocron.BeforeJobRuns(func(_ uuid.UUID, _ string) {
+				if nextRun, err := job.NextRun(); err == nil && !nextRun.IsZero() {
+					scheduledAtPtr.Store(&nextRun)
+				}
+			}),
+		),
 	)
 
 	if err != nil {
@@ -119,7 +146,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 	return nil
 }
 
-func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) func() {
+func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -133,7 +160,7 @@ func (t *TickerImpl) runCronWorkflow(tenantId, workflowVersionId uuid.UUID, cron
 			return
 		}
 
-		err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata, priority)
+		err = t.runCronWorkflowV1(ctx, tenantId, workflowVersion, cron, cronParentId, cronName, input, additionalMetadata, priority, scheduledAt)
 
 		if err != nil {
 			t.l.Error().Ctx(ctx).Err(err).Msg("could not run cron workflow")

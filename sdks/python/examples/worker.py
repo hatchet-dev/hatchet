@@ -75,6 +75,7 @@ from examples.return_exceptions.worker import (
 )
 from examples.run_details.worker import run_detail_test_workflow
 from examples.serde.worker import serde_workflow
+from examples.pdf_pipeline.worker import pdf_pipeline
 from examples.simple.worker import simple, simple_durable
 from examples.support_agent.worker import (
     escalate_ticket,
@@ -88,6 +89,7 @@ from examples.webhook_with_scope.worker import (
     webhook_with_static_payload,
 )
 from examples.webhooks.worker import webhook
+from examples.welcome_email.worker import welcome_email
 from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
     otel_simple_task,
@@ -177,10 +179,12 @@ def main() -> None:
             otel_simple_task,
             otel_spawn_parent,
             otel_workflow,
+            pdf_pipeline,
             support_agent,
             triage_ticket,
             generate_reply,
             escalate_ticket,
+            welcome_email,
         ],
         lifespan=lifespan,
     )

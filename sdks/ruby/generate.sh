@@ -38,6 +38,7 @@ generate_proto() {
     "events/events.proto"
     "workflows/workflows.proto"
     "v1/shared/condition.proto"
+    "v1/shared/trigger.proto"
     "v1/dispatcher.proto"
     "v1/workflows.proto"
   )

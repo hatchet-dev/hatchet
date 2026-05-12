@@ -1,3 +1,4 @@
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Command,
@@ -87,6 +88,7 @@ export function TenantSwitcher({
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
+            <TenantRegionBadge region={tenant.region} />
           </div>
           {!isUserUniverseLoaded ? (
             <Spinner className="mr-0" />
@@ -102,7 +104,7 @@ export function TenantSwitcher({
           align="start"
           sideOffset={8}
           // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
-          className="z-[200] w-56 p-0"
+          className="z-[200] w-[min(18rem,100vw)] max-w-[calc(100vw-2rem)] p-0"
         >
           <Command className="">
             <CommandList data-cy="tenant-switcher-list">
@@ -123,11 +125,16 @@ export function TenantSwitcher({
                   }
                   className="cursor-pointer text-sm"
                 >
-                  <BuildingOffice2Icon className="mr-2 size-4" />
-                  {membership.tenant?.name}
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <BuildingOffice2Icon className="size-4 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">
+                      {membership.tenant?.name}
+                    </span>
+                    <TenantRegionBadge region={membership.tenant?.region} />
+                  </div>
                   <CheckIcon
                     className={cn(
-                      'ml-auto size-4',
+                      'ml-2 size-4 shrink-0',
                       tenant?.slug === membership.tenant?.slug
                         ? 'opacity-100'
                         : 'opacity-0',

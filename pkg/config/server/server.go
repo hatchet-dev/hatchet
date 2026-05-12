@@ -110,6 +110,9 @@ type ConfigFileOperations struct {
 
 	// PollInterval is the polling interval for operations in seconds
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
+
+	// OLAPMQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
+	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"2000"`
 }
 
 type TaskOperationLimitsConfigFile struct {
@@ -994,6 +997,7 @@ func BindAllEnv(v *viper.Viper) {
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
+	_ = v.BindEnv("olap.olapMqQos", "SERVER_OLAP_MQ_QOS")
 
 	// exchange token options
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")

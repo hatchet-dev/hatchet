@@ -32,7 +32,7 @@ import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';

@@ -23,4 +23,16 @@ module Hatchet
 
     def initialize: (Array[TaskRunError] exceptions) -> void
   end
+
+  class NonDeterminismError < Error
+    attr_reader task_external_id: String?
+    attr_reader invocation_count: Integer?
+    attr_reader node_id: Integer?
+
+    def initialize: (String message, ?task_external_id: String?, ?invocation_count: Integer?, ?node_id: Integer?) -> void
+  end
+
+  class DurableTaskEvictedError < Error
+    def initialize: (?String message) -> void
+  end
 end

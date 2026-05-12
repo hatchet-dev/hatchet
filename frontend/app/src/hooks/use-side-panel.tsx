@@ -1,6 +1,5 @@
 import { useTheme } from '@/components/hooks/use-theme';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
 import { DocPage } from '@/components/v1/docs/docs-button';
 import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
@@ -86,9 +85,6 @@ type UseSidePanelProps =
       type: 'span-details';
       content: {
         span: OtelSpanTree;
-        activeFilters?: ParsedTraceQuery;
-        onAddFilter?: (key: string, value: string) => void;
-        onRemoveFilter?: (key: string, value: string) => void;
         onSpanSelect?: (span: OtelSpanTree) => void;
         onClose?: () => void;
       };

@@ -44,7 +44,6 @@ export default {
     type: "separator",
   },
   "durable-tasks": "Durable Tasks",
-  "durable-tasks-vs-dags": "Durable Tasks vs DAGs",
   "child-spawning": "Child Spawning",
   "durable-sleep": "Sleeps",
   "durable-event-waits": "Event Waits",

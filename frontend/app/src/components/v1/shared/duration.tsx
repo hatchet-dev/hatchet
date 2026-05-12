@@ -1,9 +1,9 @@
 import {
-  PortalTooltip,
-  PortalTooltipTrigger,
-  PortalTooltipContent,
-  PortalTooltipProvider,
-} from '@/components/v1/ui/portal-tooltip';
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/v1/ui/tooltip';
 import { V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
@@ -135,21 +135,21 @@ export function Duration({
   }
 
   return (
-    <PortalTooltipProvider>
-      <PortalTooltip>
-        <PortalTooltipTrigger asChild>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
           <span
             className={cn(!asChild && durationVariants({ variant }), className)}
             {...props}
           >
             {content}
           </span>
-        </PortalTooltipTrigger>
-        <PortalTooltipContent>
+        </TooltipTrigger>
+        <TooltipContent>
           {isRunning ? 'Running for ' : ''}
           {formatDuration(duration, rawDuration)}
-        </PortalTooltipContent>
-      </PortalTooltip>
-    </PortalTooltipProvider>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

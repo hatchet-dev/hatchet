@@ -14,3 +14,4 @@ FeatureFlagId:
   enum:
     - "tenant-log-workflow-filter-enabled"
     - "trace-minimap-enabled"
+    - "organization-sso-enabled"

@@ -3,42 +3,13 @@ import { formatDuration, formatTimestamp } from './utils/format-utils';
 import { isQueuedOnly, statusLabel } from './utils/span-tree-utils';
 import { useLiveClock } from './utils/use-live-clock';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import type { ParsedTraceQuery } from '@/components/v1/cloud/observability/trace-search';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/v1/ui/table';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
-import { cn } from '@/lib/utils';
-import { Download, Filter, Minus, PanelRight, Plus } from 'lucide-react';
+import { PanelRight } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
-
-function FilterWithBadgeIcon({
-  className,
-  variant,
-}: {
-  className?: string;
-  variant: 'plus' | 'minus';
-}) {
-  const Badge = variant === 'plus' ? Plus : Minus;
-  return (
-    <span className={cn('relative inline-flex size-3.5', className)}>
-      <Filter className="size-full" />
-      <Badge
-        className="pointer-events-none absolute -bottom-0.5 -right-0.5 size-2.5"
-        strokeWidth={2.5}
-        aria-hidden
-      />
-    </span>
-  );
-}
 
 function statusBadgeVariant(code: string): 'successful' | 'failed' | 'queued' {
   if (code === OtelStatusCode.ERROR) {
@@ -82,17 +53,6 @@ function collectChildErrors(node: OtelSpanTree): ChildError[] {
 }
 
 const HATCHET_ATTR_PREFIX = 'hatchet.';
-const LARGE_VALUE_THRESHOLD = 500;
-
-function downloadAttrValue(key: string, value: string) {
-  const blob = new Blob([value], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.txt`;
-  a.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 function partitionAttributes(attrs: Record<string, string> | undefined) {
   const hatchet: [string, string][] = [];
@@ -116,138 +76,30 @@ function partitionAttributes(attrs: Record<string, string> | undefined) {
   return { hatchet, user };
 }
 
-function isFilterActive(
-  activeFilters: ParsedTraceQuery | undefined,
-  key: string,
-  value: string,
-): boolean {
-  if (!activeFilters) {
-    return false;
-  }
-  if (key.toLowerCase() === 'status') {
-    return activeFilters.status === value.toLowerCase();
-  }
-  return activeFilters.attributes.some(([k, v]) => k === key && v === value);
-}
-
-function AttrTable({
-  entries,
-  title,
-  activeFilters,
-  onAddFilter,
-  onRemoveFilter,
-}: {
-  entries: [string, string][];
-  title: string;
-  activeFilters?: ParsedTraceQuery;
-  onAddFilter?: (key: string, value: string) => void;
-  onRemoveFilter?: (key: string, value: string) => void;
-}) {
-  if (entries.length === 0) {
-    return null;
-  }
-
-  return (
-    <div>
-      <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </h4>
-      <div className="overflow-hidden rounded-md border border-border bg-background">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Key</TableHead>
-              <TableHead>Value</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entries.map(([key, value]) => {
-              const active = isFilterActive(activeFilters, key, value);
-              return (
-                <TableRow key={key} className="group">
-                  <TableCell className="whitespace-nowrap font-mono text-muted-foreground">
-                    {key}
-                  </TableCell>
-                  <TableCell className="break-all font-mono">
-                    <span className="flex items-center justify-between gap-2">
-                      {value.length > LARGE_VALUE_THRESHOLD ? (
-                        <span className="min-w-0">
-                          <span className="text-muted-foreground">
-                            {value.slice(0, LARGE_VALUE_THRESHOLD)}…
-                          </span>
-                          <span className="ml-1 text-xs text-muted-foreground/60">
-                            ({(value.length / 1024).toFixed(1)} KB)
-                          </span>
-                        </span>
-                      ) : (
-                        <span>{value}</span>
-                      )}
-                      <span className="flex shrink-0 items-center gap-0.5">
-                        {value.length > LARGE_VALUE_THRESHOLD && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="size-6 shrink-0"
-                            hoverText={`Download ${key}`}
-                            onClick={() => downloadAttrValue(key, value)}
-                          >
-                            <Download className="size-3" />
-                          </Button>
-                        )}
-                        {(onAddFilter || onRemoveFilter) && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className={cn(
-                              'size-6 shrink-0 transition-opacity',
-                              active
-                                ? 'opacity-100'
-                                : 'opacity-0 group-hover:opacity-100',
-                            )}
-                            hoverText={
-                              active
-                                ? `Remove filter ${key}:${value}`
-                                : `Filter by ${key}:${value}`
-                            }
-                            onClick={() =>
-                              active
-                                ? onRemoveFilter?.(key, value)
-                                : onAddFilter?.(key, value)
-                            }
-                          >
-                            {active ? (
-                              <FilterWithBadgeIcon variant="minus" />
-                            ) : (
-                              <FilterWithBadgeIcon variant="plus" />
-                            )}
-                          </Button>
-                        )}
-                      </span>
-                    </span>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
+const attrColumns = [
+  {
+    columnLabel: 'Key',
+    cellRenderer: ([key]: [string, string]) => (
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {key}
+      </span>
+    ),
+  },
+  {
+    columnLabel: 'Value',
+    cellRenderer: ([, value]: [string, string]) => (
+      <span className="break-all text-xs">{value}</span>
+    ),
+  },
+];
 
 export function SpanDetail({
   span,
-  activeFilters,
-  onAddFilter,
-  onRemoveFilter,
   onSpanSelect,
   onOpenTaskRun,
 }: {
   span: OtelSpanTree;
   onClose?: () => void;
-  activeFilters?: ParsedTraceQuery;
-  onAddFilter?: (key: string, value: string) => void;
-  onRemoveFilter?: (key: string, value: string) => void;
   onSpanSelect?: (span: OtelSpanTree) => void;
   onOpenTaskRun?: (taskRunId: string) => void;
 }) {
@@ -357,7 +209,7 @@ export function SpanDetail({
           <Alert variant="destructive">
             <AlertTitle>Error Message</AlertTitle>
             <AlertDescription>
-              <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+              <pre className="whitespace-pre-wrap break-words text-xs">
                 {span.statusMessage}
               </pre>
             </AlertDescription>
@@ -375,11 +227,11 @@ export function SpanDetail({
               >
                 <Alert
                   variant="destructive"
-                  className="transition-colors hover:bg-destructive/10"
+                  className="transition-colors hover:bg-red-100 dark:hover:bg-red-950/60"
                 >
                   <AlertTitle>{err.spanName}</AlertTitle>
                   <AlertDescription>
-                    <pre className="whitespace-pre-wrap break-words font-mono text-xs">
+                    <pre className="whitespace-pre-wrap break-words text-xs">
                       {err.message}
                     </pre>
                   </AlertDescription>
@@ -389,21 +241,27 @@ export function SpanDetail({
           </div>
         )}
 
-        {(user.length > 0 || hatchet.length > 0) && (
-          <div className="flex flex-col gap-3">
-            <AttrTable
-              entries={user}
-              title="Attributes"
-              activeFilters={activeFilters}
-              onAddFilter={onAddFilter}
-              onRemoveFilter={onRemoveFilter}
+        {user.length > 0 && (
+          <div>
+            <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Attributes
+            </h4>
+            <SimpleTable
+              columns={attrColumns}
+              data={user}
+              rowKey={([key]) => key}
             />
-            <AttrTable
-              entries={hatchet}
-              title="Hatchet Attributes"
-              activeFilters={activeFilters}
-              onAddFilter={onAddFilter}
-              onRemoveFilter={onRemoveFilter}
+          </div>
+        )}
+        {hatchet.length > 0 && (
+          <div>
+            <h4 className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Hatchet Attributes
+            </h4>
+            <SimpleTable
+              columns={attrColumns}
+              data={hatchet}
+              rowKey={([key]) => key}
             />
           </div>
         )}

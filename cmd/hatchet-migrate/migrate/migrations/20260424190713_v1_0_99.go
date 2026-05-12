@@ -491,10 +491,6 @@ func up20260424190713(ctx context.Context, db *sql.DB) error {
 	eg := &errgroup.Group{}
 
 	eg.Go(func() error {
-		if _, err := db.ExecContext(ctx, `DROP INDEX IF EXISTS ix_v1_runs_olap_tenant_id`); err != nil {
-			return fmt.Errorf("drop old index on %s: %w", v1RunsOlapTable, err)
-		}
-
 		if _, err := db.ExecContext(ctx, buildCreateMirrorTableSQL(v1RunsOlapTable, v1RunsOlapTable+"_new", v1RunsOlapNewColDefs)); err != nil {
 			return fmt.Errorf("create %s_new: %w", v1RunsOlapTable, err)
 		}

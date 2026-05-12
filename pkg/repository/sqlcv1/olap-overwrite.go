@@ -586,3 +586,247 @@ func (q *Queries) FindV1OLAPPayloadPartitionsBeforeDate(ctx context.Context, db 
 	}
 	return items, nil
 }
+
+const createTasksOLAP = `-- name: CreateTasksOLAP :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($4::TEXT[]) AS queue,
+        UNNEST($5::TEXT[]) AS action_id,
+        UNNEST($6::UUID[]) AS step_id,
+        UNNEST($7::UUID[]) AS workflow_id,
+        UNNEST($8::UUID[]) AS workflow_version_id,
+        UNNEST($9::UUID[]) AS workflow_run_id,
+        UNNEST($10::TEXT[]) AS schedule_timeout,
+        UNNEST($11::TEXT[]) AS step_timeout,
+        UNNEST($12::INTEGER[]) AS priority,
+        UNNEST(CAST($13::TEXT[] AS v1_sticky_strategy_olap[])) AS sticky,
+        UNNEST($14::UUID[]) AS desired_worker_id,
+        UNNEST($15::UUID[]) AS external_id,
+        UNNEST($16::TEXT[]) AS display_name,
+        UNNEST($17::JSONB[]) AS input,
+        UNNEST($18::JSONB[]) AS additional_metadata,
+        UNNEST($19::BIGINT[]) AS dag_id,
+        UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($21::UUID[]) AS parent_task_external_id,
+        UNNEST($22::BOOLEAN[]) AS is_durable
+)
+INSERT INTO v1_tasks_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    queue,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    schedule_timeout,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    external_id,
+    display_name,
+    input,
+    additional_metadata,
+    dag_id,
+    dag_inserted_at,
+    parent_task_external_id,
+    is_durable
+)
+SELECT
+    tenant_id,
+    id,
+    inserted_at,
+    queue,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_version_id,
+    workflow_run_id,
+    schedule_timeout,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    external_id,
+    display_name,
+    input,
+    additional_metadata,
+    dag_id,
+    dag_inserted_at,
+    parent_task_external_id,
+    is_durable
+FROM inputs
+ON CONFLICT (inserted_at, id) DO NOTHING
+`
+
+type CreateTasksOLAPParams struct {
+	Tenantids             []uuid.UUID          `json:"tenantids"`
+	Ids                   []int64              `json:"ids"`
+	Insertedats           []pgtype.Timestamptz `json:"insertedats"`
+	Queues                []string             `json:"queues"`
+	Actionids             []string             `json:"actionids"`
+	Stepids               []uuid.UUID          `json:"stepids"`
+	Workflowids           []uuid.UUID          `json:"workflowids"`
+	Workflowversionids    []uuid.UUID          `json:"workflowversionids"`
+	Workflowrunids        []uuid.UUID          `json:"workflowrunids"`
+	Scheduletimeouts      []string             `json:"scheduletimeouts"`
+	Steptimeouts          []pgtype.Text        `json:"steptimeouts"`
+	Priorities            []pgtype.Int4        `json:"priorities"`
+	Stickies              []string             `json:"stickies"`
+	Desiredworkerids      []*uuid.UUID         `json:"desiredworkerids"`
+	Externalids           []uuid.UUID          `json:"externalids"`
+	Displaynames          []string             `json:"displaynames"`
+	Inputs                [][]byte             `json:"inputs"`
+	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
+	Dagids                []pgtype.Int8        `json:"dagids"`
+	Daginsertedats        []pgtype.Timestamptz `json:"daginsertedats"`
+	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
+	Isdurables            []bool               `json:"isdurables"`
+}
+
+func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
+	_, err := db.Exec(ctx, createTasksOLAP,
+		arg.Tenantids,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Queues,
+		arg.Actionids,
+		arg.Stepids,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Workflowrunids,
+		arg.Scheduletimeouts,
+		arg.Steptimeouts,
+		arg.Priorities,
+		arg.Stickies,
+		arg.Desiredworkerids,
+		arg.Externalids,
+		arg.Displaynames,
+		arg.Inputs,
+		arg.Additionalmetadatas,
+		arg.Dagids,
+		arg.Daginsertedats,
+		arg.Parenttaskexternalids,
+		arg.Isdurables,
+	)
+	return err
+}
+
+const createDAGsOLAP = `-- name: CreateDAGsOLAP :exec
+WITH inputs AS (
+    SELECT
+        UNNEST($1::UUID[]) AS tenant_id,
+        UNNEST($2::BIGINT[]) AS id,
+        UNNEST($3::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST($4::UUID[]) AS external_id,
+        UNNEST($5::TEXT[]) AS display_name,
+        UNNEST($6::UUID[]) AS workflow_id,
+        UNNEST($7::UUID[]) AS workflow_version_id,
+        UNNEST($8::JSONB[]) AS input,
+        UNNEST($9::JSONB[]) AS additional_metadata,
+        UNNEST($10::UUID[]) AS parent_task_external_id,
+        UNNEST($11::INTEGER[]) AS total_tasks
+), dag_task_counts AS (
+    SELECT
+        i.id,
+        i.inserted_at,
+        i.total_tasks,
+        COUNT(t.id) AS task_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'COMPLETED') AS completed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'FAILED') AS failed_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'CANCELLED') AS cancelled_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'QUEUED') AS queued_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'RUNNING') AS running_count,
+        COUNT(t.id) FILTER (WHERE t.readable_status = 'EVICTED') AS evicted_count
+    FROM inputs i
+    JOIN v1_dag_to_task_olap dt ON (i.id, i.inserted_at) = (dt.dag_id, dt.dag_inserted_at)
+    JOIN v1_tasks_olap t ON (dt.task_id, dt.task_inserted_at) = (t.id, t.inserted_at)
+    GROUP BY i.id, i.inserted_at, i.total_tasks
+), dag_statuses AS (
+    SELECT
+        dtc.id,
+        dtc.inserted_at,
+        CASE
+            WHEN dtc.queued_count = dtc.task_count THEN 'QUEUED'
+            WHEN dtc.task_count != dtc.total_tasks THEN 'RUNNING'
+            WHEN dtc.running_count > 0 OR dtc.queued_count > 0 THEN 'RUNNING'
+            WHEN dtc.evicted_count = dtc.task_count AND dtc.task_count = dtc.total_tasks THEN 'EVICTED'
+            WHEN dtc.failed_count > 0 THEN 'FAILED'
+            WHEN dtc.cancelled_count > 0 THEN 'CANCELLED'
+            WHEN dtc.completed_count = dtc.task_count THEN 'COMPLETED'
+            ELSE 'RUNNING'
+        END::v1_readable_status_olap AS computed_status
+    FROM dag_task_counts dtc
+)
+INSERT INTO v1_dags_olap (
+    tenant_id,
+    id,
+    inserted_at,
+    external_id,
+    display_name,
+    workflow_id,
+    workflow_version_id,
+    input,
+    additional_metadata,
+    parent_task_external_id,
+    total_tasks,
+    readable_status
+)
+SELECT
+    i.tenant_id,
+    i.id,
+    i.inserted_at,
+    i.external_id,
+    i.display_name,
+    i.workflow_id,
+    i.workflow_version_id,
+    i.input,
+    i.additional_metadata,
+    i.parent_task_external_id,
+    i.total_tasks,
+    COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap)
+FROM inputs i
+LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
+ON CONFLICT (inserted_at, id) DO UPDATE SET
+    readable_status = CASE
+        WHEN v1_status_to_priority(EXCLUDED.readable_status) > v1_status_to_priority(v1_dags_olap.readable_status)
+        THEN EXCLUDED.readable_status
+        ELSE v1_dags_olap.readable_status
+    END
+`
+
+type CreateDAGsOLAPOverwriteParams struct {
+	Tenantids             []uuid.UUID          `json:"tenantids"`
+	Ids                   []int64              `json:"ids"`
+	Insertedats           []pgtype.Timestamptz `json:"insertedats"`
+	Externalids           []uuid.UUID          `json:"externalids"`
+	Displaynames          []string             `json:"displaynames"`
+	Workflowids           []uuid.UUID          `json:"workflowids"`
+	Workflowversionids    []uuid.UUID          `json:"workflowversionids"`
+	Inputs                [][]byte             `json:"inputs"`
+	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
+	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
+	Totaltasks            []int32              `json:"totaltasks"`
+}
+
+func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
+	_, err := db.Exec(ctx, createDAGsOLAP,
+		arg.Tenantids,
+		arg.Ids,
+		arg.Insertedats,
+		arg.Externalids,
+		arg.Displaynames,
+		arg.Workflowids,
+		arg.Workflowversionids,
+		arg.Inputs,
+		arg.Additionalmetadatas,
+		arg.Parenttaskexternalids,
+		arg.Totaltasks,
+	)
+	return err
+}

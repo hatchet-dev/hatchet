@@ -12,6 +12,7 @@ import (
 
 var printVersion bool
 var migrateDown string
+var upToPenultimate bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -30,7 +31,11 @@ var rootCmd = &cobra.Command{
 		if migrateDown != "" {
 			migrate.RunDownMigration(ctx, migrateDown)
 		} else {
-			migrate.RunMigrations(ctx)
+			var opts []migrate.RunMigrationsOpt
+			if upToPenultimate {
+				opts = append(opts, migrate.WithUpToPenultimate())
+			}
+			migrate.RunMigrations(ctx, opts...)
 		}
 	},
 }
@@ -51,6 +56,13 @@ func main() {
 		"down",
 		"",
 		"migrate down to a specific version (e.g., 20240115180414).",
+	)
+
+	rootCmd.PersistentFlags().BoolVar(
+		&upToPenultimate,
+		"up-to-penultimate",
+		false,
+		"migrate up to the second-to-last migration version.",
 	)
 
 	if err := rootCmd.Execute(); err != nil {

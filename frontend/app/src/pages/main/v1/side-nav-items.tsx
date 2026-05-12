@@ -23,6 +23,7 @@ export function sideNavItems(opts: {
   canBill?: boolean;
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
+  orgId?: string;
 }): SideNavSection[] {
   const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
 
@@ -267,7 +268,13 @@ export function sideNavItems(opts: {
         {
           key: 'organization',
           name: opts.isCloudEnabled ? 'Organization' : 'Tenants',
-          to: appRoutes.tenantSettingsOrganizationRoute.to,
+          to:
+            opts.isCloudEnabled && opts.orgId
+              ? appRoutes.organizationsRoute.to
+              : appRoutes.tenantsRoute.to,
+          ...(opts.isCloudEnabled && opts.orgId
+            ? { params: { organization: opts.orgId } }
+            : { params: {} }),
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiOrganizationChart
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}

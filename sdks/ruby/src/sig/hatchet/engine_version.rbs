@@ -1,0 +1,12 @@
+module Hatchet
+  module MinEngineVersion
+    SLOT_CONFIG: String
+    DURABLE_EVICTION: String
+    OBSERVABILITY: String
+  end
+
+  module EngineVersion
+    def self.parse_semver: (String? version) -> [Integer, Integer, Integer]
+    def self.semver_less_than: (String? a, String? b) -> bool
+  end
+end

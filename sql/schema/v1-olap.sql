@@ -157,7 +157,7 @@ CREATE TABLE v1_tasks_olap (
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
 
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
@@ -178,7 +178,7 @@ CREATE TABLE v1_dags_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_id);
@@ -628,19 +628,6 @@ BEGIN
         AND r.inserted_at = n.inserted_at
         AND r.kind = 'TASK';
 
-    -- insert tmp events into task status updates table if we have a dag_id
-    INSERT INTO v1_task_status_updates_tmp (
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    )
-    SELECT
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    FROM new_rows
-    WHERE dag_id IS NOT NULL;
-
     RETURN NULL;
 END;
 $$
@@ -849,7 +836,10 @@ CREATE TABLE v1_payloads_olap_cutover_job_offset (
 
     last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
     last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
+    final_source_table_row_count BIGINT,
+    final_target_table_row_count BIGINT,
+    final_row_count_diff BIGINT
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payloads_olap_partition_structure(

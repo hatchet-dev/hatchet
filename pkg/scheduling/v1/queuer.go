@@ -110,12 +110,12 @@ func (q *Queuer) queue(ctx context.Context) {
 	go func() {
 		defer q.queueMu.Unlock()
 
-		ctx, span := telemetry.NewSpan(ctx, "notify-queue")
+		telemetryCtx, span := telemetry.NewSpan(ctx, "notify-queue")
 		defer span.End()
 
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()})
 
-		q.notifyQueueCh <- telemetry.GetCarrier(ctx)
+		q.notifyQueueCh <- telemetry.GetCarrier(telemetryCtx)
 	}()
 }
 

@@ -63,6 +63,7 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
 	TraceMinimapEnabled            FeatureFlagId = "trace-minimap-enabled"
 )
@@ -1169,6 +1170,9 @@ type Tenant struct {
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
+
+	// Region Control-plane shard region for the tenant (e.g. aws:us-west-2).
+	Region *string `json:"region,omitempty"`
 
 	// ServerUrl The server URL for the tenant (includes scheme)
 	ServerUrl *string `json:"serverUrl,omitempty"`

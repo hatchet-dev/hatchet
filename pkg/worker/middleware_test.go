@@ -142,6 +142,10 @@ func (c *testHatchetContext) Worker() HatchetWorkerContext {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) DurableTaskInvocationCount() int32 {
+	return 0
+}
+
 func (c *testHatchetContext) FilterPayload() map[string]interface{} {
 	panic("not implemented")
 }

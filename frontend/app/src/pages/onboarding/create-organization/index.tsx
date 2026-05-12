@@ -1,7 +1,8 @@
 import { NewOrganizationSaverForm } from '@/components/forms/new-organization-saver-form';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import api, { queries } from '@/lib/api';
+import { queries } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import freeEmailDomains from '@/lib/free-email-domains.json';
 import { useRedirectOrNavigate } from '@/lib/redirect';
 import { AuthLayout } from '@/pages/auth/components/auth-layout';
@@ -26,14 +27,12 @@ function deriveDefaultOrgName(user: { name?: string; email: string }): string {
 export default function CreateOrganization() {
   const redirectOrNavigate = useRedirectOrNavigate();
   const navigate = useNavigate();
+  const { userUpdateLogoutMutation } = useUserApi();
   const { user, isUserLoaded } = useAppContext();
 
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
-    onSuccess: () => {
+    ...userUpdateLogoutMutation(),
+    onSettled: () => {
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },

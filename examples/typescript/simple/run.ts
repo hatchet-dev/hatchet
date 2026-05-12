@@ -1,6 +1,7 @@
 import { hatchet } from '../hatchet-client';
 import { simple } from './workflow';
 import { parent } from './workflow-with-child';
+import { simpleWithZod } from './zod';
 
 async function main() {
   // > Running a Task
@@ -14,6 +15,11 @@ async function main() {
       },
     }
   );
+
+  const res3 = await simpleWithZod.run({
+    Message: 'HeLlO WoRlD',
+  });
+  console.log(res3.TransformedMessage);
 
   // 👀 Access the results of the Task
   console.log(res.TransformedMessage);
