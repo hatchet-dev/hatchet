@@ -22,8 +22,8 @@ func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	metadata := map[string]any{
-		constants.CronExpressionKey.String(): cron,
-		constants.CronScheduledAt.String():   scheduledAt.Format(time.RFC3339),
+		constants.CronExpressionKey.String():  cron,
+		constants.CronScheduledAtKey.String(): scheduledAt.Format(time.RFC3339),
 	}
 
 	if cronName != nil {

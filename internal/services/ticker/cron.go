@@ -101,7 +101,7 @@ func (t *TickerImpl) handleScheduleCron(ctx context.Context, cron *sqlcv1.PollCr
 
 			if err != nil {
 				t.l.Error().Ctx(ctx).Err(err).Msg("could not get scheduled time for cron job")
-				scheduledAt = time.Now()
+				scheduledAt = time.Now().UTC()
 			}
 
 			t.runCronWorkflow(
