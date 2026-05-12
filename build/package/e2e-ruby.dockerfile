@@ -14,5 +14,3 @@ RUN cd examples && bundle lock --add-platform x86_64-linux && bundle install
 
 COPY build/package/e2e-ruby-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-CMD ["/entrypoint.sh"]
