@@ -37,7 +37,7 @@ SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_external_id
 FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
-    -- if the lease is held by this process, then we extend the offset to the new external_id
+    -- if the lease is held by this process, then we extend the offset to the new tuple of (last_tenant_id, last_inserted_at, last_id, last_type)
     -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
     last_external_id = CASE
         WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
