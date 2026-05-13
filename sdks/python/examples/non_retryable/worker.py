@@ -3,7 +3,7 @@ from hatchet_sdk.exceptions import NonRetryableException
 
 hatchet = Hatchet()
 
-non_retryable_workflow = hatchet.workflow(name="python-NonRetryableWorkflow")
+non_retryable_workflow = hatchet.workflow(name="NonRetryableWorkflow")
 
 
 # > Non-retryable task

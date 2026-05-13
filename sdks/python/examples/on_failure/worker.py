@@ -12,7 +12,7 @@ ERROR_TEXT = "step1 failed"
 # This workflow will fail because the step will throw an error
 # we define an onFailure step to handle this case
 
-on_failure_wf = hatchet.workflow(name="python-OnFailureWorkflow")
+on_failure_wf = hatchet.workflow(name="OnFailureWorkflow")
 
 
 @on_failure_wf.task(execution_timeout=timedelta(seconds=1))
@@ -40,9 +40,7 @@ def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
 # We can access the failure details in the onFailure step
 # via the context method
 
-on_failure_wf_with_details = hatchet.workflow(
-    name="python-OnFailureWorkflowWithDetails"
-)
+on_failure_wf_with_details = hatchet.workflow(name="OnFailureWorkflowWithDetails")
 
 
 # ... defined as above

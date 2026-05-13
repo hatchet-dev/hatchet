@@ -4,7 +4,7 @@ import { hatchet } from '../hatchet-client';
 export type MockInput = { foo: string };
 
 export const runDetailTestWorkflow = hatchet.workflow<MockInput>({
-  name: 'ts-run-detail-test',
+  name: 'run-detail-test',
 });
 
 const step1 = runDetailTestWorkflow.task({

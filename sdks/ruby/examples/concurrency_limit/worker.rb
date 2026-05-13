@@ -6,7 +6,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Workflow
 CONCURRENCY_LIMIT_WORKFLOW = HATCHET.workflow(
-  name: "ruby-ConcurrencyDemoWorkflow",
+  name: "ConcurrencyDemoWorkflow",
   concurrency: Hatchet::ConcurrencyExpression.new(
     expression: "input.group_key",
     max_runs: 5,

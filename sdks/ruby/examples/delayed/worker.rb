@@ -4,8 +4,8 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-PRINT_SCHEDULE_WF = HATCHET.workflow(name: "ruby-PrintScheduleWorkflow")
-PRINT_PRINTER_WF = HATCHET.workflow(name: "ruby-PrintPrinterWorkflow")
+PRINT_SCHEDULE_WF = HATCHET.workflow(name: "PrintScheduleWorkflow")
+PRINT_PRINTER_WF = HATCHET.workflow(name: "PrintPrinterWorkflow")
 
 PRINT_SCHEDULE_WF.task(:schedule) do |input, ctx|
   now = Time.now.utc

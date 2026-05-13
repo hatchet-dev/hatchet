@@ -34,7 +34,7 @@ export type EscalationOutput = {
 // > Triage task
 // Classify the ticket into a category and priority.
 export const triageTicket = hatchet.task({
-  name: 'ts-triage-ticket',
+  name: 'triage-ticket',
   fn: async (input: SupportTicketInput) => {
     const text = `${input.subject} ${input.body}`.toLowerCase();
 
@@ -64,7 +64,7 @@ export const triageTicket = hatchet.task({
 // > Generate reply task
 // Generate an initial support reply using Claude.
 export const generateReply = hatchet.task({
-  name: 'ts-generate-reply',
+  name: 'generate-reply',
   fn: async (input: SupportTicketInput) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -105,7 +105,7 @@ export const generateReply = hatchet.task({
 // > Escalate task
 // Escalate an unresolved ticket to the human support team.
 export const escalateTicket = hatchet.task({
-  name: 'ts-escalate-ticket',
+  name: 'escalate-ticket',
   fn: async (input: SupportTicketInput) => {
     return {
       reason: `No customer reply within ${TIMEOUT_SECONDS}s timeout`,
@@ -117,7 +117,7 @@ export const escalateTicket = hatchet.task({
 
 // > Support agent workflow
 export const supportAgent = hatchet.durableTask({
-  name: 'ts-support-agent',
+  name: 'support-agent',
   executionTimeout: '10m',
   fn: async (input: SupportTicketInput, ctx) => {
     // Step 1: Triage the ticket

@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 hatchet = Hatchet::Client.new
 
-dynamic_cron_workflow = hatchet.workflow(name: "ruby-DynamicCronWorkflow")
+dynamic_cron_workflow = hatchet.workflow(name: "DynamicCronWorkflow")
 
 # > Create
 cron_trigger = dynamic_cron_workflow.create_cron(

@@ -10,7 +10,7 @@ SECONDARY_KEY = "foobarbaz"
 WILDCARD_KEY = "subscription:*"
 
 EVENT_WORKFLOW = HATCHET.workflow(
-  name: "ruby-EventWorkflow",
+  name: "EventWorkflow",
   on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY]
 )
 
@@ -18,7 +18,7 @@ EVENT_WORKFLOW = HATCHET.workflow(
 
 # > Event trigger with filter
 EVENT_WORKFLOW_WITH_FILTER = HATCHET.workflow(
-  name: "ruby-EventWorkflow",
+  name: "EventWorkflow",
   on_events: [EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
   default_filters: [
     Hatchet::DefaultFilter.new(

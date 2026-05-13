@@ -5,13 +5,13 @@ import sleep from '@hatchet/util/sleep';
 import { durationToMs } from '@hatchet/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
-export const EVENT_KEY = 'ts-durable-example:event';
+export const EVENT_KEY = 'durable-example:event';
 export const SLEEP_TIME_SECONDS = 2;
 export const SLEEP_TIME = `${SLEEP_TIME_SECONDS}s` as const;
 
 // > Create a durable workflow
 export const durableWorkflow = hatchet.workflow({
-  name: 'ts-durable-workflow',
+  name: 'durable-workflow',
 });
 // !!
 
@@ -115,7 +115,7 @@ durableWorkflow.durableTask({
 });
 
 export const waitForSleepTwice = hatchet.durableTask({
-  name: 'ts-wait-for-sleep-twice',
+  name: 'wait-for-sleep-twice',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     try {
@@ -131,14 +131,14 @@ export const waitForSleepTwice = hatchet.durableTask({
 // --- Spawn child from durable task ---
 
 export const spawnChildTask = hatchet.task({
-  name: 'ts-spawn-child-task',
+  name: 'spawn-child-task',
   fn: async (input: { n?: number }) => {
     return { message: `hello from child ${input.n ?? 1}` };
   },
 });
 
 export const durableWithSpawn = hatchet.durableTask({
-  name: 'ts-durable-with-spawn',
+  name: 'durable-with-spawn',
   executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const childResult = await spawnChildTask.run({});
@@ -147,7 +147,7 @@ export const durableWithSpawn = hatchet.durableTask({
 });
 
 export const durableWithBulkSpawn = hatchet.durableTask({
-  name: 'ts-durable-with-bulk-spawn',
+  name: 'durable-with-bulk-spawn',
   executionTimeout: '10m',
   fn: async (input: { n?: number }, ctx) => {
     const n = input.n ?? 10;
@@ -158,7 +158,7 @@ export const durableWithBulkSpawn = hatchet.durableTask({
 });
 
 export const durableSleepEventSpawn = hatchet.durableTask({
-  name: 'ts-durable-sleep-event-spawn',
+  name: 'durable-sleep-event-spawn',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const start = Date.now();
@@ -179,7 +179,7 @@ export const durableSleepEventSpawn = hatchet.durableTask({
 // --- Spawn child using explicit ctx.spawnChild ---
 
 export const durableWithExplicitSpawn = hatchet.durableTask({
-  name: 'ts-durable-with-explicit-spawn',
+  name: 'durable-with-explicit-spawn',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const childResult = await ctx.spawnChild(spawnChildTask, {});
@@ -190,7 +190,7 @@ export const durableWithExplicitSpawn = hatchet.durableTask({
 // --- Non-determinism detection ---
 
 export const durableNonDeterminism = hatchet.durableTask({
-  name: 'ts-durable-non-determinism',
+  name: 'durable-non-determinism',
   executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepTime = ctx.invocationCount * 2;
@@ -225,7 +225,7 @@ export const REPLAY_RESET_MEMOIZED_MAX_SECONDS = 5;
 const REPLAY_RESET_SLEEP = `${REPLAY_RESET_SLEEP_SECONDS}s` as const;
 
 export const durableReplayReset = hatchet.durableTask({
-  name: 'ts-durable-replay-reset',
+  name: 'durable-replay-reset',
   executionTimeout: '20s',
   fn: async (_input, ctx) => {
     let start = Date.now();
@@ -260,7 +260,7 @@ const twoEventsPayloadSchema = z.object({
 });
 
 export const waitForEventLookback = hatchet.durableTask({
-  name: 'ts-wait-for-event-lookback',
+  name: 'wait-for-event-lookback',
   executionTimeout: '10m',
   fn: async (input: { userId: number }, ctx) => {
     const start = Date.now();
@@ -283,7 +283,7 @@ export const waitForEventLookback = hatchet.durableTask({
 });
 
 export const waitForOrEventLookback = hatchet.durableTask({
-  name: 'ts-wait-for-or-event-lookback',
+  name: 'wait-for-or-event-lookback',
   executionTimeout: '10m',
   fn: async (input: { scope: string }, ctx) => {
     const start = Date.now();
@@ -311,7 +311,7 @@ export const waitForOrEventLookback = hatchet.durableTask({
 });
 
 export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
-  name: 'ts-wait-for-two-events-second-pushed-first',
+  name: 'wait-for-two-events-second-pushed-first',
   executionTimeout: '10m',
   fn: async (input: { scope: string }, ctx) => {
     const start = Date.now();
@@ -338,7 +338,7 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
 });
 
 export const memoNowCaching = hatchet.durableTask({
-  name: 'ts-memo-now-caching',
+  name: 'memo-now-caching',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
     const now = await ctx.now();
@@ -370,7 +370,7 @@ dagChildWorkflow.task({
 });
 
 export const durableSpawnDag = hatchet.durableTask({
-  name: 'ts-durable-spawn-dag',
+  name: 'durable-spawn-dag',
   executionTimeout: '10s',
   fn: async (_input, ctx) => {
     const sleepStart = Date.now();

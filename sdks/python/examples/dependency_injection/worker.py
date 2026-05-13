@@ -35,7 +35,7 @@ else:
     )
 
 
-@hatchet.task(name="python-task_with_type_aliases")
+@hatchet.task()
 async def task_with_type_aliases(
     _i: EmptyModel,
     ctx: Context,
@@ -130,7 +130,7 @@ class Output(BaseModel):
 
 
 # > Inject dependencies
-@hatchet.task(name="python-async_task_with_dependencies")
+@hatchet.task()
 async def async_task_with_dependencies(
     _i: EmptyModel,
     ctx: Context,
@@ -154,7 +154,7 @@ async def async_task_with_dependencies(
 # !!
 
 
-@hatchet.task(name="python-sync_task_with_dependencies")
+@hatchet.task()
 def sync_task_with_dependencies(
     _i: EmptyModel,
     ctx: Context,
@@ -175,7 +175,7 @@ def sync_task_with_dependencies(
     )
 
 
-@hatchet.durable_task(name="python-durable_async_task_with_dependencies")
+@hatchet.durable_task()
 async def durable_async_task_with_dependencies(
     _i: EmptyModel,
     ctx: DurableContext,
@@ -197,7 +197,7 @@ async def durable_async_task_with_dependencies(
 
 
 di_workflow = hatchet.workflow(
-    name="python-dependency-injection-workflow",
+    name="dependency-injection-workflow",
 )
 
 

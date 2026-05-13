@@ -21,7 +21,7 @@ export type WelcomeEmailResult = {
 
 // > Welcome email task
 export const welcomeEmail = hatchet.durableTask<SignupInput, WelcomeEmailResult>({
-  name: 'ts-welcome-email',
+  name: 'welcome-email',
   onEvents: ['user:signup'],
   executionTimeout: '5m',
   fn: async (input, ctx) => {

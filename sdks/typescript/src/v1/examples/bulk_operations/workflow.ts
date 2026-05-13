@@ -1,7 +1,7 @@
 import { hatchet } from '../hatchet-client';
 
 export const bulkReplayTest1 = hatchet.task({
-  name: 'ts-bulk-replay-test-1',
+  name: 'bulk-replay-test-1',
   retries: 1,
   fn: async (_input, ctx) => {
     console.log('retrying bulk replay test task', ctx.retryCount());
@@ -12,7 +12,7 @@ export const bulkReplayTest1 = hatchet.task({
 });
 
 export const bulkReplayTest2 = hatchet.task({
-  name: 'ts-bulk-replay-test-2',
+  name: 'bulk-replay-test-2',
   retries: 1,
   fn: async (_input, ctx) => {
     console.log('retrying bulk replay test task', ctx.retryCount());
@@ -23,7 +23,7 @@ export const bulkReplayTest2 = hatchet.task({
 });
 
 export const bulkReplayTest3 = hatchet.task({
-  name: 'ts-bulk-replay-test-3',
+  name: 'bulk-replay-test-3',
   retries: 1,
   fn: async (_input, ctx) => {
     console.log('retrying bulk replay test task', ctx.retryCount());

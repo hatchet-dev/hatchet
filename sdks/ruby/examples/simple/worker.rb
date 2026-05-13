@@ -6,11 +6,11 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-SIMPLE = HATCHET.task(name: "ruby-simple") do |input, ctx|
+SIMPLE = HATCHET.task(name: "simple") do |input, ctx|
   { "result" => "Hello, world!" }
 end
 
-SIMPLE_DURABLE = HATCHET.durable_task(name: "ruby-simple_durable") do |input, ctx|
+SIMPLE_DURABLE = HATCHET.durable_task(name: "simple_durable") do |input, ctx|
   result = SIMPLE.run(input)
   { "result" => result["result"] }
 end

@@ -18,7 +18,7 @@ class RandomSum(BaseModel):
 hatchet = Hatchet()
 
 # > Define a DAG
-dag_workflow = hatchet.workflow(name="python-DAGWorkflow")
+dag_workflow = hatchet.workflow(name="DAGWorkflow")
 # !!
 
 

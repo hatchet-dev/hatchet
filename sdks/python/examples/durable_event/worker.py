@@ -6,7 +6,7 @@ EVENT_KEY = "user:update"
 
 
 # > Durable Event
-@hatchet.durable_task(name="python-DurableEventTask")
+@hatchet.durable_task(name="DurableEventTask")
 async def durable_event_task(input: EmptyModel, ctx: DurableContext) -> None:
     res = await ctx.aio_wait_for_event(
         "user:update",
@@ -18,7 +18,7 @@ async def durable_event_task(input: EmptyModel, ctx: DurableContext) -> None:
 # !!
 
 
-@hatchet.durable_task(name="python-DurableEventWithFilterTask")
+@hatchet.durable_task(name="DurableEventWithFilterTask")
 async def durable_event_task_with_filter(
     input: EmptyModel, ctx: DurableContext
 ) -> None:

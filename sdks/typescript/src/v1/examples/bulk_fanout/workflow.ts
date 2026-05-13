@@ -3,14 +3,14 @@ import { hatchet } from '../hatchet-client';
 export type ParentInput = { n: number };
 
 export const bulkChild = hatchet.task({
-  name: 'ts-bulk-child',
+  name: 'bulk-child',
   fn: async (input: { i: number }) => {
     return { i: input.i };
   },
 });
 
 export const bulkParentWorkflow = hatchet.workflow({
-  name: 'ts-bulk-parent',
+  name: 'bulk-parent',
 });
 
 bulkParentWorkflow.task({

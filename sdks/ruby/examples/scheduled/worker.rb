@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-SCHEDULED_WORKFLOW = HATCHET.workflow(name: "ruby-ScheduledWorkflow")
+SCHEDULED_WORKFLOW = HATCHET.workflow(name: "ScheduledWorkflow")
 
 SCHEDULED_WORKFLOW.task(:scheduled_task) do |input, ctx|
   puts "Scheduled task executed at #{Time.now}"

@@ -30,7 +30,7 @@ chained_async_dep = ->(_input, _ctx, deps) { "chained_#{CHAINED_ASYNC_CM_VALUE}"
 
 # > Inject dependencies
 ASYNC_TASK_WITH_DEPS = HATCHET.task(
-  name: "ruby-async_task_with_dependencies",
+  name: "async_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
     async_dep: async_dep,
@@ -51,7 +51,7 @@ ASYNC_TASK_WITH_DEPS = HATCHET.task(
 end
 
 SYNC_TASK_WITH_DEPS = HATCHET.task(
-  name: "ruby-sync_task_with_dependencies",
+  name: "sync_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
     async_dep: async_dep,
@@ -72,7 +72,7 @@ SYNC_TASK_WITH_DEPS = HATCHET.task(
 end
 
 DURABLE_ASYNC_TASK_WITH_DEPS = HATCHET.durable_task(
-  name: "ruby-durable_async_task_with_dependencies",
+  name: "durable_async_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
     async_dep: async_dep,
@@ -93,7 +93,7 @@ DURABLE_ASYNC_TASK_WITH_DEPS = HATCHET.durable_task(
 end
 
 DURABLE_SYNC_TASK_WITH_DEPS = HATCHET.durable_task(
-  name: "ruby-durable_sync_task_with_dependencies",
+  name: "durable_sync_task_with_dependencies",
   deps: {
     sync_dep: sync_dep,
     async_dep: async_dep,
@@ -113,7 +113,7 @@ DURABLE_SYNC_TASK_WITH_DEPS = HATCHET.durable_task(
   }
 end
 
-DI_WORKFLOW = HATCHET.workflow(name: "ruby-dependency-injection-workflow")
+DI_WORKFLOW = HATCHET.workflow(name: "dependency-injection-workflow")
 
 # Workflow tasks with dependencies follow the same pattern
 DI_WORKFLOW.task(:wf_task_with_dependencies) do |input, ctx|

@@ -20,7 +20,7 @@ from hatchet_sdk.exceptions import NonDeterminismError
 hatchet = Hatchet()
 
 
-dag_child_workflow = hatchet.workflow(name="python-dag-child-workflow")
+dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
 
 
 @dag_child_workflow.task()
@@ -35,9 +35,7 @@ async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "child2"}
 
 
-@hatchet.durable_task(
-    name="python-durable_spawn_dag", execution_timeout=timedelta(seconds=10)
-)
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
     # NOTE: typically its not safe to use time.time() in a durable task, but
     # this test assumes that the task is not replayed or evicted and it is
@@ -59,7 +57,7 @@ async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str,
 
 
 # > Create a durable workflow
-durable_workflow = hatchet.workflow(name="python-DurableWorkflow")
+durable_workflow = hatchet.workflow(name="DurableWorkflow")
 # !!
 
 
@@ -67,7 +65,7 @@ ephemeral_workflow = hatchet.workflow(name="EphemeralWorkflow")
 
 
 # > Add durable task
-EVENT_KEY = "py-durable-example:event"
+EVENT_KEY = "durable-example:event"
 SLEEP_TIME = 5
 REPLAY_RESET_SLEEP_TIME = 3
 
@@ -81,7 +79,7 @@ class AwaitedEvent(BaseModel):
     id: str
 
 
-@durable_workflow.durable_task(name="python_durable_task")
+@durable_workflow.durable_task()
 async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str | int]:
     print("Waiting for sleep")
     sleep = await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
@@ -176,7 +174,7 @@ def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
     print("Running non-durable task")
 
 
-@hatchet.durable_task(name="python-memo_now_caching")
+@hatchet.durable_task()
 async def memo_now_caching(_i: EmptyModel, ctx: DurableContext) -> dict[str, str]:
     now = await ctx.aio_now()
     return {
@@ -184,7 +182,7 @@ async def memo_now_caching(_i: EmptyModel, ctx: DurableContext) -> dict[str, str
     }
 
 
-@hatchet.durable_task(name="python-wait_for_sleep_twice")
+@hatchet.durable_task()
 async def wait_for_sleep_twice(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, float]:
@@ -206,22 +204,18 @@ class DurableBulkSpawnInput(BaseModel):
     n: int = 1
 
 
-@hatchet.task(name="python-spawn_child_task", input_validator=DurableBulkSpawnInput)
+@hatchet.task(input_validator=DurableBulkSpawnInput)
 def spawn_child_task(input: DurableBulkSpawnInput, ctx: Context) -> dict[str, str]:
     return {"message": "hello from child " + str(input.n)}
 
 
-@hatchet.durable_task(
-    name="python-durable_with_spawn", execution_timeout=timedelta(seconds=10)
-)
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
     child_result = await spawn_child_task.aio_run()
     return {"child_output": child_result}
 
 
-@hatchet.durable_task(
-    name="python-durable_with_bulk_spawn", input_validator=DurableBulkSpawnInput
-)
+@hatchet.durable_task(input_validator=DurableBulkSpawnInput)
 async def durable_with_bulk_spawn(
     input: DurableBulkSpawnInput, ctx: DurableContext
 ) -> dict[str, Any]:
@@ -236,7 +230,7 @@ async def durable_with_bulk_spawn(
     return {"child_outputs": child_results}
 
 
-@hatchet.durable_task(name="python-durable_sleep_event_spawn")
+@hatchet.durable_task()
 async def durable_sleep_event_spawn(
     input: EmptyModel, ctx: DurableContext
 ) -> dict[str, Any]:
@@ -280,9 +274,7 @@ class TwoEventsResult(BaseModel):
     elapsed: float
 
 
-@hatchet.durable_task(
-    name="python-wait_for_event_lookback", input_validator=EventLookbackInput
-)
+@hatchet.durable_task(input_validator=EventLookbackInput)
 async def wait_for_event_lookback(
     input: EventLookbackInput, ctx: DurableContext
 ) -> EventLookbackResultWithEvent:
@@ -300,9 +292,7 @@ async def wait_for_event_lookback(
     return EventLookbackResultWithEvent(event=event, elapsed=time.time() - start)
 
 
-@hatchet.durable_task(
-    name="python-wait_for_or_event_lookback", input_validator=EventLookbackInput
-)
+@hatchet.durable_task(input_validator=EventLookbackInput)
 async def wait_for_or_event_lookback(
     input: EventLookbackInput, ctx: DurableContext
 ) -> EventLookbackResult:
@@ -325,10 +315,7 @@ async def wait_for_or_event_lookback(
     return EventLookbackResult(elapsed=time.time() - start)
 
 
-@hatchet.durable_task(
-    name="python-wait_for_two_events_second_pushed_first",
-    input_validator=EventLookbackInput,
-)
+@hatchet.durable_task(input_validator=EventLookbackInput)
 async def wait_for_two_events_second_pushed_first(
     input: EventLookbackInput, ctx: DurableContext
 ) -> TwoEventsResult:
@@ -358,9 +345,7 @@ class NonDeterminismOutput(BaseModel):
     node_id: int | None = None
 
 
-@hatchet.durable_task(
-    name="python-durable_non_determinism", execution_timeout=timedelta(seconds=10)
-)
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_non_determinism(
     input: EmptyModel, ctx: DurableContext
 ) -> NonDeterminismOutput:
@@ -388,9 +373,7 @@ class ReplayResetResponse(BaseModel):
     sleep_3_duration: float
 
 
-@hatchet.durable_task(
-    name="python-durable_replay_reset", execution_timeout=timedelta(seconds=20)
-)
+@hatchet.durable_task(execution_timeout=timedelta(seconds=20))
 async def durable_replay_reset(
     input: EmptyModel, ctx: DurableContext
 ) -> ReplayResetResponse:
@@ -428,7 +411,7 @@ async def expensive_computation(message: str) -> SleepResult:
     return SleepResult(message=message, duration=SLEEP_TIME)
 
 
-@hatchet.durable_task(name="python-memo_task", input_validator=MemoInput)
+@hatchet.durable_task(input_validator=MemoInput)
 async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     start = time.time()
     res = await ctx._aio_memo(

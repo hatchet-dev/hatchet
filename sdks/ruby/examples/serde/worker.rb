@@ -8,7 +8,7 @@ require "zlib"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-SERDE_WORKFLOW = HATCHET.workflow(name: "ruby-serde-example-workflow")
+SERDE_WORKFLOW = HATCHET.workflow(name: "serde-example-workflow")
 
 GENERATE_RESULT = SERDE_WORKFLOW.task(:generate_result) do |input, ctx|
   compressed = Base64.strict_encode64(Zlib::Deflate.deflate("my_result"))

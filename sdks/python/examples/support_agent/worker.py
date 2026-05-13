@@ -46,7 +46,7 @@ class EscalationOutput(BaseModel):
 
 
 # > Triage task
-@hatchet.task(name="python-triage_ticket", input_validator=SupportTicketInput)
+@hatchet.task(input_validator=SupportTicketInput)
 async def triage_ticket(input: SupportTicketInput, ctx: Context) -> TriageOutput:
     """Classify the ticket into a category and priority."""
     subject = input.subject.lower()
@@ -74,7 +74,7 @@ async def triage_ticket(input: SupportTicketInput, ctx: Context) -> TriageOutput
 
 
 # > Generate reply task
-@hatchet.task(name="python-generate_reply", input_validator=SupportTicketInput)
+@hatchet.task(input_validator=SupportTicketInput)
 async def generate_reply(input: SupportTicketInput, ctx: Context) -> ReplyOutput:
     """Generate an initial support reply using Claude."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -115,7 +115,7 @@ async def generate_reply(input: SupportTicketInput, ctx: Context) -> ReplyOutput
 
 
 # > Escalate task
-@hatchet.task(name="python-escalate_ticket", input_validator=SupportTicketInput)
+@hatchet.task(input_validator=SupportTicketInput)
 async def escalate_ticket(input: SupportTicketInput, ctx: Context) -> EscalationOutput:
     """Escalate an unresolved ticket to the human support team."""
     return EscalationOutput(
@@ -128,7 +128,7 @@ async def escalate_ticket(input: SupportTicketInput, ctx: Context) -> Escalation
 
 
 # > Support agent workflow
-@hatchet.durable_task(name="python-support_agent", input_validator=SupportTicketInput)
+@hatchet.durable_task(input_validator=SupportTicketInput)
 async def support_agent(
     input: SupportTicketInput, ctx: DurableContext
 ) -> dict[str, Any]:

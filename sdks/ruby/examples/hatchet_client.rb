@@ -16,7 +16,7 @@ puts "Event created: #{result.inspect}"
 
 
 run = HATCHET.runs.create(
-  name: "ruby-simple",
+  name: "simple",
   input: {
     Message: "test workflow run"
   },

@@ -2,14 +2,14 @@ import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { hatchet } from '../hatchet-client';
 
 export const childIndexChild = hatchet.task({
-  name: 'ts-child-index-child',
+  name: 'child-index-child',
   fn: async (input: { tag: string }) => {
     return { tag: input.tag };
   },
 });
 
 export const childIndexParent = hatchet.workflow<{ n: number }>({
-  name: 'ts-child-index-parent',
+  name: 'child-index-parent',
 });
 
 childIndexParent.task({
@@ -119,7 +119,7 @@ function countNodes(node: TreeNode): number {
 }
 
 export const scenarioTask = hatchet.task({
-  name: 'ts-child-index-scenario',
+  name: 'child-index-scenario',
   fn: async (input: { scenarioId: string }) => {
     await sleep(100);
     return { scenarioId: input.scenarioId, status: 'completed' };
@@ -127,7 +127,7 @@ export const scenarioTask = hatchet.task({
 });
 
 export const orchestratorTask = hatchet.task({
-  name: 'ts-child-index-orchestrator',
+  name: 'child-index-orchestrator',
   executionTimeout: '5m',
   fn: async (input: {}, ctx) => {
     const tree = buildTree();

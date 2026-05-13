@@ -10,7 +10,7 @@ logger.level = Logger::INFO
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-LOGGING_WORKFLOW = HATCHET.workflow(name: "ruby-LoggingWorkflow")
+LOGGING_WORKFLOW = HATCHET.workflow(name: "LoggingWorkflow")
 
 LOGGING_WORKFLOW.task(:root_logger) do |input, ctx|
   12.times do |i|

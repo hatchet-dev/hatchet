@@ -5,13 +5,13 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Create a durable workflow
-DURABLE_WORKFLOW = HATCHET.workflow(name: "ruby-DurableWorkflow")
-EPHEMERAL_WORKFLOW = HATCHET.workflow(name: "ruby-EphemeralWorkflow")
+DURABLE_WORKFLOW = HATCHET.workflow(name: "DurableWorkflow")
+EPHEMERAL_WORKFLOW = HATCHET.workflow(name: "EphemeralWorkflow")
 
 # !!
 
 # > Add durable task
-DURABLE_EVENT_KEY = "rb-durable-example:event"
+DURABLE_EVENT_KEY = "durable-example:event"
 DURABLE_SLEEP_TIME = 5
 
 DURABLE_WORKFLOW.task(:ephemeral_task) do |input, ctx|
@@ -90,7 +90,7 @@ EPHEMERAL_WORKFLOW.task(:ephemeral_task_2) do |input, ctx|
   puts "Running non-durable task"
 end
 
-WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "ruby-wait_for_sleep_twice", execution_timeout: 60) do |input, ctx|
+WAIT_FOR_SLEEP_TWICE = HATCHET.durable_task(name: "wait_for_sleep_twice", execution_timeout: 60) do |input, ctx|
   start = Time.now
 
   ctx.sleep_for(duration: DURABLE_SLEEP_TIME)

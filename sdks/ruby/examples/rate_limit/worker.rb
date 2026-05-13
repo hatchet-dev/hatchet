@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Workflow
-RATE_LIMIT_WORKFLOW = HATCHET.workflow(name: "ruby-RateLimitWorkflow")
+RATE_LIMIT_WORKFLOW = HATCHET.workflow(name: "RateLimitWorkflow")
 
 # !!
 

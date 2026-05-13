@@ -10,7 +10,7 @@ class Output(BaseModel):
 hatchet = Hatchet()
 
 
-@hatchet.task(name="python-say_hello_unsafely", input_validator=dict)
+@hatchet.task(input_validator=dict)
 def say_hello_unsafely(input: dict[str, str], _c: Context) -> Output:
     name = input["name"]  # untyped
     return Output(message=f"Hello, {name}!")

@@ -26,7 +26,7 @@ class RandomSum(BaseModel):
     sum: int
 
 
-task_condition_workflow = hatchet.workflow(name="python-TaskConditionWorkflow")
+task_condition_workflow = hatchet.workflow(name="TaskConditionWorkflow")
 
 # !!
 

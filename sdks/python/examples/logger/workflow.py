@@ -9,7 +9,7 @@ from hatchet_sdk import Context, EmptyModel
 logger = logging.getLogger(__name__)
 
 logging_workflow = hatchet.workflow(
-    name="python-LoggingWorkflow",
+    name="LoggingWorkflow",
 )
 
 

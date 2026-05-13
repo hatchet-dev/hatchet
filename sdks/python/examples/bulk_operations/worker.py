@@ -3,21 +3,21 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 hatchet = Hatchet()
 
 
-@hatchet.task(name="python-bulk_replay_test_1")
+@hatchet.task()
 def bulk_replay_test_1(input: EmptyModel, ctx: Context) -> None:
     print("retrying bulk replay test task", ctx.retry_count)
     if ctx.retry_count == 0:
         raise ValueError("This is a test error to trigger a retry.")
 
 
-@hatchet.task(name="python-bulk_replay_test_2")
+@hatchet.task()
 def bulk_replay_test_2(input: EmptyModel, ctx: Context) -> None:
     print("retrying bulk replay test task", ctx.retry_count)
     if ctx.retry_count == 0:
         raise ValueError("This is a test error to trigger a retry.")
 
 
-@hatchet.task(name="python-bulk_replay_test_3")
+@hatchet.task()
 def bulk_replay_test_3(input: EmptyModel, ctx: Context) -> None:
     print("retrying bulk replay test task", ctx.retry_count)
     if ctx.retry_count == 0:

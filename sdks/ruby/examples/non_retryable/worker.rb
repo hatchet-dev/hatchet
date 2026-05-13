@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-NON_RETRYABLE_WORKFLOW = HATCHET.workflow(name: "ruby-NonRetryableWorkflow")
+NON_RETRYABLE_WORKFLOW = HATCHET.workflow(name: "NonRetryableWorkflow")
 
 # > Non-retryable task
 NON_RETRYABLE_WORKFLOW.task(:should_not_retry, retries: 1) do |input, ctx|

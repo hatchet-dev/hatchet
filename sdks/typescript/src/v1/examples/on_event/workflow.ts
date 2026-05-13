@@ -15,7 +15,7 @@ type LowerOutput = {
 
 // > Run workflow on event
 export const lower = hatchet.workflow<Input, LowerOutput>({
-  name: 'ts-lower',
+  name: 'lower',
   // 👀 Declare the event that will trigger the workflow
   onEvents: ['simple-event:create'],
 });

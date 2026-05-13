@@ -2,7 +2,7 @@ import { NonRetryableError } from '@hatchet/v1/task';
 import { hatchet } from '../hatchet-client';
 
 export const nonRetryableWorkflow = hatchet.workflow({
-  name: 'ts-no-retry-workflow',
+  name: 'no-retry-workflow',
 });
 
 // > Non-retrying task

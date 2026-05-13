@@ -1,7 +1,7 @@
 import type { HatchetClient } from '@hatchet/v1';
 
 export function createLoggingWorkflow(client: HatchetClient) {
-  const wf = client.workflow({ name: 'ts-logging-workflow' });
+  const wf = client.workflow({ name: 'logging-workflow' });
   wf.task({
     name: 'root_logger',
     fn: async () => {

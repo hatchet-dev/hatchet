@@ -2,7 +2,7 @@
 import { hatchet } from '../hatchet-client';
 
 export const durableSleep = hatchet.workflow({
-  name: 'ts-durable-sleep',
+  name: 'durable-sleep',
 });
 
 // > Durable Sleep

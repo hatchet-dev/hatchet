@@ -16,7 +16,7 @@ type DagOutput = {
 // > Declaring a DAG Workflow
 // First, we declare the workflow
 export const dag = hatchet.workflow<DagInput, DagOutput>({
-  name: 'ts-simple',
+  name: 'simple',
 });
 // !!
 

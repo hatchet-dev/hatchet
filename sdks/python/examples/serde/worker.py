@@ -38,7 +38,7 @@ class TestOutput(BaseModel):
 
 
 serde_workflow = hatchet.workflow(
-    name="python-serde-example-workflow", input_validator=EmptyModel
+    name="serde-example-workflow", input_validator=EmptyModel
 )
 
 

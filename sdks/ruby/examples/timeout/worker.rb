@@ -6,7 +6,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > ScheduleTimeout
 TIMEOUT_WF = HATCHET.workflow(
-  name: "ruby-TimeoutWorkflow",
+  name: "TimeoutWorkflow",
   task_defaults: { execution_timeout: 120 } # 2 minutes
 )
 
@@ -19,7 +19,7 @@ TIMEOUT_WF.task(:timeout_task, execution_timeout: 5, schedule_timeout: 600) do |
   { "status" => "success" }
 end
 
-REFRESH_TIMEOUT_WF = HATCHET.workflow(name: "ruby-RefreshTimeoutWorkflow")
+REFRESH_TIMEOUT_WF = HATCHET.workflow(name: "RefreshTimeoutWorkflow")
 
 # !!
 

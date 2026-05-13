@@ -17,7 +17,7 @@ class WorkflowInput(BaseModel):
 
 
 concurrency_cancel_in_progress_workflow = hatchet.workflow(
-    name="python-ConcurrencyCancelInProgress",
+    name="ConcurrencyCancelInProgress",
     concurrency=ConcurrencyExpression(
         expression="input.group",
         max_runs=1,

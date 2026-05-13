@@ -19,7 +19,7 @@ async def lifespan() -> AsyncGenerator[Lifespan, None]:
     yield Lifespan(foo="bar", pi=3.14)
 
 
-@hatchet.task(name="python-LifespanWorkflow")
+@hatchet.task(name="LifespanWorkflow")
 def lifespan_task(input: EmptyModel, ctx: Context) -> Lifespan:
     return cast(Lifespan, ctx.lifespan)
 

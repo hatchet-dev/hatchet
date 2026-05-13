@@ -14,7 +14,7 @@ class StepOutput(BaseModel):
 hatchet = Hatchet()
 
 payload_initial_cancel_bug_workflow = hatchet.workflow(
-    name="python-payload-initial-cancel-test",
+    name="payload-initial-cancel-test",
     input_validator=Input,
 )
 

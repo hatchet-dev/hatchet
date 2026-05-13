@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > AffinityWorkflow
-AFFINITY_WORKER_WORKFLOW = HATCHET.workflow(name: "ruby-AffinityWorkflow")
+AFFINITY_WORKER_WORKFLOW = HATCHET.workflow(name: "AffinityWorkflow")
 
 # !!
 

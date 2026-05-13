@@ -5,7 +5,7 @@ export const SCOPE = 'user-1234';
 
 // > Durable Event
 export const durableEvent = hatchet.durableTask({
-  name: 'ts-durable-event',
+  name: 'durable-event',
   executionTimeout: '10m',
   fn: async (_, ctx) => {
     const res = await ctx.waitForEvent(EVENT_KEY);
@@ -20,7 +20,7 @@ export const durableEvent = hatchet.durableTask({
 // !!
 
 export const durableEventWithFilter = hatchet.durableTask({
-  name: 'ts-durable-event-with-filter',
+  name: 'durable-event-with-filter',
   executionTimeout: '10m',
   fn: async (_, ctx) => {
     // > Durable Event With Filter

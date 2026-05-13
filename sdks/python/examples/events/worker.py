@@ -16,7 +16,7 @@ class EventWorkflowInput(BaseModel):
 
 
 event_workflow = hatchet.workflow(
-    name="python-EventWorkflow",
+    name="EventWorkflow",
     on_events=[EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
     input_validator=EventWorkflowInput,
 )
@@ -24,7 +24,7 @@ event_workflow = hatchet.workflow(
 
 # > Event trigger with filter
 event_workflow_with_filter = hatchet.workflow(
-    name="python-EventWorkflow",
+    name="EventWorkflow",
     on_events=[EVENT_KEY, SECONDARY_KEY, WILDCARD_KEY],
     input_validator=EventWorkflowInput,
     default_filters=[

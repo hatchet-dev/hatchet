@@ -7,7 +7,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 DURABLE_EVENT_TASK_KEY = "user:update"
 
 # > Durable Event
-DURABLE_EVENT_TASK = HATCHET.durable_task(name: "ruby-DurableEventTask") do |input, ctx|
+DURABLE_EVENT_TASK = HATCHET.durable_task(name: "DurableEventTask") do |input, ctx|
   res = ctx.wait_for(
     "event",
     Hatchet::UserEventCondition.new(event_key: "user:update")
@@ -16,7 +16,7 @@ DURABLE_EVENT_TASK = HATCHET.durable_task(name: "ruby-DurableEventTask") do |inp
   puts "got event #{res}"
 end
 
-DURABLE_EVENT_TASK_WITH_FILTER = HATCHET.durable_task(name: "ruby-DurableEventWithFilterTask") do |input, ctx|
+DURABLE_EVENT_TASK_WITH_FILTER = HATCHET.durable_task(name: "DurableEventWithFilterTask") do |input, ctx|
 
 # !!
   # > Durable Event With Filter

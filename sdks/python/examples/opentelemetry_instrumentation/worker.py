@@ -14,7 +14,7 @@ HatchetInstrumentor().instrument()
 hatchet = Hatchet()
 
 
-otel_workflow = hatchet.workflow(name="python-OTelDataPipeline")
+otel_workflow = hatchet.workflow(name="OTelDataPipeline")
 
 
 class FetchDataOutput(BaseModel):
@@ -121,11 +121,7 @@ class SimpleOtelTaskInput(BaseModel):
     message: str
 
 
-@hatchet.task(
-    name="python-otel_simple_task",
-    on_events=["otel:test-event"],
-    input_validator=SimpleOtelTaskInput,
-)
+@hatchet.task(on_events=["otel:test-event"], input_validator=SimpleOtelTaskInput)
 def otel_simple_task(input: SimpleOtelTaskInput, _: Context) -> dict[str, str]:
     tracer = get_tracer("otel-test")
     with tracer.start_as_current_span("custom.child.span") as span:
@@ -135,7 +131,7 @@ def otel_simple_task(input: SimpleOtelTaskInput, _: Context) -> dict[str, str]:
     return {"status": "ok"}
 
 
-@hatchet.task(name="python-otel_spawn_parent", input_validator=SimpleOtelTaskInput)
+@hatchet.task(input_validator=SimpleOtelTaskInput)
 async def otel_spawn_parent(input: SimpleOtelTaskInput, ctx: Context) -> dict[str, Any]:
     tracer = get_tracer("otel-test")
     with tracer.start_as_current_span("spawn.child") as span:

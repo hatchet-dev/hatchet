@@ -6,7 +6,7 @@ hatchet = Hatchet()
 
 # > AffinityWorkflow
 
-affinity_worker_workflow = hatchet.workflow(name="python-AffinityWorkflow")
+affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
 
 
 @affinity_worker_workflow.task(
