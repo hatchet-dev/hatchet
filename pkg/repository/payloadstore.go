@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -880,6 +881,23 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		if err != nil {
 			return fmt.Errorf("failed to diff source and target partitions: %w", err)
 		}
+
+		numExternalIdsToSample := 20
+		exampleExternalIds := make([]string, 0, numExternalIdsToSample)
+		for i, r := range missingRows {
+			if i >= numExternalIdsToSample {
+				break
+			}
+
+			exampleExternalIds = append(exampleExternalIds, r.ExternalID.String())
+		}
+
+		p.l.Error().
+			Str("partition_date", partitionDate.String()).
+			Int64("source_partition_count", rowCounts.SourcePartitionCount).
+			Int64("temp_partition_count", rowCounts.TempPartitionCount).
+			Str("example_external_ids", strings.Join(exampleExternalIds, ", ")).
+			Msg("row counts do not match between temp and source partitions")
 
 		missingPayloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(missingRows))
 
