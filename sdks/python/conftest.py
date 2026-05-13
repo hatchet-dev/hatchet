@@ -7,7 +7,6 @@ import pytest_asyncio
 from pytest import FixtureRequest
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from tests.worker_fixture import get_free_port, hatchet_worker

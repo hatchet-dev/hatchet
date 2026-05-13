@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	v0Client "github.com/hatchet-dev/hatchet/pkg/client"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -28,7 +27,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	client, err := hatchet.NewClient(v0Client.WithNamespace("go"))
+	client, err := hatchet.NewClient()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to create hatchet client: %v\n", err)
 		os.Exit(1)

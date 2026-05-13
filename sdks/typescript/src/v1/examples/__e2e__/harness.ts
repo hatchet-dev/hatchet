@@ -20,7 +20,7 @@ export function requireEnv(name: string): string {
 export function makeE2EClient(): HatchetClient {
   // ConfigLoader requires a token; this makes the failure message obvious.
   requireEnv('HATCHET_CLIENT_TOKEN');
-  return HatchetClient.init({ namespace: 'ts' });
+  return HatchetClient.init();
 }
 
 export function makeTestScope(prefix = 'ts_e2e'): string {
