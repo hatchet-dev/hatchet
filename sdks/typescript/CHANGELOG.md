@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.22.2] - 2026-05-13
+
+### Fixed
+
+- Fixed `DurableContext.waitForEvent` overload ordering so calls without a payload schema infer the untyped event payload return type.
+
 ## [1.22.1] - 2026-05-05
 
 ### Fixed
@@ -17,7 +23,7 @@ Moved optional dependencies from `optionalDependencies` to `peerDependencies`.
 
 - Adds `mcpTool` method to Workflow objects for integration with Claude and OpenAI agent SDKs. Requires Zod v4.
 - Bumps minimum Zod version to `3.25.0`. Zod schemas provided to the SDK must be Zod 4 schemas, but you can still use Zod 3 in your application
-code.
+  code.
 
 ## [1.21.2] - 2026-04-22
 
