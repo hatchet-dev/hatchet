@@ -104,14 +104,14 @@ func registerAllWorkflows(client *hatchet.Client) {
 	}
 
 	// --- DAG child workflow for spawn DAG test ---
-	testDagChildWorkflow = client.NewWorkflow("dag-child-workflow")
+	testDagChildWorkflow = client.NewWorkflow("go-dag-child-workflow")
 
-	dagChild1 := testDagChildWorkflow.NewTask("dag-child-1", func(ctx hatchet.Context, input EmptyInput) (map[string]string, error) {
+	dagChild1 := testDagChildWorkflow.NewTask("go-dag-child-1", func(ctx hatchet.Context, input EmptyInput) (map[string]string, error) {
 		time.Sleep(1 * time.Second)
 		return map[string]string{"result": "child1"}, nil
 	})
 
-	testDagChildWorkflow.NewTask("dag-child-2", func(ctx hatchet.Context, input EmptyInput) (map[string]string, error) {
+	testDagChildWorkflow.NewTask("go-dag-child-2", func(ctx hatchet.Context, input EmptyInput) (map[string]string, error) {
 		time.Sleep(5 * time.Second)
 		return map[string]string{"result": "child2"}, nil
 	}, hatchet.WithParents(dagChild1))
@@ -123,7 +123,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		return nil, nil
 	})
 
-	testDurableTask = testDurableWorkflow.NewDurableTask("durable_task", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
+	testDurableTask = testDurableWorkflow.NewDurableTask("go-durable_task", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 		_, err := ctx.SleepFor(time.Duration(sleepTime) * time.Second)
 		if err != nil {
 			return nil, err
@@ -146,7 +146,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		}, nil
 	})
 
-	testWaitForOrGroup1 = testDurableWorkflow.NewDurableTask("wait_for_or_group_1", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
+	testWaitForOrGroup1 = testDurableWorkflow.NewDurableTask("go-wait_for_or_group_1", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 		start := time.Now()
 		waitResult, err := ctx.WaitFor(
 			hatchet.OrCondition(
@@ -166,7 +166,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 		}, nil
 	})
 
-	testWaitForOrGroup2 = testDurableWorkflow.NewDurableTask("wait_for_or_group_2", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
+	testWaitForOrGroup2 = testDurableWorkflow.NewDurableTask("go-wait_for_or_group_2", func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 		start := time.Now()
 		waitResult, err := ctx.WaitFor(
 			hatchet.OrCondition(
