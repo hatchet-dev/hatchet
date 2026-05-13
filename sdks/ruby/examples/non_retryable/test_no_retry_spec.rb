@@ -3,7 +3,7 @@
 require_relative "../spec_helper"
 require_relative "worker"
 
-RSpec.describe "NonRetryableWorkflow" do
+RSpec.describe "ruby-NonRetryableWorkflow" do
   it "does not retry non-retryable exceptions" do
     ref = NON_RETRYABLE_WORKFLOW.run_no_wait
 
