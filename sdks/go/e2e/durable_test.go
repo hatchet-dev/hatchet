@@ -52,7 +52,7 @@ func TestDurableWorkflow(t *testing.T) {
 	result, err := ref.Result()
 	require.NoError(t, err)
 
-	durableOutput := resultMap(t, result, "durable_task")
+	durableOutput := resultMap(t, result, "go-durable_task")
 	assert.Equal(t, "success", durableOutput["status"])
 	assert.Equal(t, float64(sleepTime), durableOutput["sleep_duration_seconds"])
 

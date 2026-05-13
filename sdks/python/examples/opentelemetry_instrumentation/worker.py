@@ -121,7 +121,11 @@ class SimpleOtelTaskInput(BaseModel):
     message: str
 
 
-@hatchet.task(name="python-otel_simple_task", on_events=["otel:test-event"], input_validator=SimpleOtelTaskInput)
+@hatchet.task(
+    name="python-otel_simple_task",
+    on_events=["otel:test-event"],
+    input_validator=SimpleOtelTaskInput,
+)
 def otel_simple_task(input: SimpleOtelTaskInput, _: Context) -> dict[str, str]:
     tracer = get_tracer("otel-test")
     with tracer.start_as_current_span("custom.child.span") as span:

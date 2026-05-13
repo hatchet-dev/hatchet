@@ -10,7 +10,9 @@ class WebhookInput(BaseModel):
     message: str
 
 
-@hatchet.task(name="python-webhook", input_validator=WebhookInput, on_events=["webhook:test"])
+@hatchet.task(
+    name="python-webhook", input_validator=WebhookInput, on_events=["webhook:test"]
+)
 def webhook(input: WebhookInput, ctx: Context) -> dict[str, str]:
     return input.model_dump()
 

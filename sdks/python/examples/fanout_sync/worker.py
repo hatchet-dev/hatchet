@@ -19,7 +19,9 @@ class ChildInput(BaseModel):
 sync_fanout_parent = hatchet.workflow(
     name="python-SyncFanoutParent", input_validator=ParentInput
 )
-sync_fanout_child = hatchet.workflow(name="python-SyncFanoutChild", input_validator=ChildInput)
+sync_fanout_child = hatchet.workflow(
+    name="python-SyncFanoutChild", input_validator=ChildInput
+)
 
 
 @sync_fanout_parent.task(execution_timeout=timedelta(minutes=5))

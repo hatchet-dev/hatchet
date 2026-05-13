@@ -40,7 +40,9 @@ def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
 # We can access the failure details in the onFailure step
 # via the context method
 
-on_failure_wf_with_details = hatchet.workflow(name="python-OnFailureWorkflowWithDetails")
+on_failure_wf_with_details = hatchet.workflow(
+    name="python-OnFailureWorkflowWithDetails"
+)
 
 
 # ... defined as above
