@@ -4,7 +4,7 @@ import { hatchet } from '../hatchet-client';
 
 // > Self-cancelling workflow (mirrors Python example)
 export const cancellationWorkflow = hatchet.workflow({
-  name: 'CancelWorkflow',
+  name: 'ts-CancelWorkflow',
 });
 
 cancellationWorkflow.task({

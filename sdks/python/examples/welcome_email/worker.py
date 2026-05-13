@@ -34,7 +34,7 @@ class WelcomeEmailResult(BaseModel):
 
 # > Welcome email task
 @hatchet.durable_task(
-    name="welcome-email",
+    name="python-welcome-email",
     on_events=["user:signup"],
     input_validator=SignupInput,
     execution_timeout=timedelta(minutes=5),

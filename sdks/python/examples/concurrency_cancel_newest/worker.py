@@ -17,7 +17,7 @@ class WorkflowInput(BaseModel):
 
 
 concurrency_cancel_newest_workflow = hatchet.workflow(
-    name="ConcurrencyCancelNewest",
+    name="python-ConcurrencyCancelNewest",
     concurrency=ConcurrencyExpression(
         expression="input.group",
         max_runs=1,

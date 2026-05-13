@@ -13,7 +13,7 @@ export type WorkflowOutput = {
 };
 
 export const concurrencyCancelInProgressWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
-  name: 'concurrencycancelinprogress',
+  name: 'ts-concurrencycancelinprogress',
   concurrency: {
     expression: 'input.group',
     maxRuns: 1,

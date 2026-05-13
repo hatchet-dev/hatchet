@@ -15,7 +15,7 @@ function* createChunks(content: string, n: number): Generator<string, void, unkn
 }
 
 export const streamingTask = hatchet.task({
-  name: 'stream-example',
+  name: 'ts-stream-example',
   fn: async (_, ctx) => {
     await sleep(2000);
 

@@ -22,7 +22,7 @@ export type WorkflowOutput = {
 };
 
 export const concurrencyWorkflowLevelWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
-  name: 'concurrency-workflow-level',
+  name: 'ts-concurrency-workflow-level',
   concurrency: [
     {
       expression: 'input.digit',

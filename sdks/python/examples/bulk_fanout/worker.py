@@ -16,8 +16,8 @@ class ChildInput(BaseModel):
     a: str
 
 
-bulk_parent_wf = hatchet.workflow(name="BulkFanoutParent", input_validator=ParentInput)
-bulk_child_wf = hatchet.workflow(name="BulkFanoutChild", input_validator=ChildInput)
+bulk_parent_wf = hatchet.workflow(name="python-BulkFanoutParent", input_validator=ParentInput)
+bulk_child_wf = hatchet.workflow(name="python-BulkFanoutChild", input_validator=ChildInput)
 
 
 # > BulkFanoutParent

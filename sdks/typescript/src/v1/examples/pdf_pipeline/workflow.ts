@@ -108,7 +108,7 @@ async function extractPdfText(pdfBuffer: Buffer): Promise<{ text: string; pageCo
 
 // > Define the DAG
 export const pdfPipeline = hatchet.workflow<PdfInput>({
-  name: 'pdf-pipeline',
+  name: 'ts-pdf-pipeline',
 });
 // !!
 

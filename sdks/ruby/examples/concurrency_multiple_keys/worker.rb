@@ -10,7 +10,7 @@ NAME_MAX_RUNS = 3
 
 # > Concurrency Strategy With Key
 CONCURRENCY_MULTIPLE_KEYS_WORKFLOW = HATCHET.workflow(
-  name: "ConcurrencyWorkflowManyKeys"
+  name: "ruby-ConcurrencyWorkflowManyKeys"
 )
 
 CONCURRENCY_MULTIPLE_KEYS_WORKFLOW.task(

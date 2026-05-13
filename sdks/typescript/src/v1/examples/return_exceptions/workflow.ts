@@ -5,7 +5,7 @@ export type ReturnExceptionsInput = {
 };
 
 export const returnExceptionsTask = hatchet.task({
-  name: 'return-exceptions-task',
+  name: 'ts-return-exceptions-task',
   fn: async (input: ReturnExceptionsInput) => {
     if (input.index % 2 === 0) {
       throw new Error(`error in task with index ${input.index}`);

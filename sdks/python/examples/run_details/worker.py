@@ -22,7 +22,7 @@ class RandomSum(BaseModel):
 hatchet = Hatchet()
 
 run_detail_test_workflow = hatchet.workflow(
-    name="RunDetailTest", input_validator=MockInput
+    name="python-RunDetailTest", input_validator=MockInput
 )
 
 

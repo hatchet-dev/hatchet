@@ -10,7 +10,7 @@ ERROR_TEXT = "step1 failed"
 # This workflow will fail because the step will throw an error
 # we define an onFailure step to handle this case
 
-ON_FAILURE_WF = HATCHET.workflow(name: "OnFailureWorkflow")
+ON_FAILURE_WF = HATCHET.workflow(name: "ruby-OnFailureWorkflow")
 
 ON_FAILURE_WF.task(:step1, execution_timeout: 1) do |input, ctx|
   # This step will always raise an exception
@@ -34,7 +34,7 @@ end
 # We can access the failure details in the onFailure step
 # via the context method
 
-ON_FAILURE_WF_WITH_DETAILS = HATCHET.workflow(name: "OnFailureWorkflowWithDetails")
+ON_FAILURE_WF_WITH_DETAILS = HATCHET.workflow(name: "ruby-OnFailureWorkflowWithDetails")
 
 DETAILS_STEP1 = ON_FAILURE_WF_WITH_DETAILS.task(:details_step1, execution_timeout: 1) do |input, ctx|
   raise ERROR_TEXT

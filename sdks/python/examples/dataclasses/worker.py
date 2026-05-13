@@ -22,7 +22,7 @@ hatchet = Hatchet()
 
 
 # > Task using dataclasses
-@hatchet.task(input_validator=Input)
+@hatchet.task(name="python-say_hello", input_validator=Input)
 def say_hello(input: Input, ctx: Context) -> Output:
     return Output(message=f"Hello, {input.name}!")
 

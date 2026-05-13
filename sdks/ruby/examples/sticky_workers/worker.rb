@@ -6,7 +6,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > StickyWorker
 STICKY_WORKFLOW = HATCHET.workflow(
-  name: "StickyWorkflow",
+  name: "ruby-StickyWorkflow",
   # Specify a sticky strategy when declaring the workflow
   sticky: :soft
 )
@@ -23,7 +23,7 @@ end
 
 # > StickyChild
 STICKY_CHILD_WORKFLOW = HATCHET.workflow(
-  name: "StickyChildWorkflow",
+  name: "ruby-StickyChildWorkflow",
   sticky: :soft
 )
 

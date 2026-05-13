@@ -5,7 +5,7 @@ import { Context } from '@hatchet/v1/client/worker/context';
 import { hatchet } from '../hatchet-client';
 
 export const taskConditionWorkflow = hatchet.workflow({
-  name: 'TaskConditionWorkflow',
+  name: 'ts-TaskConditionWorkflow',
 });
 // !!
 

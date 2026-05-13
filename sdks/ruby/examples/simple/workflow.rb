@@ -5,6 +5,6 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # > Define a workflow
-EXAMPLE_WORKFLOW = HATCHET.workflow(name: "example-workflow")
+EXAMPLE_WORKFLOW = HATCHET.workflow(name: "ruby-example-workflow")
 
 # !!

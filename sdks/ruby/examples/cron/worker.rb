@@ -6,7 +6,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 # > Cron Workflow Definition
 CRON_WORKFLOW = HATCHET.workflow(
-  name: "CronWorkflow",
+  name: "ruby-CronWorkflow",
   on_crons: ["*/5 * * * *"]
 )
 
@@ -20,7 +20,7 @@ end
 # > Programmatic Cron Creation
 def create_cron
   HATCHET.cron.create(
-    workflow_name: "CronWorkflow",
+    workflow_name: "ruby-CronWorkflow",
     cron_name: "my-programmatic-cron",
     expression: "*/10 * * * *",
     input: { "message" => "hello from cron" }

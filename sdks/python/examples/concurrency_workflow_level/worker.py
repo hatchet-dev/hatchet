@@ -23,7 +23,7 @@ class WorkflowInput(BaseModel):
 
 
 concurrency_workflow_level_workflow = hatchet.workflow(
-    name="ConcurrencyWorkflowLevel",
+    name="python-ConcurrencyWorkflowLevel",
     input_validator=WorkflowInput,
     concurrency=[
         ConcurrencyExpression(

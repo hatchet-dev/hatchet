@@ -6,7 +6,7 @@ export type WebhookInput = {
 };
 
 export const webhookWorkflow = hatchet.workflow<WebhookInput>({
-  name: 'webhook-workflow',
+  name: 'ts-webhook-workflow',
   onEvents: ['webhook:test'],
 });
 

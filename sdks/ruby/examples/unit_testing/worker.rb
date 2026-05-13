@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new unless defined?(HATCHET)
 
 # Unit test workflow definitions
-SYNC_STANDALONE = HATCHET.task(name: "sync_standalone") do |input, ctx|
+SYNC_STANDALONE = HATCHET.task(name: "ruby-sync_standalone") do |input, ctx|
   {
     "key" => input["key"],
     "number" => input["number"],
@@ -14,7 +14,7 @@ SYNC_STANDALONE = HATCHET.task(name: "sync_standalone") do |input, ctx|
   }
 end
 
-ASYNC_STANDALONE = HATCHET.task(name: "async_standalone") do |input, ctx|
+ASYNC_STANDALONE = HATCHET.task(name: "ruby-async_standalone") do |input, ctx|
   {
     "key" => input["key"],
     "number" => input["number"],
@@ -23,7 +23,7 @@ ASYNC_STANDALONE = HATCHET.task(name: "async_standalone") do |input, ctx|
   }
 end
 
-DURABLE_SYNC_STANDALONE = HATCHET.durable_task(name: "durable_sync_standalone") do |input, ctx|
+DURABLE_SYNC_STANDALONE = HATCHET.durable_task(name: "ruby-durable_sync_standalone") do |input, ctx|
   {
     "key" => input["key"],
     "number" => input["number"],
@@ -32,7 +32,7 @@ DURABLE_SYNC_STANDALONE = HATCHET.durable_task(name: "durable_sync_standalone") 
   }
 end
 
-DURABLE_ASYNC_STANDALONE = HATCHET.durable_task(name: "durable_async_standalone") do |input, ctx|
+DURABLE_ASYNC_STANDALONE = HATCHET.durable_task(name: "ruby-durable_async_standalone") do |input, ctx|
   {
     "key" => input["key"],
     "number" => input["number"],
@@ -41,7 +41,7 @@ DURABLE_ASYNC_STANDALONE = HATCHET.durable_task(name: "durable_async_standalone"
   }
 end
 
-SIMPLE_UNIT_TEST_WORKFLOW = HATCHET.workflow(name: "simple-unit-test-workflow")
+SIMPLE_UNIT_TEST_WORKFLOW = HATCHET.workflow(name: "ruby-simple-unit-test-workflow")
 
 SIMPLE_UNIT_TEST_WORKFLOW.task(:sync_simple_workflow) do |input, ctx|
   {
@@ -52,7 +52,7 @@ SIMPLE_UNIT_TEST_WORKFLOW.task(:sync_simple_workflow) do |input, ctx|
   }
 end
 
-COMPLEX_UNIT_TEST_WORKFLOW = HATCHET.workflow(name: "complex-unit-test-workflow")
+COMPLEX_UNIT_TEST_WORKFLOW = HATCHET.workflow(name: "ruby-complex-unit-test-workflow")
 
 UNIT_START = COMPLEX_UNIT_TEST_WORKFLOW.task(:start) do |input, ctx|
   {

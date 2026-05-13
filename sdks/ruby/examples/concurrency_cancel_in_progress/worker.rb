@@ -5,7 +5,7 @@ require "hatchet-sdk"
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
 CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW = HATCHET.workflow(
-  name: "ConcurrencyCancelInProgress",
+  name: "ruby-ConcurrencyCancelInProgress",
   concurrency: Hatchet::ConcurrencyExpression.new(
     expression: "input.group",
     max_runs: 1,

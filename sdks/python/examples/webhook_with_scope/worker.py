@@ -25,6 +25,7 @@ class WebhookInputWithStaticPayload(BaseModel):
 
 
 @hatchet.task(
+    name="python-webhook_with_scope",
     input_validator=WebhookInputWithScope,
     on_events=["webhook-scope:test"],
     default_filters=[
@@ -40,6 +41,7 @@ def webhook_with_scope(input: WebhookInputWithScope, ctx: Context) -> dict[str, 
 
 
 @hatchet.task(
+    name="python-webhook_with_static_payload",
     input_validator=WebhookInputWithStaticPayload,
     on_events=["webhook-static:test"],
 )

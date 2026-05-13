@@ -5,7 +5,7 @@ from hatchet_sdk import Context, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
-cancellation_workflow = hatchet.workflow(name="CancelWorkflow")
+cancellation_workflow = hatchet.workflow(name="python-CancelWorkflow")
 
 
 # > Self-cancelling task

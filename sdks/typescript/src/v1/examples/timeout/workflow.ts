@@ -8,7 +8,7 @@ export type SimpleInput = {
 // > Execution Timeout
 // Mirrors Python `examples/timeout/test_timeout.py::test_execution_timeout`
 export const timeoutTask = hatchet.task({
-  name: 'timeout',
+  name: 'ts-timeout',
   executionTimeout: '3s',
   fn: async (_: SimpleInput, ctx) => {
     try {
@@ -26,7 +26,7 @@ export const timeoutTask = hatchet.task({
 // > Refresh Timeout
 // Mirrors Python `examples/timeout/test_timeout.py::test_run_refresh_timeout`
 export const refreshTimeoutTask = hatchet.task({
-  name: 'refresh-timeout',
+  name: 'ts-refresh-timeout',
   executionTimeout: '3s',
   scheduleTimeout: '5s',
   fn: async (input: SimpleInput, ctx) => {

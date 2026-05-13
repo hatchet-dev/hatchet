@@ -7,7 +7,7 @@ class Input(EmptyModel):
     index: int
 
 
-@hatchet.task(input_validator=Input)
+@hatchet.task(name="python-return_exceptions_task", input_validator=Input)
 async def return_exceptions_task(input: Input, ctx: Context) -> dict[str, str]:
     if input.index % 2 == 0:
         raise ValueError(f"error in task with index {input.index}")
@@ -15,7 +15,7 @@ async def return_exceptions_task(input: Input, ctx: Context) -> dict[str, str]:
     return {"message": "this is a successful task."}
 
 
-exception_parsing_workflow = hatchet.workflow(name="ExceptionParsingWorkflow")
+exception_parsing_workflow = hatchet.workflow(name="python-ExceptionParsingWorkflow")
 
 
 @exception_parsing_workflow.task()

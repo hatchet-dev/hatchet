@@ -7,7 +7,7 @@ hatchet = Hatchet()
 
 # > ScheduleTimeout
 timeout_wf = hatchet.workflow(
-    name="TimeoutWorkflow",
+    name="python-TimeoutWorkflow",
     task_defaults=TaskDefaults(execution_timeout=timedelta(minutes=2)),
 )
 # !!
@@ -25,7 +25,7 @@ def timeout_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
 
 # !!
 
-refresh_timeout_wf = hatchet.workflow(name="RefreshTimeoutWorkflow")
+refresh_timeout_wf = hatchet.workflow(name="python-RefreshTimeoutWorkflow")
 
 
 # > RefreshTimeout

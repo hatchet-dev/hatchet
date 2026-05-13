@@ -24,7 +24,7 @@ EVICTION_POLICY = EvictionPolicy(
 # !!
 
 
-@hatchet.task()
+@hatchet.task(name="python-child_task")
 async def child_task(input: EmptyModel, ctx: Context) -> dict[str, Any]:
     """Simple child that sleeps long enough for the parent's TTL to fire."""
     await asyncio.sleep(LONG_SLEEP_SECONDS)
@@ -33,6 +33,7 @@ async def child_task(input: EmptyModel, ctx: Context) -> dict[str, Any]:
 
 # > Evictable Sleep
 @hatchet.durable_task(
+    name="python-evictable_sleep",
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
@@ -46,6 +47,7 @@ async def evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, A
 
 
 @hatchet.durable_task(
+    name="python-evictable_wait_for_event",
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
@@ -61,6 +63,7 @@ async def evictable_wait_for_event(
 
 
 @hatchet.durable_task(
+    name="python-evictable_child_spawn",
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
@@ -77,6 +80,7 @@ class BulkChildTaskInput(BaseModel):
 
 
 @hatchet.task(
+    name="python-bulk_child_task",
     input_validator=BulkChildTaskInput,
 )
 async def bulk_child_task(
@@ -88,6 +92,7 @@ async def bulk_child_task(
 
 
 @hatchet.durable_task(
+    name="python-evictable_child_bulk_spawn",
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
@@ -109,6 +114,7 @@ async def evictable_child_bulk_spawn(
 
 
 @hatchet.durable_task(
+    name="python-multiple_eviction",
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EVICTION_POLICY,
 )
@@ -142,6 +148,7 @@ async def capacity_evictable_sleep(
 
 # > Non Evictable Sleep
 @hatchet.durable_task(
+    name="python-non_evictable_sleep",
     execution_timeout=timedelta(minutes=5),
     eviction_policy=EvictionPolicy(
         ttl=None,

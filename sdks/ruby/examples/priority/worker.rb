@@ -9,7 +9,7 @@ DEFAULT_PRIORITY = 1
 SLEEP_TIME = 0.25
 
 PRIORITY_WORKFLOW = HATCHET.workflow(
-  name: "PriorityWorkflow",
+  name: "ruby-PriorityWorkflow",
   default_priority: DEFAULT_PRIORITY
 )
 

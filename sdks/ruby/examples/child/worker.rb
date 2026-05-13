@@ -6,7 +6,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-CHILD_TASK_WF = HATCHET.workflow(name: "SimpleWorkflow")
+CHILD_TASK_WF = HATCHET.workflow(name: "ruby-SimpleWorkflow")
 
 CHILD_TASK_WF.task(:step1) do |input, ctx|
   puts "executed step1: #{input['message']}"

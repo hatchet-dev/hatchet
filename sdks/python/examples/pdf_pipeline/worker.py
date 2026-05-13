@@ -72,7 +72,7 @@ class PipelineResult(BaseModel):
 # !!
 
 # > Define the DAG
-pdf_pipeline = hatchet.workflow(name="PdfPipeline", input_validator=PdfInput)
+pdf_pipeline = hatchet.workflow(name="python-PdfPipeline", input_validator=PdfInput)
 # !!
 
 

@@ -6,7 +6,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-TASK_CONDITION_WORKFLOW = HATCHET.workflow(name: "TaskConditionWorkflow")
+TASK_CONDITION_WORKFLOW = HATCHET.workflow(name: "ruby-TaskConditionWorkflow")
 
 # !!
 

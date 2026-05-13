@@ -10,7 +10,7 @@ NAME_MAX_RUNS_WL = 3
 
 # > Multiple Concurrency Keys
 CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW = HATCHET.workflow(
-  name: "ConcurrencyWorkflowLevel",
+  name: "ruby-ConcurrencyWorkflowLevel",
   concurrency: [
     Hatchet::ConcurrencyExpression.new(
       expression: "input.digit",

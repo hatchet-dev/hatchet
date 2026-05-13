@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-ON_SUCCESS_WORKFLOW = HATCHET.workflow(name: "OnSuccessWorkflow")
+ON_SUCCESS_WORKFLOW = HATCHET.workflow(name: "ruby-OnSuccessWorkflow")
 
 FIRST_TASK = ON_SUCCESS_WORKFLOW.task(:first_task) do |input, ctx|
   puts "First task completed successfully"

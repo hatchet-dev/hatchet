@@ -4,7 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
-RUN_DETAIL_TEST_WORKFLOW = HATCHET.workflow(name: "RunDetailTest")
+RUN_DETAIL_TEST_WORKFLOW = HATCHET.workflow(name: "ruby-RunDetailTest")
 
 DETAIL_STEP1 = RUN_DETAIL_TEST_WORKFLOW.task(:step1) do |input, ctx|
   { "random_number" => rand(1..100) }
