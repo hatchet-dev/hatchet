@@ -10,6 +10,7 @@ RUN go mod download
 COPY /pkg ./pkg
 COPY /internal ./internal
 COPY /api ./api
+COPY /sdks ./sdks
 COPY /cmd/hatchet-loadtest ./cli
 
 # Go build environment
