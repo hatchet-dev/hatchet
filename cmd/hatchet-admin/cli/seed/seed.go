@@ -10,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func SeedDatabase(dc *database.Layer) error {
@@ -17,6 +18,12 @@ func SeedDatabase(dc *database.Layer) error {
 	var userID uuid.UUID
 
 	if shouldSeedUser {
+		// Login enforces the password policy; rejecting here avoids creating
+		// an admin that can't sign in.
+		if !validator.IsValidPassword(dc.Seed.AdminPassword) {
+			return fmt.Errorf("ADMIN_PASSWORD does not meet the password policy: %s", validator.PasswordErr)
+		}
+
 		// seed an example user
 		hashedPw, err := v1.HashPassword(dc.Seed.AdminPassword)
 

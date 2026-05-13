@@ -117,6 +117,29 @@ type passwordResource struct {
 	Password string `validate:"password"`
 }
 
+func TestIsValidPassword(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"valid password", "ValidPass1", true},
+		{"too short", "Short1", false},
+		{"missing number", "NoNumberHere", false},
+		{"missing uppercase", "nouppercase1", false},
+		{"missing lowercase", "NOLOWERCASE1", false},
+		{"empty", "", false},
+		{"max length (64)", "ValidPassword1AValidPassword1AValidPassword1AValidPassword1A1234", true},
+		{"too long (65)", "ValidPassword1AValidPassword1AValidPassword1AValidPassword1A12345", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsValidPassword(tt.input))
+		})
+	}
+}
+
 func TestValidatorPassword(t *testing.T) {
 	tests := []struct {
 		name       string

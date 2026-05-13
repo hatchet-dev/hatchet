@@ -28,7 +28,7 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("password", func(fl validator.FieldLevel) bool {
-		return passwordValidation(fl.Field().String())
+		return IsValidPassword(fl.Field().String())
 	})
 
 	_ = validate.RegisterValidation("uuid", func(fl validator.FieldLevel) bool {
@@ -89,7 +89,9 @@ func newValidator() *validator.Validate {
 	return validate
 }
 
-func passwordValidation(pw string) bool {
+// IsValidPassword reports whether pw matches the policy enforced by the
+// "password" struct tag: 8 to 64 chars, at least one number, upper, and lower.
+func IsValidPassword(pw string) bool {
 	pwLen := len(pw)
 	var hasNumber, hasUpper, hasLower bool
 
