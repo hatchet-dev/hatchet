@@ -7,7 +7,7 @@ HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 EVICTION_TTL_SECONDS = 5
 LONG_SLEEP_SECONDS = 15
 CAPACITY_SLEEP_SECONDS = 20
-EVENT_KEY = "ruby-durable-eviction:event"
+EVENT_KEY = "durable-eviction:event"
 
 # > Eviction Policy
 EVICTION_POLICY = Hatchet::EvictionPolicy.new(

@@ -4,7 +4,7 @@ import { hatchet } from '../hatchet-client';
 
 export const EVICTION_TTL_SECONDS = 5;
 export const LONG_SLEEP_SECONDS = 15;
-export const EVENT_KEY = 'ts-durable-eviction:event';
+export const EVENT_KEY = 'durable-eviction:event';
 
 // > Eviction Policy
 const EVICTION_POLICY: EvictionPolicy = {

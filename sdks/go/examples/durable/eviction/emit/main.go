@@ -8,7 +8,7 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-const eventKey = "go-durable-eviction:event"
+const eventKey = "durable-eviction:event"
 
 func main() {
 	client, err := hatchet.NewClient()

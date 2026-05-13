@@ -5,7 +5,7 @@ import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
 import { durationToMs } from '@hatchet-dev/typescript-sdk/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
-export const EVENT_KEY = 'ts-durable-example:event';
+export const EVENT_KEY = 'durable-example:event';
 export const SLEEP_TIME_SECONDS = 2;
 export const SLEEP_TIME = `${SLEEP_TIME_SECONDS}s` as const;
 
