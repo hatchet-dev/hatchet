@@ -125,6 +125,19 @@ func (payload *Payload) Subscribe() (ConfirmSubscriptionResponse, error) {
 		return response, errors.New("Payload does not have a SubscribeURL!")
 	}
 
+	subscribeURL, err := url.Parse(payload.SubscribeURL)
+	if err != nil {
+		return response, err
+	}
+
+	if subscribeURL.Scheme != "https" {
+		return response, fmt.Errorf("url should be using https")
+	}
+
+	if !hostPattern.Match([]byte(subscribeURL.Host)) {
+		return response, fmt.Errorf("subscribe url is located on an invalid domain")
+	}
+
 	resp, err := http.Get(payload.SubscribeURL)
 	if err != nil {
 		return response, err
@@ -147,6 +160,23 @@ func (payload *Payload) Subscribe() (ConfirmSubscriptionResponse, error) {
 // Unsubscribe will use the UnsubscribeURL in a payload to confirm a subscription and return a UnsubscribeResponse
 func (payload *Payload) Unsubscribe() (UnsubscribeResponse, error) {
 	var response UnsubscribeResponse
+	if payload.UnsubscribeURL == "" {
+		return response, errors.New("payload does not have an UnsubscribeURL")
+	}
+
+	unsubscribeURL, err := url.Parse(payload.UnsubscribeURL)
+	if err != nil {
+		return response, err
+	}
+
+	if unsubscribeURL.Scheme != "https" {
+		return response, fmt.Errorf("url should be using https")
+	}
+
+	if !hostPattern.Match([]byte(unsubscribeURL.Host)) {
+		return response, fmt.Errorf("unsubscribe url is located on an invalid domain")
+	}
+
 	resp, err := http.Get(payload.UnsubscribeURL)
 	if err != nil {
 		return response, err
