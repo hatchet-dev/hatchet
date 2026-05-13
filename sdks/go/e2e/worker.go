@@ -117,9 +117,9 @@ func registerAllWorkflows(client *hatchet.Client) {
 	}, hatchet.WithParents(dagChild1))
 
 	// --- Durable workflow with mixed tasks ---
-	testDurableWorkflow = client.NewWorkflow("DurableWorkflow")
+	testDurableWorkflow = client.NewWorkflow("GoDurableWorkflow")
 
-	testDurableWorkflow.NewTask("ephemeral_task", func(ctx hatchet.Context, input EmptyInput) (any, error) {
+	testDurableWorkflow.NewTask("go-ephemeral_task", func(ctx hatchet.Context, input EmptyInput) (any, error) {
 		return nil, nil
 	})
 
@@ -559,7 +559,7 @@ func registerAllWorkflows(client *hatchet.Client) {
 func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, error) {
 	registerAllWorkflows(client)
 
-	worker, err := client.NewWorker("e2e-durable-worker",
+	worker, err := client.NewWorker("go-e2e-durable-worker",
 		hatchet.WithWorkflows(
 			testDurableWorkflow,
 			testDagChildWorkflow,
