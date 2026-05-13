@@ -1,7 +1,6 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
-BEGIN;
 ALTER TABLE v1_payload ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_payload
   ADD CONSTRAINT v1_payload_external_id_not_null CHECK (external_id IS NOT NULL) NOT VALID;
@@ -23,19 +22,15 @@ BEGIN
     EXIT WHEN rows_updated = 0;
   END LOOP;
 END $$;
-COMMIT;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-BEGIN;
 ALTER TABLE v1_payload VALIDATE CONSTRAINT v1_payload_external_id_not_null;
 ALTER TABLE v1_payload ALTER COLUMN external_id SET NOT NULL;
 ALTER TABLE v1_payload DROP CONSTRAINT v1_payload_external_id_not_null;
-COMMIT;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-BEGIN;
 ALTER TABLE v1_payload_cutover_job_offset ADD COLUMN last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID;
 
 DROP FUNCTION list_paginated_payloads_for_offload(
@@ -605,7 +600,6 @@ BEGIN
     RETURN source_partition_name;
 END;
 $$;
-COMMIT;
 -- +goose StatementEnd
 
 -- +goose Down
