@@ -747,7 +747,8 @@ CREATE TABLE v1_workflow_concurrency_slot (
     CONSTRAINT v1_workflow_concurrency_slot_pkey PRIMARY KEY (strategy_id, workflow_version_id, workflow_run_id)
 );
 
-CREATE INDEX v1_workflow_concurrency_slot_query_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC, sort_id ASC);
+CREATE INDEX v1_workflow_concurrency_slot_cancel_newest_query_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC, is_filled DESC, sort_id ASC);
+CREATE INDEX v1_workflow_concurrency_slot_cancel_in_progress_query_idx ON v1_workflow_concurrency_slot (tenant_id, strategy_id ASC, key ASC, priority DESC, is_filled ASC, sort_id DESC);
 
 -- CreateTable
 CREATE TABLE v1_concurrency_slot (
