@@ -58,14 +58,14 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
         for w in active_workers
     )
 
-    assert result["durable_task"]["status"] == "success"
+    assert result["python_durable_task"]["status"] == "success"
 
     # hack for old engine test
     assert (
-        result["durable_task"]["event_id"] == ""
-        or result["durable_task"]["event_id"] == id
+        result["python_durable_task"]["event_id"] == ""
+        or result["python_durable_task"]["event_id"] == id
     )
-    assert result["durable_task"]["sleep_duration_seconds"] == SLEEP_TIME
+    assert result["python_durable_task"]["sleep_duration_seconds"] == SLEEP_TIME
 
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]
