@@ -19,7 +19,7 @@ RSpec.configure do |config|
   # Session-scoped Hatchet client
   config.add_setting :hatchet_client
   config.before(:suite) do
-    RSpec.configuration.hatchet_client = Hatchet::Client.new(debug: true, namespace: "ruby")
+    RSpec.configuration.hatchet_client = Hatchet::Client.new(debug: true)
   end
 end
 

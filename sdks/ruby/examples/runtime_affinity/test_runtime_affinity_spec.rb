@@ -25,7 +25,7 @@ RSpec.describe "RuntimeAffinity" do
     workers_list = hatchet.workers.list
     active_workers = (workers_list.rows || []).select do |w|
       w.status == "ACTIVE" &&
-        w.name == "runtime-affinity-worker"
+        w.name == hatchet.config.apply_namespace("runtime-affinity-worker")
     end
 
     expect(active_workers.length).to eq(2)
