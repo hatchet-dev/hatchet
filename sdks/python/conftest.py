@@ -15,7 +15,7 @@ from tests.worker_fixture import get_free_port, hatchet_worker
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def hatchet() -> AsyncGenerator[Hatchet, None]:
-    yield Hatchet(config=ClientConfig(namespace="python"))
+    yield Hatchet()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
