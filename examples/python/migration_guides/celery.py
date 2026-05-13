@@ -173,6 +173,154 @@ async def notify(input: OrderInput, ctx: Context) -> NotifyResult:
 
 
 
+# --- Step 8b: Parallel DAG tasks (static group equivalent) ---
+
+
+class CheckResult(BaseModel):
+    passed: bool
+
+
+# > Hatchet parallel DAG workflow
+order_checks = hatchet.workflow(name="OrderChecks", input_validator=OrderInput)
+
+
+@order_checks.task()
+async def check_inventory_task(input: OrderInput, ctx: Context) -> CheckResult:
+    ok = await check_inventory(input.order_id)
+    return CheckResult(passed=ok)
+
+
+@order_checks.task()
+async def check_fraud(input: OrderInput, ctx: Context) -> CheckResult:
+    ok = await run_fraud_check(input.order_id)
+    return CheckResult(passed=ok)
+
+
+
+
+# --- Step 8c: Dynamic child spawning (runtime-sized group equivalent) ---
+
+
+class ItemInput(BaseModel):
+    item_id: str
+
+
+class ItemResult(BaseModel):
+    item_id: str
+    status: str
+
+
+# > Hatchet child spawning
+@hatchet.task(name="process-item", input_validator=ItemInput)
+async def process_item(input: ItemInput, ctx: Context) -> ItemResult:
+    result = await do_work(input.item_id)
+    return ItemResult(item_id=input.item_id, status=result)
+
+
+@hatchet.task(name="fan-out-items", input_validator=OrderInput)
+async def fan_out_items(input: OrderInput, ctx: Context) -> dict[str, list[ItemResult]]:
+    items = await get_items_for_order(input.order_id)
+
+    results = await process_item.aio_run_many(
+        [
+            process_item.create_bulk_run_item(input=ItemInput(item_id=item_id))
+            for item_id in items
+        ],
+    )
+
+    return {"results": results}
+
+
+
+
+# --- Step 9: Result handling ---
+
+
+# > Hatchet result handling
+async def result_handling_example() -> None:
+    # Wait for the result directly (replaces AsyncResult.get())
+    result = await process_image.aio_run(
+        ImageInput(image_url="https://example.com/photo.png", filters=["thumbnail"]),
+    )
+    print(result.processed_url)
+
+    # Fire-and-forget, then retrieve later (replaces AsyncResult pattern)
+    ref = await process_image.aio_run(
+        ImageInput(image_url="https://example.com/photo.png", filters=["blur"]),
+        wait_for_result=False,
+    )
+    run_id = ref.workflow_run_id  # available immediately
+
+    # Check run status (replaces AsyncResult.state)
+    status = await hatchet.runs.aio_get_status(run_id)
+    print(status)  # QUEUED, RUNNING, COMPLETED, FAILED, or CANCELLED
+
+    # Retrieve the result when ready
+    result = await ref.aio_result()
+    print(result.processed_url)
+
+
+
+
+# --- Step 10a: Routing - worker registration ---
+
+
+# > Hatchet routing worker
+def start_image_worker() -> None:
+    """Register only image-processing tasks on this worker."""
+    worker = hatchet.worker(
+        "image-processing-worker",
+        slots=4,
+        workflows=[process_image],
+    )
+    worker.start()
+
+
+
+
+# --- Step 10b: Workflow hooks ---
+
+
+# > Hatchet workflow hooks
+hook_example = hatchet.workflow(name="HookExample", input_validator=OrderInput)
+
+
+@hook_example.task()
+async def process_order(input: OrderInput, ctx: Context) -> dict[str, str]:
+    ctx.log(f"Processing order {input.order_id}")
+    await process_charge(input.order_id)
+    ctx.log(f"Order {input.order_id} charged")
+    return {"status": "charged"}
+
+
+@hook_example.on_failure_task()
+async def on_order_failure(input: OrderInput, ctx: Context) -> None:
+    ctx.log(f"Order {input.order_id} failed, notifying support")
+
+
+@hook_example.on_success_task()
+async def on_order_success(input: OrderInput, ctx: Context) -> None:
+    ctx.log(f"Order {input.order_id} completed successfully")
+
+
+
+
+# --- Step 10c: Unit testing ---
+
+
+# > Hatchet unit test
+async def test_process_image() -> None:
+    result = await process_image.aio_mock_run(
+        input=ImageInput(
+            image_url="https://example.com/photo.png",
+            filters=["thumbnail"],
+        ),
+    )
+    assert result.processed_url == "https://cdn.example.com/photo.png"
+
+
+
+
 # --- Stubs (not part of snippets) ---
 
 
@@ -202,3 +350,15 @@ async def ship_order(order_id: str) -> str:
 
 async def send_notification(order_id: str) -> None:
     pass
+
+
+async def run_fraud_check(order_id: str) -> bool:
+    return True
+
+
+async def do_work(item_id: str) -> str:
+    return "done"
+
+
+async def get_items_for_order(order_id: str) -> list[str]:
+    return ["item-1", "item-2", "item-3"]
