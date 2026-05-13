@@ -2,6 +2,7 @@ import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { DomainRedirectModal } from '@/components/modals/domain-redirect-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
 import SupportChat from '@/components/support-chat';
@@ -490,6 +491,7 @@ function AuthenticatedInner() {
             }}
           />
         )}
+        <DomainRedirectModal />
         <WelcomeModal
           tenantId={tenant?.metadata.id}
           open={showWelcome}
