@@ -14,10 +14,10 @@ import (
 const (
 	sleepTime            = 5
 	replayResetSleepTime = 3
-	eventKey             = "go-durable-example:event"
+	eventKey             = "durable-example:event"
 	evictionTTLSeconds   = 5
 	longSleepSeconds     = 15
-	evictionEventKey     = "go-durable-eviction:event"
+	evictionEventKey     = "durable-eviction:event"
 )
 
 // --- Durable test workflows ---
