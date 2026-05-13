@@ -3680,24 +3680,22 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 			return fmt.Errorf("failed to diff source and target partitions: %w", err)
 		}
 
-		if (rowCounts.SourcePartitionCount - rowCounts.TempPartitionCount) > maxCountDiff {
-			numExternalIdsToSample := 20
-			exampleExternalIds := make([]string, 0, numExternalIdsToSample)
-			for i, r := range missingRows {
-				if i >= numExternalIdsToSample {
-					break
-				}
-
-				exampleExternalIds = append(exampleExternalIds, r.ExternalID.String())
+		numExternalIdsToSample := 20
+		exampleExternalIds := make([]string, 0, numExternalIdsToSample)
+		for i, r := range missingRows {
+			if i >= numExternalIdsToSample {
+				break
 			}
 
-			p.l.Error().
-				Str("partition_date", partitionDate.String()).
-				Int64("source_partition_count", rowCounts.SourcePartitionCount).
-				Int64("temp_partition_count", rowCounts.TempPartitionCount).
-				Str("example_external_ids", strings.Join(exampleExternalIds, ", ")).
-				Msg("row counts do not match between temp and source partitions")
+			exampleExternalIds = append(exampleExternalIds, r.ExternalID.String())
 		}
+
+		p.l.Error().
+			Str("partition_date", partitionDate.String()).
+			Int64("source_partition_count", rowCounts.SourcePartitionCount).
+			Int64("temp_partition_count", rowCounts.TempPartitionCount).
+			Str("example_external_ids", strings.Join(exampleExternalIds, ", ")).
+			Msg("row counts do not match between temp and source partitions")
 
 		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, len(missingRows))
 
