@@ -14,7 +14,7 @@ RSpec.describe "DurableWorkflow" do
     HATCHET.events.create(key: DURABLE_EVENT_KEY, data: { "test" => true })
 
     result = ref.result
-    expect(result["go-durable_task"]["status"]).to eq("success")
+    expect(result["durable_task"]["status"]).to eq("success")
   end
 
   it "handles multi-sleep in durable tasks" do
