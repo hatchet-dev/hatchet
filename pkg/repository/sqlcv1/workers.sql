@@ -247,19 +247,27 @@ GROUP BY "tenantId"
 ;
 
 -- name: GetWorkerActionsByWorkerId :many
-WITH inputs AS (
-    SELECT UNNEST(@workerIds::UUID[]) AS "workerId"
-)
-
 SELECT
     w."id" AS "workerId",
     a."actionId" AS actionId
 FROM "Worker" w
-JOIN inputs i ON w."id" = i."workerId"
-LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
-LEFT JOIN "Action" a ON aw."A" = a.id
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = @tenantId::UUID
+    AND w.id = ANY(@workerIds::UUID[])
+;
+
+-- name: GetWorkerActionsByWorkerActionHash :many
+SELECT DISTINCT
+    w."actionHash" AS action_hash,
+    a."actionId" AS action_id
+FROM "Worker" w
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
+WHERE
+    w."tenantId" = @tenantId::UUID
+    AND w."actionHash" = ANY(@actionHashes::BYTEA[])
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many
@@ -438,7 +446,8 @@ INSERT INTO "Worker" (
     "language",
     "languageVersion",
     "os",
-    "runtimeExtra"
+    "runtimeExtra",
+    "actionHash"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -451,7 +460,8 @@ INSERT INTO "Worker" (
     sqlc.narg('language')::"WorkerSDKS",
     sqlc.narg('languageVersion')::text,
     sqlc.narg('os')::text,
-    sqlc.narg('runtimeExtra')::text
+    sqlc.narg('runtimeExtra')::text,
+    @actionHash::bytea
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec
