@@ -1,10 +1,20 @@
 #!/bin/sh
 set -e
 
+WORKER_PID=""
+
+cleanup() {
+  if [ -n "$WORKER_PID" ]; then
+    kill -9 "$WORKER_PID" 2>/dev/null || true
+    wait "$WORKER_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
 # Run integration tests (no worker needed)
 echo "=== Running integration tests ==="
 cd /hatchet/sdks/ruby/src
-bundle exec rspec spec/integration/ --format documentation --tag integration
+timeout 300 bundle exec rspec spec/integration/ --format documentation --tag integration
 
 # Start the example worker in the background
 echo "=== Starting example worker ==="
@@ -22,7 +32,6 @@ for i in $(seq 1 60); do
     fi
     if [ "$i" -eq 60 ]; then
         echo "Worker failed to start within 60s"
-        kill "$WORKER_PID" 2>/dev/null || true
         exit 1
     fi
     sleep 1
@@ -30,8 +39,4 @@ done
 
 # Run e2e tests
 echo "=== Running e2e tests ==="
-bundle exec rspec -f d --fail-fast
-E2E_STATUS=$?
-
-kill "$WORKER_PID" 2>/dev/null || true
-exit $E2E_STATUS
+timeout 900 bundle exec rspec -f d --fail-fast
