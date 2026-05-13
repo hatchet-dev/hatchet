@@ -669,7 +669,7 @@ func (r *sharedRepository) triggerWorkflows(
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepsWithAdditionalMatchConditions) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, listStepsTx, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  stepsWithAdditionalMatchConditions,
 			Tenantid: tenantId,
 		})
