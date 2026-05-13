@@ -13,7 +13,7 @@ hatchet = Hatchet()
 
 EVICTION_TTL_SECONDS = 5
 LONG_SLEEP_SECONDS = 15
-EVENT_KEY = "durable-eviction:event"
+EVENT_KEY = "python-durable-eviction:event"
 
 # > Eviction Policy
 EVICTION_POLICY = EvictionPolicy(

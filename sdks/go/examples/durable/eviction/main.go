@@ -11,7 +11,7 @@ import (
 const (
 	evictionTTLSeconds = 5
 	longSleepSeconds   = 15
-	eventKey           = "durable-eviction:event"
+	eventKey           = "go-durable-eviction:event"
 )
 
 type EmptyInput struct{}
