@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
 
-export HATCHET_CLIENT_NAMESPACE=ruby
-
 WORKER_PID=""
 
 cleanup() {
