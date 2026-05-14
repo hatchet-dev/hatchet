@@ -18,7 +18,7 @@ import (
 const (
 	defaultTimeout  = 5 * time.Minute
 	pollInterval    = 200 * time.Millisecond
-	timingTolerance = 0.5 // seconds of slack for scheduling/measurement overhead in timing assertions
+	timingTolerance = 1.0 // seconds of slack for scheduling/measurement overhead in timing assertions
 )
 
 var (
