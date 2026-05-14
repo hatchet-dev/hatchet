@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -123,7 +122,7 @@ func TestDurableChildBulkSpawn(t *testing.T) {
 	require.NoError(t, err)
 	outputs, ok := m["child_outputs"].([]any)
 	require.True(t, ok, "expected child_outputs to be an array")
-	fmt.Println(outputs)
+
 	assert.GreaterOrEqual(t, len(outputs), n-1)
 	assert.LessOrEqual(t, len(outputs), n)
 
