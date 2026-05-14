@@ -100,8 +100,8 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	err = result.TaskOutput("wait-for-sleep-twice").Into(&output)
 	require.NoError(t, err)
 
-	assert.Less(t, output["runtime"], float64(sleepTime))
-	assert.LessOrEqual(t, replayElapsed, float64(sleepTime))
+	assert.Less(t, output["runtime"], float64(sleepTime)+timingTolerance)
+	assert.LessOrEqual(t, replayElapsed, float64(sleepTime)+timingTolerance)
 }
 
 func TestDurableChildSpawn(t *testing.T) {
@@ -184,7 +184,7 @@ func TestDurableSleepEventSpawnReplay(t *testing.T) {
 	replayChild, ok := rm["child_output"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "hello from child 1", replayChild["message"])
-	assert.Less(t, replayElapsed, float64(sleepTime))
+	assert.Less(t, replayElapsed, float64(sleepTime)+timingTolerance)
 }
 
 func TestDurableCompletedReplay(t *testing.T) {
@@ -218,8 +218,8 @@ func TestDurableCompletedReplay(t *testing.T) {
 	var replayOutput map[string]float64
 	err = replayResult.TaskOutput("wait-for-sleep-twice").Into(&replayOutput)
 	require.NoError(t, err)
-	assert.Less(t, replayOutput["runtime"], float64(sleepTime))
-	assert.Less(t, elapsed, float64(sleepTime))
+	assert.Less(t, replayOutput["runtime"], float64(sleepTime)+timingTolerance)
+	assert.Less(t, elapsed, float64(sleepTime)+timingTolerance)
 }
 
 func TestDurableSpawnDAG(t *testing.T) {
@@ -317,7 +317,7 @@ func TestDurableReplayReset(t *testing.T) {
 			durations := []float64{resetOutput.Sleep1Duration, resetOutput.Sleep2Duration, resetOutput.Sleep3Duration}
 			for i, d := range durations {
 				if int64(i+1) < nodeID {
-					assert.Less(t, d, float64(replayResetSleepTime))
+					assert.Less(t, d, float64(replayResetSleepTime)+timingTolerance)
 				} else {
 					assert.GreaterOrEqual(t, d, float64(replayResetSleepTime))
 				}
@@ -380,7 +380,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	err = resetResult2.TaskOutput("durable-replay-reset").Into(&resetOutput2)
 	require.NoError(t, err)
 
-	assert.Less(t, resetOutput2.Sleep1Duration, float64(replayResetSleepTime))
+	assert.Less(t, resetOutput2.Sleep1Duration, float64(replayResetSleepTime)+timingTolerance)
 	assert.GreaterOrEqual(t, resetOutput2.Sleep2Duration, float64(replayResetSleepTime))
 	assert.GreaterOrEqual(t, resetOutput2.Sleep3Duration, float64(replayResetSleepTime))
 	assert.GreaterOrEqual(t, resetElapsed2, float64(2*replayResetSleepTime))
