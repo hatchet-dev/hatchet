@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+import tenacity
+from tenacity import stop_after_attempt, wait_exponential
 
 from examples.bulk_operations.worker import (
     bulk_replay_test_1,
@@ -17,7 +19,7 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 async def test_bulk_replay(hatchet: Hatchet) -> None:
     test_run_id = str(uuid4())
     n = 100
-
+    test_start = datetime.now(tz=timezone.utc)
     with pytest.raises(Exception):
         await bulk_replay_test_1.aio_run_many(
             [
@@ -65,7 +67,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
         opts=BulkCancelReplayOpts(
             filters=RunFilter(
                 workflow_ids=workflow_ids,
-                since=datetime.now(tz=timezone.utc) - timedelta(minutes=2),
+                since=test_start,
                 additional_metadata={"test_run_id": test_run_id},
             )
         )
@@ -73,12 +75,22 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(20)
 
-    runs = await hatchet.runs.aio_list(
-        workflow_ids=workflow_ids,
-        since=datetime.now(tz=timezone.utc) - timedelta(minutes=2),
-        additional_metadata={"test_run_id": test_run_id},
-        limit=1000,
-    )
+    @tenacity.retry(stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10))
+    async def get_runs():
+        runs = await hatchet.runs.aio_list(
+            workflow_ids=workflow_ids,
+            since=test_start,
+            additional_metadata={"test_run_id": test_run_id},
+            limit=1000,
+        )
+        def predicate(r):
+            return r.status == V1TaskStatus.COMPLETED and r.retry_count and r.retry_count >= 1 and r.attempt and r.attempt >= 2
+        for r in runs.rows:
+            if not predicate(r):
+                raise Exception
+        return runs
+
+    runs = await get_runs()
 
     assert len(runs.rows) == n + 1 + (n // 2 - 1) + (n // 2 - 2)
 
