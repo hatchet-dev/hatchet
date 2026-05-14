@@ -158,17 +158,19 @@ type NonDeterminismDetail struct {
 }
 
 type NonDeterminismError struct {
-	Detail                  *NonDeterminismDetail
-	ExistingEntryInsertedAt pgtype.Timestamptz
-	ExpectedKind            sqlcv1.V1DurableEventLogKind
-	ActualKind              sqlcv1.V1DurableEventLogKind
-	ExpectedIdempotencyKey  []byte
-	ActualIdempotencyKey    []byte
-	NodeId                  int64
-	BranchId                int64
-	ExistingEntryId         int64
-	TaskExternalId          uuid.UUID
-	ExistingEntryTenantId   uuid.UUID
+	Detail                               *NonDeterminismDetail
+	ExistingEntryInsertedAt              pgtype.Timestamptz
+	ExpectedKind                         sqlcv1.V1DurableEventLogKind
+	ActualKind                           sqlcv1.V1DurableEventLogKind
+	ExpectedIdempotencyKey               []byte
+	ActualIdempotencyKey                 []byte
+	NodeId                               int64
+	BranchId                             int64
+	ExistingEntryId                      int64
+	TaskExternalId                       uuid.UUID
+	ExistingEntryTenantId                uuid.UUID
+	ExistingEntryExternalId              uuid.UUID
+	ExistingEntryResultPayloadExternalId uuid.UUID
 }
 
 func (m *NonDeterminismError) Error() string {
@@ -485,18 +487,13 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		return nil, fmt.Errorf("failed to list satisfied entries: %w", err)
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, len(rows))
+	externalIdsForRetrieve := make([]uuid.UUID, len(rows))
 
 	for i, row := range rows {
-		retrievePayloadOpts[i] = RetrievePayloadOpts{
-			Id:         row.ID,
-			InsertedAt: row.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-			TenantId:   tenantId,
-		}
+		externalIdsForRetrieve[i] = row.ResultPayloadExternalID
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrievePayloadOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", err)
@@ -505,14 +502,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
 
 	for _, row := range rows {
-		retrieveOpt := RetrievePayloadOpts{
-			Id:         row.ID,
-			InsertedAt: row.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-			TenantId:   tenantId,
-		}
-
-		payload := payloads[retrieveOpt]
+		payload := payloads[row.ResultPayloadExternalID]
 
 		result = append(result, &SatisfiedEventWithPayload{
 			TaskExternalId:  row.TaskExternalID,
@@ -739,16 +729,18 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 
 		if !bytes.Equal(o.IdempotencyKey, existingEntry.IdempotencyKey) {
 			return nil, &NonDeterminismError{
-				BranchId:                o.BranchId,
-				NodeId:                  o.NodeId,
-				TaskExternalId:          opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey:  existingEntry.IdempotencyKey,
-				ActualIdempotencyKey:    o.IdempotencyKey,
-				ExpectedKind:            existingEntry.Kind,
-				ActualKind:              o.Kind,
-				ExistingEntryId:         existingEntry.ID,
-				ExistingEntryInsertedAt: existingEntry.InsertedAt,
-				ExistingEntryTenantId:   existingEntry.TenantID,
+				BranchId:                             o.BranchId,
+				NodeId:                               o.NodeId,
+				TaskExternalId:                       opts.DurableTaskExternalId,
+				ExpectedIdempotencyKey:               existingEntry.IdempotencyKey,
+				ActualIdempotencyKey:                 o.IdempotencyKey,
+				ExpectedKind:                         existingEntry.Kind,
+				ActualKind:                           o.Kind,
+				ExistingEntryId:                      existingEntry.ID,
+				ExistingEntryInsertedAt:              existingEntry.InsertedAt,
+				ExistingEntryTenantId:                existingEntry.TenantID,
+				ExistingEntryExternalId:              existingEntry.ExternalID,
+				ExistingEntryResultPayloadExternalId: existingEntry.ResultPayloadExternalID,
 			}
 		}
 
@@ -839,19 +831,14 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	var retrieveOpts []RetrievePayloadOpts
+	externalIdsForRetrieve := make([]uuid.UUID, len(existedEntries))
 	for _, entry := range existedEntries {
-		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
-			Id:         entry.ID,
-			InsertedAt: entry.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-			TenantId:   opts.TenantId,
-		})
+		externalIdsForRetrieve = append(externalIdsForRetrieve, entry.ResultPayloadExternalID)
 	}
 
-	var existingPayloads map[RetrievePayloadOpts][]byte
-	if len(retrieveOpts) > 0 {
-		existingPayloads, err = r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+	var existingPayloads map[uuid.UUID][]byte
+	if len(externalIdsForRetrieve) > 0 {
+		existingPayloads, err = r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
 		if err != nil {
 			existingPayloads = nil
 		}
@@ -863,12 +850,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		if existingEntry, ok := existedEntries[key]; ok {
 			var resultPayload []byte
 			if existingPayloads != nil {
-				resultPayload = existingPayloads[RetrievePayloadOpts{
-					Id:         existingEntry.ID,
-					InsertedAt: existingEntry.InsertedAt,
-					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
-					TenantId:   opts.TenantId,
-				}]
+				resultPayload = existingPayloads[existingEntry.ResultPayloadExternalID]
 			}
 			results[i] = &EventLogEntryWithPayloads{
 				Entry:          existingEntry,
@@ -1058,20 +1040,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		var nde *NonDeterminismError
 		if errors.As(err, &nde) {
 			var existingPayload []byte
-			payloads, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
-				Id:         nde.ExistingEntryId,
-				InsertedAt: nde.ExistingEntryInsertedAt,
-				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-				TenantId:   nde.ExistingEntryTenantId,
-			})
+			retrievedPayload, retrieveErr := r.payloadStore.RetrieveSingle(ctx, tx, nde.ExistingEntryExternalId)
+
 			if retrieveErr == nil {
-				existingPayload = payloads[RetrievePayloadOpts{
-					Id:         nde.ExistingEntryId,
-					InsertedAt: nde.ExistingEntryInsertedAt,
-					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
-					TenantId:   nde.ExistingEntryTenantId,
-				}]
+				existingPayload = retrievedPayload
 			}
+
 			nde.Detail = nonDeterminismDetail(opts, nde.ExpectedKind, existingPayload)
 		}
 
@@ -1377,18 +1351,13 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		return initialWaitForResult, nil
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
+	externalIdsForRetrieve := make([]uuid.UUID, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
-		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
-			Id:         row.ID,
-			InsertedAt: row.SeenAt,
-			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-			TenantId:   tenantId,
-		})
+		externalIdsForRetrieve = append(externalIdsForRetrieve, row.ExternalID)
 	}
 
-	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
+	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
@@ -1397,14 +1366,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
-		retrieveOpts := RetrievePayloadOpts{
-			Id:         row.ID,
-			InsertedAt: row.SeenAt,
-			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
-			TenantId:   tenantId,
-		}
-
-		payload, ok := retrieveOptsToPayload[retrieveOpts]
+		payload, ok := retrieveOptsToPayload[row.ExternalID]
 
 		if !ok {
 			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)

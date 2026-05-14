@@ -1587,18 +1587,18 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, err
 	}
 
-	retrievePayloadOpts := make([]RetrievePayloadOpts, len(matchingEvents))
+	externalIdsForRetrieve := make([]uuid.UUID, len(matchingEvents))
 
 	for i, event := range matchingEvents {
-		retrievePayloadOpts[i] = RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
+		if event.ExternalID == nil {
+			r.l.Error().Msgf("signal created event with id %d has no external id", event.ID)
+			continue
 		}
+
+		externalIdsForRetrieve[i] = *event.ExternalID
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
@@ -1609,12 +1609,12 @@ func (r *sharedRepository) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		payload, ok := payloads[RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
-		}]
+		if event.ExternalID == nil {
+			r.l.Error().Msgf("signal created event with id %d has no external id", event.ID)
+			continue
+		}
+
+		payload, ok := payloads[*event.ExternalID]
 
 		if !ok {
 			payload = event.Data

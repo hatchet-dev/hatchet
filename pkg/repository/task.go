@@ -1150,24 +1150,22 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		return nil, err
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, len(matchedEvents))
-	retrieveOptsToEventData := make(map[RetrievePayloadOpts][]byte)
-	matchedEventToRetrieveOpts := make(map[*sqlcv1.ListMatchingTaskEventsRow]RetrievePayloadOpts)
+	externalIdsForRetrieve := make([]uuid.UUID, len(matchedEvents))
+	externalIdToEventData := make(map[uuid.UUID][]byte)
 
 	for i, event := range matchedEvents {
-		opt := RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
+		if event.ExternalID == nil {
+			r.l.Error().Ctx(ctx).Msgf("skipping task event with null external id for task %d", event.TaskID)
+			continue
 		}
 
-		retrieveOpts[i] = opt
-		retrieveOptsToEventData[opt] = event.Data
-		matchedEventToRetrieveOpts[event] = opt
+		extId := *event.ExternalID
+
+		externalIdsForRetrieve[i] = extId
+		externalIdToEventData[extId] = event.Data
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, err
@@ -1176,11 +1174,10 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	res := make([]*TaskOutputEvent, 0, len(matchedEvents))
 
 	for _, event := range matchedEvents {
-		retrieveOpts := matchedEventToRetrieveOpts[event]
-		payload, ok := payloads[retrieveOpts]
+		payload, ok := payloads[*event.ExternalID]
 
 		if !ok {
-			payload = retrieveOptsToEventData[retrieveOpts]
+			payload = externalIdToEventData[*event.ExternalID]
 		}
 
 		o, err := newTaskEventFromBytes(payload)
@@ -3118,18 +3115,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	replayOpts := make([]ReplayTaskOpts, 0)
 	replayedTasks := make([]TaskIdInsertedAtRetryCount, 0)
 
-	retrieveOpts := make([]RetrievePayloadOpts, len(lockedTasks))
+	externalIdsForRetrieve := make([]uuid.UUID, len(lockedTasks))
 
 	for i, task := range lockedTasks {
-		retrieveOpts[i] = RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   tenantId,
-		}
+		externalIdsForRetrieve[i] = task.ExternalID
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
@@ -3206,14 +3198,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			}
 		}
 
-		retrieveOpt := RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   tenantId,
-		}
-
-		input, ok := payloads[retrieveOpt]
+		input, ok := payloads[task.ExternalID]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
@@ -3744,28 +3729,28 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		return nil, err
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, 0, len(res))
-	retrieveOptsToWorkflowRunId := make(map[RetrievePayloadOpts]uuid.UUID, len(res))
-	retrieveOptToPayload := make(map[RetrievePayloadOpts][]byte)
+	externalIdsForRetrieve := make([]uuid.UUID, 0, len(res))
+	outputEventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID, len(res))
+	outputEventExternalIdToPayload := make(map[uuid.UUID][]byte)
 
 	for _, outputTask := range res {
 		if outputTask.WorkflowRunID == uuid.Nil {
 			continue
 		}
 
-		opt := RetrievePayloadOpts{
-			Id:         outputTask.TaskEventID,
-			InsertedAt: outputTask.TaskEventInsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
+		if outputTask.OutputEventExternalID == nil {
+			r.l.Error().Ctx(ctx).Int64("task_event_id", outputTask.TaskEventID).Msg("skipping task output event with missing external id")
+			continue
 		}
 
-		retrieveOpts = append(retrieveOpts, opt)
-		retrieveOptsToWorkflowRunId[opt] = outputTask.WorkflowRunID
-		retrieveOptToPayload[opt] = outputTask.Output
+		extId := *outputTask.OutputEventExternalID
+		externalIdsForRetrieve = append(externalIdsForRetrieve, extId)
+
+		outputEventExternalIdToWorkflowRunId[extId] = outputTask.WorkflowRunID
+		outputEventExternalIdToPayload[extId] = outputTask.Output
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
@@ -3773,12 +3758,12 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
 
-	for retrieveOpts, workflowRunId := range retrieveOptsToWorkflowRunId {
+	for outputEventExternalId, workflowRunId := range outputEventExternalIdToWorkflowRunId {
 		wrId := workflowRunId.String()
-		payload, ok := payloads[retrieveOpts]
+		payload, ok := payloads[outputEventExternalId]
 
 		if !ok {
-			payload = retrieveOptToPayload[retrieveOpts]
+			payload = outputEventExternalIdToPayload[outputEventExternalId]
 		}
 
 		e, err := newTaskEventFromBytes(payload)
@@ -3827,20 +3812,18 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		return nil, fmt.Errorf("failed to list matching signal events: %w", err)
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, len(signalEvents))
+	externalIdsForRetrieve := make([]uuid.UUID, len(signalEvents))
 
 	for i, event := range signalEvents {
-		retrieveOpt := RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
+		if event.ExternalID == nil {
+			r.l.Error().Ctx(ctx).Int64("task_id", event.TaskID).Msg("signal completed event is missing external id")
+			continue
 		}
 
-		retrieveOpts[i] = retrieveOpt
+		externalIdsForRetrieve[i] = *event.ExternalID
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", err)
@@ -3849,14 +3832,12 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 	res := make([]*V1TaskEventWithPayload, len(signalEvents))
 
 	for i, event := range signalEvents {
-		retrieveOpt := RetrievePayloadOpts{
-			Id:         event.ID,
-			InsertedAt: event.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
-			TenantId:   tenantId,
+		if event.ExternalID == nil {
+			r.l.Error().Ctx(ctx).Int64("task_id", event.TaskID).Msg("signal completed event is missing external id")
+			continue
 		}
 
-		payload, ok := payloads[retrieveOpt]
+		payload, ok := payloads[*event.ExternalID]
 
 		if !ok {
 			payload = event.Data
@@ -4238,34 +4219,24 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, nil
 	}
 
-	var inputRetrieveOpt RetrievePayloadOpts
+	var externalIdForRetrieve uuid.UUID
 	firstTask := flat[0]
 	isDag := firstTask.DagID.Valid
 	additionalMeta := firstTask.AdditionalMetadata
 
 	if isDag {
-		inputRetrieveOpt = RetrievePayloadOpts{
-			Id:         firstTask.DagID.Int64,
-			InsertedAt: firstTask.DagInsertedAt,
-			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
-			TenantId:   tenantId,
-		}
+		externalIdForRetrieve = firstTask.WorkflowRunExternalID
 	} else {
-		inputRetrieveOpt = RetrievePayloadOpts{
-			Id:         firstTask.ID,
-			InsertedAt: firstTask.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   tenantId,
-		}
+		externalIdForRetrieve = firstTask.ExternalID
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, inputRetrieveOpt)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, externalIdForRetrieve)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
 	}
 
-	input := payloads[inputRetrieveOpt]
+	input := payloads[externalIdForRetrieve]
 
 	if !isDag && len(input) > 0 {
 		// if it's a standalone task, we need to extract the "input" field from the payload

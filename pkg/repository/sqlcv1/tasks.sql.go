@@ -1256,7 +1256,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    t.external_id,
+    t.external_id as task_external_id,
     e.id, e.inserted_at, e.tenant_id, e.task_id, e.task_inserted_at, e.retry_count, e.event_type, e.event_key, e.created_at, e.data, e.external_id
 FROM
     v1_lookup_table l
@@ -1279,7 +1279,7 @@ type ListMatchingTaskEventsParams struct {
 }
 
 type ListMatchingTaskEventsRow struct {
-	ExternalID     uuid.UUID          `json:"external_id"`
+	TaskExternalID uuid.UUID          `json:"task_external_id"`
 	ID             int64              `json:"id"`
 	InsertedAt     pgtype.Timestamptz `json:"inserted_at"`
 	TenantID       uuid.UUID          `json:"tenant_id"`
@@ -1290,7 +1290,7 @@ type ListMatchingTaskEventsRow struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
-	ExternalID_2   *uuid.UUID         `json:"external_id_2"`
+	ExternalID     *uuid.UUID         `json:"external_id"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -1305,7 +1305,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 	for rows.Next() {
 		var i ListMatchingTaskEventsRow
 		if err := rows.Scan(
-			&i.ExternalID,
+			&i.TaskExternalID,
 			&i.ID,
 			&i.InsertedAt,
 			&i.TenantID,
@@ -1316,7 +1316,7 @@ func (q *Queries) ListMatchingTaskEvents(ctx context.Context, db DBTX, arg ListM
 			&i.EventKey,
 			&i.CreatedAt,
 			&i.Data,
-			&i.ExternalID_2,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -1604,7 +1604,8 @@ WITH input AS (
         t.workflow_id,
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
-        e.data AS output
+        e.data AS output,
+        e.external_id AS output_event_external_id
     FROM
         v1_task t1
     JOIN
@@ -1638,7 +1639,8 @@ SELECT
     task_outputs.task_event_id,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
-    task_outputs.output
+    task_outputs.output,
+    task_outputs.output_event_external_id
 FROM
     task_outputs
 JOIN
@@ -1658,10 +1660,11 @@ type ListTaskParentOutputsParams struct {
 }
 
 type ListTaskParentOutputsRow struct {
-	TaskEventID         int64              `json:"task_event_id"`
-	TaskEventInsertedAt pgtype.Timestamptz `json:"task_event_inserted_at"`
-	WorkflowRunID       uuid.UUID          `json:"workflow_run_id"`
-	Output              []byte             `json:"output"`
+	TaskEventID           int64              `json:"task_event_id"`
+	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
+	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
+	Output                []byte             `json:"output"`
+	OutputEventExternalID *uuid.UUID         `json:"output_event_external_id"`
 }
 
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
@@ -1680,6 +1683,7 @@ func (q *Queries) ListTaskParentOutputs(ctx context.Context, db DBTX, arg ListTa
 			&i.TaskEventInsertedAt,
 			&i.WorkflowRunID,
 			&i.Output,
+			&i.OutputEventExternalID,
 		); err != nil {
 			return nil, err
 		}
@@ -2244,7 +2248,8 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.inserted_at
+        e.inserted_at,
+        e.external_id
     FROM
         v1_task_event e
     JOIN
@@ -2259,7 +2264,8 @@ SELECT
 	e.id,
     e.inserted_at,
 	e.event_key,
-	e.data
+	e.data,
+    e.external_id
 FROM
 	events_to_lock e
 WHERE
@@ -2278,6 +2284,7 @@ type LockSignalCreatedEventsRow struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	EventKey   pgtype.Text        `json:"event_key"`
 	Data       []byte             `json:"data"`
+	ExternalID *uuid.UUID         `json:"external_id"`
 }
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't
@@ -2301,6 +2308,7 @@ func (q *Queries) LockSignalCreatedEvents(ctx context.Context, db DBTX, arg Lock
 			&i.InsertedAt,
 			&i.EventKey,
 			&i.Data,
+			&i.ExternalID,
 		); err != nil {
 			return nil, err
 		}
