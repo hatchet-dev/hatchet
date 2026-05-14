@@ -12,6 +12,8 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
@@ -75,16 +77,26 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
 
     await asyncio.sleep(20)
 
-    @tenacity.retry(stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def get_runs():
+    @tenacity.retry(
+        stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    async def get_runs() -> V1TaskSummaryList:
         runs = await hatchet.runs.aio_list(
             workflow_ids=workflow_ids,
             since=test_start,
             additional_metadata={"test_run_id": test_run_id},
             limit=1000,
         )
-        def predicate(r):
-            return r.status == V1TaskStatus.COMPLETED and r.retry_count and r.retry_count >= 1 and r.attempt and r.attempt >= 2
+
+        def predicate(r: V1TaskSummary) -> bool:
+            return (
+                r.status == V1TaskStatus.COMPLETED  # type: ignore[return-value]
+                and r.retry_count
+                and r.retry_count >= 1
+                and r.attempt
+                and r.attempt >= 2
+            )
+
         for r in runs.rows:
             if not predicate(r):
                 raise Exception

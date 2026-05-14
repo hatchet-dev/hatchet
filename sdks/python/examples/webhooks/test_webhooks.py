@@ -16,7 +16,6 @@ from tenacity import stop_after_attempt, wait_exponential
 
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -139,8 +138,10 @@ async def wait_for_event(
 async def wait_for_workflow_run(
     hatchet: Hatchet, event_id: str, test_start: datetime
 ) -> V1TaskSummary | None:
-    @tenacity.retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def get_runs():
+    @tenacity.retry(
+        stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    async def get_runs() -> V1TaskSummary:
         runs = await hatchet.runs.aio_list(
             since=test_start,
             additional_metadata={
@@ -151,6 +152,7 @@ async def wait_for_workflow_run(
             if row.status == V1TaskStatus.COMPLETED:
                 return row
         raise Exception()
+
     return await get_runs()
 
 
