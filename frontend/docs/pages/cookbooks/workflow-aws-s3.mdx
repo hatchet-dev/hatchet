@@ -3,7 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import AmazonS3ImagePipelineDiagram from "@/components/AmazonS3ImagePipelineDiagram";
-import FanoutDiagram from "@/components/FanoutDiagram";
 
 # Processing Amazon S3 Objects at Scale with Hatchet
 
@@ -58,7 +57,7 @@ _Note: `<your-bucket-prefix>` should be scoped at runtime to the specific bucket
 
 These can be set via environment variables, which should be automatically picked up by the SDK client:
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.client_setup} />
   </Tabs.Tab>
@@ -78,30 +77,28 @@ To ensure maximum parallelism, we treat the processing of each object within eac
 
 We implement this as a _double fan-out_: one fan-out across buckets to spawn per-bucket polling tasks, and a second fan-out within each polling task to spawn one processing task per object. This lets us distribute both the listing and processing work across a horizontally scaled fleet of workers without any single worker becoming a bottleneck.
 
-<FanoutDiagram
-  parentLabel="S3::ListBuckets"
-  parentSubLabel="cron trigger"
-  midNodes={[
-    {
-      label: "S3::ListObjects",
-      subLabel: "bucket-0",
-      leaves: [
-        { label: "Process", subLabel: "bucket-0/object-0.png" },
-        { label: "Process", subLabel: "bucket-0/object-N.png" },
-      ],
-    },
-    {
-      label: "S3::ListObjects",
-      subLabel: "bucket-N",
-    },
-  ]}
-/>
+```mermaid
+flowchart LR
+    A("<b>S3::ListBuckets</b><br/><i>cron trigger</i>")
+    B("<b>S3::ListObjects</b><br/><i>bucket-0</i>")
+    C("<b>S3::ListObjects</b><br/><i>bucket-N</i>")
+    D("<b>Process</b><br/><i>bucket-0/object-0.png</i>")
+    E("<b>Process</b><br/><i>bucket-0/object-N.png</i>")
+    A -.-> B
+    A -.-> C
+    B -.-> D
+    B -.-> E
+    style B stroke:#a855f7
+    style C stroke:#a855f7
+    style D stroke:#14b8a6
+    style E stroke:#14b8a6
+```
 
 ### Define the Models
 
 Start by defining the data models for our workflow inputs.
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.models} />
   </Tabs.Tab>
@@ -120,16 +117,24 @@ As the root of the pipeline, this task paginates across all buckets in our regio
 
 However, our strategy should still guard against _overlapping executions_ of the same cron job. If S3 throttles us mid-scan and a run takes longer than the cron interval, the next tick should be rejected until the in-flight run finishes, rather than piling on more concurrent listing calls and making the throttling worse.
 
-<FanoutDiagram
-  parentLabel="Fetch Buckets"
-  parentSubLabel="cron trigger"
-  childLabels={["bucket-0", "bucket-1", "bucket-N"]}
-  showCollect={false}
-/>
+```mermaid
+flowchart LR
+    A("<b>Fetch Buckets</b><br/><i>cron trigger</i>")
+    B("bucket-0")
+    C("bucket-1")
+    D[...]
+    E("bucket-N")
+    A -.-> B
+    A -.-> C
+    A ~~~ D
+    A -.-> E
+    style D fill:none,stroke:none
+    style B stroke:#a855f7
+    style C stroke:#a855f7
+    style E stroke:#a855f7
+```
 
-Taking all of this into account, we define our `fetch_s3_buckets` workflow as follows:
-
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.fetch_s3_buckets} />
   </Tabs.Tab>
@@ -142,7 +147,7 @@ Here, we set the concurrency key to the CEL expression `'singleton'`, a string l
 
 The task body itself is responsible for gathering all relevant buckets from our region and spawning a new `fetch_objects` task from the `fetch_s3_objects` workflow for each:
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.fetch_s3_buckets_task} />
   </Tabs.Tab>
@@ -157,22 +162,31 @@ We use the bucket name as its child key for each spawn to ensure deduplication o
 
 Next, we define a workflow responsible for polling a given S3 bucket for objects, before fanning out and assigning each object a processing task.
 
-<FanoutDiagram
-  parentLabel="List objects"
-  parentSubLabel="input.bucket"
-  childLabels={[
-    "Download &\nprocess",
-    "Download &\nprocess",
-    "Download &\nprocess",
-  ]}
-  showCollect={false}
-/>
+```mermaid
+flowchart LR
+    A("<b>List objects</b><br/><i>input.bucket</i>")
+    B("Download &<br/>process")
+    C("Download &<br/>process")
+    D[...]
+    E("Download &<br/>process")
+    F("Download &<br/>process")
+    A -.-> B
+    A -.-> C
+    A -.-> F
+    A ~~~ D
+    A -.-> E
+    style D fill:none,stroke:none
+    classDef parent stroke:#3b82f6,stroke-width:2px
+    classDef leaf stroke:#a855f7,stroke-width:2px
+    class A parent
+    class B,C,E,F leaf
+```
 
 Similarly to [Fetch Buckets](#fetch-buckets), this workflow needs to ensure each bucket has at most one poller in-flight at a time, preventing overlaps via the `CANCEL_NEWEST` strategy and constraining to a single run. Here, however, we group by bucket name using the CEL expression `input.bucket` to enforce per-bucket concurrency.
 
 Additionally, we define a global concurrency expression that limits how many bucket pollers can spin up simultaneously. Tasks exceeding this rule are enqueued using the `GROUP_ROUND_ROBIN` strategy and will execute when concurrent slots free up.
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.fetch_s3_objects} />
   </Tabs.Tab>
@@ -185,7 +199,7 @@ These two `ConcurrencyExpression` entries compose to ensure a **single poller pe
 
 The task itself paginates through the bucket's objects and spawns a processing run per object:
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.fetch_s3_objects_task} />
   </Tabs.Tab>
@@ -211,7 +225,7 @@ The diagram above shows this steady state: work interleaves across buckets, the 
 
 There is no child-side deduplication on this workflow (no concurrency expression keyed on `{bucket}/{object-key}`). Because `process-object` runs are only ever spawned by [`fetch_objects`](#fetch-objects) (which already handles deduplication via child key at spawn time) a secondary concurrency expression would be redundant.
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet src={snippets.typescript.aws.s3.worker.process_s3_objects} />
   </Tabs.Tab>
@@ -222,7 +236,7 @@ There is no child-side deduplication on this workflow (no concurrency expression
 
 The final step is to download the object, process it, and safely delete it from the source bucket:
 
-<UniversalTabs items={["Typescript", "Python"]}>
+<UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Typescript">
     <Snippet
       src={
