@@ -42,11 +42,17 @@ describe('runtime-affinity-e2e', () => {
 
     await sleep(5_000);
 
-    const allWorkers: WorkerList = await hatchet.workers.list();
-    const activeWorkers = (allWorkers.rows || []).filter(
-      (w) => w.status === 'ACTIVE' && `${w.name}`.includes('runtime-affinity-worker')
-    );
-
+    let activeWorkers: any[];
+    activeWorkers = [];
+    while (true) {
+      const allWorkers: WorkerList = await hatchet.workers.list();
+      activeWorkers = (allWorkers.rows || []).filter(
+        (w) => w.status === 'ACTIVE' && `${w.name}`.includes('runtime-affinity-worker')
+      );
+      if (activeWorkers.length == 2) {
+        break;
+      }
+    }
     expect(activeWorkers.length).toBe(2);
 
     const workerLabelToId: Record<string, string> = {};
