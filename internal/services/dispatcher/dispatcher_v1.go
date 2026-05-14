@@ -227,18 +227,13 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+	externalIdsToRetrieve := make([]uuid.UUID, len(bulkDatas))
 
 	for i, task := range bulkDatas {
-		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.TenantID,
-		}
+		externalIdsToRetrieve[i] = task.ExternalID
 	}
 
-	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
+	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, externalIdsToRetrieve...)
 
 	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
 	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
@@ -255,16 +250,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	// this is to avoid a nil pointer dereference in the code below
 	if inputs == nil {
-		inputs = make(map[v1.RetrievePayloadOpts][]byte)
+		inputs = make(map[uuid.UUID][]byte)
 	}
 
 	for _, task := range bulkDatas {
-		input, ok := inputs[v1.RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.TenantID,
-		}]
+		input, ok := inputs[task.ExternalID]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
@@ -303,24 +293,14 @@ func (d *DispatcherImpl) populateTaskData(
 
 			currInput.Parents = readableIdToData
 
-			inputs[v1.RetrievePayloadOpts{
-				Id:         task.ID,
-				InsertedAt: task.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				TenantId:   task.TenantID,
-			}] = currInput.Bytes()
+			inputs[task.ExternalID] = currInput.Bytes()
 		}
 	}
 
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
-		input, ok := inputs[v1.RetrievePayloadOpts{
-			Id:         task.ID,
-			InsertedAt: task.InsertedAt,
-			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.TenantID,
-		}]
+		input, ok := inputs[task.ExternalID]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
