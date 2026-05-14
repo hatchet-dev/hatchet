@@ -201,8 +201,8 @@ async def webhook_with_scope_and_static(
         hatchet.webhooks.delete(incoming_webhook.name)
 
 
-def url(tenant_id: str, webhook_name: str) -> str:
-    return f"http://localhost:8080/api/v1/stable/tenants/{tenant_id}/webhooks/{webhook_name}"
+def url(hatchet: Hatchet, webhook_name: str) -> str:
+    return f"http://{hatchet.config.server_url}/api/v1/stable/tenants/{hatchet.tenant_id}/webhooks/{webhook_name}"
 
 
 async def assert_has_runs(
@@ -257,7 +257,7 @@ async def test_scope_expression_from_payload(
         assert incoming_webhook.scope_expression == "input.scope"
 
         async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+            url(hatchet, incoming_webhook.name),
             webhook_body_with_scope.model_dump(),
         ) as response:
             assert response.status == 200

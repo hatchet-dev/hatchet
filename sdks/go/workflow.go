@@ -758,6 +758,7 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 
 			workflowRef, err := w.RunNoWait(ctx, input.Input, input.Opts...)
 			if err != nil {
+				fmt.Println("found error", err)
 				errsMutex.Lock()
 				errs = append(errs, err)
 				errsMutex.Unlock()
