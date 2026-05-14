@@ -11,6 +11,7 @@ from hatchet_sdk import Hatchet
 @pytest.mark.asyncio(loop_scope="session")
 async def test_list_runs(hatchet: Hatchet) -> None:
     dag_result = await dag_workflow.aio_run()
+
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
@@ -26,6 +27,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
             if v not in [r.output for r in runs.rows]:
                 raise Exception()
         return True
+
     assert await validate_runs() == True
 
 

@@ -1,6 +1,11 @@
 import sleep from '@hatchet/util/sleep';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import { makeE2EClient, checkDurableEvictionSupport, makeTestScope, poll } from '../__e2e__/harness';
+import {
+  makeE2EClient,
+  checkDurableEvictionSupport,
+  makeTestScope,
+  poll,
+} from '../__e2e__/harness';
 import {
   durableWorkflow,
   EVENT_KEY,
