@@ -11,9 +11,12 @@ from uuid import uuid4
 
 import aiohttp
 import pytest
+import tenacity
+from tenacity import stop_after_attempt, wait_exponential
 
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest import WorkflowRunStatus
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
@@ -136,19 +139,19 @@ async def wait_for_event(
 async def wait_for_workflow_run(
     hatchet: Hatchet, event_id: str, test_start: datetime
 ) -> V1TaskSummary | None:
-    await asyncio.sleep(5)
-
-    runs = await hatchet.runs.aio_list(
-        since=test_start,
-        additional_metadata={
-            "hatchet__event_id": event_id,
-        },
-    )
-
-    if len(runs.rows) == 0:
-        return None
-
-    return runs.rows[0]
+    @tenacity.retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10))
+    async def get_runs():
+        runs = await hatchet.runs.aio_list(
+            since=test_start,
+            additional_metadata={
+                "hatchet__event_id": event_id,
+            },
+        )
+        for row in runs.rows:
+            if row.status == V1TaskStatus.COMPLETED:
+                return row
+        raise Exception()
+    return await get_runs()
 
 
 @asynccontextmanager
