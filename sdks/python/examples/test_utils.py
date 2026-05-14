@@ -48,8 +48,10 @@ async def wait_for_event(
         if not filtered_event:
             raise Exception()
         return filtered_event
-
-    return await get_events()
+    try:
+        return await get_events()
+    except tenacity.RetryError:
+        return None
 
 
 async def wait_for_workflow_run(

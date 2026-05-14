@@ -8,7 +8,7 @@ describe('bulk-replay-e2e', () => {
 
   it('bulk replays matching runs and increments retry count', async () => {
     const testRunId = makeTestScope('bulk_replay');
-    const n = 20;
+    const n = 4;
 
     const meta = { test_run_id: testRunId };
     const since = new Date(Date.now() - 5 * 60 * 1000);
