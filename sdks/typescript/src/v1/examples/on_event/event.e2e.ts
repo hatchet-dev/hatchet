@@ -34,9 +34,9 @@ describe('events-e2e', () => {
   async function waitForEventsToProcess(events: Event[]): Promise<Record<string, any[]>> {
     const eventIds = new Set(events.map((e) => e.eventId));
 
-    // Poll until all events are persisted (replaces fixed sleep - events can have propagation delay)
+    // Poll until all events are persisted (up to 15s for staging latency)
     let persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
-    for (let i = 0; i < 50; i += 1) {
+    for (let i = 0; i < 150; i += 1) {
       const persistedIdsSoFar = new Set(persisted.map((e) => e.metadata.id));
       if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) {
         break;
@@ -49,7 +49,7 @@ describe('events-e2e', () => {
     expect(Array.from(eventIds).every((id) => persistedIds.has(id))).toBeTruthy();
 
     let attempts = 0;
-    const maxAttempts = 60; // 100ms × 60 ≈ 6s for runs to appear and complete
+    const maxAttempts = 300; // 100ms × 300 = 30s for runs to appear and complete
     const eventToRuns: Record<string, any[]> = {};
 
     while (true) {
@@ -245,7 +245,7 @@ describe('events-e2e', () => {
         );
       }
     });
-  }, 30000);
+  }, 60000);
 
   function generateBulkEvents() {
     return [
@@ -325,7 +325,7 @@ describe('events-e2e', () => {
     } finally {
       await cleanup();
     }
-  }, 30000);
+  }, 60000);
 
   it('should filter events by payload expression not matching', async () => {
     const cleanup = await setupEventFilter(
@@ -354,7 +354,7 @@ describe('events-e2e', () => {
     } finally {
       await cleanup();
     }
-  }, 20000);
+  }, 60000);
 
   it('should filter events by payload expression matching', async () => {
     const cleanup = await setupEventFilter(
@@ -384,5 +384,5 @@ describe('events-e2e', () => {
     } finally {
       await cleanup();
     }
-  }, 20000);
+  }, 60000);
 });
