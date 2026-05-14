@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -8,14 +7,13 @@ from uuid import uuid4
 import aiohttp
 import pytest
 
+from examples.test_utils import wait_for_event, wait_for_workflow_run
 from examples.webhook_with_scope.worker import (
     WebhookInputWithScope,
     WebhookInputWithStaticPayload,
 )
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
@@ -61,46 +59,6 @@ async def send_webhook_request(
 
     async with aiohttp.ClientSession() as session:
         return await session.post(url, json=body, auth=auth)
-
-
-async def wait_for_event(
-    hatchet: Hatchet,
-    webhook_name: str,
-    test_start: datetime,
-) -> V1Event | None:
-    await asyncio.sleep(5)
-
-    events = await hatchet.event.aio_list(since=test_start)
-
-    if events.rows is None:
-        return None
-
-    return next(
-        (
-            event
-            for event in events.rows
-            if event.triggering_webhook_name == webhook_name
-        ),
-        None,
-    )
-
-
-async def wait_for_workflow_run(
-    hatchet: Hatchet, event_id: str, test_start: datetime
-) -> V1TaskSummary | None:
-    await asyncio.sleep(5)
-
-    runs = await hatchet.runs.aio_list(
-        since=test_start,
-        additional_metadata={
-            "hatchet__event_id": event_id,
-        },
-    )
-
-    if len(runs.rows) == 0:
-        return None
-
-    return runs.rows[0]
 
 
 @asynccontextmanager

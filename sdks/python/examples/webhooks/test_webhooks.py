@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -11,14 +10,11 @@ from uuid import uuid4
 
 import aiohttp
 import pytest
-import tenacity
-from tenacity import stop_after_attempt, wait_exponential
 
+from examples.test_utils import wait_for_event, wait_for_workflow_run
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
@@ -111,49 +107,6 @@ async def send_webhook_request(
         return await session.post(
             url, json=body.model_dump(), auth=auth, headers=request_headers
         )
-
-
-async def wait_for_event(
-    hatchet: Hatchet,
-    webhook_name: str,
-    test_start: datetime,
-) -> V1Event | None:
-    await asyncio.sleep(5)
-
-    events = await hatchet.event.aio_list(since=test_start)
-
-    if events.rows is None:
-        return None
-
-    return next(
-        (
-            event
-            for event in events.rows
-            if event.triggering_webhook_name == webhook_name
-        ),
-        None,
-    )
-
-
-async def wait_for_workflow_run(
-    hatchet: Hatchet, event_id: str, test_start: datetime
-) -> V1TaskSummary | None:
-    @tenacity.retry(
-        stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10)
-    )
-    async def get_runs() -> V1TaskSummary:
-        runs = await hatchet.runs.aio_list(
-            since=test_start,
-            additional_metadata={
-                "hatchet__event_id": event_id,
-            },
-        )
-        for row in runs.rows:
-            if row.status == V1TaskStatus.COMPLETED:
-                return row
-        raise Exception()
-
-    return await get_runs()
 
 
 @asynccontextmanager
