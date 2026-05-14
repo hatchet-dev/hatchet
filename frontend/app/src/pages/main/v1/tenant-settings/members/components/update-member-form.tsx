@@ -28,7 +28,6 @@ interface UpdateMemberFormProps {
   className?: string;
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
-  fieldErrors?: Record<string, string>;
   member: TenantMember;
   isCloudEnabled?: boolean;
 }
@@ -48,7 +47,7 @@ export function UpdateMemberForm({
     },
   });
 
-  const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
+  const roleError = errors.role?.message?.toString();
 
   return (
     <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
