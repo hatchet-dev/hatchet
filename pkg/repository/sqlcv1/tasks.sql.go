@@ -1290,7 +1290,7 @@ type ListMatchingTaskEventsRow struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
-	ExternalID     *uuid.UUID         `json:"external_id"`
+	ExternalID     uuid.UUID          `json:"external_id"`
 }
 
 // Lists the task events for the **latest** retry of a task, or task events which intentionally
@@ -1664,7 +1664,7 @@ type ListTaskParentOutputsRow struct {
 	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
 	WorkflowRunID         uuid.UUID          `json:"workflow_run_id"`
 	Output                []byte             `json:"output"`
-	OutputEventExternalID *uuid.UUID         `json:"output_event_external_id"`
+	OutputEventExternalID uuid.UUID          `json:"output_event_external_id"`
 }
 
 // Lists the outputs of parent steps for a list of tasks. This is recursive because it looks at all grandparents
@@ -2284,7 +2284,7 @@ type LockSignalCreatedEventsRow struct {
 	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
 	EventKey   pgtype.Text        `json:"event_key"`
 	Data       []byte             `json:"data"`
-	ExternalID *uuid.UUID         `json:"external_id"`
+	ExternalID uuid.UUID          `json:"external_id"`
 }
 
 // Places a lock on the SIGNAL_CREATED events to make sure concurrent operations don't

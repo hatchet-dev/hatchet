@@ -478,7 +478,7 @@ type CreateTaskEventsOLAPParams struct {
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
-	ExternalID             *uuid.UUID           `json:"external_id"`
+	ExternalID             uuid.UUID            `json:"external_id"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
@@ -1685,7 +1685,7 @@ type ListTaskEventsRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -1810,7 +1810,7 @@ type ListTaskEventsForWorkflowRunRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -3051,7 +3051,7 @@ type ReadTaskByExternalIDRow struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	Output               []byte               `json:"output"`
-	EventExternalID      *uuid.UUID           `json:"event_external_id"`
+	EventExternalID      uuid.UUID            `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 

@@ -1450,10 +1450,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	externalIds := make([]uuid.UUID, len(rows))
 
 	for i, row := range rows {
-		eventExternalId := uuid.Nil
-		if row.EventExternalID != nil {
-			eventExternalId = *row.EventExternalID
-		}
+		eventExternalId := row.EventExternalID
 
 		externalIds[i] = eventExternalId
 	}
@@ -1467,11 +1464,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	taskEventWithPayloads := make([]*TaskEventWithPayloads, 0, len(rows))
 
 	for _, row := range rows {
-		eventExternalId := uuid.Nil
-		if row.EventExternalID != nil {
-			eventExternalId = *row.EventExternalID
-		}
-		payload, exists := payloads[eventExternalId]
+		payload, exists := payloads[row.EventExternalID]
 		if !exists {
 			r.l.Error().Ctx(ctx).Msgf("ListTaskRunEventsByWorkflowRunId: event with external_id %s and task_inserted_at %s has empty payload, falling back to payload", row.EventExternalID, row.TaskInsertedAt.Time)
 			payload = row.Output
