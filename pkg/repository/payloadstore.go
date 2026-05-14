@@ -62,8 +62,8 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
-	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
+	Retrieve(ctx context.Context, tx sqlcv1.DBTX, externalIds ...uuid.UUID) (externalIdToPayload map[uuid.UUID][]byte, err error)
+	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, externalId uuid.UUID) ([]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	DualWritesEnabled() bool
@@ -276,30 +276,30 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	return err
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, externalIds ...uuid.UUID) (externalIdToPayload map[uuid.UUID][]byte, err error) {
 	if tx == nil {
 		tx = p.pool
 	}
 
-	return p.retrieve(ctx, tx, opts...)
+	return p.retrieve(ctx, tx, externalIds...)
 }
 
-func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error) {
+func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, externalId uuid.UUID) ([]byte, error) {
 	if tx == nil {
 		tx = p.pool
 	}
 
-	optsToPayload, err := p.retrieve(ctx, tx, opt)
+	externalIdToPayload, err := p.retrieve(ctx, tx, externalId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if len(optsToPayload) == 0 {
+	if len(externalIdToPayload) == 0 {
 		return nil, pgx.ErrNoRows
 	}
 
-	return optsToPayload[opt], nil
+	return externalIdToPayload[externalId], nil
 }
 
 func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {
@@ -310,57 +310,34 @@ func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, k
 	return p.externalStore.Retrieve(ctx, keys...)
 }
 
-func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
-	if len(opts) == 0 {
-		return make(map[RetrievePayloadOpts][]byte), nil
+func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, externalIds ...uuid.UUID) (externalIdToPayload map[uuid.UUID][]byte, err error) {
+	if len(externalIds) == 0 {
+		return make(map[uuid.UUID][]byte), nil
 	}
 
-	taskIds := make([]int64, len(opts))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
-	payloadTypes := make([]string, len(opts))
-	tenantIds := make([]uuid.UUID, len(opts))
-
-	for i, opt := range opts {
-		taskIds[i] = opt.Id
-		taskInsertedAts[i] = opt.InsertedAt
-		payloadTypes[i] = string(opt.Type)
-		tenantIds[i] = opt.TenantId
-	}
-
-	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
-		Tenantids:   tenantIds,
-		Ids:         taskIds,
-		Insertedats: taskInsertedAts,
-		Types:       payloadTypes,
-	})
+	payloads, err := p.queries.ReadPayloads(ctx, tx, externalIds)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
 	}
 
-	optsToPayload := make(map[RetrievePayloadOpts][]byte)
+	externalIdToPayload = make(map[uuid.UUID][]byte)
 
-	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
+	externalKeyToExternalId := make(map[ExternalPayloadLocationKey]uuid.UUID)
 	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
 		if payload == nil {
-			continue
-		}
-
-		opts := RetrievePayloadOpts{
-			Id:         payload.ID,
-			InsertedAt: payload.InsertedAt,
-			Type:       payload.Type,
-			TenantId:   payload.TenantID,
-		}
-
-		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
+			// if the payload is nil, we assume it's been offloaded and pass the external id as the key
+			key := ExternalPayloadLocationKey(payload.ExternalID.String())
+			externalKeyToExternalId[key] = payload.ExternalID
+			externalKeys = append(externalKeys, key)
+		} else if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			externalKeysToOpts[key] = opts
+			externalKeyToExternalId[key] = payload.ExternalID
 			externalKeys = append(externalKeys, key)
 		} else {
-			optsToPayload[opts] = payload.InlineContent
+			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		}
 	}
 
@@ -371,13 +348,13 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		}
 
 		for externalKey, data := range externalData {
-			if opt, exists := externalKeysToOpts[externalKey]; exists {
-				optsToPayload[opt] = data
+			if externalId, exists := externalKeyToExternalId[externalKey]; exists {
+				externalIdToPayload[externalId] = data
 			}
 		}
 	}
 
-	return optsToPayload, nil
+	return externalIdToPayload, nil
 }
 
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore) {

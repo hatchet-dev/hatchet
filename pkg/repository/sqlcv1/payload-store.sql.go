@@ -338,36 +338,13 @@ func (q *Queries) MarkCutoverJobAsCompleted(ctx context.Context, db DBTX, key pg
 }
 
 const readPayloads = `-- name: ReadPayloads :many
-WITH inputs AS (
-    SELECT
-        UNNEST($1::BIGINT[]) AS id,
-        UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-        UNNEST($3::UUID[]) AS tenant_id,
-        UNNEST(CAST($4::TEXT[] AS v1_payload_type[])) AS type
-)
-
 SELECT tenant_id, id, inserted_at, external_id, type, location, external_location_key, inline_content, updated_at
 FROM v1_payload
-WHERE (tenant_id, id, inserted_at, type) IN (
-        SELECT tenant_id, id, inserted_at, type
-        FROM inputs
-    )
+WHERE external_id = ANY($1::UUID[])
 `
 
-type ReadPayloadsParams struct {
-	Ids         []int64              `json:"ids"`
-	Insertedats []pgtype.Timestamptz `json:"insertedats"`
-	Tenantids   []uuid.UUID          `json:"tenantids"`
-	Types       []string             `json:"types"`
-}
-
-func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsParams) ([]*V1Payload, error) {
-	rows, err := db.Query(ctx, readPayloads,
-		arg.Ids,
-		arg.Insertedats,
-		arg.Tenantids,
-		arg.Types,
-	)
+func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, externalids []uuid.UUID) ([]*V1Payload, error) {
+	rows, err := db.Query(ctx, readPayloads, externalids)
 	if err != nil {
 		return nil, err
 	}
