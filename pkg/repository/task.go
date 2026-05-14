@@ -4230,13 +4230,11 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		externalIdForRetrieve = firstTask.ExternalID
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, externalIdForRetrieve)
+	input, err := r.payloadStore.RetrieveSingle(ctx, r.pool, externalIdForRetrieve)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
 	}
-
-	input := payloads[externalIdForRetrieve]
 
 	if !isDag && len(input) > 0 {
 		// if it's a standalone task, we need to extract the "input" field from the payload

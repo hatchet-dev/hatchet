@@ -1357,7 +1357,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		externalIdsForRetrieve = append(externalIdsForRetrieve, row.ExternalID)
 	}
 
-	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, externalIdsForRetrieve...)
+	eventExternalIdToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, externalIdsForRetrieve...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
@@ -1366,7 +1366,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
-		payload, ok := retrieveOptsToPayload[row.ExternalID]
+		payload, ok := eventExternalIdToPayload[row.ExternalID]
 
 		if !ok {
 			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)

@@ -284,12 +284,12 @@ func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlc
 
 	externalIdToPayload, err := p.retrieve(ctx, tx, externalId)
 
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
 
-	if len(externalIdToPayload) == 0 {
-		return nil, pgx.ErrNoRows
+	if len(externalIdToPayload) == 0 || err == pgx.ErrNoRows {
+		return nil, nil
 	}
 
 	return externalIdToPayload[externalId], nil
