@@ -152,9 +152,6 @@ jobs:
 
       - name: Start example worker and wait for health
         working-directory: ./sdks/ruby/examples
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
         run: |
           export HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT=8001
           stdbuf -o0 -e0 bundle exec ruby worker.rb > worker.log 2>&1 &
@@ -204,9 +201,6 @@ jobs:
 
       - name: Run e2e tests
         working-directory: ./sdks/ruby/examples
-        env:
-          HATCHET_CLIENT_TLS_STRATEGY: none
-          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
         run: bundle exec rspec -f d --fail-fast
 
       - name: Upload worker logs
