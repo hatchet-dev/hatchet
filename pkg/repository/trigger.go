@@ -1587,13 +1587,17 @@ func (r *sharedRepository) registerChildWorkflows(
 		return nil, err
 	}
 
-	externalIdsForRetrieve := make([]uuid.UUID, len(matchingEvents))
+	retrieveOpts := make([]RetrievePayloadOpts, len(matchingEvents))
 
 	for i, event := range matchingEvents {
-		externalIdsForRetrieve[i] = event.ExternalID
+		retrieveOpts[i] = RetrievePayloadOpts{
+			ExternalId: event.ExternalID,
+			InsertedAt: event.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
+	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
@@ -1604,7 +1608,8 @@ func (r *sharedRepository) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		payload, ok := payloads[event.ExternalID]
+		opt := RetrievePayloadOpts{ExternalId: event.ExternalID, InsertedAt: event.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKEVENTDATA}
+		payload, ok := payloads[opt]
 
 		if !ok {
 			payload = event.Data

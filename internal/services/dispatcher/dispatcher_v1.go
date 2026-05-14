@@ -227,13 +227,17 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	externalIdsToRetrieve := make([]uuid.UUID, len(bulkDatas))
+	retrieveOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
 
 	for i, task := range bulkDatas {
-		externalIdsToRetrieve[i] = task.ExternalID
+		retrieveOpts[i] = v1.RetrievePayloadOpts{
+			ExternalId: task.ExternalID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+		}
 	}
 
-	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, externalIdsToRetrieve...)
+	retrievedInputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrieveOpts...)
 
 	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
 	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
@@ -248,9 +252,12 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	// this is to avoid a nil pointer dereference in the code below
-	if inputs == nil {
-		inputs = make(map[uuid.UUID][]byte)
+	inputs := make(map[uuid.UUID][]byte, len(bulkDatas))
+	for _, task := range bulkDatas {
+		opt := v1.RetrievePayloadOpts{ExternalId: task.ExternalID, InsertedAt: task.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKINPUT}
+		if payload, ok := retrievedInputs[opt]; ok {
+			inputs[task.ExternalID] = payload
+		}
 	}
 
 	for _, task := range bulkDatas {
