@@ -37,6 +37,9 @@ TEST_HMAC_SIGNATURE_HEADER = "X-Signature"
 TEST_HMAC_SECRET = "test_hmac_secret"
 
 
+hatchet = Hatchet()
+
+
 @pytest.fixture
 def webhook_body() -> WebhookInput:
     return WebhookInput(type="test", message="Hello, world!")
