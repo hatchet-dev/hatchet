@@ -45,13 +45,6 @@ type OffloadToExternalStoreOpts struct {
 	Payload    []byte
 }
 
-type RetrievePayloadOpts struct {
-	Id         int64
-	InsertedAt pgtype.Timestamptz
-	Type       sqlcv1.V1PayloadType
-	TenantId   uuid.UUID
-}
-
 type PayloadLocation string
 type ExternalPayloadLocationKey string
 
