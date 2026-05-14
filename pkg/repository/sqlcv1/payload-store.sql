@@ -67,14 +67,8 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_payloads_for_offload(
         @partitionDate::DATE,
-        @lastTenantId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ,
-        @lastId::BIGINT,
-        @lastType::v1_payload_type,
-        @nextTenantId::UUID,
-        @nextInsertedAt::TIMESTAMPTZ,
-        @nextId::BIGINT,
-        @nextType::v1_payload_type,
+        @lastExternalId::UUID,
+        @nextExternalId::UUID,
         @batchSize::INTEGER
     ) p
 )
@@ -98,22 +92,13 @@ WITH chunks AS (
         @partitionDate::DATE,
         @windowSize::INTEGER,
         @chunkSize::INTEGER,
-        @lastTenantId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ,
-        @lastId::BIGINT,
-        @lastType::v1_payload_type
+        @lastExternalId::UUID
     ) p
 )
 
 SELECT
-    lower_tenant_id::UUID,
-    lower_id::BIGINT,
-    lower_inserted_at::TIMESTAMPTZ,
-    lower_type::v1_payload_type,
-    upper_tenant_id::UUID,
-    upper_id::BIGINT,
-    upper_inserted_at::TIMESTAMPTZ,
-    upper_type::v1_payload_type
+    lower_external_id::UUID,
+    upper_external_id::UUID
 FROM chunks
 ;
 
@@ -129,10 +114,7 @@ WITH inputs AS (
         @key::DATE AS key,
         @leaseProcessId::UUID AS lease_process_id,
         @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
-        @lastTenantId::UUID AS last_tenant_id,
-        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at,
-        @lastId::BIGINT AS last_id,
-        @lastType::v1_payload_type AS last_type
+        @lastExternalId::UUID AS last_external_id
 ), any_lease_held_by_other_process AS (
     -- need coalesce here in case there are no rows that don't belong to this process
     SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
@@ -146,28 +128,16 @@ WITH inputs AS (
     WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
 )
 
-INSERT INTO v1_payload_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type)
-SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_tenant_id, ti.last_inserted_at, ti.last_id, ti.last_type
+INSERT INTO v1_payload_cutover_job_offset (key, lease_process_id, lease_expires_at, last_external_id)
+SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_external_id
 FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new tuple of (last_tenant_id, last_inserted_at, last_id, last_type)
     -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
-    last_tenant_id = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
-        ELSE v1_payload_cutover_job_offset.last_tenant_id
-    END,
-    last_inserted_at = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
-        ELSE v1_payload_cutover_job_offset.last_inserted_at
-    END,
-    last_id = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_id
-        ELSE v1_payload_cutover_job_offset.last_id
-    END,
-    last_type = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_type
-        ELSE v1_payload_cutover_job_offset.last_type
+    last_external_id = CASE
+        WHEN EXCLUDED.lease_process_id = v1_payload_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
+        ELSE v1_payload_cutover_job_offset.last_external_id
     END,
 
     lease_process_id = EXCLUDED.lease_process_id,
@@ -210,10 +180,7 @@ FROM payloads
 -- name: ComputePayloadBatchSize :one
 SELECT compute_payload_batch_size(
     @partitionDate::DATE,
-    @lastTenantId::UUID,
-    @lastInsertedAt::TIMESTAMPTZ,
-    @lastId::BIGINT,
-    @lastType::v1_payload_type,
+    @lastExternalId::UUID,
     @batchSize::INTEGER
 ) AS total_size_bytes;
 
