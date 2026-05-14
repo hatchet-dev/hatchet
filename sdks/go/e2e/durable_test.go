@@ -44,7 +44,9 @@ func TestDurableWorkflow(t *testing.T) {
 
 	id := uniqueID()
 
-	time.Sleep(time.Duration(sleepTime+10) * time.Second)
+	// Wait for the run to start, then let the internal SleepFor(sleepTime) finish before pushing the event.
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+	time.Sleep(time.Duration(sleepTime+3) * time.Second)
 
 	err = sharedClient.Events().Push(ctx, eventKey, AwaitedEvent{ID: id})
 	require.NoError(t, err)
@@ -68,15 +70,21 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	ref, err := testWaitForSleepTwice.RunNoWait(ctx, EmptyInput{})
 	require.NoError(t, err)
 
-	time.Sleep(time.Duration(sleepTime/2) * time.Second)
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 
 	_, err = sharedClient.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
 		ExternalIds: toUUIDs(ref.RunId),
 	})
 	require.NoError(t, err)
 
-	// Wait for cancellation
-	time.Sleep(2 * time.Second)
+	// Wait for cancellation to propagate before replaying.
+	pollUntil(t, ctx, func() (bool, error) {
+		status, err := sharedClient.Runs().GetStatus(ctx, ref.RunId)
+		if err != nil {
+			return false, err
+		}
+		return *status == rest.V1TaskStatusCANCELLED, nil
+	})
 
 	replayStart := time.Now()
 	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
@@ -146,7 +154,9 @@ func TestDurableSleepEventSpawnReplay(t *testing.T) {
 	ref, err := testDurableSleepEventSpawn.RunNoWait(ctx, EmptyInput{})
 	require.NoError(t, err)
 
-	time.Sleep(time.Duration(sleepTime+5) * time.Second)
+	// Wait for the run to start, then let the internal SleepFor(sleepTime) finish before pushing the event.
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+	time.Sleep(time.Duration(sleepTime+3) * time.Second)
 	err = sharedClient.Events().Push(ctx, eventKey, map[string]string{"test": "test"})
 	require.NoError(t, err)
 
