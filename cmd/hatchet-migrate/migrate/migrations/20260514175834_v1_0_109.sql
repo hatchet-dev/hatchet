@@ -14,13 +14,13 @@ DO $$
 DECLARE
   batch_size INT := 1000;
   last_task_id BIGINT := 0;
-  last_inserted_at TIMESTAMPTZ := '1970-01-01 00:00:00+00';
+  last_task_inserted_at TIMESTAMPTZ := '1970-01-01 00:00:00+00';
 BEGIN
   LOOP
     WITH task_batch AS (
         SELECT id, inserted_at
         FROM v1_task
-        WHERE (id, inserted_at) > (last_task_id, last_inserted_at)
+        WHERE (id, inserted_at) > (last_task_id, last_task_inserted_at)
         ORDER BY id, inserted_at
         LIMIT batch_size
     ), updates AS (
@@ -29,7 +29,7 @@ BEGIN
         WHERE (task_id, inserted_at) IN (SELECT id, inserted_at FROM task_batch)
     )
 
-    SELECT id, inserted_at INTO last_task_id, last_inserted_at
+    SELECT id, inserted_at INTO last_task_id, last_task_inserted_at
     FROM task_batch
     ORDER BY id DESC, inserted_at DESC
     LIMIT 1
@@ -45,14 +45,14 @@ DO $$
 DECLARE
   batch_size INT := 1000;
   last_task_id BIGINT := 0;
-  last_inserted_at TIMESTAMPTZ := '1970-01-01 00:00:00+00';
+  last_task_inserted_at TIMESTAMPTZ := '1970-01-01 00:00:00+00';
 BEGIN
   LOOP
     WITH task_batch AS (
         SELECT inserted_at, id
         FROM v1_tasks_olap
         -- pk (ins at, id)
-        WHERE (inserted_at, id) > (last_inserted_at, last_task_id)
+        WHERE (inserted_at, id) > (last_task_inserted_at, last_task_id)
         ORDER BY inserted_at, id
         LIMIT batch_size
     ), updates AS (
@@ -62,7 +62,7 @@ BEGIN
         WHERE (task_id, task_inserted_at) IN (SELECT id, inserted_at FROM task_batch)
     )
 
-    SELECT inserted_at, id INTO last_inserted_at, last_task_id
+    SELECT inserted_at, id INTO last_task_inserted_at, last_task_id
     FROM task_batch
     ORDER BY inserted_at DESC, id DESC
     LIMIT 1
