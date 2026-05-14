@@ -1154,15 +1154,8 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	externalIdToEventData := make(map[uuid.UUID][]byte)
 
 	for i, event := range matchedEvents {
-		if event.ExternalID == nil {
-			r.l.Error().Ctx(ctx).Msgf("skipping task event with null external id for task %d", event.TaskID)
-			continue
-		}
-
-		extId := *event.ExternalID
-
-		externalIdsForRetrieve[i] = extId
-		externalIdToEventData[extId] = event.Data
+		externalIdsForRetrieve[i] = event.ExternalID
+		externalIdToEventData[event.ExternalID] = event.Data
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
@@ -1174,10 +1167,10 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	res := make([]*TaskOutputEvent, 0, len(matchedEvents))
 
 	for _, event := range matchedEvents {
-		payload, ok := payloads[*event.ExternalID]
+		payload, ok := payloads[event.ExternalID]
 
 		if !ok {
-			payload = externalIdToEventData[*event.ExternalID]
+			payload = externalIdToEventData[event.ExternalID]
 		}
 
 		o, err := newTaskEventFromBytes(payload)
@@ -2932,17 +2925,12 @@ func (r *sharedRepository) createTaskEvents(
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
 
 	for i, taskEvent := range taskEvents {
-		taskEventExternalId := uuid.Nil
-		if taskEvent.ExternalID != nil {
-			taskEventExternalId = *taskEvent.ExternalID
-		}
-
-		data := externalIdToData[taskEventExternalId]
+		data := externalIdToData[taskEvent.ExternalID]
 
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
 			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEventExternalId,
+			ExternalId: taskEvent.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,
@@ -3738,12 +3726,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 			continue
 		}
 
-		if outputTask.OutputEventExternalID == nil {
-			r.l.Error().Ctx(ctx).Int64("task_event_id", outputTask.TaskEventID).Msg("skipping task output event with missing external id")
-			continue
-		}
-
-		extId := *outputTask.OutputEventExternalID
+		extId := outputTask.OutputEventExternalID
 		externalIdsForRetrieve = append(externalIdsForRetrieve, extId)
 
 		outputEventExternalIdToWorkflowRunId[extId] = outputTask.WorkflowRunID
@@ -3815,12 +3798,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 	externalIdsForRetrieve := make([]uuid.UUID, len(signalEvents))
 
 	for i, event := range signalEvents {
-		if event.ExternalID == nil {
-			r.l.Error().Ctx(ctx).Int64("task_id", event.TaskID).Msg("signal completed event is missing external id")
-			continue
-		}
-
-		externalIdsForRetrieve[i] = *event.ExternalID
+		externalIdsForRetrieve[i] = event.ExternalID
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, externalIdsForRetrieve...)
@@ -3832,12 +3810,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 	res := make([]*V1TaskEventWithPayload, len(signalEvents))
 
 	for i, event := range signalEvents {
-		if event.ExternalID == nil {
-			r.l.Error().Ctx(ctx).Int64("task_id", event.TaskID).Msg("signal completed event is missing external id")
-			continue
-		}
-
-		payload, ok := payloads[*event.ExternalID]
+		payload, ok := payloads[event.ExternalID]
 
 		if !ok {
 			payload = event.Data

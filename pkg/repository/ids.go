@@ -172,11 +172,7 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	externalIdsForRetrieve := make([]uuid.UUID, len(lockedEvents))
 
 	for i, lockedEvent := range lockedEvents {
-		if lockedEvent.ExternalID == nil {
-			return fmt.Errorf("locked event with id %d and event key %s has nil external id", lockedEvent.ID, lockedEvent.EventKey.String)
-		}
-
-		externalIdsForRetrieve[i] = *lockedEvent.ExternalID
+		externalIdsForRetrieve[i] = lockedEvent.ExternalID
 	}
 
 	payloads, err := s.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
@@ -187,12 +183,8 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 
 	// for each locked event, write the correct external id to the opt
 	for _, lockedEvent := range lockedEvents {
-		if lockedEvent.ExternalID == nil {
-			return fmt.Errorf("locked event with id %d and event key %s has nil external id", lockedEvent.ID, lockedEvent.EventKey.String)
-		}
-
 		opt := spawnKeyToOpt[lockedEvent.EventKey.String]
-		payload, ok := payloads[*lockedEvent.ExternalID]
+		payload, ok := payloads[lockedEvent.ExternalID]
 
 		if !ok {
 			payload = lockedEvent.Data

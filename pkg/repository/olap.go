@@ -1450,9 +1450,7 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 	externalIds := make([]uuid.UUID, len(rows))
 
 	for i, row := range rows {
-		eventExternalId := row.EventExternalID
-
-		externalIds[i] = eventExternalId
+		externalIds[i] = row.EventExternalID
 	}
 
 	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, externalIds...)
@@ -1748,16 +1746,10 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
-		if event.ExternalID == nil {
-			// note: this case shouldn't happen, just here for type safety
-			r.l.Error().Ctx(ctx).Msgf("event with ts %s and type %s has nil external id, skipping", event.EventTimestamp.Time.String(), event.EventType)
-			continue
-		}
-
-		workflowRunId, ok := eventExternalIdToWorkflowRunId[*event.ExternalID]
+		workflowRunId, ok := eventExternalIdToWorkflowRunId[event.ExternalID]
 
 		if !ok {
-			r.l.Error().Ctx(ctx).Msgf("could not find workflow run id for event with external id %s", *event.ExternalID)
+			r.l.Error().Ctx(ctx).Msgf("could not find workflow run id for event with external id %s", event.ExternalID)
 			continue
 		}
 
@@ -1778,15 +1770,13 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
 
-		if event.ExternalID != nil {
-			dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
 
-			payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
-				ExternalId: *event.ExternalID,
-				InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
-				Payload:    output,
-			})
-		}
+		payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
+			ExternalId: event.ExternalID,
+			InsertedAt: sqlchelpers.TimestamptzFromTime(dummyInsertedAt),
+			Payload:    output,
+		})
 	}
 
 	if len(eventsForStatusUpdate) == 0 {

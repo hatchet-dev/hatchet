@@ -1590,12 +1590,7 @@ func (r *sharedRepository) registerChildWorkflows(
 	externalIdsForRetrieve := make([]uuid.UUID, len(matchingEvents))
 
 	for i, event := range matchingEvents {
-		if event.ExternalID == nil {
-			r.l.Error().Msgf("signal created event with id %d has no external id", event.ID)
-			continue
-		}
-
-		externalIdsForRetrieve[i] = *event.ExternalID
+		externalIdsForRetrieve[i] = event.ExternalID
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, tx, externalIdsForRetrieve...)
@@ -1609,12 +1604,7 @@ func (r *sharedRepository) registerChildWorkflows(
 	rootExternalIdsToLookup := make([]uuid.UUID, 0, len(matchingEvents))
 
 	for _, event := range matchingEvents {
-		if event.ExternalID == nil {
-			r.l.Error().Msgf("signal created event with id %d has no external id", event.ID)
-			continue
-		}
-
-		payload, ok := payloads[*event.ExternalID]
+		payload, ok := payloads[event.ExternalID]
 
 		if !ok {
 			payload = event.Data
