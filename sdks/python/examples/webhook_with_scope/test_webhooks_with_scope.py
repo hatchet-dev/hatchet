@@ -202,7 +202,7 @@ async def webhook_with_scope_and_static(
 
 
 def url(hatchet: Hatchet, webhook_name: str) -> str:
-    return f"http://{hatchet.config.server_url}/api/v1/stable/tenants/{hatchet.tenant_id}/webhooks/{webhook_name}"
+    return f"{hatchet.config.server_url}/api/v1/stable/tenants/{hatchet.tenant_id}/webhooks/{webhook_name}"
 
 
 async def assert_has_runs(
