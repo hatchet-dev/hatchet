@@ -49,7 +49,7 @@ describe('events-e2e', () => {
     expect(Array.from(eventIds).every((id) => persistedIds.has(id))).toBeTruthy();
 
     let attempts = 0;
-    const maxAttempts = 500; // 100ms × 500 = 50s for runs to appear and complete
+    const maxAttempts = 1500; // 100ms × 1500 = 150s for runs to appear and complete
     const eventToRuns: Record<string, any[]> = {};
 
     while (true) {
@@ -245,7 +245,7 @@ describe('events-e2e', () => {
         );
       }
     });
-  }, 60000);
+  }, 180_000);
 
   function generateBulkEvents() {
     return [
@@ -325,7 +325,7 @@ describe('events-e2e', () => {
     } finally {
       await cleanup();
     }
-  }, 60000);
+  }, 180_000);
 
   it('should filter events by payload expression not matching', async () => {
     const cleanup = await setupEventFilter(

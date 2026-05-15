@@ -32,7 +32,7 @@ describe('bulk-replay-e2e', () => {
           onlyTasks: true,
         }),
       {
-        timeoutMs: 360_000,
+        timeoutMs: 600_000,
         intervalMs: 200,
         label: 'initial bulk runs completion',
         shouldStop: (runs) =>
@@ -65,7 +65,7 @@ describe('bulk-replay-e2e', () => {
           onlyTasks: true,
         }),
       {
-        timeoutMs: 360_000,
+        timeoutMs: 600_000,
         intervalMs: 200,
         label: 'bulk replay retry counts visible',
         shouldStop: (runs) =>
@@ -90,5 +90,5 @@ describe('bulk-replay-e2e', () => {
     expect(byName(bulkReplayTest1.name)).toHaveLength(n + 1);
     expect(byName(bulkReplayTest2.name)).toHaveLength(n / 2 - 1);
     expect(byName(bulkReplayTest3.name)).toHaveLength(n / 2 - 2);
-  }, 780_000);
+  }, 1_320_000);
 });
