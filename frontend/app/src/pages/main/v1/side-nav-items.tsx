@@ -258,8 +258,8 @@ export function sideNavItems(opts: {
       ],
     },
     {
-      key: 'settings',
-      title: 'Settings',
+      key: 'tenant-settings',
+      title: 'Tenant Settings',
       itemsClassName: 'space-y-1',
       items: [
         {
@@ -272,6 +272,33 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        {
+          key: 'settings-api-tokens',
+          name: 'API Tokens',
+          to: appRoutes.tenantSettingsApiTokensRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiKey2Line
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        {
+          key: 'settings-integrations',
+          name: 'Integrations',
+          to: appRoutes.tenantSettingsIntegrationsRoute.to,
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiPlugLine
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+      ],
+    },
+    {
+      key: 'management',
+      title: 'Management',
+      itemsClassName: 'space-y-1',
+      items: [
         {
           key: 'organization',
           name: opts.isCloudEnabled ? 'Organization' : 'Tenants',
@@ -289,31 +316,11 @@ export function sideNavItems(opts: {
           ),
         },
         {
-          key: 'settings-api-tokens',
-          name: 'API Tokens',
-          to: appRoutes.tenantSettingsApiTokensRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiKey2Line
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
           key: 'settings-billing-and-limits',
           name: billingLabel,
           ...billingTarget,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiBillLine
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
-          key: 'settings-integrations',
-          name: 'Integrations',
-          to: appRoutes.tenantSettingsIntegrationsRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiPlugLine
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
