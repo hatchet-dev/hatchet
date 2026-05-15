@@ -141,6 +141,10 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 
 	store := a.config.SessionStore
 
+	if _, err := c.Cookie(store.GetName()); err != nil {
+		return forbidden
+	}
+
 	session, err := store.Get(c.Request(), store.GetName())
 	ctx := c.Request().Context()
 	if err != nil {
