@@ -12,8 +12,12 @@ RSpec.describe "OnFailureWorkflow" do
     # Poll until both tasks are in a terminal state (replaces fixed sleep 5)
     details = nil
     120.times do
-      details = HATCHET.runs.get_details(ref.workflow_run_id)
-      break if details.tasks.length >= 2 && details.tasks.all? { |t| %w[COMPLETED FAILED].include?(t.status) }
+      begin
+        details = HATCHET.runs.get_details(ref.workflow_run_id)
+        break if details.tasks.length >= 2 && details.tasks.all? { |t| %w[COMPLETED FAILED].include?(t.status) }
+      rescue HatchetSdkRest::ApiError => e
+        raise unless e.code == 404
+      end
 
       sleep 0.5
     end
