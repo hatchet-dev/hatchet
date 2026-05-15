@@ -1151,15 +1151,16 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	}
 
 	retrieveOpts := make([]RetrievePayloadOpts, len(matchedEvents))
-	externalIdToEventData := make(map[uuid.UUID][]byte)
+	optToEventData := make(map[RetrievePayloadOpts][]byte)
 
 	for i, event := range matchedEvents {
-		retrieveOpts[i] = RetrievePayloadOpts{
+		opt := RetrievePayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 		}
-		externalIdToEventData[event.ExternalID] = event.Data
+		retrieveOpts[i] = opt
+		optToEventData[opt] = event.Data
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
@@ -1175,7 +1176,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		payload, ok := payloads[opt]
 
 		if !ok {
-			payload = externalIdToEventData[event.ExternalID]
+			payload = optToEventData[opt]
 		}
 
 		o, err := newTaskEventFromBytes(payload)
@@ -3727,9 +3728,8 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	}
 
 	retrieveOpts := make([]RetrievePayloadOpts, 0, len(res))
-	externalIdToRetrieveOpt := make(map[uuid.UUID]RetrievePayloadOpts, len(res))
-	outputEventExternalIdToWorkflowRunId := make(map[uuid.UUID]uuid.UUID, len(res))
-	outputEventExternalIdToPayload := make(map[uuid.UUID][]byte)
+	optToWorkflowRunId := make(map[RetrievePayloadOpts]uuid.UUID, len(res))
+	optToFallbackPayload := make(map[RetrievePayloadOpts][]byte, len(res))
 
 	for _, outputTask := range res {
 		if outputTask.WorkflowRunID == uuid.Nil {
@@ -3742,9 +3742,8 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 		}
 		retrieveOpts = append(retrieveOpts, opt)
-		externalIdToRetrieveOpt[outputTask.OutputEventExternalID] = opt
-		outputEventExternalIdToWorkflowRunId[outputTask.OutputEventExternalID] = outputTask.WorkflowRunID
-		outputEventExternalIdToPayload[outputTask.OutputEventExternalID] = outputTask.Output
+		optToWorkflowRunId[opt] = outputTask.WorkflowRunID
+		optToFallbackPayload[opt] = outputTask.Output
 	}
 
 	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
@@ -3755,13 +3754,12 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
 
-	for outputEventExternalId, workflowRunId := range outputEventExternalIdToWorkflowRunId {
+	for opt, workflowRunId := range optToWorkflowRunId {
 		wrId := workflowRunId.String()
-		opt := externalIdToRetrieveOpt[outputEventExternalId]
 		payload, ok := payloads[opt]
 
 		if !ok {
-			payload = outputEventExternalIdToPayload[outputEventExternalId]
+			payload = optToFallbackPayload[opt]
 		}
 
 		e, err := newTaskEventFromBytes(payload)
