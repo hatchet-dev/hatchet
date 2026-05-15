@@ -254,6 +254,7 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
+	// this is to avoid a nil pointer dereference in the code below
 	if inputs == nil {
 		inputs = make(map[v1.RetrievePayloadOpts][]byte)
 	}
