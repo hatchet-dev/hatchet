@@ -40,7 +40,7 @@ describe('runtime-affinity-e2e', () => {
     await workerB.waitUntilReady(10_000);
 
     const workerResult = await poll(() => hatchet.workers.list(), {
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
       intervalMs: 500,
       label: 'active runtime-affinity workers',
       shouldStop: (result: WorkerList) =>

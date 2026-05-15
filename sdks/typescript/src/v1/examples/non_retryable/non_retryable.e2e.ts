@@ -22,9 +22,12 @@ describe('non-retryable-e2e', () => {
       {
         timeoutMs: 60_000,
         intervalMs: 100,
-        label: 'nonRetryableWorkflow terminal',
+        label: 'nonRetryableWorkflow terminal with events',
         shouldStop: (d) =>
-          ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any),
+          ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any) &&
+          d.taskEvents.some(
+            (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.RETRYING
+          ),
       }
     );
 
