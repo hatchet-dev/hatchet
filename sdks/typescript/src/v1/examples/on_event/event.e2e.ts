@@ -16,7 +16,7 @@ describe('events-e2e', () => {
     const finalExpression =
       expression || `input.should_skip == false && payload.test_run_id == '${testRunId}'`;
 
-    const workflowId = (await hatchet.workflows.get(lower.name)).metadata.id;
+    const workflowId = (await hatchet.workflows.get(applyNamespace(lower.name, hatchet.config.namespace))).metadata.id;
 
     const filter = await hatchet.filters.create({
       workflowId,
@@ -25,6 +25,15 @@ describe('events-e2e', () => {
       payload: { test_run_id: testRunId, ...payload },
     });
 
+    // Verify the filter is reachable before returning so callers can immediately push events.
+    // Without this, events pushed right after filter creation may miss the filter in the engine
+    // if it hasn't finished propagating.
+    for (let i = 0; i < 50; i += 1) {
+      const filters = (await hatchet.filters.list({ scopes: [testRunId] })).rows || [];
+      if (filters.some((f) => f.metadata.id === filter.metadata.id)) break;
+      await sleep(100);
+    }
+
     return async () => {
       await hatchet.filters.delete(filter.metadata.id);
     };
@@ -32,91 +41,62 @@ describe('events-e2e', () => {
 
   // Helper function to wait for events to process and fetch runs
   async function waitForEventsToProcess(events: Event[]): Promise<Record<string, any[]>> {
-    const eventIds = new Set(events.map((e) => e.eventId));
+    const eventIds = events.map((e) => e.eventId);
 
-    // Poll until all events are persisted (up to 15s for staging latency)
-    let persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
+    // Use eventIds for direct lookup — limit: 100 can miss events in a busy staging environment
     for (let i = 0; i < 150; i += 1) {
-      const persistedIdsSoFar = new Set(persisted.map((e) => e.metadata.id));
-      if (Array.from(eventIds).every((id) => persistedIdsSoFar.has(id))) {
-        break;
+      const persisted = (await hatchet.events.list({ eventIds })).rows || [];
+      const persistedIds = new Set(persisted.map((e) => e.metadata.id));
+      if (eventIds.every((id) => persistedIds.has(id))) break;
+      if (i === 149) {
+        expect(eventIds.every((id) => persistedIds.has(id))).toBeTruthy();
       }
       await sleep(100);
-      persisted = (await hatchet.events.list({ limit: 100 })).rows || [];
     }
 
-    const persistedIds = new Set(persisted.map((e) => e.metadata.id));
-    expect(Array.from(eventIds).every((id) => persistedIds.has(id))).toBeTruthy();
-
-    let attempts = 0;
-    const maxAttempts = 1500; // 100ms × 1500 = 150s for runs to appear and complete
     const eventToRuns: Record<string, any[]> = {};
+    // Use a wall-clock deadline so the function exits predictably regardless of API latency.
+    // Iteration counts (e.g. maxAttempts * intervalMs) undercount real time because each
+    // hatchet.runs.list() call itself takes ~100-200ms on top of the sleep interval.
+    const pollDeadlineMs = Date.now() + 50_000;
 
-    while (true) {
-      console.log('Waiting for event runs to complete...');
-      if (attempts > maxAttempts) {
-        console.log('Timed out waiting for event runs to complete.');
-        return {};
-      }
-
-      attempts += 1;
-
-      // For each event, fetch its runs
-      const runsPromises = events.map(async (event) => {
-        const runsResp = await hatchet.runs.list({
-          triggeringEventExternalId: event.eventId,
-        });
-        const rawRuns = runsResp.rows || [];
-
-        // Only consider runs that are in a terminal state (match Python fetch_runs_for_event)
-        const runs =
-          rawRuns.length > 0 &&
-          rawRuns.every(
-            (r) => r.status === 'COMPLETED' || r.status === 'FAILED' || r.status === 'CANCELLED'
-          )
-            ? rawRuns
-            : [];
-
-        // Extract metadata from event
-        const meta = event.additionalMetadata ? JSON.parse(event.additionalMetadata) : {};
-
-        const payload = event.payload ? JSON.parse(event.payload) : {};
-
-        return {
-          event: {
-            id: event.eventId,
-            payload,
-            meta,
-            shouldHaveRuns: Boolean(meta.should_have_runs),
-            testRunId: meta.test_run_id,
-          },
-          runs,
-        };
-      });
-
-      const eventRuns = await Promise.all(runsPromises);
-
-      // If all events have no runs yet, wait and retry
-      if (eventRuns.every(({ runs }) => runs.length === 0)) {
-        await sleep(100);
-
-        continue;
-      }
-
-      // Store runs by event ID
-      for (const { event, runs } of eventRuns) {
-        eventToRuns[event.id] = runs;
-      }
-
-      // Check if any runs are still in progress
-      const anyInProgress = Object.values(eventToRuns).some((runs) =>
-        runs.some((run) => run.status === 'QUEUED' || run.status === 'RUNNING')
+    while (Date.now() < pollDeadlineMs) {
+      const runsResults = await Promise.all(
+        events.map(async (event) => {
+          // Query by hatchet__event_id metadata rather than triggeringEventExternalId.
+          // Filter-triggered runs (scope-routed events) are not linked via
+          // triggeringEventExternalId but do get hatchet__event_id set in their metadata,
+          // matching what verifyEventRuns already uses to validate results.
+          const runsResp = await hatchet.runs.list({
+            additionalMetadata: { hatchet__event_id: event.eventId },
+          });
+          return { eventId: event.eventId, rawRuns: runsResp.rows || [] };
+        })
       );
 
-      if (anyInProgress) {
-        await sleep(100);
+      // Bug fix: check rawRuns directly for in-progress status.
+      // Original code stored runs=[] for in-progress events (because not all were terminal),
+      // then anyInProgress checked the stored empty array and incorrectly returned false,
+      // causing the loop to break prematurely with incomplete results.
+      const hasInProgress = runsResults.some(({ rawRuns }) =>
+        rawRuns.some((r) => r.status === 'QUEUED' || r.status === 'RUNNING')
+      );
 
+      if (hasInProgress) {
+        await sleep(100);
         continue;
+      }
+
+      const anyHaveRuns = runsResults.some(({ rawRuns }) => rawRuns.length > 0);
+
+      if (!anyHaveRuns) {
+        await sleep(100);
+        continue;
+      }
+
+      // All runs are terminal (or absent). Store results for all events.
+      for (const { eventId, rawRuns } of runsResults) {
+        eventToRuns[eventId] = rawRuns;
       }
 
       break;
