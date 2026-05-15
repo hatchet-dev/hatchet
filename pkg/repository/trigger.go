@@ -1591,6 +1591,8 @@ func (r *sharedRepository) registerChildWorkflows(
 
 	for i, event := range matchingEvents {
 		retrievePayloadOpts[i] = RetrievePayloadOpts{
+			Id:         event.ID,
+			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
@@ -1609,6 +1611,8 @@ func (r *sharedRepository) registerChildWorkflows(
 
 	for _, event := range matchingEvents {
 		payload, ok := payloads[RetrievePayloadOpts{
+			Id:         event.ID,
+			TenantId:   tenantId,
 			ExternalId: event.ExternalID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,

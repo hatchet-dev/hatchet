@@ -233,6 +233,8 @@ func (d *DispatcherImpl) populateTaskData(
 		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
+			Id:         task.ID,
+			TenantId:   task.TenantID,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 		}
 	}
@@ -258,6 +260,8 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
+			Id:         task.ID,
+			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
@@ -301,6 +305,8 @@ func (d *DispatcherImpl) populateTaskData(
 			currInput.Parents = readableIdToData
 
 			inputs[v1.RetrievePayloadOpts{
+				Id:         task.ID,
+				TenantId:   task.TenantID,
 				ExternalId: task.ExternalID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
@@ -312,6 +318,8 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
+			Id:         task.ID,
+			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,

@@ -46,9 +46,11 @@ type OffloadToExternalStoreOpts struct {
 }
 
 type RetrievePayloadOpts struct {
-	ExternalId uuid.UUID
+	TenantId   uuid.UUID
+	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
+	ExternalId uuid.UUID
 }
 
 type PayloadLocation string
@@ -348,6 +350,8 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		}
 
 		opts := RetrievePayloadOpts{
+			Id:         payload.ID,
+			TenantId:   payload.TenantID,
 			ExternalId: payload.ExternalID,
 			InsertedAt: payload.InsertedAt,
 			Type:       payload.Type,
