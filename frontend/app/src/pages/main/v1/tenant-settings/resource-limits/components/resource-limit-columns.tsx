@@ -3,7 +3,7 @@ import { TenantResource, TenantResourceLimit } from '@/lib/api';
 import { getResourceLimitStatus } from '@/lib/resource-limit-status';
 import { cn } from '@/lib/utils';
 
-const limitedResources: Record<TenantResource, string> = {
+export const limitedResources: Record<TenantResource, string> = {
   [TenantResource.WORKER]: 'Total Workers',
   [TenantResource.WORKER_SLOT]: 'Concurrency Slots',
   [TenantResource.EVENT]: 'Events',
@@ -19,7 +19,7 @@ const indicatorVariants = {
   exhausted: 'border-transparent rounded-full bg-red-500',
 };
 
-function LimitIndicator({
+export function LimitIndicator({
   value,
   alarmValue,
   limitValue,
@@ -37,7 +37,7 @@ function LimitIndicator({
   );
 }
 
-const limitDurationMap: Record<string, string> = {
+export const limitDurationMap: Record<string, string> = {
   '24h0m0s': 'Daily',
   '168h0m0s': 'Weekly',
   '720h0m0s': 'Monthly',
