@@ -16,7 +16,9 @@ describe('events-e2e', () => {
     const finalExpression =
       expression || `input.should_skip == false && payload.test_run_id == '${testRunId}'`;
 
-    const workflowId = (await hatchet.workflows.get(applyNamespace(lower.name, hatchet.config.namespace))).metadata.id;
+    const workflowId = (
+      await hatchet.workflows.get(applyNamespace(lower.name, hatchet.config.namespace))
+    ).metadata.id;
 
     const filter = await hatchet.filters.create({
       workflowId,
@@ -71,7 +73,6 @@ describe('events-e2e', () => {
           return { eventId: event.eventId, rawRuns: runsResp.rows || [] };
         })
       );
-
 
       if (!runsResults) {
         await sleep(100);
