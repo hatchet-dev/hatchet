@@ -49,6 +49,7 @@ def test_run_id() -> str:
 def test_start() -> datetime:
     return datetime.now(timezone.utc)
 
+
 @asynccontextmanager
 async def send_webhook_request(
     url: str,
