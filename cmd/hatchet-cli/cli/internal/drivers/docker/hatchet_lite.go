@@ -34,15 +34,12 @@ func printInfo(message string) {
 }
 
 // PullPolicy controls when Docker images are pulled, mirroring Docker Compose's pull_policy.
-type PullPolicy string
+type pullPolicy string
 
 const (
-	// PullPolicyAlways always pulls the image from the registry (default, existing behavior).
-	PullPolicyAlways PullPolicy = "always"
-	// PullPolicyMissing only pulls if the image is not already available locally.
-	PullPolicyMissing PullPolicy = "missing"
-	// PullPolicyNever never pulls; the image must already exist locally.
-	PullPolicyNever PullPolicy = "never"
+	pullPolicyAlways  pullPolicy = "always"
+	pullPolicyMissing pullPolicy = "missing"
+	pullPolicyNever   pullPolicy = "never"
 )
 
 // hatchet lite opts
@@ -67,7 +64,7 @@ type HatchetLiteOpts struct {
 	overrideDashboardPort int
 	overrideGrpcPort      int
 	imageTag              string
-	pullPolicy            PullPolicy
+	pullPolicy            pullPolicy
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
@@ -77,7 +74,7 @@ func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
 		projectName:  defaultprojectName,
 		serviceName:  defaultserviceName,
 		imageTag:     "latest",
-		pullPolicy:   PullPolicyAlways,
+		pullPolicy:   pullPolicyAlways,
 	}
 }
 
@@ -164,9 +161,9 @@ func WithImageTag(tag string) HatchetLiteOpt {
 // WithPullPolicy sets the image pull policy. Valid values are "always", "missing", and "never".
 func WithPullPolicy(policy string) HatchetLiteOpt {
 	return func(o *HatchetLiteOpts) error {
-		switch PullPolicy(policy) {
-		case PullPolicyAlways, PullPolicyMissing, PullPolicyNever:
-			o.pullPolicy = PullPolicy(policy)
+		switch pullPolicy(policy) {
+		case pullPolicyAlways, pullPolicyMissing, pullPolicyNever:
+			o.pullPolicy = pullPolicy(policy)
 			return nil
 		default:
 			return fmt.Errorf("invalid pull policy %q: must be \"always\", \"missing\", or \"never\"", policy)
@@ -584,11 +581,9 @@ func getSharedLabels(opts *HatchetLiteOpts) map[string]string {
 	}
 }
 
-// pullImageWithPolicy pulls an image according to the specified pull policy.
-func (d *DockerDriver) pullImageWithPolicy(ctx context.Context, imageName string, policy PullPolicy) error {
+func (d *DockerDriver) pullImageWithPolicy(ctx context.Context, imageName string, policy pullPolicy) error {
 	switch policy {
-	case PullPolicyNever:
-		// Verify the image exists locally.
+	case pullPolicyNever:
 		_, err := d.apiClient.ImageInspect(ctx, imageName)
 		if err != nil {
 			return fmt.Errorf("image %s not found locally and pull policy is \"never\": %w", imageName, err)
@@ -597,18 +592,15 @@ func (d *DockerDriver) pullImageWithPolicy(ctx context.Context, imageName string
 		printInfo(fmt.Sprintf("Using local image %s (pull policy: never)", imageName))
 
 		return nil
-	case PullPolicyMissing:
-		// Only pull if the image is not present locally.
+	case pullPolicyMissing:
 		if _, err := d.apiClient.ImageInspect(ctx, imageName); err == nil {
 			printInfo(fmt.Sprintf("Image %s already exists locally, skipping pull (pull policy: missing)", imageName))
 
 			return nil
 		}
 
-		// Image not found locally, fall through to pull.
 		printInfo(fmt.Sprintf("Image %s not found locally, pulling... (pull policy: missing)", imageName))
-	case PullPolicyAlways:
-		// Always pull, this is the default behavior.
+	case pullPolicyAlways:
 	default:
 		return fmt.Errorf("unknown pull policy: %q", policy)
 	}

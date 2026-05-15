@@ -50,7 +50,29 @@ var startCmd = &cobra.Command{
 		tag, _ := cmd.Flags().GetString("tag")
 		pullPolicy, _ := cmd.Flags().GetString("pull-policy")
 
-		result, err := startLocalServer(cmd, profileName, dashboardPort, grpcPort, projectName, tag, pullPolicy)
+		opts := []docker.HatchetLiteOpt{}
+
+		if dashboardPort != 0 {
+			opts = append(opts, docker.WithOverrideDashboardPort(dashboardPort))
+		}
+
+		if grpcPort != 0 {
+			opts = append(opts, docker.WithOverrideGrpcPort(grpcPort))
+		}
+
+		if projectName != "" {
+			opts = append(opts, docker.WithProjectName(projectName))
+		}
+
+		if tag != "" {
+			opts = append(opts, docker.WithImageTag(tag))
+		}
+
+		if pullPolicy != "" {
+			opts = append(opts, docker.WithPullPolicy(pullPolicy))
+		}
+
+		result, err := startLocalServer(cmd, profileName, opts...)
 		if err != nil {
 			cli.Logger.Fatalf("%v", err)
 		}
@@ -105,7 +127,7 @@ type ServerStartResult struct {
 }
 
 // startLocalServer starts a local Hatchet server and returns connection details
-func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grpcPort int, projectName, tag, pullPolicy string) (*ServerStartResult, error) {
+func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.HatchetLiteOpt) (*ServerStartResult, error) {
 	dockerDriver, err := docker.NewDockerDriver(cmd.Context())
 	if err != nil {
 		return nil, fmt.Errorf("Docker is required to run a local server. Please ensure Docker is installed and running: %w", err)
@@ -115,7 +137,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grp
 	var actualDashboardPort, actualGrpcPort int
 
 	// Build options for RunHatchetLite
-	opts := []docker.HatchetLiteOpt{
+	allOpts := append(opts,
 		docker.WithCreateTokenCallback(func(tok string) {
 			token = tok
 		}),
@@ -123,29 +145,9 @@ func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grp
 			actualDashboardPort = dashboard
 			actualGrpcPort = grpc
 		}),
-	}
+	)
 
-	if dashboardPort != 0 {
-		opts = append(opts, docker.WithOverrideDashboardPort(dashboardPort))
-	}
-
-	if grpcPort != 0 {
-		opts = append(opts, docker.WithOverrideGrpcPort(grpcPort))
-	}
-
-	if projectName != "" {
-		opts = append(opts, docker.WithProjectName(projectName))
-	}
-
-	if tag != "" {
-		opts = append(opts, docker.WithImageTag(tag))
-	}
-
-	if pullPolicy != "" {
-		opts = append(opts, docker.WithPullPolicy(pullPolicy))
-	}
-
-	err = dockerDriver.RunHatchetLite(cmd.Context(), opts...)
+	err = dockerDriver.RunHatchetLite(cmd.Context(), allOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start hatchet-lite container: %w", err)
 	}
