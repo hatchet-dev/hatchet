@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { SettingsPageHeader } from '@/pages/main/v1/tenant-settings/components/settings-page-header';
 import { resourceLimitColumns } from '@/pages/main/v1/tenant-settings/resource-limits/components/resource-limit-columns';
@@ -20,8 +21,10 @@ export default function OrganizationBillingAndUsage() {
   const appContext = useAppContext();
   const tenantId = appContext.tenantId;
   const { cloud, isCloudEnabled } = useCloud(tenantId);
+  const { isControlPlaneEnabled } = useControlPlane();
   const billingEnabled = isCloudEnabled && cloud?.canBill;
 
+  // TODO: cant this just be from the params?
   const organization =
     appContext.isUserUniverseLoaded && appContext.isCloudEnabled
       ? appContext.organizations.find(
@@ -71,20 +74,26 @@ export default function OrganizationBillingAndUsage() {
 
         {billingEnabled && (
           <>
-            {isOrganizationOwner ? (
-              <Subscription
-                tenantId={tenantId}
-                organizationId={organizationId}
-              />
+            {isControlPlaneEnabled ? (
+              isOrganizationOwner ? (
+                <Subscription
+                  tenantId={tenantId}
+                  organizationId={organizationId}
+                />
+              ) : (
+                <Alert variant="destructive">
+                  <ExclamationTriangleIcon className="size-4" />
+                  <AlertTitle>Unauthorized</AlertTitle>
+                  <AlertDescription>
+                    You do not have permission to view billing information. Only
+                    organization owners can access billing details.
+                  </AlertDescription>
+                </Alert>
+              )
             ) : (
-              <Alert variant="destructive">
-                <ExclamationTriangleIcon className="size-4" />
-                <AlertTitle>Unauthorized</AlertTitle>
-                <AlertDescription>
-                  You do not have permission to view billing information. Only
-                  organization owners can access billing details.
-                </AlertDescription>
-              </Alert>
+              <div className="py-8 text-center text-sm text-muted-foreground">
+                Contact us to discuss plan options
+              </div>
             )}
             <Separator className="my-8" />
           </>
