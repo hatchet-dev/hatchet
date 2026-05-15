@@ -48,6 +48,7 @@ async def wait_for_event(
         if not filtered_event:
             raise Exception()
         return filtered_event
+
     try:
         return await get_events()
     except tenacity.RetryError:

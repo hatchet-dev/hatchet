@@ -79,13 +79,14 @@ def create_hmac_signature(
     raise ValueError(f"Unsupported encoding: {encoding}")
 
 
+@asynccontextmanager
 async def send_webhook_request(
     url: str,
     body: WebhookInput,
     auth_type: str,
     auth_data: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
-) -> aiohttp.ClientResponse:
+) -> AsyncGenerator[aiohttp.ClientResponse, None]:
     request_headers = headers or {}
     auth = None
 
@@ -104,9 +105,10 @@ async def send_webhook_request(
         request_headers[auth_data["header_name"]] = signature
 
     async with aiohttp.ClientSession() as session:
-        return await session.post(
+        async with session.post(
             url, json=body.model_dump(), auth=auth, headers=request_headers
-        )
+        ) as response:
+            yield response
 
 
 @asynccontextmanager
@@ -235,7 +237,7 @@ async def test_basic_auth_success(
     webhook_body: WebhookInput,
 ) -> None:
     async with basic_auth_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "BASIC",
@@ -274,7 +276,7 @@ async def test_basic_auth_failure(
 ) -> None:
     """Test basic authentication failures."""
     async with basic_auth_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "BASIC",
@@ -297,7 +299,7 @@ async def test_basic_auth_missing_credentials(
     webhook_body: WebhookInput,
 ) -> None:
     async with basic_auth_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name), webhook_body, "NONE"
         ) as response:
             assert response.status == 403
@@ -317,7 +319,7 @@ async def test_api_key_success(
     webhook_body: WebhookInput,
 ) -> None:
     async with api_key_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "API_KEY",
@@ -353,7 +355,7 @@ async def test_api_key_failure(
     api_key: str,
 ) -> None:
     async with api_key_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "API_KEY",
@@ -376,7 +378,7 @@ async def test_api_key_missing_header(
     webhook_body: WebhookInput,
 ) -> None:
     async with api_key_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name), webhook_body, "NONE"
         ) as response:
             assert response.status == 403
@@ -396,7 +398,7 @@ async def test_hmac_success(
     webhook_body: WebhookInput,
 ) -> None:
     async with hmac_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "HMAC",
@@ -441,7 +443,7 @@ async def test_hmac_different_algorithms_and_encodings(
     async with hmac_webhook(
         hatchet, test_run_id, algorithm=algorithm, encoding=encoding
     ) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "HMAC",
@@ -482,7 +484,7 @@ async def test_hmac_signature_failure(
     secret: str,
 ) -> None:
     async with hmac_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "HMAC",
@@ -510,7 +512,7 @@ async def test_hmac_missing_signature_header(
     webhook_body: WebhookInput,
 ) -> None:
     async with hmac_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name), webhook_body, "NONE"
         ) as response:
             assert response.status == 403
@@ -540,7 +542,7 @@ async def test_different_source_types(
     async with basic_auth_webhook(
         hatchet, test_run_id, source_name=source_name
     ) as incoming_webhook:
-        async with await send_webhook_request(
+        async with send_webhook_request(
             url(hatchet, incoming_webhook.name),
             webhook_body,
             "BASIC",
