@@ -22,7 +22,7 @@ type TenantedPath =
   | '/tenants/:tenant/settings/github'
   | '/tenants/:tenant/settings/members'
   | '/tenants/:tenant/settings/alerting'
-  | '/tenants/:tenant/settings/billing-and-limits'
+  | '/tenants/:tenant/settings/billing-and-usage'
   | '/tenants/:tenant/settings/ingestors'
   | '/tenants/:tenant/settings/integrations'
   | '/tenants/:tenant/settings/organization'
@@ -90,8 +90,8 @@ const createRouteLabel = (
       return 'Members';
     case '/tenants/:tenant/settings/alerting':
       return 'Alerting';
-    case '/tenants/:tenant/settings/billing-and-limits':
-      return 'Billing & Limits';
+    case '/tenants/:tenant/settings/billing-and-usage':
+      return 'Billing & Usage';
     case '/tenants/:tenant/settings/ingestors':
       return 'Ingestors';
     case '/tenants/:tenant/settings/integrations':
