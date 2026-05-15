@@ -315,15 +315,14 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	externalIds := make([]uuid.UUID, len(opts))
-	insertedAts := make([]pgtype.Timestamptz, len(opts))
 	types := make([]string, len(opts))
 	externalIdToOpt := make(map[uuid.UUID]RetrievePayloadOpts, len(opts))
 
 	minInsertedAt := opts[0].InsertedAt
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
-		insertedAts[i] = opt.InsertedAt
 		types[i] = string(opt.Type)
+
 		externalIdToOpt[opt.ExternalId] = opt
 		if opt.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = opt.InsertedAt
@@ -333,7 +332,6 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
 		Mininsertedat: minInsertedAt,
 		Externalids:   externalIds,
-		Insertedats:   insertedAts,
 		Types:         types,
 	})
 

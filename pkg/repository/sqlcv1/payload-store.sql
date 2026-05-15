@@ -2,14 +2,13 @@
 WITH inputs AS (
     SELECT
         UNNEST(@externalIds::UUID[]) AS external_id,
-        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
 )
 SELECT p.*
 FROM v1_payload p
 WHERE p.inserted_at >= @minInsertedAt::TIMESTAMPTZ
-    AND (p.external_id, p.inserted_at, p.type) IN (
-        SELECT external_id, inserted_at, type
+    AND (p.external_id, p.type) IN (
+        SELECT external_id, type
         FROM inputs
     )
 ;
