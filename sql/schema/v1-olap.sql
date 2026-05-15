@@ -312,7 +312,7 @@ CREATE TABLE v1_task_events_olap (
     tenant_id UUID NOT NULL,
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    external_id UUID NOT NULL,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     event_type v1_event_type_olap NOT NULL,
