@@ -151,7 +151,7 @@ async def capacity_evictable_sleep(
 )
 async def non_evictable_sleep(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
     """Has eviction disabled -- should never be evicted."""
-    await ctx.aio_sleep_for(timedelta(seconds=10))
+    await ctx.aio_sleep_for(timedelta(seconds=30))
     return {"status": "completed"}
 
 
