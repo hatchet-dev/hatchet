@@ -1,10 +1,8 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE v1_task_event ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_task_event
   ADD CONSTRAINT v1_task_event_external_id_not_null CHECK (external_id IS NOT NULL) NOT VALID;
-ALTER TABLE v1_task_events_olap ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_task_events_olap
   ADD CONSTRAINT v1_task_events_olap_external_id_not_null CHECK (external_id IS NOT NULL) NOT VALID;
 -- +goose StatementEnd
@@ -75,9 +73,11 @@ END $$;
 -- +goose StatementBegin
 ALTER TABLE v1_task_event VALIDATE CONSTRAINT v1_task_event_external_id_not_null;
 ALTER TABLE v1_task_event ALTER COLUMN external_id SET NOT NULL;
+ALTER TABLE v1_task_event ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_task_event DROP CONSTRAINT v1_task_event_external_id_not_null;
 ALTER TABLE v1_task_events_olap VALIDATE CONSTRAINT v1_task_events_olap_external_id_not_null;
 ALTER TABLE v1_task_events_olap ALTER COLUMN external_id SET NOT NULL;
+ALTER TABLE v1_task_events_olap ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_task_events_olap DROP CONSTRAINT v1_task_events_olap_external_id_not_null;
 -- +goose StatementEnd
 
