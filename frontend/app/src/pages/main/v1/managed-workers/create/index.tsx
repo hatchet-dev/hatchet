@@ -1,27 +1,24 @@
 import { BillingRequired } from '../components/billing-required';
+import { ManagedWorkersGate } from '../components/managed-workers-gate';
 import CreateWorkerForm from './components/create-worker-form';
 import { Separator } from '@/components/v1/ui/separator';
-import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
-import { NotFound } from '@/pages/error/components/not-found';
 import { appRoutes } from '@/router';
 import { ServerStackIcon } from '@heroicons/react/24/outline';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Spinner } from '@/components/v1/ui/loading';
 
-export default function CreateWorker() {
+function CreateWorkerImpl() {
   // ── Hooks ────────────────────────────────────────────────────────────────
   const navigate = useNavigate();
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
-  const { isCloudEnabled, isCloudLoading } = useCloud();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -67,21 +64,6 @@ export default function CreateWorker() {
 
   // ── Early returns ─────────────────────────────────────────────────────────
 
-  // Wait for cloud metadata to resolve
-  if (isCloudLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Spinner />
-      </div>
-    );
-  }
-
-  // Managed Compute is cloud-only; show 404 in self-hosted mode
-  if (!isCloudEnabled) {
-    return <NotFound />;
-  }
-
-  // Show billing required page if billing is required
   if (isBillingRequired) {
     return (
       <BillingRequired
@@ -114,4 +96,8 @@ export default function CreateWorker() {
       </div>
     </div>
   );
+}
+
+export default function CreateWorker() {
+  return <ManagedWorkersGate>{CreateWorkerImpl()}</ManagedWorkersGate>;
 }

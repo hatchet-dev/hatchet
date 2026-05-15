@@ -1,29 +1,27 @@
 import { BillingRequired } from './components/billing-required';
+import { ManagedWorkersGate } from './components/managed-workers-gate';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
-import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { cloudApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
-import { NotFound } from '@/pages/error/components/not-found';
 import { appRoutes } from '@/router';
-import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
+import { ArrowUpIcon, PlusIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-export default function ManagedWorkers() {
-  // ── Hooks (must all be called unconditionally, before any early returns) ──
+function ManagedWorkersImpl() {
+  // ── Hooks ────────────────────────────────────────────────────────────────
 
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
-  const { isCloudEnabled, isCloudLoading } = useCloud();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -36,7 +34,6 @@ export default function ManagedWorkers() {
     ...queries.cloud.listManagedWorkers(tenantId),
   });
 
-  // stop polling billing if there are payment methods
   useEffect(() => {
     if (billing?.hasPaymentMethods) {
       billing?.setPollBilling(false);
@@ -45,7 +42,19 @@ export default function ManagedWorkers() {
 
   const { handleApiError } = useApiError({});
 
-   const manageClicked = async () => {
+  // ── Derived values ───────────────────────────────────────────────────────
+
+  const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
+  const [canCreateMoreWorkerPools] = can(
+    managedCompute.canCreateWorkerPool(workerPoolCount),
+  );
+  const [, rejectReason] = can(managedCompute.create());
+  const hasExistingWorkers =
+    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
+  const manageClicked = async () => {
     try {
       if (portalLoading) {
         return;
@@ -63,57 +72,6 @@ export default function ManagedWorkers() {
       setPortalLoading(false);
     }
   };
-
-  // ── Derived values (not hooks) ──────────────────────────────────────────
-
-  const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
-  const [canCreateMoreWorkerPools] = can(
-    managedCompute.canCreateWorkerPool(workerPoolCount),
-  );
-  const [, rejectReason] = can(managedCompute.create());
-  const hasExistingWorkers =
-    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
-
-  // ── Early returns ───────────────────────────────────────────────────────
-
-  // Wait for cloud metadata to resolve before rendering
-  if (isCloudLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Spinner />
-      </div>
-    );
-  }
-
-  // Managed Compute is a cloud-only feature; show 404 in self-hosted mode
-  if (!isCloudEnabled) {
-    return <NotFound />;
-  }
-
-  // Show loader while billing data is loading
-  if (billing?.isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Spinner />
-      </div>
-    );
-  }
-
-  // Don't show billing required page while billing data is still loading
-  if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
-    return (
-      <BillingRequired
-        tenant={tenant}
-        billing={billing}
-        manageClicked={manageClicked}
-        portalLoading={portalLoading}
-      />
-    );
-  }
-
-  // ── Handlers & helpers (safe after early returns) ───────────────────────
-
- 
 
   const getWorkerPoolLimit = () => {
     if (!billing?.plan) {
@@ -137,13 +95,35 @@ export default function ManagedWorkers() {
     }
   };
 
+  // ── Early returns ─────────────────────────────────────────────────────────
+
+  if (billing?.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
+    return (
+      <BillingRequired
+        tenant={tenant}
+        billing={billing}
+        manageClicked={manageClicked}
+        portalLoading={portalLoading}
+      />
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   const UpgradeModal = () => {
     if (!showUpgradeModal) {
       return null;
     }
 
     return (
-      // TODO use correct modal component
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
         <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
           <h3 className="mb-4 text-lg font-medium text-foreground">
@@ -174,8 +154,6 @@ export default function ManagedWorkers() {
       </div>
     );
   };
-
-  // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="h-full w-full flex-grow">
@@ -218,4 +196,8 @@ export default function ManagedWorkers() {
       <UpgradeModal />
     </div>
   );
+}
+
+export default function ManagedWorkers() {
+  return <ManagedWorkersGate>{ManagedWorkersImpl()}</ManagedWorkersGate>;
 }
