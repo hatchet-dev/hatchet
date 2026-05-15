@@ -231,11 +231,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for i, task := range bulkDatas {
 		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
-			ExternalId: task.ExternalID,
-			InsertedAt: task.InsertedAt,
 			Id:         task.ID,
-			TenantId:   task.TenantID,
+			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   task.TenantID,
+			ExternalId: task.ExternalID,
 		}
 	}
 
@@ -261,10 +261,10 @@ func (d *DispatcherImpl) populateTaskData(
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
 			Id:         task.ID,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   task.TenantID,
+			ExternalId: task.ExternalID,
 		}]
 
 		if !ok {
@@ -306,10 +306,10 @@ func (d *DispatcherImpl) populateTaskData(
 
 			inputs[v1.RetrievePayloadOpts{
 				Id:         task.ID,
-				TenantId:   task.TenantID,
-				ExternalId: task.ExternalID,
 				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+				TenantId:   task.TenantID,
+				ExternalId: task.ExternalID,
 			}] = currInput.Bytes()
 		}
 	}
@@ -319,10 +319,10 @@ func (d *DispatcherImpl) populateTaskData(
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
 			Id:         task.ID,
-			TenantId:   task.TenantID,
-			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   task.TenantID,
+			ExternalId: task.ExternalID,
 		}]
 
 		if !ok {

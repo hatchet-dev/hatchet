@@ -492,10 +492,10 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	for i, row := range rows {
 		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			Id:         row.ID,
-			TenantId:   tenantId,
-			ExternalId: row.ResultPayloadExternalID,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			TenantId:   tenantId,
+			ExternalId: row.ResultPayloadExternalID,
 		}
 	}
 
@@ -510,10 +510,10 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	for _, row := range rows {
 		retrieveOpt := RetrievePayloadOpts{
 			Id:         row.ID,
-			TenantId:   tenantId,
-			ExternalId: row.ResultPayloadExternalID,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			TenantId:   tenantId,
+			ExternalId: row.ResultPayloadExternalID,
 		}
 
 		payload := payloads[retrieveOpt]
@@ -849,10 +849,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	for _, entry := range existedEntries {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
 			Id:         entry.ID,
-			TenantId:   opts.TenantId,
-			ExternalId: entry.ResultPayloadExternalID,
 			InsertedAt: entry.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+			TenantId:   opts.TenantId,
+			ExternalId: entry.ResultPayloadExternalID,
 		})
 	}
 
@@ -872,10 +872,10 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			if existingPayloads != nil {
 				resultPayload = existingPayloads[RetrievePayloadOpts{
 					Id:         existingEntry.ID,
-					TenantId:   opts.TenantId,
-					ExternalId: existingEntry.ResultPayloadExternalID,
 					InsertedAt: existingEntry.InsertedAt,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+					TenantId:   opts.TenantId,
+					ExternalId: existingEntry.ResultPayloadExternalID,
 				}]
 			}
 			results[i] = &EventLogEntryWithPayloads{
@@ -1068,19 +1068,19 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			var existingPayload []byte
 			payloads, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
 				Id:         nde.ExistingEntryId,
-				TenantId:   nde.ExistingEntryTenantId,
-				ExternalId: nde.ExistingEntryExternalId,
 				InsertedAt: nde.ExistingEntryInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+				TenantId:   nde.ExistingEntryTenantId,
+				ExternalId: nde.ExistingEntryExternalId,
 			})
 
 			if retrieveErr == nil {
 				existingPayload = payloads[RetrievePayloadOpts{
 					Id:         nde.ExistingEntryId,
-					TenantId:   nde.ExistingEntryTenantId,
-					ExternalId: nde.ExistingEntryExternalId,
 					InsertedAt: nde.ExistingEntryInsertedAt,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+					TenantId:   nde.ExistingEntryTenantId,
+					ExternalId: nde.ExistingEntryExternalId,
 				}]
 			}
 
@@ -1394,10 +1394,10 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	for _, row := range previousEventsFound {
 		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
 			Id:         row.ID,
-			TenantId:   tenantId,
-			ExternalId: row.ExternalID,
 			InsertedAt: row.SeenAt,
 			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+			TenantId:   tenantId,
+			ExternalId: row.ExternalID,
 		})
 	}
 
@@ -1412,10 +1412,10 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	for _, row := range previousEventsFound {
 		retrieveOpts := RetrievePayloadOpts{
 			Id:         row.ID,
-			TenantId:   tenantId,
-			ExternalId: row.ExternalID,
 			InsertedAt: row.SeenAt,
 			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+			TenantId:   tenantId,
+			ExternalId: row.ExternalID,
 		}
 
 		payload, ok := retrieveOptsToPayload[retrieveOpts]

@@ -358,10 +358,10 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 		opts := RetrievePayloadOpts{
 			Id:         payload.ID,
-			TenantId:   payload.TenantID,
-			ExternalId: payload.ExternalID,
 			InsertedAt: payload.InsertedAt,
 			Type:       payload.Type,
+			TenantId:   payload.TenantID,
+			ExternalId: payload.ExternalID,
 		}
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {

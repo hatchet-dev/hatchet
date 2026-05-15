@@ -1157,10 +1157,10 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 	for i, event := range matchedEvents {
 		opt := RetrievePayloadOpts{
 			Id:         event.ID,
-			TenantId:   tenantId,
-			ExternalId: event.ExternalID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 
 		retrieveOpts[i] = opt
@@ -3119,10 +3119,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	for i, task := range lockedTasks {
 		retrieveOpts[i] = RetrievePayloadOpts{
 			Id:         task.ID,
-			TenantId:   tenantId,
-			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   tenantId,
+			ExternalId: task.ExternalID,
 		}
 	}
 
@@ -3205,10 +3205,10 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 		retrieveOpt := RetrievePayloadOpts{
 			Id:         task.ID,
-			TenantId:   tenantId,
-			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   tenantId,
+			ExternalId: task.ExternalID,
 		}
 
 		input, ok := payloads[retrieveOpt]
@@ -3753,10 +3753,10 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 
 		opt := RetrievePayloadOpts{
 			Id:         outputTask.TaskEventID,
-			TenantId:   tenantId,
-			ExternalId: outputTask.OutputEventExternalID,
 			InsertedAt: outputTask.TaskEventInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   tenantId,
+			ExternalId: outputTask.OutputEventExternalID,
 		}
 
 		retrieveOpts = append(retrieveOpts, opt)
@@ -3831,10 +3831,10 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 	for i, event := range signalEvents {
 		retrieveOpt := RetrievePayloadOpts{
 			Id:         event.ID,
-			TenantId:   tenantId,
-			ExternalId: event.ExternalID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 
 		retrieveOpts[i] = retrieveOpt
@@ -3851,10 +3851,10 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 	for i, event := range signalEvents {
 		retrieveOpt := RetrievePayloadOpts{
 			Id:         event.ID,
-			TenantId:   tenantId,
-			ExternalId: event.ExternalID,
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 
 		payload, ok := payloads[retrieveOpt]
@@ -4247,18 +4247,18 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 	if isDag {
 		inputRetrieveOpt = RetrievePayloadOpts{
 			Id:         firstTask.DagID.Int64,
-			TenantId:   tenantId,
-			ExternalId: firstTask.WorkflowRunExternalID,
 			InsertedAt: firstTask.DagInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			TenantId:   tenantId,
+			ExternalId: firstTask.WorkflowRunExternalID,
 		}
 	} else {
 		inputRetrieveOpt = RetrievePayloadOpts{
 			Id:         firstTask.ID,
-			TenantId:   tenantId,
-			ExternalId: firstTask.ExternalID,
 			InsertedAt: firstTask.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			TenantId:   tenantId,
+			ExternalId: firstTask.ExternalID,
 		}
 	}
 

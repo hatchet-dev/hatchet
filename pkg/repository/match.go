@@ -560,10 +560,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		for i, dagData := range dagInputDatas {
 			retrievePayloadOpts[i] = RetrievePayloadOpts{
 				Id:         dagData.DagID,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+				TenantId:   tenantId,
+				ExternalId: dagData.ExternalID,
 			}
 		}
 
@@ -580,10 +580,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := RetrievePayloadOpts{
 				Id:         dagData.DagID,
-				TenantId:   tenantId,
-				ExternalId: dagData.ExternalID,
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+				TenantId:   tenantId,
+				ExternalId: dagData.ExternalID,
 			}
 
 			payload, ok := payloads[retrieveOpts]
