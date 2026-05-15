@@ -1,22 +1,16 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
-import {
-  limitDurationMap,
-  limitedResources,
-  LimitIndicator,
-} from './components/resource-limit-columns';
+import { resourceLimitColumns } from './components/resource-limit-columns';
 import { Subscription } from '@/components/v1/cloud/billing';
-import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
+import { queries, TenantMemberRole } from '@/lib/api';
 import { useAppContext } from '@/providers/app-context';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
@@ -37,59 +31,6 @@ export default function ResourceLimits() {
   const billingEnabled = isCloudEnabled && cloud?.canBill;
 
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
-
-  const resourceLimitColumns = useMemo(
-    () => [
-      {
-        columnLabel: 'Resource',
-        cellRenderer: (limit: TenantResourceLimit) => (
-          <div className="flex flex-row items-center gap-3">
-            <LimitIndicator
-              value={limit.value}
-              alarmValue={limit.alarmValue}
-              limitValue={limit.limitValue}
-            />
-            <span className="font-medium text-foreground">
-              {limitedResources[limit.resource]}
-            </span>
-          </div>
-        ),
-      },
-      {
-        columnLabel: 'Current Value',
-        cellRenderer: (limit: TenantResourceLimit) => (
-          <span className="tabular-nums">{limit.value}</span>
-        ),
-      },
-      {
-        columnLabel: 'Limit Value',
-        cellRenderer: (limit: TenantResourceLimit) => (
-          <span className="tabular-nums">{limit.limitValue}</span>
-        ),
-      },
-      {
-        columnLabel: 'Alarm Value',
-        cellRenderer: (limit: TenantResourceLimit) => (
-          <span className="tabular-nums">{limit.alarmValue || 'N/A'}</span>
-        ),
-      },
-      {
-        columnLabel: 'Meter Window',
-        cellRenderer: (limit: TenantResourceLimit) =>
-          (limit.window || '-') in limitDurationMap
-            ? limitDurationMap[limit.window || '-']
-            : limit.window,
-      },
-      {
-        columnLabel: 'Last Refill',
-        cellRenderer: (limit: TenantResourceLimit) =>
-          !limit.window
-            ? 'N/A'
-            : limit.lastRefill && <RelativeDate date={limit.lastRefill} />,
-      },
-    ],
-    [],
-  );
 
   if (resourcePolicyQuery.isLoading || billingState.isLoading) {
     return (
