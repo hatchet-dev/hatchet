@@ -841,7 +841,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, 0, len(existedEntries))
+	var retrieveOpts []RetrievePayloadOpts
 	for _, entry := range existedEntries {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
 			ExternalId: entry.ResultPayloadExternalID,
@@ -1388,7 +1388,12 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
-		retrieveOpts := RetrievePayloadOpts{ExternalId: row.ExternalID, InsertedAt: row.SeenAt, Type: sqlcv1.V1PayloadTypeUSEREVENTINPUT}
+		retrieveOpts := RetrievePayloadOpts{
+			ExternalId: row.ExternalID,
+			InsertedAt: row.SeenAt,
+			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
+		}
+
 		payload, ok := retrieveOptsToPayload[retrieveOpts]
 
 		if !ok {

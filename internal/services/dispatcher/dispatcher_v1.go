@@ -257,8 +257,12 @@ func (d *DispatcherImpl) populateTaskData(
 	}
 
 	for _, task := range bulkDatas {
-		opt := v1.RetrievePayloadOpts{ExternalId: task.ExternalID, InsertedAt: task.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKINPUT}
-		input, ok := inputs[opt]
+		input, ok := inputs[v1.RetrievePayloadOpts{
+			ExternalId: task.ExternalID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+		}]
+
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
@@ -296,15 +300,23 @@ func (d *DispatcherImpl) populateTaskData(
 
 			currInput.Parents = readableIdToData
 
-			inputs[opt] = currInput.Bytes()
+			inputs[v1.RetrievePayloadOpts{
+				ExternalId: task.ExternalID,
+				InsertedAt: task.InsertedAt,
+				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+			}] = currInput.Bytes()
 		}
 	}
 
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
-		opt := v1.RetrievePayloadOpts{ExternalId: task.ExternalID, InsertedAt: task.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKINPUT}
-		input, ok := inputs[opt]
+		input, ok := inputs[v1.RetrievePayloadOpts{
+			ExternalId: task.ExternalID,
+			InsertedAt: task.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
+		}]
+
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
