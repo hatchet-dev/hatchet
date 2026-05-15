@@ -63,7 +63,7 @@ type ExternalStore interface {
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (optsToPayload map[RetrievePayloadOpts][]byte, err error)
+	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
 	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
@@ -277,7 +277,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	return err
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (optsToPayload map[RetrievePayloadOpts][]byte, err error) {
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
 	if tx == nil {
 		tx = p.pool
 	}
@@ -322,17 +322,12 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	types := make([]string, len(opts))
 	tenantIds := make([]uuid.UUID, len(opts))
 
-	minInsertedAt := opts[0].InsertedAt
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
 		types[i] = string(opt.Type)
 		ids[i] = opt.Id
 		insertedAts[i] = opt.InsertedAt
 		tenantIds[i] = opt.TenantId
-
-		if opt.InsertedAt.Time.Before(minInsertedAt.Time) {
-			minInsertedAt = opt.InsertedAt
-		}
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
