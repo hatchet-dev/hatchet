@@ -227,17 +227,17 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	retrieveOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
+	retrievePayloadOpts := make([]v1.RetrievePayloadOpts, len(bulkDatas))
 
 	for i, task := range bulkDatas {
-		retrieveOpts[i] = v1.RetrievePayloadOpts{
+		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
 			ExternalId: task.ExternalID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 		}
 	}
 
-	retrievedInputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrieveOpts...)
+	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
 	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
 	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
@@ -252,15 +252,13 @@ func (d *DispatcherImpl) populateTaskData(
 		return nil, err
 	}
 
-	inputs := make(map[v1.RetrievePayloadOpts][]byte, len(bulkDatas))
-	for opt, payload := range retrievedInputs {
-		inputs[opt] = payload
+	if inputs == nil {
+		inputs = make(map[v1.RetrievePayloadOpts][]byte)
 	}
 
 	for _, task := range bulkDatas {
 		opt := v1.RetrievePayloadOpts{ExternalId: task.ExternalID, InsertedAt: task.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKINPUT}
 		input, ok := inputs[opt]
-
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
@@ -307,7 +305,6 @@ func (d *DispatcherImpl) populateTaskData(
 	for _, task := range bulkDatas {
 		opt := v1.RetrievePayloadOpts{ExternalId: task.ExternalID, InsertedAt: task.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKINPUT}
 		input, ok := inputs[opt]
-
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.

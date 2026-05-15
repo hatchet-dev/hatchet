@@ -487,17 +487,17 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		return nil, fmt.Errorf("failed to list satisfied entries: %w", err)
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, len(rows))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(rows))
 
 	for i, row := range rows {
-		retrieveOpts[i] = RetrievePayloadOpts{
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			ExternalId: row.ResultPayloadExternalID,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", err)
@@ -506,8 +506,13 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
 
 	for _, row := range rows {
-		opt := RetrievePayloadOpts{ExternalId: row.ResultPayloadExternalID, InsertedAt: row.InsertedAt, Type: sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA}
-		payload := payloads[opt]
+		retrieveOpt := RetrievePayloadOpts{
+			ExternalId: row.ResultPayloadExternalID,
+			InsertedAt: row.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+		}
+
+		payload := payloads[retrieveOpt]
 
 		result = append(result, &SatisfiedEventWithPayload{
 			TaskExternalId:  row.TaskExternalID,
@@ -1364,17 +1369,17 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		return initialWaitForResult, nil
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, 0, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
-		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
+		retrievePayloadOpts = append(retrievePayloadOpts, RetrievePayloadOpts{
 			ExternalId: row.ExternalID,
 			InsertedAt: row.SeenAt,
 			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
 		})
 	}
 
-	eventExternalIdToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrieveOpts...)
+	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
@@ -1383,8 +1388,8 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))
 
 	for _, row := range previousEventsFound {
-		opt := RetrievePayloadOpts{ExternalId: row.ExternalID, InsertedAt: row.SeenAt, Type: sqlcv1.V1PayloadTypeUSEREVENTINPUT}
-		payload, ok := eventExternalIdToPayload[opt]
+		retrieveOpts := RetrievePayloadOpts{ExternalId: row.ExternalID, InsertedAt: row.SeenAt, Type: sqlcv1.V1PayloadTypeUSEREVENTINPUT}
+		payload, ok := retrieveOptsToPayload[retrieveOpts]
 
 		if !ok {
 			r.l.Warn().Ctx(ctx).Msgf("payload not found for recent user event with id %d and seen_at %s", row.ID, row.SeenAt.Time)
