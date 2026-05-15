@@ -15,34 +15,17 @@ import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
 function CreateWorkerImpl() {
-  // ── Hooks ────────────────────────────────────────────────────────────────
   const navigate = useNavigate();
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
   });
 
-  const createManagedWorkerMutation = useMutation({
-    mutationKey: ['managed-worker:create', tenantId],
-    mutationFn: async (data: CreateManagedWorkerRequest) => {
-      const res = await cloudApi.managedWorkerCreate(tenantId, data);
-      return res.data;
-    },
-    onSuccess: (data) => {
-      navigate({
-        to: appRoutes.tenantManagedWorkerRoute.to,
-        params: { tenant: tenantId, managedWorker: data.metadata.id },
-      });
-    },
-    onError: handleApiError,
-  });
-
-  // ── Derived values ───────────────────────────────────────────────────────
+  // Check if billing is required
   const [, rejectReason] = can(managedCompute.create());
   const isBillingRequired = rejectReason === RejectReason.BILLING_REQUIRED;
 
@@ -62,8 +45,22 @@ function CreateWorkerImpl() {
     }
   };
 
-  // ── Early returns ─────────────────────────────────────────────────────────
+  const createManagedWorkerMutation = useMutation({
+    mutationKey: ['managed-worker:create', tenantId],
+    mutationFn: async (data: CreateManagedWorkerRequest) => {
+      const res = await cloudApi.managedWorkerCreate(tenantId, data);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      navigate({
+        to: appRoutes.tenantManagedWorkerRoute.to,
+        params: { tenant: tenantId, managedWorker: data.metadata.id },
+      });
+    },
+    onError: handleApiError,
+  });
 
+  // Show billing required page if billing is required
   if (isBillingRequired) {
     return (
       <BillingRequired
@@ -75,7 +72,6 @@ function CreateWorkerImpl() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">

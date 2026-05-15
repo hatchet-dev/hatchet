@@ -12,14 +12,12 @@ import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
 import { useApiError } from '@/lib/hooks';
 import { appRoutes } from '@/router';
-import { ArrowUpIcon, PlusIcon } from '@radix-ui/react-icons';
+import { PlusIcon, ArrowUpIcon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 function ManagedWorkersImpl() {
-  // ── Hooks ────────────────────────────────────────────────────────────────
-
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
@@ -34,25 +32,22 @@ function ManagedWorkersImpl() {
     ...queries.cloud.listManagedWorkers(tenantId),
   });
 
+  // Check if the user can create more worker pools
+  const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
+  const [canCreateMoreWorkerPools] = can(
+    managedCompute.canCreateWorkerPool(workerPoolCount),
+  );
+
+  // stop polling billing if there are payment methods
   useEffect(() => {
     if (billing?.hasPaymentMethods) {
       billing?.setPollBilling(false);
     }
   }, [billing, billing?.hasPaymentMethods]);
 
-  const { handleApiError } = useApiError({});
-
-  // ── Derived values ───────────────────────────────────────────────────────
-
-  const workerPoolCount = listManagedWorkersQuery.data?.rows?.length || 0;
-  const [canCreateMoreWorkerPools] = can(
-    managedCompute.canCreateWorkerPool(workerPoolCount),
-  );
   const [, rejectReason] = can(managedCompute.create());
-  const hasExistingWorkers =
-    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  const { handleApiError } = useApiError({});
 
   const manageClicked = async () => {
     try {
@@ -73,30 +68,11 @@ function ManagedWorkersImpl() {
     }
   };
 
-  const getWorkerPoolLimit = () => {
-    if (!billing?.plan) {
-      return 0;
-    }
-    switch (billing.plan) {
-      case 'free':
-        return 1;
-      case 'starter':
-        return 2;
-      case 'growth':
-        return 5;
-      default:
-        return 5;
-    }
-  };
+  // Only show BillingRequired if there are no managed workers AND billing is required
+  const hasExistingWorkers =
+    (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
-  const handleAddWorkerPool = () => {
-    if (!canCreateMoreWorkerPools) {
-      setShowUpgradeModal(true);
-    }
-  };
-
-  // ── Early returns ─────────────────────────────────────────────────────────
-
+  // Show loader while billing data is loading
   if (billing?.isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -105,6 +81,7 @@ function ManagedWorkersImpl() {
     );
   }
 
+  // Don't show billing required page while billing data is still loading
   if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
     return (
       <BillingRequired
@@ -116,7 +93,31 @@ function ManagedWorkersImpl() {
     );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // Get limit based on plan
+  const getWorkerPoolLimit = () => {
+    if (!billing?.plan) {
+      return 0;
+    }
+
+    switch (billing.plan) {
+      case 'free':
+        return 1;
+      case 'starter':
+        return 2;
+      case 'growth':
+        return 5;
+      default:
+        // This covers 'enterprise' and any other plans
+        return 5;
+    }
+  };
+
+  // Handler for when a user tries to add a worker pool but has reached their limit
+  const handleAddWorkerPool = () => {
+    if (!canCreateMoreWorkerPools) {
+      setShowUpgradeModal(true);
+    }
+  };
 
   const UpgradeModal = () => {
     if (!showUpgradeModal) {
@@ -124,6 +125,7 @@ function ManagedWorkersImpl() {
     }
 
     return (
+      // TODO use correct modal component
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
         <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
           <h3 className="mb-4 text-lg font-medium text-foreground">
