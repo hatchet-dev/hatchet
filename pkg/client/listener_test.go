@@ -529,6 +529,94 @@ func TestGetClientSnapshot_ReturnsCurrentClient(t *testing.T) {
 	assert.Equal(t, uint64(0), gen)
 }
 
+// TestWorkflowRunsListenerEventsLostAfterListenExits exercises the path a
+// client takes when the Hatchet dispatcher is unavailable for long enough
+// that the SDK's WorkflowRunsListener.Listen goroutine returns (in
+// production: the underlying gRPC stream eventually returns io.EOF on a
+// graceful server shutdown, or trips maxConsecutiveErrors during a
+// sustained outage). Once the dispatcher comes back the gRPC connection
+// reconnects and unary calls like TriggerWorkflow succeed again.
+//
+// The remaining question is whether status reads recover. A caller of
+// Workflow.Result() goes through the cached *WorkflowRunsListener,
+// AddWorkflowRun(...), and a wait on a result channel. The listener should
+// either fully recover after Listen has exited so events arrive on the
+// caller's handler, or fail AddWorkflowRun loudly so the caller can rebuild
+// state. What it must not do is accept the subscription, claim success,
+// and then drop the event the server delivers on the rebuilt stream.
+//
+// This test pins the contract: after Listen has returned, an event
+// produced for a workflow run that was subscribed via AddWorkflowRun is
+// dispatched to its handler.
+func TestWorkflowRunsListenerEventsLostAfterListenExits(t *testing.T) {
+	logger := zerolog.Nop()
+
+	// Stream 1: returns EOF on Recv to make Listen exit cleanly, and fails
+	// Send so retrySend has to reconnect (mirrors the real "stream is dead"
+	// state after an incident).
+	deadStream := &mockSubscribeClient{
+		sendFn: func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
+			return status.Error(codes.Unavailable, "stream broken")
+		},
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			return nil, io.EOF
+		},
+	}
+
+	// Stream 2: the post-reconnect stream that the server uses to deliver
+	// the workflow-run-finished event the caller is waiting for.
+	newRecvCh := make(chan *dispatchercontracts.WorkflowRunEvent, 1)
+	newStream := &mockSubscribeClient{
+		recvChan: newRecvCh,
+	}
+
+	var constructorCalls atomic.Int32
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return newStream, nil
+		},
+		client: deadStream,
+		l:      &logger,
+	}
+
+	// Drive Listen to exit, mirroring what happens when the SDK's listener
+	// goroutine returns after maxConsecutiveErrors during a long incident.
+	listenDone := make(chan error, 1)
+	go func() {
+		listenDone <- listener.Listen(context.Background())
+	}()
+
+	select {
+	case err := <-listenDone:
+		require.NoError(t, err, "Listen should exit cleanly on EOF")
+	case <-time.After(time.Second):
+		t.Fatal("Listen did not exit on EOF in time")
+	}
+
+	// Caller path mirrors Workflow.Result(): subscribe via the cached
+	// listener, then wait for the result on a channel.
+	received := make(chan WorkflowRunEvent, 1)
+	addErr := listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		received <- event
+		return nil
+	})
+	require.NoError(t, addErr, "AddWorkflowRun must not fail on a listener whose Listen has exited; the listener should recover or report a recoverable error to the caller")
+	require.GreaterOrEqual(t, constructorCalls.Load(), int32(1), "the listener should rebuild the stream via the constructor after Listen exits")
+	require.GreaterOrEqual(t, newStream.sendCount.Load(), int32(1), "the rebuilt stream should receive the subscription")
+
+	newRecvCh <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	select {
+	case ev := <-received:
+		assert.Equal(t, "run-1", ev.WorkflowRunId)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("workflow run event was not dispatched to the handler after Listen exited; the listener accepted the subscription but does not deliver events")
+	}
+}
+
 func TestWorkflowEventToDeprecatedWorkflowEvent_Success(t *testing.T) {
 	// Verifies successful conversion of WorkflowEvent to deprecated WorkflowEvent
 

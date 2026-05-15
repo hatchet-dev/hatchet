@@ -238,3 +238,85 @@ func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *t
 		t.Fatal("expected durable event to be delivered after reconnect during retrySend backoff")
 	}
 }
+
+// TestDurableEventsListenerEventsLostAfterListenExits exercises the path a
+// client takes when the Hatchet dispatcher is unavailable for long enough
+// that the SDK's DurableEventsListener.Listen goroutine returns (in
+// production: io.EOF on a graceful server shutdown, or maxConsecutiveErrors
+// during a sustained outage). Once the dispatcher comes back the gRPC
+// connection reconnects, but the durable listener's Listen loop is gone
+// and the listener instance can still be cached and reused by the SDK.
+//
+// A caller awaiting a durable signal goes through AddSignal(taskId,
+// signalKey, handler) and waits on a result channel. The listener should
+// either fully recover after Listen has exited so durable events arrive on
+// the caller's handler, or fail AddSignal loudly so the caller can rebuild
+// state. What it must not do is accept the subscription, claim success,
+// and then drop the durable event the server delivers on the rebuilt
+// stream.
+//
+// This test pins the contract: after Listen has returned, a durable event
+// for a (taskId, signalKey) that was subscribed via AddSignal is
+// dispatched to its handler.
+func TestDurableEventsListenerEventsLostAfterListenExits(t *testing.T) {
+	logger := zerolog.Nop()
+
+	deadClient := &mockDurableEventClient{
+		sendFn: func(req *contracts.ListenForDurableEventRequest) error {
+			return status.Error(codes.Unavailable, "stream broken")
+		},
+		recvFn: func() (*contracts.DurableEvent, error) {
+			return nil, io.EOF
+		},
+	}
+
+	newRecvCh := make(chan *contracts.DurableEvent, 1)
+	newClient := &mockDurableEventClient{
+		recvCh: newRecvCh,
+	}
+
+	var constructorCalls atomic.Int32
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			constructorCalls.Add(1)
+			return newClient, nil
+		},
+		client: deadClient,
+		l:      &logger,
+	}
+
+	listenDone := make(chan error, 1)
+	go func() {
+		listenDone <- listener.Listen(context.Background())
+	}()
+
+	select {
+	case err := <-listenDone:
+		require.NoError(t, err, "Listen should exit cleanly on EOF")
+	case <-time.After(time.Second):
+		t.Fatal("Listen did not exit on EOF in time")
+	}
+
+	received := make(chan DurableEvent, 1)
+	addErr := listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		received <- e
+		return nil
+	})
+	require.NoError(t, addErr, "AddSignal must not fail on a listener whose Listen has exited; the listener should recover or report a recoverable error to the caller")
+	require.GreaterOrEqual(t, constructorCalls.Load(), int32(1), "the listener should rebuild the stream via the constructor after Listen exits")
+	require.GreaterOrEqual(t, newClient.sendCount.Load(), int32(1), "the rebuilt stream should receive the subscription")
+
+	newRecvCh <- &contracts.DurableEvent{
+		TaskId:    "task-1",
+		SignalKey: "signal-1",
+		Data:      []byte(`{"ok":true}`),
+	}
+
+	select {
+	case ev := <-received:
+		require.Equal(t, "task-1", ev.TaskId)
+		require.Equal(t, "signal-1", ev.SignalKey)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("durable event was not dispatched to the handler after Listen exited; the listener accepted the subscription but does not deliver events")
+	}
+}
