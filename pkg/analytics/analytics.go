@@ -54,11 +54,11 @@ const (
 	WaitFor   Action = "wait-for"
 )
 
-type Properties map[string]interface{}
-
 type Property interface {
 	private()
 }
+
+type Properties map[string]interface{}
 
 func (Properties) private() {}
 
