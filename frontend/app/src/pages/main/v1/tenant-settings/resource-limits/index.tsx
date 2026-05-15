@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
 import { useAppContext } from '@/providers/app-context';
@@ -18,23 +19,34 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+const BILLING_SYNC_REFETCH_INTERVAL_MS = 5000;
+
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
   const { membership } = useAppContext();
   const isOwner = membership === TenantMemberRole.OWNER;
 
   const { cloud, isCloudEnabled } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
+
+  const billingEnabled =
+    isControlPlaneEnabled && isCloudEnabled && !!cloud?.canBill;
+  const billingSyncRefetchInterval = billingEnabled
+    ? BILLING_SYNC_REFETCH_INTERVAL_MS
+    : false;
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
+    refetchInterval: billingSyncRefetchInterval,
   });
 
   const billingState = useQuery({
-    ...queries.cloud.billing(tenantId),
-    enabled: isCloudEnabled && !!cloud?.canBill,
+    ...queries.controlPlane.billing(tenantId),
+    enabled: billingEnabled,
+    refetchInterval: billingSyncRefetchInterval,
   });
 
-  const billingEnabled = isCloudEnabled && cloud?.canBill;
+  const isDedicatedCloud = !isControlPlaneEnabled && !!cloud?.canBill;
 
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
 
@@ -107,7 +119,7 @@ export default function ResourceLimits() {
           description="Review billing details and the resource limits currently applied to this tenant."
         />
 
-        {billingEnabled && (
+        {billingEnabled && !isDedicatedCloud && (
           <>
             {isOwner ? (
               <Subscription
@@ -128,6 +140,16 @@ export default function ResourceLimits() {
             )}
             <Separator className="my-8" />
           </>
+        )}
+
+        {isDedicatedCloud && (
+          <Alert variant="destructive">
+            <ExclamationTriangleIcon className="size-4" />
+            <AlertTitle>Dedicated Cloud</AlertTitle>
+            <AlertDescription>
+              Please contact us to discuss your plan.
+            </AlertDescription>
+          </Alert>
         )}
 
         {resourceLimits.length > 0 ? (

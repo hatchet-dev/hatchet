@@ -5,7 +5,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { cloudApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
@@ -58,7 +58,12 @@ export default function ManagedWorkers() {
       if (!tenantId) {
         return;
       }
-      const link = await cloudApi.billingPortalLinkGet(tenantId);
+      const link = await controlPlaneApi.request<{ url?: string }>({
+        path: `/api/v1/control-plane/billing/tenants/${tenantId}/billing-portal-link`,
+        method: 'GET',
+        secure: true,
+        format: 'json',
+      });
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);

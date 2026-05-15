@@ -21,14 +21,16 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api';
 import {
   TenantSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
   SubscriptionPeriod,
   Coupon,
-} from '@/lib/api/generated/cloud/data-contracts';
+  UpdateTenantSubscriptionResponse,
+} from '@/lib/api/generated/control-plane/data-contracts';
+import { ContentType } from '@/lib/api/generated/control-plane/http-client';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -66,7 +68,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
   const creditBalanceQuery = useQuery({
-    ...queries.cloud.creditBalance(tenantId),
+    ...queries.controlPlane.creditBalance(tenantId),
   });
 
   const creditBalance = useMemo(() => {
@@ -110,7 +112,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
       setPortalLoading(true);
-      const link = await cloudApi.billingPortalLinkGet(tenantId);
+      const link = await controlPlaneApi.request<{ url?: string }>({
+        path: `/api/v1/control-plane/billing/tenants/${tenantId}/billing-portal-link`,
+        method: 'GET',
+        secure: true,
+        format: 'json',
+      });
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -124,14 +131,22 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
-      const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
-        plan: plan as SubscriptionPlanCode,
-        period: period as SubscriptionPeriod,
-      });
+      const response =
+        await controlPlaneApi.request<UpdateTenantSubscriptionResponse>({
+          path: `/api/v1/control-plane/billing/tenants/${tenantId}/subscription`,
+          method: 'PATCH',
+          body: {
+            plan: plan as SubscriptionPlanCode,
+            period: period as SubscriptionPeriod,
+          },
+          secure: true,
+          type: ContentType.Json,
+          format: 'json',
+        });
       return response.data;
     },
     onSuccess: async (data) => {
-      if (data && 'checkoutUrl' in data) {
+      if (data?.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;
       }
@@ -141,7 +156,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
           queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
         }),
         queryClient.invalidateQueries({
-          queryKey: queries.cloud.billing(tenantId).queryKey,
+          queryKey: queries.controlPlane.billing(tenantId).queryKey,
         }),
       ]);
 
