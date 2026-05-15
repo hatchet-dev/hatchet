@@ -13,30 +13,33 @@ ALTER TABLE v1_task_events_olap
 DO $$
 DECLARE
   batch_size INT := 1000;
-  last_task_id BIGINT := 0;
-  last_task_inserted_at TIMESTAMPTZ := '1970-01-01 00:00:00+00';
+  last_id BIGINT := 0;
 BEGIN
+  CREATE TEMP TABLE tmp_109_task_event_nulls AS
+    SELECT id, task_id, task_inserted_at
+    FROM v1_task_event
+    WHERE external_id IS NULL;
+  CREATE INDEX ON tmp_109_task_event_nulls (id);
+
   LOOP
-    WITH task_batch AS (
-        SELECT id, inserted_at
-        FROM v1_task
-        WHERE (id, inserted_at) > (last_task_id, last_task_inserted_at)
-        ORDER BY id, inserted_at
+    WITH batch AS (
+        SELECT id, task_id, task_inserted_at
+        FROM tmp_109_task_event_nulls
+        WHERE id > last_id
+        ORDER BY id
         LIMIT batch_size
     ), updates AS (
-        UPDATE v1_task_event
+        UPDATE v1_task_event e
         SET external_id = gen_random_uuid()
-        WHERE (task_id, inserted_at) IN (SELECT id, inserted_at FROM task_batch)
+        FROM batch b
+        WHERE e.id = b.id
+          AND e.task_id = b.task_id
+          AND e.task_inserted_at = b.task_inserted_at
     )
-
-    SELECT id, inserted_at INTO last_task_id, last_task_inserted_at
-    FROM task_batch
-    ORDER BY id DESC, inserted_at DESC
-    LIMIT 1
-    ;
-
-    EXIT WHEN last_task_id IS NULL;
+    SELECT MAX(id) INTO last_id FROM batch;
+    EXIT WHEN last_id IS NULL;
   END LOOP;
+
 END $$;
 -- +goose StatementEnd
 
@@ -44,32 +47,28 @@ END $$;
 DO $$
 DECLARE
   batch_size INT := 1000;
-  last_task_id BIGINT := 0;
-  last_task_inserted_at TIMESTAMPTZ := '1970-01-01 00:00:00+00';
+  last_id BIGINT := 0;
 BEGIN
+  CREATE TEMP TABLE tmp_109_task_events_olap_nulls AS
+    SELECT id FROM v1_task_events_olap WHERE external_id IS NULL;
+  CREATE INDEX ON tmp_109_task_events_olap_nulls (id);
+
   LOOP
-    WITH task_batch AS (
-        SELECT inserted_at, id
-        FROM v1_tasks_olap
-        -- pk (ins at, id)
-        WHERE (inserted_at, id) > (last_task_inserted_at, last_task_id)
-        ORDER BY inserted_at, id
+    WITH batch AS (
+        SELECT id
+        FROM tmp_109_task_events_olap_nulls
+        WHERE id > last_id
+        ORDER BY id
         LIMIT batch_size
     ), updates AS (
         UPDATE v1_task_events_olap
         SET external_id = gen_random_uuid()
-        -- pk (task_id, task ins at)
-        WHERE (task_id, task_inserted_at) IN (SELECT id, inserted_at FROM task_batch)
+        WHERE id IN (SELECT id FROM batch)
     )
-
-    SELECT inserted_at, id INTO last_task_inserted_at, last_task_id
-    FROM task_batch
-    ORDER BY inserted_at DESC, id DESC
-    LIMIT 1
-    ;
-
-    EXIT WHEN last_task_inserted_at IS NULL;
+    SELECT MAX(id) INTO last_id FROM batch;
+    EXIT WHEN last_id IS NULL;
   END LOOP;
+
 END $$;
 -- +goose StatementEnd
 
