@@ -1,14 +1,16 @@
 -- name: ReadPayloads :many
 WITH inputs AS (
     SELECT
-        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@ids::BIGINT[]) AS id,
+        UNNEST(@insertedAts::TIMESTAMPTZ[]) AS inserted_at,
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(CAST(@types::TEXT[] AS v1_payload_type[])) AS type
 )
-SELECT p.*
-FROM v1_payload p
-WHERE p.inserted_at >= @minInsertedAt::TIMESTAMPTZ
-    AND (p.external_id, p.type) IN (
-        SELECT external_id, type
+
+SELECT *
+FROM v1_payload
+WHERE (tenant_id, id, inserted_at, type) IN (
+        SELECT tenant_id, id, inserted_at, type
         FROM inputs
     )
 ;
