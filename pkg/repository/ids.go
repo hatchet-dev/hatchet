@@ -169,17 +169,17 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		return err
 	}
 
-	retrieveOpts := make([]RetrievePayloadOpts, len(lockedEvents))
+	retrievePayloadOpts := make([]RetrievePayloadOpts, len(lockedEvents))
 
 	for i, lockedEvent := range lockedEvents {
-		retrieveOpts[i] = RetrievePayloadOpts{
+		retrievePayloadOpts[i] = RetrievePayloadOpts{
 			ExternalId: lockedEvent.ExternalID,
 			InsertedAt: lockedEvent.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 		}
 	}
 
-	payloads, err := s.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+	payloads, err := s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 	if err != nil {
 		return err
@@ -188,8 +188,11 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	// for each locked event, write the correct external id to the opt
 	for _, lockedEvent := range lockedEvents {
 		opt := spawnKeyToOpt[lockedEvent.EventKey.String]
-		retrieveOpt := RetrievePayloadOpts{ExternalId: lockedEvent.ExternalID, InsertedAt: lockedEvent.InsertedAt, Type: sqlcv1.V1PayloadTypeTASKEVENTDATA}
-		payload, ok := payloads[retrieveOpt]
+		payload, ok := payloads[RetrievePayloadOpts{
+			ExternalId: lockedEvent.ExternalID,
+			InsertedAt: lockedEvent.InsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+		}]
 
 		if !ok {
 			payload = lockedEvent.Data

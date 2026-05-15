@@ -864,7 +864,11 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		if existingEntry, ok := existedEntries[key]; ok {
 			var resultPayload []byte
 			if existingPayloads != nil {
-				resultPayload = existingPayloads[RetrievePayloadOpts{ExternalId: existingEntry.ResultPayloadExternalID, InsertedAt: existingEntry.InsertedAt, Type: sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA}]
+				resultPayload = existingPayloads[RetrievePayloadOpts{
+					ExternalId: existingEntry.ResultPayloadExternalID,
+					InsertedAt: existingEntry.InsertedAt,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
+				}]
 			}
 			results[i] = &EventLogEntryWithPayloads{
 				Entry:          existingEntry,
@@ -1054,14 +1058,18 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		var nde *NonDeterminismError
 		if errors.As(err, &nde) {
 			var existingPayload []byte
-			retrievedPayload, retrieveErr := r.payloadStore.RetrieveSingle(ctx, tx, RetrievePayloadOpts{
+			payloads, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
 				ExternalId: nde.ExistingEntryExternalId,
 				InsertedAt: nde.ExistingEntryInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 			})
 
 			if retrieveErr == nil {
-				existingPayload = retrievedPayload
+				existingPayload = payloads[RetrievePayloadOpts{
+					ExternalId: nde.ExistingEntryExternalId,
+					InsertedAt: nde.ExistingEntryInsertedAt,
+					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
+				}]
 			}
 
 			nde.Detail = nonDeterminismDetail(opts, nde.ExpectedKind, existingPayload)

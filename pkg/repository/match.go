@@ -556,16 +556,16 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			return nil, fmt.Errorf("failed to get DAG data: %w", err)
 		}
 
-		retrieveOpts := make([]RetrievePayloadOpts, len(dagInputDatas))
+		retrievePayloadOpts := make([]RetrievePayloadOpts, len(dagInputDatas))
 		for i, dagData := range dagInputDatas {
-			retrieveOpts[i] = RetrievePayloadOpts{
+			retrievePayloadOpts[i] = RetrievePayloadOpts{
 				ExternalId: dagData.ExternalID,
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 			}
 		}
 
-		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)
@@ -576,8 +576,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
 
 		for _, dagData := range dagInputDatas {
-			opt := RetrievePayloadOpts{ExternalId: dagData.ExternalID, InsertedAt: dagData.DagInsertedAt, Type: sqlcv1.V1PayloadTypeDAGINPUT}
-			payload, ok := payloads[opt]
+			retrieveOpts := RetrievePayloadOpts{
+				ExternalId: dagData.ExternalID,
+				InsertedAt: dagData.DagInsertedAt,
+				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
+			}
+
+			payload, ok := payloads[retrieveOpts]
 
 			if !ok {
 				payload = dagData.Input
