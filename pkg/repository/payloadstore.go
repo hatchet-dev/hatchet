@@ -316,14 +316,12 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	externalIds := make([]uuid.UUID, len(opts))
 	types := make([]string, len(opts))
-	externalIdToOpt := make(map[uuid.UUID]RetrievePayloadOpts, len(opts))
 
 	minInsertedAt := opts[0].InsertedAt
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
 		types[i] = string(opt.Type)
 
-		externalIdToOpt[opt.ExternalId] = opt
 		if opt.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = opt.InsertedAt
 		}
@@ -339,9 +337,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
 	}
 
-	result := make(map[RetrievePayloadOpts][]byte)
+	optsToPayload := make(map[RetrievePayloadOpts][]byte)
 
-	externalKeyToOpt := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
+	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
 	externalKeys := make([]ExternalPayloadLocationKey, 0)
 
 	for _, payload := range payloads {
@@ -349,17 +347,18 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			continue
 		}
 
-		opt, exists := externalIdToOpt[payload.ExternalID]
-		if !exists {
-			continue
+		opts := RetrievePayloadOpts{
+			ExternalId: payload.ExternalID,
+			InsertedAt: payload.InsertedAt,
+			Type:       payload.Type,
 		}
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			externalKeyToOpt[key] = opt
+			externalKeysToOpts[key] = opts
 			externalKeys = append(externalKeys, key)
 		} else {
-			result[opt] = payload.InlineContent
+			optsToPayload[opts] = payload.InlineContent
 		}
 	}
 
@@ -370,13 +369,13 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		}
 
 		for externalKey, data := range externalData {
-			if opt, exists := externalKeyToOpt[externalKey]; exists {
-				result[opt] = data
+			if opt, exists := externalKeysToOpts[externalKey]; exists {
+				optsToPayload[opt] = data
 			}
 		}
 	}
 
-	return result, nil
+	return optsToPayload, nil
 }
 
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore) {
