@@ -69,7 +69,7 @@ func GetClientConfigFromConfigFile(tokenOverride *string, cf *client.ClientConfi
 	grpcBroadcastAddress := cf.HostPort
 	serverURL := cf.ServerURL
 
-	tokenConf, err := loaderutils.GetConfFromJWT(cf.Token)
+	tokenConf, err := loaderutils.GetConfFromJWT(cf.Token, cf.EncryptionJWTPublicKeyset, cf.EncryptionMasterKeyset)
 
 	if err != nil {
 		return nil, err

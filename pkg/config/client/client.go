@@ -21,6 +21,17 @@ type ClientConfigFile struct {
 	// corresponding to the gRPC engine service.
 	ServerURL string `mapstructure:"serverURL" json:"serverURL,omitempty"`
 
+	// EncryptionJWTPublicKeyset is the base64-encoded public JWT keyset used for verifying
+	// JWT tokens. This should be the same keyset used by the server to sign tokens.
+	// If EncryptionMasterKeyset is provided, this should be an encrypted keyset.
+	// Otherwise, this should be a raw (insecure) keyset.
+	EncryptionJWTPublicKeyset string `mapstructure:"encryptionJWTPublicKeyset" json:"encryptionJWTPublicKeyset,omitempty"`
+
+	// EncryptionMasterKeyset is the base64-encoded master keyset used to decrypt
+	// the EncryptionJWTPublicKeyset. If not provided, the public keyset is assumed
+	// to be in raw (insecure) format.
+	EncryptionMasterKeyset string `mapstructure:"encryptionMasterKeyset" json:"encryptionMasterKeyset,omitempty"`
+
 	Logger shared.LoggerConfigFile `mapstructure:"log" json:"log,omitempty"`
 
 	TLS ClientTLSConfigFile `mapstructure:"tls" json:"tls,omitempty"`
@@ -73,6 +84,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("hostPort", "HATCHET_CLIENT_HOST_PORT")
 	_ = v.BindEnv("serverURL", "HATCHET_CLIENT_SERVER_URL")
 	_ = v.BindEnv("namespace", "HATCHET_CLIENT_NAMESPACE")
+	_ = v.BindEnv("encryptionJWTPublicKeyset", "HATCHET_CLIENT_ENCRYPTION_JWT_PUBLIC_KEYSET")
+	_ = v.BindEnv("encryptionMasterKeyset", "HATCHET_CLIENT_ENCRYPTION_MASTER_KEYSET")
 
 	// logger options
 	_ = v.BindEnv("log.level", "HATCHET_CLIENT_LOG_LEVEL")
