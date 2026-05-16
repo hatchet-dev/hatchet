@@ -60,22 +60,6 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
-	var cookieErr error
-
-	if r.Security.CookieAuth() {
-		cookieErr = a.handleCookieAuth(c)
-
-		c.Set("auth_strategy", "cookie")
-
-		if cookieErr == nil {
-			return nil
-		}
-	}
-
-	if cookieErr != nil && !r.Security.BearerAuth() && !r.Security.CustomAuth() {
-		return cookieErr
-	}
-
 	var bearerErr error
 
 	if r.Security.BearerAuth() {
@@ -88,7 +72,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	if bearerErr != nil && !r.Security.CustomAuth() {
+	if bearerErr != nil && !r.Security.CustomAuth() && !r.Security.CookieAuth() {
 		return bearerErr
 	}
 
@@ -104,8 +88,26 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	if customErr != nil {
+	if customErr != nil && !r.Security.CookieAuth() {
 		return customErr
+	}
+
+	var cookieErr error
+
+	if r.Security.CookieAuth() {
+		// FIXME(gregfurman): handleCookieAuth (practically) always creates a new UserSession entry.
+		// Hence, the ordering of bearer -> custom -> cookie intentionally prevents this.
+		cookieErr = a.handleCookieAuth(c)
+
+		c.Set("auth_strategy", "cookie")
+
+		if cookieErr == nil {
+			return nil
+		}
+	}
+
+	if cookieErr != nil {
+		return cookieErr
 	}
 
 	return fmt.Errorf("no auth strategy found")
@@ -140,10 +142,6 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
 
 	store := a.config.SessionStore
-
-	if _, err := c.Cookie(store.GetName()); err != nil {
-		return forbidden
-	}
 
 	session, err := store.Get(c.Request(), store.GetName())
 	ctx := c.Request().Context()
