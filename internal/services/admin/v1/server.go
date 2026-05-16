@@ -1188,7 +1188,7 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 	return steps, nil
 }
 
-func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[string]interface{} {
+func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) analytics.Properties {
 	if req == nil {
 		return nil
 	}
