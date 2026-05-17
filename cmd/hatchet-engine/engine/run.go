@@ -84,9 +84,14 @@ func init() {
 	}
 }
 
-func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
+func Run(
+	ctx context.Context,
+	cf *loader.ConfigLoader,
+	version string,
+	overrides ...loader.ServerConfigFileOverride,
+) error {
 
-	serverCleanup, server, err := cf.CreateServerFromConfig(version)
+	serverCleanup, server, err := cf.CreateServerFromConfig(version, overrides...)
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
