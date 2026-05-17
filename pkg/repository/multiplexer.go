@@ -57,12 +57,15 @@ func (m *multiplexedListener) startListening() {
 	// listen for multiplexed messages
 	listener := &pgxlisten.Listener{
 		Connect: func(ctx context.Context) (*pgx.Conn, error) {
-			// Acquire a new connection each time
 			poolConn, err := m.pool.Acquire(ctx)
 			if err != nil {
 				return nil, err
 			}
-			return poolConn.Conn(), nil
+			// Hijack transfers the raw conn out of the pool's bookkeeping so the
+			// slot is released immediately; pgxlisten still closes the conn on
+			// Listen exit via its own `defer conn.Close(ctx)`. See #3694 for the
+			// slot-leak this avoids.
+			return poolConn.Hijack(), nil
 		},
 		LogError: func(innerCtx context.Context, err error) {
 			m.l.Warn().Err(err).Msg("error in listener")
