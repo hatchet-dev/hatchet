@@ -82,6 +82,7 @@ const (
 	ActionType_START_STEP_RUN      ActionType = 0
 	ActionType_CANCEL_STEP_RUN     ActionType = 1
 	ActionType_START_GET_GROUP_KEY ActionType = 2
+	ActionType_STREAM_KEEPALIVE    ActionType = 3
 )
 
 // Enum value maps for ActionType.
@@ -90,11 +91,13 @@ var (
 		0: "START_STEP_RUN",
 		1: "CANCEL_STEP_RUN",
 		2: "START_GET_GROUP_KEY",
+		3: "STREAM_KEEPALIVE",
 	}
 	ActionType_value = map[string]int32{
 		"START_STEP_RUN":      0,
 		"CANCEL_STEP_RUN":     1,
 		"START_GET_GROUP_KEY": 2,
+		"STREAM_KEEPALIVE":    3,
 	}
 )
 

@@ -33,20 +33,21 @@ type Dispatcher interface {
 type DispatcherImpl struct {
 	contracts.UnimplementedDispatcherServer
 
-	s                                   gocron.Scheduler
-	mqv1                                msgqueue.MessageQueue
-	pubBuffer                           *msgqueue.MQPubBuffer
-	sharedNonBufferedReaderv1           *msgqueue.SharedTenantReader
-	sharedBufferedReaderv1              *msgqueue.SharedBufferedTenantReader
-	l                                   *zerolog.Logger
-	dv                                  datautils.DataDecoderValidator
-	v                                   validator.Validator
-	repov1                              v1.Repository
-	cache                               cache.Cacheable
-	payloadSizeThreshold                int
-	defaultMaxWorkerLockAcquisitionTime time.Duration
-	workflowRunBufferSize               int
-	streamEventBufferTimeout            time.Duration
+	s                                    gocron.Scheduler
+	mqv1                                 msgqueue.MessageQueue
+	pubBuffer                            *msgqueue.MQPubBuffer
+	sharedNonBufferedReaderv1            *msgqueue.SharedTenantReader
+	sharedBufferedReaderv1               *msgqueue.SharedBufferedTenantReader
+	l                                    *zerolog.Logger
+	dv                                   datautils.DataDecoderValidator
+	v                                    validator.Validator
+	repov1                               v1.Repository
+	cache                                cache.Cacheable
+	payloadSizeThreshold                 int
+	defaultMaxWorkerLockAcquisitionTime  time.Duration
+	workflowRunBufferSize                int
+	streamEventBufferTimeout             time.Duration
+	listenV2StreamKeepaliveInterval      time.Duration
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -121,19 +122,20 @@ func (w *workers) Delete(workerId uuid.UUID) {
 type DispatcherOpt func(*DispatcherOpts)
 
 type DispatcherOpts struct {
-	mqv1                                msgqueue.MessageQueue
-	l                                   *zerolog.Logger
-	dv                                  datautils.DataDecoderValidator
-	repov1                              v1.Repository
-	dispatcherId                        uuid.UUID
-	alerter                             hatcheterrors.Alerter
-	cache                               cache.Cacheable
-	analytics                           analytics.Analytics
-	payloadSizeThreshold                int
-	defaultMaxWorkerLockAcquisitionTime time.Duration
-	workflowRunBufferSize               int
-	streamEventBufferTimeout            time.Duration
-	version                             string
+	mqv1                                 msgqueue.MessageQueue
+	l                                    *zerolog.Logger
+	dv                                   datautils.DataDecoderValidator
+	repov1                               v1.Repository
+	dispatcherId                         uuid.UUID
+	alerter                              hatcheterrors.Alerter
+	cache                                cache.Cacheable
+	analytics                            analytics.Analytics
+	payloadSizeThreshold                 int
+	defaultMaxWorkerLockAcquisitionTime  time.Duration
+	workflowRunBufferSize                int
+	streamEventBufferTimeout             time.Duration
+	listenV2StreamKeepaliveInterval      time.Duration
+	version                              string
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -219,6 +221,12 @@ func WithStreamEventBufferTimeout(timeout time.Duration) DispatcherOpt {
 	}
 }
 
+func WithListenV2StreamKeepaliveInterval(interval time.Duration) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.listenV2StreamKeepaliveInterval = interval
+	}
+}
+
 func WithVersion(version string) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.version = version
@@ -282,6 +290,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		workflowRunBufferSize:               opts.workflowRunBufferSize,
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
+		listenV2StreamKeepaliveInterval:     opts.listenV2StreamKeepaliveInterval,
 		version:                             opts.version,
 	}, nil
 }
