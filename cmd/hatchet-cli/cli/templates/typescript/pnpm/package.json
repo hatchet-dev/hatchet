@@ -12,15 +12,16 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^22.19.17",
+    "@types/node": "^22.19.19",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "@hatchet-dev/typescript-sdk": "1.21.2"
   },
   "pnpm": {
-    "overrides": {
-      "qs": ">=6.14.2"
-    }
+    "onlyBuiltDependencies": [
+      "@hatchet-dev/typescript-sdk",
+      "protobufjs"
+    ]
   }
 }
