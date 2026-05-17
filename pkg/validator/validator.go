@@ -28,7 +28,7 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("password", func(fl validator.FieldLevel) bool {
-		return ValidatePassword(fl.Field().String())
+		return passwordValidation(fl.Field().String())
 	})
 
 	_ = validate.RegisterValidation("uuid", func(fl validator.FieldLevel) bool {
