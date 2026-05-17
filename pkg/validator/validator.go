@@ -89,10 +89,7 @@ func newValidator() *validator.Validate {
 	return validate
 }
 
-// ValidatePassword returns true if the password meets complexity requirements:
-// between 8 and 64 characters, with at least one uppercase letter, one lowercase
-// letter, and one number.
-func ValidatePassword(pw string) bool {
+func passwordValidation(pw string) bool {
 	pwLen := len(pw)
 	var hasNumber, hasUpper, hasLower bool
 
