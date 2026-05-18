@@ -59,7 +59,7 @@ RSpec.describe "BulkReplay" do
     total_expected = (n + 1) + (n / 2 - 1) + (n / 2 - 2)
 
     # Poll until all runs are completed instead of a fixed sleep
-    30.times do
+    60.times do
       runs = HATCHET.runs.list(
         workflow_ids: workflow_ids,
         additional_metadata: { "test_run_id" => test_run_id },

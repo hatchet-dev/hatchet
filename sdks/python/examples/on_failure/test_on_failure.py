@@ -4,6 +4,7 @@ import pytest
 
 from examples.on_failure.worker import on_failure_wf
 from hatchet_sdk import Hatchet
+from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
@@ -16,11 +17,16 @@ async def test_run_timeout(hatchet: Hatchet) -> None:
         assert False, "Expected workflow to timeout"
     except Exception as e:
         assert "step1 failed" in str(e)
-
-    await asyncio.sleep(5)  # Wait for the on_failure job to finish
-
-    details = await hatchet.runs.aio_get(run.workflow_run_id)
-
+    details: V1WorkflowRunDetails | None = None
+    for _ in range(120):
+        details = await hatchet.runs.aio_get(run.workflow_run_id)
+        if len(details.tasks) == 2 and all(
+            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
+            for t in details.tasks
+        ):
+            break
+        await asyncio.sleep(0.5)
+    assert details
     assert len(details.tasks) == 2
     assert sum(t.status == V1TaskStatus.COMPLETED for t in details.tasks) == 1
     assert sum(t.status == V1TaskStatus.FAILED for t in details.tasks) == 1
