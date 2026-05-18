@@ -960,7 +960,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 
 		for i, triggerOpts := range opts.TriggerRuns.TriggerOpts {
-			nodeId := baseNodeId + int64(i)
+			nodeId := logFile.LatestNodeID
+			if !triggerOpts.ShouldSkip {
+				nodeId = logFile.LatestNodeID + 1 + int64(i)
+			}
+
 			branchId := resolveBranchForNode(nodeId, logFile.LatestBranchID, nextBranchIdToBranchPoint)
 
 			inputPayload, marshalErr := json.Marshal(triggerOpts)
