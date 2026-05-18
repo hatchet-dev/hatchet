@@ -645,16 +645,6 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return status.Errorf(codes.Internal, "failed to populate external ids for workflow: %v", populateErr)
 	}
 
-	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
-
-	for _, opt := range triggerOpts {
-		if opt.ShouldSkip {
-			continue
-		}
-
-		optsToSend = append(optsToSend, opt)
-	}
-
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
@@ -663,7 +653,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 			InvocationCount: req.InvocationCount,
 		},
 		TriggerRuns: &v1.IngestTriggerRunsOpts{
-			TriggerOpts: optsToSend,
+			TriggerOpts: triggerOpts,
 		},
 	})
 
