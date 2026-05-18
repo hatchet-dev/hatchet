@@ -17,20 +17,26 @@ defaults:
   run:
     working-directory: ./sdks/typescript
 
+x-pm-matrix: &pm-matrix
+  include:
+    - package-manager: pnpm
+      install-cmd: pnpm install
+      lint-cmd: pnpm lint:check
+      tsc-cmd: pnpm exec tsc
+      unit-test-cmd: pnpm test:unit
+      e2e-test-cmd: pnpm test:e2e
+    - package-manager: bun
+      install-cmd: bun install
+      lint-cmd: bun run lint:check
+      tsc-cmd: bunx tsc
+      unit-test-cmd: bun run test:unit
+      e2e-test-cmd: bun run test:e2e
+
 jobs:
   lint:
     runs-on: ubicloud-standard-4
     strategy:
-      matrix:
-        include:
-          - package-manager: pnpm
-            install-cmd: pnpm install
-            lint-cmd: pnpm lint:check
-            tsc-cmd: pnpm exec tsc
-          - package-manager: bun
-            install-cmd: bun install
-            lint-cmd: bun run lint:check
-            tsc-cmd: bunx tsc
+      matrix: *pm-matrix
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -76,14 +82,7 @@ jobs:
   test-unit:
     runs-on: ubicloud-standard-4
     strategy:
-      matrix:
-        include:
-          - package-manager: pnpm
-            install-cmd: pnpm install
-            test-cmd: pnpm test:unit
-          - package-manager: bun
-            install-cmd: bun install
-            test-cmd: bun run test:unit
+      matrix: *pm-matrix
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -127,14 +126,7 @@ jobs:
     runs-on: ubicloud-standard-4
     timeout-minutes: 20
     strategy:
-      matrix:
-        include:
-          - package-manager: pnpm
-            install-cmd: pnpm install
-            test-cmd: pnpm test:e2e
-          - package-manager: bun
-            install-cmd: bun install
-            test-cmd: bun run test:e2e
+      matrix: *pm-matrix
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
