@@ -20,6 +20,17 @@ defaults:
 jobs:
   lint:
     runs-on: ubicloud-standard-4
+    strategy:
+      matrix:
+        include:
+          - package-manager: pnpm
+            install-cmd: pnpm install
+            lint-cmd: pnpm lint:check
+            tsc-cmd: pnpm exec tsc
+          - package-manager: bun
+            install-cmd: bun install
+            lint-cmd: bun run lint:check
+            tsc-cmd: bunx tsc
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -27,14 +38,17 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
+        if: matrix.package-manager == 'pnpm'
         run: npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
+        if: matrix.package-manager == 'pnpm'
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
+        if: matrix.package-manager == 'pnpm'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
@@ -42,17 +56,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Setup Bun
+        if: matrix.package-manager == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          cache: true
+          cache-dependency-path: sdks/typescript/pnpm-lock.yaml
+
       - name: Install dependencies
-        run: pnpm install
+        run: ${{ matrix.install-cmd }}
 
       - name: Lint
-        run: pnpm lint:check
+        run: ${{ matrix.lint-cmd }}
 
       - name: Type check
-        run: pnpm exec tsc
+        run: ${{ matrix.tsc-cmd }}
 
   test-unit:
     runs-on: ubicloud-standard-4
+    strategy:
+      matrix:
+        include:
+          - package-manager: pnpm
+            install-cmd: pnpm install
+            test-cmd: pnpm test:unit
+          - package-manager: bun
+            install-cmd: bun install
+            test-cmd: bun run test:unit
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -60,14 +91,17 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
+        if: matrix.package-manager == 'pnpm'
         run: npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
+        if: matrix.package-manager == 'pnpm'
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
+        if: matrix.package-manager == 'pnpm'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
@@ -75,11 +109,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Setup Bun
+        if: matrix.package-manager == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          cache: true
+          cache-dependency-path: sdks/typescript/pnpm-lock.yaml
+
       - name: Install dependencies
-        run: pnpm install
+        run: ${{ matrix.install-cmd }}
 
       - name: Unit tests
-        run: pnpm test:unit
+        run: ${{ matrix.test-cmd }}
 
   test-e2e:
     runs-on: ubicloud-standard-4
