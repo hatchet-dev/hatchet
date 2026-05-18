@@ -1,4 +1,12 @@
 version: 2
+
+multi-ecosystem-groups:
+  hatchet-sdk-examples:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 1
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -13,9 +21,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: "gomod"
-    directories:
-      - "/"
-      - "/examples/go/quickstart"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -24,19 +30,13 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     open-pull-requests-limit: 2
-    ignore:
-      - dependency-name: "go"
     groups:
       go-modules:
         patterns: ["*"]
         update-types: ["patch", "minor"]
 
   - package-ecosystem: "pip"
-    directories:
-      - "/sdks/python"
-      - "/sdks/python/examples/quickstart"
-      - "/cmd/hatchet-cli/cli/templates/python/poetry"
-      - "/examples/python/quickstart"
+    directory: /sdks/python
     schedule:
       interval: "weekly"
       day: "monday"
@@ -44,15 +44,41 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 2
     groups:
       python-deps:
-        dependency-type: "production"
         patterns: ["*"]
         update-types: ["patch", "minor"]
-      python-dev-deps:
+
+
+  - package-ecosystem: uv
+    directory: /sdks/python
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 2
+    groups:
+      python-deps:
         patterns: ["*"]
         update-types: ["patch", "minor"]
+
+  - package-ecosystem: "pip"
+    directories:
+      - "/sdks/python/examples/quickstart"
+      - "/cmd/hatchet-cli/cli/templates/python/poetry"
+      - "/cmd/hatchet-cli/cli/templates/python/pip"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["*"]
+
+  - package-ecosystem: "uv"
+    directories:
+      - "/cmd/hatchet-cli/cli/templates/python/uv"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["*"]
 
   - package-ecosystem: "npm"
     directories:
@@ -79,10 +105,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: "npm"
-    directories:
-      - "/sdks/typescript"
-      - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
-      - "/examples/typescript"
+    directory: "/sdks/typescript"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -101,10 +124,26 @@ updates:
       npm-sdk-dev-deps:
         patterns: ["*"]
 
-  - package-ecosystem: "bundler"
+  - package-ecosystem: "npm"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["*"]
     directories:
-      - "/sdks/ruby/src"
-      - "/sdks/ruby/examples"
+      - "/cmd/hatchet-cli/cli/templates/typescript/npm"
+      - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
+      - "/cmd/hatchet-cli/cli/templates/typescript/yarn"
+
+  - package-ecosystem: "bun"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["*"]
+    directory: "/cmd/hatchet-cli/cli/templates/typescript/bun"
+
+  - package-ecosystem: "bundler"
+    directory: "/sdks/ruby/examples"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["*"]
+
+  - package-ecosystem: "bundler"
+    directory: "/sdks/ruby/src"
     schedule:
       interval: "weekly"
       day: "monday"
