@@ -353,14 +353,42 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	ddlConn, err := sqlchelpers.AcquirePoolConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // 30 minutes
+	if err != nil {
+		return fmt.Errorf("failed to acquire DDL connection: %w", err)
+	}
+
+	lockKey := hash("update-table-partitions")
+	lockAcquired := false
+	defer func() {
+		sqlchelpers.ReleasePoolConnectionWithSessionAdvisoryLock(ddlConn, r.l, lockKey, lockAcquired, "olap-table-partitions")
+	}()
+
+	ddlDB := ddlConn.Conn()
+
+	// Keep the lock and DDL work on one session so a small DDL pool cannot self-deadlock.
+	acquired, err := sqlchelpers.TryAcquireSessionAdvisoryLock(ctx, ddlDB, lockKey)
+	if err != nil {
+		return fmt.Errorf("failed to try advisory lock for OLAP partition operations: %w", err)
+	}
+
+	if !acquired {
+		r.l.Debug().Ctx(ctx).Msg("OLAP partition operations already running on another controller instance, skipping")
+		return nil
+	}
+
+	lockAcquired = true
+
+	r.l.Debug().Ctx(ctx).Msg("acquired advisory lock for OLAP partition operations")
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.olapRetentionPeriod)
 
-	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
+	// important: uses the ddl connection because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err := r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
+	err = r.queries.CreateOLAPPartitions(ctx, ddlDB, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  today,
 			Valid: true,
@@ -373,7 +401,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
+		err = r.queries.CreateOLAPEventPartitions(ctx, ddlDB, pgtype.Date{
 			Time:  today,
 			Valid: true,
 		})
@@ -384,7 +412,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionOtelTables {
-		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
+		err = r.queries.CreateOLAPOtelPartitions(ctx, ddlDB, pgtype.Date{
 			Time:  today,
 			Valid: true,
 		})
@@ -394,7 +422,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	err = r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
+	err = r.queries.CreateOLAPPartitions(ctx, ddlDB, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  tomorrow,
 			Valid: true,
@@ -407,7 +435,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
+		err = r.queries.CreateOLAPEventPartitions(ctx, ddlDB, pgtype.Date{
 			Time:  tomorrow,
 			Valid: true,
 		})
@@ -418,7 +446,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionOtelTables {
-		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
+		err = r.queries.CreateOLAPOtelPartitions(ctx, ddlDB, pgtype.Date{
 			Time:  tomorrow,
 			Valid: true,
 		})
@@ -437,7 +465,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		},
 	}
 
-	partitions, err := r.queries.ListOLAPPartitionsBeforeDate(ctx, r.ddlPool, params)
+	partitions, err := r.queries.ListOLAPPartitionsBeforeDate(ctx, ddlDB, params)
 
 	if err != nil {
 		return err
@@ -450,34 +478,24 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range partitions {
 		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // 30 minutes
-
-		if err != nil {
-			return err
-		}
-
 		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
-		_, err = conn.Exec(
+		_, err = ddlDB.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
-			release()
 			return err
 		}
 
-		_, err = conn.Exec(
+		_, err = ddlDB.Exec(
 			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {
-			release()
 			return err
 		}
-
-		release()
 	}
 
 	return nil
