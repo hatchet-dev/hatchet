@@ -4,6 +4,7 @@ import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-too
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
@@ -42,7 +43,8 @@ export default function Workers() {
     resetFilters,
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:workers', {});
 
   const handleSetOpenLabelsPopover = useCallback(
     (id: string | null) => setOpenLabelsPopover(id),

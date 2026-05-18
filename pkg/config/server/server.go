@@ -695,6 +695,8 @@ type ServerConfig struct {
 	CronOperations CronOperationsConfigFile
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile
+
+	MQMaxDeathCount int
 }
 
 type PayloadStoreConfig struct {

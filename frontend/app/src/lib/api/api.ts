@@ -19,7 +19,7 @@ declare module 'axios' {
     // When set, the interceptor skips the localStorage fallback.
     xTenantId?: string;
     // Forces the exchange token interceptor to run even for non-tenant-scoped
-    // endpoints (e.g. /api/v1/billing/plans).
+    // endpoints (e.g. /api/v1/control-plane/billing/plans).
     useExchangeToken?: boolean;
   }
   // InternalAxiosRequestConfig is what the interceptor receives after Axios

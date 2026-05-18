@@ -1,6 +1,12 @@
 import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi } from './api';
+import api, { cloudApi, controlPlaneApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
+import {
+  type SubscriptionPlanList,
+  type TenantBillingState,
+  type TenantCreditBalance,
+  type TenantPaymentMethodList,
+} from './generated/control-plane/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import invariant from 'tiny-invariant';
 
@@ -27,32 +33,57 @@ type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
 type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
-  cloud: {
+  controlPlane: {
     billing: (tenant: string) => ({
-      queryKey: ['billing-state:get', tenant],
-      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
-    }),
-    creditBalance: (tenant: string) => ({
-      queryKey: ['credit-balance:get', tenant],
-      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
-    }),
-    subscriptionPlans: () => ({
-      queryKey: ['subscription-plans:list'],
+      queryKey: ['control-plane-billing-state:get', tenant],
       queryFn: async () =>
         (
-          await cloudApi.subscriptionPlansList({
+          await controlPlaneApi.request<TenantBillingState>({
+            path: `/api/v1/control-plane/billing/tenants/${tenant}`,
+            method: 'GET',
             secure: true,
-            useExchangeToken: true,
+            format: 'json',
           })
         ).data,
     }),
-
-    paymentMethods: (tenant: string) => ({
-      queryKey: ['payment-methods:get', tenant],
+    creditBalance: (tenant: string) => ({
+      queryKey: ['control-plane-credit-balance:get', tenant],
       queryFn: async () =>
-        (await cloudApi.tenantPaymentMethodsGet(tenant)).data,
+        (
+          await controlPlaneApi.request<TenantCreditBalance>({
+            path: `/api/v1/control-plane/billing/tenants/${tenant}/credit-balance`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
     }),
-
+    subscriptionPlans: () => ({
+      queryKey: ['control-plane-subscription-plans:list'],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.request<SubscriptionPlanList>({
+            path: `/api/v1/control-plane/billing/plans`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
+    }),
+    paymentMethods: (tenant: string) => ({
+      queryKey: ['control-plane-payment-methods:get', tenant],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.request<TenantPaymentMethodList>({
+            path: `/api/v1/control-plane/billing/tenants/${tenant}/payment-methods`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
+    }),
+  },
+  cloud: {
     getComputeCost: (tenant: string) => ({
       queryKey: ['compute-cost:get', tenant],
       queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
