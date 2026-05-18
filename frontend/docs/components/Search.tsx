@@ -315,19 +315,26 @@ export default function Search({ className }: { className?: string }) {
     }
 
     function runSearch(idx: MiniSearch) {
-      try {
-        const expanded = expandSynonyms(query);
-        const raw = idx.search(expanded, SEARCH_OPTIONS);
-        // Rerank against the original query so title matching is accurate
-        const reranked = rerankResults(raw, query).slice(0, 20);
-        setResults(reranked);
-        searchSessionRef.current.resultCount = reranked.length;
-      } catch {
-        // Gracefully handle invalid queries (e.g. punctuation-only input)
-        setResults([]);
-        searchSessionRef.current.resultCount = 0;
-      }
-    }
+  try {
+    const expanded = expandSynonyms(query);
+    const raw = idx.search(expanded, SEARCH_OPTIONS);
+    const reranked = rerankResults(raw, query).slice(0, 20);
+    const visibleResults = reranked.filter(result => !result.hidden);
+
+    console.log("SEARCH DEBUG:", {
+      query,
+      raw: raw.map(r => ({ id: r.id, hidden: r.hidden })),
+      reranked: reranked.map(r => ({ id: r.id, hidden: r.hidden })),
+      visible: visibleResults.map(r => ({ id: r.id, hidden: r.hidden })),
+    });
+
+    setResults(visibleResults);
+    searchSessionRef.current.resultCount = reranked.length;
+  } catch {
+    setResults([]);
+    searchSessionRef.current.resultCount = 0;
+  }
+}
 
     if (!indexReady) {
       setLoading(true);
