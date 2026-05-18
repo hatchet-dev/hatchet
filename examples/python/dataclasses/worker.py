@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 
 # > Dataclasses
@@ -15,8 +15,6 @@ class Output:
     message: str
 
 
-
-
 hatchet = Hatchet()
 
 
@@ -24,8 +22,6 @@ hatchet = Hatchet()
 @hatchet.task(input_validator=Input)
 def say_hello(input: Input, ctx: Context) -> Output:
     return Output(message=f"Hello, {input.name}!")
-
-
 
 
 def main() -> None:

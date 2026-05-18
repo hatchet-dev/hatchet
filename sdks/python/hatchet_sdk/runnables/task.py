@@ -1,5 +1,4 @@
 import asyncio
-import warnings
 from collections.abc import AsyncIterator, Callable
 from contextlib import (
     AbstractAsyncContextManager,
@@ -7,6 +6,7 @@ from contextlib import (
     asynccontextmanager,
 )
 from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -23,7 +23,6 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
@@ -38,14 +37,12 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
-from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
     R,
@@ -61,7 +58,7 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
@@ -116,15 +113,6 @@ class Depends(Generic[T, TWorkflowInput]):
 
         self._fn = fn
 
-    @property
-    def fn(self) -> "DependencyFunc[T, TWorkflowInput]":
-        warn(
-            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._fn
-
 
 @dataclass
 class DependencyToInject:
@@ -151,8 +139,8 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        execution_timeout: Duration,
-        schedule_timeout: Duration,
+        execution_timeout: timedelta,
+        schedule_timeout: timedelta,
         parents: "list[Task[TWorkflowInput, Any]] | None",
         retries: int,
         rate_limits: list[CreateTaskRateLimit] | None,
@@ -177,12 +165,7 @@ class Task(Generic[TWorkflowInput, R]):
         self._is_async_function = is_async_fn(self._fn)  # type: ignore
 
         if is_durable and not self._is_async_function:
-            warnings.warn(
-                "Non-async durable tasks are deprecated and will be removed in v2.0.0. "
-                "Please convert your durable task to an async function.",
-                DeprecationWarning,
-                stacklevel=4,
-            )
+            raise TypeError("Durable tasks must be async functions.")
 
         self._workflow = workflow
 
@@ -212,63 +195,7 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         if not self._is_async_function and self._is_durable:
-            logger.warning(
-                f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
-            )
-
-    @property
-    def fn(self):  # type: ignore[no-untyped-def]
-        warnings.warn(
-            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._fn
-
-    @property
-    def is_async_function(self) -> bool:
-        warnings.warn(
-            "The is_async_function property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._is_async_function
-
-    @property
-    def is_durable(self) -> bool:
-        warnings.warn(
-            "The is_durable property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._is_durable
-
-    @property
-    def slot_requests(self) -> dict[str, int]:
-        warnings.warn(
-            "The slot_requests property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slot_requests
-
-    @property
-    def workflow(self) -> "Workflow[TWorkflowInput]":
-        warnings.warn(
-            "The workflow property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow
-
-    @property
-    def validators(self) -> TaskIOValidator:
-        warnings.warn(
-            "The validators property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._validators
+            raise TypeError("Durable tasks must be async functions.")
 
     async def _parse_maybe_cm_param(
         self,
@@ -586,9 +513,6 @@ class Task(Generic[TWorkflowInput, R]):
             admin_client=self._workflow._client._client.admin,
             event_client=self._workflow._client._client.event,
             durable_event_listener=None,
-            worker=WorkerContext(
-                labels=[], client=self._workflow._client._client.dispatcher
-            ),
             runs_client=self._workflow._client._client.runs,
             lifespan_context=lifespan_context,
             log_sender=AsyncLogSender(self._workflow._client._client.event),

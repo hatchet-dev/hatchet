@@ -1,6 +1,5 @@
 import time
 from typing import TYPE_CHECKING, Any
-from warnings import warn
 
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
@@ -33,43 +32,8 @@ class WorkflowRunRef:
     def workflow_run_id(self) -> str:
         return self._workflow_run_id
 
-    @property
-    def workflow_run_listener(self) -> PooledWorkflowRunListener:
-        warn(
-            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_listener
-
-    @property
-    def workflow_run_event_listener(self) -> RunEventListenerClient:
-        warn(
-            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow_run_event_listener
-
-    @property
-    def admin_client(self) -> "AdminClient":
-        warn(
-            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._admin_client
-
     def _stream(self) -> RunEventListener:
         return self._workflow_run_event_listener.stream(self.workflow_run_id)
-
-    def stream(self) -> RunEventListener:
-        warn(
-            "The stream method is internal and should not be used directly. It will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._stream()
 
     async def aio_result(self) -> dict[str, Any]:
         return await self._workflow_run_listener.aio_result(self.workflow_run_id)

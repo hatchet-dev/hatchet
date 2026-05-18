@@ -1,7 +1,7 @@
 import json
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.exceptions import TaskRunError
 
 hatchet = Hatchet()
@@ -16,14 +16,14 @@ on_failure_wf = hatchet.workflow(name="OnFailureWorkflow")
 
 
 @on_failure_wf.task(execution_timeout=timedelta(seconds=1))
-def step1(input: EmptyModel, ctx: Context) -> None:
+def step1(input: None, ctx: Context) -> None:
     # 👀 this step will always raise an exception
     raise Exception(ERROR_TEXT)
 
 
 # 👀 After the workflow fails, this special step will run
 @on_failure_wf.on_failure_task()
-def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def on_failure(input: None, ctx: Context) -> dict[str, str]:
     # 👀 we can do things like perform cleanup logic
     # or notify a user here
 
@@ -31,8 +31,6 @@ def on_failure(input: EmptyModel, ctx: Context) -> dict[str, str]:
     print(ctx.task_run_errors)
 
     return {"status": "success"}
-
-
 
 
 # > OnFailure With Details
@@ -44,13 +42,13 @@ on_failure_wf_with_details = hatchet.workflow(name="OnFailureWorkflowWithDetails
 
 # ... defined as above
 @on_failure_wf_with_details.task(execution_timeout=timedelta(seconds=1))
-def details_step1(input: EmptyModel, ctx: Context) -> None:
+def details_step1(input: None, ctx: Context) -> None:
     raise Exception(ERROR_TEXT)
 
 
 # 👀 After the workflow fails, this special step will run
 @on_failure_wf_with_details.on_failure_task()
-def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
+def details_on_failure(input: None, ctx: Context) -> dict[str, str | None]:
     error = ctx.get_task_run_error(details_step1)
 
     if not error:
@@ -66,8 +64,6 @@ def details_on_failure(input: EmptyModel, ctx: Context) -> dict[str, str | None]
         }
 
     raise Exception("unexpected failure")
-
-
 
 
 def main() -> None:

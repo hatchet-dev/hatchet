@@ -24,19 +24,19 @@ dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
 
 
 @dag_child_workflow.task()
-async def dag_child_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def dag_child_1(input: None, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(1)
     return {"result": "child1"}
 
 
 @dag_child_workflow.task(parents=[dag_child_1])
-async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def dag_child_2(input: None, ctx: Context) -> dict[str, str]:
     await asyncio.sleep(5)
     return {"result": "child2"}
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
-async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def durable_spawn_dag(input: None, ctx: DurableContext) -> dict[str, Any]:
     # NOTE: typically its not safe to use time.time() in a durable task, but
     # this test assumes that the task is not replayed or evicted and it is
     # used to ensure that the waits are accurate relative to the single invocation.
@@ -70,7 +70,7 @@ REPLAY_RESET_SLEEP_TIME = 3
 
 
 @durable_workflow.task()
-async def ephemeral_task(input: EmptyModel, ctx: Context) -> None:
+async def ephemeral_task(input: None, ctx: Context) -> None:
     print("Running non-durable task")
 
 
@@ -79,7 +79,7 @@ class AwaitedEvent(BaseModel):
 
 
 @durable_workflow.durable_task()
-async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str | int]:
+async def durable_task(input: None, ctx: DurableContext) -> dict[str, str | int]:
     print("Waiting for sleep")
     sleep = await ctx.aio_sleep_for(duration=timedelta(seconds=SLEEP_TIME))
     print("Sleep finished")
@@ -97,14 +97,12 @@ async def durable_task(input: EmptyModel, ctx: DurableContext) -> dict[str, str 
     }
 
 
-
-
 # > Add durable tasks that wait for or groups
 
 
 @durable_workflow.durable_task()
 async def wait_for_or_group_1(
-    _i: EmptyModel, ctx: DurableContext
+    _i: None, ctx: DurableContext
 ) -> dict[str, str | int | float]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
@@ -125,11 +123,9 @@ async def wait_for_or_group_1(
     }
 
 
-
-
 @durable_workflow.durable_task()
 async def wait_for_or_group_2(
-    _i: EmptyModel, ctx: DurableContext
+    _i: None, ctx: DurableContext
 ) -> dict[str, str | int | float]:
     start = time.time()
     wait_result = await ctx.aio_wait_for(
@@ -151,9 +147,7 @@ async def wait_for_or_group_2(
 
 
 @durable_workflow.durable_task()
-async def wait_for_multi_sleep(
-    _i: EmptyModel, ctx: DurableContext
-) -> dict[str, str | float]:
+async def wait_for_multi_sleep(_i: None, ctx: DurableContext) -> dict[str, str | float]:
     start = time.time()
 
     for _ in range(3):
@@ -167,12 +161,12 @@ async def wait_for_multi_sleep(
 
 
 @ephemeral_workflow.task()
-def ephemeral_task_2(input: EmptyModel, ctx: Context) -> None:
+def ephemeral_task_2(input: None, ctx: Context) -> None:
     print("Running non-durable task")
 
 
 @hatchet.durable_task()
-async def memo_now_caching(_i: EmptyModel, ctx: DurableContext) -> dict[str, str]:
+async def memo_now_caching(_i: None, ctx: DurableContext) -> dict[str, str]:
     now = await ctx.aio_now()
     return {
         "start_time": now.isoformat(),
@@ -180,9 +174,7 @@ async def memo_now_caching(_i: EmptyModel, ctx: DurableContext) -> dict[str, str
 
 
 @hatchet.durable_task()
-async def wait_for_sleep_twice(
-    input: EmptyModel, ctx: DurableContext
-) -> dict[str, float]:
+async def wait_for_sleep_twice(input: None, ctx: DurableContext) -> dict[str, float]:
     try:
         start = time.time()
 
@@ -207,7 +199,7 @@ def spawn_child_task(input: DurableBulkSpawnInput, ctx: Context) -> dict[str, st
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
-async def durable_with_spawn(input: EmptyModel, ctx: DurableContext) -> dict[str, Any]:
+async def durable_with_spawn(input: None, ctx: DurableContext) -> dict[str, Any]:
     child_result = await spawn_child_task.aio_run()
     return {"child_output": child_result}
 
@@ -228,9 +220,7 @@ async def durable_with_bulk_spawn(
 
 
 @hatchet.durable_task()
-async def durable_sleep_event_spawn(
-    input: EmptyModel, ctx: DurableContext
-) -> dict[str, Any]:
+async def durable_sleep_event_spawn(input: None, ctx: DurableContext) -> dict[str, Any]:
     start = time.time()
 
     await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
@@ -343,7 +333,7 @@ class NonDeterminismOutput(BaseModel):
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_non_determinism(
-    input: EmptyModel, ctx: DurableContext
+    input: None, ctx: DurableContext
 ) -> NonDeterminismOutput:
     sleep_time = ctx.attempt_number * 2
 
@@ -370,9 +360,7 @@ class ReplayResetResponse(BaseModel):
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=20))
-async def durable_replay_reset(
-    input: EmptyModel, ctx: DurableContext
-) -> ReplayResetResponse:
+async def durable_replay_reset(input: None, ctx: DurableContext) -> ReplayResetResponse:
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=REPLAY_RESET_SLEEP_TIME))
     sleep_1_duration = time.time() - start

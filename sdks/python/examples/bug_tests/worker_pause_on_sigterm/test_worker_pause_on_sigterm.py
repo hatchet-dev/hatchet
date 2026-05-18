@@ -7,7 +7,7 @@ import psutil
 import pytest
 
 from examples.bug_tests.worker_pause_on_sigterm.worker import long_sleep, WORKER_NAME
-from hatchet_sdk import EmptyModel, Hatchet, RunStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 @pytest.mark.parametrize(
@@ -27,7 +27,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     hatchet: Hatchet,
     on_demand_worker: Popen[Any],
 ) -> None:
-    ref = await long_sleep.aio_run(input=EmptyModel(), wait_for_result=False)
+    ref = await long_sleep.aio_run(wait_for_result=False)
     run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
     await asyncio.sleep(2)

@@ -10,12 +10,10 @@ hatchet = Hatchet()
 
 # > Running a Task from within a Task
 @hatchet.task(name="SpawnTask")
-async def spawn(input: EmptyModel, ctx: Context) -> dict[str, Any]:
+async def spawn(input: None, ctx: Context) -> dict[str, Any]:
     # Simply run the task with the input we received
     result = await child_task.aio_run(
         input=SimpleInput(message="Hello, World!"),
     )
 
     return {"results": result}
-
-

@@ -1,7 +1,7 @@
 import time
 from datetime import timedelta
 
-from hatchet_sdk import Context, EmptyModel, Hatchet, TaskDefaults
+from hatchet_sdk import Context, Hatchet, TaskDefaults
 
 hatchet = Hatchet()
 
@@ -17,10 +17,9 @@ timeout_wf = hatchet.workflow(
 @timeout_wf.task(
     execution_timeout=timedelta(seconds=5), schedule_timeout=timedelta(minutes=10)
 )
-def timeout_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def timeout_task(input: None, ctx: Context) -> dict[str, str]:
     time.sleep(30)
     return {"status": "success"}
-
 
 
 refresh_timeout_wf = hatchet.workflow(name="RefreshTimeoutWorkflow")
@@ -28,13 +27,11 @@ refresh_timeout_wf = hatchet.workflow(name="RefreshTimeoutWorkflow")
 
 # > RefreshTimeout
 @refresh_timeout_wf.task(execution_timeout=timedelta(seconds=4))
-def refresh_task(input: EmptyModel, ctx: Context) -> dict[str, str]:
+def refresh_task(input: None, ctx: Context) -> dict[str, str]:
     ctx.refresh_timeout(timedelta(seconds=10))
     time.sleep(5)
 
     return {"status": "success"}
-
-
 
 
 def main() -> None:
