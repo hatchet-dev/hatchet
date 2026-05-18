@@ -307,6 +307,41 @@ func TestUpdateTablePartitions_RealPartitionCreation(t *testing.T) {
 	t.Logf("Partitions before: %d, after: %d (increase: %d)", countBefore, countAfter, countAfter-countBefore)
 }
 
+func TestUpdateTablePartitions_SingleConnectionDDLPoolCreatesPartition(t *testing.T) {
+	pool, cleanup := setupPostgresWithMigration(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ddlConfig := pool.Config()
+	ddlConfig.MaxConns = 1
+
+	ddlPool, err := pgxpool.NewWithConfig(ctx, ddlConfig)
+	require.NoError(t, err)
+	defer ddlPool.Close()
+
+	queries := sqlcv1.New()
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	repo := &TaskRepositoryImpl{
+		sharedRepository: &sharedRepository{
+			pool:    pool,
+			ddlPool: ddlPool,
+			l:       &logger,
+			queries: queries,
+		},
+		taskRetentionPeriod:   24 * time.Hour,
+		maxInternalRetryCount: 3,
+	}
+
+	err = repo.UpdateTablePartitions(ctx)
+	require.NoError(t, err)
+
+	exists, err := queries.EnsureTablePartitionsExist(ctx, pool)
+	require.NoError(t, err)
+	assert.True(t, exists, "tomorrow's task table partitions should exist")
+}
+
 func TestUpdateTablePartitions_ContextCancellation(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
