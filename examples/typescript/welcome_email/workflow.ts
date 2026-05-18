@@ -25,7 +25,7 @@ export const welcomeEmail = hatchet.durableTask<SignupInput, WelcomeEmailResult>
   executionTimeout: '5m',
   fn: async (input, ctx) => {
     // Step 1: Send the welcome email
-    console.log(`Sending welcome email to ${input.email}: finish your first onboarding step`);
+    ctx.logger.info(`Sending welcome email to ${input.email}: finish your first onboarding step`);
 
     // Step 2: Wait for the user to complete onboarding, or time out
     // (use a longer duration for a more realistic workflow)
@@ -51,12 +51,12 @@ export const welcomeEmail = hatchet.durableTask<SignupInput, WelcomeEmailResult>
 
     if (onboardingCompleted) {
       // Step 3a: User completed onboarding -> skip follow-up
-      console.log(`User ${input.user_id} completed onboarding, skipping follow-up`);
+      ctx.logger.info(`User ${input.user_id} completed onboarding, skipping follow-up`);
       return { userId: input.user_id, welcomeSent: true, followUpSent: false };
     }
 
     // Step 3b: Timeout -> send follow-up email
-    console.log(`Sending follow-up email to ${input.email}: need help finishing onboarding?`);
+    ctx.logger.info(`Sending follow-up email to ${input.email}: need help finishing onboarding?`);
     return { userId: input.user_id, welcomeSent: true, followUpSent: true };
   },
 });
