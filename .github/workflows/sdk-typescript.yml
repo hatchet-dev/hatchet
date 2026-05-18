@@ -64,6 +64,10 @@ jobs:
           cache: true
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
 
+      - name: Configure Bun peer dependencies
+        if: matrix.package-manager == 'bun'
+        run: printf '[install]\npeer = true\n' > bunfig.toml
+
       - name: Install dependencies
         run: ${{ matrix.install-cmd }}
 
@@ -116,6 +120,10 @@ jobs:
           bun-version: latest
           cache: true
           cache-dependency-path: sdks/typescript/pnpm-lock.yaml
+
+      - name: Configure Bun peer dependencies
+        if: matrix.package-manager == 'bun'
+        run: printf '[install]\npeer = true\n' > bunfig.toml
 
       - name: Install dependencies
         run: ${{ matrix.install-cmd }}
