@@ -334,13 +334,20 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.ddlPool, r.l, 600000) // 10 minutes
+	ddlConn, err := sqlchelpers.AcquirePoolConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // 30 minutes
 	if err != nil {
-		return fmt.Errorf("failed to prepare transaction: %w", err)
+		return fmt.Errorf("failed to acquire DDL connection: %w", err)
 	}
-	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, partitionLockKey)
+	lockAcquired := false
+	defer func() {
+		sqlchelpers.ReleasePoolConnectionWithSessionAdvisoryLock(ddlConn, r.l, partitionLockKey, lockAcquired, "core-table-partitions")
+	}()
+
+	ddlDB := ddlConn.Conn()
+
+	// Keep the lock and DDL work on one session so a small DDL pool cannot self-deadlock.
+	acquired, err := sqlchelpers.TryAcquireSessionAdvisoryLock(ctx, ddlDB, partitionLockKey)
 	if err != nil {
 		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
 	}
@@ -350,13 +357,15 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return nil
 	}
 
+	lockAcquired = true
+
 	r.l.Debug().Ctx(ctx).Msg("acquired advisory lock for partition operations")
 
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, ddlDB, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -365,7 +374,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, ddlDB, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
@@ -374,7 +383,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
+	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, ddlDB, pgtype.Date{
 		Time:  removeBefore,
 		Valid: true,
 	})
@@ -390,39 +399,24 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	for _, partition := range partitions {
 		r.l.Debug().Ctx(ctx).Msgf("detaching partition %s", partition.PartitionName)
 
-		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
-
-		if err != nil {
-			return err
-		}
-
 		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
-		_, err = conn.Exec(
+		_, err = ddlDB.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
 		if err != nil {
-			release()
 			return err
 		}
 
-		_, err = conn.Exec(
+		_, err = ddlDB.Exec(
 			ctx,
 			fmt.Sprintf("DROP TABLE %s", partition.PartitionName),
 		)
 
 		if err != nil {
-			release()
 			return err
 		}
-
-		release()
-	}
-
-	err = commit(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil

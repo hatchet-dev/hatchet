@@ -353,7 +353,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	ddlConn, err := r.acquireDDLConnectionWithStatementTimeout(ctx, 30*60*1000) // 30 minutes
+	ddlConn, err := sqlchelpers.AcquirePoolConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // 30 minutes
 	if err != nil {
 		return fmt.Errorf("failed to acquire DDL connection: %w", err)
 	}
@@ -361,13 +361,13 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	lockKey := hash("update-table-partitions")
 	lockAcquired := false
 	defer func() {
-		r.releaseDDLConnection(ddlConn, lockKey, lockAcquired)
+		sqlchelpers.ReleasePoolConnectionWithSessionAdvisoryLock(ddlConn, r.l, lockKey, lockAcquired, "olap-table-partitions")
 	}()
 
 	ddlDB := ddlConn.Conn()
 
 	// Keep the lock and DDL work on one session so a small DDL pool cannot self-deadlock.
-	acquired, err := tryAcquireSessionAdvisoryLock(ctx, ddlDB, lockKey)
+	acquired, err := sqlchelpers.TryAcquireSessionAdvisoryLock(ctx, ddlDB, lockKey)
 	if err != nil {
 		return fmt.Errorf("failed to try advisory lock for OLAP partition operations: %w", err)
 	}
@@ -499,78 +499,6 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (r *OLAPRepositoryImpl) acquireDDLConnectionWithStatementTimeout(ctx context.Context, timeoutMs int) (*pgxpool.Conn, error) {
-	start := time.Now()
-
-	conn, err := r.ddlPool.Acquire(ctx)
-	if err != nil {
-		if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
-			r.l.Error().Dur(
-				"duration", sinceStart,
-			).Int(
-				"acquired_connections", int(r.ddlPool.Stat().AcquiredConns()),
-			).Caller(1).Msgf("long DDL connection acquire with error: %v", err)
-		}
-
-		return nil, err
-	}
-
-	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
-		r.l.Warn().Dur(
-			"duration", sinceStart,
-		).Int(
-			"acquired_connections", int(r.ddlPool.Stat().AcquiredConns()),
-		).Caller(1).Msg("long DDL connection acquire")
-	}
-
-	if _, err = conn.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs)); err != nil {
-		r.releaseDDLConnection(conn, 0, false)
-		return nil, err
-	}
-
-	return conn, nil
-}
-
-func (r *OLAPRepositoryImpl) releaseDDLConnection(conn *pgxpool.Conn, lockKey int64, lockAcquired bool) {
-	if lockAcquired {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		var unlocked bool
-		err := conn.QueryRow(unlockCtx, "SELECT pg_advisory_unlock($1::bigint)", lockKey).Scan(&unlocked)
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to release OLAP partition advisory lock; closing DDL connection")
-			closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer closeCancel()
-
-			if err := conn.Hijack().Close(closeCtx); err != nil {
-				r.l.Error().Err(err).Msg("failed to close DDL connection after advisory lock release failure")
-			}
-
-			return
-		}
-
-		if !unlocked {
-			r.l.Warn().Msg("OLAP partition advisory lock was not held when releasing DDL connection")
-		}
-	}
-
-	resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if _, err := conn.Exec(resetCtx, "SET statement_timeout=30000"); err != nil {
-		r.l.Error().Err(err).Msg("failed to reset statement timeout on released DDL connection")
-	}
-
-	conn.Release()
-}
-
-func tryAcquireSessionAdvisoryLock(ctx context.Context, conn *pgx.Conn, key int64) (bool, error) {
-	var acquired bool
-	err := conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1::bigint)", key).Scan(&acquired)
-	return acquired, err
 }
 
 func (r *OLAPRepositoryImpl) SetReadReplicaPool(pool *pgxpool.Pool) {
