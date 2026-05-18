@@ -48,9 +48,10 @@ var skillsInstallCmd = &cobra.Command{
 	Short: "Install the Hatchet CLI agent skill package into your project",
 	Long: `Install Hatchet CLI agent skills into your project.
 
-Creates the skill directory structure under {dir}/skills/hatchet-cli/ and
-appends a reference section to the project AGENTS.md file.`,
-	Example: `  # Install to current directory (creates ./skills/hatchet-cli/)
+Creates the skill directory structure under {dir}/.agents/skills/hatchet-cli/,
+creates {dir}/.claude/skills/hatchet-cli as a symlink, and appends a reference
+section to the project AGENTS.md file.`,
+	Example: `  # Install to current directory
   hatchet skills install
 
   # Install to a custom base directory
@@ -67,7 +68,7 @@ func init() {
 	rootCmd.AddCommand(skillsCmd)
 	skillsCmd.AddCommand(skillsInstallCmd)
 
-	skillsInstallCmd.Flags().StringVarP(&skillsInstallDir, "dir", "d", ".", "Target base directory (skill installs under {dir}/skills/hatchet-cli/)")
+	skillsInstallCmd.Flags().StringVarP(&skillsInstallDir, "dir", "d", ".", "Target base directory (creates .agents/skills/hatchet-cli, .claude/skills/hatchet-cli, and AGENTS.md)")
 	skillsInstallCmd.Flags().BoolVarP(&skillsInstallForce, "force", "f", false, "Skip confirmation prompts")
 }
 
@@ -82,7 +83,8 @@ func runSkillsInstall() {
 		cli.Logger.Fatalf("could not resolve directory: %v", err)
 	}
 
-	skillDir := filepath.Join(baseDir, "skills", "hatchet-cli")
+	skillDir := filepath.Join(baseDir, ".agents", "skills", "hatchet-cli")
+	claudeSkillDir := filepath.Join(baseDir, ".claude", "skills", "hatchet-cli")
 	agentsFile := filepath.Join(baseDir, "AGENTS.md")
 
 	// 2. Print header and summary
@@ -98,6 +100,7 @@ func runSkillsInstall() {
 	fmt.Printf("  %s\n", skillDir+"/references/trigger-and-watch.md")
 	fmt.Printf("  %s\n", skillDir+"/references/debug-run.md")
 	fmt.Printf("  %s\n", skillDir+"/references/replay-run.md")
+	fmt.Printf("  %s  (symlink → %s)\n", claudeSkillDir, skillDir)
 	fmt.Println()
 	fmt.Printf("  %s  (appended)\n", agentsFile)
 	fmt.Println()
@@ -229,6 +232,19 @@ func runSkillsInstall() {
 		fmt.Printf("  ⚠ Could not create CLAUDE.md symlink: %v\n", symlinkErr)
 	}
 
+	if mkdirErr := os.MkdirAll(filepath.Dir(claudeSkillDir), 0o755); mkdirErr != nil {
+		cli.Logger.Fatalf("could not create .claude skills directory: %v", mkdirErr)
+	}
+
+	claudeTarget, relErr := filepath.Rel(filepath.Dir(claudeSkillDir), skillDir)
+	if relErr != nil {
+		claudeTarget = skillDir
+	}
+	_ = os.Remove(claudeSkillDir)
+	if symlinkErr := os.Symlink(claudeTarget, claudeSkillDir); symlinkErr != nil {
+		fmt.Printf("  ⚠ Could not create .claude skill symlink: %v\n", symlinkErr)
+	}
+
 	fmt.Println(styles.SuccessMessage("Skill installed to " + skillDir))
 
 	// 7. Append to project AGENTS.md
@@ -270,7 +286,7 @@ func runSkillsInstall() {
 	fmt.Println(styles.Section("Next steps"))
 	fmt.Println()
 	fmt.Println("  • Run " + styles.Code.Render("hatchet docs install") + " to add the Hatchet MCP server to your AI editor")
-	fmt.Println("  • Commit " + styles.Code.Render("skills/") + " and " + styles.Code.Render("AGENTS.md") + " to version control")
+	fmt.Println("  • Commit " + styles.Code.Render(".agents/") + ", " + styles.Code.Render(".claude/") + ", and " + styles.Code.Render("AGENTS.md") + " to version control")
 	fmt.Println()
 }
 
