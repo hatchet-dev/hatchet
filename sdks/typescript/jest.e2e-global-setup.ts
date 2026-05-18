@@ -69,10 +69,8 @@ export default async function globalSetup(): Promise<void> {
   };
 
   const child = spawn(
-    'pnpm',
+    path.join(process.cwd(), 'node_modules/.bin/ts-node'),
     [
-      'exec',
-      'ts-node',
       '-r',
       'tsconfig-paths/register',
       '-P',
