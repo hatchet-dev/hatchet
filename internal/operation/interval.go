@@ -159,7 +159,11 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 		i.noActivityCount++
 
 		if i.noActivityCount >= i.incBackoffCount {
-			i.currInterval *= 2
+			if i.currInterval > i.maxInterval/2 {
+				i.currInterval = i.maxInterval
+			} else {
+				i.currInterval *= 2
+			}
 			i.noActivityCount = 0
 		}
 	}

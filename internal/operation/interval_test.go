@@ -158,6 +158,26 @@ func TestInterval_SetIntervalGauge_BackoffMechanism(t *testing.T) {
 	assert.Equal(t, 200*time.Millisecond, interval.currInterval, "Should double again after 3 more zero-row updates")
 }
 
+func TestInterval_SetIntervalGauge_CapsBeforeOverflow(t *testing.T) {
+	const maxDuration = time.Duration(1<<63 - 1)
+
+	interval := &Interval{
+		resourceId:      testResourceID,
+		maxJitter:       0,
+		startInterval:   time.Second,
+		currInterval:    maxDuration/2 + 1,
+		maxInterval:     maxDuration,
+		noActivityCount: 0,
+		incBackoffCount: 1,
+		repo:            v1.NewNoOpIntervalSettingsRepository(),
+	}
+
+	interval.SetIntervalGauge(0)
+
+	assert.Equal(t, maxDuration, interval.currInterval, "Should cap before doubling overflows")
+	assert.Equal(t, 0, interval.noActivityCount, "Should reset count after backoff")
+}
+
 func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {
 	interval := &Interval{
 		resourceId:      testResourceID,
