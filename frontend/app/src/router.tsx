@@ -109,15 +109,6 @@ const organizationsIndexRoute = createRoute({
   ),
 });
 
-const organizationsBillingRoute = createRoute({
-  getParentRoute: () => organizationsRoute,
-  path: 'billing-and-usage',
-  component: lazyRouteComponent(
-    () => import('./pages/organizations/$organization/billing-and-usage'),
-    'default',
-  ),
-});
-
 const tenantsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants',
@@ -583,18 +574,6 @@ const tenantLegacySettingsBillingAndLimitsRedirectRoute = createRoute({
 const tenantSettingsBillingRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'settings/billing-and-usage',
-  loader: async ({ params }) => {
-    const orgId = await getOrganizationIdForTenantInRouter(params.tenant);
-
-    if (orgId) {
-      throw redirect({
-        to: appRoutes.organizationsBillingRoute.to,
-        params: { organization: orgId },
-      });
-    }
-
-    return null;
-  },
   component: lazyRouteComponent(
     () => import('./pages/main/v1/tenant-settings/resource-limits'),
     'default',
@@ -883,10 +862,7 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
     redeemOffersRoute,
-    organizationsRoute.addChildren([
-      organizationsIndexRoute,
-      organizationsBillingRoute,
-    ]),
+    organizationsRoute.addChildren([organizationsIndexRoute]),
     organizationsNewRoute,
     tenantsRoute.addChildren([tenantsIndexRoute]),
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
@@ -917,7 +893,6 @@ export const appRoutes = {
   redeemOffersRoute,
   organizationsRoute,
   organizationsIndexRoute,
-  organizationsBillingRoute,
   organizationsNewRoute,
   tenantsRoute,
   tenantsIndexRoute,
