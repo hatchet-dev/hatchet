@@ -1,4 +1,5 @@
 import { BillingRequired } from './components/billing-required';
+import { ManagedWorkersGate } from './components/managed-workers-gate';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
@@ -16,7 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-export default function ManagedWorkers() {
+function ManagedWorkersImpl() {
   const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
@@ -202,4 +203,8 @@ export default function ManagedWorkers() {
       <UpgradeModal />
     </div>
   );
+}
+
+export default function ManagedWorkers() {
+  return <ManagedWorkersGate>{ManagedWorkersImpl()}</ManagedWorkersGate>;
 }

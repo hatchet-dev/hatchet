@@ -1,3 +1,4 @@
+import { ManagedWorkersGate } from '../components/managed-workers-gate';
 import GithubButton from './components/github-button';
 import { ManagedWorkerActivity } from './components/managed-worker-activity';
 import { ManagedWorkerInstancesTable } from './components/managed-worker-instances-table';
@@ -30,7 +31,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useState } from 'react';
 
-export default function ExpandedWorkflow() {
+function ExpandedWorkflowImpl() {
   const navigate = useNavigate();
   const [deleteWorker, setDeleteWorker] = useState(false);
   const { tenantId } = useCurrentTenantId();
@@ -216,4 +217,7 @@ export default function ExpandedWorkflow() {
       </div>
     </div>
   );
+}
+export default function ExpandedWorkflow() {
+  return <ManagedWorkersGate>{ExpandedWorkflowImpl()}</ManagedWorkersGate>;
 }
