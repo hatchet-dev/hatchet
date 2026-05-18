@@ -10,9 +10,9 @@ durableSleep.durableTask({
   name: 'durable-sleep',
   executionTimeout: '10m',
   fn: async (_, ctx) => {
-    console.log('sleeping for 5s');
+    ctx.logger.info('sleeping for 5s');
     const sleepRes = await ctx.sleepFor('5s');
-    console.log('done sleeping for 5s', sleepRes);
+    ctx.logger.info('done sleeping for 5s', { sleepRes });
 
     return {
       Value: 'done',
