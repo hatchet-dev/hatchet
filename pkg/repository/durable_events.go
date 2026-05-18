@@ -158,17 +158,19 @@ type NonDeterminismDetail struct {
 }
 
 type NonDeterminismError struct {
-	Detail                  *NonDeterminismDetail
-	ExistingEntryInsertedAt pgtype.Timestamptz
-	ExpectedKind            sqlcv1.V1DurableEventLogKind
-	ActualKind              sqlcv1.V1DurableEventLogKind
-	ExpectedIdempotencyKey  []byte
-	ActualIdempotencyKey    []byte
-	NodeId                  int64
-	BranchId                int64
-	ExistingEntryId         int64
-	TaskExternalId          uuid.UUID
-	ExistingEntryTenantId   uuid.UUID
+	Detail                               *NonDeterminismDetail
+	ExistingEntryInsertedAt              pgtype.Timestamptz
+	ExpectedKind                         sqlcv1.V1DurableEventLogKind
+	ActualKind                           sqlcv1.V1DurableEventLogKind
+	ExpectedIdempotencyKey               []byte
+	ActualIdempotencyKey                 []byte
+	NodeId                               int64
+	BranchId                             int64
+	ExistingEntryId                      int64
+	TaskExternalId                       uuid.UUID
+	ExistingEntryTenantId                uuid.UUID
+	ExistingEntryExternalId              uuid.UUID
+	ExistingEntryResultPayloadExternalId uuid.UUID
 }
 
 func (m *NonDeterminismError) Error() string {
@@ -493,6 +495,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
+			ExternalId: row.ResultPayloadExternalID,
 		}
 	}
 
@@ -510,6 +513,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			InsertedAt: row.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   tenantId,
+			ExternalId: row.ResultPayloadExternalID,
 		}
 
 		payload := payloads[retrieveOpt]
@@ -739,16 +743,18 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 
 		if !bytes.Equal(o.IdempotencyKey, existingEntry.IdempotencyKey) {
 			return nil, &NonDeterminismError{
-				BranchId:                o.BranchId,
-				NodeId:                  o.NodeId,
-				TaskExternalId:          opts.DurableTaskExternalId,
-				ExpectedIdempotencyKey:  existingEntry.IdempotencyKey,
-				ActualIdempotencyKey:    o.IdempotencyKey,
-				ExpectedKind:            existingEntry.Kind,
-				ActualKind:              o.Kind,
-				ExistingEntryId:         existingEntry.ID,
-				ExistingEntryInsertedAt: existingEntry.InsertedAt,
-				ExistingEntryTenantId:   existingEntry.TenantID,
+				BranchId:                             o.BranchId,
+				NodeId:                               o.NodeId,
+				TaskExternalId:                       opts.DurableTaskExternalId,
+				ExpectedIdempotencyKey:               existingEntry.IdempotencyKey,
+				ActualIdempotencyKey:                 o.IdempotencyKey,
+				ExpectedKind:                         existingEntry.Kind,
+				ActualKind:                           o.Kind,
+				ExistingEntryId:                      existingEntry.ID,
+				ExistingEntryInsertedAt:              existingEntry.InsertedAt,
+				ExistingEntryTenantId:                existingEntry.TenantID,
+				ExistingEntryExternalId:              existingEntry.ExternalID,
+				ExistingEntryResultPayloadExternalId: existingEntry.ResultPayloadExternalID,
 			}
 		}
 
@@ -846,6 +852,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			InsertedAt: entry.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   opts.TenantId,
+			ExternalId: entry.ResultPayloadExternalID,
 		})
 	}
 
@@ -868,6 +875,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 					InsertedAt: existingEntry.InsertedAt,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 					TenantId:   opts.TenantId,
+					ExternalId: existingEntry.ResultPayloadExternalID,
 				}]
 			}
 			results[i] = &EventLogEntryWithPayloads{
@@ -1063,15 +1071,19 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				InsertedAt: nde.ExistingEntryInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 				TenantId:   nde.ExistingEntryTenantId,
+				ExternalId: nde.ExistingEntryExternalId,
 			})
+
 			if retrieveErr == nil {
 				existingPayload = payloads[RetrievePayloadOpts{
 					Id:         nde.ExistingEntryId,
 					InsertedAt: nde.ExistingEntryInsertedAt,
 					Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
 					TenantId:   nde.ExistingEntryTenantId,
+					ExternalId: nde.ExistingEntryExternalId,
 				}]
 			}
+
 			nde.Detail = nonDeterminismDetail(opts, nde.ExpectedKind, existingPayload)
 		}
 
@@ -1385,6 +1397,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			InsertedAt: row.SeenAt,
 			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
 			TenantId:   tenantId,
+			ExternalId: row.ExternalID,
 		})
 	}
 
@@ -1402,6 +1415,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 			InsertedAt: row.SeenAt,
 			Type:       sqlcv1.V1PayloadTypeUSEREVENTINPUT,
 			TenantId:   tenantId,
+			ExternalId: row.ExternalID,
 		}
 
 		payload, ok := retrieveOptsToPayload[retrieveOpts]
