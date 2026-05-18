@@ -563,9 +563,17 @@ const tenantSettingsAlertingRoute = createRoute({
   },
 });
 
-const tenantSettingsBillingRoute = createRoute({
+const tenantLegacySettingsBillingAndLimitsRedirectRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'settings/billing-and-limits',
+  loader: ({ params }) => {
+    throw redirect({ to: appRoutes.tenantSettingsBillingRoute.to, params });
+  },
+});
+
+const tenantSettingsBillingRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'settings/billing-and-usage',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/tenant-settings/resource-limits'),
     'default',
@@ -784,6 +792,7 @@ const tenantSettingsSubpathRedirect = createRoute({
       tenantSettingsMembersRoute.path,
       tenantSettingsOrganizationRoute.path,
       tenantSettingsOverviewRoute.path,
+      tenantLegacySettingsBillingAndLimitsRedirectRoute.path,
     ].map((p) => p.split('/').pop());
 
     if (!tenantId || !subpath || !allowedSubpaths.includes(subpath)) {
@@ -835,6 +844,7 @@ const tenantRoutes = [
   tenantSettingsMembersRoute,
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
+  tenantLegacySettingsBillingAndLimitsRedirectRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
   tenantSettingsOrganizationRoute,

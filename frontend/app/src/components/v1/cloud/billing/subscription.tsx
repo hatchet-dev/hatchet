@@ -19,15 +19,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import {
-  TenantSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
   SubscriptionPeriod,
-  Coupon,
   UpdateTenantSubscriptionResponse,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { ContentType } from '@/lib/api/generated/control-plane/http-client';
@@ -37,10 +34,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
-  active?: TenantSubscription;
-  upcoming?: TenantSubscription;
-  plans?: SubscriptionPlan[];
-  coupons?: Coupon[];
+  tenantId: string;
+  organizationId: string | undefined;
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -52,10 +47,8 @@ function formatCurrency(cents: number, period?: string) {
 }
 
 export const Subscription: React.FC<SubscriptionProps> = ({
-  active,
-  upcoming,
-  plans,
-  coupons,
+  tenantId,
+  organizationId,
 }) => {
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
@@ -63,13 +56,24 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     SubscriptionPlan | undefined
   >(undefined);
 
-  const { tenantId } = useCurrentTenantId();
-  const { tenant, billing } = useTenantDetails();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
+  const billingState = useQuery({
+    ...queries.controlPlane.billing(tenantId),
+    retry: false,
+  });
+  const paymentMethodsQuery = useQuery({
+    ...queries.controlPlane.paymentMethods(tenantId),
+    retry: false,
+  });
   const creditBalanceQuery = useQuery({
     ...queries.controlPlane.creditBalance(tenantId),
   });
+  const active = billingState.data?.currentSubscription;
+  const upcoming = billingState.data?.upcomingSubscription;
+  const plans = billingState.data?.plans;
+  const coupons = billingState.data?.coupons;
+  const hasPaymentMethods = (paymentMethodsQuery.data?.length || 0) > 0;
 
   const creditBalance = useMemo(() => {
     const balanceCents = creditBalanceQuery.data?.balanceCents ?? 0;
@@ -209,16 +213,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
   const enterpriseContactUrl = useMemo(() => {
     const baseUrl = 'https://cal.com/team/hatchet/website-demo';
-    if (!tenant) {
-      return baseUrl;
-    }
-    const tenantName = tenant.name || 'Unknown';
-    const tenantUuid = tenant.metadata?.id || tenantId;
-    const notes = `Custom pricing request for tenant '${tenantName}' (${tenantUuid})`;
+    const notes = organizationId
+      ? `Custom pricing request for tenant '${tenantId}' in organization '${organizationId}'`
+      : `Custom pricing request for tenant '${tenantId}'`;
     return `${baseUrl}?notes=${encodeURIComponent(notes)}`;
-  }, [tenant, tenantId]);
+  }, [organizationId, tenantId]);
 
   const isDedicatedPlan = active?.plan === 'dedicated';
+
+  if (billingState.isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -453,7 +462,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               upcomingPlanCode={upcomingPlanCode}
               showAnnual={showAnnual}
               onSelectPlan={(plan) => {
-                if (!billing?.hasPaymentMethods) {
+                if (!hasPaymentMethods) {
                   subscriptionMutation.mutate({ plan_code: plan.planCode });
                 } else {
                   setChangeConfirmOpen(plan);
