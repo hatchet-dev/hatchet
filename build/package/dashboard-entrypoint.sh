@@ -22,5 +22,9 @@ shutdown() {
 ./hatchet-api "$@" &
 HATCHET_API_PID=$!
 
+# Override the template-style {{ .BasePath }} with the envar $BASE_PATH
+: "${BASE_PATH:=/}"
+sed -i "s|{{ .BasePath }}|${BASE_PATH}|g" /usr/share/nginx/html/index.html
+
 # Start NGINX in the foreground
 nginx -g "daemon off;"

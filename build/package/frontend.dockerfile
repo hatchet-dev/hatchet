@@ -24,6 +24,8 @@ RUN chmod +x ./hatchet-staticfileserver
 # Stage 3: Run the static fileserver
 FROM alpine:3.21
 
+ENV BASE_PATH="/"
+
 WORKDIR /app
 
 COPY --from=build /app/dist ./dist
@@ -31,4 +33,4 @@ COPY --from=staticfileserver /app/hatchet-staticfileserver ./hatchet-staticfiles
 
 EXPOSE 80
 
-CMD ["/app/hatchet-staticfileserver", "-static-asset-dir", "/app/dist"]
+CMD ["/bin/sh", "-c", "/app/hatchet-staticfileserver -static-asset-dir /app/dist -base-path ${BASE_PATH}"]
