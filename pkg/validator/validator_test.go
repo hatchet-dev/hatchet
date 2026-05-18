@@ -93,8 +93,33 @@ func TestValidatorDuration(t *testing.T) {
 			input: "5s",
 		},
 		{
+			name:  "minutes and seconds",
+			input: "42m30s",
+		},
+		{
+			name:  "hours minutes seconds",
+			input: "1h30m5s",
+		},
+		{
+			name:  "decimal hour",
+			input: "1.5h",
+		},
+		{
+			name:  "milliseconds",
+			input: "1500ms",
+		},
+		{
+			name:  "negative decimal hour",
+			input: "-1.5h",
+		},
+		{
 			name:       "invalid duration (missing unit)",
 			input:      "5",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (trailing garbage)",
+			input:      "42m30sX",
 			wantErrTag: "duration",
 		},
 	}
