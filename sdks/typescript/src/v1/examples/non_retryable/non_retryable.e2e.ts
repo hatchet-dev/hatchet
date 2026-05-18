@@ -27,7 +27,10 @@ describe('non-retryable-e2e', () => {
           ![V1TaskStatus.QUEUED, V1TaskStatus.RUNNING].includes(d.run.status as any) &&
           d.taskEvents.some(
             (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.RETRYING
-          ),
+          ) &&
+          d.taskEvents.filter(
+            (e: { eventType: V1TaskEventType }) => e.eventType === V1TaskEventType.FAILED
+          ).length >= 3,
       }
     );
 

@@ -16,6 +16,7 @@ async def test_waits(hatchet: Hatchet) -> None:
 
     hatchet.event.push("skip_on_event:skip", {})
     hatchet.event.push("wait_for_event:start", {})
+    await asyncio.sleep(5)
 
     result = await ref.aio_result()
 
