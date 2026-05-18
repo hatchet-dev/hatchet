@@ -116,7 +116,7 @@ export default function ResourceLimits() {
               <div className="flex flex-col items-center gap-y-4 py-8 text-center text-sm text-muted-foreground">
                 <p>No resource limits configured.</p>
                 <DocsButton
-                  doc={docsPages.v1['rate-limits']}
+                  doc={docsPages['self-hosting']['configuration-options']}
                   label="Learn about resource limits"
                 />
               </div>
