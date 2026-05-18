@@ -18,7 +18,7 @@ Then, before contributing, check out the following sections:
 
 Ensure all prerequisite dependencies are installed:
 
-- [Go 1.25+](https://go.dev/doc/install)
+- [Go 1.26+](https://go.dev/doc/install)
 - [Node.js v18+](https://nodejs.org/en/download)
    - We recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions to match the version defined in [`.nvmrc`](.nvmrc)
 - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
