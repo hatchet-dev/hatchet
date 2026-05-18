@@ -31,7 +31,7 @@ export default function ResourceLimits() {
     <div className="h-full w-full flex-grow">
       <SettingsPageHeader
         title="Resource limits"
-        description="Review curently configured resource limits for this tenant. Once limits are exceeded, requests will be rejected."
+        description="Review currently configured resource limits for this tenant. Once limits are exceeded, requests will be rejected."
       />
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         {resourceLimits.length > 0 ? (
