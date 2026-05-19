@@ -841,7 +841,15 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		if err != nil {
 			return nil, err
 		}
-
+		if len(internalFailureRetries) < len(internalFailureTaskIds) {
+			for i, taskId := range internalFailureTaskIds {
+				r.l.Warn().
+					Int64("task_id", taskId).
+					Int32("retry_count", internalFailureTaskRetryCounts[i]).
+					Str("tenant_id", tenantId.String()).
+					Msg("FailTaskInternalFailure skipped task - possible stale v1_task_runtime row with mismatched retry_count")
+			}
+		}
 		for _, task := range internalFailureRetries {
 			retriedTasks = append(retriedTasks, RetriedTask{
 				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
@@ -1319,6 +1327,9 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	if len(toReassign) == 0 {
+		r.l.Error().
+			Str("tenant_id", tenantId.String()).
+			Msg("could not find any tasks to reassign")
 		return &FailTasksResponse{
 			FinalizedTaskResponse: &FinalizedTaskResponse{
 				ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
@@ -1332,6 +1343,11 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	failOpts := make([]FailTaskOpts, 0, len(toReassign))
 
 	for _, task := range toReassign {
+		r.l.Warn().
+			Int64("task_id", task.ID).
+			Int32("retry_count", task.RetryCount).
+			Str("tenant_id", tenantId.String()).
+			Msg("found task to reassign")
 		failOpts = append(failOpts, FailTaskOpts{
 			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
 				Id:         task.ID,

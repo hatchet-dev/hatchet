@@ -22,7 +22,9 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	tenantIdUUID := uuid.MustParse(tenantId)
 
 	res, shouldContinue, err := tc.repov1.Tasks().ProcessTaskReassignments(ctx, tenantIdUUID)
-
+	if !shouldContinue {
+		tc.l.Error().Msg(fmt.Sprintf("Task reassignment stopping: %e", err))
+	}
 	if err != nil {
 		return false, fmt.Errorf("could not list step runs to reassign for tenant %s: %w", tenantId, err)
 	}
