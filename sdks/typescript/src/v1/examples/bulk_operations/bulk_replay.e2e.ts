@@ -28,15 +28,6 @@ describe('bulk-replay-e2e', () => {
 
     const initialRuns = await poll(
       async () => {
-        console.info(
-          await hatchet.runs.list({
-            since,
-            limit: 1000,
-            workflowNames,
-            additionalMetadata: meta,
-            onlyTasks: true,
-          })
-        );
         return await hatchet.runs.list({
           since,
           limit: 1000,

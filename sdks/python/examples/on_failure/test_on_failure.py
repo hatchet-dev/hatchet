@@ -1,6 +1,8 @@
 import asyncio
 
 import pytest
+import tenacity
+from tenacity import stop_after_attempt, wait_exponential
 
 from examples.on_failure.worker import on_failure_wf
 from hatchet_sdk import Hatchet
@@ -17,15 +19,20 @@ async def test_run_timeout(hatchet: Hatchet) -> None:
         assert False, "Expected workflow to timeout"
     except Exception as e:
         assert "step1 failed" in str(e)
-    details: V1WorkflowRunDetails | None = None
-    for _ in range(120):
+
+    @tenacity.retry(
+        stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    async def get_runs() -> V1WorkflowRunDetails:
         details = await hatchet.runs.aio_get(run.workflow_run_id)
         if len(details.tasks) == 2 and all(
-            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
-            for t in details.tasks
-        ):
-            break
-        await asyncio.sleep(0.5)
+                t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
+                for t in details.tasks
+            ):
+            return details
+        raise Exception()
+
+    details = await get_runs()
     assert details
     assert len(details.tasks) == 2
     assert sum(t.status == V1TaskStatus.COMPLETED for t in details.tasks) == 1
