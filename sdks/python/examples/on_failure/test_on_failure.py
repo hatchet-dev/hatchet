@@ -26,14 +26,13 @@ async def test_run_timeout(hatchet: Hatchet) -> None:
     async def get_runs() -> V1WorkflowRunDetails:
         details = await hatchet.runs.aio_get(run.workflow_run_id)
         if len(details.tasks) == 2 and all(
-                t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
-                for t in details.tasks
-            ):
+            t.status in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED]
+            for t in details.tasks
+        ):
             return details
         raise Exception()
 
     details = await get_runs()
-    assert details
     assert len(details.tasks) == 2
     assert sum(t.status == V1TaskStatus.COMPLETED for t in details.tasks) == 1
     assert sum(t.status == V1TaskStatus.FAILED for t in details.tasks) == 1
