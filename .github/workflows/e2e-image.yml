@@ -1,7 +1,5 @@
 name: e2e-image
 on:
-  # remove this when merged
-  pull_request:
   push:
     branches:
       - main
