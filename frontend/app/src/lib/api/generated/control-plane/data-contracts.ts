@@ -10,6 +10,26 @@
  * ---------------------------------------------------------------
  */
 
+export enum CouponFrequency {
+  Once = "once",
+  Recurring = "recurring",
+}
+
+export enum SubscriptionPeriod {
+  Monthly = "monthly",
+  Yearly = "yearly",
+}
+
+export enum SubscriptionPlanCode {
+  Free = "free",
+  Starter = "starter",
+  Growth = "growth",
+  Developer = "developer",
+  Team = "team",
+  Scale = "scale",
+  Dedicated = "dedicated",
+}
+
 /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
 export enum OrganizationAvailableShardClass {
   SHARED = "SHARED",
@@ -398,4 +418,217 @@ export type SsoDomainArray = SsoDomain[];
 export interface SsoConfig {
   /** @example false */
   forceSSO: boolean;
+}
+
+export interface TenantBillingState {
+  /** The subscription associated with this policy. */
+  currentSubscription: TenantBillingStateSubscription;
+  /** The upcoming subscription associated with this policy. */
+  upcomingSubscription?: TenantBillingStateSubscription;
+  /** A list of plans available for the tenant. */
+  plans: SubscriptionPlan[];
+  /** A list of coupons applied to the tenant. */
+  coupons?: Coupon[];
+}
+
+export interface TenantPaymentMethod {
+  /** The brand of the payment method. */
+  brand: string;
+  /** The last 4 digits of the card. */
+  last4?: string;
+  /** The expiration date of the card. */
+  expiration?: string;
+  /** The description of the payment method. */
+  description?: string;
+}
+
+export type TenantPaymentMethodList = TenantPaymentMethod[];
+
+export interface TenantCreditBalance {
+  /** The Stripe customer balance in cents. Negative means customer credit. */
+  balanceCents: number;
+  /** ISO currency code for the Stripe customer balance. */
+  currency: string;
+  /** Human-readable description for the active credit balance, if available. */
+  description?: string;
+  /**
+   * The timestamp at which the current credit balance is scheduled to expire.
+   * @format date-time
+   */
+  expiresAt?: string;
+}
+
+export interface TenantSubscription {
+  /** The plan code associated with the tenant subscription. */
+  plan: SubscriptionPlanCode;
+  /** The period associated with the tenant subscription. */
+  period?: SubscriptionPeriod;
+  /**
+   * The start date of the tenant subscription.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The end date of the tenant subscription.
+   * @format date-time
+   */
+  endsAt?: string;
+}
+
+export interface TenantBillingStateSubscription {
+  /** The plan code associated with the tenant subscription. */
+  plan: SubscriptionPlanCode;
+  /** The period associated with the tenant subscription. */
+  period?: SubscriptionPeriod;
+  /**
+   * The start date of the tenant subscription.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The end date of the tenant subscription.
+   * @format date-time
+   */
+  endsAt?: string;
+}
+
+export interface UpdateTenantSubscriptionState {
+  /** The plan code associated with the tenant subscription. */
+  plan: SubscriptionPlanCode;
+  /** The period associated with the tenant subscription. */
+  period?: SubscriptionPeriod;
+  /**
+   * The start date of the tenant subscription.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The end date of the tenant subscription.
+   * @format date-time
+   */
+  endsAt?: string;
+}
+
+export interface SubscriptionPlanFeatureDisplay {
+  /** Main display text for this feature (e.g. "100,000 task runs"). */
+  primaryText: string;
+  /** Secondary display text (e.g. "then $10 per 1,000,000 task runs"). */
+  secondaryText?: string;
+}
+
+export interface SubscriptionPlanFeatureOverage {
+  /**
+   * Price per billing units of overage usage.
+   * @format double
+   */
+  price: number;
+  /**
+   * Number of units per price increment.
+   * @format int64
+   */
+  billingUnits: number;
+  /** How overage is charged (e.g. "pay_per_use", "prepaid"). */
+  usageModel: string;
+}
+
+export interface SubscriptionPlanFeature {
+  /** The identifier of the feature. */
+  featureId: string;
+  /** Human-readable name of the feature. */
+  name: string;
+  /** The type of the feature (e.g. "boolean", "single_use", "continuous_use"). */
+  featureType: string;
+  /** Whether this feature is part of this plan. False for features added for cross-plan comparison. */
+  included: boolean;
+  /**
+   * The included usage for this feature in the plan.
+   * @format int64
+   */
+  includedUsage: number;
+  /** Whether this feature has unlimited usage. */
+  unlimited: boolean;
+  /** Overage pricing details, if applicable. */
+  overage?: SubscriptionPlanFeatureOverage;
+  /** Pre-formatted display text for this feature. */
+  display?: SubscriptionPlanFeatureDisplay;
+}
+
+export interface SubscriptionPlanFeatureGroup {
+  /** The name of the feature group (e.g. "Usage", "Infrastructure"). */
+  name: string;
+  /** The features in this group. */
+  features: SubscriptionPlanFeature[];
+}
+
+export interface SubscriptionPlan {
+  /** The code of the plan. */
+  planCode: string;
+  /** The name of the plan. */
+  name: string;
+  /** The description of the plan. */
+  description: string;
+  /** The price of the plan. */
+  amountCents: number;
+  /** The period of the plan. */
+  period?: SubscriptionPeriod;
+  /** Whether this is a legacy plan and is no longer offered to new customers. */
+  legacy?: boolean;
+  /** The features included in this plan, organized by group. */
+  featureGroups?: SubscriptionPlanFeatureGroup[];
+}
+
+export interface SubscriptionPlanFreeLimit {
+  /** The feature identifier. */
+  featureId: string;
+  /** Human-readable name of the limit. */
+  name: string;
+  /**
+   * The daily limit value.
+   * @format int64
+   */
+  limit: number;
+}
+
+export interface SubscriptionPlanList {
+  plans: SubscriptionPlan[];
+  /** Abbreviated daily limits for the free plan. */
+  freeLimits: SubscriptionPlanFreeLimit[];
+}
+
+export interface UpdateTenantSubscriptionRequest {
+  /** The code of the plan. */
+  plan: SubscriptionPlanCode;
+  /** The period of the plan. */
+  period?: SubscriptionPeriod;
+}
+
+export interface UpdateTenantSubscriptionResponse {
+  /** The URL to the checkout page. */
+  checkoutUrl?: string;
+  currentSubscription?: UpdateTenantSubscriptionState;
+  upcomingSubscription?: UpdateTenantSubscriptionState;
+}
+
+export interface CheckoutURLResponse {
+  /** The URL to the checkout page. */
+  checkoutUrl: string;
+}
+
+export interface Coupon {
+  /** The name of the coupon. */
+  name: string;
+  /** The amount off of the coupon. */
+  amount_cents?: number;
+  /** The amount remaining on the coupon. */
+  amount_cents_remaining?: number;
+  /** The currency of the coupon. */
+  amount_currency?: string;
+  /** The frequency of the coupon. */
+  frequency: CouponFrequency;
+  /** The frequency duration of the coupon. */
+  frequency_duration?: number;
+  /** The frequency duration remaining of the coupon. */
+  frequency_duration_remaining?: number;
+  /** The percentage off of the coupon. */
+  percent?: number;
 }

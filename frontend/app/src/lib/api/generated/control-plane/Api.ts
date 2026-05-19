@@ -39,14 +39,20 @@ import {
   RemoveOrganizationMembersRequest,
   SsoConfig,
   SsoDomainArray,
+  SubscriptionPlanList,
+  TenantBillingState,
+  TenantCreditBalance,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  TenantPaymentMethodList,
   UpdateOrganizationRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
+  UpdateTenantSubscriptionRequest,
+  UpdateTenantSubscriptionResponse,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -1120,6 +1126,118 @@ export class Api<
       path: `/api/v1/control-plane/tenants/${tenant}/invites/${tenantInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all available subscription plans and their features
+   *
+   * @tags Billing
+   * @name SubscriptionPlansList
+   * @summary List subscription plans
+   * @request GET:/api/v1/control-plane/billing/plans
+   */
+  subscriptionPlansList = (params: RequestParams = {}) =>
+    this.request<SubscriptionPlanList, APIErrors>({
+      path: `/api/v1/control-plane/billing/plans`,
+      method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the billing state for a tenant
+   *
+   * @tags Tenant
+   * @name TenantBillingStateGet
+   * @summary Get the billing state for a tenant
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}
+   * @secure
+   */
+  tenantBillingStateGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantBillingState, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a subscription
+   *
+   * @tags Billing
+   * @name TenantSubscriptionUpdate
+   * @summary Update subscription
+   * @request PATCH:/api/v1/control-plane/billing/tenants/{tenant}/subscription
+   * @secure
+   */
+  tenantSubscriptionUpdate = (
+    tenant: string,
+    data: UpdateTenantSubscriptionRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UpdateTenantSubscriptionResponse, APIErrors>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/subscription`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the billing portal link
+   *
+   * @tags Billing
+   * @name BillingPortalLinkGet
+   * @summary Create a link to the billing portal
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/billing-portal-link
+   * @secure
+   */
+  billingPortalLinkGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<
+      {
+        /** The url to the billing portal */
+        url?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the payment methods for a tenant
+   *
+   * @tags Billing
+   * @name TenantPaymentMethodsGet
+   * @summary Get the payment methods for a tenant
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/payment-methods
+   * @secure
+   */
+  tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantPaymentMethodList, APIErrors>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/payment-methods`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the Stripe credit balance for a tenant
+   *
+   * @tags Billing
+   * @name TenantCreditBalanceGet
+   * @summary Get the Stripe credit balance for a tenant
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/credit-balance
+   * @secure
+   */
+  tenantCreditBalanceGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantCreditBalance, APIErrors>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/credit-balance`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
 }

@@ -8,7 +8,7 @@ export const durableEvent = hatchet.durableTask({
   fn: async (_, ctx) => {
     const res = await ctx.waitForEvent('user:update');
 
-    console.log('res', res);
+    ctx.logger.info('res', { res });
 
     return {
       Value: 'done',
@@ -25,7 +25,7 @@ export const durableEventWithFilter = hatchet.durableTask({
     const res = await ctx.waitForEvent('user:update', "input.userId == '1234'");
     // !!
 
-    console.log('res', res);
+    ctx.logger.info('res', { res });
 
     return {
       Value: 'done',

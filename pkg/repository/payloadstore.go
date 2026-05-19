@@ -46,10 +46,11 @@ type OffloadToExternalStoreOpts struct {
 }
 
 type RetrievePayloadOpts struct {
+	TenantId   uuid.UUID
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
-	TenantId   uuid.UUID
+	ExternalId uuid.UUID
 }
 
 type PayloadLocation string
@@ -291,12 +292,12 @@ func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlc
 
 	optsToPayload, err := p.retrieve(ctx, tx, opt)
 
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
 
-	if len(optsToPayload) == 0 {
-		return nil, pgx.ErrNoRows
+	if len(optsToPayload) == 0 || err == pgx.ErrNoRows {
+		return nil, nil
 	}
 
 	return optsToPayload[opt], nil
@@ -315,23 +316,25 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
 
-	taskIds := make([]int64, len(opts))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
-	payloadTypes := make([]string, len(opts))
+	externalIds := make([]uuid.UUID, len(opts))
+	ids := make([]int64, len(opts))
+	insertedAts := make([]pgtype.Timestamptz, len(opts))
+	types := make([]string, len(opts))
 	tenantIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
-		taskIds[i] = opt.Id
-		taskInsertedAts[i] = opt.InsertedAt
-		payloadTypes[i] = string(opt.Type)
+		externalIds[i] = opt.ExternalId
+		types[i] = string(opt.Type)
+		ids[i] = opt.Id
+		insertedAts[i] = opt.InsertedAt
 		tenantIds[i] = opt.TenantId
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
+		Ids:         ids,
+		Insertedats: insertedAts,
 		Tenantids:   tenantIds,
-		Ids:         taskIds,
-		Insertedats: taskInsertedAts,
-		Types:       payloadTypes,
+		Types:       types,
 	})
 
 	if err != nil {
@@ -353,6 +356,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			InsertedAt: payload.InsertedAt,
 			Type:       payload.Type,
 			TenantId:   payload.TenantID,
+			ExternalId: payload.ExternalID,
 		}
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
@@ -973,7 +977,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * (*p.inlineStoreTTL + 12*time.Hour)),
+		Time:  time.Now().Add(-1 * *p.inlineStoreTTL),
 		Valid: true,
 	}
 

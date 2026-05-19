@@ -142,14 +142,14 @@ export function useTenantDetails() {
   const { cloud, isCloudEnabled } = useCloud();
 
   const billingState = useQuery({
-    ...queries.cloud.billing(tenant?.metadata?.id || ''),
+    ...queries.controlPlane.billing(tenant?.metadata?.id || ''),
     enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
-    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
+    ...queries.controlPlane.paymentMethods(tenant?.metadata?.id || ''),
     enabled: !!tenant && !!cloud?.canBill,
     retry: false,
   });

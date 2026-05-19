@@ -75,6 +75,7 @@ const nextConfig = {
       { source: '/home/hatchet-cloud-quickstart', destination: '/v1/quickstart', permanent: true, basePath: false },
       { source: '/home/coding-agents', destination: '/v1/setup/using-coding-agents', permanent: true, basePath: false },
       { source: '/home/install-docs-mcp', destination: '/v1/setup/using-coding-agents', permanent: true, basePath: false },
+      { source: '/v1/setup/using-coding-agents', destination: '/v1/using-coding-agents', permanent: true, basePath: false },
       { source: '/home/guarantees-and-tradeoffs', destination: '/v1/architecture-and-guarantees', permanent: true, basePath: false },
       { source: '/home/v1-sdk-improvements', destination: '/v1/migrating/v1-sdk-improvements', permanent: true, basePath: false },
       { source: '/home/migration-guide-engine', destination: '/v1/migrating/migration-guide-engine', permanent: true, basePath: false },

@@ -4,7 +4,7 @@ WITH input AS (
         unnest(@dagIds::bigint[]) AS dag_id,
         unnest(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
 )
-SELECT dd.*, d.desired_worker_labels
+SELECT dd.*, d.desired_worker_labels, d.external_id
 FROM v1_dag d
 JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
 WHERE (d.id, d.inserted_at) IN (

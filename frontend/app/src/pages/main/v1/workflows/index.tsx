@@ -7,10 +7,11 @@ import {
   type SearchSuggestion,
 } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 const noopAutocomplete = () => ({ suggestions: [] as SearchSuggestion[] });
 const noopApplySuggestion = (query: string) => query;
@@ -18,7 +19,8 @@ const noopApplySuggestion = (query: string) => query;
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:workflows', {});
 
   const {
     workflows,
