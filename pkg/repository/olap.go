@@ -585,7 +585,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 	if row.OutputEventExternalID != nil {
 		outputPayload, err = r.ReadPayload(ctx, row.TenantID, ReadOLAPPayloadOpts{
 			ExternalId: *row.OutputEventExternalID,
-			InsertedAt: row.InsertedAt,
+			InsertedAt: row.OutputEventInsertedAt,
 		})
 
 		if err != nil {
@@ -665,7 +665,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 	if taskRun.OutputEventExternalID != nil {
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: *taskRun.OutputEventExternalID,
-			InsertedAt: taskRun.InsertedAt,
+			InsertedAt: taskRun.OutputEventInsertedAt,
 		})
 	}
 
@@ -718,6 +718,7 @@ func (r *OLAPRepositoryImpl) ReadTaskRunData(ctx context.Context, tenantId uuid.
 			ErrorMessage:          taskRun.ErrorMessage,
 			RetryCount:            taskRun.RetryCount,
 			OutputEventExternalID: taskRun.OutputEventExternalID,
+			OutputEventInsertedAt: taskRun.OutputEventInsertedAt,
 			IsStandalone:          taskRun.IsStandalone,
 			IsDurable:             taskRun.IsDurable,
 		},
@@ -851,7 +852,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 			if task.OutputEventExternalID != nil {
 				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 					ExternalId: *task.OutputEventExternalID,
-					InsertedAt: task.InsertedAt,
+					InsertedAt: task.OutputEventInsertedAt,
 				})
 			}
 		}
@@ -954,7 +955,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 			if task.OutputEventExternalID != nil {
 				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 					ExternalId: *task.OutputEventExternalID,
-					InsertedAt: task.InsertedAt,
+					InsertedAt: task.OutputEventInsertedAt,
 				})
 			}
 		}
@@ -1042,7 +1043,7 @@ func (r *OLAPRepositoryImpl) ListTasksByIdAndInsertedAt(ctx context.Context, ten
 			if task.OutputEventExternalID != nil {
 				retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 					ExternalId: *task.OutputEventExternalID,
-					InsertedAt: task.InsertedAt,
+					InsertedAt: task.OutputEventInsertedAt,
 				})
 			}
 		}
@@ -1219,7 +1220,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		if dag.OutputEventExternalID != nil {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 				ExternalId: *dag.OutputEventExternalID,
-				InsertedAt: dag.InsertedAt,
+				InsertedAt: dag.OutputEventInsertedAt,
 			})
 		}
 	}
@@ -1244,7 +1245,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		if task.OutputEventExternalID != nil {
 			retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 				ExternalId: *task.OutputEventExternalID,
-				InsertedAt: task.InsertedAt,
+				InsertedAt: task.OutputEventInsertedAt,
 			})
 		}
 	}
