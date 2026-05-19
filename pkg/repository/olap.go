@@ -2745,10 +2745,10 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	for i, event := range events {
 		eventExternalIds[i] = event.ExternalID
-		readPayloadOpts = append(readPayloadOpts, ReadOLAPPayloadOpts{
+		readPayloadOpts[i] = ReadOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
 			InsertedAt: event.SeenAt,
-		})
+		}
 
 		if event.SeenAt.Time.Before(minSeenAt.Time) {
 			minSeenAt = event.SeenAt
@@ -3070,11 +3070,9 @@ func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID
 
 func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts ...ReadOLAPPayloadOpts) (map[uuid.UUID][]byte, error) {
 	externalIds := make([]uuid.UUID, len(opts))
-	insertedAts := make([]pgtype.Timestamptz, len(opts))
 
 	for i, opt := range opts {
 		externalIds[i] = opt.ExternalId
-		insertedAts[i] = opt.InsertedAt
 	}
 
 	payloads, err := r.queries.ReadPayloadsOLAP(ctx, tx, sqlcv1.ReadPayloadsOLAPParams{
