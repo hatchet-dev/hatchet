@@ -892,18 +892,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	}
 
 	var retrieveOpts []RetrievePayloadOpts
-	for _, e := range existedEntries {
+	for _, entry := range existedEntries {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
-			Id:         e.ID,
-			InsertedAt: e.InsertedAt,
+			Id:         entry.ID,
+			InsertedAt: entry.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   opts.TenantId,
 		})
 	}
-	for _, e := range externalIdToSkipEntry {
+
+	for _, entry := range externalIdToSkipEntry {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
-			Id:         e.ID,
-			InsertedAt: e.InsertedAt,
+			Id:         entry.ID,
+			InsertedAt: entry.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 			TenantId:   opts.TenantId,
 		})
@@ -922,6 +923,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		if existingPayloads == nil {
 			return nil
 		}
+
 		return existingPayloads[RetrievePayloadOpts{
 			Id:         e.ID,
 			InsertedAt: e.InsertedAt,
