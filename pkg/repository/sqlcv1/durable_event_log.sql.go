@@ -300,6 +300,79 @@ func (q *Queries) GetAndLockLogFile(ctx context.Context, db DBTX, arg GetAndLock
 	return &i, err
 }
 
+const getDurableEventLogEntriesByExternalIds = `-- name: GetDurableEventLogEntriesByExternalIds :many
+SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.user_message, e.wait_data, lf.latest_invocation_count AS invocation_count
+FROM v1_durable_event_log_entry e
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+WHERE
+    e.durable_task_id = $1::BIGINT
+    AND e.durable_task_inserted_at = $2::TIMESTAMPTZ
+    AND e.external_id = ANY($3::UUID[])
+ORDER BY e.external_id, e.node_id ASC
+`
+
+type GetDurableEventLogEntriesByExternalIdsParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Externalids           []uuid.UUID        `json:"externalids"`
+}
+
+type GetDurableEventLogEntriesByExternalIdsRow struct {
+	TenantID                uuid.UUID             `json:"tenant_id"`
+	ExternalID              uuid.UUID             `json:"external_id"`
+	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
+	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
+	ID                      int64                 `json:"id"`
+	DurableTaskID           int64                 `json:"durable_task_id"`
+	DurableTaskInsertedAt   pgtype.Timestamptz    `json:"durable_task_inserted_at"`
+	Kind                    V1DurableEventLogKind `json:"kind"`
+	NodeID                  int64                 `json:"node_id"`
+	BranchID                int64                 `json:"branch_id"`
+	IdempotencyKey          []byte                `json:"idempotency_key"`
+	IsSatisfied             bool                  `json:"is_satisfied"`
+	SatisfiedAt             pgtype.Timestamptz    `json:"satisfied_at"`
+	UserMessage             pgtype.Text           `json:"user_message"`
+	WaitData                []byte                `json:"wait_data"`
+	InvocationCount         int32                 `json:"invocation_count"`
+}
+
+func (q *Queries) GetDurableEventLogEntriesByExternalIds(ctx context.Context, db DBTX, arg GetDurableEventLogEntriesByExternalIdsParams) ([]*GetDurableEventLogEntriesByExternalIdsRow, error) {
+	rows, err := db.Query(ctx, getDurableEventLogEntriesByExternalIds, arg.Durabletaskid, arg.Durabletaskinsertedat, arg.Externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetDurableEventLogEntriesByExternalIdsRow
+	for rows.Next() {
+		var i GetDurableEventLogEntriesByExternalIdsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.ResultPayloadExternalID,
+			&i.InsertedAt,
+			&i.ID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.Kind,
+			&i.NodeID,
+			&i.BranchID,
+			&i.IdempotencyKey,
+			&i.IsSatisfied,
+			&i.SatisfiedAt,
+			&i.UserMessage,
+			&i.WaitData,
+			&i.InvocationCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDurableEventLogEntry = `-- name: GetDurableEventLogEntry :one
 SELECT tenant_id, external_id, result_payload_external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, user_message, wait_data
 FROM v1_durable_event_log_entry

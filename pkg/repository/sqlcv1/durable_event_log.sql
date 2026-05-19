@@ -157,6 +157,16 @@ JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_insert
 WHERE e.durable_task_id = @durableTaskId::BIGINT
   AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
 
+-- name: GetDurableEventLogEntriesByExternalIds :many
+SELECT e.*, lf.latest_invocation_count AS invocation_count
+FROM v1_durable_event_log_entry e
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+WHERE
+    e.durable_task_id = @durableTaskId::BIGINT
+    AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+    AND e.external_id = ANY(@externalIds::UUID[])
+ORDER BY e.external_id, e.node_id ASC;
+
 -- name: BulkCreateDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
