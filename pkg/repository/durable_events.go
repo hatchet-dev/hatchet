@@ -849,9 +849,19 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	externalIdToSkipEntry := make(map[uuid.UUID]*sqlcv1.BulkGetDurableEventLogEntriesRow)
 
 	if len(skipOpts) > 0 {
-		externalIds := make([]uuid.UUID, len(skipOpts))
-		for i, o := range skipOpts {
-			externalIds[i] = o.ExternalId
+		externalIds := make([]uuid.UUID, 0, len(skipOpts))
+		seenExternalIds := make(map[uuid.UUID]struct{}, len(skipOpts))
+		for _, o := range skipOpts {
+			if o.ExternalId == uuid.Nil {
+				return nil, fmt.Errorf("skipped child entries must include a non-nil external id")
+			}
+
+			if _, ok := seenExternalIds[o.ExternalId]; ok {
+				continue
+			}
+
+			seenExternalIds[o.ExternalId] = struct{}{}
+			externalIds = append(externalIds, o.ExternalId)
 		}
 
 		skipRows, err := r.queries.GetDurableEventLogEntriesByExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByExternalIdsParams{
