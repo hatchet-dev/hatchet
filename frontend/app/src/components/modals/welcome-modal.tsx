@@ -9,13 +9,11 @@ import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { queries } from '@/lib/api';
-import { controlPlaneApi } from '@/lib/api/api';
+import { cloudApi } from '@/lib/api/api';
 import {
   SubscriptionPlanCode,
   SubscriptionPeriod,
-  UpdateTenantSubscriptionResponse,
-} from '@/lib/api/generated/control-plane/data-contracts';
-import { ContentType } from '@/lib/api/generated/control-plane/http-client';
+} from '@/lib/api/generated/cloud/data-contracts';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -33,7 +31,7 @@ export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
   const navigate = useNavigate();
 
   const welcomePlansQuery = useQuery({
-    ...queries.controlPlane.subscriptionPlans(),
+    ...queries.cloud.subscriptionPlans(),
     enabled: open,
   });
 
@@ -43,24 +41,16 @@ export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
       if (!tenantId) {
         throw new Error('No tenant id');
       }
-      const response =
-        await controlPlaneApi.request<UpdateTenantSubscriptionResponse>({
-          path: `/api/v1/control-plane/billing/tenants/${tenantId}/subscription`,
-          method: 'PATCH',
-          body: {
-            plan: SubscriptionPlanCode.Developer,
-            period: SubscriptionPeriod.Monthly,
-          },
-          secure: true,
-          type: ContentType.Json,
-          format: 'json',
-        });
+      const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
+        plan: SubscriptionPlanCode.Developer,
+        period: SubscriptionPeriod.Monthly,
+      });
       return response.data;
     },
     onSuccess: (data) => {
       localStorage.removeItem(WELCOME_KEY);
       onClose();
-      if (data?.checkoutUrl) {
+      if (data && 'checkoutUrl' in data) {
         window.location.href = data.checkoutUrl;
       }
     },
