@@ -1175,8 +1175,6 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
 		for i, entry := range logEntries {
-			// Prefer ExternalID stored on the log entry (child task UUID for new entries).
-			// Fall back to the pre-built map for entries created before this fix.
 			workflowRunExternalId := entry.Entry.ExternalID
 			if triggerOpts := externalIdToTriggerOpts[workflowRunExternalId]; triggerOpts == nil {
 				triggerOpts = nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
