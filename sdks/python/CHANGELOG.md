@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.4] - 2026-05-19
+
+### Added
+
+- Adds an optional `priority` argument to `ScheduledClient.create` and `ScheduledClient.aio_create`, allowing scheduled workflow runs to be created with a priority between 1 and 3.
+
 ## [1.33.3] - 2026-04-29
 
 ### Changed
