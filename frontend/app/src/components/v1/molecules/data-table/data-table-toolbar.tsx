@@ -68,6 +68,7 @@ interface DataTableToolbarProps<TData> {
   filters: ToolbarFilters;
   leftActions?: JSX.Element[];
   rightActions?: JSX.Element[];
+  searchBar?: JSX.Element;
   showColumnToggle?: boolean;
   isLoading?: boolean;
   hiddenFilters: string[];
@@ -82,6 +83,7 @@ export function DataTableToolbar<TData>({
   filters,
   leftActions,
   rightActions = [],
+  searchBar,
   showColumnToggle,
   isLoading = false,
   hiddenFilters,
@@ -109,12 +111,13 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex w-full flex-shrink-0 flex-row items-center justify-between overflow-x-auto">
+      <div className="flex w-full flex-row items-center gap-2">
         <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
           {!leftActions && isLoading && <Spinner />}
           {leftActions}
         </div>
-        <div className="flex flex-shrink-0 flex-row items-center gap-2">
+        {searchBar && <div className="min-w-0 flex-1">{searchBar}</div>}
+        <div className="ml-auto flex flex-shrink-0 flex-row items-center gap-2">
           {rightActions}
           {refetchProps && (
             <RefetchIntervalDropdown
