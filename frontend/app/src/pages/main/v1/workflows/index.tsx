@@ -1,17 +1,19 @@
-import {
-  columns,
-  nameKey,
-  WorkflowColumn,
-} from './components/workflow-columns';
+import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
 import { DocsButton } from '@/components/v1/docs/docs-button';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import {
+  SearchBarWithFilters,
+  type SearchSuggestion,
+} from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+
+const noopAutocomplete = () => ({ suggestions: [] as SearchSuggestion[] });
+const noopApplySuggestion = (query: string) => query;
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
@@ -30,13 +32,29 @@ export default function WorkflowTable() {
     columnFilters,
     setColumnFilters,
     resetFilters,
+    search,
+    setSearch,
   } = useWorkflows({
     key: 'workflows-table',
   });
 
+  const autocompleteContext = useMemo(() => ({}), []);
+
   if (isLoading) {
     return <Loading />;
   }
+
+  const searchBar = (
+    <SearchBarWithFilters
+      value={search}
+      onChange={setSearch}
+      onSubmit={setSearch}
+      getAutocomplete={noopAutocomplete}
+      applySuggestion={noopApplySuggestion}
+      autocompleteContext={autocompleteContext}
+      placeholder="Search workflows by name..."
+    />
+  );
 
   return (
     <DataTable
@@ -53,13 +71,7 @@ export default function WorkflowTable() {
           </div>
         </div>
       }
-      filters={[
-        {
-          columnId: nameKey,
-          title: WorkflowColumn.name,
-          type: ToolbarType.Search,
-        },
-      ]}
+      searchBar={searchBar}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       pagination={pagination}
