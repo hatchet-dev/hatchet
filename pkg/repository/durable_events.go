@@ -886,6 +886,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 
 		for _, o := range skipOpts {
 			if _, ok := externalIdToSkipEntry[o.ExternalId]; !ok {
+				// todo: is raising the right thing to do here?
 				return nil, fmt.Errorf("expected to find log entry for skipped child external id %s", o.ExternalId)
 			}
 		}
@@ -1037,7 +1038,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 		nonSkipOffset := int64(0)
 		for i, triggerOpts := range opts.TriggerRuns.TriggerOpts {
-			externalIdToTriggerOpts[triggerOpts.ExternalId] = opts.TriggerRuns.TriggerOpts[i]
+			externalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
 
 			if triggerOpts.ShouldSkip {
 				innerOpts[i] = GetOrCreateLogEntryOpt{
