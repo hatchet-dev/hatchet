@@ -841,15 +841,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		if err != nil {
 			return nil, err
 		}
-		if len(internalFailureRetries) < len(internalFailureTaskIds) {
-			for i, taskId := range internalFailureTaskIds {
-				r.l.Warn().
-					Int64("task_id", taskId).
-					Int32("retry_count", internalFailureTaskRetryCounts[i]).
-					Str("tenant_id", tenantId.String()).
-					Msg("FailTaskInternalFailure skipped task - possible stale v1_task_runtime row with mismatched retry_count")
-			}
-		}
+
 		for _, task := range internalFailureRetries {
 			retriedTasks = append(retriedTasks, RetriedTask{
 				TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
