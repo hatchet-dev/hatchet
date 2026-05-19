@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { hatchet } from '../hatchet-client';
 
 // (optional) Define the input type for the workflow

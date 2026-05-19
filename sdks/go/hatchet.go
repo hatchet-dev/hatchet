@@ -91,3 +91,19 @@ func OrCondition(conditions ...condition.Condition) condition.Condition {
 func AndCondition(conditions ...condition.Condition) condition.Condition {
 	return condition.Conditions(conditions...)
 }
+
+// EventUnmarshaller is implemented by the result of DurableContext.WaitForEvent.
+// Use EventInto to extract the event payload.
+type EventUnmarshaller interface {
+	Unmarshal(dest any) error
+}
+
+// EventInto extracts the event payload from a WaitForEvent result into dest.
+//
+//	event, err := ctx.WaitForEvent("approval:decision", "")
+//	if err != nil { return err }
+//	var data map[string]interface{}
+//	if err := hatchet.EventInto(event, &data); err != nil { return err }
+func EventInto(event EventUnmarshaller, dest any) error {
+	return event.Unmarshal(dest)
+}

@@ -1,8 +1,8 @@
 import CopyToClipboard from './copy-to-clipboard';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
-import Editor, { Monaco } from '@monaco-editor/react';
-import 'monaco-themes/themes/Pastels on Dark.json';
+import Editor, { Monaco, OnMount } from '@monaco-editor/react';
+import { useCallback, useEffect, useId, useRef } from 'react';
 
 interface CodeEditorProps {
   code?: string;
@@ -14,6 +14,7 @@ interface CodeEditorProps {
   copy?: boolean;
   wrapLines?: boolean;
   lineNumbers?: boolean;
+  jsonSchema?: object;
 }
 
 export function CodeEditor({
@@ -26,13 +27,75 @@ export function CodeEditor({
   copy = true,
   wrapLines = true,
   lineNumbers = false,
+  jsonSchema,
 }: CodeEditorProps) {
   const { theme } = useTheme();
+  const editorId = useId();
+  const modelPath = `file:///editor-${editorId.replace(/:/g, '-')}.json`;
+  const monacoRef = useRef<Monaco | null>(null);
 
-  const setEditorTheme = (monaco: Monaco) => {
+  const hasJsonSchema =
+    (language === 'json' && jsonSchema && Object.keys(jsonSchema).length > 0) ??
+    false;
+
+  const configureJsonSchema = useCallback(
+    (monaco: Monaco) => {
+      if (language !== 'json') {
+        return;
+      }
+
+      const existingOptions =
+        monaco.languages.json.jsonDefaults.diagnosticsOptions;
+      const existingSchemas = existingOptions.schemas || [];
+
+      const otherSchemas = existingSchemas.filter(
+        (s) => !s.fileMatch?.includes(modelPath),
+      );
+
+      const newSchemas = hasJsonSchema
+        ? [
+            ...otherSchemas,
+            {
+              uri: `http://hatchet/schema-${editorId}.json`,
+              fileMatch: [modelPath],
+              schema: jsonSchema,
+            },
+          ]
+        : otherSchemas;
+
+      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        validate: true,
+        enableSchemaRequest: false,
+        schemas: newSchemas,
+      });
+    },
+    [language, jsonSchema, hasJsonSchema, modelPath, editorId],
+  );
+
+  const handleBeforeMount = (monaco: Monaco) => {
     monaco.editor.defineTheme('pastels-on-dark', getMonacoTheme());
     monaco.editor.setTheme('pastels-on-dark');
   };
+
+  const handleMount: OnMount = (_, monaco) => {
+    monacoRef.current = monaco;
+    configureJsonSchema(monaco);
+  };
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) {
+      return;
+    }
+    configureJsonSchema(monaco);
+  }, [
+    jsonSchema,
+    hasJsonSchema,
+    language,
+    modelPath,
+    editorId,
+    configureJsonSchema,
+  ]);
 
   const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
 
@@ -44,7 +107,9 @@ export function CodeEditor({
       )}
     >
       <Editor
-        beforeMount={setEditorTheme}
+        beforeMount={handleBeforeMount}
+        onMount={handleMount}
+        path={hasJsonSchema ? modelPath : undefined}
         language={language}
         value={code || ''}
         onChange={setCode}
@@ -69,6 +134,11 @@ export function CodeEditor({
           colorDecorators: false,
           hideCursorInOverviewRuler: true,
           contextmenu: false,
+          hover: { enabled: false },
+          quickSuggestions: hasJsonSchema
+            ? { strings: true, other: true }
+            : undefined,
+          suggestOnTriggerCharacters: hasJsonSchema ? true : undefined,
         }}
       />
       {copy && (

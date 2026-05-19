@@ -1,3 +1,5 @@
+//go:build !e2e && !load && !rampup && !integration
+
 package v1
 
 import (
@@ -7,55 +9,56 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	v1repo "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1repo "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-type fakeLeaseRepo struct {
-	acquireKinds []sqlcv1.LeaseKind
-	resourceSets [][]string
+type mockLeaseRepo struct {
+	mock.Mock
 }
 
-func (f *fakeLeaseRepo) ListQueues(context.Context, pgtype.UUID) ([]*sqlcv1.V1Queue, error) {
-	return nil, nil
+func (m *mockLeaseRepo) ListQueues(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1Queue, error) {
+	args := m.Called(ctx, tenantId)
+	return args.Get(0).([]*sqlcv1.V1Queue), args.Error(1)
 }
 
-func (f *fakeLeaseRepo) ListActiveWorkers(context.Context, pgtype.UUID) ([]*v1repo.ListActiveWorkersResult, error) {
-	return nil, nil
+func (m *mockLeaseRepo) ListActiveWorkers(ctx context.Context, tenantId uuid.UUID) ([]*v1.ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId)
+	return args.Get(0).([]*v1.ListActiveWorkersResult), args.Error(1)
 }
 
-func (f *fakeLeaseRepo) ListConcurrencyStrategies(context.Context, pgtype.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
-	return nil, nil
+func (m *mockLeaseRepo) ListConcurrencyStrategies(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
+	args := m.Called(ctx, tenantId)
+	return args.Get(0).([]*sqlcv1.V1StepConcurrency), args.Error(1)
 }
 
-func (f *fakeLeaseRepo) AcquireOrExtendLeases(_ context.Context, _ pgtype.UUID, kind sqlcv1.LeaseKind, resourceIds []string, _ []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
-	f.acquireKinds = append(f.acquireKinds, kind)
-	idsCopy := append([]string(nil), resourceIds...)
-	f.resourceSets = append(f.resourceSets, idsCopy)
-
-	leases := make([]*sqlcv1.Lease, len(resourceIds))
-	for i, id := range resourceIds {
-		leases[i] = &sqlcv1.Lease{
-			ResourceId: id,
-		}
-	}
-
-	return leases, nil
+func (m *mockLeaseRepo) AcquireOrExtendLeases(ctx context.Context, tenantId uuid.UUID, kind sqlcv1.LeaseKind, resourceIds []string, existingLeases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+	args := m.Called(ctx, kind, resourceIds, existingLeases)
+	return args.Get(0).([]*sqlcv1.Lease), args.Error(1)
 }
 
-func (f *fakeLeaseRepo) ReleaseLeases(context.Context, pgtype.UUID, []*sqlcv1.Lease) error {
-	return nil
+func (m *mockLeaseRepo) RenewLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+	args := m.Called(ctx, leases)
+	return args.Get(0).([]*sqlcv1.Lease), args.Error(1)
+}
+
+func (m *mockLeaseRepo) ReleaseLeases(ctx context.Context, tenantId uuid.UUID, leases []*sqlcv1.Lease) error {
+	args := m.Called(ctx, leases)
+	return args.Error(0)
 }
 
 type fakeBatchQueueFactory struct {
 	resources []*sqlcv1.ListDistinctBatchResourcesRow
 }
 
-func (f *fakeBatchQueueFactory) NewBatchQueue(pgtype.UUID) v1repo.BatchQueueRepository {
+func (f *fakeBatchQueueFactory) NewBatchQueue(uuid.UUID) v1repo.BatchQueueRepository {
 	return &fakeBatchQueueRepo{resources: f.resources}
 }
 
@@ -67,7 +70,7 @@ func (f *fakeBatchQueueRepo) ListBatchResources(context.Context) ([]*sqlcv1.List
 	return f.resources, nil
 }
 
-func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, pgtype.UUID, string, pgtype.Int8, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, string, pgtype.Int8, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	return nil, nil
 }
 
@@ -87,9 +90,50 @@ func (f *fakeBatchQueueRepo) CommitAssignments(context.Context, []*v1repo.BatchA
 	return nil, nil
 }
 
+type fakeLeaseRepo struct {
+	resourceSets [][]string
+}
+
+func (f *fakeLeaseRepo) ListQueues(context.Context, uuid.UUID) ([]*sqlcv1.V1Queue, error) {
+	return nil, nil
+}
+
+func (f *fakeLeaseRepo) ListActiveWorkers(context.Context, uuid.UUID) ([]*v1.ListActiveWorkersResult, error) {
+	return nil, nil
+}
+
+func (f *fakeLeaseRepo) GetActiveWorker(context.Context, uuid.UUID, uuid.UUID) (*v1.ListActiveWorkersResult, error) {
+	return nil, nil
+}
+
+func (f *fakeLeaseRepo) ListConcurrencyStrategies(context.Context, uuid.UUID) ([]*sqlcv1.V1StepConcurrency, error) {
+	return nil, nil
+}
+
+func (f *fakeLeaseRepo) GetConcurrencyStrategy(context.Context, uuid.UUID, int64) (*sqlcv1.V1StepConcurrency, error) {
+	return nil, nil
+}
+
+func (f *fakeLeaseRepo) AcquireOrExtendLeases(_ context.Context, _ uuid.UUID, _ sqlcv1.LeaseKind, resourceIds []string, _ []*sqlcv1.Lease) ([]*sqlcv1.Lease, error) {
+	f.resourceSets = append(f.resourceSets, resourceIds)
+	leases := make([]*sqlcv1.Lease, len(resourceIds))
+	for i, id := range resourceIds {
+		leases[i] = &sqlcv1.Lease{ResourceId: id}
+	}
+	return leases, nil
+}
+
+func (f *fakeLeaseRepo) ReleaseLeases(context.Context, uuid.UUID, []*sqlcv1.Lease) error {
+	return nil
+}
+
 type fakeSchedulerRepo struct {
 	leaseRepo *fakeLeaseRepo
 	batchRepo *fakeBatchQueueFactory
+}
+
+func (f *fakeSchedulerRepo) Optimistic() v1repo.OptimisticSchedulingRepository {
+	return nil
 }
 
 func (f *fakeSchedulerRepo) Concurrency() v1repo.ConcurrencyRepository {
@@ -116,19 +160,142 @@ func (f *fakeSchedulerRepo) Assignment() v1repo.AssignmentRepository {
 	return nil
 }
 
+func (m *mockLeaseRepo) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*v1.ListActiveWorkersResult, error) {
+	args := m.Called(ctx, tenantId, workerId)
+	return args.Get(0).(*v1.ListActiveWorkersResult), args.Error(1)
+}
+
+func (m *mockLeaseRepo) GetConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, id int64) (*sqlcv1.V1StepConcurrency, error) {
+	args := m.Called(ctx, tenantId, id)
+	return args.Get(0).(*sqlcv1.V1StepConcurrency), args.Error(1)
+}
+
+func TestLeaseManager_AcquireWorkerLeases(t *testing.T) {
+	l := zerolog.Nop()
+	tenantId := uuid.UUID{}
+	mockLeaseRepo := &mockLeaseRepo{}
+	leaseManager := &LeaseManager{
+		lr:       mockLeaseRepo,
+		conf:     &sharedConfig{l: &l},
+		tenantId: tenantId,
+	}
+
+	mockWorkers := []*v1.ListActiveWorkersResult{
+		{ID: uuid.New(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
+	}
+	mockLeases := []*sqlcv1.Lease{
+		{ID: 1, ResourceId: "worker-1"},
+		{ID: 2, ResourceId: "worker-2"},
+	}
+
+	mockLeaseRepo.On("ListActiveWorkers", mock.Anything, tenantId).Return(mockWorkers, nil)
+	mockLeaseRepo.On("AcquireOrExtendLeases", mock.Anything, sqlcv1.LeaseKindWORKER, mock.Anything, mock.Anything).Return(mockLeases, nil)
+
+	err := leaseManager.acquireWorkerLeases(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, leaseManager.workerLeases, 2)
+}
+
+func TestLeaseManager_AcquireQueueLeases(t *testing.T) {
+	l := zerolog.Nop()
+	tenantId := uuid.UUID{}
+	mockLeaseRepo := &mockLeaseRepo{}
+	leaseManager := &LeaseManager{
+		lr:       mockLeaseRepo,
+		conf:     &sharedConfig{l: &l},
+		tenantId: tenantId,
+	}
+
+	mockQueues := []*sqlcv1.V1Queue{
+		{Name: "queue-1"},
+		{Name: "queue-2"},
+	}
+	mockLeases := []*sqlcv1.Lease{
+		{ID: 1, ResourceId: "queue-1"},
+		{ID: 2, ResourceId: "queue-2"},
+	}
+
+	mockLeaseRepo.On("ListQueues", mock.Anything, tenantId).Return(mockQueues, nil)
+	mockLeaseRepo.On("AcquireOrExtendLeases", mock.Anything, sqlcv1.LeaseKindQUEUE, mock.Anything, mock.Anything).Return(mockLeases, nil)
+
+	err := leaseManager.acquireQueueLeases(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, leaseManager.queueLeases, 2)
+}
+
+func TestLeaseManager_SendWorkerIds(t *testing.T) {
+	tenantId := uuid.UUID{}
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
+	leaseManager := &LeaseManager{
+		tenantId:  tenantId,
+		workersCh: workersCh,
+	}
+
+	mockWorkers := []*v1.ListActiveWorkersResult{
+		{ID: uuid.New(), Labels: nil},
+	}
+
+	go leaseManager.sendWorkerIds(mockWorkers, false)
+
+	result := <-workersCh
+	assert.Equal(t, mockWorkers, result.items)
+}
+
+func TestLeaseManager_SendQueues(t *testing.T) {
+	tenantId := uuid.UUID{}
+	queuesCh := make(notifierCh[string])
+	leaseManager := &LeaseManager{
+		tenantId: tenantId,
+		queuesCh: queuesCh,
+	}
+
+	mockQueues := []string{"queue-1", "queue-2"}
+
+	go leaseManager.sendQueues(mockQueues, false)
+
+	result := <-queuesCh
+	assert.Equal(t, mockQueues, result.items)
+}
+
+func TestLeaseManager_AcquireWorkersBeforeListenerReady(t *testing.T) {
+	tenantId := uuid.UUID{}
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
+	leaseManager := &LeaseManager{
+		tenantId:  tenantId,
+		workersCh: workersCh,
+	}
+
+	mockWorkers1 := []*v1.ListActiveWorkersResult{
+		{ID: uuid.New(), Labels: nil},
+	}
+	mockWorkers2 := []*v1.ListActiveWorkersResult{
+		{ID: uuid.New(), Labels: nil},
+		{ID: uuid.New(), Labels: nil},
+	}
+
+	// Send workers before listener is ready
+	go leaseManager.sendWorkerIds(mockWorkers1, false)
+	time.Sleep(100 * time.Millisecond)
+	resultCh := make(chan []*v1.ListActiveWorkersResult)
+	go func() {
+		msg := <-workersCh
+		resultCh <- msg.items
+	}()
+	time.Sleep(100 * time.Millisecond)
+	go leaseManager.sendWorkerIds(mockWorkers2, false)
+	time.Sleep(100 * time.Millisecond)
+
+	// Ensure only the latest workers are sent over the channel
+	result := <-resultCh
+	assert.Equal(t, mockWorkers2, result)
+	assert.Len(t, workersCh, 0) // Ensure no additional workers are left in the channel
+}
+
 func TestAcquireBatchLeasesUsesStepLevelResourceIds(t *testing.T) {
-	tenantID := pgtype.UUID{
-		Bytes: uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-		Valid: true,
-	}
-	stepID := pgtype.UUID{
-		Bytes: uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-		Valid: true,
-	}
-	otherStepID := pgtype.UUID{
-		Bytes: uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-		Valid: true,
-	}
+	tenantID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	stepID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
+	otherStepID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
 
 	resources := []*sqlcv1.ListDistinctBatchResourcesRow{
 		{StepID: stepID, BatchKey: "key-1"},
@@ -168,7 +335,7 @@ func TestAcquireBatchLeasesUsesStepLevelResourceIds(t *testing.T) {
 	require.Len(t, leaseRepo.resourceSets, 1)
 	acquired := leaseRepo.resourceSets[0]
 	require.ElementsMatch(t, []string{
-		uuid.UUID(stepID.Bytes).String(),
-		uuid.UUID(otherStepID.Bytes).String(),
+		stepID.String(),
+		otherStepID.String(),
 	}, acquired, "leases should be requested per step_id only")
 }

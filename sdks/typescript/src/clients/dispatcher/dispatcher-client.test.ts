@@ -1,7 +1,7 @@
 import { StepActionEventType } from '@hatchet/protoc/dispatcher';
 import { DEFAULT_LOGGER } from '@clients/hatchet-client/hatchet-logger';
 import { DispatcherClient } from './dispatcher-client';
-import { mockChannel, mockFactory } from '../hatchet-client/hatchet-client.test';
+import { mockChannel, mockFactory } from '../../legacy/legacy-client.test';
 
 let client: DispatcherClient;
 
@@ -95,8 +95,8 @@ describe('DispatcherClient', () => {
         eventTimestamp: new Date(),
         jobId: 'a',
         jobRunId: 'b',
-        stepId: 'c',
-        stepRunId: 'd',
+        taskId: 'c',
+        taskRunExternalId: 'd',
       });
 
       expect(clientSpy).toHaveBeenCalledWith({
@@ -106,8 +106,8 @@ describe('DispatcherClient', () => {
         eventPayload: '{"foo":"bar"}',
         jobId: 'a',
         jobRunId: 'b',
-        stepId: 'c',
-        stepRunId: 'd',
+        taskId: 'c',
+        taskRunExternalId: 'd',
         eventTimestamp: expect.any(Object),
       });
     });

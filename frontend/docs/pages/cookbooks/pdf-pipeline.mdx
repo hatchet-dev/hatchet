@@ -1,0 +1,262 @@
+import { Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+
+# How to Build a PDF Processing Pipeline with Hatchet DAGs
+
+The [Durable Tasks vs DAG Workflows cookbook](/cookbooks/durable-tasks-vs-dags) explains why document processing pipelines are a natural fit for [DAG workflows](/v1/directed-acyclic-graphs). The steps are known in advance, the dependencies between them are explicit, and independent stages can run in parallel. This cookbook builds a concrete PDF pipeline with the following workflow:
+
+```mermaid
+flowchart TD
+    A[PDF input] --> B[Extract text]
+    B --> C[Classify document]
+    B --> D[Summarize text]
+    B --> E[Extract keywords]
+    C --> F[Format result]
+    D --> F
+    E --> F
+```
+
+Notice that after text extraction, the classify, summarize, and keyword extraction tasks can run concurrently because they each depend only on `extract_text` and not on each other. DAGs make concurrency explicit and simple to reason about. The final format step waits for all three tasks to finish before combining their outputs. At the end of this cookbook, we show how to swap the extraction task to use [Reducto](#swapping-in-reducto-for-pdf-extraction) for production document parsing.
+
+## Setup
+
+<Steps>
+
+### Prepare your environment
+
+To run this example, you will need:
+
+- a working local Hatchet environment or access to [Hatchet Cloud](https://cloud.onhatchet.run)
+- a Hatchet SDK example environment (see the [Quickstart](/v1/quickstart))
+- optionally, a PDF text extraction library for real PDF parsing:
+  [pypdf](https://pypi.org/project/pypdf/) for Python or
+  [pdf2json](https://www.npmjs.com/package/pdf2json) v4 for TypeScript.
+  If the library is not installed, the example falls back to deterministic sample text so the DAG still runs.
+
+### Define the models
+
+Define the workflow input and the output types for each task.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.models} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.pdf_pipeline.workflow.models} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Define the DAG
+
+Declare the workflow. All tasks will be registered on this workflow with explicit parent dependencies.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.define_the_dag} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.pdf_pipeline.workflow.define_the_dag} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Extract text from the PDF
+
+The first task decodes the base64 input and extracts text using a PDF library. This is the only task that touches the PDF directly; after it finishes, the rest of the pipeline works with plain text. If you later want to swap in OCR, object storage, [Reducto](#swapping-in-reducto-for-pdf-extraction), or a different PDF parser, this is the task you would change.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.extract_text_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.pdf_pipeline.workflow.extract_text_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Classify the document
+
+Now that we can read the text, we can process it in different ways independently. Let's begin by classifying the document via keyword matching.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.classify_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.pdf_pipeline.workflow.classify_task} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Summarize the text
+
+Independently, we can summarize the text read from `extract_text`. To keep this example simple, our summarizer captures the first 50 words and includes the total word count in its output.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.summarize_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.pdf_pipeline.workflow.summarize_task} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Extract keywords
+
+The `extract_keywords` task also runs independently, pulling the most frequent meaningful words from the extracted text using a small stopword list and frequency counting. In fact, there is no interdependency between any of these text processing tasks, so Hatchet can run all three in parallel. Concurrency is not the only benefit of this structure. Since each parallel task in a DAG is an independent unit, task-level behavior can be configured independently for aspects such as [retry policies](/v1/retry-policies), [timeouts](/v1/timeouts), and [concurrency limits](/v1/concurrency), among others. If keyword extraction is the slowest or most failure-prone step, its retry policy can be configured independently so that Hatchet retries it without re-running the classify or summarize tasks. In a sequential pipeline, you would need to build that isolation yourself. In a DAG, it comes from the structure.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.extract_keywords_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.pdf_pipeline.workflow.extract_keywords_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Format the result
+
+Hatchet runs `format_result` after `classify_document`, `summarize_text`, and `extract_keywords` have all completed. The final task receives the outputs from those parent tasks and combines them into one result.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.format_result_task} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet
+      src={snippets.typescript.pdf_pipeline.workflow.format_result_task}
+    />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Register and start the worker
+
+Register the DAG workflow on a Hatchet worker and start it.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.worker.worker_registration} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    In TypeScript, workflows are registered through the shared example worker
+    rather than a per-example registration file.
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Run the pipeline
+
+The trigger script creates a small sample PDF, base64-encodes it, and runs the workflow.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+    <Snippet src={snippets.python.pdf_pipeline.trigger.trigger_the_pipeline} />
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+    <Snippet src={snippets.typescript.pdf_pipeline.run.trigger_the_pipeline} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+### Test it
+
+This example includes an end-to-end test that generates a tiny PDF, runs the full pipeline, and asserts on the outputs. If you run it against a local Hatchet instance or Hatchet Cloud, you can inspect the workflow run in the [Hatchet dashboard](/v1/developer-experience).
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+
+    ```bash
+    pytest examples/pdf_pipeline/test_pdf_pipeline.py
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    ```bash
+    pnpm run test:e2e -- --testPathPattern=pdf_pipeline
+    ```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+</Steps>
+
+## Why this is a DAG
+
+This pipeline is a good fit for a DAG because the processing stages are known before execution starts and the dependencies are easy to declare up front. The workflow does not need a loop, an unknown number of iterations, or a runtime decision about which tasks exist. Once `extract_text` completes, `classify_document`, `summarize_text`, and `extract_keywords` can run independently, and `format_result` waits for all three outputs before combining them. Each task points forward to later tasks, and no child step feeds back into an ancestor. If you later wanted to process a runtime-determined set of PDFs, a durable task could handle that outer decision and spawn this DAG once per document.
+
+## Swapping in Reducto for PDF extraction
+
+The local example above runs without external services, but production document pipelines often need more than basic text extraction. Reducto's [Parse API](https://docs.reducto.ai/parse/overview) can run OCR, detect document layout, and return structured chunks for content such as tables, figures, scanned pages, and multi-column documents. Since Hatchet's DAG isolates PDF parsing in a single task, swapping in Reducto is as simple as replacing `extract_text`; the downstream tasks stay the same. Hatchet continues to run the workflow around the task, including retries, concurrency, and observability, while Reducto handles the document parsing itself.
+
+[Install the Reducto SDK](https://docs.reducto.ai/quickstart#install-the-sdk) and set `REDUCTO_API_KEY` in your environment.
+
+The examples in this cookbook generate a tiny base64-encoded PDF and pass it to the workflow as input data to keep the demo self-contained. For larger PDFs, store the file in object storage such as S3 and pass a file key, URL, or Reducto file reference instead. This avoids putting large PDF payloads into workflow inputs, which can run into [Hatchet's gRPC payload size limit](/v1/troubleshooting#could-not-send-task-to-worker).
+
+For small documents, the snippets below handle the inline result returned when `result.result.type` is `"full"`. For larger documents, Reducto may return a URL result instead; production code should check that field and fetch the result from the URL if needed.
+
+<UniversalTabs items={["Python", "Typescript"]}>
+  <Tabs.Tab title="Python">
+
+    ```python
+    import base64
+    import tempfile
+    from pathlib import Path
+    from reducto import Reducto
+
+    @pdf_pipeline.task()
+    def extract_text(input: PdfInput, ctx: Context) -> ExtractOutput:
+        client = Reducto()  # reads REDUCTO_API_KEY from environment
+
+        decoded = base64.b64decode(input.content_base64)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir) / "input.pdf"
+            tmp_path.write_bytes(decoded)
+            upload = client.upload(file=tmp_path)
+
+        result = client.parse.run(input=upload.file_id)
+        text = "\n".join(chunk.content for chunk in result.result.chunks)
+
+        return ExtractOutput(text=text, page_count=result.usage.num_pages)
+    ```
+
+  </Tabs.Tab>
+  <Tabs.Tab title="Typescript">
+
+    ```typescript
+    import Reducto from "reductoai";
+    import { writeFileSync, rmSync, mkdtempSync } from "fs";
+    import { createReadStream } from "fs";
+    import { join } from "path";
+    import { tmpdir } from "os";
+
+    const extractText = pdfPipeline.task({
+      name: "extract_text",
+      fn: async (input: PdfInput) => {
+        const client = new Reducto(); // reads REDUCTO_API_KEY from environment
+
+        const decoded = Buffer.from(input.contentBase64, "base64");
+        const tmpDir = mkdtempSync(join(tmpdir(), "hatchet-pdf-"));
+        const tmpFile = join(tmpDir, "input.pdf");
+        writeFileSync(tmpFile, decoded);
+
+        try {
+          const upload = await client.upload({ file: createReadStream(tmpFile) });
+          const result = await client.parse.run({ input: upload.file_id });
+          const text = result.result.chunks.map((c: any) => c.content).join("\n");
+
+          return { text, pageCount: result.usage.num_pages };
+        } finally {
+          try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+        }
+      },
+    });
+    ```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## Next steps
+
+From here you could add more processing stages, such as language detection, entity extraction, or metadata enrichment. You could also use Reducto for richer production parsing, replace keyword extraction or classification with an LLM call, configure retries or concurrency limits for the slowest stages, or fan out to process multiple PDFs by spawning the DAG as a child workflow from a [durable task](/v1/durable-tasks). For this cookbook, the five-task DAG is enough to show the core pattern.

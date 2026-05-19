@@ -5,7 +5,7 @@ import {
   ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
 } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Workflow } from '@hatchet/workflow';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
@@ -15,21 +15,24 @@ import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 /**
  * Schema for creating a Scheduled Run Trigger.
+ * @internal
  */
 export const CreateScheduledRunTriggerSchema = z.object({
   triggerAt: z.coerce.date(),
-  input: z.record(z.any()).optional(),
-  additionalMetadata: z.record(z.string()).optional(),
+  input: z.record(z.any(), z.any()).optional(),
+  additionalMetadata: z.record(z.string(), z.string()).optional(),
   priority: z.number().optional(),
 });
 
 /**
  * Type representing the input for creating a Cron.
+ * @internal
  */
 export type CreateScheduledRunInput = z.infer<typeof CreateScheduledRunTriggerSchema>;
 
 /**
  * Schema for updating (rescheduling) a Scheduled Run Trigger.
+ * @internal
  */
 export const UpdateScheduledRunTriggerSchema = z.object({
   triggerAt: z.coerce.date(),
@@ -38,7 +41,7 @@ export const UpdateScheduledRunTriggerSchema = z.object({
 export type UpdateScheduledRunInput = z.infer<typeof UpdateScheduledRunTriggerSchema>;
 
 /**
- * Client for managing Scheduled Runs.
+ * The scheduled client is a client for managing scheduled workflows within Hatchet
  */
 export class ScheduleClient {
   api: HatchetClient['api'];
@@ -74,12 +77,15 @@ export class ScheduleClient {
    * @param scheduledRun - The input data for creating the Scheduled Run.
    * @returns A promise that resolves to the created ScheduledWorkflows object.
    * @throws Will throw an error if the input is invalid or the API call fails.
+   *
+   * @important This method is instrumented by HatchetInstrumentor._patchScheduleCreate.
+   * Keep the signature in sync with the instrumentor wrapper.
    */
   async create(
     workflow: string | Workflow,
     cron: CreateScheduledRunInput
   ): Promise<ScheduledWorkflows> {
-    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
+    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase();
 
     // Validate cron input with zod schema
     try {
@@ -94,11 +100,11 @@ export class ScheduleClient {
       return response.data;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        throw new Error(`Invalid cron input: ${err.message}`);
+        throw new Error(`Invalid cron input: ${err.message}`, { cause: err });
       }
 
       if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors));
+        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
       }
 
       throw err;
@@ -125,11 +131,11 @@ export class ScheduleClient {
       return response.data;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        throw new Error(`Invalid update input: ${err.message}`);
+        throw new Error(`Invalid update input: ${err.message}`, { cause: err });
       }
 
       if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors));
+        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
       }
 
       throw err;
@@ -160,7 +166,7 @@ export class ScheduleClient {
 
     if (workflow) {
       const workflowId = await this.workflows.getWorkflowIdFromName(
-        applyNamespace(workflowNameString(workflow), this.namespace)
+        applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase()
       );
       rest.workflowId = workflowId;
     }

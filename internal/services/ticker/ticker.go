@@ -13,10 +13,9 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	msgqueuev1 "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type Ticker interface {
@@ -24,25 +23,23 @@ type Ticker interface {
 }
 
 type TickerImpl struct {
-	mq   msgqueue.MessageQueue
-	mqv1 msgqueuev1.MessageQueue
+	mqv1 msgqueue.MessageQueue
 	l    *zerolog.Logger
 
-	entitlements repository.EntitlementsRepository
-
-	repo   repository.EngineRepository
 	repov1 v1.Repository
 	s      gocron.Scheduler
 	ta     *alerting.TenantAlertManager
 
-	scheduledWorkflows sync.Map
+	scheduledWorkflows syncx.Map[string, context.CancelFunc]
 
 	dv datautils.DataDecoderValidator
 
-	tickerId string
+	tickerId uuid.UUID
 
 	userCronScheduler     gocron.Scheduler
 	userCronSchedulerLock sync.Mutex
+
+	userCronRefreshLock sync.Mutex
 
 	// maps a unique key for the cron schedule to a UUID, because the gocron library depends on uuids
 	// as unique identifiers for scheduled jobs
@@ -52,15 +49,12 @@ type TickerImpl struct {
 type TickerOpt func(*TickerOpts)
 
 type TickerOpts struct {
-	mq   msgqueue.MessageQueue
-	mqv1 msgqueuev1.MessageQueue
+	mqv1 msgqueue.MessageQueue
 	l    *zerolog.Logger
 
-	entitlements repository.EntitlementsRepository
-	repo         repository.EngineRepository
-	repov1       v1.Repository
-	tickerId     string
-	ta           *alerting.TenantAlertManager
+	repov1   v1.Repository
+	tickerId uuid.UUID
+	ta       *alerting.TenantAlertManager
 
 	dv datautils.DataDecoderValidator
 }
@@ -69,38 +63,20 @@ func defaultTickerOpts() *TickerOpts {
 	logger := logger.NewDefaultLogger("ticker")
 	return &TickerOpts{
 		l:        &logger,
-		tickerId: uuid.New().String(),
+		tickerId: uuid.New(),
 		dv:       datautils.NewDataDecoderValidator(),
 	}
 }
 
-func WithMessageQueue(mq msgqueue.MessageQueue) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.mq = mq
-	}
-}
-
-func WithMessageQueueV1(mq msgqueuev1.MessageQueue) TickerOpt {
+func WithMessageQueueV1(mq msgqueue.MessageQueue) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.mqv1 = mq
-	}
-}
-
-func WithRepository(r repository.EngineRepository) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.repo = r
 	}
 }
 
 func WithRepositoryV1(r v1.Repository) TickerOpt {
 	return func(opts *TickerOpts) {
 		opts.repov1 = r
-	}
-}
-
-func WithEntitlementsRepository(r repository.EntitlementsRepository) TickerOpt {
-	return func(opts *TickerOpts) {
-		opts.entitlements = r
 	}
 }
 
@@ -123,24 +99,12 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		f(opts)
 	}
 
-	if opts.mq == nil {
-		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
-	}
-
 	if opts.mqv1 == nil {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
-	}
-
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("repository v1 is required. use WithRepositoryV1")
-	}
-
-	if opts.entitlements == nil {
-		return nil, fmt.Errorf("entitlements repository is required. use WithEntitlementsRepository")
 	}
 
 	if opts.ta == nil {
@@ -156,17 +120,21 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 		return nil, fmt.Errorf("could not create scheduler: %w", err)
 	}
 
+	userCronScheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
+
+	if err != nil {
+		return nil, fmt.Errorf("could not create user cron scheduler: %w", err)
+	}
+
 	return &TickerImpl{
-		mq:                     opts.mq,
 		mqv1:                   opts.mqv1,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
-		entitlements:           opts.entitlements,
 		s:                      s,
 		dv:                     opts.dv,
 		tickerId:               opts.tickerId,
 		ta:                     opts.ta,
+		userCronScheduler:      userCronScheduler,
 		userCronSchedulesToIds: make(map[string]string),
 	}, nil
 }
@@ -174,16 +142,29 @@ func New(fs ...TickerOpt) (*TickerImpl, error) {
 func (t *TickerImpl) Start() (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	t.l.Debug().Msgf("starting ticker %s", t.tickerId)
+	t.l.Debug().Ctx(ctx).Msgf("starting ticker %s", t.tickerId)
 
-	// register the ticker
-	_, err := t.repo.Ticker().CreateNewTicker(ctx, &repository.CreateTickerOpts{
+	_, err := t.repov1.Ticker().CreateNewTicker(ctx, &v1.CreateTickerOpts{
 		ID: t.tickerId,
 	})
 
 	if err != nil {
 		cancel()
 		return nil, err
+	}
+
+	// initialize the cron schedules, so no need to wait for 15 seconds or
+	// a cron to be created
+	t.refreshCronSchedules(ctx)()
+
+	// add a handler to update the cron schedule on-demand when crons are created
+	cronUpdateHandler := func(task *msgqueue.Message) error {
+		t.refreshCronSchedules(ctx)()
+		return nil
+	}
+	queueCleanupFunc, err := t.mqv1.Subscribe(msgqueue.TICKER_UPDATE_QUEUE, cronUpdateHandler, msgqueue.NoOpHook)
+	if err != nil {
+		t.l.Err(err).Ctx(ctx).Msg("Could not subscribe to cron trigger update queue")
 	}
 
 	_, err = t.s.NewJob(
@@ -199,22 +180,10 @@ func (t *TickerImpl) Start() (func() error, error) {
 	}
 
 	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Second*1),
-		gocron.NewTask(
-			t.runPollGetGroupKeyRuns(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create update heartbeat job: %w", err)
-	}
-
-	_, err = t.s.NewJob(
 		// crons only have a resolution of 1 minute, so only poll every 15 seconds
 		gocron.DurationJob(time.Second*15),
 		gocron.NewTask(
-			t.runPollCronSchedules(ctx),
+			t.refreshCronSchedules(ctx),
 		),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -226,6 +195,8 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 	_, err = t.s.NewJob(
 		// we look ahead every 5 seconds
+		// FIXME: add another queue similar to cron jobs so that tasks scheduled less than 5 seconds
+		// into the future do not take 5 seconds to be triggered
 		gocron.DurationJob(time.Second*5),
 		gocron.NewTask(
 			t.runPollSchedules(ctx),
@@ -236,31 +207,6 @@ func (t *TickerImpl) Start() (func() error, error) {
 	if err != nil {
 		cancel()
 		return nil, fmt.Errorf("could not create poll cron schedules job: %w", err)
-	}
-
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*5),
-		gocron.NewTask(
-			t.runStreamEventCleanup(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule stream event cleanup: %w", err)
-	}
-
-	// poll for tenant alerts every minute, since minimum alerting frequency is 5 minutes
-	_, err = t.s.NewJob(
-		gocron.DurationJob(time.Minute*1),
-		gocron.NewTask(
-			t.runPollTenantAlerts(ctx),
-		),
-	)
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not schedule tenant alert polling: %w", err)
 	}
 
 	// poll for expiring tokens every 15 minutes
@@ -289,22 +235,17 @@ func (t *TickerImpl) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant resource limit alert polling: %w", err)
 	}
 
-	userCronScheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
-
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("could not create user cron scheduler: %w", err)
-	}
-
-	t.userCronScheduler = userCronScheduler
-
 	t.s.Start()
 	t.userCronScheduler.Start()
 
 	cleanup := func() error {
-		t.l.Debug().Msg("removing ticker")
+		t.l.Debug().Ctx(ctx).Msg("removing ticker")
 
 		cancel()
+
+		if err = queueCleanupFunc(); err != nil {
+			t.l.Err(err).Ctx(ctx).Msg("Could not cleanup cron trigger update queue")
+		}
 
 		if err := t.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)
@@ -318,10 +259,10 @@ func (t *TickerImpl) Start() (func() error, error) {
 		defer deleteCancel()
 
 		// delete the ticker
-		err = t.repo.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
+		err = t.repov1.Ticker().DeactivateTicker(deleteCtx, t.tickerId)
 
 		if err != nil {
-			t.l.Err(err).Msg("could not delete ticker")
+			t.l.Err(err).Ctx(ctx).Msg("could not delete ticker")
 			return err
 		}
 
@@ -333,32 +274,17 @@ func (t *TickerImpl) Start() (func() error, error) {
 
 func (t *TickerImpl) runUpdateHeartbeat(ctx context.Context) func() {
 	return func() {
-		t.l.Debug().Msgf("ticker: updating heartbeat")
+		t.l.Debug().Ctx(ctx).Msgf("ticker: updating heartbeat")
 
 		now := time.Now().UTC()
 
 		// update the heartbeat
-		_, err := t.repo.Ticker().UpdateTicker(ctx, t.tickerId, &repository.UpdateTickerOpts{
+		_, err := t.repov1.Ticker().UpdateTicker(ctx, t.tickerId, &v1.UpdateTickerOpts{
 			LastHeartbeatAt: &now,
 		})
 
 		if err != nil {
-			t.l.Err(err).Msg("could not update heartbeat")
-		}
-	}
-}
-
-func (t *TickerImpl) runStreamEventCleanup(ctx context.Context) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		t.l.Debug().Msgf("ticker: cleaning up stream event")
-
-		err := t.repo.StreamEvent().CleanupStreamEvents(ctx)
-
-		if err != nil {
-			t.l.Err(err).Msg("could not cleanup stream events")
+			t.l.Err(err).Ctx(ctx).Msg("could not update heartbeat")
 		}
 	}
 }

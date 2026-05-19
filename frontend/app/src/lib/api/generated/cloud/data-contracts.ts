@@ -10,19 +10,39 @@
  * ---------------------------------------------------------------
  */
 
+export enum UserOfferType {
+  YCAlumni = "YC Alumni",
+  YCCurrentBatch = "YC Current Batch",
+  Startup = "Startup",
+  Custom = "Custom",
+}
+
+export enum UserOfferStage {
+  Requested = "Requested",
+  Approved = "Approved",
+  Redeemed = "Redeemed",
+}
+
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
+  REJECTED = "REJECTED",
   EXPIRED = "EXPIRED",
 }
 
 export enum ManagementTokenDuration {
-  Value30D = "30d",
-  Value60D = "60d",
-  Value90D = "90d",
+  Value30D = "30D",
+  Value60D = "60D",
+  Value90D = "90D",
 }
 
 export enum TenantStatusType {
+  ACTIVE = "ACTIVE",
   ARCHIVED = "ARCHIVED",
 }
 
@@ -36,21 +56,28 @@ export enum TemplateOptions {
   QUICKSTART_GO = "QUICKSTART_GO",
 }
 
-enum AutoscalingTargetKind {
-  PORTER = "PORTER",
+export enum AutoscalingTargetKind {
   FLY = "FLY",
 }
 
-enum CouponFrequency {
+export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
 }
 
-enum TenantSubscriptionStatus {
-  Active = "active",
-  Pending = "pending",
-  Terminated = "terminated",
-  Canceled = "canceled",
+export enum SubscriptionPeriod {
+  Monthly = "monthly",
+  Yearly = "yearly",
+}
+
+export enum SubscriptionPlanCode {
+  Free = "free",
+  Starter = "starter",
+  Growth = "growth",
+  Developer = "developer",
+  Team = "team",
+  Scale = "scale",
+  Dedicated = "dedicated",
 }
 
 export enum ManagedWorkerRegion {
@@ -109,22 +136,27 @@ export interface APICloudMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  /**
+   * when set, the dashboard may prompt users to continue on this frontend host (same path)
+   * @example "https://cloud.hatchet.run"
+   */
+  redirectFrontendHost?: string;
 }
 
 export type APIErrors = any;
 
 export type APIError = any;
 
-type PaginationResponse = any;
+export type PaginationResponse = any;
 
-type APIResourceMeta = any;
+export type APIResourceMeta = any;
 
-interface GithubBranch {
+export interface GithubBranch {
   branch_name: string;
   is_default: boolean;
 }
 
-interface GithubRepo {
+export interface GithubRepo {
   repo_owner: string;
   repo_name: string;
 }
@@ -151,7 +183,6 @@ export interface ManagedWorker {
   metadata: APIResourceMeta;
   name: string;
   buildConfig?: ManagedWorkerBuildConfig;
-  isIac: boolean;
   directSecrets: ManagedWorkerSecret[];
   globalSecrets: ManagedWorkerSecret[];
   runtimeConfigs?: ManagedWorkerRuntimeConfig[];
@@ -176,13 +207,13 @@ export interface ManagedWorkerBuildConfig {
   steps?: BuildStep[];
 }
 
-interface ManagedWorkerSecret {
+export interface ManagedWorkerSecret {
   key: string;
   id: string;
   hint: string;
 }
 
-interface CreateManagedWorkerSecretRequest {
+export interface CreateManagedWorkerSecretRequest {
   /** array of secret keys and values to add to the worker */
   add?: {
     key: string;
@@ -192,7 +223,7 @@ interface CreateManagedWorkerSecretRequest {
   addGlobal?: string[];
 }
 
-interface UpdateManagedWorkerSecretRequest {
+export interface UpdateManagedWorkerSecretRequest {
   /** array of secret keys and values to add to the worker */
   add?: {
     key: string;
@@ -216,7 +247,7 @@ interface UpdateManagedWorkerSecretRequest {
   }[];
 }
 
-interface BuildStep {
+export interface BuildStep {
   metadata: APIResourceMeta;
   /** The relative path to the build directory */
   buildDir: string;
@@ -224,7 +255,7 @@ interface BuildStep {
   dockerfilePath: string;
 }
 
-interface ManagedWorkerRuntimeConfig {
+export interface ManagedWorkerRuntimeConfig {
   metadata: APIResourceMeta;
   numReplicas: number;
   autoscaling?: AutoscalingConfig;
@@ -261,7 +292,6 @@ export interface CreateManagedWorkerRequest {
   name: string;
   buildConfig: CreateManagedWorkerBuildConfigRequest;
   secrets?: CreateManagedWorkerSecretRequest;
-  isIac: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
 
@@ -269,7 +299,6 @@ export interface UpdateManagedWorkerRequest {
   name?: string;
   buildConfig?: CreateManagedWorkerBuildConfigRequest;
   secrets?: UpdateManagedWorkerSecretRequest;
-  isIac?: boolean;
   runtimeConfig?: CreateManagedWorkerRuntimeConfigRequest;
 }
 
@@ -281,7 +310,7 @@ export interface RuntimeConfigActionsResponse {
   actions: string[];
 }
 
-interface CreateManagedWorkerBuildConfigRequest {
+export interface CreateManagedWorkerBuildConfigRequest {
   /**
    * @format uuid
    * @minLength 36
@@ -294,14 +323,14 @@ interface CreateManagedWorkerBuildConfigRequest {
   steps: CreateBuildStepRequest[];
 }
 
-interface CreateBuildStepRequest {
+export interface CreateBuildStepRequest {
   /** The relative path to the build directory */
   buildDir: string;
   /** The relative path from the build dir to the Dockerfile */
   dockerfilePath: string;
 }
 
-interface CreateManagedWorkerRuntimeConfigRequest {
+export interface CreateManagedWorkerRuntimeConfigRequest {
   /**
    * @min 0
    * @max 1000
@@ -341,44 +370,14 @@ interface CreateManagedWorkerRuntimeConfigRequest {
 }
 
 export interface TenantBillingState {
-  paymentMethods?: TenantPaymentMethod[];
   /** The subscription associated with this policy. */
-  subscription: TenantSubscription;
+  currentSubscription: TenantSubscription;
+  /** The upcoming subscription associated with this policy. */
+  upcomingSubscription?: TenantSubscription;
   /** A list of plans available for the tenant. */
-  plans?: SubscriptionPlan[];
+  plans: SubscriptionPlan[];
   /** A list of coupons applied to the tenant. */
   coupons?: Coupon[];
-}
-
-export interface SubscriptionPlan {
-  /** The code of the plan. */
-  plan_code: string;
-  /** The name of the plan. */
-  name: string;
-  /** The description of the plan. */
-  description: string;
-  /** The price of the plan. */
-  amount_cents: number;
-  /** The period of the plan. */
-  period?: string;
-}
-
-export interface UpdateTenantSubscription {
-  /** The code of the plan. */
-  plan?: string;
-  /** The period of the plan. */
-  period?: string;
-}
-
-export interface TenantSubscription {
-  /** The plan code associated with the tenant subscription. */
-  plan?: string;
-  /** The period associated with the tenant subscription. */
-  period?: string;
-  /** The status of the tenant subscription. */
-  status?: TenantSubscriptionStatus;
-  /** A note associated with the tenant subscription. */
-  note?: string;
 }
 
 export interface TenantPaymentMethod {
@@ -386,10 +385,151 @@ export interface TenantPaymentMethod {
   brand: string;
   /** The last 4 digits of the card. */
   last4?: string;
-  /** The expiration date of the card. */
+  /**
+   * The expiration date of the card.
+   * @format date-time
+   */
   expiration?: string;
   /** The description of the payment method. */
   description?: string;
+}
+
+export type TenantPaymentMethodList = TenantPaymentMethod[];
+
+export interface TenantCreditBalance {
+  /** The Stripe customer balance in cents. Negative means customer credit. */
+  balanceCents: number;
+  /** ISO currency code for the Stripe customer balance. */
+  currency: string;
+  /** Human-readable description for the active credit balance, if available. */
+  description?: string;
+  /**
+   * The timestamp at which the current credit balance is scheduled to expire.
+   * @format date-time
+   */
+  expiresAt?: string;
+}
+
+export interface SubscriptionPlanFeatureDisplay {
+  /** Main display text for this feature (e.g. "100,000 task runs"). */
+  primaryText: string;
+  /** Secondary display text (e.g. "then $10 per 1,000,000 task runs"). */
+  secondaryText?: string;
+}
+
+export interface SubscriptionPlanFeatureOverage {
+  /**
+   * Price per billing units of overage usage.
+   * @format double
+   */
+  price: number;
+  /**
+   * Number of units per price increment.
+   * @format int64
+   */
+  billingUnits: number;
+  /** How overage is charged (e.g. "pay_per_use", "prepaid"). */
+  usageModel: string;
+}
+
+export interface SubscriptionPlanFeature {
+  /** The identifier of the feature. */
+  featureId: string;
+  /** Human-readable name of the feature. */
+  name: string;
+  /** The type of the feature (e.g. "boolean", "single_use", "continuous_use"). */
+  featureType: string;
+  /** Whether this feature is part of this plan. False for features added for cross-plan comparison. */
+  included: boolean;
+  /**
+   * The included usage for this feature in the plan.
+   * @format int64
+   */
+  includedUsage: number;
+  /** Whether this feature has unlimited usage. */
+  unlimited: boolean;
+  /** Overage pricing details, if applicable. */
+  overage?: SubscriptionPlanFeatureOverage;
+  /** Pre-formatted display text for this feature. */
+  display?: SubscriptionPlanFeatureDisplay;
+}
+
+export interface SubscriptionPlanFeatureGroup {
+  /** The name of the feature group (e.g. "Usage", "Infrastructure"). */
+  name: string;
+  /** The features in this group. */
+  features: SubscriptionPlanFeature[];
+}
+
+export interface SubscriptionPlan {
+  /** The code of the plan. */
+  planCode: string;
+  /** The name of the plan. */
+  name: string;
+  /** The description of the plan. */
+  description: string;
+  /** The price of the plan. */
+  amountCents: number;
+  /** The period of the plan. */
+  period?: SubscriptionPeriod;
+  /** Whether this is a legacy plan and is no longer offered to new customers. */
+  legacy?: boolean;
+  /** The features included in this plan, organized by group. */
+  featureGroups?: SubscriptionPlanFeatureGroup[];
+}
+
+export interface SubscriptionPlanFreeLimit {
+  /** The feature identifier. */
+  featureId: string;
+  /** Human-readable name of the limit. */
+  name: string;
+  /**
+   * The daily limit value.
+   * @format int64
+   */
+  limit: number;
+}
+
+export interface SubscriptionPlanList {
+  plans: SubscriptionPlan[];
+  /** Abbreviated daily limits for the free plan. */
+  freeLimits: SubscriptionPlanFreeLimit[];
+}
+
+export interface UpdateTenantSubscriptionRequest {
+  /** The code of the plan. */
+  plan: SubscriptionPlanCode;
+  /** The period of the plan. */
+  period?: SubscriptionPeriod;
+}
+
+export type UpdateTenantSubscriptionResponse =
+  | CheckoutURLResponse
+  | {
+      currentSubscription: TenantSubscription;
+      upcomingSubscription?: TenantSubscription;
+    };
+
+export interface CheckoutURLResponse {
+  /** The URL to the checkout page. */
+  checkoutUrl: string;
+}
+
+export interface TenantSubscription {
+  /** The plan code associated with the tenant subscription. */
+  plan: SubscriptionPlanCode;
+  /** The period associated with the tenant subscription. */
+  period?: SubscriptionPeriod;
+  /**
+   * The start date of the tenant subscription.
+   * @format date-time
+   */
+  startedAt: string;
+  /**
+   * The end date of the tenant subscription.
+   * @format date-time
+   */
+  endsAt?: string;
 }
 
 export interface Coupon {
@@ -413,7 +553,7 @@ export interface Coupon {
 
 export type VectorPushRequest = EventObject[];
 
-interface EventObject {
+export interface EventObject {
   event?: {
     provider?: string;
   };
@@ -450,34 +590,34 @@ export interface LogLineList {
 
 export type Matrix = SampleStream[];
 
-interface SampleStream {
+export interface SampleStream {
   metric?: Metric;
   values?: SamplePair[];
   histograms?: SampleHistogramPair[];
 }
 
-type SamplePair = any[];
+export type SamplePair = any[];
 
 /** @format float */
-type SampleValue = number;
+export type SampleValue = number;
 
-interface SampleHistogramPair {
+export interface SampleHistogramPair {
   timestamp?: Time;
   histogram?: SampleHistogram;
 }
 
-interface SampleHistogram {
+export interface SampleHistogram {
   count?: FloatString;
   sum?: FloatString;
   buckets?: HistogramBuckets;
 }
 
 /** @format float */
-type FloatString = number;
+export type FloatString = number;
 
-type HistogramBuckets = HistogramBucket[];
+export type HistogramBuckets = HistogramBucket[];
 
-interface HistogramBucket {
+export interface HistogramBucket {
   /** @format int32 */
   boundaries?: number;
   lower?: FloatString;
@@ -485,15 +625,15 @@ interface HistogramBucket {
   count?: FloatString;
 }
 
-type Metric = Record<string, LabelValue>;
+export type Metric = Record<string, LabelValue>;
 
-type LabelSet = Record<string, LabelValue>;
+export type LabelSet = Record<string, LabelValue>;
 
-type LabelName = string;
+export type LabelName = string;
 
-type LabelValue = string;
+export type LabelValue = string;
 
-type Time = number;
+export type Time = number;
 
 export interface Build {
   metadata?: APIResourceMeta;
@@ -532,7 +672,7 @@ export interface InstanceList {
  */
 export type FeatureFlags = Record<string, string>;
 
-interface WorkflowRunEventsMetric {
+export interface WorkflowRunEventsMetric {
   /** @format date-time */
   time: string;
   PENDING: number;
@@ -546,7 +686,7 @@ export interface WorkflowRunEventsMetricsCounts {
   results?: WorkflowRunEventsMetric[];
 }
 
-interface AutoscalingConfig {
+export interface AutoscalingConfig {
   waitDuration: string;
   rollingWindowDuration: string;
   utilizationScaleUpThreshold: number;
@@ -572,7 +712,7 @@ export interface CreateOrUpdateAutoscalingRequest {
   fly?: CreateFlyAutoscalingRequest;
 }
 
-interface CreatePorterAutoscalingRequest {
+export interface CreatePorterAutoscalingRequest {
   token: string;
   targetUrl: "CLOUD" | "DASHBOARD";
   targetProject: string;
@@ -580,7 +720,7 @@ interface CreatePorterAutoscalingRequest {
   targetAppName: string;
 }
 
-interface CreateFlyAutoscalingRequest {
+export interface CreateFlyAutoscalingRequest {
   autoscalingKey: string;
   currentReplicas: number;
 }
@@ -646,12 +786,12 @@ export interface OrganizationMember {
   email: string;
 }
 
-interface OrganizationMemberList {
+export interface OrganizationMemberList {
   rows: OrganizationMember[];
   pagination: PaginationResponse;
 }
 
-interface InviteOrganizationMembersRequest {
+export interface InviteOrganizationMembersRequest {
   /**
    * Array of user emails to invite to the organization
    * @minItems 1
@@ -673,6 +813,10 @@ export interface OrganizationTenant {
    * @format uuid
    */
   id: string;
+  /** Name of the tenant */
+  name?: string;
+  /** Slug of the tenant */
+  slug?: string;
   /** Status of the tenant */
   status: TenantStatusType;
   /**
@@ -682,7 +826,7 @@ export interface OrganizationTenant {
   archivedAt?: string;
 }
 
-interface OrganizationTenantList {
+export interface OrganizationTenantList {
   rows: OrganizationTenant[];
 }
 
@@ -693,7 +837,12 @@ export interface CreateNewTenantForOrganizationRequest {
   slug: string;
 }
 
-type APIToken = any;
+export interface UpdateOrganizationTenantRequest {
+  /** The name of the tenant. */
+  name: string;
+}
+
+export type APIToken = any;
 
 export type APITokenList = any;
 
@@ -704,7 +853,7 @@ export type CreateTenantAPITokenResponse = any;
 export interface CreateManagementTokenRequest {
   /** The name of the management token. */
   name: string;
-  /** @default "30d" */
+  /** @default "30D" */
   duration?: ManagementTokenDuration;
 }
 
@@ -725,7 +874,7 @@ export interface ManagementToken {
    * The timestamp at which the management token expires
    * @format date-time
    */
-  expiresAt: string;
+  expiresAt?: string;
 }
 
 export interface ManagementTokenList {
@@ -788,4 +937,235 @@ export interface RejectOrganizationInviteRequest {
    * @format uuid
    */
   id: string;
+}
+
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
+}
+
+export interface RedeemOfferRequest {
+  /**
+   * The organization to apply the offer credit to.
+   * @format uuid
+   */
+  organizationId: string;
+  /** The Attio record ID of the offer to redeem. */
+  offerRecordId: string;
+  /** Shipping address for welcome kit delivery. */
+  address?: string;
+}
+
+export interface RedeemOfferResponse {
+  /** The amount of credit applied in cents. */
+  appliedCents: number;
+  /** The Attio record ID of the redeemed offer. */
+  offerRecordId: string;
+}
+
+export interface UserOffer {
+  /** The Attio record ID of the offer. */
+  recordId: string;
+  /** The current stage of the offer. */
+  stage?: UserOfferStage;
+  /** The type of the offer. */
+  type?: UserOfferType;
+  /** The credit amount in cents. */
+  creditAmountCents?: number;
+  /**
+   * The expiration date of the offer.
+   * @format date-time
+   */
+  expiresAt?: string;
+  /** Number of months until the offer credit expires after redemption. */
+  expiresInMonths?: number;
+  /** Whether the offer includes a welcome kit. */
+  includesWelcomeKit?: boolean;
+}
+
+export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
+
+export interface AutumnCustomerProductsUpdatedEvent {
+  data: AutumnCustomerProductsUpdatedEventData;
+  type: string;
+}
+
+export interface AutumnCustomerProductsUpdatedEventData {
+  customer: AutumnCustomer;
+  entity: {
+    /** @format int64 */
+    created_at?: number;
+    customer_id: string;
+    env?: string;
+    features?: AutumnFeaturesMap;
+    id: string;
+    name?: string;
+    products: AutumnCustomerProduct[];
+  };
+  scenario?: string;
+  updated_product?: {
+    archived?: boolean;
+    base_variant_id?: string;
+    /** @format int64 */
+    created_at?: number;
+    env?: string;
+    free_trial?: object;
+    group?: string;
+    id: string;
+    is_add_on?: boolean;
+    is_default?: boolean;
+    items?: AutumnProductItem[];
+    name?: string;
+    properties?: {
+      has_trial?: boolean;
+      interval_group?: string;
+      is_free?: boolean;
+      is_one_off?: boolean;
+      updateable?: boolean;
+    };
+    version?: number;
+  };
+}
+
+export interface AutumnCustomer {
+  autumn_id?: string;
+  /** @format int64 */
+  created_at?: number;
+  email?: string;
+  env?: string;
+  features?: AutumnFeaturesMap;
+  fingerprint?: string;
+  id: string;
+  metadata: Record<string, any>;
+  name: string;
+  products?: AutumnCustomerProduct[];
+  send_email_receipts?: boolean;
+  stripe_id?: string;
+}
+
+export interface AutumnCustomerProduct {
+  /** @format int64 */
+  canceled_at?: number;
+  /** @format int64 */
+  current_period_end?: number;
+  /** @format int64 */
+  current_period_start?: number;
+  group?: string;
+  id: string;
+  is_add_on?: boolean;
+  is_default?: boolean;
+  items?: AutumnProductItem[];
+  name?: string;
+  quantity?: number;
+  /** @format int64 */
+  started_at?: number;
+  status?: string;
+  version?: number;
+}
+
+export type AutumnFeaturesMap = Record<string, AutumnFeature>;
+
+export interface AutumnFeature {
+  balance?: number;
+  breakdown?: AutumnFeatureBreakdown[];
+  credit_schema?: AutumnFeatureCreditSchemaItem[];
+  id: string;
+  included_usage?: number;
+  interval?: string;
+  interval_count?: number;
+  name: string;
+  /** @format int64 */
+  next_reset_at?: number;
+  overage_allowed?: boolean;
+  type: string;
+  unlimited?: boolean;
+  usage?: number;
+}
+
+export interface AutumnFeatureBreakdown {
+  balance?: number;
+  /** @format int64 */
+  expires_at?: number;
+  included_usage?: number;
+  interval?: string;
+  interval_count?: number;
+  /** @format int64 */
+  next_reset_at?: number;
+  overage_allowed?: boolean;
+  usage?: number;
+}
+
+export interface AutumnFeatureCreditSchemaItem {
+  credit_amount: number;
+  feature_id: string;
+}
+
+export interface AutumnProductItem {
+  billing_units?: number;
+  display?: AutumnProductItemDisplay;
+  entity_feature_id?: string;
+  feature?: {
+    archived?: boolean;
+    credit_schema?: {
+      credit_cost: number;
+      metered_feature_id: string;
+    }[];
+    display?: {
+      plural?: string;
+      singular?: string;
+    };
+    id: string;
+    name: string;
+    type: string;
+  };
+  feature_id?: string;
+  feature_type?: string;
+  included_usage?: number;
+  interval?: string;
+  interval_count?: number;
+  price?: number;
+  reset_usage_when_enabled?: boolean;
+  type: string;
+  usage_model?: string;
+}
+
+export interface AutumnProductItemDisplay {
+  primary_text?: string;
+  secondary_text?: string;
 }

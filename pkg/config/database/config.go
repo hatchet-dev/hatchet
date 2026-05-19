@@ -7,8 +7,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type ConfigFile struct {
@@ -25,10 +24,20 @@ type ConfigFile struct {
 	ReadReplicaMinConns    int    `mapstructure:"readReplicaMinConns" json:"readReplicaMinConns,omitempty" default:"10"`
 
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
-	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"10"`
+	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
 
 	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
 	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
+
+	// PgBouncerURL is an optional connection string for pgbouncer. When set, most queries are routed
+	// through pgbouncer, other than DDL-modifying statements which use the separate direct connection pool.
+	PgBouncerURL string `mapstructure:"pgbouncerUrl" json:"pgbouncerUrl,omitempty" default:""`
+
+	DDLPoolMaxConns int `mapstructure:"ddlPoolMaxConns" json:"ddlPoolMaxConns,omitempty" default:"5"`
+	DDLPoolMinConns int `mapstructure:"ddlPoolMinConns" json:"ddlPoolMinConns,omitempty" default:"1"`
+
+	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
+	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
 
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
@@ -63,13 +72,9 @@ type Layer struct {
 
 	ReadReplicaPool *pgxpool.Pool
 
-	QueuePool *pgxpool.Pool
-
-	APIRepository repository.APIRepository
-
-	EngineRepository repository.EngineRepository
-
-	EntitlementRepository repository.EntitlementsRepository
+	// DDLPool is meant for DDL-modifying operations like DETACH PARTITION CONCURRENTLY, which
+	// are critical and cannot run in an explicit transaction (and therefor cannot go through pgbouncer when it's configured)
+	DDLPool *pgxpool.Pool
 
 	V1 v1.Repository
 
@@ -88,6 +93,12 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
 	_ = v.BindEnv("maxQueueConns", "DATABASE_MAX_QUEUE_CONNS")
 	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
+	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
+	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
+
+	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")
+	_ = v.BindEnv("ddlPoolMaxConns", "DATABASE_DDL_POOL_MAX_CONNS")
+	_ = v.BindEnv("ddlPoolMinConns", "DATABASE_DDL_POOL_MIN_CONNS")
 
 	_ = v.BindEnv("readReplicaEnabled", "READ_REPLICA_ENABLED")
 	_ = v.BindEnv("readReplicaDatabaseUrl", "READ_REPLICA_DATABASE_URL")

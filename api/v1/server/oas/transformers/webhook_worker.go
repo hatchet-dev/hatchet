@@ -2,11 +2,10 @@ package transformers
 
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToWebhookWorkerRequest(webhookWorker *dbsqlc.WebhookWorkerRequest) *gen.WebhookWorkerRequest {
+func ToWebhookWorkerRequest(webhookWorker *sqlcv1.WebhookWorkerRequest) *gen.WebhookWorkerRequest {
 	return &gen.WebhookWorkerRequest{
 		CreatedAt:  webhookWorker.CreatedAt.Time,
 		Method:     webhookWorker.Method,
@@ -14,10 +13,10 @@ func ToWebhookWorkerRequest(webhookWorker *dbsqlc.WebhookWorkerRequest) *gen.Web
 	}
 }
 
-func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
+func ToWebhookWorker(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorker {
 	return &gen.WebhookWorker{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.ID,
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),
@@ -26,10 +25,10 @@ func ToWebhookWorker(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorker {
 	}
 }
 
-func ToWebhookWorkerCreated(webhookWorker *dbsqlc.WebhookWorker) *gen.WebhookWorkerCreated {
+func ToWebhookWorkerCreated(webhookWorker *sqlcv1.WebhookWorker) *gen.WebhookWorkerCreated {
 	return &gen.WebhookWorkerCreated{
 		Metadata: *toAPIMetadata(
-			sqlchelpers.UUIDToStr(webhookWorker.ID),
+			webhookWorker.ID,
 			webhookWorker.CreatedAt.Time,
 			webhookWorker.UpdatedAt.Time,
 		),

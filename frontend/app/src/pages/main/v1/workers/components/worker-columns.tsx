@@ -1,3 +1,4 @@
+import { AdditionalMetadata } from '../../events/components/additional-metadata';
 import { SdkInfo } from './sdk-info';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -13,9 +14,10 @@ export const WorkerColumn = {
   name: 'Name',
   type: 'Type',
   startedAt: 'Started at',
-  slots: 'Available Slots',
+  slots: 'Slots',
   lastHeartbeatAt: 'Last seen',
   runtime: 'SDK Version',
+  labels: 'Labels',
 } as const;
 
 type WorkerColumnKeys = keyof typeof WorkerColumn;
@@ -26,6 +28,7 @@ const startedAtKey: WorkerColumnKeys = 'startedAt';
 const slotsKey: WorkerColumnKeys = 'slots';
 const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
 const runtimeKey: WorkerColumnKeys = 'runtime';
+const labelsKey: WorkerColumnKeys = 'labels';
 
 interface WorkerStatusBadgeProps extends BadgeProps {
   status?: string;
@@ -120,25 +123,15 @@ function WorkerStatusBadge({
   );
 }
 
-export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
+export const columns: (
+  tenantId: string,
+  openLabelsPopover: string | null,
+  setOpenLabelsPopover: (id: string | null) => void,
+) => ColumnDef<Worker>[] = (
   tenantId,
+  openLabelsPopover,
+  setOpenLabelsPopover,
 ) => [
-  {
-    accessorKey: statusKey,
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title={WorkerColumn.status} />
-    ),
-    cell: ({ row }) => (
-      <Link
-        to={appRoutes.tenantWorkerRoute.to}
-        params={{ tenant: tenantId, worker: row.original.metadata.id }}
-      >
-        <WorkerStatusBadge status={row.original.status} />
-      </Link>
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
   {
     accessorKey: nameKey,
     header: ({ column }) => (
@@ -152,6 +145,22 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
         <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
           {row.original.webhookUrl || row.original.name}
         </div>
+      </Link>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: statusKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={WorkerColumn.status} />
+    ),
+    cell: ({ row }) => (
+      <Link
+        to={appRoutes.tenantWorkerRoute.to}
+        params={{ tenant: tenantId, worker: row.original.metadata.id }}
+      >
+        <WorkerStatusBadge status={row.original.status} />
       </Link>
     ),
     enableSorting: false,
@@ -181,11 +190,34 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={WorkerColumn.slots} />
     ),
-    cell: ({ row }) => (
-      <div>
-        {row.original.availableRuns} / {row.original.maxRuns}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const slotConfig = row.original.slotConfig || {};
+      const entries = Object.entries(slotConfig).sort(([a], [b]) =>
+        a.localeCompare(b),
+      );
+
+      if (entries.length === 0) {
+        return <div className="text-xs text-muted-foreground">No slots</div>;
+      }
+
+      return (
+        <div className="space-y-1">
+          {entries.map(([slotType, capacity]) => {
+            const available = capacity?.available;
+            const limit = capacity?.limit;
+            const label =
+              available !== undefined ? `${available} / ${limit}` : `${limit}`;
+
+            return (
+              <div key={slotType} className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">{slotType}</span>:{' '}
+                {label}
+              </div>
+            );
+          })}
+        </div>
+      );
+    },
     enableSorting: false,
     enableHiding: true,
   },
@@ -216,6 +248,37 @@ export const columns: (tenantId: string) => ColumnDef<Worker>[] = (
       <DataTableColumnHeader column={column} title={WorkerColumn.runtime} />
     ),
     cell: ({ row }) => <SdkInfo runtimeInfo={row.original.runtimeInfo} />,
+    enableSorting: false,
+    enableHiding: true,
+  },
+  {
+    accessorKey: labelsKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={WorkerColumn.labels} />
+    ),
+    cell: ({ row }) => (
+      <AdditionalMetadata
+        metadata={(row.original?.labels || []).reduce(
+          (acc, label) => {
+            if (label.key && label.value) {
+              acc[label.key] = label.value;
+            }
+            return acc;
+          },
+          {} as Record<string, string>,
+        )}
+        isOpen={openLabelsPopover === row.original.metadata.id}
+        onOpenChange={(open) => {
+          if (open) {
+            setOpenLabelsPopover(row.original.metadata.id);
+          } else {
+            setOpenLabelsPopover(null);
+          }
+        }}
+        title="Labels"
+        align="end"
+      />
+    ),
     enableSorting: false,
     enableHiding: true,
   },

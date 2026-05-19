@@ -3,9 +3,9 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, Hatchet, TriggerWorkflowOptions
+from hatchet_sdk import Context, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > FanoutParent
@@ -29,9 +29,8 @@ async def spawn(input: ParentInput, ctx: Context) -> dict[str, Any]:
         [
             child_wf.create_bulk_run_item(
                 input=ChildInput(a=str(i)),
-                options=TriggerWorkflowOptions(
-                    additional_metadata={"hello": "earth"}, key=f"child{i}"
-                ),
+                additional_metadata={"hello": "earth"},
+                key=f"child{i}",
             )
             for i in range(input.n)
         ],

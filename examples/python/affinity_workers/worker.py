@@ -1,7 +1,7 @@
-from hatchet_sdk import Context, EmptyModel, Hatchet, WorkerLabelComparator
+from hatchet_sdk import Context, EmptyModel, Hatchet, WorkerLabel, WorkerLabelComparator
 from hatchet_sdk.labels import DesiredWorkerLabel
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > AffinityWorkflow
@@ -10,26 +10,27 @@ affinity_worker_workflow = hatchet.workflow(name="AffinityWorkflow")
 
 
 @affinity_worker_workflow.task(
-    desired_worker_labels={
-        "model": DesiredWorkerLabel(value="fancy-ai-model-v2", weight=10),
-        "memory": DesiredWorkerLabel(
+    desired_worker_labels=[
+        DesiredWorkerLabel(key="model", value="fancy-ai-model-v2", weight=10),
+        DesiredWorkerLabel(
+            key="memory",
             value=256,
             required=True,
             comparator=WorkerLabelComparator.LESS_THAN,
         ),
-    },
+    ],
 )
 
 
 
 # > AffinityTask
 async def step(input: EmptyModel, ctx: Context) -> dict[str, str | None]:
-    if ctx.worker.labels().get("model") != "fancy-ai-model-v2":
+    if ctx.worker_labels.get("model") != "fancy-ai-model-v2":
         ctx.worker.upsert_labels({"model": "unset"})
         # DO WORK TO EVICT OLD MODEL / LOAD NEW MODEL
         ctx.worker.upsert_labels({"model": "fancy-ai-model-v2"})
 
-    return {"worker": ctx.worker.id()}
+    return {"worker": ctx.worker_id}
 
 
 

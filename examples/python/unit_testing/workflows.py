@@ -45,19 +45,6 @@ async def async_standalone(input: UnitTestInput, ctx: Context) -> UnitTestOutput
 
 
 @hatchet.durable_task(input_validator=UnitTestInput)
-def durable_sync_standalone(
-    input: UnitTestInput, ctx: DurableContext
-) -> UnitTestOutput:
-    return UnitTestOutput(
-        key=input.key,
-        number=input.number,
-        additional_metadata=ctx.additional_metadata,
-        retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
-    )
-
-
-@hatchet.durable_task(input_validator=UnitTestInput)
 async def durable_async_standalone(
     input: UnitTestInput, ctx: DurableContext
 ) -> UnitTestOutput:
@@ -88,19 +75,6 @@ def sync_simple_workflow(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
 
 @simple_workflow.task()
 async def async_simple_workflow(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
-    return UnitTestOutput(
-        key=input.key,
-        number=input.number,
-        additional_metadata=ctx.additional_metadata,
-        retry_count=ctx.retry_count,
-        mock_db_url=cast(Lifespan, ctx.lifespan).mock_db_url,
-    )
-
-
-@simple_workflow.durable_task()
-def durable_sync_simple_workflow(
-    input: UnitTestInput, ctx: DurableContext
-) -> UnitTestOutput:
     return UnitTestOutput(
         key=input.key,
         number=input.number,
@@ -150,15 +124,6 @@ def sync_complex_workflow(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
     parents=[start],
 )
 async def async_complex_workflow(input: UnitTestInput, ctx: Context) -> UnitTestOutput:
-    return ctx.task_output(start)
-
-
-@complex_workflow.durable_task(
-    parents=[start],
-)
-def durable_sync_complex_workflow(
-    input: UnitTestInput, ctx: DurableContext
-) -> UnitTestOutput:
     return ctx.task_output(start)
 
 

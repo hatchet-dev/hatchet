@@ -1,31 +1,33 @@
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
-import { Workflow } from '@hatchet/workflow';
+import { z } from 'zod/v4';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration } from '@hatchet/v1';
+import type { LegacyWorkflow } from '@hatchet/legacy/legacy-transformer';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '../client';
 import { workflowNameString, WorkflowsClient } from './workflows';
 
 /**
  * Schema for creating a Cron Trigger.
+ * @internal
  */
 export const CreateCronTriggerSchema = z.object({
   name: z.string(),
   expression: z.string(),
-  input: z.record(z.any()).optional(),
-  additionalMetadata: z.record(z.string()).optional(),
+  input: z.record(z.any(), z.any()).optional(),
+  additionalMetadata: z.record(z.string(), z.string()).optional(),
   priority: z.number().optional(),
 });
 
 /**
  * Type representing the input for creating a Cron.
+ * @internal
  */
 export type CreateCronInput = z.infer<typeof CreateCronTriggerSchema>;
 
 /**
- * Client for managing Cron Triggers.
+ * The cron client is a client for managing cron workflows within Hatchet.
  */
 export class CronClient {
   api: HatchetClient['api'];
@@ -63,10 +65,10 @@ export class CronClient {
    * @throws Will throw an error if the input is invalid or the API call fails.
    */
   async create(
-    workflow: string | Workflow | BaseWorkflowDeclaration<any, any>,
+    workflow: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow,
     cron: CreateCronInput
   ): Promise<CronWorkflows> {
-    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace);
+    const workflowId = applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase();
 
     // Validate cron input with zod schema
     try {
@@ -81,11 +83,11 @@ export class CronClient {
       return response.data;
     } catch (err) {
       if (err instanceof z.ZodError) {
-        throw new Error(`Invalid cron input: ${err.message}`);
+        throw new Error(`Invalid cron input: ${err.message}`, { cause: err });
       }
 
       if (err instanceof AxiosError) {
-        throw new Error(JSON.stringify(err.response?.data.errors));
+        throw new Error(JSON.stringify(err.response?.data.errors), { cause: err });
       }
 
       throw err;
@@ -109,14 +111,14 @@ export class CronClient {
    */
   async list(
     query: Parameters<typeof this.api.cronWorkflowList>[1] & {
-      workflow?: string | Workflow | BaseWorkflowDeclaration<any, any>;
+      workflow?: string | BaseWorkflowDeclaration<any, any> | LegacyWorkflow;
     }
   ): Promise<CronWorkflowsList> {
     const { workflow, ...rest } = query;
 
     if (workflow) {
       const workflowId = await this.workflows.getWorkflowIdFromName(
-        applyNamespace(workflowNameString(workflow), this.namespace)
+        applyNamespace(workflowNameString(workflow), this.namespace).toLowerCase()
       );
       rest.workflowId = workflowId;
     }

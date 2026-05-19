@@ -6,14 +6,13 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantInviteUpdateRequestObject) (gen.TenantInviteUpdateResponseObject, error) {
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
-	invite := ctx.Get("tenant-invite").(*dbsqlc.TenantInviteLink)
+	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
+	invite := ctx.Get("tenant-invite").(*sqlcv1.TenantInviteLink)
 
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -23,19 +22,19 @@ func (t *TenantService) TenantInviteUpdate(ctx echo.Context, request gen.TenantI
 	}
 
 	// if user is not an owner, they cannot change a role to owner
-	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER && request.Body.Role == gen.OWNER {
+	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER && request.Body.Role == gen.OWNER {
 		return gen.TenantInviteUpdate400JSONResponse(
 			apierrors.NewAPIErrors("only an owner can change a role to owner"),
 		), nil
 	}
 
 	// construct the database query
-	updateOpts := &repository.UpdateTenantInviteOpts{
-		Role: repository.StringPtr(string(request.Body.Role)),
+	updateOpts := &v1.UpdateTenantInviteOpts{
+		Role: v1.StringPtr(string(request.Body.Role)),
 	}
 
 	// update the invite
-	invite, err := t.config.APIRepository.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), sqlchelpers.UUIDToStr(invite.ID), updateOpts)
+	invite, err := t.config.V1.TenantInvite().UpdateTenantInvite(ctx.Request().Context(), invite.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

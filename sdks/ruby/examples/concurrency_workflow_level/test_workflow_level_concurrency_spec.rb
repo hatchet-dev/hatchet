@@ -1,0 +1,113 @@
+# frozen_string_literal: true
+
+require "securerandom"
+require_relative "../spec_helper"
+require_relative "worker"
+
+RSpec.describe "ConcurrencyWorkflowLevel" do
+  CHARACTERS_WL = %w[Anna Vronsky Stiva Dolly Levin Karenin].freeze
+  DIGITS_WL = (0..5).map(&:to_s).freeze
+
+  def are_overlapping?(x, y)
+    (x[:started_at] < y[:finished_at] && x[:finished_at] > y[:started_at]) ||
+      (x[:finished_at] > y[:started_at] && x[:started_at] < y[:finished_at])
+  end
+
+  def valid_group?(group)
+    digits = Hash.new(0)
+    names = Hash.new(0)
+
+    group.each do |task|
+      digits[task[:digit]] += 1
+      names[task[:name]] += 1
+    end
+
+    return false if digits.values.any? { |v| v > DIGIT_MAX_RUNS_WL }
+    return false if names.values.any? { |v| v > NAME_MAX_RUNS_WL }
+
+    true
+  end
+
+  xit "respects workflow-level concurrency" do
+    test_run_id = SecureRandom.uuid
+
+    run_refs = CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.run_many_no_wait(
+      # TODO-RUBY: only enqueues an arbitrary number of runs, not 100
+      2.times.map do
+        name = CHARACTERS_WL.sample
+        digit = DIGITS_WL.sample
+
+        CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.create_bulk_run_item(
+          input: { "name" => name, "digit" => digit },
+          options: Hatchet::TriggerWorkflowOptions.new(
+            additional_metadata: {
+              "test_run_id" => test_run_id,
+              "key" => "#{name}-#{digit}",
+              "name" => name,
+              "digit" => digit
+            }
+          )
+        )
+      end
+    )
+
+    puts "len(run_refs): #{run_refs.length}"
+
+    # TODO-RUBY: fix this test, we dont seem to be
+    run_refs.each(&:result)
+
+    workflows = HATCHET.workflows.list(
+      workflow_name: CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.name,
+      limit: 1000
+    ).rows
+
+    expect(workflows).not_to be_empty
+
+    workflow = workflows.find { |w| w.name == hatchet.config.apply_namespace(CONCURRENCY_WORKFLOW_LEVEL_WORKFLOW.name) }
+    expect(workflow).not_to be_nil
+
+    runs = HATCHET.runs.list(
+      workflow_ids: [workflow.metadata.id],
+      additional_metadata: { "test_run_id" => test_run_id },
+      limit: 1000
+    )
+
+    sorted_runs = runs.rows.map do |r|
+      {
+        key: (r.additional_metadata || {})["key"],
+        name: (r.additional_metadata || {})["name"],
+        digit: (r.additional_metadata || {})["digit"],
+        started_at: r.started_at,
+        finished_at: r.finished_at
+      }
+    end.select { |r| r[:started_at] && r[:finished_at] }
+      .sort_by { |r| r[:started_at] }
+
+    overlapping_groups = {}
+
+    sorted_runs.each do |run|
+      has_group_membership = false
+
+      if overlapping_groups.empty?
+        overlapping_groups[1] = [run]
+        next
+      end
+
+      overlapping_groups.each do |id, group|
+        if group.all? { |task| are_overlapping?(run, task) }
+          overlapping_groups[id] << run
+          has_group_membership = true
+          break
+        end
+      end
+
+      unless has_group_membership
+        overlapping_groups[overlapping_groups.size + 1] = [run]
+      end
+    end
+
+    overlapping_groups.each do |id, group|
+      expect(valid_group?(group)).to be(true), "Group #{id} is not valid"
+    end
+  end
+end

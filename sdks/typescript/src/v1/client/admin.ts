@@ -2,7 +2,7 @@ import HatchetError from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 
-import { Priority, RateLimitDuration, RunsClient } from '@hatchet/v1';
+import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
 import { RunListenerClient } from '@hatchet/clients/listeners/run-listener/child-listener-client';
 import { Api } from '@hatchet/clients/rest/generated/Api';
@@ -11,16 +11,56 @@ import {
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
+import {
+  AdminServiceClient,
+  AdminServiceDefinition,
+  CreateWorkflowVersionRequest,
+} from '@hatchet/protoc/v1/workflows';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
+
+type DesiredWorkerLabelOpt = {
+  value: string | number;
+  required?: boolean;
+  weight?: number;
+  comparator?: WorkerLabelComparator;
+};
+
+function convertDesiredWorkerLabels(
+  labels: Record<string, DesiredWorkerLabelOpt>
+): Record<string, DesiredWorkerLabels> {
+  return Object.fromEntries(
+    Object.entries(labels).map(([key, label]) => [
+      key,
+      {
+        strValue: typeof label.value === 'string' ? label.value : undefined,
+        intValue: typeof label.value === 'number' ? label.value : undefined,
+        required: label.required,
+        weight: label.weight,
+        comparator: label.comparator,
+      } satisfies DesiredWorkerLabels,
+    ])
+  );
+}
 
 export type WorkflowRun<T = object> = {
   workflowName: string;
   input: T;
   options?: {
     parentId?: string | undefined;
+    /**
+     * (optional) the parent task run external id.
+     *
+     * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
+     */
+    parentTaskRunExternalId?: string | undefined;
+    /**
+     * @deprecated Use `parentTaskRunExternalId` instead.
+     * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+     */
     parentStepRunId?: string | undefined;
     childIndex?: number | undefined;
     childKey?: string | undefined;
@@ -30,7 +70,8 @@ export type WorkflowRun<T = object> = {
 
 export class AdminClient {
   config: ClientConfig;
-  grpc: WorkflowServiceClient;
+  workflowsGrpc: WorkflowServiceClient;
+  adminGrpc: AdminServiceClient;
   listenerClient: RunListenerClient;
   runs: RunsClient;
   logger: Logger;
@@ -40,9 +81,22 @@ export class AdminClient {
     this.logger = config.logger(`Admin`, config.log_level);
 
     const { client, channel, factory } = createGrpcClient(config, WorkflowServiceDefinition);
-    this.grpc = client;
+    this.workflowsGrpc = client;
+    this.adminGrpc = factory.create(AdminServiceDefinition, channel);
     this.listenerClient = new RunListenerClient(config, channel, factory, api);
     this.runs = runs;
+  }
+
+  /**
+   * Creates a new workflow or updates an existing workflow via the v1 admin service.
+   * @param workflow a workflow definition to create
+   */
+  async putWorkflow(workflow: CreateWorkflowVersionRequest) {
+    try {
+      return await retrier(async () => this.adminGrpc.putWorkflow(workflow), this.logger);
+    } catch (e: any) {
+      throw new HatchetError(e.message);
+    }
   }
 
   /**
@@ -52,37 +106,66 @@ export class AdminClient {
    * @param input an object containing the input to the workflow
    * @param options an object containing the options to run the workflow
    * @returns the ID of the new workflow run
+   *
+   * @important This method is instrumented by HatchetInstrumentor._patchRunWorkflow.
+   * Keep the signature in sync with the instrumentor wrapper.
    */
   async runWorkflow<Q = object, P = object>(
     workflowName: string,
     input: Q,
     options?: {
       parentId?: string | undefined;
+      /**
+       * (optional) the parent task run external id.
+       *
+       * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
+       */
+      parentTaskRunExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
       priority?: Priority;
+      desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
       _standaloneTaskName?: string | undefined;
     }
   ) {
     try {
-      const computedName = applyNamespace(workflowName, this.config.namespace);
+      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
 
       const inputStr = JSON.stringify(input);
+
+      const opts = options ?? {};
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
 
       const request = {
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options?.additionalMetadata)
-          : undefined,
-        priority: options?.priority,
+        ...rest,
+        // API expects `parentTaskRunExternalId`; accept old names as aliases.
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        priority: opts.priority,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       };
 
-      const resp = await retrier(async () => this.grpc.triggerWorkflow(request), this.logger);
+      const resp = await retrier(
+        async () => this.workflowsGrpc.triggerWorkflow(request),
+        this.logger
+      );
 
       const id = resp.workflowRunId;
 
@@ -91,7 +174,7 @@ export class AdminClient {
         this.listenerClient,
         this.runs,
         options?.parentId,
-        // eslint-disable-next-line no-underscore-dangle
+
         options?._standaloneTaskName
       );
       await ref.getWorkflowRunId();
@@ -106,6 +189,9 @@ export class AdminClient {
    * Order is preserved in the response.
    * @param workflowRuns an array of objects containing the workflow name, input, and options for each workflow run
    * @returns an array of workflow run references
+   *
+   * @important This method is instrumented by HatchetInstrumentor._patchRunWorkflows.
+   * Keep the signature in sync with the instrumentor wrapper.
    */
   async runWorkflows<Q = object, P = object>(
     workflowRuns: Array<{
@@ -113,12 +199,23 @@ export class AdminClient {
       input: Q;
       options?: {
         parentId?: string | undefined;
+        /**
+         * (optional) the parent task run external id.
+         *
+         * This is the field understood by the workflows gRPC API (`parent_task_run_external_id`).
+         */
+        parentTaskRunExternalId?: string | undefined;
+        /**
+         * @deprecated Use `parentTaskRunExternalId` instead.
+         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+         */
         parentStepRunId?: string | undefined;
         childIndex?: number | undefined;
         childKey?: string | undefined;
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
         priority?: Priority;
+        desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
         _standaloneTaskName?: string | undefined;
       };
     }>,
@@ -126,16 +223,28 @@ export class AdminClient {
   ): Promise<WorkflowRunRef<P>[]> {
     // Prepare workflows to be triggered in bulk
     const workflowRequests = workflowRuns.map(({ workflowName, input, options }) => {
-      const computedName = applyNamespace(workflowName, this.config.namespace);
+      const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
       const inputStr = JSON.stringify(input);
+
+      const opts = options ?? {};
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
 
       return {
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options.additionalMetadata)
-          : undefined,
+        ...rest,
+        // API expects `parentTaskRunExternalId`; accept old names as aliases.
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       };
     });
 
@@ -156,7 +265,7 @@ export class AdminClient {
 
         // Call the bulk trigger workflow method for this batch
         const bulkTriggerWorkflowResponse = await retrier(
-          async () => this.grpc.bulkTriggerWorkflow(request),
+          async () => this.workflowsGrpc.bulkTriggerWorkflow(request),
           this.logger
         );
 
@@ -171,7 +280,7 @@ export class AdminClient {
             this.listenerClient,
             this.runs,
             options?.parentId,
-            // eslint-disable-next-line no-underscore-dangle
+
             options?._standaloneTaskName
           );
         });
@@ -191,6 +300,6 @@ export class AdminClient {
       duration,
     };
 
-    await retrier(async () => this.grpc.putRateLimit(request), this.logger);
+    await retrier(async () => this.workflowsGrpc.putRateLimit(request), this.logger);
   }
 }

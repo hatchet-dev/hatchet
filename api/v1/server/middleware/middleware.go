@@ -26,6 +26,7 @@ type RouteInfo struct {
 	OperationID string
 	Security    SecurityRequirement
 	Resources   []string
+	Route       *routers.Route
 }
 
 type securityRequirement struct {
@@ -185,6 +186,7 @@ func (m *MiddlewareHandler) Middleware() (echo.MiddlewareFunc, error) {
 						xSecurityOptional: isOptional,
 					},
 					Resources: resources,
+					Route:     route,
 				}
 
 				m.cache.Add(getCacheKey(req), routeInfo)

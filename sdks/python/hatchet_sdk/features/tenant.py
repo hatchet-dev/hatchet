@@ -3,7 +3,8 @@ import asyncio
 from hatchet_sdk.clients.rest.api.tenant_api import TenantApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.tenant import Tenant
-from hatchet_sdk.clients.v1.api_client import BaseRestClient, retry
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
+from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 
 class TenantClient(BaseRestClient):
@@ -14,7 +15,6 @@ class TenantClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TenantApi:
         return TenantApi(client)
 
-    @retry
     def get(self) -> Tenant:
         """
         Get the current tenant.
@@ -22,7 +22,10 @@ class TenantClient(BaseRestClient):
         :return: The tenant.
         """
         with self.client() as client:
-            return self._ta(client).tenant_get(self.client_config.tenant_id)
+            tenant_get = tenacity_retry(
+                self._ta(client).tenant_get, self.client_config.tenacity
+            )
+            return tenant_get(self.client_config.tenant_id)
 
     async def aio_get(self) -> Tenant:
         """

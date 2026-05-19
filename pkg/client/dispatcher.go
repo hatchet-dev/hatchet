@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -8,6 +10,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,6 +26,10 @@ import (
 type DispatcherClient interface {
 	GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error)
 
+	// GetVersion calls the GetVersion RPC. Returns the engine semantic version string.
+	// Old engines that do not implement this will return codes.Unimplemented.
+	GetVersion(ctx context.Context) (string, error)
+
 	SendStepActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
@@ -34,6 +41,8 @@ type DispatcherClient interface {
 	UpsertWorkerLabels(ctx context.Context, workerId string, labels map[string]interface{}) error
 
 	RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error)
+
+	DurableTaskStream(ctx context.Context) (sharedcontracts.V1Dispatcher_DurableTaskClient, error)
 }
 
 const (
@@ -45,9 +54,14 @@ type GetActionListenerRequest struct {
 	WorkerName string
 	Services   []string
 	Actions    []string
-	MaxRuns    *int
+	SlotConfig map[string]int32
 	Labels     map[string]interface{}
 	WebhookId  *string
+
+	// LegacySlots, when non-nil, causes the registration to use the deprecated
+	// `slots` proto field instead of `slot_config`. This is for backward
+	// compatibility with engines that do not support multiple slot types.
+	LegacySlots *int32
 }
 
 // ActionPayload unmarshals the action payload into the target. It also validates the resulting target.
@@ -121,6 +135,12 @@ type Action struct {
 	WorkflowId *string `json:"workflowId,omitempty"`
 
 	WorkflowVersionId *string `json:"workflowVersionId,omitempty"`
+
+	TriggeringEventExternalId *string `json:"triggeringEventExternalId,omitempty"`
+
+	TriggeringEventKey *string `json:"triggeringEventKey,omitempty"`
+
+	DurableTaskInvocationCount *int32 `json:"durableTaskInvocationCount,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -268,9 +288,12 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.MaxRuns != nil {
-		mr := int32(*req.MaxRuns) // nolint: gosec
-		registerReq.MaxRuns = &mr
+	if req.LegacySlots != nil {
+		registerReq.Slots = req.LegacySlots
+	} else if len(req.SlotConfig) > 0 {
+		registerReq.SlotConfig = req.SlotConfig
+	} else {
+		return nil, nil, fmt.Errorf("slot config is required for worker registration")
 	}
 
 	// register the worker
@@ -280,7 +303,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		return nil, nil, fmt.Errorf("could not register the worker: %w", err)
 	}
 
-	d.l.Debug().Msgf("Registered worker with id: %s", resp.WorkerId)
+	d.l.Debug().Ctx(ctx).Msgf("Registered worker with id: %s", resp.WorkerId)
 
 	// subscribe to the worker
 	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
@@ -307,23 +330,25 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 	ch := make(chan *Action)
 	errCh := make(chan error)
 
-	a.l.Debug().Msgf("Starting to listen for actions")
+	a.l.Debug().Ctx(ctx).Msgf("Starting to listen for actions")
 
 	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
 	go func() {
+		heartbeatInterval := 4 * time.Second
 		timer := time.NewTicker(100 * time.Millisecond)
 		defer timer.Stop()
 
 		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
 		lastHeartbeat := time.Now().Add(-5 * time.Second)
+		firstHeartbeat := true
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
-					a.l.Debug().Msgf("updating worker %s heartbeat", a.workerId)
+				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
+					a.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", a.workerId)
 
 					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
 						WorkerId:    a.workerId,
@@ -331,7 +356,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					})
 
 					if err != nil {
-						a.l.Error().Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
+						a.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
 
 						// if the heartbeat method is unimplemented, don't continue to send heartbeats
 						if status.Code(err) == codes.Unimplemented {
@@ -339,7 +364,21 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						}
 					}
 
-					lastHeartbeat = time.Now().UTC()
+					// detect heartbeat delays caused by CPU contention or other scheduling issues,
+					// but skip the first heartbeat since lastHeartbeat is artificially backdated
+					if !firstHeartbeat {
+						actualInterval := now.Sub(lastHeartbeat)
+						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
+						if actualInterval > heartbeatInterval+1*time.Second {
+							a.l.Warn().Ctx(ctx).Msgf(
+								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
+							)
+						}
+					}
+
+					firstHeartbeat = false
+					lastHeartbeat = now
 				}
 			}
 		}
@@ -354,7 +393,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			if err != nil {
 				// if context is cancelled, unsubscribe and close the channel
 				if ctx.Err() != nil {
-					a.l.Debug().Msgf("Context cancelled, closing channel")
+					a.l.Debug().Ctx(ctx).Msgf("Context cancelled, closing channel")
 
 					defer close(ch)
 					defer close(errCh)
@@ -362,7 +401,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					err := a.listenClient.CloseSend()
 
 					if err != nil {
-						a.l.Error().Msgf("Failed to close send: %v", err)
+						a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
 					}
 
 					return
@@ -372,14 +411,14 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 
 				// if this is an unimplemented error, default to v1
 				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
-					a.l.Debug().Msgf("Falling back to v1 listener strategy")
+					a.l.Debug().Ctx(ctx).Msgf("Falling back to v1 listener strategy")
 					a.listenerStrategy = ListenerStrategyV1
 				}
 
 				err = a.retrySubscribe(ctx)
 
 				if err != nil {
-					a.l.Error().Msgf("Failed to resubscribe: %v", err)
+					a.l.Error().Ctx(ctx).Msgf("Failed to resubscribe: %v", err)
 					errCh <- fmt.Errorf("failed to resubscribe: %w", err)
 				}
 
@@ -400,11 +439,11 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
 				actionType = ActionTypeStartGetGroupKey
 			default:
-				a.l.Error().Msgf("Unknown action type: %s", assignedAction.ActionType)
+				a.l.Error().Ctx(ctx).Msgf("Unknown action type: %s", assignedAction.ActionType)
 				continue
 			}
 
-			a.l.Debug().Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
+			a.l.Debug().Ctx(ctx).Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
 
 			unquoted := assignedAction.ActionPayload
 
@@ -415,7 +454,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				var rawMap map[string]interface{}
 				if err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &rawMap); err != nil {
 					// If that fails, try to unmarshal as a single string
-					a.l.Error().Err(err).Msgf("could not unmarshal additional metadata")
+					a.l.Error().Ctx(ctx).Err(err).Msgf("could not unmarshal additional metadata")
 					continue
 				} else {
 					// Only keep string values from the map
@@ -429,27 +468,30 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			}
 
 			ch <- &Action{
-				TenantId:            assignedAction.TenantId,
-				WorkflowRunId:       assignedAction.WorkflowRunId,
-				GetGroupKeyRunId:    assignedAction.GetGroupKeyRunId,
-				WorkerId:            a.workerId,
-				JobId:               assignedAction.JobId,
-				JobName:             assignedAction.JobName,
-				JobRunId:            assignedAction.JobRunId,
-				StepId:              assignedAction.StepId,
-				StepName:            assignedAction.StepName,
-				StepRunId:           assignedAction.StepRunId,
-				ActionId:            assignedAction.ActionId,
-				ActionType:          actionType,
-				ActionPayload:       []byte(unquoted),
-				RetryCount:          assignedAction.RetryCount,
-				AdditionalMetadata:  additionalMetadata,
-				ChildIndex:          assignedAction.ChildWorkflowIndex,
-				ChildKey:            assignedAction.ChildWorkflowKey,
-				ParentWorkflowRunId: assignedAction.ParentWorkflowRunId,
-				Priority:            assignedAction.Priority,
-				WorkflowId:          assignedAction.WorkflowId,
-				WorkflowVersionId:   assignedAction.WorkflowVersionId,
+				TenantId:                   assignedAction.TenantId,
+				WorkflowRunId:              assignedAction.WorkflowRunId,
+				GetGroupKeyRunId:           assignedAction.GetGroupKeyRunId,
+				WorkerId:                   a.workerId,
+				JobId:                      assignedAction.JobId,
+				JobName:                    assignedAction.JobName,
+				JobRunId:                   assignedAction.JobRunId,
+				StepId:                     assignedAction.TaskId,
+				StepName:                   assignedAction.TaskName,
+				StepRunId:                  assignedAction.TaskRunExternalId,
+				ActionId:                   assignedAction.ActionId,
+				ActionType:                 actionType,
+				ActionPayload:              []byte(unquoted),
+				RetryCount:                 assignedAction.RetryCount,
+				AdditionalMetadata:         additionalMetadata,
+				ChildIndex:                 assignedAction.ChildWorkflowIndex,
+				ChildKey:                   assignedAction.ChildWorkflowKey,
+				ParentWorkflowRunId:        assignedAction.ParentWorkflowRunId,
+				Priority:                   assignedAction.Priority,
+				WorkflowId:                 assignedAction.WorkflowId,
+				WorkflowVersionId:          assignedAction.WorkflowVersionId,
+				TriggeringEventExternalId:  assignedAction.TriggeringEventExternalId,
+				TriggeringEventKey:         assignedAction.TriggeringEventKey,
+				DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
 			}
 		}
 
@@ -461,7 +503,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 		err := a.listenClient.CloseSend()
 
 		if err != nil {
-			a.l.Error().Msgf("Failed to close send: %v", err)
+			a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
 		}
 	}()
 
@@ -489,7 +531,7 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 
 		if err != nil {
 			retries++
-			a.l.Error().Err(err).Msgf("could not subscribe to the worker")
+			a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker")
 			continue
 		}
 
@@ -514,6 +556,14 @@ func (a *actionListenerImpl) Unregister() error {
 	}
 
 	return nil
+}
+
+func (d *dispatcherClientImpl) GetVersion(ctx context.Context) (string, error) {
+	resp, err := d.client.GetVersion(d.ctx.newContext(ctx), &dispatchercontracts.GetVersionRequest{})
+	if err != nil {
+		return "", err
+	}
+	return resp.Version, nil
 }
 
 func (d *dispatcherClientImpl) GetActionListener(ctx context.Context, req *GetActionListenerRequest) (WorkerActionListener, *string, error) {
@@ -546,17 +596,17 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 	}
 
 	resp, err := d.client.SendStepActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.StepActionEvent{
-		WorkerId:       in.WorkerId,
-		JobId:          in.JobId,
-		JobRunId:       in.JobRunId,
-		StepId:         in.StepId,
-		StepRunId:      in.StepRunId,
-		ActionId:       in.ActionId,
-		EventTimestamp: timestamppb.New(*in.EventTimestamp),
-		EventType:      actionEventType,
-		EventPayload:   string(payloadBytes),
-		RetryCount:     &in.RetryCount,
-		ShouldNotRetry: in.ShouldNotRetry,
+		WorkerId:          in.WorkerId,
+		JobId:             in.JobId,
+		JobRunId:          in.JobRunId,
+		TaskId:            in.StepId,
+		TaskRunExternalId: in.StepRunId,
+		ActionId:          in.ActionId,
+		EventTimestamp:    timestamppb.New(*in.EventTimestamp),
+		EventType:         actionEventType,
+		EventPayload:      string(payloadBytes),
+		RetryCount:        &in.RetryCount,
+		ShouldNotRetry:    in.ShouldNotRetry,
 	})
 
 	if err != nil {
@@ -614,9 +664,9 @@ func (d *dispatcherClientImpl) SendGroupKeyActionEvent(ctx context.Context, in *
 	}, nil
 }
 
-func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
-	_, err := a.client.ReleaseSlot(a.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
-		StepRunId: stepRunId,
+func (d *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string) error {
+	_, err := d.client.ReleaseSlot(d.ctx.newContext(ctx), &dispatchercontracts.ReleaseSlotRequest{
+		TaskRunExternalId: stepRunId,
 	})
 
 	if err != nil {
@@ -626,9 +676,9 @@ func (a *dispatcherClientImpl) ReleaseSlot(ctx context.Context, stepRunId string
 	return nil
 }
 
-func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
-	_, err := a.client.RefreshTimeout(a.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
-		StepRunId:          stepRunId,
+func (d *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error {
+	_, err := d.client.RefreshTimeout(d.ctx.newContext(ctx), &dispatchercontracts.RefreshTimeoutRequest{
+		TaskRunExternalId:  stepRunId,
 		IncrementTimeoutBy: incrementTimeoutBy,
 	})
 
@@ -639,10 +689,10 @@ func (a *dispatcherClientImpl) RefreshTimeout(ctx context.Context, stepRunId str
 	return nil
 }
 
-func (a *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
+func (d *dispatcherClientImpl) UpsertWorkerLabels(ctx context.Context, workerId string, req map[string]interface{}) error {
 	labels := mapLabels(req)
 
-	_, err := a.client.UpsertWorkerLabels(a.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
+	_, err := d.client.UpsertWorkerLabels(d.ctx.newContext(ctx), &dispatchercontracts.UpsertWorkerLabelsRequest{
 		WorkerId: workerId,
 		Labels:   labels,
 	})
@@ -683,6 +733,10 @@ func mapLabels(req map[string]interface{}) map[string]*dispatchercontracts.Worke
 	return labels
 }
 
-func (a *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
-	return a.clientv1.RegisterDurableEvent(a.ctx.newContext(ctx), req)
+func (d *dispatcherClientImpl) RegisterDurableEvent(ctx context.Context, req *sharedcontracts.RegisterDurableEventRequest) (*sharedcontracts.RegisterDurableEventResponse, error) {
+	return d.clientv1.RegisterDurableEvent(d.ctx.newContext(ctx), req)
+}
+
+func (d *dispatcherClientImpl) DurableTaskStream(ctx context.Context) (sharedcontracts.V1Dispatcher_DurableTaskClient, error) {
+	return d.clientv1.DurableTask(d.ctx.newContext(ctx), grpc_retry.Disable())
 }

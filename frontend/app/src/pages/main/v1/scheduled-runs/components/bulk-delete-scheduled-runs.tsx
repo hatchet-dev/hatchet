@@ -1,5 +1,5 @@
-import { ConfirmDialog } from '@/components/molecules/confirm-dialog';
 import { useToast } from '@/components/v1/hooks/use-toast';
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Spinner } from '@/components/v1/ui/loading';
 import { useCurrentTenantId } from '@/hooks/use-tenant';

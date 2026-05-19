@@ -1,0 +1,10 @@
+module Hatchet
+  module WorkerRuntime
+    class HealthCheck
+      def initialize: (port: Integer, logger: Logger) -> void
+      def start: () -> void
+      def stop: () -> void
+      def running?: () -> bool
+    end
+  end
+end

@@ -7,9 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 const (
@@ -52,7 +53,7 @@ func NewInterval(
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	currInterval, err := repo.ReadInterval(ctx, operationId, resourceId)
+	currInterval, err := repo.ReadInterval(ctx, operationId, uuid.MustParse(resourceId))
 
 	if err != nil {
 		l.Error().Err(err).Msg(fmt.Sprintf("error reading interval for resource %s, defaulting to start interval", resourceId))
@@ -102,7 +103,7 @@ func (i *Interval) RunInterval(ctx context.Context) <-chan struct{} {
 					rowsModified, err := i.gauge(ctx, i.resourceId)
 
 					if err != nil {
-						i.l.Error().Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
+						i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error calling interval gauge for resource %s", i.resourceId))
 					} else {
 						i.SetIntervalGauge(rowsModified)
 					}
@@ -171,10 +172,10 @@ func (i *Interval) SetIntervalGauge(rowsModified int) {
 	if i.currInterval != previousInterval {
 		// Use background context since this is for persistence
 		ctx := context.Background()
-		newInterval, err := i.repo.SetInterval(ctx, i.operationId, i.resourceId, i.currInterval)
+		newInterval, err := i.repo.SetInterval(ctx, i.operationId, uuid.MustParse(i.resourceId), i.currInterval)
 
 		if err != nil {
-			i.l.Error().Err(err).Msg(fmt.Sprintf("error setting interval for resource %s", i.resourceId))
+			i.l.Error().Ctx(ctx).Err(err).Msg(fmt.Sprintf("error setting interval for resource %s", i.resourceId))
 		} else {
 			i.currInterval = newInterval
 		}

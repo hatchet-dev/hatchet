@@ -1,10 +1,12 @@
 import asyncio
 import datetime
 import json
+import warnings
+from datetime import timezone
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -21,15 +23,45 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.events_pb2 import (
     BulkPushEventRequest,
-    Event,
-    Events,
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
 )
+from hatchet_sdk.contracts.events_pb2 import Event as EventProto
+from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
 from hatchet_sdk.contracts.events_pb2_grpc import EventsServiceStub
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.logger import logger
+from hatchet_sdk.runnables.contextvars import ctx_step_run_id, ctx_workflow_run_id
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.trigger import (
+    BulkPushEventOptions as BulkPushEventOptions,
+)
+from hatchet_sdk.types.trigger import (
+    BulkPushEventWithMetadata as BulkPushEventWithMetadata,
+)
+from hatchet_sdk.types.trigger import (
+    PushEventOptions as PushEventOptions,
+)
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.typing import JSONSerializableMapping, LogLevel
+
+
+def _inject_source_info(
+    metadata: JSONSerializableMapping,
+) -> JSONSerializableMapping:
+    """Injects hatchet__source_workflow_run_id and hatchet__source_step_run_id
+    into metadata when called from within a step execution context."""
+    wf_run_id = ctx_workflow_run_id.get()
+    step_run_id = ctx_step_run_id.get()
+
+    if not wf_run_id or not step_run_id:
+        return metadata
+
+    return {
+        **metadata,
+        "hatchet__source_workflow_run_id": wf_run_id,
+        "hatchet__source_step_run_id": step_run_id,
+    }
 
 
 def proto_timestamp_now() -> timestamp_pb2.Timestamp:
@@ -40,23 +72,43 @@ def proto_timestamp_now() -> timestamp_pb2.Timestamp:
     return timestamp_pb2.Timestamp(seconds=seconds, nanos=nanos)
 
 
-class PushEventOptions(BaseModel):
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    namespace: str | None = None
-    priority: int | None = None
-    scope: str | None = None
-
-
-class BulkPushEventOptions(BaseModel):
-    namespace: str | None = None
-
-
-class BulkPushEventWithMetadata(BaseModel):
+class Event(BaseModel):
+    tenant_id: str
+    event_id: str
     key: str
-    payload: JSONSerializableMapping = Field(default_factory=dict)
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
+    payload: str
+    event_timestamp: timestamp_pb2.Timestamp
+    additional_metadata: str | None = None
     scope: str | None = None
+    seen_at: datetime.datetime
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
+        return self.event_timestamp
+
+    @property
+    def additionalMetadata(self) -> str | None:  # noqa: N802
+        return self.additional_metadata
+
+    @classmethod
+    def from_proto(cls, proto: EventProto) -> "Event":
+        additional_metadata = (
+            proto.additional_metadata if proto.HasField("additional_metadata") else None
+        )
+        scope = proto.scope if proto.HasField("scope") else None
+
+        return cls(
+            tenant_id=proto.tenant_id,
+            event_id=proto.event_id,
+            key=proto.key,
+            payload=proto.payload,
+            event_timestamp=proto.event_timestamp,
+            additional_metadata=additional_metadata,
+            scope=scope,
+            seen_at=proto.event_timestamp.ToDatetime(tzinfo=timezone.utc),
+        )
 
 
 class EventClient(BaseRestClient):
@@ -80,31 +132,56 @@ class EventClient(BaseRestClient):
         event_key: str,
         payload: JSONSerializableMapping,
         options: PushEventOptions = PushEventOptions(),
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
     ) -> Event:
         return await asyncio.to_thread(
-            self.push, event_key=event_key, payload=payload, options=options
+            self.push,
+            event_key=event_key,
+            payload=payload,
+            options=options,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            scope=scope,
         )
 
     async def aio_bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions = BulkPushEventOptions(),
+        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
         return await asyncio.to_thread(self.bulk_push, events=events, options=options)
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def push(
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions = PushEventOptions(),
+        options: PushEventOptions | None = None,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
     ) -> Event:
+        if options is not None:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = PushEventOptions()
+
         namespace = options.namespace or self.namespace
         namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
+        push_event = tenacity_retry(
+            self.events_service_client.Push, self.client_config.tenacity
+        )
 
         try:
-            meta_bytes = json.dumps(options.additional_metadata)
+            meta = _inject_source_info(
+                additional_metadata or options.additional_metadata
+            )
+            meta_bytes = json.dumps(meta)
         except Exception as e:
             raise ValueError("Error encoding meta") from e
 
@@ -116,16 +193,17 @@ class EventClient(BaseRestClient):
         request = PushEventRequest(
             key=namespaced_event_key,
             payload=payload_str,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_bytes,
-            priority=options.priority,
-            scope=options.scope,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_bytes,
+            priority=priority or options.priority,
+            scope=scope or options.scope,
         )
 
-        return cast(
-            Event,
-            self.events_service_client.Push(request, metadata=get_metadata(self.token)),
+        response = cast(
+            EventProto,
+            push_event(request, metadata=create_authorization_header(self.token)),
         )
+        return Event.from_proto(response)
 
     def _create_push_event_request(
         self,
@@ -135,7 +213,7 @@ class EventClient(BaseRestClient):
         event_key = self.client_config.apply_namespace(event.key, namespace)
         payload = event.payload
 
-        meta = event.additional_metadata
+        meta = _inject_source_info(event.additional_metadata)
 
         try:
             meta_str = json.dumps(meta)
@@ -150,20 +228,30 @@ class EventClient(BaseRestClient):
         return PushEventRequest(
             key=event_key,
             payload=serialized_payload,
-            eventTimestamp=proto_timestamp_now(),
-            additionalMetadata=meta_str,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_str,
             priority=event.priority,
             scope=event.scope,
         )
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def bulk_push(
         self,
         events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions = BulkPushEventOptions(),
+        options: BulkPushEventOptions | None = None,
     ) -> list[Event]:
+        if options:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = BulkPushEventOptions()
+
         namespace = options.namespace or self.namespace
+        bulk_push = tenacity_retry(
+            self.events_service_client.BulkPush, self.client_config.tenacity
+        )
 
         bulk_request = BulkPushEventRequest(
             events=[
@@ -171,30 +259,40 @@ class EventClient(BaseRestClient):
             ]
         )
 
-        return list(
-            cast(
-                Events,
-                self.events_service_client.BulkPush(
-                    bulk_request, metadata=get_metadata(self.token)
-                ),
-            ).events
+        response = cast(
+            EventsProto,
+            bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
         )
+        return [Event.from_proto(event) for event in response.events]
 
-    @tenacity_retry
     def log(
-        self, message: str, step_run_id: str, level: LogLevel | None = None
+        self,
+        message: str,
+        step_run_id: str,
+        level: LogLevel | None = None,
+        task_retry_count: int | None = None,
     ) -> None:
+        if len(message) > 10_000:
+            logger.warning("truncating log message to 10,000 characters")
+            message = message[:10_000]
+
+        put_log = tenacity_retry(
+            self.events_service_client.PutLog, self.client_config.tenacity
+        )
         request = PutLogRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_external_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=message,
             level=level.value if level else None,
+            task_retry_count=task_retry_count,
         )
 
-        self.events_service_client.PutLog(request, metadata=get_metadata(self.token))
+        put_log(request, metadata=create_authorization_header(self.token))
 
-    @tenacity_retry
     def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+        put_stream_event = tenacity_retry(
+            self.events_service_client.PutStreamEvent, self.client_config.tenacity
+        )
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -203,16 +301,14 @@ class EventClient(BaseRestClient):
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
         request = PutStreamEventRequest(
-            stepRunId=step_run_id,
-            createdAt=proto_timestamp_now(),
+            task_run_external_id=step_run_id,
+            created_at=proto_timestamp_now(),
             message=data_bytes,
-            eventIndex=index,
+            event_index=index,
         )
 
         try:
-            self.events_service_client.PutStreamEvent(
-                request, metadata=get_metadata(self.token)
-            )
+            put_stream_event(request, metadata=create_authorization_header(self.token))
         except Exception:
             raise
 

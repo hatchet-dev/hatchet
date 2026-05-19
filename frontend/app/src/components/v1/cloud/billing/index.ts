@@ -1,2 +1,2 @@
-export * from './payment-methods';
+export * from './plan-selector';
 export * from './subscription';

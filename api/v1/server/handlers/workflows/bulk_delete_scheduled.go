@@ -11,14 +11,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request gen.WorkflowScheduledBulkDeleteRequestObject) (gen.WorkflowScheduledBulkDeleteResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	if request.Body == nil {
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(gen.APIErrors{
@@ -30,6 +29,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 	defer cancel()
 
 	var ids []uuid.UUID
+	usedFilter := request.Body.Filter != nil
 	if request.Body.ScheduledWorkflowRunIds != nil {
 		ids = *request.Body.ScheduledWorkflowRunIds
 	}
@@ -50,25 +50,16 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		orderBy := "triggerAt"
 		orderDirection := "DESC"
 
-		opts := &repository.ListScheduledWorkflowsOpts{
-			Limit:          &limit,
-			Offset:         &offset,
-			OrderBy:        &orderBy,
-			OrderDirection: &orderDirection,
+		opts := &v1.ListScheduledWorkflowsOpts{
+			Limit:               &limit,
+			Offset:              &offset,
+			OrderBy:             &orderBy,
+			OrderDirection:      &orderDirection,
+			WorkflowId:          filter.WorkflowId,
+			ParentWorkflowRunId: filter.ParentWorkflowRunId,
+			ParentStepRunId:     filter.ParentStepRunId,
 		}
 
-		if filter.WorkflowId != nil {
-			wid := filter.WorkflowId.String()
-			opts.WorkflowId = &wid
-		}
-		if filter.ParentWorkflowRunId != nil {
-			pid := filter.ParentWorkflowRunId.String()
-			opts.ParentWorkflowRunId = &pid
-		}
-		if filter.ParentStepRunId != nil {
-			psid := filter.ParentStepRunId.String()
-			opts.ParentStepRunId = &psid
-		}
 		if filter.AdditionalMetadata != nil {
 			additionalMetadata := make(map[string]interface{}, len(*filter.AdditionalMetadata))
 			for _, v := range *filter.AdditionalMetadata {
@@ -82,9 +73,9 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 			opts.AdditionalMetadata = additionalMetadata
 		}
 
-		all := make([]*dbsqlc.ListScheduledWorkflowsRow, 0)
+		all := make([]*sqlcv1.ListScheduledWorkflowsRow, 0)
 		for {
-			rows, count, err := t.config.APIRepository.WorkflowRun().ListScheduledWorkflows(dbCtx, tenantId, opts)
+			rows, count, err := t.config.V1.WorkflowSchedules().ListScheduledWorkflows(dbCtx, tenantId, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -101,7 +92,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		// Convert list results into ids + pre-fill errors for non-API items.
 		ids = make([]uuid.UUID, 0, len(all))
 		for _, row := range all {
-			idStr := sqlchelpers.UUIDToStr(row.ID)
+			idStr := row.ID.String()
 			idUUID, err := uuid.Parse(idStr)
 			if err != nil {
 				// fall back to skip with generic error (should never happen)
@@ -109,7 +100,7 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 				continue
 			}
 
-			if row.Method != dbsqlc.WorkflowTriggerScheduledRefMethodsAPI {
+			if row.Method != sqlcv1.WorkflowTriggerScheduledRefMethodsAPI {
 				idCp := idUUID
 				errors = append(errors, gen.ScheduledWorkflowsBulkError{Id: &idCp, Error: "Cannot delete scheduled run created via code definition."})
 				continue
@@ -120,6 +111,13 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 	}
 
 	if len(ids) == 0 {
+		if usedFilter {
+			return gen.WorkflowScheduledBulkDelete200JSONResponse(gen.ScheduledWorkflowsBulkDeleteResponse{
+				DeletedIds: []uuid.UUID{},
+				Errors:     errors,
+			}), nil
+		}
+
 		return gen.WorkflowScheduledBulkDelete400JSONResponse(apierrors.NewAPIErrors("Provide scheduledWorkflowRunIds or filter.")), nil
 	}
 
@@ -134,26 +132,25 @@ func (t *WorkflowService) WorkflowScheduledBulkDelete(ctx echo.Context, request 
 		}
 		chunk := ids[i:end]
 
-		chunkStr := make([]string, 0, len(chunk))
-		chunkUUIDByStr := make(map[string]uuid.UUID, len(chunk))
+		chunkStr := make([]uuid.UUID, 0, len(chunk))
+		chunkUUIDByStr := make(map[uuid.UUID]uuid.UUID, len(chunk))
 		for _, id := range chunk {
-			idStr := id.String()
-			chunkStr = append(chunkStr, idStr)
-			chunkUUIDByStr[idStr] = id
+			chunkStr = append(chunkStr, id)
+			chunkUUIDByStr[id] = id
 		}
 
-		deletedIds, err := t.config.APIRepository.WorkflowRun().BulkDeleteScheduledWorkflows(dbCtx, tenantId, chunkStr)
+		deletedIds, err := t.config.V1.WorkflowSchedules().BulkDeleteScheduledWorkflows(dbCtx, tenantId, chunkStr)
 		if err != nil {
 			return nil, err
 		}
 
-		deletedSet := make(map[string]struct{}, len(deletedIds))
+		deletedSet := make(map[uuid.UUID]struct{}, len(deletedIds))
 		for _, idStr := range deletedIds {
 			deletedSet[idStr] = struct{}{}
 		}
 
 		for _, id := range chunk {
-			if _, ok := deletedSet[id.String()]; ok {
+			if _, ok := deletedSet[id]; ok {
 				deleted = append(deleted, id)
 			}
 		}

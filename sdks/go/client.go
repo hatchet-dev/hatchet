@@ -7,6 +7,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
@@ -14,6 +19,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 	"github.com/hatchet-dev/hatchet/sdks/go/features"
 	"github.com/hatchet-dev/hatchet/sdks/go/internal"
+	evictionpkg "github.com/hatchet-dev/hatchet/sdks/go/internal/eviction"
+	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 // Client provides the main interface for interacting with Hatchet.
@@ -31,6 +38,7 @@ type Client struct {
 	workers    *features.WorkersClient
 	workflows  *features.WorkflowsClient
 	logs       *features.LogsClient
+	webhooks   *features.WebhooksClient
 }
 
 // NewClient creates a new Hatchet client.
@@ -48,10 +56,47 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 
 // Worker represents a worker that can execute workflows.
 type Worker struct {
-	nonDurable *worker.Worker
-	durable    *worker.Worker
-	name       string
+	worker *worker.Worker
+	name   string
+
+	// legacyDurable is set when connected to an older engine that needs separate
+	// durable/non-durable workers. nil when using the new unified slot_config approach.
+	legacyDurable *worker.Worker
+
+	// dispatcher is the gRPC dispatcher client used for durable task streams.
+	dispatcher v0Client.DispatcherClient
+
+	// evictionManager manages durable task eviction. nil when not using durable tasks.
+	evictionManager *evictionpkg.DurableEvictionManager
+
+	// durableTaskListener manages the bidirectional stream for durable tasks. nil when not available.
+	durableTaskListener *v0Client.DurableTaskListener
+
+	// durableInitOnce gates lazy initialization of the DurableTaskListener and the
+	// eviction manager. Initialization is deferred until the first durable action
+	// is dispatched so that we can use the worker_id carried on the Action, which
+	// avoids a startup race against worker registration.
+	durableInitOnce sync.Once
+
+	// evictionPolicies maps action ID -> eviction policy for durable tasks.
+	evictionPolicies map[string]*EvictionPolicy
+
+	// supportsDurableEviction is set by checkEvictionSupport after resolving the engine
+	// version. When true, durable waits register over the DurableTask bidi stream; when
+	// false, they fall back to the legacy RegisterDurableEvent RPC path.
+	supportsDurableEviction bool
+
+	hasDurable bool
+	logger     *zerolog.Logger
 }
+
+// slotType represents supported slot types (internal use).
+type slotType string
+
+const (
+	slotTypeDefault slotType = "default"
+	slotTypeDurable slotType = "durable"
+)
 
 // NewWorker creates a worker that can execute workflows.
 func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error) {
@@ -64,11 +109,36 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		opt(config)
 	}
 
+	dumps := gatherWorkflowDumps(config.workflows)
+
+	// Check engine version to decide between new and legacy worker architecture
+	isLegacy, err := c.isLegacyEngine()
+	if err != nil {
+		return nil, err
+	}
+	if isLegacy {
+		return newLegacyWorker(c, name, config, dumps)
+	}
+
+	initialSlotConfig := map[slotType]int{}
+	if config.slotsSet {
+		initialSlotConfig[slotTypeDefault] = config.slots
+	}
+	if config.durableSlotsSet {
+		initialSlotConfig[slotTypeDurable] = config.durableSlots
+	}
+	slotConfig := resolveWorkerSlotConfig(initialSlotConfig, dumps)
+
 	workerOpts := []worker.WorkerOpt{
 		worker.WithClient(c.legacyClient),
 		worker.WithName(name),
-		worker.WithMaxRuns(config.slots),
 	}
+
+	slotConfigMap := make(map[string]int32, len(slotConfig))
+	for key, value := range slotConfig {
+		slotConfigMap[string(key)] = int32(value)
+	}
+	workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfigMap))
 
 	if config.logger != nil {
 		workerOpts = append(workerOpts, worker.WithLogger(config.logger))
@@ -78,67 +148,96 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		workerOpts = append(workerOpts, worker.WithLabels(config.labels))
 	}
 
-	nonDurableWorker, err := worker.NewWorker(workerOpts...)
+	mainWorker, err := worker.NewWorker(workerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	if config.panicHandler != nil {
-		nonDurableWorker.SetPanicHandler(config.panicHandler)
+		mainWorker.SetPanicHandler(config.panicHandler)
 	}
 
-	var durableWorker *worker.Worker
+	w := &Worker{
+		worker:           mainWorker,
+		name:             name,
+		dispatcher:       c.legacyClient.Dispatcher(),
+		evictionPolicies: make(map[string]*EvictionPolicy),
+		logger:           config.logger,
+	}
 
-	for _, workflow := range config.workflows {
-		req, regularActions, durableActions, onFailureFn := workflow.Dump()
-		hasDurableTasks := len(durableActions) > 0
+	hasDurable := false
+	for _, dump := range dumps {
+		if len(dump.durableActions) > 0 {
+			hasDurable = true
+			break
+		}
+		for _, task := range dump.req.Tasks {
+			if task.IsDurable {
+				hasDurable = true
+				break
+			}
+		}
+	}
+	w.hasDurable = hasDurable
 
-		if hasDurableTasks {
-			if durableWorker == nil {
-				durableWorkerOpts := workerOpts
-				durableWorkerOpts = append(durableWorkerOpts, worker.WithName(name+"-durable"))
-				durableWorkerOpts = append(durableWorkerOpts, worker.WithMaxRuns(config.durableSlots))
+	if hasDurable {
+		durableSlotCount := config.durableSlots
+		if durableSlotCount < 0 {
+			durableSlotCount = 1000
+		}
 
-				durableWorker, err = worker.NewWorker(durableWorkerOpts...)
-				if err != nil {
-					return nil, err
+		w.evictionManager = evictionpkg.NewDurableEvictionManager(
+			durableSlotCount,
+			func(key string) {
+				mainWorker.CancelStepRun(key)
+			},
+			func(ctx context.Context, key string, rec *evictionpkg.DurableRunRecord) error {
+				if w.durableTaskListener == nil {
+					return nil
 				}
+				return w.durableTaskListener.SendEvictionRequest(ctx, rec.StepRunID, rec.InvocationCount)
+			},
+			evictionpkg.DefaultDurableEvictionConfig,
+			config.logger,
+		)
+	}
 
-				if config.panicHandler != nil {
-					durableWorker.SetPanicHandler(config.panicHandler)
+	for _, dump := range dumps {
+		err := mainWorker.RegisterWorkflowV1(dump.req)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, namedFn := range dump.durableActions {
+			if namedFn.EvictionPolicy != nil {
+				ep := namedFn.EvictionPolicy
+				w.evictionPolicies[namedFn.ActionID] = &EvictionPolicy{
+					TTL:                   ep.TTL,
+					AllowCapacityEviction: ep.AllowCapacityEviction,
+					Priority:              ep.Priority,
 				}
 			}
 
-			err := durableWorker.RegisterWorkflowV1(req)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			err := nonDurableWorker.RegisterWorkflowV1(req)
+			actionID := namedFn.ActionID
+			fn := namedFn.Fn
+			err = mainWorker.RegisterAction(actionID, w.wrapDurableAction(actionID, fn)) //nolint:staticcheck // SA1019
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		for _, namedFn := range durableActions {
-			err = durableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		for _, namedFn := range regularActions {
-			err = nonDurableWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
+		for _, namedFn := range dump.regularActions {
+			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		// Register on failure function if exists
-		if req.OnFailureTask != nil && onFailureFn != nil {
-			actionId := req.OnFailureTask.Action
-			err = nonDurableWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
-				return onFailureFn(ctx)
+		if dump.req.OnFailureTask != nil && dump.onFailureFn != nil {
+			actionId := dump.req.OnFailureTask.Action
+			err = mainWorker.RegisterAction(actionId, func(ctx worker.HatchetContext) (any, error) {
+				return dump.onFailureFn(ctx)
 			})
 			if err != nil {
 				return nil, err
@@ -146,23 +245,247 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		}
 	}
 
-	return &Worker{
-		nonDurable: nonDurableWorker,
-		durable:    durableWorker,
-		name:       name,
-	}, nil
+	return w, nil
+}
+
+// ensureDurableInfra lazily starts the DurableTaskListener and the eviction
+// manager on the first durable action. The worker_id carried on the action is
+// guaranteed to be present by the time we get here, so we don't need to poll
+// w.worker.ID() (which races worker registration at startup).
+func (w *Worker) ensureDurableInfra(workerID string) {
+	if workerID == "" {
+		return
+	}
+	w.durableInitOnce.Do(func() {
+		w.durableTaskListener = v0Client.NewDurableTaskListener(
+			workerID,
+			func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+				return w.dispatcher.DurableTaskStream(ctx)
+			},
+			w.logger,
+		)
+
+		if w.evictionManager != nil {
+			mgr := w.evictionManager
+			w.durableTaskListener.SetServerEvictCallback(func(taskExternalID string, invocationCount int32, reason string) {
+				mgr.HandleServerEviction(taskExternalID, int(invocationCount))
+			})
+		}
+
+		w.durableTaskListener.Start(context.Background())
+
+		if w.evictionManager != nil {
+			w.evictionManager.Start()
+		}
+	})
+}
+
+// wrapDurableAction wraps a durable action function with eviction cache registration
+// and attaches the DurableTask bidi listener so durable waits can round-trip through
+// the new engine durable-event log.
+func (w *Worker) wrapDurableAction(actionID string, fn internal.WrappedTaskFn) func(ctx worker.HatchetContext) (any, error) {
+	return func(ctx worker.HatchetContext) (any, error) {
+		w.ensureDurableInfra(ctx.WorkerId())
+
+		key := ctx.StepRunId()
+
+		var evictionHook worker.DurableEvictionHook
+		if w.evictionManager != nil {
+			// The engine omits invocation_count on the first invocation of a durable
+			// task (no entry in the durable event log yet). Treat zero as the implicit
+			// first attempt.
+			invCount := ctx.DurableTaskInvocationCount()
+			if invCount == 0 {
+				invCount = 1
+			}
+
+			var ep *evictionpkg.EvictionPolicy
+			if policy, ok := w.evictionPolicies[actionID]; ok {
+				ep = &evictionpkg.EvictionPolicy{
+					TTL:                   policy.TTL,
+					AllowCapacityEviction: policy.AllowCapacityEviction,
+					Priority:              policy.Priority,
+				}
+			}
+
+			w.evictionManager.RegisterRun(key, key, int(invCount), ep)
+			defer w.evictionManager.UnregisterRun(key)
+
+			evictionHook = w.evictionManager
+		}
+
+		worker.SetContextDurableHooks(ctx, evictionHook, w.durableTaskListener, w.supportsDurableEviction)
+		defer worker.SetContextDurableHooks(ctx, nil, nil, false)
+
+		return fn(ctx)
+	}
+}
+
+type workflowDump struct {
+	req            *v1.CreateWorkflowVersionRequest
+	regularActions []internal.NamedFunction
+	durableActions []internal.NamedFunction
+	onFailureFn    internal.WrappedTaskFn
+}
+
+func gatherWorkflowDumps(workflows []WorkflowBase) []workflowDump {
+	dumps := make([]workflowDump, 0, len(workflows))
+	for _, workflow := range workflows {
+		req, regularActions, durableActions, onFailureFn := workflow.Dump()
+		dumps = append(dumps, workflowDump{
+			req:            req,
+			regularActions: regularActions,
+			durableActions: durableActions,
+			onFailureFn:    onFailureFn,
+		})
+	}
+	return dumps
+}
+
+func resolveWorkerSlotConfig(
+	slotConfig map[slotType]int,
+	dumps []workflowDump,
+) map[slotType]int {
+	requiredSlotTypes := map[slotType]bool{}
+	addFromRequests := func(requests map[string]int32) {
+		if requests == nil {
+			return
+		}
+		if _, ok := requests[string(slotTypeDefault)]; ok {
+			requiredSlotTypes[slotTypeDefault] = true
+		}
+		if _, ok := requests[string(slotTypeDurable)]; ok {
+			requiredSlotTypes[slotTypeDurable] = true
+		}
+	}
+
+	for _, dump := range dumps {
+		for _, task := range dump.req.Tasks {
+			addFromRequests(task.SlotRequests)
+		}
+		if dump.req.OnFailureTask != nil {
+			addFromRequests(dump.req.OnFailureTask.SlotRequests)
+		}
+	}
+
+	if len(dumps) > 0 {
+		for _, dump := range dumps {
+			for _, task := range dump.req.Tasks {
+				if task.IsDurable {
+					requiredSlotTypes[slotTypeDurable] = true
+					break
+				}
+			}
+		}
+	}
+
+	if requiredSlotTypes[slotTypeDefault] {
+		if _, ok := slotConfig[slotTypeDefault]; !ok {
+			slotConfig[slotTypeDefault] = 100
+		}
+	}
+	if requiredSlotTypes[slotTypeDurable] {
+		if _, ok := slotConfig[slotTypeDurable]; !ok {
+			slotConfig[slotTypeDurable] = 1000
+		}
+	}
+
+	if len(slotConfig) == 0 {
+		slotConfig[slotTypeDefault] = 100
+	}
+
+	return slotConfig
+}
+
+// checkEvictionSupport fetches the engine version and, if the engine is too old to
+// support durable-task eviction, strips the configured eviction policies and logs a
+// warning. Matches the Python SDK's _check_eviction_support behavior: we warn instead
+// of failing so that older engines continue to function.
+//
+// Callers who want a hard error when an eviction policy is unsupported can check the
+// engine version explicitly via `client.GetEngineVersion` + `SupportsDurableEviction`
+// and compare against `EvictionNotSupportedError`.
+
+func (w *Worker) checkEvictionSupport(ctx context.Context) error {
+	engineVersion, err := w.fetchEngineVersion(ctx)
+	if err != nil {
+		if w.logger != nil {
+			w.logger.Warn().Err(err).Msg("unable to resolve engine version; skipping eviction-support check")
+		}
+		return nil
+	}
+
+	if engineVersion != "" {
+		if supported, verr := SupportsDurableEviction(engineVersion); verr == nil && supported {
+			w.supportsDurableEviction = true
+		}
+	}
+
+	if len(w.evictionPolicies) == 0 {
+		return nil
+	}
+
+	if engineVersion == "" {
+		return nil
+	}
+
+	if w.supportsDurableEviction {
+		return nil
+	}
+
+	names := make([]string, 0, len(w.evictionPolicies))
+	for name := range w.evictionPolicies {
+		names = append(names, name)
+	}
+
+	if w.logger != nil {
+		w.logger.Warn().
+			Str("engine_version", engineVersion).
+			Str("required_version", MinEngineVersion.DurableEviction).
+			Strs("tasks", names).
+			Msg("engine does not support durable eviction; configured eviction policies will be ignored")
+	}
+
+	w.evictionPolicies = make(map[string]*EvictionPolicy)
+	w.evictionManager = nil
+
+	return nil
+}
+
+func (w *Worker) fetchEngineVersion(ctx context.Context) (string, error) {
+	if w.dispatcher == nil {
+		return "", nil
+	}
+	return w.dispatcher.GetVersion(ctx)
+}
+
+// Use registers middleware functions on the worker.
+// Middleware functions are called in order for each step run execution.
+//
+//nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
+func (w *Worker) Use(mws ...worker.MiddlewareFunc) {
+	if w.worker != nil {
+		w.worker.Use(mws...) //nolint:staticcheck // SA1019
+	}
+	if w.legacyDurable != nil {
+		w.legacyDurable.Use(mws...) //nolint:staticcheck // SA1019
+	}
 }
 
 // Starts the worker instance and returns a cleanup function.
 func (w *Worker) Start() (func() error, error) {
 	var workers []*worker.Worker
 
-	if w.nonDurable != nil {
-		workers = append(workers, w.nonDurable)
+	if w.worker != nil {
+		workers = append(workers, w.worker)
 	}
 
-	if w.durable != nil {
-		workers = append(workers, w.durable)
+	if w.legacyDurable != nil {
+		workers = append(workers, w.legacyDurable)
+	}
+
+	if err := w.checkEvictionSupport(context.Background()); err != nil {
+		return nil, err
 	}
 
 	// Track cleanup functions with a mutex to safely access from multiple goroutines
@@ -199,6 +522,16 @@ func (w *Worker) Start() (func() error, error) {
 
 	// Return a combined cleanup function that also uses errgroup for concurrent cleanup
 	return func() error {
+		// Evict all waiting durable runs before stopping workers
+		if w.evictionManager != nil {
+			w.evictionManager.EvictAllWaiting(context.Background())
+		}
+
+		// Stop the durable task listener
+		if w.durableTaskListener != nil {
+			w.durableTaskListener.Stop()
+		}
+
 		g := new(errgroup.Group)
 
 		for _, cleanup := range cleanupFuncs {
@@ -501,22 +834,58 @@ func (wr *WorkflowResult) Raw() any {
 
 // Run executes a workflow with the provided input and waits for completion.
 func (c *Client) Run(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowResult, error) {
-	workflowRunRef, err := c.RunNoWait(ctx, workflowName, input, opts...)
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+		),
+	)
+	defer span.End()
+
+	workflowRunRef, err := c.runWorkflowInternal(ctx, otelCtx, span, workflowName, input, opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := workflowRunRef.Result()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
 
+	span.SetStatus(codes.Ok, "")
 	return result, nil
 }
 
 // RunNoWait executes a workflow with the provided input without waiting for completion.
 // Returns a workflow run reference that can be used to track the run status.
 func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflow,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+		),
+	)
+	defer span.End()
+
+	return c.runWorkflowInternal(ctx, otelCtx, span, workflowName, input, opts...)
+}
+
+// runWorkflowInternal contains the shared logic for Run and RunNoWait.
+func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Context, span trace.Span, workflowName string, input any, opts ...RunOptFunc) (*WorkflowRunRef, error) {
 	runOpts := &runOpts{}
 	for _, opt := range opts {
 		opt(runOpts)
@@ -534,6 +903,10 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 			(*additionalMetadata)[key] = fmt.Sprintf("%v", value)
 		}
 	}
+
+	// Inject traceparent for cross-workflow trace propagation.
+	// Use otelCtx (not ctx) so the span's trace context is propagated.
+	additionalMetadata = injectTraceparentToMap(otelCtx, additionalMetadata)
 
 	var v0Opts []v0Client.RunOptFunc
 	if additionalMetadata != nil {
@@ -559,8 +932,12 @@ func (c *Client) RunNoWait(ctx context.Context, workflowName string, input any, 
 	}
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String(hatchetotel.AttrChildWorkflowRunID, v0Workflow.RunId()))
 
 	return &WorkflowRunRef{RunId: v0Workflow.RunId(), v0Workflow: v0Workflow}, nil
 }
@@ -574,6 +951,17 @@ type RunManyOpt struct {
 // RunMany executes multiple workflow instances with different inputs.
 // Returns workflow run IDs that can be used to track the run statuses.
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	ctx, span := tracer.Start(ctx, hatchetotel.SpanRunWorkflows,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+			attribute.Int(hatchetotel.AttrNumWorkflows, len(inputs)),
+		),
+	)
+	defer span.End()
+
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
@@ -600,7 +988,13 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 
 	wg.Wait()
 
-	return workflowRefs, errors.Join(errs...)
+	if err := errors.Join(errs...); err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return workflowRefs, err
+	}
+
+	span.SetStatus(codes.Ok, "")
+	return workflowRefs, nil
 }
 
 // Metrics returns a feature client for interacting with workflow and task metrics.
@@ -708,4 +1102,14 @@ func (c *Client) Logs() *features.LogsClient {
 	}
 
 	return c.logs
+}
+
+// Webhooks returns a client for managing webhooks.
+func (c *Client) Webhooks() *features.WebhooksClient {
+	if c.webhooks == nil {
+		tenantId := c.legacyClient.TenantId()
+		c.webhooks = features.NewWebhooksClient(c.legacyClient.API(), tenantId)
+	}
+
+	return c.webhooks
 }

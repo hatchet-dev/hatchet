@@ -14,6 +14,7 @@ class OTelAttribute(str, Enum):
 
     ## Action
     ACTION_NAME = "action_name"
+    STEP_NAME = "step_name"
     CHILD_WORKFLOW_INDEX = "child_workflow_index"
     CHILD_WORKFLOW_KEY = "child_workflow_key"
     PARENT_WORKFLOW_RUN_ID = "parent_workflow_run_id"
@@ -25,6 +26,8 @@ class OTelAttribute(str, Enum):
     WORKFLOW_ID = "workflow_id"
     WORKFLOW_RUN_ID = "workflow_run_id"
     WORKFLOW_VERSION_ID = "workflow_version_id"
+    TRIGGERING_EVENT_EXTERNAL_ID = "triggering_event_external_id"
+    TRIGGERING_EVENT_KEY = "triggering_event_key"
 
     ## Push Event
     EVENT_KEY = "event_key"
@@ -41,3 +44,8 @@ class OTelAttribute(str, Enum):
 
     ## Schedule Workflow
     RUN_AT_TIMESTAMPS = "run_at_timestamps"
+
+    ## Durable Context
+    SIGNAL_KEY = "signal_key"
+    NUM_CONDITIONS = "num_conditions"
+    MEMO_FN_NAME = "memo_fn_name"

@@ -20,7 +20,7 @@ def find_id(runs: V1WorkflowRunDetails, match: str) -> str:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_no_retry(hatchet: Hatchet) -> None:
-    ref = await non_retryable_workflow.aio_run_no_wait()
+    ref = await non_retryable_workflow.aio_run(wait_for_result=False)
 
     with pytest.raises(FailedTaskRunExceptionGroup) as exc_info:
         await ref.aio_result()

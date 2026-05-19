@@ -76,6 +76,19 @@ WorkerType:
     - MANAGED
     - WEBHOOK
 
+WorkerSlotConfig:
+  type: object
+  description: Slot availability and limits for a slot type.
+  properties:
+    available:
+      type: integer
+      description: The number of available units for this slot type.
+    limit:
+      type: integer
+      description: The maximum number of units for this slot type.
+  required:
+    - limit
+
 RegisteredWorkflow:
   type: object
   properties:
@@ -136,12 +149,11 @@ Worker:
         - ACTIVE
         - INACTIVE
         - PAUSED
-    maxRuns:
-      type: integer
-      description: The maximum number of runs this worker can execute concurrently.
-    availableRuns:
-      type: integer
-      description: The number of runs this worker can execute concurrently.
+    slotConfig:
+      type: object
+      description: Slot availability and limits for this worker (slot_type -> { available, limit }).
+      additionalProperties:
+        $ref: "#/WorkerSlotConfig"
     dispatcherId:
       type: string
       description: "the id of the assigned dispatcher, in UUID format"
@@ -191,6 +203,7 @@ WorkerRuntimeSDKs:
     - GOLANG
     - PYTHON
     - TYPESCRIPT
+    - RUBY
 
 WorkerRuntimeInfo:
   properties:

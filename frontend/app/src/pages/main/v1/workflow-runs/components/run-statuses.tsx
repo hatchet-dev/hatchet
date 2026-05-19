@@ -62,8 +62,10 @@ function createV1RunStatusVariant(status: V1TaskStatus): RunStatusVariant {
       return { text: 'Running', variant: 'inProgress' };
     case V1TaskStatus.QUEUED:
       return { text: 'Queued', variant: 'queued' };
-    default:
-      return { text: 'Unknown', variant: 'outline' };
+    default: {
+      const exhaustivenessCheck: never = status;
+      throw new Error(`Unknown status: ${exhaustivenessCheck}`);
+    }
   }
 }
 
@@ -137,7 +139,7 @@ export function V1RunStatus({
 
   const StatusBadge = () => (
     <Badge variant={variant} className={className}>
-      {capitalize(text)}
+      <span className="flex items-center gap-1">{capitalize(text)}</span>
     </Badge>
   );
 

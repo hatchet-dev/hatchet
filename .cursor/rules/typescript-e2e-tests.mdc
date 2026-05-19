@@ -1,0 +1,31 @@
+---
+description: Running and writing TypeScript SDK e2e tests
+globs: sdks/typescript/**/*.e2e.ts
+alwaysApply: false
+---
+
+# TypeScript SDK E2E Tests
+
+## Running Tests
+
+Tests require a running Hatchet engine (e.g. via `task start-dev`). Run from `sdks/typescript/`:
+
+```bash
+# All e2e tests
+pnpm test:e2e
+
+# Specific test file
+pnpm test:e2e durable.e2e.ts
+
+# Specific test by name pattern
+pnpm test:e2e durable.e2e.ts -t "durable replay reset"
+```
+
+The e2e harness automatically spawns a shared worker (`src/v1/examples/e2e-worker.ts`) via `jest.e2e-global-setup.ts` and tears it down after tests complete.
+
+## Test Structure
+
+- Test files live alongside their workflows in `src/v1/examples/<feature>/`.
+- Workflows are defined in `workflow.ts`, tests in `<feature>.e2e.ts`.
+- Use `makeE2EClient()` from `src/v1/examples/__e2e__/harness.ts` for the Hatchet client.
+- Register new workflows/tasks in `src/v1/examples/e2e-worker.ts` so the shared worker picks them up.

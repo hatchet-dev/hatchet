@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -28,7 +31,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/random"
 )
 
-func getEnvConfig() (string, bool, string) {
+func getEnvConfig() (string, bool, string, bool, bool) {
 	// Get migration strategy: penultimate or latest
 	migrateStrategy := os.Getenv("TESTING_MATRIX_MIGRATE")
 	if migrateStrategy == "" {
@@ -44,7 +47,13 @@ func getEnvConfig() (string, bool, string) {
 		pgVersion = "16-alpine" // Default value
 	}
 
-	return migrateStrategy, rabbitmqEnabled, pgVersion
+	// Get whether optimistic scheduling is enabled
+	isOptimistic := strings.ToLower(os.Getenv("TESTING_MATRIX_OPTIMISTIC_SCHEDULING")) == "true"
+
+	// Get whether PgBouncer connection pooling is enabled
+	pgBouncerEnabled := strings.ToLower(os.Getenv("TESTING_MATRIX_PGBOUNCER_ENABLED")) == "true"
+
+	return migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled
 }
 
 func RunTestWithEngine(m *testing.M) {
@@ -75,6 +84,8 @@ func RunTestWithEngine(m *testing.M) {
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*Connection).heartbeater"),
 			goleak.IgnoreTopFunction("github.com/rabbitmq/amqp091-go.(*consumers).buffer"),
 			goleak.IgnoreTopFunction("google.golang.org/grpc/internal/transport.(*http2Server).keepalive"),
+			goleak.IgnoreTopFunction("github.com/hashicorp/golang-lru/v2/expirable.NewLRU[...].func1"),
+			goleak.IgnoreAnyFunction("github.com/hashicorp/golang-lru/v2/expirable.(*LRU[...]).deleteExpired"),
 		); err != nil {
 			fmt.Fprintf(os.Stderr, "goleak: Errors on successful test run: %v\n", err)
 			exitCode = 1
@@ -90,34 +101,59 @@ func startEngine() func() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Get configuration values from environment
-	migrateStrategy, rabbitmqEnabled, pgVersion := getEnvConfig()
+	migrateStrategy, rabbitmqEnabled, pgVersion, isOptimistic, pgBouncerEnabled := getEnvConfig()
 
-	log.Printf("Starting engine with migration strategy: %s, RabbitMQ enabled: %t, PostgreSQL version: %s", migrateStrategy, rabbitmqEnabled, pgVersion)
+	log.Printf("Starting engine with migration strategy: %s, RabbitMQ enabled: %t, PostgreSQL version: %s, PgBouncer enabled: %t", migrateStrategy, rabbitmqEnabled, pgVersion, pgBouncerEnabled)
 
 	postgresConnStr, cleanupPostgres := startPostgres(ctx, pgVersion)
 
-	grpcPort, err := findAvailablePort(7077)
+	// Start PgBouncer if enabled, but don't use it yet (migrations and seeding go directly to postgres)
+	var pgBouncerConnStr string
+	var cleanupPgBouncer func() error
+
+	if pgBouncerEnabled {
+		pgPort, err := extractPort(postgresConnStr)
+		if err != nil {
+			log.Fatalf("failed to extract postgres port from connection string: %v", err)
+		}
+
+		pgBouncerConnStr, cleanupPgBouncer = startPgBouncer(ctx, pgPort)
+	} else {
+		cleanupPgBouncer = func() error { return nil }
+	}
+
+	grpcPort, err := getFreePort()
 
 	if err != nil {
 		log.Fatalf("failed to find available port: %v", err)
 	}
 
+	healthPort, err := getFreePort()
+
+	if err != nil {
+		log.Fatalf("failed to find available port: %v", err)
+	}
+
+	// Use postgres directly for migrations and seeding
 	os.Setenv("DATABASE_URL", postgresConnStr)
 	os.Setenv("SERVER_GRPC_INSECURE", "true")
 	os.Setenv("SERVER_GRPC_PORT", strconv.Itoa(grpcPort))
 	os.Setenv("SERVER_GRPC_BROADCAST_ADDRESS", fmt.Sprintf("localhost:%d", grpcPort))
-	os.Setenv("SERVER_HEALTHCHECK", "false")
+	os.Setenv("SERVER_HEALTHCHECK", "true")
+	os.Setenv("SERVER_HEALTHCHECK_PORT", strconv.Itoa(healthPort))
 	os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
 	os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	os.Setenv("SERVER_LOGGER_LEVEL", "error")
 	os.Setenv("SERVER_LOGGER_FORMAT", "console")
 	os.Setenv("DATABASE_LOGGER_LEVEL", "error")
 	os.Setenv("DATABASE_LOGGER_FORMAT", "console")
+	os.Setenv("SERVER_SECURITY_CHECK_ENABLED", "false")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT", "console")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
 	os.Setenv("SERVER_DEFAULT_ENGINE_VERSION", "V1")
+	os.Setenv("SERVER_ENABLE_DURABLE_USER_EVENT_LOG", "true")
 
 	var cleanupRabbitMQ func() error
 	if rabbitmqEnabled {
@@ -128,6 +164,12 @@ func startEngine() func() {
 	} else {
 		os.Setenv("SERVER_MSGQUEUE_KIND", "postgres")
 		cleanupRabbitMQ = func() error { return nil }
+	}
+
+	if isOptimistic {
+		os.Setenv("SERVER_OPTIMISTIC_SCHEDULING_ENABLED", "true")
+	} else {
+		os.Setenv("SERVER_OPTIMISTIC_SCHEDULING_ENABLED", "false")
 	}
 
 	// Run migrations
@@ -156,7 +198,17 @@ func startEngine() func() {
 	}
 
 	// set the API token
-	setAPIToken(ctx, cf, dl.Seed.DefaultTenantID)
+	tenantUUID, err := uuid.Parse(dl.Seed.DefaultTenantID)
+	if err != nil {
+		log.Fatalf("failed to parse default tenant ID: %v", err)
+	}
+	setAPIToken(ctx, cf, tenantUUID)
+
+	// Switch to PgBouncer for the engine if enabled
+	if pgBouncerEnabled {
+		log.Printf("Switching main pool to PgBouncer: %s", pgBouncerConnStr)
+		os.Setenv("DATABASE_PGBOUNCER_URL", pgBouncerConnStr)
+	}
 
 	engineCh := make(chan error)
 
@@ -172,6 +224,14 @@ func startEngine() func() {
 
 		if err != nil {
 			log.Fatalf("failed to run engine: %v", err)
+		}
+
+		if pgBouncerEnabled {
+			err = cleanupPgBouncer()
+
+			if err != nil {
+				log.Fatalf("failed to cleanup pgbouncer: %v", err)
+			}
 		}
 
 		err = cleanupPostgres()
@@ -310,6 +370,98 @@ func startRabbitMQ(ctx context.Context) (string, func() error) {
 	}
 }
 
+func extractPort(connStr string) (int, error) {
+	u, err := url.Parse(connStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse connection string: %w", err)
+	}
+
+	port, err := strconv.Atoi(u.Port())
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse port from connection string: %w", err)
+	}
+
+	return port, nil
+}
+
+func startPgBouncer(ctx context.Context, pgPort int) (string, func() error) {
+	pgBouncerContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:           "edoburu/pgbouncer:v1.25.1-p0",
+			ExposedPorts:    []string{"5432/tcp"},
+			HostAccessPorts: []int{pgPort},
+			Env: map[string]string{
+				"DATABASE_URL":            fmt.Sprintf("postgres://user:password@host.testcontainers.internal:%d/test", pgPort),
+				"POOL_MODE":               "transaction",
+				"MAX_CLIENT_CONN":         "500",
+				"DEFAULT_POOL_SIZE":       "50",
+				"AUTH_TYPE":               "scram-sha-256",
+				"MAX_PREPARED_STATEMENTS": "256",
+			},
+		},
+		Started: true,
+	})
+
+	if err != nil {
+		log.Fatalf("failed to start pgbouncer container: %v", err)
+	}
+
+	host, err := pgBouncerContainer.Host(ctx)
+	if err != nil {
+		log.Fatalf("failed to get pgbouncer host: %v", err)
+	}
+
+	mappedPort, err := pgBouncerContainer.MappedPort(ctx, "5432/tcp")
+	if err != nil {
+		log.Fatalf("failed to get pgbouncer mapped port: %v", err)
+	}
+
+	connStr := fmt.Sprintf(
+		"postgresql://user:password@%s:%s/test?sslmode=disable",
+		host, mappedPort.Port(),
+	)
+
+	// loop until pgbouncer is ready
+	for i := 0; i < 10; i++ {
+		var db *pgx.Conn
+		db, err = pgx.Connect(ctx, connStr)
+
+		if err != nil {
+			time.Sleep(time.Second * 2)
+			continue
+		}
+
+		err = db.Ping(ctx)
+
+		if err != nil {
+			db.Close(ctx)
+			time.Sleep(time.Second * 2)
+			continue
+		}
+
+		db.Close(ctx)
+
+		return connStr, func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancel()
+
+			err = pgBouncerContainer.Terminate(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to terminate pgbouncer container: %w", err)
+			}
+
+			return nil
+		}
+	}
+
+	log.Fatalf("failed to connect to pgbouncer container after 10 attempts: %v", err)
+
+	// this should never be reached
+	return "", func() error {
+		return nil
+	}
+}
+
 func seedDatabase(dc *database.Layer) {
 	log.Printf("Seeding database")
 
@@ -322,7 +474,7 @@ func seedDatabase(dc *database.Layer) {
 	log.Printf("Seeding database complete")
 }
 
-func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID string) {
+func setAPIToken(ctx context.Context, cf *loader.ConfigLoader, tenantID uuid.UUID) {
 	log.Printf("Generating API token for Hatchet server")
 
 	cleanup, server, err := cf.CreateServerFromConfig("testing")
@@ -379,7 +531,7 @@ func setTestingKeysInEnv() {
 
 	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", fmt.Sprintf("%s %s", cookieHashKey, cookieBlockKey))
 
-	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+	masterKeyBytes, privateEc256, publicEc256, _, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		log.Fatalf("could not generate local keys: %v", err)
@@ -413,4 +565,46 @@ func findAvailablePort(startPort int) (int, error) {
 	}
 
 	return 0, fmt.Errorf("no available port found in range %d-%d", startPort, maxPort)
+}
+
+func WaitEngineReady(ctx context.Context, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	healthPort := os.Getenv("SERVER_HEALTHCHECK_PORT")
+	if healthPort == "" {
+		return fmt.Errorf("SERVER_HEALTHCHECK_PORT not set")
+	}
+
+	addr := fmt.Sprintf("http://localhost:%s/ready", healthPort)
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil)
+			resp, err := http.DefaultClient.Do(req) //nolint:gosec
+			if err != nil {
+				continue
+			}
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil
+			}
+		}
+	}
+}
+
+func getFreePort() (int, error) {
+	listener, err := net.Listen("tcp", ":0") //nolint:gosec
+	if err != nil {
+		return 0, err
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	_ = listener.Close()
+	return port, nil
 }

@@ -7,10 +7,13 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/cleanup"
+
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -27,7 +30,7 @@ type Partition struct {
 	workerCron     gocron.Scheduler
 	schedulerCron  gocron.Scheduler
 
-	repo repository.TenantEngineRepository
+	repo v1.TenantRepository
 	l    *zerolog.Logger
 
 	controllerMu sync.Mutex
@@ -35,7 +38,7 @@ type Partition struct {
 	schedulerMu  sync.Mutex
 }
 
-func NewPartition(l *zerolog.Logger, repo repository.TenantEngineRepository) (*Partition, error) {
+func NewPartition(l *zerolog.Logger, repo v1.TenantRepository) (*Partition, error) {
 	s1, err := gocron.NewScheduler(gocron.WithLocation(time.UTC))
 
 	if err != nil {
@@ -75,29 +78,27 @@ func (p *Partition) GetSchedulerPartitionId() string {
 	return p.schedulerPartitionId
 }
 
-func (p *Partition) Shutdown() error {
-	err := p.controllerCron.Shutdown()
+func (p *Partition) AddCleanupMethods(cleanup *cleanup.Cleanup) {
+	cleanup.Add(
+		p.controllerCron.Shutdown,
+		"partitioner controller cron",
+	)
+	cleanup.Add(
+		p.workerCron.Shutdown,
+		"partitioner worker cron",
+	)
+	cleanup.Add(
+		p.schedulerCron.Shutdown,
+		"partitioner scheduler cron",
+	)
 
-	if err != nil {
-		return fmt.Errorf("could not shutdown controller cron: %w", err)
-	}
-
-	err = p.workerCron.Shutdown()
-
-	if err != nil {
-		return fmt.Errorf("could not shutdown worker cron: %w", err)
-	}
-
-	err = p.schedulerCron.Shutdown()
-
-	if err != nil {
-		return fmt.Errorf("could not shutdown scheduler cron: %w", err)
-	}
-
-	// wait for heartbeat timeout duration
-	time.Sleep(heartbeatTimeout)
-
-	return nil
+	cleanup.Add(
+		func() error {
+			time.Sleep(heartbeatTimeout)
+			return nil
+		},
+		"partitioner heartbeat timeout",
+	)
 }
 
 func (p *Partition) StartControllerPartition(ctx context.Context) (func() error, error) {
@@ -168,29 +169,30 @@ func (p *Partition) StartControllerPartition(ctx context.Context) (func() error,
 	return cleanup, nil
 }
 
-func (p *Partition) GetInternalTenantForController(ctx context.Context) (*dbsqlc.Tenant, error) {
+func (p *Partition) GetInternalTenantForController(ctx context.Context) (*sqlcv1.Tenant, error) {
 	ctx, span := telemetry.NewSpan(ctx, "Partition.GetInternalTenantForController")
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "controller_partition.id", Value: p.controllerPartitionId})
 	defer span.End()
 
 	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
 }
 
-func (p *Partition) ListTenantsForController(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
-	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId(), majorVersion)
+func (p *Partition) ListTenantsForController(ctx context.Context) ([]uuid.UUID, error) {
+	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId())
 }
 
-func (p *Partition) ListTenantsForScheduler(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
-	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId(), majorVersion)
+func (p *Partition) ListTenantsForScheduler(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+	return p.repo.ListTenantsBySchedulerPartition(ctx, p.GetSchedulerPartitionId())
 }
 
-func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context, majorVersion dbsqlc.TenantMajorEngineVersion) ([]*dbsqlc.Tenant, error) {
-	return p.repo.ListTenantsByWorkerPartition(ctx, p.GetWorkerPartitionId(), majorVersion)
+func (p *Partition) ListTenantsForWorkerPartition(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+	return p.repo.ListTenantsByWorkerPartition(ctx, p.GetWorkerPartitionId())
 }
 
 func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.controllerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on controller partition")
+			p.l.Warn().Ctx(ctx).Str("controller_partition_id", p.controllerPartitionId).Msg("could not acquire lock on controller partition")
 			return
 		}
 
@@ -199,15 +201,16 @@ func (p *Partition) runControllerPartitionHeartbeat(ctx context.Context) func() 
 		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		ctx, span := telemetry.NewSpan(ctx, "run-controller-partition-heartbeat")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "controller_partition.id", Value: p.controllerPartitionId})
 		defer span.End()
 
-		p.l.Debug().Msg("running controller partition heartbeat")
+		p.l.Debug().Ctx(ctx).Str("controller_partition_id", p.controllerPartitionId).Msg("running controller partition heartbeat")
 
 		partitionId, err := p.repo.UpdateControllerPartitionHeartbeat(ctx, p.GetControllerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Str("controller_partition_id", p.controllerPartitionId).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -282,13 +285,15 @@ func (p *Partition) StartSchedulerPartition(ctx context.Context) (func() error, 
 
 	p.schedulerCron.Start()
 
+	rebalanceInactiveSchedulerPartitions(ctx, p.l, p.repo) // nolint: errcheck
+
 	return cleanup, nil
 }
 
 func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.schedulerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on scheduler partition")
+			p.l.Warn().Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("could not acquire lock on scheduler partition")
 			return
 		}
 
@@ -297,15 +302,16 @@ func (p *Partition) runSchedulerPartitionHeartbeat(ctx context.Context) func() {
 		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		ctx, span := telemetry.NewSpan(ctx, "run-scheduler-partition-heartbeat")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "scheduler_partition.id", Value: p.schedulerPartitionId})
 		defer span.End()
 
-		p.l.Debug().Msg("running scheduler partition heartbeat")
+		p.l.Debug().Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("running scheduler partition heartbeat")
 
 		partitionId, err := p.repo.UpdateSchedulerPartitionHeartbeat(ctx, p.GetSchedulerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", p.schedulerPartitionId).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -386,7 +392,7 @@ func (p *Partition) StartTenantWorkerPartition(ctx context.Context) (func() erro
 func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func() {
 	return func() {
 		if !p.workerMu.TryLock() {
-			p.l.Warn().Msg("could not acquire lock on worker partition")
+			p.l.Warn().Ctx(ctx).Str("worker_partition_id", p.workerPartitionId).Msg("could not acquire lock on worker partition")
 			return
 		}
 
@@ -395,15 +401,16 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 		ctx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
 		defer cancel()
 
-		ctx, span := telemetry.NewSpan(ctx, "run-partition-heartbeat")
+		ctx, span := telemetry.NewSpan(ctx, "run-worker-partition-heartbeat")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "worker_partition.id", Value: p.workerPartitionId})
 		defer span.End()
 
-		p.l.Debug().Msg("running worker partition heartbeat")
+		p.l.Debug().Ctx(ctx).Str("worker_partition_id", p.workerPartitionId).Msg("running worker partition heartbeat")
 
 		partitionId, err := p.repo.UpdateWorkerPartitionHeartbeat(ctx, p.GetWorkerPartitionId())
 
 		if err != nil {
-			p.l.Err(err).Msg("could not heartbeat partition")
+			p.l.Err(err).Ctx(ctx).Str("worker_partition_id", p.workerPartitionId).Msg("could not heartbeat partition")
 			return
 		}
 
@@ -413,7 +420,7 @@ func (p *Partition) runTenantWorkerPartitionHeartbeat(ctx context.Context) func(
 	}
 }
 
-func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceAllControllerPartitions(ctx)
 
 	if err != nil {
@@ -423,7 +430,7 @@ func rebalanceAllControllerPartitions(ctx context.Context, l *zerolog.Logger, r 
 	return err
 }
 
-func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceAllTenantWorkerPartitions(ctx)
 
 	if err != nil {
@@ -433,7 +440,7 @@ func rebalanceAllTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, 
 	return err
 }
 
-func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceInactiveControllerPartitions(ctx)
 
 	if err != nil {
@@ -443,7 +450,7 @@ func rebalanceInactiveControllerPartitions(ctx context.Context, l *zerolog.Logge
 	return err
 }
 
-func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceInactiveTenantWorkerPartitions(ctx)
 
 	if err != nil {
@@ -453,7 +460,7 @@ func rebalanceInactiveTenantWorkerPartitions(ctx context.Context, l *zerolog.Log
 	return err
 }
 
-func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceAllSchedulerPartitions(ctx)
 
 	if err != nil {
@@ -463,7 +470,7 @@ func rebalanceAllSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r r
 	return err
 }
 
-func rebalanceInactiveSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r repository.TenantEngineRepository) error {
+func rebalanceInactiveSchedulerPartitions(ctx context.Context, l *zerolog.Logger, r v1.TenantRepository) error {
 	err := r.RebalanceInactiveSchedulerPartitions(ctx)
 
 	if err != nil {

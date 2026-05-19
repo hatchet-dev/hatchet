@@ -1,4 +1,3 @@
-/* eslint-disable no-shadow */
 export enum Action {
   CREATE = 0,
   QUEUE = 1,

@@ -12,25 +12,25 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWorkflowListRequestObject) (gen.CronWorkflowListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	limit := 50
 	offset := 0
 	orderDirection := "DESC"
 	orderBy := "createdAt"
 
-	listOpts := &repository.ListCronWorkflowsOpts{
+	listOpts := &v1.ListCronWorkflowsOpts{
 		Limit:          &limit,
 		Offset:         &offset,
 		OrderBy:        &orderBy,
 		OrderDirection: &orderDirection,
+		WorkflowId:     request.Params.WorkflowId,
 	}
 
 	if request.Params.OrderByField != nil {
@@ -51,11 +51,6 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	if request.Params.Offset != nil {
 		offset = int(*request.Params.Offset)
 		listOpts.Offset = &offset
-	}
-
-	if request.Params.WorkflowId != nil {
-		workflowIdStr := request.Params.WorkflowId.String()
-		listOpts.WorkflowId = &workflowIdStr
 	}
 
 	if request.Params.CronName != nil {
@@ -86,7 +81,7 @@ func (t *WorkflowService) CronWorkflowList(ctx echo.Context, request gen.CronWor
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	crons, count, err := t.config.APIRepository.Workflow().ListCronWorkflows(dbCtx, tenantId, listOpts)
+	crons, count, err := t.config.V1.WorkflowSchedules().ListCronWorkflows(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err

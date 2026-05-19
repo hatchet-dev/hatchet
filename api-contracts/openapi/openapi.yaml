@@ -31,8 +31,14 @@ paths:
     $ref: "./paths/v1/tasks/tasks.yaml#/listLogs"
   /api/v1/stable/tenants/{tenant}/tasks/cancel:
     $ref: "./paths/v1/tasks/tasks.yaml#/cancelTasks"
+  /api/v1/stable/tenants/{tenant}/logs:
+    $ref: "./paths/v1/logs/logs.yaml#/listLogs"
+  /api/v1/stable/tenants/{tenant}/log-point-metrics:
+    $ref: "./paths/v1/logs/logs.yaml#/getLogPointMetrics"
   /api/v1/stable/tenants/{tenant}/tasks/replay:
     $ref: "./paths/v1/tasks/tasks.yaml#/replayTasks"
+  /api/v1/stable/tasks/{task}/restore:
+    $ref: "./paths/v1/tasks/tasks.yaml#/restoreTask"
   /api/v1/stable/dags/tasks:
     $ref: "./paths/v1/tasks/tasks.yaml#/listTasksByDAGIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs:
@@ -43,12 +49,18 @@ paths:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listWorkflowRunExternalIds"
   /api/v1/stable/tenants/{tenant}/workflow-runs/trigger:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/trigger"
+  /api/v1/stable/tenants/{tenant}/durable-tasks/branch:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/branchDurableTask"
+  /api/v1/stable/durable-tasks/{durable-task}:
+    $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listDurableEventLog"
   /api/v1/stable/workflow-runs/{v1-workflow-run}:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunDetails"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/status:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getWorkflowRunStatus"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/task-events:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/listTaskEventsForWorkflowRun"
+  /api/v1/stable/tenants/{tenant}/traces:
+    $ref: "./paths/v1/observability/traces.yaml#/getTrace"
   /api/v1/stable/workflow-runs/{v1-workflow-run}/task-timings:
     $ref: "./paths/v1/workflow-runs/workflow_run.yaml#/getTimings"
   /api/v1/stable/tenants/{tenant}/task-metrics:
@@ -195,8 +207,6 @@ paths:
     $ref: "./paths/workflow/workflow.yaml#/triggerWorkflow"
   /api/v1/workflows/{workflow}/metrics:
     $ref: "./paths/workflow/workflow.yaml#/getMetrics"
-  /api/v1/step-runs/{step-run}/logs:
-    $ref: "./paths/log/log.yaml#/withStepRun"
   /api/v1/step-runs/{step-run}/events:
     $ref: "./paths/step-run/step-run.yaml#/listEvents"
   /api/v1/tenants/{tenant}/workflow-runs/{workflow-run}/step-run-events:
@@ -243,3 +253,5 @@ paths:
     $ref: "./paths/tenant/tenant.yaml#/getPrometheusMetrics"
   /api/v1/tenants/{tenant}/task-stats:
     $ref: "./paths/tenant/tenant.yaml#/getTaskStats"
+  /api/v1/tenants/{tenant}/feature-flags:
+    $ref: "./paths/feature-flags/feature_flags.yaml#/evaluateFeatureFlag"

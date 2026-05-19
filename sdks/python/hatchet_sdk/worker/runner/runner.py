@@ -1,7 +1,7 @@
 import asyncio
 import ctypes
 import functools
-import json
+import re
 from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -12,13 +12,18 @@ from textwrap import dedent
 from threading import Thread, current_thread
 from typing import Any, Literal, cast, overload
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk.client import Client
 from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.clients.listeners.durable_event_listener import DurableEventListener
+from hatchet_sdk.clients.listeners.durable_event_listener import (
+    DurableEventListener,
+)
+from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
+    PreEvictionDurableEventListener,
+)
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
@@ -29,6 +34,8 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_FAILED,
     STEP_EVENT_TYPE_STARTED,
 )
+from hatchet_sdk.deprecated.deprecation import semver_less_than
+from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import (
     IllegalTaskOutputError,
     NonRetryableException,
@@ -40,7 +47,11 @@ from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
+    ctx_durable_context,
+    ctx_hatchet_context,
+    ctx_hatchet_span_attributes,
     ctx_step_run_id,
+    ctx_task_retry_count,
     ctx_worker_id,
     ctx_workflow_run_id,
     spawn_index_lock,
@@ -48,17 +59,32 @@ from hatchet_sdk.runnables.contextvars import (
     workflow_spawn_indices,
 )
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TWorkflowInput
+from hatchet_sdk.runnables.types import R, TaskPayloadForInternalUse, TWorkflowInput
+from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
+from hatchet_sdk.types.labels import WorkerLabel
+from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
-from hatchet_sdk.utils.typing import DataclassInstance
 from hatchet_sdk.worker.action_listener_process import ActionEvent
+from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
+from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import (
     AsyncLogSender,
     ContextVarToCopy,
     ContextVarToCopyDict,
+    ContextVarToCopyHatchetContext,
+    ContextVarToCopyInt,
+    ContextVarToCopyOtelContext,
+    ContextVarToCopySpanAttributes,
     ContextVarToCopyStr,
     copy_context_vars,
 )
+
+try:
+    from opentelemetry import context as otel_context
+
+    _HAS_OTEL = True
+except ImportError:
+    _HAS_OTEL = False
 
 
 class WorkerStatus(Enum):
@@ -253,18 +279,22 @@ class Runner:
         event_queue: "Queue[ActionEvent]",
         config: ClientConfig,
         slots: int,
+        durable_slots: int,
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
-        labels: dict[str, str | int] | None,
+        labels: list[WorkerLabel],
         lifespan_context: Any | None,
         log_sender: AsyncLogSender,
+        engine_version: str | None = None,
     ):
-        # We store the config so we can dynamically create clients for the dispatcher client.
         self.config = config
+        self.engine_version = engine_version
 
         self.slots = slots
+        self.durable_slots = durable_slots
         self.tasks: dict[ActionKey, asyncio.Task[Any]] = {}  # Store run ids and futures
         self.contexts: dict[ActionKey, Context] = {}  # Store run ids and contexts
+        self.cancellations = BoundedDict[str, bool](maxsize=1000)
         self.action_registry = action_registry or {}
 
         self.event_queue = event_queue
@@ -280,26 +310,52 @@ class Runner:
         self.dispatcher_client = DispatcherClient(self.config)
         self.workflow_run_event_listener = RunEventListenerClient(self.config)
         self.workflow_listener = PooledWorkflowRunListener(self.config)
-        self.runs_client = RunsClient(
-            config=self.config,
-            workflow_run_event_listener=self.workflow_run_event_listener,
-            workflow_run_listener=self.workflow_listener,
-        )
         self.admin_client = AdminClient(
             self.config,
             self.workflow_listener,
             self.workflow_run_event_listener,
-            self.runs_client,
+        )
+
+        self.runs_client = RunsClient(
+            config=self.config,
+            workflow_run_event_listener=self.workflow_run_event_listener,
+            workflow_run_listener=self.workflow_listener,
+            admin_client=self.admin_client,
         )
         self.event_client = EventClient(self.config)
-        self.durable_event_listener = DurableEventListener(self.config)
+
+        has_durable_tasks = any(
+            task.is_durable for task in self.action_registry.values()
+        )
+        self._supports_durable_eviction = bool(
+            engine_version
+            and not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
+        )
+
+        self.durable_event_listener: (
+            DurableEventListener | PreEvictionDurableEventListener | None
+        )
+        if has_durable_tasks and self._supports_durable_eviction:
+            self.durable_event_listener = DurableEventListener(
+                self.config,
+                admin_client=self.admin_client,
+                on_server_evict=self._server_evict_callback,
+            )
+        elif has_durable_tasks:
+            self.durable_event_listener = PreEvictionDurableEventListener(self.config)
+        else:
+            self.durable_event_listener = None
+
+        self.durable_eviction_manager: DurableEvictionManager | None = None
 
         self.worker_context = WorkerContext(
-            labels=labels or {}, client=Client(config=config).dispatcher
+            labels=labels, client=Client(config=config).dispatcher
         )
+        self.worker_labels = labels
 
         self.lifespan_context = lifespan_context
         self.log_sender = log_sender
+        self.worker_id: str | None = None
 
         self._batch_controllers: dict[str, _BatchController] = {}
         for action_id, task in self.action_registry.items():
@@ -313,8 +369,19 @@ class Runner:
         return f"{self.config.server_url}/workflow-runs/{action.workflow_run_id}?tenant={action.tenant_id}"
 
     def run(self, action: Action) -> None:
-        if self.worker_context.id() is None:
-            self.worker_context._worker_id = action.worker_id
+        if self.worker_id is None:
+            self.worker_id = action.worker_id
+
+            if isinstance(self.durable_event_listener, DurableEventListener):
+                self.durable_event_listener_task = asyncio.create_task(
+                    self.durable_event_listener.ensure_started(action.worker_id)
+                )
+                self.durable_eviction_manager = DurableEvictionManager(
+                    durable_slots=self.durable_slots,
+                    cancel_local=self._eviction_cancel_callback,
+                    request_eviction_with_ack=self._eviction_request,
+                )
+                self.durable_eviction_manager.start()
 
         t: asyncio.Task[Exception | None] | None = None
         match action.action_type:
@@ -338,11 +405,53 @@ class Runner:
             self.running_tasks.add(t)
             t.add_done_callback(lambda task: self.running_tasks.discard(task))
 
-    def step_run_callback(self, action: Action) -> Callable[[asyncio.Task[Any]], None]:
+    def _eviction_cancel_callback(self, key: ActionKey) -> None:
+        """Called from DurableEvictionManager when it evicts a run."""
+        if key in self.contexts:
+            ctx = self.contexts[key]
+            ctx._set_cancellation_flag()
+            if isinstance(
+                self.durable_event_listener, DurableEventListener
+            ) and isinstance(ctx, DurableContext):
+                self.durable_event_listener.cleanup_task_state(
+                    ctx.step_run_id, ctx.invocation_count
+                )
+            self.cancellations[key] = True
+        if key in self.tasks:
+            self.tasks[key].cancel()
+
+    def _server_evict_callback(
+        self, durable_task_external_id: str, invocation_count: int
+    ) -> None:
+        """Called from DurableEventListener when the server notifies a stale invocation."""
+        if self.durable_eviction_manager is not None:
+            self.durable_eviction_manager.handle_server_eviction(
+                durable_task_external_id, invocation_count
+            )
+
+    async def _eviction_request(self, key: ActionKey, rec: DurableRunRecord) -> None:
+        """Called from DurableEvictionManager when it needs to request eviction from the server."""
+        if not isinstance(self.durable_event_listener, DurableEventListener):
+            return
+        invocation_count = 1
+        if key in self.contexts:
+            ctx = self.contexts[key]
+            if isinstance(ctx, DurableContext):
+                invocation_count = ctx.invocation_count
+        await self.durable_event_listener.send_evict_invocation(
+            durable_task_external_id=rec.step_run_id,
+            invocation_count=invocation_count,
+            reason=rec.eviction_reason,
+        )
+
+    def step_run_callback(
+        self, action: Action, t: Task[TWorkflowInput, R]
+    ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
             self.cleanup_run_id(action.key)
+            was_cancelled = self.cancellations.pop(action.key, False)
 
-            if task.cancelled():
+            if was_cancelled or task.cancelled():
                 return
 
             try:
@@ -362,7 +471,11 @@ class Runner:
                     )
                 )
 
-                log_with_level = logger.info if should_not_retry else logger.exception
+                # log as info if we're going to retry or we explicitly should _not_ retry
+                # so that e.g. Sentry does not get reported multiple exceptions from multiple retries of a single task
+                log_as_info = should_not_retry or action.retry_count < t.retries
+
+                log_with_level = logger.info if log_as_info else logger.exception
 
                 log_with_level(
                     f"failed step run: {action.action_id}/{action.step_run_id}\n{exc.serialize(include_metadata=False)}"
@@ -371,7 +484,7 @@ class Runner:
                 return
 
             try:
-                output = self.serialize_output(output)
+                output = self.serialize_output(t._validators.step_output, output)
 
                 self.event_queue.put(
                     ActionEvent(
@@ -426,63 +539,93 @@ class Runner:
         ctx_worker_id.set(action.worker_id)
         ctx_action_key.set(action.key)
         ctx_additional_metadata.set(action.additional_metadata)
+        ctx_task_retry_count.set(action.retry_count)
+        ctx_durable_context.set(
+            ctx if isinstance(ctx, DurableContext) and task.is_durable else None
+        )
 
         if task.is_batch:
             return await self._await_batch_item(ctx, task, action)
 
-        dependencies = await task._unpack_dependencies(ctx)
+        async with task._unpack_dependencies_with_cleanup(ctx) as dependencies:
+            try:
+                if task._is_async_function:
+                    return await task.aio_call(ctx, dependencies)
 
-        try:
-            if task.is_async_function:
-                return await task.aio_call(ctx, dependencies)
+                pfunc = functools.partial(
+                    # we must copy the context vars to the new thread, as only asyncio natively supports
+                    # contextvars
+                    copy_context_vars,
+                    [
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_step_run_id",
+                                value=action.step_run_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_workflow_run_id",
+                                value=action.workflow_run_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_worker_id",
+                                value=action.worker_id,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyStr(
+                                name="ctx_action_key",
+                                value=action.key,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyDict(
+                                name="ctx_additional_metadata",
+                                value=action.additional_metadata,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyInt(
+                                name="ctx_task_retry_count",
+                                value=action.retry_count,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyHatchetContext(
+                                name="ctx_hatchet_context",
+                                value=ctx,
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopySpanAttributes(
+                                name="ctx_hatchet_span_attributes",
+                                value=ctx_hatchet_span_attributes.get(),
+                            )
+                        ),
+                        ContextVarToCopy(
+                            var=ContextVarToCopyOtelContext(
+                                name="ctx_otel_context",
+                                value=otel_context.get_current() if _HAS_OTEL else None,
+                            )
+                        ),
+                    ],
+                    self.thread_action_func,
+                    ctx,
+                    task,
+                    action,
+                    dependencies,
+                )
 
-            pfunc = functools.partial(
-                # we must copy the context vars to the new thread, as only asyncio natively supports
-                # contextvars
-                copy_context_vars,
-                [
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_step_run_id",
-                            value=action.step_run_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_workflow_run_id",
-                            value=action.workflow_run_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_worker_id",
-                            value=action.worker_id,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyStr(
-                            name="ctx_action_key",
-                            value=action.key,
-                        )
-                    ),
-                    ContextVarToCopy(
-                        var=ContextVarToCopyDict(
-                            name="ctx_additional_metadata",
-                            value=action.additional_metadata,
-                        )
-                    ),
-                ],
-                self.thread_action_func,
-                ctx,
-                task,
-                action,
-                dependencies,
-            )
-
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(self.thread_pool, pfunc)
-        finally:
-            self.cleanup_run_id(action.key)
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(
+                    self.thread_pool,
+                    pfunc,
+                )
+            finally:
+                self.cleanup_run_id(action.key)
 
     async def handle_start_batch(self, action: Action) -> None:
         action_id = action.action_id
@@ -723,36 +866,77 @@ class Runner:
             del self.threads[key]
 
         if key in self.contexts:
+            ctx = self.contexts[key]
+            if ctx.exit_flag:
+                self.cancellations[key] = True
+            if isinstance(
+                self.durable_event_listener, DurableEventListener
+            ) and isinstance(ctx, DurableContext):
+                self.durable_event_listener.cleanup_task_state(
+                    ctx.step_run_id, ctx.invocation_count
+                )
             del self.contexts[key]
+
+        if self.durable_eviction_manager is not None:
+            self.durable_eviction_manager.unregister_run(key)
 
     @overload
     def create_context(
-        self, action: Action, is_durable: Literal[True] = True
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[True] = True
     ) -> DurableContext: ...
 
     @overload
     def create_context(
-        self, action: Action, is_durable: Literal[False] = False
+        self, action: Action, task: Task[Any, Any], is_durable: Literal[False] = False
     ) -> Context: ...
 
     def create_context(
-        self, action: Action, is_durable: bool = True
+        self,
+        action: Action,
+        task: Task[Any, Any],
+        is_durable: bool = True,
     ) -> Context | DurableContext:
-        constructor = DurableContext if is_durable else Context
 
-        return constructor(
-            action=action,
-            dispatcher_client=self.dispatcher_client,
-            admin_client=self.admin_client,
-            event_client=self.event_client,
-            durable_event_listener=self.durable_event_listener,
-            worker=self.worker_context,
-            runs_client=self.runs_client,
-            lifespan_context=self.lifespan_context,
-            log_sender=self.log_sender,
+        ctx = (
+            DurableContext(
+                action=action,
+                dispatcher_client=self.dispatcher_client,
+                admin_client=self.admin_client,
+                event_client=self.event_client,
+                durable_event_listener=self.durable_event_listener,
+                worker=self.worker_context,
+                runs_client=self.runs_client,
+                lifespan_context=self.lifespan_context,
+                log_sender=self.log_sender,
+                max_attempts=task.retries + 1,
+                task_name=task.name,
+                workflow_name=task.workflow.name,
+                durable_eviction_manager=self.durable_eviction_manager,
+                engine_version=self.engine_version,
+                worker_labels=self.worker_labels,
+            )
+            if is_durable
+            else Context(
+                action=action,
+                dispatcher_client=self.dispatcher_client,
+                admin_client=self.admin_client,
+                event_client=self.event_client,
+                durable_event_listener=self.durable_event_listener,
+                worker=self.worker_context,
+                runs_client=self.runs_client,
+                lifespan_context=self.lifespan_context,
+                log_sender=self.log_sender,
+                max_attempts=task.retries + 1,
+                task_name=task.name,
+                workflow_name=task.workflow.name,
+                worker_labels=self.worker_labels,
+            )
         )
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
+        ctx_hatchet_context.set(ctx)
+
+        return ctx
+
     async def handle_start_step_run(self, action: Action) -> Exception | None:
         action_name = action.action_id
 
@@ -761,8 +945,9 @@ class Runner:
 
         if action_func:
             context = self.create_context(
-                action,
-                True if action_func.is_durable else False,  # noqa: SIM210
+                action=action,
+                task=action_func,
+                is_durable=True if action_func._is_durable else False,  # noqa: SIM210
             )
 
             self.contexts[action.key] = context
@@ -770,17 +955,26 @@ class Runner:
                 ActionEvent(
                     action=action,
                     type=STEP_EVENT_TYPE_STARTED,
-                    payload="",
+                    payload=None,
                     should_not_retry=False,
                 )
             )
+
+            if action_func.is_durable and self.durable_eviction_manager is not None:
+                self.durable_eviction_manager.register_run(
+                    action.key,
+                    step_run_id=action.step_run_id,
+                    # FIXME: why is the engine returning nil for this?
+                    invocation_count=action.durable_task_invocation_count or 1,
+                    eviction_policy=action_func.eviction_policy,
+                )
 
             loop = asyncio.get_event_loop()
             task = loop.create_task(
                 self.async_wrapped_action_func(context, action_func, action)
             )
 
-            task.add_done_callback(self.step_run_callback(action))
+            task.add_done_callback(self.step_run_callback(action, action_func))
             self.tasks[action.key] = task
 
             task_count.increment()
@@ -830,13 +1024,13 @@ class Runner:
         except Exception as e:
             logger.exception(f"failed to terminate thread: {e}")
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def handle_cancel_action(self, action: Action) -> None:
         key = action.key
         try:
             # call cancel to signal the context to stop
             if key in self.contexts:
                 self.contexts[key]._set_cancellation_flag()
+                self.cancellations[key] = True
 
             await asyncio.sleep(1)
 
@@ -857,53 +1051,51 @@ class Runner:
         finally:
             self.cleanup_run_id(key)
 
-    def serialize_output(self, output: Any) -> str:
+    def serialize_output(
+        self, validator: TypeAdapter[TaskPayloadForInternalUse], output: Any
+    ) -> str | None:
         if not output:
-            return ""
+            return None
 
-        if isinstance(output, BaseModel):
-            try:
-                output = output.model_dump(mode="json")
-            except Exception as e:
-                logger.exception("could not serialize pydantic model output")
-
-                raise IllegalTaskOutputError(
-                    f"could not serialize Pydantic BaseModel output: {e}"
-                ) from e
-        elif is_dataclass(output):
-            output = asdict(cast(DataclassInstance, output))
-
-        if not isinstance(output, dict):
+        if not isinstance(output, dict | BaseModel) and not is_dataclass(output):
             raise IllegalTaskOutputError(
                 f"Tasks must return either a dictionary, a Pydantic BaseModel, or a dataclass which can be serialized to a JSON object. Got object of type {type(output)} instead."
             )
 
-        if output is None:
-            return ""
-
         try:
-            serialized_output = json.dumps(output, default=str)
+            serialized_output = validator.dump_json(
+                output,  # type: ignore[arg-type]
+                context=HATCHET_PYDANTIC_SENTINEL,
+            ).decode("utf-8")
         except Exception as e:
-            logger.exception("could not serialize output")
-            raise IllegalTaskOutputError(
-                "Task output could not be serialized to JSON. Please ensure that all task outputs are JSON serializable."
-            ) from e
+            raise IllegalTaskOutputError(f"Failed to serialize task output: {e}") from e
 
-        if "\\u0000" in serialized_output:
-            raise IllegalTaskOutputError(
-                dedent(
-                    f"""
+        if not serialized_output:
+            return None
+
+        # Checks whether a JSON-encoded null character (\u0000) is present in serialized output.
+        # This matches the literal "\u0000" preceded by an odd number of backslashes, rejecting payloads
+        # that will decode to the null char.
+        if re.search(r"(?<!\\)(\\\\)*\\u0000", serialized_output):
+            raise IllegalTaskOutputError(dedent(f"""
                 Task outputs cannot contain the unicode null character \\u0000
 
                 Please see this Discord thread: https://discord.com/channels/1088927970518909068/1384324576166678710/1386714014565928992
                 Relevant Postgres documentation: https://www.postgresql.org/docs/current/datatype-json.html
 
                 Use `hatchet_sdk.{remove_null_unicode_character.__name__}` to sanitize your output if you'd like to remove the character.
-                """
-                )
-            )
+                """))
 
         return serialized_output
+
+    async def evict_all_waiting_durable_runs(self) -> None:
+        """Evict all waiting durable runs so the worker can drain cleanly."""
+        if self.durable_eviction_manager is None:
+            return
+
+        evicted = await self.durable_eviction_manager.evict_all_waiting()
+        if evicted:
+            logger.info(f"evicted {evicted} waiting durable run(s) during shutdown")
 
     async def wait_for_tasks(self) -> None:
         running = len(self.tasks.keys())

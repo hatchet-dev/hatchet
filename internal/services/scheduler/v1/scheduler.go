@@ -15,18 +15,16 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	repov1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -41,7 +39,6 @@ type SchedulerOpt func(*SchedulerOpts)
 type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
 	l           *zerolog.Logger
-	repo        repository.EngineRepository
 	repov1      repov1.Repository
 	dv          datautils.DataDecoderValidator
 	alerter     hatcheterrors.Alerter
@@ -89,13 +86,7 @@ func WithAlerter(a hatcheterrors.Alerter) SchedulerOpt {
 	}
 }
 
-func WithRepository(r repository.EngineRepository) SchedulerOpt {
-	return func(opts *SchedulerOpts) {
-		opts.repo = r
-	}
-}
-
-func WithV2Repository(r repov1.Repository) SchedulerOpt {
+func WithRepository(r repov1.Repository) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.repov1 = r
 	}
@@ -123,7 +114,6 @@ type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
-	repo      repository.EngineRepository
 	repov1    repov1.Repository
 	dv        datautils.DataDecoderValidator
 	s         gocron.Scheduler
@@ -134,6 +124,8 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
+
+	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
@@ -149,10 +141,6 @@ func New(
 
 	if opts.mq == nil {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
-	}
-
-	if opts.repo == nil {
-		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
 
 	if opts.repov1 == nil {
@@ -181,11 +169,12 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
+
 	q := &Scheduler{
 		mq:                     opts.mq,
 		pubBuffer:              pubBuffer,
 		l:                      opts.l,
-		repo:                   opts.repo,
 		repov1:                 opts.repov1,
 		dv:                     opts.dv,
 		s:                      s,
@@ -194,6 +183,7 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
+		signaler:               signaler,
 	}
 
 	return q, nil
@@ -231,7 +221,7 @@ func (s *Scheduler) Start() (func() error, error) {
 
 		err := s.handleTask(context.Background(), task)
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not handle job task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not handle job task")
 			return s.a.WrapErr(fmt.Errorf("could not handle job task: %w", err), map[string]interface{}{"task_id": task.ID}) // nolint: errcheck
 		}
 
@@ -257,17 +247,17 @@ func (s *Scheduler) Start() (func() error, error) {
 			case <-ctx.Done():
 				return
 			case res := <-queueResults:
-				s.l.Debug().Msgf("partition: received queue results")
+				s.l.Debug().Ctx(ctx).Msgf("partition: received queue results")
 
 				if res == nil {
 					continue
 				}
 
 				go func(results *v1.QueueResults) {
-					err := s.scheduleStepRuns(ctx, sqlchelpers.UUIDToStr(results.TenantId), results)
+					err := s.scheduleStepRuns(ctx, results.TenantId, results)
 
 					if err != nil {
-						s.l.Error().Err(err).Msg("could not schedule step runs")
+						s.l.Error().Ctx(ctx).Err(err).Msg("could not schedule step runs")
 					}
 				}(res)
 			}
@@ -282,13 +272,13 @@ func (s *Scheduler) Start() (func() error, error) {
 			case <-ctx.Done():
 				return
 			case res := <-concurrencyResults:
-				s.l.Debug().Msgf("partition: received concurrency results")
+				s.l.Debug().Ctx(ctx).Msgf("partition: received concurrency results")
 
 				if res == nil {
 					continue
 				}
 
-				go s.notifyAfterConcurrency(ctx, sqlchelpers.UUIDToStr(res.TenantId), res)
+				go s.notifyAfterConcurrency(ctx, res.TenantId, res)
 			}
 		}
 	}()
@@ -329,8 +319,15 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		}
 	}()
 
-	if task.ID == "check-tenant-queue" {
+	switch task.ID {
+	case msgqueue.MsgIDCheckTenantQueue:
 		return s.handleCheckQueue(ctx, task)
+	case msgqueue.MsgIDNewWorker:
+		return s.handleNewWorker(ctx, task)
+	case msgqueue.MsgIDNewQueue:
+		return s.handleNewQueue(ctx, task)
+	case msgqueue.MsgIDNewConcurrencyStrategy:
+		return s.handleNewConcurrencyStrategy(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -359,15 +356,54 @@ func (s *Scheduler) handleCheckQueue(ctx context.Context, msg *msgqueue.Message)
 	return nil
 }
 
+func (s *Scheduler) handleNewWorker(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-worker", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewWorkerPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewWorker(ctx, msg.TenantID, payload.WorkerId)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-queue", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewQueuePayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewQueue(ctx, msg.TenantID, payload.QueueName)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-concurrency-strategy", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewConcurrencyStrategyPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewConcurrencyStrategy(ctx, msg.TenantID, payload.StrategyId)
+	}
+
+	return nil
+}
+
 func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	return func() {
-		s.l.Debug().Msgf("partition: checking step run requeue")
+		s.l.Debug().Ctx(ctx).Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := s.repo.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), dbsqlc.TenantMajorEngineVersionV1)
+		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
-			s.l.Err(err).Msg("could not list tenants")
+			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")
 			return
 		}
 
@@ -375,7 +411,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	}
 }
 
-func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *v1.QueueResults) error {
+func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
 
@@ -389,17 +425,15 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	// bulk assign step runs
 	if len(res.Assigned) > 0 {
-		dispatcherIdToWorkerIdsToStepRuns := make(map[string]map[string][]int64)
+		dispatcherIdToWorkerIdsToStepRuns := make(map[uuid.UUID]map[uuid.UUID][]int64)
 
-		workerIds := make([]string, 0)
+		workerIds := make([]uuid.UUID, 0)
 
 		for _, assigned := range res.Assigned {
-			workerIds = append(workerIds, sqlchelpers.UUIDToStr(assigned.WorkerId))
+			workerIds = append(workerIds, assigned.WorkerId)
 		}
 
-		var dispatcherIdWorkerIds map[string][]string
-
-		dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+		workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
 
 		if err != nil {
 			s.internalRetry(ctx, tenantId, res.Assigned...)
@@ -407,16 +441,30 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		workerIdToDispatcherId := make(map[string]string)
+		assignedMsgs := make([]*msgqueue.Message, 0)
+		batchAssignments := make([]*repov1.AssignedItem, 0)
 
-		for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-			for _, workerId := range workerIds {
-				workerIdToDispatcherId[workerId] = dispatcherId
+		invCountOpts := make([]repov1.IdInsertedAt, 0, len(res.Assigned))
+
+		for _, a := range res.Assigned {
+			if a.IsDurable {
+				invCountOpts = append(invCountOpts, repov1.IdInsertedAt{
+					ID:         a.QueueItem.TaskID,
+					InsertedAt: a.QueueItem.TaskInsertedAt,
+				})
 			}
 		}
 
-		assignedMsgs := make([]*msgqueue.Message, 0)
-		batchAssignments := make([]*repov1.AssignedItem, 0)
+		invocationCounts := make(map[repov1.IdInsertedAt]*int32, len(invCountOpts))
+
+		if len(invCountOpts) > 0 {
+			invocationCounts, err = s.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
+			if err != nil {
+				s.internalRetry(ctx, tenantId, res.Assigned...)
+
+				return fmt.Errorf("could not get durable task invocation counts for assigned tasks: %w", err)
+			}
+		}
 
 		for _, bulkAssigned := range res.Assigned {
 			if bulkAssigned != nil && bulkAssigned.Batch != nil && bulkAssigned.QueueItem != nil && bulkAssigned.QueueItem.BatchKey.Valid && strings.TrimSpace(bulkAssigned.QueueItem.BatchKey.String) != "" {
@@ -424,10 +472,11 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				continue
 			}
 
-			dispatcherId, ok := workerIdToDispatcherId[sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)]
+			_, hasNoDispatcher := workersWithoutDispatchers[bulkAssigned.WorkerId]
+			dispatcherId, ok := workerIdToDispatcherId[bulkAssigned.WorkerId]
 
-			if !ok {
-				s.l.Error().Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
+			if hasNoDispatcher || !ok {
+				s.l.Error().Ctx(ctx).Msg("could not assign step run to worker: no dispatcher id. attempting internal retry.")
 
 				s.internalRetry(ctx, tenantId, bulkAssigned)
 
@@ -435,27 +484,35 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 			}
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId]; !ok {
-				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[string][]int64)
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId] = make(map[uuid.UUID][]int64)
 			}
 
-			workerId := sqlchelpers.UUIDToStr(bulkAssigned.WorkerId)
+			workerId := bulkAssigned.WorkerId
 
 			if _, ok := dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId]; !ok {
 				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = make([]int64, 0)
 			}
 
-			dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			if !bulkAssigned.IsAssignedLocally {
+				dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId] = append(dispatcherIdToWorkerIdsToStepRuns[dispatcherId][workerId], bulkAssigned.QueueItem.TaskID)
+			}
 
 			taskId := bulkAssigned.QueueItem.TaskID
+
+			var durableInvCount int32
+			if count, ok := invocationCounts[repov1.IdInsertedAt{ID: taskId, InsertedAt: bulkAssigned.QueueItem.TaskInsertedAt}]; ok && count != nil {
+				durableInvCount = *count
+			}
 
 			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
 				tenantId,
 				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         taskId,
-					RetryCount:     bulkAssigned.QueueItem.RetryCount,
-					WorkerId:       &workerId,
-					EventType:      sqlcv1.V1EventTypeOlapASSIGNED,
-					EventTimestamp: time.Now(),
+					TaskId:                 taskId,
+					RetryCount:             bulkAssigned.QueueItem.RetryCount,
+					DurableInvocationCount: durableInvCount,
+					WorkerId:               &workerId,
+					EventType:              sqlcv1.V1EventTypeOlapASSIGNED,
+					EventTimestamp:         time.Now(),
 				},
 			)
 
@@ -551,8 +608,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 				tenantId,
 				schedulingTimedOut.TaskID,
 				schedulingTimedOut.TaskInsertedAt,
-				sqlchelpers.UUIDToStr(schedulingTimedOut.ExternalID),
-				sqlchelpers.UUIDToStr(schedulingTimedOut.WorkflowRunID),
+				schedulingTimedOut.ExternalID,
+				schedulingTimedOut.WorkflowRunID,
 				schedulingTimedOut.RetryCount,
 				sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
 				"",
@@ -578,11 +635,11 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 
 	if len(res.Unassigned) > 0 {
 		for _, unassigned := range res.Unassigned {
-			taskExternalId := sqlchelpers.UUIDToStr(unassigned.ExternalID)
+			taskExternalId := unassigned.ExternalID.String()
 
 			// if we have seen this task recently, don't send it again
 			if _, ok := s.tasksWithNoWorkerCache.Get(taskExternalId); ok {
-				s.l.Debug().Msgf("skipping unassigned task %s as it was recently unassigned", taskExternalId)
+				s.l.Debug().Ctx(ctx).Msgf("skipping unassigned task %s as it was recently unassigned", taskExternalId)
 				continue
 			}
 
@@ -621,7 +678,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId string, res *
 	return outerErr
 }
 
-func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string, buffered []*repov1.AssignedItem) error {
+func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId uuid.UUID, buffered []*repov1.AssignedItem) error {
 	payloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(buffered))
 
 	for _, item := range buffered {
@@ -686,8 +743,8 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string,
 			eventPayload["batchMaxIntervalMs"] = meta.ConfiguredBatchMaxIntervalMs
 		}
 
-		if queueItem.StepID.Valid {
-			eventPayload["stepId"] = sqlchelpers.UUIDToStr(queueItem.StepID)
+		if queueItem.StepID != uuid.Nil {
+			eventPayload["stepId"] = queueItem.StepID.String()
 		}
 
 		if item.Batch != nil && item.Batch.ActionID != "" {
@@ -729,14 +786,14 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId string,
 	return nil
 }
 
-func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned ...*repov1.AssignedItem) {
+func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assigned ...*repov1.AssignedItem) {
 	for _, a := range assigned {
 		msg, err := tasktypes.FailedTaskMessage(
 			tenantId,
 			a.QueueItem.TaskID,
 			a.QueueItem.TaskInsertedAt,
-			sqlchelpers.UUIDToStr(a.QueueItem.ExternalID),
-			sqlchelpers.UUIDToStr(a.QueueItem.WorkflowRunID),
+			a.QueueItem.ExternalID,
+			a.QueueItem.WorkflowRunID,
 			a.QueueItem.RetryCount,
 			false,
 			"could not assign step run to worker",
@@ -744,7 +801,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not create failed task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not create failed task")
 			continue
 		}
 
@@ -755,13 +812,13 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId string, assigned
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not send failed task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not send failed task")
 			continue
 		}
 	}
 }
 
-func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string, res *v1.ConcurrencyResults) {
+func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UUID, res *v1.ConcurrencyResults) {
 	uniqueQueueNames := make(map[string]struct{}, 0)
 
 	for _, task := range res.Queued {
@@ -816,7 +873,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not create cancelled task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not create cancelled task")
 			continue
 		}
 
@@ -827,13 +884,13 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId string,
 		)
 
 		if err != nil {
-			s.l.Error().Err(err).Msg("could not send cancelled task")
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not send cancelled task")
 			continue
 		}
 	}
 }
 
-func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string, assignments []*repov1.AssignedItem, workerIdToDispatcherId map[string]string) error {
+func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UUID, assignments []*repov1.AssignedItem, workerIdToDispatcherId map[uuid.UUID]uuid.UUID) error {
 	if len(assignments) == 0 {
 		return nil
 	}
@@ -852,8 +909,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			continue
 		}
 
-		workerID := sqlchelpers.UUIDToStr(assignment.WorkerId)
-		stepID := sqlchelpers.UUIDToStr(assignment.QueueItem.StepID)
+		workerID := assignment.WorkerId.String()
+		stepID := assignment.QueueItem.StepID.String()
 		actionID := assignment.QueueItem.ActionID
 		batchKey := ""
 		if assignment.QueueItem.BatchKey.Valid {
@@ -915,7 +972,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			if seen[k] {
 				s.l.Warn().
 					Int64("task_id", item.QueueItem.TaskID).
-					Str("step_id", sqlchelpers.UUIDToStr(item.QueueItem.StepID)).
+					Str("step_id", item.QueueItem.StepID.String()).
 					Str("action_id", item.QueueItem.ActionID).
 					Str("batch_key", key.BatchKey).
 					Msg("skipping duplicate task in batch dispatcher group")
@@ -927,7 +984,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 		}
 
 		s.l.Debug().
-			Str("tenant_id", tenantId).
+			Str("tenant_id", tenantId.String()).
 			Str("worker_id", key.WorkerID).
 			Str("step_id", key.StepID).
 			Str("action_id", key.ActionID).
@@ -958,16 +1015,21 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 				return
 			}
 
-			if err := s.repov1.Tasks().DeleteTaskBatchRun(ctx, tenantId, batchID); err != nil {
+			if err := s.repov1.Tasks().DeleteTaskBatchRun(ctx, tenantId.String(), batchID); err != nil {
 				s.l.Error().
 					Err(err).
-					Str("tenant_id", tenantId).
+					Str("tenant_id", tenantId.String()).
 					Str("batch_id", batchID).
 					Msg("failed to release batch reservation after error")
 			}
 		}
 
-		dispatcherID, ok := workerIdToDispatcherId[key.WorkerID]
+		workerUUID, parseErr := uuid.Parse(key.WorkerID)
+		if parseErr != nil {
+			result = multierror.Append(result, fmt.Errorf("invalid worker id %s: %w", key.WorkerID, parseErr))
+			continue
+		}
+		dispatcherID, ok := workerIdToDispatcherId[workerUUID]
 		if !ok {
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
@@ -1009,7 +1071,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 			releaseOnError()
 			continue
 		}
-		if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, tenantId, batchID, key.WorkerID, key.BatchKey, batchSize, assignmentsPayload); err != nil {
+		if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, tenantId.String(), batchID, key.WorkerID, key.BatchKey, batchSize, assignmentsPayload); err != nil {
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
 			result = multierror.Append(result, fmt.Errorf("could not persist batch metadata: %w", err))
@@ -1017,7 +1079,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 		}
 
 		startPayload := tasktypes.StartBatchTaskPayload{
-			TenantId:      tenantId,
+			TenantId:      tenantId.String(),
 			WorkerId:      key.WorkerID,
 			ActionId:      key.ActionID,
 			BatchId:       batchID,
@@ -1122,9 +1184,12 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId string,
 
 		batchPayload := buildBatchEventPayload(batchPayloadFields)
 
-		workerPtr := &key.WorkerID
-		if key.WorkerID == "" {
+		workerPtrUuid, err := uuid.Parse(key.WorkerID)
+		var workerPtr *uuid.UUID
+		if err != nil {
 			workerPtr = nil
+		} else {
+			workerPtr = &workerPtrUuid
 		}
 
 		monitoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(group))
@@ -1187,10 +1252,10 @@ func describeBatchFlushReason(reason string, batchSize int, interval time.Durati
 	}
 }
 
-func taskAssignedBatchMessage(tenantId string, workerBatches map[string][]tasktypes.TaskAssignedBatch) (*msgqueue.Message, error) {
+func taskAssignedBatchMessage(tenantId uuid.UUID, workerBatches map[string][]tasktypes.TaskAssignedBatch) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"task-assigned-bulk",
+		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
 		tasktypes.TaskAssignedBulkTaskPayload{
@@ -1199,7 +1264,7 @@ func taskAssignedBatchMessage(tenantId string, workerBatches map[string][]taskty
 	)
 }
 
-func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
 	workerBatches := make(map[string][]tasktypes.TaskAssignedBatch, len(workerIdsToTaskIds))
 
 	for workerId, taskIds := range workerIdsToTaskIds {
@@ -1210,7 +1275,7 @@ func taskBulkAssignedTask(tenantId string, workerIdsToTaskIds map[string][]int64
 		copied := make([]int64, len(taskIds))
 		copy(copied, taskIds)
 
-		workerBatches[workerId] = append(workerBatches[workerId], tasktypes.TaskAssignedBatch{
+		workerBatches[workerId.String()] = append(workerBatches[workerId.String()], tasktypes.TaskAssignedBatch{
 			BatchID:   "",
 			BatchSize: len(copied),
 			TaskIds:   copied,
@@ -1271,9 +1336,9 @@ func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error
 	defer cancel()
 
 	switch msg.ID {
-	case "task-assigned-bulk":
+	case msgqueue.MsgIDTaskAssignedBulk:
 		err = s.handleDeadLetteredTaskBulkAssigned(ctx, msg)
-	case "task-cancelled":
+	case msgqueue.MsgIDTaskCancelled:
 		err = s.handleDeadLetteredTaskCancelled(ctx, msg)
 	default:
 		err = fmt.Errorf("unknown task: %s", msg.ID)
@@ -1290,7 +1355,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 	for _, innerMsg := range msgs {
 		for workerID, batches := range innerMsg.WorkerBatches {
 			for _, batch := range batches {
-				s.l.Error().Msgf("handling dead-lettered task assignments for tenant %s, worker %s, batch %s tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, workerID, batch.BatchID, batch.TaskIds)
+				s.l.Error().Ctx(ctx).Msgf("handling dead-lettered task assignments for tenant %s, worker %s, batch %s tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, workerID, batch.BatchID, batch.TaskIds)
 				taskIds = append(taskIds, batch.TaskIds...)
 			}
 		}
@@ -1310,8 +1375,8 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			tenantId,
 			task.ID,
 			task.InsertedAt,
-			sqlchelpers.UUIDToStr(task.ExternalID),
-			sqlchelpers.UUIDToStr(task.WorkflowRunID),
+			task.ExternalID,
+			task.WorkflowRunID,
 			task.RetryCount,
 			false,
 			"Could not send task to worker",
@@ -1339,46 +1404,38 @@ func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *ms
 	payloads := msgqueue.JSONConvert[tasktypes.SignalTaskCancelledPayload](msg.Payloads)
 
 	// try to resend the cancellation signal to the impacted worker.
-	workerIds := make([]string, 0)
+	workerIds := make([]uuid.UUID, 0)
 
 	for _, p := range payloads {
-		s.l.Error().Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
+		s.l.Error().Ctx(ctx).Msgf("handling dead-lettered task cancellations for tenant %s, task %d. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, p.TaskId)
 		workerIds = append(workerIds, p.WorkerId)
 	}
 
 	// since the dispatcher IDs may have changed since the previous send, we need to query them again
-	dispatcherIdWorkerIds, err := s.repo.Worker().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
+	workerIdToDispatcherId, workersWithoutDispatchers, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, msg.TenantID, workerIds)
 
 	if err != nil {
 		return fmt.Errorf("could not list dispatcher ids for workers: %w", err)
 	}
 
-	workerIdToDispatcherId := make(map[string]string)
-
-	for dispatcherId, workerIds := range dispatcherIdWorkerIds {
-		for _, workerId := range workerIds {
-			workerIdToDispatcherId[workerId] = dispatcherId
-		}
-	}
-
-	dispatcherIdsToPayloads := make(map[string][]tasktypes.SignalTaskCancelledPayload)
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
 
 	for _, p := range payloads {
 		// if we no longer have the worker attached to a dispatcher, discard the message
-		if _, ok := workerIdToDispatcherId[p.WorkerId]; !ok {
+		dispatcherId, ok := workerIdToDispatcherId[p.WorkerId]
+		_, hasNoDispatcher := workersWithoutDispatchers[p.WorkerId]
+
+		if hasNoDispatcher || !ok {
 			continue
 		}
 
-		pcp := *p
-		dispatcherId := workerIdToDispatcherId[pcp.WorkerId]
-
-		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], pcp)
+		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], *p)
 	}
 
 	for dispatcherId, payloads := range dispatcherIdsToPayloads {
 		msg, err := msgqueue.NewTenantMessage(
 			msg.TenantID,
-			"task-cancelled",
+			msgqueue.MsgIDTaskCancelled,
 			false,
 			true,
 			payloads...,

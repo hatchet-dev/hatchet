@@ -11,7 +11,6 @@ async function main() {
   const cronId = cron.metadata.id;
   // !!
 
-  // eslint-disable-next-line no-console
   console.log(cron.metadata.id);
 
   // > Delete
@@ -24,7 +23,6 @@ async function main() {
   });
   // !!
 
-  // eslint-disable-next-line no-console
   console.log(crons);
 }
 

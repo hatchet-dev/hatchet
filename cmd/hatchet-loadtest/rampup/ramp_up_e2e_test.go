@@ -76,8 +76,9 @@ func TestRampUp(t *testing.T) {
 		},
 	}}
 
-	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(15 * time.Second)
+	if err := harness.WaitEngineReady(t.Context(), 120*time.Second); err != nil {
+		t.Fatalf("failed to bring up engine in time: %s", err)
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

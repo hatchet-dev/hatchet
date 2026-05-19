@@ -1,0 +1,31 @@
+module Hatchet
+  class SleepCondition
+    attr_reader duration: Integer
+
+    def initialize: (Integer duration) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+
+  class UserEventCondition
+    attr_reader event_key: String
+    attr_reader expression: String?
+
+    def initialize: (event_key: String, ?expression: String?) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+
+  class ParentCondition
+    attr_reader parent: Task | Symbol | String
+    attr_reader expression: String
+
+    def initialize: (parent: Task | Symbol | String, expression: String) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+
+  class OrCondition
+    attr_reader conditions: Array[untyped]
+
+    def initialize: (*untyped conditions) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+end

@@ -1,4 +1,4 @@
-import { ConcurrencyLimitStrategy } from '@hatchet/workflow';
+import { ConcurrencyLimitStrategy } from '@hatchet/v1';
 import { hatchet } from '../hatchet-client';
 
 type SimpleInput = {

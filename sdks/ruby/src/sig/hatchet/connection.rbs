@@ -1,0 +1,8 @@
+module Hatchet
+  module Connection
+    DEFAULT_CHANNEL_OPTIONS: Hash[String, Integer]
+
+    def self.new_channel: (Config config) -> untyped
+    def self.build_credentials: (TLSConfig tls_config) -> untyped
+  end
+end

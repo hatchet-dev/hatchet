@@ -8,7 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type ID interface {

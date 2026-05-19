@@ -3,6 +3,7 @@
 import grpc
 import warnings
 
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as v1_dot_shared_dot_trigger__pb2
 from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
@@ -47,7 +48,7 @@ class WorkflowServiceStub(object):
                 _registered_method=True)
         self.TriggerWorkflow = channel.unary_unary(
                 '/WorkflowService/TriggerWorkflow',
-                request_serializer=workflows__pb2.TriggerWorkflowRequest.SerializeToString,
+                request_serializer=v1_dot_shared_dot_trigger__pb2.TriggerWorkflowRequest.SerializeToString,
                 response_deserializer=workflows__pb2.TriggerWorkflowResponse.FromString,
                 _registered_method=True)
         self.BulkTriggerWorkflow = channel.unary_unary(
@@ -111,7 +112,7 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
             ),
             'TriggerWorkflow': grpc.unary_unary_rpc_method_handler(
                     servicer.TriggerWorkflow,
-                    request_deserializer=workflows__pb2.TriggerWorkflowRequest.FromString,
+                    request_deserializer=v1_dot_shared_dot_trigger__pb2.TriggerWorkflowRequest.FromString,
                     response_serializer=workflows__pb2.TriggerWorkflowResponse.SerializeToString,
             ),
             'BulkTriggerWorkflow': grpc.unary_unary_rpc_method_handler(
@@ -205,7 +206,7 @@ class WorkflowService(object):
             request,
             target,
             '/WorkflowService/TriggerWorkflow',
-            workflows__pb2.TriggerWorkflowRequest.SerializeToString,
+            v1_dot_shared_dot_trigger__pb2.TriggerWorkflowRequest.SerializeToString,
             workflows__pb2.TriggerWorkflowResponse.FromString,
             options,
             channel_credentials,

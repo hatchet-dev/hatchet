@@ -13,6 +13,7 @@ from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.features.tenant import TenantClient
+from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
 
@@ -42,16 +43,19 @@ class Client:
         self.logs = LogsClient(self.config)
         self.metrics = MetricsClient(self.config)
         self.rate_limits = RateLimitsClient(self.config)
+
+        self.admin = admin_client or AdminClient(
+            config, self.workflow_listener, self.listener
+        )
+
         self.runs = RunsClient(
             config=self.config,
             workflow_run_event_listener=self.listener,
             workflow_run_listener=self.workflow_listener,
+            admin_client=self.admin,
         )
         self.scheduled = ScheduledClient(self.config)
         self.tenant = TenantClient(self.config)
+        self.webhooks = WebhooksClient(self.config)
         self.workers = WorkersClient(self.config)
         self.workflows = WorkflowsClient(self.config)
-
-        self.admin = admin_client or AdminClient(
-            config, self.workflow_listener, self.listener, self.runs
-        )

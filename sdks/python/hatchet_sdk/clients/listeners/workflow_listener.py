@@ -26,16 +26,16 @@ class PooledWorkflowRunListener(
 ):
     def create_request_body(self, item: str) -> SubscribeToWorkflowRunsRequest:
         return SubscribeToWorkflowRunsRequest(
-            workflowRunId=item,
+            workflow_run_id=item,
         )
 
     def generate_key(self, response: WorkflowRunEvent) -> str:
-        return response.workflowRunId
+        return response.workflow_run_id
 
     async def aio_result(self, id: str) -> dict[str, Any]:
         event = await self.subscribe(id)
         errors = [result.error for result in event.results if result.error]
-        workflow_run_id = event.workflowRunId
+        workflow_run_id = event.workflow_run_id
 
         if errors:
             if DEDUPE_MESSAGE in errors[0]:
@@ -47,7 +47,7 @@ class PooledWorkflowRunListener(
             )
 
         return {
-            result.stepReadableId: json.loads(result.output)
+            result.task_name: json.loads(result.output)
             for result in event.results
             if result.output
         }

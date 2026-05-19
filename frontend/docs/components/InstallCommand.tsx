@@ -49,7 +49,10 @@ export default function InstallCommand({
       );
     } else if (selectedLanguage === "Python") {
       return withDevDependencies ? (
-        <UniversalTabs items={["pip", "poetry"]} optionKey="packageManager">
+        <UniversalTabs
+          items={["pip", "poetry", "uv"]}
+          optionKey="packageManager"
+        >
           <Tabs.Tab title="pip">
             <CodeBlock
               source={{
@@ -66,9 +69,20 @@ export default function InstallCommand({
               }}
             />
           </Tabs.Tab>
+          <Tabs.Tab title="uv">
+            <CodeBlock
+              source={{
+                language: "bash",
+                raw: `uv add hatchet-sdk`,
+              }}
+            />
+          </Tabs.Tab>
         </UniversalTabs>
       ) : (
-        <UniversalTabs items={["poetry", "pip"]} optionKey="packageManager">
+        <UniversalTabs
+          items={["poetry", "pip", "uv"]}
+          optionKey="packageManager"
+        >
           <Tabs.Tab title="poetry">
             <h6>Create a virtual environment</h6>
             <CodeBlock
@@ -106,6 +120,22 @@ export default function InstallCommand({
               source={{
                 language: "bash",
                 raw: `pip freeze > requirements.txt`,
+              }}
+            />
+          </Tabs.Tab>
+          <Tabs.Tab title="uv">
+            <h6>Create a virtual environment</h6>
+            <CodeBlock
+              source={{
+                language: "bash",
+                raw: `uv venv && source .venv/bin/activate`,
+              }}
+            />
+            <h6>Initialize and install the Hatchet SDK</h6>
+            <CodeBlock
+              source={{
+                language: "bash",
+                raw: `uv init --dependency hatchet-sdk`,
               }}
             />
           </Tabs.Tab>

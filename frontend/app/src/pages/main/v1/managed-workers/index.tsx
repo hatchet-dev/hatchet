@@ -2,9 +2,10 @@ import { BillingRequired } from './components/billing-required';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
+import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { cloudApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
@@ -23,11 +24,11 @@ export default function ManagedWorkers() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const computeCostQuery = useQuery({
-    ...queries.cloud.getComputeCost(tenant!.metadata.id),
+    ...queries.cloud.getComputeCost(tenantId),
   });
 
   const listManagedWorkersQuery = useQuery({
-    ...queries.cloud.listManagedWorkers(tenant!.metadata.id),
+    ...queries.cloud.listManagedWorkers(tenantId),
   });
 
   // Check if the user can create more worker pools
@@ -54,7 +55,15 @@ export default function ManagedWorkers() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await cloudApi.billingPortalLinkGet(tenant!.metadata.id);
+      if (!tenantId) {
+        return;
+      }
+      const link = await controlPlaneApi.request<{ url?: string }>({
+        path: `/api/v1/control-plane/billing/tenants/${tenantId}/billing-portal-link`,
+        method: 'GET',
+        secure: true,
+        format: 'json',
+      });
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -67,6 +76,16 @@ export default function ManagedWorkers() {
   const hasExistingWorkers =
     (listManagedWorkersQuery.data?.rows?.length || 0) > 0;
 
+  // Show loader while billing data is loading
+  if (billing?.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Spinner />
+      </div>
+    );
+  }
+
+  // Don't show billing required page while billing data is still loading
   if (rejectReason == RejectReason.BILLING_REQUIRED && !hasExistingWorkers) {
     return (
       <BillingRequired

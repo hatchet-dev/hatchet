@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { Priority } from '@hatchet/v1';
 import { hatchet } from '../hatchet-client';
 
@@ -16,7 +15,7 @@ export const priority = hatchet.task({
 
 // > Task Priority in a Workflow
 export const priorityWf = hatchet.workflow({
-  name: 'priorityWf',
+  name: 'priority-wf',
   defaultPriority: Priority.LOW,
 });
 // !!

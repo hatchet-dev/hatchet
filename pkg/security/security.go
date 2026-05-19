@@ -1,11 +1,13 @@
 package security
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 
 	"github.com/rs/zerolog"
 )
@@ -19,10 +21,10 @@ type DefaultSecurityCheck struct {
 	Endpoint string
 	Logger   *zerolog.Logger
 	Version  string
-	Repo     repository.SecurityCheckRepository
+	Repo     v1.SecurityCheckRepository
 }
 
-func NewSecurityCheck(opts *DefaultSecurityCheck, repo repository.SecurityCheckRepository) SecurityCheck {
+func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepository) SecurityCheck {
 	return DefaultSecurityCheck{
 		Enabled:  opts.Enabled,
 		Endpoint: opts.Endpoint,
@@ -51,8 +53,17 @@ func (a DefaultSecurityCheck) Check() {
 		return
 	}
 
-	req := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, ident)
-	resp, err := http.Get(req) // #nosec
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	reqURL := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, ident)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		a.Logger.Debug().Msgf("Error creating security check request: %s", err)
+		return
+	}
+
+	resp, err := http.DefaultClient.Do(req) // #nosec
 	if err != nil {
 		a.Logger.Debug().Msgf("Error making request to security endpoint: %s", err)
 		return

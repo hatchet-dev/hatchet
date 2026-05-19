@@ -58,7 +58,6 @@ The SDK includes comprehensive documentation and type signatures for excellent I
 - `Hatchet::Clients::Rest::*` - Generated REST API clients (WorkflowApi, EventApi, etc.)
 - `Hatchet::TLSConfig` - TLS configuration for secure connections
 - `Hatchet::HealthcheckConfig` - Worker health monitoring configuration
-- `Hatchet::OpenTelemetryConfig` - Observability configuration
 - `Hatchet::Error` - Base error class for gem-specific exceptions
 
 **Configuration Sources (priority order):**

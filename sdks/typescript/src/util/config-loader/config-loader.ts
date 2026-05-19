@@ -1,7 +1,7 @@
 import { parse } from 'yaml';
 import { readFileSync } from 'fs';
 import * as p from 'path';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
 import { ChannelCredentials } from 'nice-grpc';
 import { LogLevel } from '@util/logger';
@@ -19,7 +19,9 @@ type EnvVars =
   | 'HATCHET_CLIENT_LOG_LEVEL'
   | 'HATCHET_CLIENT_NAMESPACE'
   | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED'
-  | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT';
+  | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT'
+  | 'HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES'
+  | 'HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME';
 
 type TLSStrategy = 'tls' | 'mtls';
 
@@ -82,7 +84,7 @@ export class ConfigLoader {
         yaml?.api_url ??
         this.env('HATCHET_CLIENT_API_URL') ??
         addresses.serverUrl;
-    } catch (e) {
+    } catch {
       grpcBroadcastAddress =
         override?.host_port ?? yaml?.host_port ?? this.env('HATCHET_CLIENT_HOST_PORT');
       apiUrl = override?.api_url ?? yaml?.api_url ?? this.env('HATCHET_CLIENT_API_URL');
@@ -93,6 +95,15 @@ export class ConfigLoader {
     if (namespace && !namespace?.endsWith('_')) {
       namespace = `${namespace}_`;
     }
+
+    const otelConfig = override?.otel ??
+      yaml?.otel ?? {
+        excludedAttributes: this.parseJsonArray(
+          this.env('HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES') || '[]'
+        ),
+        includeTaskNameInSpanName:
+          this.env('HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME') === 'true',
+      };
 
     return {
       token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
@@ -107,7 +118,17 @@ export class ConfigLoader {
         'INFO',
       tenant_id: tenantId,
       namespace: namespace ? `${namespace}`.toLowerCase() : '',
+      otel: otelConfig,
     };
+  }
+
+  private static parseJsonArray(value: string): string[] {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
 
   static get default_yaml_config_path() {
@@ -144,10 +165,12 @@ export class ConfigLoader {
 
       return config as ClientConfig;
     } catch (e) {
-      if (!path) return undefined;
+      if (!path) {
+        return undefined;
+      }
 
       if (e instanceof z.ZodError) {
-        throw new Error(`Invalid yaml config: ${e.message}`);
+        throw new Error(`Invalid yaml config: ${e.message}`, { cause: e });
       }
 
       throw e;

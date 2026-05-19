@@ -1,12 +1,18 @@
 import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi } from './api';
+import api, { cloudApi, controlPlaneApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
+import {
+  type SubscriptionPlanList,
+  type TenantBillingState,
+  type TenantCreditBalance,
+  type TenantPaymentMethodList,
+} from './generated/control-plane/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
-type ListLogLineQuery = Parameters<typeof api.logLineList>[1];
+type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
 export type ListCloudLogsQuery = Parameters<typeof cloudApi.logList>[1];
@@ -27,12 +33,57 @@ type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
 type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
-  cloud: {
+  controlPlane: {
     billing: (tenant: string) => ({
-      queryKey: ['billing-state:get', tenant],
-      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+      queryKey: ['control-plane-billing-state:get', tenant],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.request<TenantBillingState>({
+            path: `/api/v1/control-plane/billing/tenants/${tenant}`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
     }),
-
+    creditBalance: (tenant: string) => ({
+      queryKey: ['control-plane-credit-balance:get', tenant],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.request<TenantCreditBalance>({
+            path: `/api/v1/control-plane/billing/tenants/${tenant}/credit-balance`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
+    }),
+    subscriptionPlans: () => ({
+      queryKey: ['control-plane-subscription-plans:list'],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.request<SubscriptionPlanList>({
+            path: `/api/v1/control-plane/billing/plans`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
+    }),
+    paymentMethods: (tenant: string) => ({
+      queryKey: ['control-plane-payment-methods:get', tenant],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.request<TenantPaymentMethodList>({
+            path: `/api/v1/control-plane/billing/tenants/${tenant}/payment-methods`,
+            method: 'GET',
+            secure: true,
+            format: 'json',
+          })
+        ).data,
+    }),
+  },
+  cloud: {
     getComputeCost: (tenant: string) => ({
       queryKey: ['compute-cost:get', tenant],
       queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,
@@ -119,20 +170,10 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await cloudApi.workflowRunEventsGetMetrics(tenant, query)).data,
     }),
-  },
-  user: {
-    current: {
-      queryKey: ['user:get'],
-      queryFn: async () => (await api.userGetCurrent()).data,
-    },
-    listTenantMemberships: {
-      queryKey: ['tenant-memberships:list'],
-      queryFn: async () => (await api.tenantMembershipsList()).data,
-    },
-    listInvites: {
-      queryKey: ['user:list:tenant-invites'],
-      queryFn: async () => (await api.userListTenantInvites()).data,
-    },
+    offers: () => ({
+      queryKey: ['offers:list'],
+      queryFn: async () => (await cloudApi.userOffersList()).data,
+    }),
   },
   alertingSettings: {
     get: (tenant: string) => ({
@@ -144,12 +185,6 @@ export const queries = createQueryKeyStore({
     get: (tenant: string) => ({
       queryKey: ['tenant-resource-policy:get', tenant],
       queryFn: async () => (await api.tenantResourcePolicyGet(tenant)).data,
-    }),
-  },
-  members: {
-    list: (tenant: string) => ({
-      queryKey: ['tenant-member:list', tenant],
-      queryFn: async () => (await api.tenantMemberList(tenant)).data,
     }),
   },
   tokens: {
@@ -174,12 +209,6 @@ export const queries = createQueryKeyStore({
     list: (tenant: string) => ({
       queryKey: ['sns:list', tenant],
       queryFn: async () => (await api.snsList(tenant)).data,
-    }),
-  },
-  invites: {
-    list: (tenant: string) => ({
-      queryKey: ['tenant-invite:list', tenant],
-      queryFn: async () => (await api.tenantInviteList(tenant)).data,
     }),
   },
   workflows: {
@@ -322,6 +351,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.v1LogLineList(task, query)).data,
     }),
   },
+  v1DurableTasks: {
+    eventLog: (task: string) => ({
+      queryKey: ['v1-durable-task:event-log', task],
+      queryFn: async () => (await api.v1DurableTaskEventLogList(task)).data,
+    }),
+  },
   v1TaskEvents: {
     list: (
       tenant: string,
@@ -377,7 +412,7 @@ export const queries = createQueryKeyStore({
     }),
     getLogs: (stepRun: string, query: ListLogLineQuery) => ({
       queryKey: ['log-lines:list', stepRun],
-      queryFn: async () => (await api.logLineList(stepRun, query)).data,
+      queryFn: async () => (await api.v1LogLineList(stepRun, query)).data,
     }),
     getSchema: (tenant: string, stepRun: string) => ({
       queryKey: ['step-run:get:schema', stepRun],

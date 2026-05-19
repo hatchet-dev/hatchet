@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, { createContext, useContext, useState, useRef, ReactNode, useEffect } from "react";
+import { DEFAULT_LANGUAGE } from "@/lib/docs-languages";
 
 type OptionsState = {
   [key: string]: string;
@@ -12,7 +13,7 @@ type LanguageContextType = {
 };
 
 const LanguageContext = createContext<LanguageContextType>({
-  selectedLanguage: "Python",
+  selectedLanguage: DEFAULT_LANGUAGE,
   setSelectedLanguage: () => {},
   getSelectedOption: () => "",
   setSelectedOption: () => {},
@@ -23,11 +24,15 @@ export const useLanguage = () => useContext(LanguageContext);
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [options, setOptions] = useState<OptionsState>({ language: "Python" });
+  const [options, setOptions] = useState<OptionsState>({
+    language: DEFAULT_LANGUAGE,
+  });
+  const dirty = useRef(false);
 
-  // For backward compatibility
-  const selectedLanguage = options.language || "Python";
+  const selectedLanguage = options.language || DEFAULT_LANGUAGE;
+
   const setSelectedLanguage = (language: string) => {
+    dirty.current = true;
     setOptions((prev) => ({ ...prev, language }));
   };
 
@@ -36,41 +41,37 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const setSelectedOption = (key: string, value: string) => {
+    dirty.current = true;
     setOptions((prev) => ({ ...prev, [key]: value }));
   };
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Load all saved options from localStorage
-      const savedOptions = localStorage.getItem("uiOptions");
-      if (savedOptions) {
-        try {
-          setOptions(JSON.parse(savedOptions));
-        } catch (e) {
-          // Fallback for backward compatibility
-          const savedLanguage = localStorage.getItem("selectedLanguage");
-          if (savedLanguage) {
-            setOptions({ language: savedLanguage });
-          }
-        }
-      } else {
-        // Backward compatibility
+    if (typeof window === "undefined") return;
+    const savedOptions = localStorage.getItem("uiOptions");
+    if (savedOptions) {
+      try {
+        setOptions(JSON.parse(savedOptions));
+      } catch {
         const savedLanguage = localStorage.getItem("selectedLanguage");
         if (savedLanguage) {
           setOptions({ language: savedLanguage });
         }
       }
+    } else {
+      const savedLanguage = localStorage.getItem("selectedLanguage");
+      if (savedLanguage) {
+        setOptions({ language: savedLanguage });
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Save all options to localStorage
-      localStorage.setItem("uiOptions", JSON.stringify(options));
-
-      // Also save language separately for backward compatibility
-      localStorage.setItem("selectedLanguage", options.language || "Python");
-    }
+    if (typeof window === "undefined" || !dirty.current) return;
+    localStorage.setItem("uiOptions", JSON.stringify(options));
+    localStorage.setItem(
+      "selectedLanguage",
+      options.language || DEFAULT_LANGUAGE
+    );
   }, [options]);
 
   return (

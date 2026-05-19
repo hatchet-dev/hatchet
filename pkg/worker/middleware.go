@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// Deprecated: MiddlewareFunc is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type MiddlewareFunc func(ctx HatchetContext, next func(HatchetContext) error) error
 
 type middlewares struct {
@@ -57,7 +59,7 @@ func (w *Worker) panicMiddleware(ctx HatchetContext, next func(HatchetContext) e
 				innerErr := w.sendFailureEvent(ctx, fmt.Errorf("recovered from panic: %w. Stack trace:\n%s", err, string(debug.Stack())))
 
 				if innerErr != nil {
-					w.l.Error().Err(innerErr).Msg("could not send failure event")
+					w.l.Error().Ctx(ctx).Err(innerErr).Msg("could not send failure event")
 				}
 
 				if w.panicHandler != nil {

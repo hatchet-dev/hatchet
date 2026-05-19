@@ -17,7 +17,6 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       return console.error("PostHog key is not set in environment variables");
 
     if (!hasConsent) {
-      posthog.stopSessionRecording();
       posthog.opt_out_capturing();
       posthog.reset();
 
@@ -36,10 +35,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
           capture_unhandled_rejections: true,
           capture_console_errors: false, // handle these manually
         },
-        session_recording: {
-          maskAllInputs: false,
-          maskInputOptions: { password: true },
-        },
+        disable_session_recording: true,
         persistence: "localStorage+cookie",
         before_send: (event) => {
           // You can customize exception events for better grouping
@@ -50,7 +46,6 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     }
 
     posthog.opt_in_capturing();
-    posthog.startSessionRecording();
   }, [hasConsent]);
 
   return (

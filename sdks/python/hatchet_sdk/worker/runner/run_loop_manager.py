@@ -8,6 +8,7 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
@@ -22,18 +23,21 @@ class WorkerActionRunLoopManager:
         name: str,
         action_registry: dict[str, Task[Any, Any]],
         slots: int,
+        durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
         event_queue: "Queue[ActionEvent]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
         debug: bool,
-        labels: dict[str, str | int] | None,
+        labels: list[WorkerLabel],
         lifespan_context: Any | None,
+        engine_version: str | None = None,
     ) -> None:
         self.name = name
         self.action_registry = action_registry
         self.slots = slots
+        self.durable_slots = durable_slots
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
@@ -42,6 +46,7 @@ class WorkerActionRunLoopManager:
         self.debug = debug
         self.labels = labels
         self.lifespan_context = lifespan_context
+        self.engine_version = engine_version
 
         if self.debug:
             logger.setLevel(logging.DEBUG)
@@ -82,6 +87,10 @@ class WorkerActionRunLoopManager:
         self.action_queue.put(STOP_LOOP)
         self.log_sender.publish(STOP_LOOP)
 
+    async def evict_all_waiting_durable_runs(self) -> None:
+        if self.runner:
+            await self.runner.evict_all_waiting_durable_runs()
+
     async def wait_for_tasks(self) -> None:
         if self.runner:
             await self.runner.wait_for_tasks()
@@ -91,11 +100,13 @@ class WorkerActionRunLoopManager:
             self.event_queue,
             self.config,
             self.slots,
+            self.durable_slots,
             self.handle_kill,
             self.action_registry,
             self.labels,
             self.lifespan_context,
             self.log_sender,
+            engine_version=self.engine_version,
         )
 
         logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")

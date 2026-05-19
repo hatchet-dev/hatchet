@@ -6,7 +6,7 @@ import {
   WorkflowServiceClient,
   WorkflowServiceDefinition,
 } from '@hatchet/protoc/workflows';
-import HatchetError from '@util/errors/hatchet-error';
+import { toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
@@ -17,8 +17,9 @@ import {
   AdminServiceDefinition,
   CreateWorkflowVersionRequest,
 } from '@hatchet/protoc/v1/workflows';
-import { Priority, RunsClient } from '@hatchet/v1';
+import { Priority, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
+import { DesiredWorkerLabels } from '@hatchet/protoc/v1/shared/trigger';
 import { Api } from '../rest';
 import {
   WebhookWorkerCreateRequest,
@@ -26,6 +27,30 @@ import {
   WorkflowRunStatusList,
 } from '../rest/generated/data-contracts';
 import { RunListenerClient } from '../listeners/run-listener/child-listener-client';
+
+type DesiredWorkerLabelOpt = {
+  value: string | number;
+  required?: boolean;
+  weight?: number;
+  comparator?: WorkerLabelComparator;
+};
+
+function convertDesiredWorkerLabels(
+  labels: Record<string, DesiredWorkerLabelOpt>
+): Record<string, DesiredWorkerLabels> {
+  return Object.fromEntries(
+    Object.entries(labels).map(([key, label]) => [
+      key,
+      {
+        strValue: typeof label.value === 'string' ? label.value : undefined,
+        intValue: typeof label.value === 'number' ? label.value : undefined,
+        required: label.required,
+        weight: label.weight,
+        comparator: label.comparator,
+      } satisfies DesiredWorkerLabels,
+    ])
+  );
+}
 
 type WorkflowMetricsQuery = {
   workflowId?: string;
@@ -39,6 +64,16 @@ export type WorkflowRun<T = object> = {
   input: T;
   options?: {
     parentId?: string | undefined;
+    /**
+     * (optional) the parent task external run id.
+     *
+     * This is the field understood by the workflows gRPC API.
+     */
+    parentTaskRunExternalId?: string | undefined;
+    /**
+     * @deprecated Use `parentTaskRunExternalId` instead.
+     * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+     */
     parentStepRunId?: string | undefined;
     childIndex?: number | undefined;
     childKey?: string | undefined;
@@ -90,8 +125,8 @@ export class AdminClient {
   async putWorkflow(workflow: CreateWorkflowVersionOpts) {
     try {
       return await retrier(async () => this.client.putWorkflow({ opts: workflow }), this.logger);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -103,8 +138,8 @@ export class AdminClient {
   async putWorkflowV1(workflow: CreateWorkflowVersionRequest) {
     try {
       return await retrier(async () => this.v1Client.putWorkflow(workflow), this.logger);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -133,8 +168,8 @@ export class AdminClient {
           }),
         this.logger
       );
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -150,6 +185,14 @@ export class AdminClient {
     input: T,
     options?: {
       parentId?: string | undefined;
+      /**
+       * (optional) the parent task external run id.
+       */
+      parentTaskRunExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
@@ -172,12 +215,23 @@ export class AdminClient {
     input: Q,
     options?: {
       parentId?: string | undefined;
+      /**
+       * (optional) the parent task external run id.
+       *
+       * This is the field understood by the workflows gRPC API.
+       */
+      parentTaskRunExternalId?: string | undefined;
+      /**
+       * @deprecated Use `parentTaskRunExternalId` instead.
+       * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+       */
       parentStepRunId?: string | undefined;
       childIndex?: number | undefined;
       childKey?: string | undefined;
       additionalMetadata?: Record<string, string> | undefined;
       desiredWorkerId?: string | undefined;
       priority?: Priority;
+      desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
     }
   ) {
     const computedName = applyNamespace(workflowName, this.config.namespace);
@@ -185,19 +239,31 @@ export class AdminClient {
     try {
       const inputStr = JSON.stringify(input);
 
+      const opts = options ?? {};
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
+
       const resp = this.client.triggerWorkflow({
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options?.additionalMetadata)
-          : undefined,
-        priority: options?.priority,
+        ...rest,
+        // API expects `parentTaskRunExternalId`; accept the old name as an alias.
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        priority: opts.priority,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       });
 
       return new WorkflowRunRef<P>(resp, this.listenerClient, this.workflows, options?.parentId);
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
   /**
@@ -212,12 +278,23 @@ export class AdminClient {
       input: Q;
       options?: {
         parentId?: string | undefined;
+        /**
+         * (optional) the parent task external run id.
+         *
+         * This is the field understood by the workflows gRPC API.
+         */
+        parentTaskRunExternalId?: string | undefined;
+        /**
+         * @deprecated Use `parentTaskRunExternalId` instead.
+         * Kept for backward compatibility; will be mapped to `parentTaskRunExternalId`.
+         */
         parentStepRunId?: string | undefined;
         childIndex?: number | undefined;
         childKey?: string | undefined;
         additionalMetadata?: Record<string, string> | undefined;
         desiredWorkerId?: string | undefined;
         priority?: Priority;
+        desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
       };
     }>
   ): Promise<WorkflowRunRef<P>[]> {
@@ -226,13 +303,24 @@ export class AdminClient {
       const computedName = applyNamespace(workflowName, this.config.namespace);
       const inputStr = JSON.stringify(input);
 
+      const opts = options ?? {};
+      const {
+        additionalMetadata,
+        parentStepRunId,
+        parentTaskRunExternalId,
+        desiredWorkerLabels,
+        ...rest
+      } = opts;
+
       return {
         name: computedName,
         input: inputStr,
-        ...options,
-        additionalMetadata: options?.additionalMetadata
-          ? JSON.stringify(options.additionalMetadata)
-          : undefined,
+        ...rest,
+        parentTaskRunExternalId: parentTaskRunExternalId ?? parentStepRunId,
+        additionalMetadata: additionalMetadata ? JSON.stringify(additionalMetadata) : undefined,
+        desiredWorkerLabels: desiredWorkerLabels
+          ? convertDesiredWorkerLabels(desiredWorkerLabels)
+          : {},
       };
     });
 
@@ -255,8 +343,8 @@ export class AdminClient {
           );
         });
       });
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
@@ -380,10 +468,8 @@ export class AdminClient {
    * @deprecated use hatchet.schedules.create instead
    */
   scheduleWorkflow(name: string, options?: { schedules?: Date[]; input?: object }) {
-    let computedName = name;
-
     try {
-      computedName = applyNamespace(name, this.config.namespace);
+      const computedName = applyNamespace(name, this.config.namespace);
 
       let input: string | undefined;
 
@@ -396,8 +482,8 @@ export class AdminClient {
         schedules: options?.schedules,
         input,
       });
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 

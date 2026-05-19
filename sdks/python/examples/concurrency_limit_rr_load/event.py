@@ -2,7 +2,7 @@ import random
 
 from hatchet_sdk import Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 # Create a list of events with desired distribution
 events = ["1"] * 10000 + ["0"] * 100

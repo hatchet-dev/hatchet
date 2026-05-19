@@ -1,0 +1,132 @@
+version: 2
+
+project_name: hatchet
+
+builds:
+  - id: hatchet
+    main: ./main.go
+    binary: hatchet
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+    # Skip unsupported combinations
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli.Version={{.Version}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: hatchet
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  disable: true
+
+# Cross-platform signing and notarization with quill (works on any OS, including Linux)
+# This will sign and notarize all macOS binaries
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - hatchet
+      # Signing configuration (cross-platform with quill)
+      sign:
+        certificate: "{{.Env.MACOS_SIGN_P12}}"
+        password: "{{.Env.MACOS_SIGN_PASSWORD}}"
+      # Notarization configuration
+      notarize:
+        issuer_id: "{{.Env.MACOS_NOTARY_ISSUER_ID}}"
+        key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
+        key: "{{.Env.MACOS_NOTARY_KEY}}"
+        wait: true
+        timeout: 20m
+
+# Release configuration
+release:
+  github:
+    owner: hatchet-dev
+    name: hatchet
+  draft: false
+  prerelease: auto
+  mode: append
+  header: |
+    ## Hatchet CLI {{ .Tag }}
+
+    Welcome to this new release of the Hatchet CLI!
+
+    For full documentation, visit [https://docs.hatchet.run/cli](https://docs.hatchet.run/cli)
+  footer: |
+    ## Installation
+
+    ### MacOS, Linux, WSL
+    ```bash
+    curl -fsSL https://install.hatchet.run/install.sh | bash
+    ```
+
+    ### MacOS (Homebrew)
+    ```bash
+    brew install hatchet-dev/hatchet/hatchet --cask
+    ```
+
+    ### Manual Installation
+    Download the appropriate binary for your platform from the assets below.
+
+    ### Verify Installation
+    ```bash
+    hatchet --version
+    ```
+  name_template: "{{.ProjectName}}-cli-{{.Version}}"
+  disable: false
+
+# Homebrew tap
+homebrew_casks:
+  - name: hatchet
+    ids:
+      - hatchet
+    binaries:
+      - hatchet
+    repository:
+      owner: hatchet-dev
+      name: homebrew-hatchet
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://hatchet.run
+    description: "Command-line interface for Hatchet workflow orchestration"
+    license: MIT
+
+# Generate Software Bill of Materials
+sboms:
+  - artifacts: archive

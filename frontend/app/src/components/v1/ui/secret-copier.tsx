@@ -1,6 +1,6 @@
 import { Button } from './button';
 import CopyToClipboard from './copy-to-clipboard';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import {
   DropdownMenu,
   DropdownMenuContent,

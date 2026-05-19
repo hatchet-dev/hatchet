@@ -140,7 +140,7 @@ export function Combobox({
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="z-[70] w-[300px] p-2" align="start">
+      <PopoverContent className="w-[300px] p-2" align="start">
         {[ToolbarType.Array, ToolbarType.KeyValue].includes(type) && (
           <div>
             <div className="">

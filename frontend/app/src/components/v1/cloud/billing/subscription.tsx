@@ -1,45 +1,62 @@
+import { PlanSelector } from './plan-selector';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Card,
-  CardDescription,
+  CardContent,
   CardHeader,
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
+import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api';
 import {
   TenantSubscription,
   SubscriptionPlan,
+  SubscriptionPlanCode,
+  SubscriptionPeriod,
   Coupon,
-} from '@/lib/api/generated/cloud/data-contracts';
+  UpdateTenantSubscriptionResponse,
+} from '@/lib/api/generated/control-plane/data-contracts';
+import { ContentType } from '@/lib/api/generated/control-plane/http-client';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
-import { ExclamationTriangleIcon } from '@radix-ui/react-icons';
-import { useMutation } from '@tanstack/react-query';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
   active?: TenantSubscription;
+  upcoming?: TenantSubscription;
   plans?: SubscriptionPlan[];
-  hasPaymentMethods?: boolean;
   coupons?: Coupon[];
+}
+
+function formatCurrency(cents: number, period?: string) {
+  const monthly = period === 'yearly' ? cents / 100 / 12 : cents / 100;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(monthly);
 }
 
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
+  upcoming,
   plans,
   coupons,
-  hasPaymentMethods,
 }) => {
-  // Implement the logic for the Subscription component here
-
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
   const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
@@ -47,8 +64,47 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   >(undefined);
 
   const { tenantId } = useCurrentTenantId();
+  const { tenant, billing } = useTenantDetails();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
+  const creditBalanceQuery = useQuery({
+    ...queries.controlPlane.creditBalance(tenantId),
+  });
+
+  const creditBalance = useMemo(() => {
+    const balanceCents = creditBalanceQuery.data?.balanceCents ?? 0;
+
+    if (balanceCents >= 0) {
+      return null;
+    }
+
+    const currencyCode = (creditBalanceQuery.data?.currency || 'USD')
+      .toUpperCase()
+      .slice(0, 3);
+    let formatted: string;
+    try {
+      formatted = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currencyCode,
+      }).format(Math.abs(balanceCents) / 100);
+    } catch {
+      formatted = `$${(Math.abs(balanceCents) / 100).toFixed(2)}`;
+    }
+
+    const description = creditBalanceQuery.data?.description?.trim();
+    const expires = creditBalanceQuery.data?.expiresAt;
+
+    return {
+      amount: formatted,
+      description,
+      expires,
+    };
+  }, [
+    creditBalanceQuery.data?.balanceCents,
+    creditBalanceQuery.data?.currency,
+    creditBalanceQuery.data?.description,
+    creditBalanceQuery.data?.expiresAt,
+  ]);
 
   const manageClicked = async () => {
     try {
@@ -56,7 +112,12 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
       setPortalLoading(true);
-      const link = await cloudApi.billingPortalLinkGet(tenantId);
+      const link = await controlPlaneApi.request<{ url?: string }>({
+        path: `/api/v1/control-plane/billing/tenants/${tenantId}/billing-portal-link`,
+        method: 'GET',
+        secure: true,
+        format: 'json',
+      });
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -68,17 +129,34 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const subscriptionMutation = useMutation({
     mutationKey: ['user:update:logout'],
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
-      const [plan, period] = plan_code.split(':');
+      const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
-      await cloudApi.subscriptionUpsert(tenantId, { plan, period });
+      const response =
+        await controlPlaneApi.request<UpdateTenantSubscriptionResponse>({
+          path: `/api/v1/control-plane/billing/tenants/${tenantId}/subscription`,
+          method: 'PATCH',
+          body: {
+            plan: plan as SubscriptionPlanCode,
+            period: period as SubscriptionPeriod,
+          },
+          secure: true,
+          type: ContentType.Json,
+          format: 'json',
+        });
+      return response.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
         }),
         queryClient.invalidateQueries({
-          queryKey: queries.cloud.billing(tenantId).queryKey,
+          queryKey: queries.controlPlane.billing(tenantId).queryKey,
         }),
       ]);
 
@@ -87,56 +165,71 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     onError: handleApiError,
   });
 
-  const activePlanCode = useMemo(
-    () =>
-      active?.plan
-        ? [active.plan, active.period].filter((x) => !!x).join(':')
-        : 'free',
-    [active],
-  );
+  const activePlanCode = useMemo(() => {
+    if (!active?.plan || active.plan === 'free') {
+      return 'free';
+    }
+    return [active.plan, active.period].filter((x) => !!x).join('_');
+  }, [active]);
 
   useEffect(() => {
     return setShowAnnual(active?.period?.includes('yearly') || false);
   }, [active]);
 
-  const sortedPlans = useMemo(() => {
-    return plans
-      ?.filter(
-        (v) =>
-          v.plan_code === 'free' ||
-          (showAnnual
-            ? v.period?.includes('yearly')
-            : v.period?.includes('monthly')),
-      )
-      .sort((a, b) => a.amount_cents - b.amount_cents);
-  }, [plans, showAnnual]);
+  const upcomingPlanCode = useMemo(() => {
+    if (!upcoming?.plan) {
+      return null;
+    }
+    return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
+  }, [upcoming]);
 
-  const isUpgrade = useCallback(
-    (plan: SubscriptionPlan) => {
-      if (!active) {
-        return true;
-      }
-
-      const activePlan = sortedPlans?.find(
-        (p) => p.plan_code === activePlanCode,
-      );
-
-      const activeAmount = activePlan?.amount_cents || 0;
-
-      return plan.amount_cents > activeAmount;
-    },
-    [active, activePlanCode, sortedPlans],
+  const activePlanAmountCents = useMemo(
+    () => plans?.find((p) => p.planCode === activePlanCode)?.amountCents,
+    [plans, activePlanCode],
   );
+
+  const formattedEndDate = useMemo(() => {
+    if (!active?.endsAt) {
+      return null;
+    }
+    const date = new Date(active.endsAt);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  }, [active?.endsAt]);
+
+  const currentPlanDetails = useMemo(() => {
+    if (!active?.plan) {
+      return null;
+    }
+    return plans?.find((p) => p.planCode === activePlanCode);
+  }, [active, activePlanCode, plans]);
+
+  const enterpriseContactUrl = useMemo(() => {
+    const baseUrl = 'https://cal.com/team/hatchet/website-demo';
+    if (!tenant) {
+      return baseUrl;
+    }
+    const tenantName = tenant.name || 'Unknown';
+    const tenantUuid = tenant.metadata?.id || tenantId;
+    const notes = `Custom pricing request for tenant '${tenantName}' (${tenantUuid})`;
+    return `${baseUrl}?notes=${encodeURIComponent(notes)}`;
+  }, [tenant, tenantId]);
+
+  const isDedicatedPlan = active?.plan === 'dedicated';
 
   return (
     <>
       <ConfirmDialog
         isOpen={!!isChangeConfirmOpen}
-        title={'Confirm Change Plan'}
+        title={'Confirm Plan Change'}
         submitVariant="default"
         description={
           <>
-            Are you sure you'd like to change to {isChangeConfirmOpen?.name}{' '}
+            Are you sure you'd like to change to the{' '}
+            <span className="font-semibold">{isChangeConfirmOpen?.name}</span>{' '}
             plan?
             <br />
             <br />
@@ -147,7 +240,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         submitLabel={'Change Plan'}
         onSubmit={async () => {
           await subscriptionMutation.mutateAsync({
-            plan_code: isChangeConfirmOpen!.plan_code,
+            plan_code: isChangeConfirmOpen!.planCode,
           });
           setLoading(undefined);
           setChangeConfirmOpen(undefined);
@@ -155,113 +248,223 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         onCancel={() => setChangeConfirmOpen(undefined)}
         isLoading={!!loading}
       />
-      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-row items-center justify-between">
-          <h3 className="flex flex-row gap-2 text-xl font-semibold leading-tight text-foreground">
-            Subscription
-            {coupons?.map((coupon, i) => (
-              <Badge key={`c${i}`} variant="successful">
-                {coupon.name} coupon applied
-              </Badge>
-            ))}
-          </h3>
 
-          <div className="flex gap-2">
-            <Switch
-              id="sa"
-              checked={showAnnual}
-              onClick={() => {
-                setShowAnnual((checkedState) => !checkedState);
-              }}
-            />
-            <Label htmlFor="sa" className="text-sm">
-              Annual Billing{' '}
-              <Badge variant="inProgress" className="ml-2">
-                Save up to 20%
-              </Badge>
-            </Label>
+      <div>
+        {isDedicatedPlan ? (
+          <div className="flex flex-row items-center justify-between">
+            <p className="text-xl font-semibold leading-tight text-foreground">
+              You are on the Dedicated plan
+            </p>
+            <Button
+              onClick={manageClicked}
+              variant="outline"
+              disabled={portalLoading}
+            >
+              {portalLoading ? <Spinner /> : 'Manage Billing'}
+            </Button>
           </div>
-        </div>
-        <p className="my-4 text-gray-700 dark:text-gray-300">
-          For plan details, please visit{' '}
-          <a
-            href="https://hatchet.run/pricing"
-            className="underline"
-            target="_blank"
-            rel="noreferrer"
-          >
-            our pricing page
-          </a>{' '}
-          or{' '}
-          <a href="https://hatchet.run/office-hours" className="underline">
-            contact us
-          </a>{' '}
-          if you have custom requirements.
-        </p>
-        {!hasPaymentMethods && (
-          <Alert variant="warn" className="mb-4">
-            <ExclamationTriangleIcon className="size-4" />
-            <AlertTitle className="font-semibold">
-              No Payment Method.
-            </AlertTitle>
-            <AlertDescription>
-              A payment method is required to upgrade your subscription, please{' '}
-              <a onClick={manageClicked} className="pointer underline" href="#">
-                add one
-              </a>{' '}
-              first.
-            </AlertDescription>
-          </Alert>
-        )}
+        ) : (
+          <>
+            <h3 className="flex flex-row items-center gap-2 text-xl font-semibold leading-tight text-foreground">
+              Subscription
+              {coupons?.map((coupon, i) => (
+                <Badge key={`c${i}`} variant="successful">
+                  {coupon.name} coupon applied
+                </Badge>
+              ))}
+            </h3>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {sortedPlans?.map((plan, i) => (
-            <Card className="flex flex-col gap-4 bg-muted/30" key={i}>
-              <CardHeader>
-                <CardTitle className="text-sm tracking-wide">
-                  {plan.name}
-                </CardTitle>
-                <CardDescription className="py-4">
-                  $
-                  {(
-                    plan.amount_cents /
-                    100 /
-                    (plan.period == 'yearly' ? 12 : 1)
-                  ).toLocaleString()}{' '}
-                  per month billed {plan.period}*
-                </CardDescription>
-                <CardDescription>
+            <Separator className="my-4" />
+
+            {creditBalance && (
+              <Card
+                variant="light"
+                className="mb-6 bg-transparent ring-1 ring-emerald-500/30 border-none"
+              >
+                <CardHeader className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+                        Available Credit
+                      </CardTitle>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {creditBalance.description ||
+                          'Applied to upcoming invoices.'}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xl font-semibold text-foreground whitespace-nowrap">
+                        {creditBalance.amount}
+                      </div>
+                      {creditBalance.expires && (
+                        <p className="mt-1 text-xs text-muted-foreground whitespace-nowrap">
+                          Expires{' '}
+                          <RelativeDate date={creditBalance.expires} future />
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            )}
+
+            {currentPlanDetails && (
+              <Card
+                variant="light"
+                className="mb-6 bg-transparent ring-1 ring-border/50 border-none"
+              >
+                <CardHeader className="p-4 border-b border-border/50 flex flex-row items-center justify-between">
+                  <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
+                    Current Plan
+                  </CardTitle>
                   <Button
-                    disabled={
-                      !hasPaymentMethods ||
-                      plan.plan_code === activePlanCode ||
-                      loading === plan.plan_code
-                    }
-                    variant={
-                      plan.plan_code !== activePlanCode ? 'default' : 'outline'
-                    }
-                    onClick={() => setChangeConfirmOpen(plan)}
+                    onClick={manageClicked}
+                    variant="outline"
+                    size="sm"
+                    disabled={portalLoading}
                   >
-                    {loading === plan.plan_code ? (
-                      <Spinner />
-                    ) : plan.plan_code === activePlanCode ? (
-                      'Active'
-                    ) : isUpgrade(plan) ? (
-                      'Upgrade'
-                    ) : (
-                      'Downgrade'
-                    )}
+                    {portalLoading ? <Spinner /> : 'Manage Billing'}
                   </Button>
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-        {active?.note && <p className="mt-4">{active?.note}</p>}
-        <p className="mt-4 text-sm text-gray-500">
-          * subscription fee billed upfront {showAnnual ? 'yearly' : 'monthly'},
-          overages billed at the end of each month for usage in that month
-        </p>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-semibold text-foreground">
+                          {currentPlanDetails.name}
+                        </span>
+                        {currentPlanDetails.legacy && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Badge variant="queued">Legacy</Badge>
+                              </TooltipTrigger>
+                              <TooltipContent side="right">
+                                You're on a legacy plan which is no longer
+                                offered. Contact us if you have any questions.
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      {formattedEndDate && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Service ends on {formattedEndDate}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-2xl font-bold text-foreground">
+                        {formatCurrency(
+                          currentPlanDetails.amountCents,
+                          currentPlanDetails.period,
+                        )}
+                      </span>
+                      <span className="text-sm text-muted-foreground ml-1">
+                        / month
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {upcoming && upcoming.plan && (
+              <Card
+                variant="light"
+                className="mb-6 bg-transparent ring-1 ring-yellow-500/30 border-none"
+              >
+                <CardHeader className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="inProgress">Scheduled Change</Badge>
+                      </div>
+                      <p className="text-sm text-foreground">
+                        Switching to{' '}
+                        <span className="font-semibold">
+                          {plans?.find(
+                            (p) =>
+                              p.planCode ===
+                              [upcoming.plan, upcoming.period]
+                                .filter((x) => !!x)
+                                .join('_'),
+                          )?.name || upcoming.plan}
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Takes effect on{' '}
+                        {new Date(upcoming.startedAt).toLocaleDateString(
+                          'en-US',
+                          {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          },
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            )}
+
+            <div className="flex flex-row items-center justify-between mb-4">
+              <p className="text-sm text-muted-foreground">
+                For plan details, visit{' '}
+                <a
+                  href="https://hatchet.run/pricing"
+                  className="text-primary/70 hover:text-primary hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  our pricing page
+                </a>{' '}
+                or{' '}
+                <a
+                  href="https://hatchet.run/office-hours"
+                  className="text-primary/70 hover:text-primary hover:underline"
+                >
+                  contact us
+                </a>{' '}
+                for custom requirements.
+              </p>
+
+              <div className="flex gap-2 items-center shrink-0 ml-4">
+                <Switch
+                  id="sa"
+                  checked={showAnnual}
+                  onClick={() => {
+                    setShowAnnual((checkedState) => !checkedState);
+                  }}
+                />
+                <Label htmlFor="sa" className="text-sm whitespace-nowrap">
+                  Annual Billing
+                  <Badge variant="inProgress" className="ml-2">
+                    Save up to 20%
+                  </Badge>
+                </Label>
+              </div>
+            </div>
+
+            <PlanSelector
+              activePlanCode={activePlanCode}
+              activePlanAmountCents={activePlanAmountCents}
+              upcomingPlanCode={upcomingPlanCode}
+              showAnnual={showAnnual}
+              onSelectPlan={(plan) => {
+                if (!billing?.hasPaymentMethods) {
+                  subscriptionMutation.mutate({ plan_code: plan.planCode });
+                } else {
+                  setChangeConfirmOpen(plan);
+                }
+              }}
+              enterpriseContactUrl={enterpriseContactUrl}
+              loading={loading}
+              coupons={coupons}
+            />
+          </>
+        )}
       </div>
     </>
   );

@@ -17,6 +17,7 @@ export type NodeData = {
   onClick: (defaultOpenTab?: TabOption) => void;
   childWorkflowsCount: number;
   taskName: string;
+  isSkipped?: boolean;
 };
 
 // eslint-disable-next-line react/display-name
@@ -61,7 +62,10 @@ export default memo(({ data }: { data: NodeData }) => {
               <span className="step-run-backdrop absolute inset-[1px] bg-background transition-colors duration-200" />
               <div className="z-10 flex w-full flex-row items-center justify-between gap-4">
                 <div className="z-10 flex flex-row items-center justify-start gap-2">
-                  <V1RunIndicator status={data.taskRun?.status} />
+                  <V1RunIndicator
+                    status={data.taskRun?.status}
+                    isSkipped={data.isSkipped}
+                  />
                   <div className="max-w-[160px] flex-grow truncate">
                     {data.taskName}
                   </div>

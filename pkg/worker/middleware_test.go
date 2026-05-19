@@ -39,6 +39,10 @@ func (c *testHatchetContext) ParentOutput(task create.NamedTask, target interfac
 	return nil
 }
 
+func (c *testHatchetContext) WasSkipped(task create.NamedTask) bool {
+	return false
+}
+
 func (c *testHatchetContext) TriggeredByEvent() bool {
 	return false
 }
@@ -138,7 +142,43 @@ func (c *testHatchetContext) Worker() HatchetWorkerContext {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) DurableTaskInvocationCount() int32 {
+	return 0
+}
+
 func (c *testHatchetContext) FilterPayload() map[string]interface{} {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) ParentWorkflowRunId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) ChildIndex() *int32 {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) ChildKey() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TriggeringEventId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TriggeringEventKey() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) ActionId() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TenantId() string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) WorkerId() string {
 	panic("not implemented")
 }
 

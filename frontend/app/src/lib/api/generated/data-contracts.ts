@@ -18,9 +18,31 @@ export enum V1TaskRunStatus {
   CANCELLED = "CANCELLED",
 }
 
+export enum LogLineOrderByDirection {
+  Asc = "asc",
+  Desc = "desc",
+}
+
+export enum LogLineOrderByField {
+  CreatedAt = "createdAt",
+}
+
+export enum LogLineLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
 export enum PullRequestState {
   Open = "open",
   Closed = "closed",
+}
+
+export enum FeatureFlagId {
+  TenantLogWorkflowFilterEnabled = "tenant-log-workflow-filter-enabled",
+  TraceMinimapEnabled = "trace-minimap-enabled",
+  OrganizationSsoEnabled = "organization-sso-enabled",
 }
 
 export enum WebhookWorkerRequestMethod {
@@ -33,6 +55,7 @@ export enum WorkerRuntimeSDKs {
   GOLANG = "GOLANG",
   PYTHON = "PYTHON",
   TYPESCRIPT = "TYPESCRIPT",
+  RUBY = "RUBY",
 }
 
 export enum WorkerType {
@@ -80,22 +103,6 @@ export enum StepRunEventReason {
   WORKFLOW_RUN_GROUP_KEY_FAILED = "WORKFLOW_RUN_GROUP_KEY_FAILED",
 }
 
-export enum LogLineOrderByDirection {
-  Asc = "asc",
-  Desc = "desc",
-}
-
-export enum LogLineOrderByField {
-  CreatedAt = "createdAt",
-}
-
-export enum LogLineLevel {
-  DEBUG = "DEBUG",
-  INFO = "INFO",
-  WARN = "WARN",
-  ERROR = "ERROR",
-}
-
 export enum JobRunStatus {
   PENDING = "PENDING",
   RUNNING = "RUNNING",
@@ -115,6 +122,11 @@ export enum StepRunStatus {
   CANCELLED = "CANCELLED",
   CANCELLING = "CANCELLING",
   BACKOFF = "BACKOFF",
+}
+
+export enum ConcurrencyScope {
+  WORKFLOW = "WORKFLOW",
+  TASK = "TASK",
 }
 
 export enum ConcurrencyLimitStrategy {
@@ -199,7 +211,6 @@ export enum TenantResource {
   WORKER = "WORKER",
   WORKER_SLOT = "WORKER_SLOT",
   EVENT = "EVENT",
-  WORKFLOW_RUN = "WORKFLOW_RUN",
   TASK_RUN = "TASK_RUN",
   CRON = "CRON",
   SCHEDULE = "SCHEDULE",
@@ -237,6 +248,7 @@ export enum V1WebhookSourceName {
   STRIPE = "STRIPE",
   SLACK = "SLACK",
   LINEAR = "LINEAR",
+  SVIX = "SVIX",
 }
 
 export enum TenantEnvironment {
@@ -245,14 +257,47 @@ export enum TenantEnvironment {
   Production = "production",
 }
 
-export enum TenantUIVersion {
+export enum TenantVersion {
   V0 = "V0",
   V1 = "V1",
 }
 
-export enum TenantVersion {
-  V0 = "V0",
-  V1 = "V1",
+export enum OtelStatusCode {
+  UNSET = "UNSET",
+  OK = "OK",
+  ERROR = "ERROR",
+}
+
+export enum OtelSpanKind {
+  UNSPECIFIED = "UNSPECIFIED",
+  INTERNAL = "INTERNAL",
+  SERVER = "SERVER",
+  CLIENT = "CLIENT",
+  PRODUCER = "PRODUCER",
+  CONSUMER = "CONSUMER",
+}
+
+export enum V1DurableWaitConditionKind {
+  SLEEP = "SLEEP",
+  USER_EVENT = "USER_EVENT",
+  CHILD_WORKFLOW = "CHILD_WORKFLOW",
+}
+
+export enum V1DurableEventLogKind {
+  RUN = "RUN",
+  WAIT_FOR = "WAIT_FOR",
+  MEMO = "MEMO",
+}
+
+export enum V1RunningFilter {
+  ALL = "ALL",
+  EVICTED = "EVICTED",
+  ON_WORKER = "ON_WORKER",
+}
+
+export enum V1LogLineOrderByDirection {
+  ASC = "ASC",
+  DESC = "DESC",
 }
 
 export enum V1LogLineLevel {
@@ -285,6 +330,9 @@ export enum V1TaskEventType {
   SKIPPED = "SKIPPED",
   WAITING_FOR_BATCH = "WAITING_FOR_BATCH",
   BATCH_FLUSHED = "BATCH_FLUSHED",
+  COULD_NOT_SEND_TO_WORKER = "COULD_NOT_SEND_TO_WORKER",
+  DURABLE_EVICTED = "DURABLE_EVICTED",
+  DURABLE_RESTORING = "DURABLE_RESTORING",
 }
 
 export enum V1WorkflowType {
@@ -343,6 +391,8 @@ export interface V1TaskSummary {
   displayName: string;
   /** The duration of the task run, in milliseconds. */
   duration?: number;
+  /** Whether this task was created as a durable task. */
+  isDurable?: boolean;
   /** The error message of the task run (for the latest run) */
   errorMessage?: string;
   /**
@@ -357,6 +407,8 @@ export interface V1TaskSummary {
   /** The output of the task run (for the latest run) */
   output: object;
   status: V1TaskStatus;
+  /** Whether the task has been evicted from a worker (still counts as RUNNING). */
+  isEvicted?: boolean;
   /**
    * The timestamp the task run started.
    * @format date-time
@@ -500,6 +552,15 @@ export interface V1LogLine {
   message: string;
   /** The log metadata. */
   metadata: object;
+  /**
+   * The external ID of the task associated with the log line.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId?: string;
+  /** The display name of the task associated with the log line. */
+  taskDisplayName?: string;
   /** The retry count of the log line. */
   retryCount?: number;
   /** The attempt number of the log line. */
@@ -534,6 +595,19 @@ export interface V1CancelledTasks {
   ids?: string[];
 }
 
+export interface V1LogsPointMetric {
+  /** @format date-time */
+  time: string;
+  DEBUG: number;
+  INFO: number;
+  WARN: number;
+  ERROR: number;
+}
+
+export interface V1LogsPointMetrics {
+  results?: V1LogsPointMetric[];
+}
+
 export interface V1ReplayTaskRequest {
   /** A list of external IDs, which can refer to either task or workflow run external IDs */
   externalIds?: string[];
@@ -543,6 +617,10 @@ export interface V1ReplayTaskRequest {
 export interface V1ReplayedTasks {
   /** The list of task external ids that were replayed */
   ids?: string[];
+}
+
+export interface V1RestoreTaskResponse {
+  requeued: boolean;
 }
 
 export interface V1DagChildren {
@@ -662,11 +740,139 @@ export interface V1WorkflowRunDetails {
   workflowConfig?: object;
 }
 
+export interface V1BranchDurableTaskRequest {
+  /**
+   * The external id of the durable task to branch.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id to replay from.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id to replay from.
+   * @format int64
+   */
+  branchId: number;
+}
+
+export interface V1BranchDurableTaskResponse {
+  /**
+   * The external id of the durable task.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /**
+   * The node id of the new entry.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id of the new entry.
+   * @format int64
+   */
+  branchId: number;
+}
+
+export interface V1DurableWaitCondition {
+  kind: V1DurableWaitConditionKind;
+  /** @format int64 */
+  sleepDurationMs?: number;
+  eventKey?: string;
+  workflowName?: string;
+}
+
+export interface V1WaitItem {
+  kind?: V1DurableWaitConditionKind;
+  /** @format int64 */
+  sleepDurationMs?: number;
+  eventKey?: string;
+  workflowName?: string;
+  or?: V1DurableWaitCondition[];
+}
+
+export type V1WaitData = V1WaitItem[];
+
+export interface V1DurableEventLogEntry {
+  /**
+   * The monotonically increasing node id in the event log.
+   * @format int64
+   */
+  nodeId: number;
+  /**
+   * The branch id when this entry was first seen.
+   * @format int64
+   */
+  branchId: number;
+  kind: V1DurableEventLogKind;
+  waitData?: V1WaitData;
+  /** Whether this entry has been satisfied. */
+  isSatisfied: boolean;
+  /**
+   * When this entry was satisfied, if it has been satisfied.
+   * @format date-time
+   */
+  satisfiedAt?: string;
+  /**
+   * When this entry was inserted.
+   * @format date-time
+   */
+  insertedAt: string;
+  /** A user-provided message or label, sent when establishing a durable wait. */
+  userMessage?: string;
+  /**
+   * The external id of the durable task this event log entry is associated with.
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  taskExternalId: string;
+  /** The display name of the durable task this event log entry is associated with. */
+  taskDisplayName: string;
+}
+
+export type V1DurableEventLogList = V1DurableEventLogEntry[];
+
+export interface OtelSpan {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  spanName: string;
+  spanKind: OtelSpanKind;
+  serviceName: string;
+  statusCode: OtelStatusCode;
+  statusMessage?: string;
+  /** @format int64 */
+  durationNs: number;
+  /** @format date-time */
+  createdAt: string;
+  resourceAttributes?: Record<string, string>;
+  spanAttributes?: Record<string, string>;
+  scopeName?: string;
+  scopeVersion?: string;
+  /** @format int32 */
+  retryCount: number;
+}
+
+export interface OtelSpanList {
+  pagination?: PaginationResponse;
+  retryCounts?: number[];
+  rows?: OtelSpan[];
+}
+
 export interface V1TaskTiming {
   metadata: APIResourceMeta;
   /** The depth of the task in the waterfall. */
   depth: number;
   status: V1TaskStatus;
+  /** Whether the task has been evicted from a worker (still counts as RUNNING). */
+  isEvicted?: boolean;
   /** The display name of the task run. */
   taskDisplayName: string;
   /**
@@ -730,9 +936,17 @@ export interface V1TaskTimingList {
   rows: V1TaskTiming[];
 }
 
+export interface V1RunningDetailCount {
+  /** The number of evicted tasks within the RUNNING status bucket. */
+  evicted: number;
+  /** The number of tasks currently on a worker within the RUNNING status bucket. */
+  onWorker: number;
+}
+
 export interface V1TaskRunMetric {
   status: V1TaskStatus;
   count: number;
+  runningDetailCount?: V1RunningDetailCount;
 }
 
 export type V1TaskRunMetrics = V1TaskRunMetric[];
@@ -763,10 +977,12 @@ export interface Tenant {
   alertMemberEmails?: boolean;
   /** The version of the tenant. */
   version: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
+  /** The server URL for the tenant (includes scheme) */
+  serverUrl?: string;
+  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
+  region?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -910,8 +1126,14 @@ export interface V1Webhook {
   sourceName: V1WebhookSourceName;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
   /** The type of authentication to use for the webhook */
   authType: V1WebhookAuthType;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1WebhookList {
@@ -926,6 +1148,12 @@ export interface V1CreateWebhookRequestBase {
   name: string;
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
   eventKeyExpression: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1WebhookBasicAuth {
@@ -976,9 +1204,22 @@ export type V1CreateWebhookRequest =
   | V1CreateWebhookRequestAPIKey
   | V1CreateWebhookRequestHMAC;
 
+export interface V1WebhookResponse {
+  /** The message for the webhook response */
+  message?: string;
+  event?: V1Event;
+  challenge?: string;
+}
+
 export interface V1UpdateWebhookRequest {
   /** The CEL expression to use for the event key. This is used to create the event key from the webhook payload. */
-  eventKeyExpression: string;
+  eventKeyExpression?: string;
+  /** The CEL expression to use for the scope. This is used to filter the correct workflow to trigger. */
+  scopeExpression?: string;
+  /** The static payload to use for the webhook. This is used to send a static payload with the webhook. */
+  staticPayload?: object;
+  /** Whether to return the triggered event as the response payload when this webhook is triggered */
+  returnEventAsResponsePayload?: boolean;
 }
 
 export interface V1CELDebugRequest {
@@ -1050,6 +1291,11 @@ export interface APIMeta {
    * @example true
    */
   allowChangePassword?: boolean;
+  /**
+   * whether or not observability (trace collection) is enabled on this instance
+   * @example false
+   */
+  observabilityEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -1270,8 +1516,6 @@ export interface CreateTenantRequest {
   name: string;
   /** The slug of the tenant. */
   slug: string;
-  /** The UI version of the tenant. Defaults to V0. */
-  uiVersion?: TenantUIVersion;
   /** The engine version of the tenant. Defaults to V0. */
   engineVersion?: TenantVersion;
   /** The environment type of the tenant. */
@@ -1297,8 +1541,6 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
-  /** The UI of the tenant. */
-  uiVersion?: TenantUIVersion;
 }
 
 export interface TenantAlertingSettings {
@@ -1561,6 +1803,10 @@ export interface Step {
   action: string;
   /** The timeout of the step. */
   timeout?: string;
+  /** Whether the step is durable. */
+  isDurable?: boolean;
+  /** Slot requests for the step (slot_type -> units). */
+  slotRequests?: Record<string, number>;
   children?: string[];
   parents?: string[];
 }
@@ -1791,6 +2037,22 @@ export interface WorkflowTriggers {
   crons?: WorkflowTriggerCronRef[];
 }
 
+export interface ConcurrencySetting {
+  /**
+   * The maximum number of concurrent workflow runs.
+   * @format int32
+   */
+  maxRuns: number;
+  /** The strategy to use when the concurrency limit is reached. */
+  limitStrategy: ConcurrencyLimitStrategy;
+  /** The concurrency expression, used to generate a key from task inputs, metadata, etc. */
+  expression: string;
+  /** The readable id of the step to which this concurrency setting applies. */
+  stepReadableId?: string;
+  /** The scope of the concurrency setting. */
+  scope: ConcurrencyScope;
+}
+
 export interface WorkflowVersion {
   metadata: APIResourceMeta;
   /** The version of the workflow. */
@@ -1811,6 +2073,9 @@ export interface WorkflowVersion {
   scheduleTimeout?: string;
   jobs?: Job[];
   workflowConfig?: object;
+  v1Concurrency?: ConcurrencySetting[];
+  /** The JSON schema for the workflow input. */
+  inputJsonSchema?: object;
 }
 
 export interface TriggerWorkflowRunRequest {
@@ -1922,27 +2187,6 @@ export interface WorkflowMetrics {
   groupKeyRunsCount?: number;
   /** The total number of concurrency group keys. */
   groupKeyCount?: number;
-}
-
-export type LogLineLevelField = LogLineLevel[];
-
-export type LogLineSearch = string;
-
-export interface LogLine {
-  /**
-   * The creation date of the log line.
-   * @format date-time
-   */
-  createdAt: string;
-  /** The log message. */
-  message: string;
-  /** The log metadata. */
-  metadata: object;
-}
-
-export interface LogLineList {
-  pagination?: PaginationResponse;
-  rows?: LogLine[];
 }
 
 export interface StepRunEvent {
@@ -2120,6 +2364,14 @@ export interface RecentStepRuns {
   workflowRunId: string;
 }
 
+/** Slot availability and limits for a slot type. */
+export interface WorkerSlotConfig {
+  /** The number of available units for this slot type. */
+  available?: number;
+  /** The maximum number of units for this slot type. */
+  limit: number;
+}
+
 export interface WorkerLabel {
   metadata: APIResourceMeta;
   /** The key of the label. */
@@ -2163,10 +2415,8 @@ export interface Worker {
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
   status?: "ACTIVE" | "INACTIVE" | "PAUSED";
-  /** The maximum number of runs this worker can execute concurrently. */
-  maxRuns?: number;
-  /** The number of runs this worker can execute concurrently. */
-  availableRuns?: number;
+  /** Slot availability and limits for this worker (slot_type -> { available, limit }). */
+  slotConfig?: Record<string, WorkerSlotConfig>;
   /**
    * the id of the assigned dispatcher, in UUID format
    * @format uuid
@@ -2271,6 +2521,11 @@ export interface TaskStat {
 
 export type TaskStats = Record<string, TaskStat>;
 
+export interface FeatureFlagEvaluationResult {
+  /** Whether the feature flag is enabled for the tenant */
+  isEnabled: boolean;
+}
+
 export interface TenantList {
   pagination?: PaginationResponse;
   rows?: Tenant[];
@@ -2309,6 +2564,27 @@ export interface PullRequest {
 export interface ListPullRequestsResponse {
   pullRequests: PullRequest[];
 }
+
+export interface LogLine {
+  /**
+   * The creation date of the log line.
+   * @format date-time
+   */
+  createdAt: string;
+  /** The log message. */
+  message: string;
+  /** The log metadata. */
+  metadata: object;
+}
+
+export interface LogLineList {
+  pagination?: PaginationResponse;
+  rows?: LogLine[];
+}
+
+export type LogLineSearch = string;
+
+export type LogLineLevelField = LogLineLevel[];
 
 export interface WebhookWorkerCreateResponse {
   worker?: WebhookWorkerCreated;

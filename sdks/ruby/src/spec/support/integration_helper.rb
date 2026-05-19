@@ -22,7 +22,7 @@ module IntegrationHelper
   # Get test workflow run ID from recent runs
   def get_test_workflow_run_id(runs_client, limit: 1)
     recent_runs = runs_client.list(limit: limit)
-    if recent_runs.rows && recent_runs.rows.any?
+    if recent_runs.rows&.any?
       recent_runs.rows.first.metadata.id
     else
       skip "No recent workflow runs found for testing"
@@ -32,7 +32,7 @@ module IntegrationHelper
   # Get test task run ID from recent runs
   def get_test_task_run_id(runs_client, limit: 1)
     recent_runs = runs_client.list(only_tasks: true, limit: limit)
-    if recent_runs.rows && recent_runs.rows.any?
+    if recent_runs.rows&.any?
       recent_runs.rows.first.metadata.id
     else
       skip "No recent task runs found for testing"
@@ -40,7 +40,7 @@ module IntegrationHelper
   end
 
   # Safely attempt an operation that might fail due to missing test data
-  def safely_attempt_operation(description, &block)
+  def safely_attempt_operation(description)
     result = yield
     puts "✓ #{description}: Success"
     result

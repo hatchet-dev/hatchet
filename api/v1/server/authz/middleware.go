@@ -3,28 +3,33 @@ package authz
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
+	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type AuthZ struct {
 	config *server.ServerConfig
-
-	l *zerolog.Logger
+	rbac   *rbac.Authorizer
+	l      *zerolog.Logger
 }
 
-func NewAuthZ(config *server.ServerConfig) *AuthZ {
+func NewAuthZ(config *server.ServerConfig) (*AuthZ, error) {
+	rbacAuthorizer, err := newHatchetAuthorizer()
+	if err != nil {
+		return nil, err
+	}
+
 	return &AuthZ{
 		config: config,
 		l:      config.Logger,
-	}
+		rbac:   rbacAuthorizer,
+	}, nil
 }
 
 func (a *AuthZ) Middleware(r *middleware.RouteInfo) echo.HandlerFunc {
@@ -60,47 +65,13 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 }
 
 func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error {
-	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
-
 	if err := a.ensureVerifiedEmail(c, r); err != nil {
-		a.l.Debug().Err(err).Msgf("error ensuring verified email")
+		a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email")
 		return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
 	}
 
-	// if tenant is set in the context, verify that the user is a member of the tenant
-	if tenant, ok := c.Get("tenant").(*dbsqlc.Tenant); ok {
-		user, ok := c.Get("user").(*dbsqlc.User)
-
-		if !ok {
-			a.l.Debug().Msgf("user not found in context")
-
-			return unauthorized
-		}
-
-		// check if the user is a member of the tenant
-		tenantMember, err := a.config.APIRepository.Tenant().GetTenantMemberByUserID(c.Request().Context(), sqlchelpers.UUIDToStr(tenant.ID), sqlchelpers.UUIDToStr(user.ID))
-
-		if err != nil {
-			a.l.Debug().Err(err).Msgf("error getting tenant member")
-
-			return unauthorized
-		}
-
-		if tenantMember == nil {
-			a.l.Debug().Msgf("user is not a member of the tenant")
-
-			return unauthorized
-		}
-
-		// set the tenant member in the context
-		c.Set("tenant-member", tenantMember)
-
-		// authorize tenant operations
-		if err := a.authorizeTenantOperations(tenant, tenantMember, r); err != nil {
-			a.l.Debug().Err(err).Msgf("error authorizing tenant operations")
-
-			return unauthorized
-		}
+	if err := a.validateUserTenantPermissions(c, r); err != nil {
+		return err
 	}
 
 	if a.config.Auth.CustomAuthenticator != nil {
@@ -120,8 +91,28 @@ var restrictedWithBearerToken = []string{
 // At the moment, there's no further bearer auth because bearer tokens are admin-scoped
 // and we check that the bearer token has access to the tenant in the authn step.
 func (a *AuthZ) handleBearerAuth(c echo.Context, r *middleware.RouteInfo) error {
-	if operationIn(r.OperationID, restrictedWithBearerToken) {
-		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+	// check for is_exchange_token set in the context, in which case we need to validate the user set in the context
+	// exchange tokens are subject to the same RBAC restrictions as cookie auth, since they represent a user. only
+	// regular bearer tokens should be subject to the additional restrictions in restrictedWithBearerToken
+	if isExchangeToken, ok := c.Get(middleware.IsExchangeTokenContextKey).(bool); ok && isExchangeToken {
+		if a.config.Auth.ExchangeTokenClient == nil {
+			a.l.Error().Msgf("exchange token client is not configured, but is_exchange_token is set in context")
+			return echo.NewHTTPError(http.StatusInternalServerError, "Exchange token client is not configured")
+		}
+
+		if err := a.ensureVerifiedEmail(c, r); err != nil {
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error ensuring verified email for exchange token user")
+			return echo.NewHTTPError(http.StatusUnauthorized, "Please verify your email before continuing")
+		}
+
+		if err := a.validateUserTenantPermissions(c, r); err != nil {
+			a.l.Debug().Ctx(c.Request().Context()).Err(err).Msgf("error validating user tenant permissions for exchange token user")
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+		}
+	} else if !isExchangeToken {
+		if rbac.OperationIn(r.OperationID, restrictedWithBearerToken) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
+		}
 	}
 
 	return nil
@@ -141,13 +132,13 @@ var permittedWithUnverifiedEmail = []string{
 }
 
 func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) error {
-	user, ok := c.Get("user").(*dbsqlc.User)
+	user, ok := c.Get("user").(*sqlcv1.User)
 
 	if !ok {
 		return nil
 	}
 
-	if operationIn(r.OperationID, permittedWithUnverifiedEmail) {
+	if rbac.OperationIn(r.OperationID, permittedWithUnverifiedEmail) {
 		return nil
 	}
 
@@ -158,47 +149,61 @@ func (a *AuthZ) ensureVerifiedEmail(c echo.Context, r *middleware.RouteInfo) err
 	return nil
 }
 
-var adminAndOwnerOnly = []string{
-	"TenantInviteList",
-	"TenantInviteCreate",
-	"TenantInviteUpdate",
-	"TenantInviteDelete",
-	"TenantMemberList",
-	"TenantMemberUpdate",
-	// members cannot create API tokens for a tenant, because they have admin permissions
-	"ApiTokenList",
-	"ApiTokenCreate",
-	"ApiTokenUpdateRevoke",
-}
+func (a *AuthZ) validateUserTenantPermissions(c echo.Context, r *middleware.RouteInfo) error {
+	unauthorized := echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to view this resource")
+	ctx := c.Request().Context()
 
-func (a *AuthZ) authorizeTenantOperations(tenant *dbsqlc.Tenant, tenantMember *dbsqlc.PopulateTenantMembersRow, r *middleware.RouteInfo) error {
-	// if the user is an owner, they can do anything
-	if tenantMember.Role == dbsqlc.TenantMemberRoleOWNER {
-		return nil
+	// if tenant is set in the context, verify that the user is a member of the tenant
+	if tenant, ok := c.Get("tenant").(*sqlcv1.Tenant); ok {
+		user, ok := c.Get("user").(*sqlcv1.User)
+
+		if !ok {
+			a.l.Debug().Ctx(ctx).Msgf("user not found in context")
+
+			return unauthorized
+		}
+
+		// check if the user is a member of the tenant
+		tenantMember, err := a.config.V1.Tenant().GetTenantMemberByUserID(c.Request().Context(), tenant.ID, user.ID)
+
+		if err != nil {
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error getting tenant member")
+
+			return unauthorized
+		}
+
+		if tenantMember == nil {
+			a.l.Debug().Ctx(ctx).Msgf("user is not a member of the tenant")
+
+			return unauthorized
+		}
+
+		// set the tenant member in the context
+		c.Set("tenant-member", tenantMember)
+
+		// authorize tenant operations
+		if err := a.authorizeTenantOperations(tenantMember.Role, r); err != nil {
+			a.l.Debug().Ctx(ctx).Err(err).Msgf("error authorizing tenant operations")
+
+			return unauthorized
+		}
 	}
 
-	// if the user is an admin, they can do anything at the moment. Some downstream handlers will case on
-	// admin roles, for example admins cannot mark users as owners.
-	if tenantMember.Role == dbsqlc.TenantMemberRoleADMIN {
+	return nil
+}
+
+func (a *AuthZ) authorizeTenantOperations(tenantMemberRole sqlcv1.TenantMemberRole, r *middleware.RouteInfo) error {
+	// if the operation is in the allowed operations, skip the RBAC check this is needed for extensions
+	if rbac.OperationIn(r.OperationID, a.config.Auth.AllowedOperations) {
 		return nil
 	}
 
 	// at the moment, tenant members are only restricted from creating other tenant users.
-	if operationIn(r.OperationID, adminAndOwnerOnly) {
+	if !a.rbac.IsAuthorized(string(tenantMemberRole), r.OperationID) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "Not authorized to perform this operation")
 	}
 
 	// NOTE(abelanger5): this should be default-deny, but there's not a strong use-case for restricting member
 	// operations at the moment. If there is, we should modify this logic.
 	return nil
-}
-
-func operationIn(operationId string, operationIds []string) bool {
-	for _, id := range operationIds {
-		if strings.EqualFold(operationId, id) {
-			return true
-		}
-	}
-
-	return false
 }

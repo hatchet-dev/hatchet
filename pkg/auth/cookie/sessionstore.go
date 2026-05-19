@@ -13,8 +13,9 @@ import (
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 const UserSessionKey string = "user_id"
@@ -26,19 +27,23 @@ type sessionDataJSON struct {
 type UserSessionStore struct {
 	codecs     []securecookie.Codec
 	options    *sessions.Options
-	repo       repository.UserSessionRepository
+	repo       v1.UserSessionRepository
 	cookieName string
+
+	// l receives diagnostics for session persistence issues (e.g. DB delete during logout).
+	l zerolog.Logger
 }
 
 type UserSessionStoreOpts struct {
 	// The max age of the cookie, in seconds.
 	maxAge int
 
-	repo          repository.UserSessionRepository
+	repo          v1.UserSessionRepository
 	cookieSecrets []string
 	isInsecure    bool
 	cookieDomain  string
 	cookieName    string
+	logger        *zerolog.Logger
 }
 
 type UserSessionStoreOpt func(*UserSessionStoreOpts)
@@ -80,9 +85,17 @@ func WithCookieAllowInsecure(allow bool) UserSessionStoreOpt {
 	}
 }
 
-func WithSessionRepository(repo repository.UserSessionRepository) UserSessionStoreOpt {
+func WithSessionRepository(repo v1.UserSessionRepository) UserSessionStoreOpt {
 	return func(opts *UserSessionStoreOpts) {
 		opts.repo = repo
+	}
+}
+
+// WithLogger sets the zerolog logger used for session-store diagnostics.
+// If unset, logs are discarded.
+func WithLogger(l *zerolog.Logger) UserSessionStoreOpt {
+	return func(opts *UserSessionStoreOpts) {
+		opts.logger = l
 	}
 }
 
@@ -113,6 +126,11 @@ func NewUserSessionStore(fs ...UserSessionStoreOpt) (*UserSessionStore, error) {
 		keyPairs = append(keyPairs, []byte(key))
 	}
 
+	lg := zerolog.Nop()
+	if opts.logger != nil {
+		lg = *opts.logger
+	}
+
 	res := &UserSessionStore{
 		codecs: securecookie.CodecsFromPairs(keyPairs...),
 		options: &sessions.Options{
@@ -125,6 +143,7 @@ func NewUserSessionStore(fs ...UserSessionStoreOpt) (*UserSessionStore, error) {
 		},
 		repo:       opts.repo,
 		cookieName: opts.cookieName,
+		l:          lg,
 	}
 
 	return res, nil
@@ -132,6 +151,19 @@ func NewUserSessionStore(fs ...UserSessionStoreOpt) (*UserSessionStore, error) {
 
 func (store *UserSessionStore) GetName() string {
 	return store.cookieName
+}
+
+// ClearingCookie returns an http.Cookie that expires the named session cookie in the browser.
+// Use when the session cannot be loaded but the client may still hold a stale cookie.
+//
+// The cookie is built via sessions.NewCookie with a copy of the store's Options and
+// MaxAge=-1 so that both MaxAge and Expires (set to a past time by sessions.NewCookie)
+// are populated. Some clients ignore MaxAge and rely solely on Expires for deletion.
+func (store *UserSessionStore) ClearingCookie(name string) http.Cookie {
+	opts := *store.options
+	opts.MaxAge = -1
+
+	return *sessions.NewCookie(name, "", &opts)
 }
 
 func (store *UserSessionStore) New(r *http.Request, name string) (*sessions.Session, error) {
@@ -183,14 +215,22 @@ func (store *UserSessionStore) Get(r *http.Request, name string) (*sessions.Sess
 func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
 	repo := store.repo
 
-	// Set delete if max-age is < 0
 	if session.Options.MaxAge < 0 {
-		if _, err := repo.Delete(r.Context(), session.ID); err != nil {
-			return err
+		if session.ID != "" {
+			sessionID, parseErr := uuid.Parse(session.ID)
+			if parseErr == nil {
+				if _, delErr := repo.Delete(r.Context(), sessionID); delErr != nil && !errors.Is(delErr, pgx.ErrNoRows) {
+					store.l.Error().Err(delErr).Msg("user session delete failed during logout; clearing browser cookie anyway")
+				}
+			}
 		}
 
 		http.SetCookie(w, sessions.NewCookie(session.Name(), "", session.Options))
 		return nil
+	}
+
+	if _, err := uuid.Parse(session.ID); err != nil && session.ID != "" {
+		return fmt.Errorf("invalid session ID: %w", err)
 	}
 
 	if session.ID == "" {
@@ -219,6 +259,11 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		return fmt.Errorf("session ID required but not set")
 	}
 
+	sessionId, err := uuid.Parse(session.ID)
+	if err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+
 	encoded, err := securecookie.EncodeMulti(session.Name(), session.Values, store.codecs...)
 	if err != nil {
 		return err
@@ -237,11 +282,16 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		}
 	}
 
-	var userId *string
+	var userId *uuid.UUID
 
 	if userIDInt, exists := session.Values[UserSessionKey]; exists && userIDInt != nil {
-		userIdStr := userIDInt.(string)
-		userId = &userIdStr
+		userIdUUID, err := uuid.Parse(userIDInt.(string))
+
+		if err != nil {
+			return fmt.Errorf("invalid user ID in session: %w", err)
+		}
+
+		userId = &userIdUUID
 	}
 
 	jsonData := &sessionDataJSON{
@@ -256,11 +306,11 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 
 	repo := store.repo
 
-	_, err = repo.GetById(ctx, session.ID)
+	_, err = repo.GetById(ctx, sessionId)
 
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
-		_, err := repo.Create(ctx, &repository.CreateSessionOpts{
-			ID:        session.ID,
+		_, err := repo.Create(ctx, &v1.CreateSessionOpts{
+			ID:        sessionId,
 			Data:      jsonBytes,
 			ExpiresAt: expiresOn,
 			UserId:    userId,
@@ -269,7 +319,7 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 		return err
 	}
 
-	_, err = repo.Update(ctx, session.ID, &repository.UpdateSessionOpts{
+	_, err = repo.Update(ctx, sessionId, &v1.UpdateSessionOpts{
 		Data:   jsonBytes,
 		UserId: userId,
 	})
@@ -280,7 +330,12 @@ func (store *UserSessionStore) save(ctx context.Context, session *sessions.Sessi
 // load fetches a session by ID from the database and decodes its content
 // into session.Values.
 func (store *UserSessionStore) load(ctx context.Context, session *sessions.Session) error {
-	res, err := store.repo.GetById(ctx, session.ID)
+	sessionId, err := uuid.Parse(session.ID)
+	if err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+
+	res, err := store.repo.GetById(ctx, sessionId)
 	if err != nil {
 		return err
 	}

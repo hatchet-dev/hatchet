@@ -1,3 +1,4 @@
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Command,
@@ -6,19 +7,12 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/v1/ui/dialog';
-import { Input } from '@/components/v1/ui/input';
 import { TooltipProvider } from '@/components/v1/ui/tooltip';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantMember } from '@/lib/api';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import {
@@ -35,14 +29,14 @@ import {
   Popover,
   PopoverContent,
 } from '@radix-ui/react-popover';
-import { useLocation, useNavigate } from '@tanstack/react-router';
+import { useLocation, useNavigate, Link } from '@tanstack/react-router';
 import { useState, useMemo } from 'react';
 import invariant from 'tiny-invariant';
 
 interface OrganizationGroupProps {
   organization: OrganizationForUser;
   tenants: TenantMember[];
-  currentTenant: Tenant;
+  currentTenant?: Tenant;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onTenantSelect: (tenant: Tenant) => void;
@@ -60,12 +54,32 @@ function OrganizationGroup({
   onClose,
   onNavigate,
 }: OrganizationGroupProps) {
+  const { setTenant } = useTenantDetails();
+
+  const firstTenant = useMemo(
+    () =>
+      [...tenants]
+        .sort(
+          (a, b) =>
+            a.tenant?.name
+              ?.toLowerCase()
+              .localeCompare(b.tenant?.name?.toLowerCase() ?? '') ?? 0,
+        )
+        .find((membership) => membership.tenant)?.tenant,
+    [tenants],
+  );
+
   const handleSettingsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClose();
+
+    if (firstTenant) {
+      setTenant(firstTenant, { navigate: false });
+    }
+
     onNavigate({
-      to: appRoutes.organizationsRoute.to,
+      to: appRoutes.organizationsIndexRoute.to,
       params: {
         organization: organization.metadata.id,
       },
@@ -76,11 +90,8 @@ function OrganizationGroup({
     e.preventDefault();
     e.stopPropagation();
     onClose();
-    onNavigate({
-      to: appRoutes.onboardingCreateTenantRoute.to,
-      params: {
-        organizationId: organization.metadata.id,
-      },
+    globalEmitter.emit('create-new-tenant', {
+      defaultOrganizationId: organization.metadata.id,
     });
   };
 
@@ -149,18 +160,19 @@ function OrganizationGroup({
               }}
               className="cursor-pointer pl-6 text-sm hover:bg-accent focus:bg-accent"
             >
-              <div className="flex w-full items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-5 w-5 items-center justify-center">
+              <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
                     {membership.tenant?.name}
                   </span>
+                  <TenantRegionBadge region={membership.tenant?.region} />
                 </div>
                 <CheckIcon
                   className={cn(
-                    'size-4',
+                    'size-4 shrink-0',
                     currentTenant?.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -184,17 +196,18 @@ export function OrganizationSelector({
 }: OrganizationSelectorProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { tenant: currTenant, setTenant: setCurrTenant } = useTenantDetails();
+  const {
+    setTenant: setCurrTenant,
+    isUserUniverseLoaded: isTenantLoaded,
+    tenant,
+  } = useTenantDetails();
   const [open, setOpen] = useState(false);
   const [expandedOrgs, setExpandedOrgs] = useState<string[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [orgName, setOrgName] = useState('');
   const {
     organizations,
     getOrganizationForTenant,
     isTenantArchivedInOrg,
-    handleCreateOrganization,
-    createOrganizationLoading,
+    isUserUniverseLoaded: isOrganizationsLoaded,
   } = useOrganizations();
 
   const handleClose = () => setOpen(false);
@@ -223,35 +236,9 @@ export function OrganizationSelector({
     );
   };
 
-  const handleCreateOrgClick = () => {
-    setOpen(false);
-    setShowCreateModal(true);
-  };
-
-  const handleCreateOrgSubmit = () => {
-    if (!orgName.trim()) {
-      return;
-    }
-
-    handleCreateOrganization(orgName.trim(), (organizationId) => {
-      setShowCreateModal(false);
-      setOrgName('');
-      navigate({
-        to: appRoutes.organizationsRoute.to,
-        params: { organization: organizationId },
-      });
-    });
-  };
-
-  const handleCreateOrgCancel = () => {
-    setShowCreateModal(false);
-    setOrgName('');
-  };
-
   // Group memberships by organization
-  const { currentOrgData, otherOrgsData, standaloneTenants } = useMemo(() => {
+  const { currentOrgData, otherOrgsData } = useMemo(() => {
     const orgMap = new Map<string, TenantMember[]>();
-    const standalone: TenantMember[] = [];
 
     memberships.forEach((membership) => {
       const tenantId = membership.tenant?.metadata.id || '';
@@ -266,13 +253,11 @@ export function OrganizationSelector({
           orgMap.set(orgId, []);
         }
         orgMap.get(orgId)!.push(membership);
-      } else {
-        standalone.push(membership);
       }
     });
 
-    const currentOrg = currTenant
-      ? getOrganizationForTenant(currTenant.metadata.id)
+    const currentOrg = tenant
+      ? getOrganizationForTenant(tenant.metadata.id)
       : null;
     const currentOrgTenants = currentOrg
       ? orgMap.get(currentOrg.metadata.id) || []
@@ -295,19 +280,17 @@ export function OrganizationSelector({
         ? { organization: currentOrg, tenants: currentOrgTenants }
         : null,
       otherOrgsData: otherOrgs,
-      standaloneTenants: standalone,
     };
   }, [
     memberships,
-    organizations,
+    tenant,
     getOrganizationForTenant,
+    organizations,
     isTenantArchivedInOrg,
-    currTenant,
   ]);
 
-  if (!currTenant) {
-    return null;
-  }
+  const triggerDisabled =
+    !isTenantLoaded || !isOrganizationsLoaded || memberships.length === 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -315,34 +298,54 @@ export function OrganizationSelector({
         <PopoverTrigger asChild>
           <Button
             variant="outline"
+            size="sm"
             role="combobox"
             aria-expanded={open}
             aria-label="Select a tenant"
-            className={cn('w-full justify-between', className)}
+            className={cn(
+              'w-full min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+              open && 'bg-muted/30',
+              className,
+            )}
+            disabled={triggerDisabled}
           >
-            <div className="flex items-center gap-2">
-              <BuildingOffice2Icon className="size-4" />
-              <span className="truncate">{currTenant.name}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <BuildingOffice2Icon className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">
+                {tenant?.name ?? 'Loading tenant…'}
+              </span>
+              <TenantRegionBadge region={tenant?.region} />
             </div>
-            <CaretSortIcon className="ml-2 size-4 shrink-0 opacity-50" />
+            {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
+            ) : (
+              <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent
-          side="top"
+          side="bottom"
           align="start"
-          sideOffset={20}
-          className="z-50 w-[287px] rounded-md border border-border p-0 shadow-md"
+          sideOffset={8}
+          className="w-[287px] rounded-md border border-border p-0 shadow-md"
         >
           <Command className="border-0">
             <CommandList>
               <CommandEmpty>No tenants found.</CommandEmpty>
+
+              {!isOrganizationsLoaded && (
+                <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />
+                  Loading organizations…
+                </div>
+              )}
 
               {currentOrgData && (
                 <CommandGroup heading="Current Organization">
                   <OrganizationGroup
                     organization={currentOrgData.organization}
                     tenants={currentOrgData.tenants}
-                    currentTenant={currTenant}
+                    currentTenant={tenant}
                     isExpanded={expandedOrgs.includes(
                       currentOrgData.organization.metadata.id,
                     )}
@@ -360,10 +363,15 @@ export function OrganizationSelector({
                       variant="outline"
                       size="sm"
                       fullWidth
-                      onClick={handleCreateOrgClick}
                       leftIcon={<PlusIcon className="size-4" />}
+                      asChild
                     >
-                      Create Organization
+                      <Link
+                        to={appRoutes.organizationsNewRoute.to}
+                        onClick={() => setOpen(false)}
+                      >
+                        Create Organization
+                      </Link>
                     </Button>
                   </div>
                 </CommandGroup>
@@ -376,7 +384,7 @@ export function OrganizationSelector({
                       key={organization.metadata.id}
                       organization={organization}
                       tenants={tenants}
-                      currentTenant={currTenant}
+                      currentTenant={tenant}
                       isExpanded={expandedOrgs.includes(
                         organization.metadata.id,
                       )}
@@ -390,79 +398,10 @@ export function OrganizationSelector({
                   ))}
                 </CommandGroup>
               )}
-
-              {standaloneTenants.length > 0 && (
-                <CommandGroup heading="Tenants">
-                  {standaloneTenants.map((membership) => (
-                    <CommandItem
-                      key={membership.metadata.id}
-                      value={`standalone-tenant-${membership.tenant?.metadata.id}`}
-                      onSelect={() => {
-                        invariant(membership.tenant);
-                        handleTenantSelect(membership.tenant);
-                        handleClose();
-                      }}
-                      className="cursor-pointer text-sm"
-                    >
-                      <BuildingOffice2Icon className="mr-2 size-4" />
-                      {membership.tenant?.name}
-                      <CheckIcon
-                        className={cn(
-                          'ml-auto size-4',
-                          currTenant.slug === membership.tenant?.slug
-                            ? 'opacity-100'
-                            : 'opacity-0',
-                        )}
-                      />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
-
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Create New Organization</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="org-name" className="text-sm font-medium">
-                Organization Name
-              </label>
-              <Input
-                id="org-name"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                placeholder="Enter organization name"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateOrgSubmit();
-                  }
-                }}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={handleCreateOrgCancel}
-              disabled={createOrganizationLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateOrgSubmit}
-              disabled={!orgName.trim() || createOrganizationLoading}
-            >
-              {createOrganizationLoading ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </TooltipProvider>
   );
 }

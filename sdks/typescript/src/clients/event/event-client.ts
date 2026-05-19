@@ -5,15 +5,14 @@ import {
   EventsServiceDefinition,
   PushEventRequest,
 } from '@hatchet/protoc/events/events';
-import HatchetError from '@util/errors/hatchet-error';
+import { getErrorMessage, toHatchetError } from '@util/errors/hatchet-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import { Logger } from '@hatchet/util/logger';
 import { retrier } from '@hatchet/util/retrier';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { HatchetClient } from '@hatchet/v1';
-import { LegacyHatchetClient } from '../hatchet-client';
+import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 
-// eslint-disable-next-line no-shadow
 export enum LogLevel {
   INFO = 'INFO',
   WARN = 'WARN',
@@ -29,9 +28,21 @@ export interface PushEventOptions {
 
 export interface EventWithMetadata<T> {
   payload: T;
-  additionalMetadata?: Record<string, any>;
+  additionalMetadata?: Record<string, unknown>;
   priority?: number;
   scope?: string;
+}
+
+function injectSourceInfo(metadata: Record<string, string>): Record<string, string> {
+  const ctx = parentRunContextManager.getContext();
+  if (!ctx?.parentId || !ctx?.parentTaskRunExternalId) {
+    return metadata;
+  }
+  return {
+    ...metadata,
+    hatchet__source_workflow_run_id: ctx.parentId,
+    hatchet__source_step_run_id: ctx.parentTaskRunExternalId,
+  };
 }
 
 export class EventClient {
@@ -47,26 +58,31 @@ export class EventClient {
     config: ClientConfig,
     channel: Channel,
     factory: ClientFactory,
-    hatchetClient: LegacyHatchetClient
+    api: HatchetClient['api']
   ) {
     this.config = config;
     this.client = factory.create(EventsServiceDefinition, channel);
     this.logger = config.logger(`Dispatcher`, config.log_level);
     this.retrier = retrier;
-    this.api = hatchetClient.api;
+    this.api = api;
     this.tenantId = config.tenant_id;
   }
 
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchPushEvent.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   push<T>(type: string, input: T, options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
+
+    const enhancedMetadata = injectSourceInfo(options.additionalMetadata ?? {});
 
     const req: PushEventRequest = {
       key: namespacedType,
       payload: JSON.stringify(input),
       eventTimestamp: new Date(),
-      additionalMetadata: options.additionalMetadata
-        ? JSON.stringify(options.additionalMetadata)
-        : undefined,
+      additionalMetadata:
+        Object.keys(enhancedMetadata).length > 0 ? JSON.stringify(enhancedMetadata) : undefined,
       priority: options.priority,
       scope: options.scope,
     };
@@ -75,28 +91,28 @@ export class EventClient {
       const e = this.retrier(async () => this.client.push(req), this.logger);
       this.logger.info(`Event pushed: ${namespacedType}`);
       return e;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
+  /**
+   * @important This method is instrumented by HatchetInstrumentor._patchBulkPushEvent.
+   * Keep the signature in sync with the instrumentor wrapper.
+   */
   bulkPush<T>(type: string, inputs: EventWithMetadata<T>[], options: PushEventOptions = {}) {
     const namespacedType = applyNamespace(type, this.config.namespace);
 
     const events = inputs.map((input) => {
+      const baseMeta =
+        (input.additionalMetadata as Record<string, string>) ?? options.additionalMetadata ?? {};
+      const enhanced = injectSourceInfo(baseMeta);
+
       return {
         key: namespacedType,
         payload: JSON.stringify(input.payload),
         eventTimestamp: new Date(),
-        additionalMetadata: (() => {
-          if (input.additionalMetadata) {
-            return JSON.stringify(input.additionalMetadata);
-          }
-          if (options.additionalMetadata) {
-            return JSON.stringify(options.additionalMetadata);
-          }
-          return undefined;
-        })(),
+        additionalMetadata: Object.keys(enhanced).length > 0 ? JSON.stringify(enhanced) : undefined,
         priority: input.priority,
         scope: input.scope,
       };
@@ -110,17 +126,17 @@ export class EventClient {
       const res = this.retrier(async () => this.client.bulkPush(req), this.logger);
       this.logger.info(`Bulk events pushed for type: ${namespacedType}`);
       return res;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
     }
   }
 
   async putLog(
-    stepRunId: string,
+    taskRunExternalId: string,
     log: string,
     level?: LogLevel,
     taskRetryCount?: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ) {
     const createdAt = new Date();
 
@@ -132,20 +148,19 @@ export class EventClient {
     //  fire and forget the log
     await this.client
       .putLog({
-        stepRunId,
+        taskRunExternalId,
         createdAt,
         message: log,
         level: level || LogLevel.INFO,
         taskRetryCount,
         metadata: metadata ? JSON.stringify(metadata) : undefined,
       })
-      .catch((e: any) => {
-        // log a warning, but this is not a fatal error
-        this.logger.warn(`Could not put log: ${e.message}`);
+      .catch((e: unknown) => {
+        this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
       });
   }
 
-  async putStream(stepRunId: string, data: string | Uint8Array, index: number | undefined) {
+  async putStream(taskRunExternalId: string, data: string | Uint8Array, index: number | undefined) {
     const createdAt = new Date();
 
     let dataBytes: Uint8Array;
@@ -160,15 +175,14 @@ export class EventClient {
     retrier(
       async () =>
         this.client.putStreamEvent({
-          stepRunId,
+          taskRunExternalId,
           createdAt,
           message: dataBytes,
           eventIndex: index,
         }),
       this.logger
-    ).catch((e: any) => {
-      // log a warning, but this is not a fatal error
-      this.logger.warn(`Could not put log: ${e.message}`);
+    ).catch((e: unknown) => {
+      this.logger.warn(`Could not put log: ${getErrorMessage(e)}`);
     });
   }
 

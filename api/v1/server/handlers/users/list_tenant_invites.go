@@ -5,13 +5,13 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *UserService) UserListTenantInvites(ctx echo.Context, request gen.UserListTenantInvitesRequestObject) (gen.UserListTenantInvitesResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
+	user := ctx.Get("user").(*sqlcv1.User)
 
-	invites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByEmail(ctx.Request().Context(), user.Email)
+	invites, err := t.config.V1.TenantInvite().ListTenantInvitesByEmail(ctx.Request().Context(), user.Email)
 
 	if err != nil {
 		return nil, err

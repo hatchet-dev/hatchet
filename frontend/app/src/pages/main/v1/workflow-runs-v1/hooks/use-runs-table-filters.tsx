@@ -7,9 +7,10 @@ import {
   finishedBeforeKey,
   isCustomTimeRangeKey,
   timeWindowKey,
+  runningFilterKey,
 } from '../components/v1/task-runs-columns';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import { V1TaskStatus } from '@/lib/api';
+import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
 import { useSearchParams } from '@/lib/router-helpers';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
@@ -46,6 +47,7 @@ type APIFilters = {
   workflowIds?: string[];
   additionalMetadata?: string[];
   flattenDAGs: boolean;
+  runningFilter?: V1RunningFilter;
 };
 
 export type FilterActions = {
@@ -78,6 +80,7 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
       ),
     m: z.array(z.string()).optional(), // additional metadata
     f: z.boolean().default(false), // flatten dags
+    rf: z.nativeEnum(V1RunningFilter).optional(), // running sub-filter (undefined = ALL)
   });
 
 export const useRunsTableFilters = (
@@ -104,6 +107,7 @@ export const useRunsTableFilters = (
     w: workflowKey,
     m: additionalMetadataKey,
     f: flattenDAGsKey,
+    rf: runningFilterKey,
   });
 
   const {
@@ -122,6 +126,7 @@ export const useRunsTableFilters = (
     w: selectedWorkflowIds,
     m: selectedAdditionalMetadata,
     f: selectedFlattenDAGs,
+    rf: selectedRunningFilter,
   } = zodState;
 
   const createdAfter = useMemo(() => {
@@ -219,6 +224,7 @@ export const useRunsTableFilters = (
       workflowIds: selectedWorkflowIds,
       additionalMetadata: selectedAdditionalMetadata,
       flattenDAGs: selectedFlattenDAGs || false,
+      runningFilter: selectedRunningFilter,
     }),
     [
       createdAfter,
@@ -227,6 +233,7 @@ export const useRunsTableFilters = (
       selectedWorkflowIds,
       selectedAdditionalMetadata,
       selectedFlattenDAGs,
+      selectedRunningFilter,
     ],
   );
 

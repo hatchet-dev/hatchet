@@ -4,7 +4,7 @@ from datetime import timedelta
 from hatchet_sdk import Context, EmptyModel, Hatchet
 from hatchet_sdk.exceptions import TaskRunError
 
-hatchet = Hatchet(debug=False)
+hatchet = Hatchet()
 
 ERROR_TEXT = "step1 failed"
 

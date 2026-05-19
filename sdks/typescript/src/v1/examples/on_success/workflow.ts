@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { hatchet } from '../hatchet-client';
 
 // > On Success DAG
@@ -26,7 +25,7 @@ onSuccessDag.task({
 // 👀 onSuccess handler will run if all tasks in the workflow succeed
 onSuccessDag.onSuccess({
   fn: (_, ctx) => {
-    console.log('onSuccess for run:', ctx.workflowRunId());
+    ctx.logger.info(`onSuccess for run: ${ctx.workflowRunId()}`);
     return {
       'on-success': 'success',
     };

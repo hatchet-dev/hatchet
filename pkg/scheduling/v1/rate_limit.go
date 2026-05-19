@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 const MAX_RATE_LIMIT_UPDATE_FREQUENCY = 500 * time.Millisecond // avoid boundary conditions on 1 second polls
@@ -24,7 +24,7 @@ type rateLimitSet map[string]*rateLimit
 type rateLimiter struct {
 	rateLimitRepo v1.RateLimitRepository
 
-	tenantId pgtype.UUID
+	tenantId uuid.UUID
 
 	nextRefillAt   *time.Time
 	nextRefillAtMu sync.RWMutex
@@ -44,11 +44,13 @@ type rateLimiter struct {
 	cleanup func()
 }
 
-func newRateLimiter(conf *sharedConfig, tenantId pgtype.UUID) *rateLimiter {
+func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
+	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
+
 	rl := &rateLimiter{
 		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,
-		l:             conf.l,
+		l:             &l,
 		unacked:       make(map[int64]rateLimitSet),
 		unflushed:     make(rateLimitSet),
 		dbRateLimits:  make(rateLimitSet),
@@ -77,7 +79,7 @@ func (r *rateLimiter) loopFlush(ctx context.Context) {
 			err := r.flushToDatabase(ctx)
 
 			if err != nil {
-				r.l.Error().Err(err).Msg("error flushing rate limits to database")
+				r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			}
 		}
 	}
@@ -106,7 +108,7 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("error flushing rate limits to database")
+			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			return res
 		}
 
@@ -117,7 +119,7 @@ func (r *rateLimiter) use(ctx context.Context, taskId int64, rls map[string]int3
 		err := r.flushToDatabase(ctx)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("error flushing rate limits to database")
+			r.l.Error().Ctx(ctx).Err(err).Msg("error flushing rate limits to database")
 			return res
 		}
 	}

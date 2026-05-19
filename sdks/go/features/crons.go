@@ -61,7 +61,7 @@ func NewCronsClient(
 
 // IsValidCronExpression validates that a string is a valid cron expression.
 func IsValidCronExpression(expression string) bool {
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	parser := cron.NewParser(cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	_, err := parser.Parse(expression)
 
 	return err == nil

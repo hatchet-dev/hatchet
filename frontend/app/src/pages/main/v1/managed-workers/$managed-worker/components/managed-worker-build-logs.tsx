@@ -1,7 +1,9 @@
-import LoggingComponent from '@/components/v1/cloud/logging/logs';
+import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
+import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { queries } from '@/lib/api';
+import { queries, V1LogLineLevel } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {
   const { refetchInterval } = useRefetchInterval();
@@ -11,21 +13,30 @@ export function ManagedWorkerBuildLogs({ buildId }: { buildId: string }) {
     refetchInterval,
   });
 
-  const logs = getBuildLogsQuery.data?.rows || [
-    {
-      line: 'Loading...',
-      timestamp: new Date().toISOString(),
-      instance: 'Hatchet',
-    },
-  ];
+  const logs: LogLine[] = useMemo(() => {
+    const cloudLogs = getBuildLogsQuery.data?.rows || [];
+    if (cloudLogs.length === 0) {
+      return [
+        {
+          line: 'Loading...',
+          timestamp: new Date().toISOString(),
+          instance: 'Hatchet',
+        },
+      ];
+    }
+    return cloudLogs.map((log) => ({
+      timestamp: log.timestamp,
+      line: log.line,
+      instance: log.instance,
+      // fixme: this should use the v1 log type, not the v0 one
+      level: log.level as V1LogLineLevel | undefined,
+      metadata: log.metadata as Record<string, unknown> | undefined,
+    }));
+  }, [getBuildLogsQuery.data?.rows]);
 
   return (
-    <div className="w-full">
-      <LoggingComponent
-        logs={logs}
-        onBottomReached={() => {}}
-        onTopReached={() => {}}
-      />
+    <div className="w-full flex flex-col max-h-[25rem] min-h-[25rem]">
+      <LogViewer logs={logs} />
     </div>
   );
 }

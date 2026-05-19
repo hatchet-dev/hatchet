@@ -24,11 +24,13 @@ async def say_hello(input: HelloInput, ctx: Context) -> HelloOutput:
 
 async def main() -> None:
     # > Sync
-    ref = say_hello.run_no_wait(input=HelloInput(name="World"))
+    ref = say_hello.run(input=HelloInput(name="World"), wait_for_result=False)
     # !!
 
     # > Async
-    ref = await say_hello.aio_run_no_wait(input=HelloInput(name="Async World"))
+    ref = await say_hello.aio_run(
+        input=HelloInput(name="Async World"), wait_for_result=False
+    )
     # !!
 
     # > Result Sync

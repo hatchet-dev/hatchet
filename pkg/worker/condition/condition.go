@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package condition
 
 import (
@@ -55,6 +57,7 @@ func SleepCondition(duration time.Duration) *sleepCondition {
 	return &sleepCondition{
 		baseCondition: &baseCondition{
 			readableDataKey: "sleep:" + duration.String(),
+			orGroupID:       uuid.New(),
 		},
 		duration: duration,
 	}
@@ -91,6 +94,7 @@ func UserEventCondition(eventKey string, expression string) *userEventCondition 
 	return &userEventCondition{
 		baseCondition: baseCondition{
 			readableDataKey: eventKey,
+			orGroupID:       uuid.New(),
 			expression:      expression,
 		},
 		eventKey: eventKey,
@@ -128,6 +132,7 @@ func ParentCondition(parent NamedTask, expression string) *parentCondition {
 	return &parentCondition{
 		baseCondition: baseCondition{
 			readableDataKey: parent.GetName(),
+			orGroupID:       uuid.New(),
 			expression:      expression,
 		},
 		parentReadableId: parent.GetName(),

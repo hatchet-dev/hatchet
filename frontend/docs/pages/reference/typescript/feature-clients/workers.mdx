@@ -1,0 +1,91 @@
+<a id="workersclient"></a>
+
+### Workers Client
+
+The workers client is a client for managing workers programmatically within Hatchet.
+
+#### Methods
+
+<a id="get"></a>
+
+##### `get()`
+
+Get a worker by its ID.
+
+Parameters
+
+| Parameter  | Type     | Description                  |
+| ---------- | -------- | ---------------------------- |
+| `workerId` | `string` | The ID of the worker to get. |
+
+Returns
+
+`Promise`\<`Worker`\>
+
+A promise that resolves to the worker.
+
+<a id="ispaused"></a>
+
+##### `isPaused()`
+
+Check if a worker is paused.
+
+Parameters
+
+| Parameter  | Type     | Description                    |
+| ---------- | -------- | ------------------------------ |
+| `workerId` | `string` | The ID of the worker to check. |
+
+Returns
+
+`Promise`\<`boolean`\>
+
+A promise that resolves to true if the worker is paused, false otherwise.
+
+<a id="list"></a>
+
+##### `list()`
+
+List all workers in the tenant.
+
+Returns
+
+`Promise`\<`WorkerList`\>
+
+A promise that resolves to the list of workers.
+
+<a id="pause"></a>
+
+##### `pause()`
+
+Pause a worker.
+
+Parameters
+
+| Parameter  | Type     | Description                    |
+| ---------- | -------- | ------------------------------ |
+| `workerId` | `string` | The ID of the worker to pause. |
+
+Returns
+
+`Promise`\<`Worker`\>
+
+A promise that resolves to the paused worker.
+
+<a id="unpause"></a>
+
+##### `unpause()`
+
+Unpause a worker.
+
+Parameters
+
+| Parameter  | Type     | Description                      |
+| ---------- | -------- | -------------------------------- |
+| `workerId` | `string` | The ID of the worker to unpause. |
+
+Returns
+
+`Promise`\<`Worker`\>
+
+A promise that resolves to the unpaused worker.

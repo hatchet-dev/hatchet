@@ -11,12 +11,11 @@
  */
 
 import {
-  AcceptInviteRequest,
   APIError,
   APIErrors,
   APIMeta,
+  AcceptInviteRequest,
   BulkCreateEventRequest,
-  BulkCreateEventResponse,
   CancelEventRequest,
   CreateAPITokenRequest,
   CreateAPITokenResponse,
@@ -37,15 +36,14 @@ import {
   EventOrderByDirection,
   EventOrderByField,
   EventSearch,
+  Events,
+  FeatureFlagEvaluationResult,
+  FeatureFlagId,
   ListAPIMetaIntegration,
   ListAPITokensResponse,
-  ListSlackWebhooks,
   ListSNSIntegrations,
-  LogLineLevelField,
-  LogLineList,
-  LogLineOrderByDirection,
-  LogLineOrderByField,
-  LogLineSearch,
+  ListSlackWebhooks,
+  OtelSpanList,
   RateLimitList,
   RateLimitOrderByDirection,
   RateLimitOrderByField,
@@ -54,6 +52,8 @@ import {
   ReplayWorkflowRunsRequest,
   ReplayWorkflowRunsResponse,
   RerunStepRunRequest,
+  SNSIntegration,
+  ScheduleWorkflowRunRequest,
   ScheduledRunStatus,
   ScheduledWorkflows,
   ScheduledWorkflowsBulkDeleteRequest,
@@ -62,8 +62,6 @@ import {
   ScheduledWorkflowsBulkUpdateResponse,
   ScheduledWorkflowsList,
   ScheduledWorkflowsOrderByField,
-  ScheduleWorkflowRunRequest,
-  SNSIntegration,
   StepRun,
   StepRunArchiveList,
   StepRunEventList,
@@ -92,19 +90,27 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
-  V1CancelledTasks,
-  V1CancelTaskRequest,
+  V1BranchDurableTaskRequest,
+  V1BranchDurableTaskResponse,
   V1CELDebugRequest,
   V1CELDebugResponse,
+  V1CancelTaskRequest,
+  V1CancelledTasks,
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
+  V1Event,
   V1EventList,
   V1Filter,
   V1FilterList,
+  V1LogLineLevel,
   V1LogLineList,
-  V1ReplayedTasks,
+  V1LogLineOrderByDirection,
+  V1LogsPointMetrics,
   V1ReplayTaskRequest,
+  V1ReplayedTasks,
+  V1RestoreTaskResponse,
+  V1RunningFilter,
   V1TaskEventList,
   V1TaskPointMetrics,
   V1TaskRunMetrics,
@@ -117,12 +123,13 @@ import {
   V1UpdateWebhookRequest,
   V1Webhook,
   V1WebhookList,
+  V1WebhookResponse,
   V1WebhookSourceName,
   V1WorkflowRunDetails,
   V1WorkflowRunDisplayNameList,
   V1WorkflowRunExternalIdList,
-  WebhookWorkerCreated,
   WebhookWorkerCreateRequest,
+  WebhookWorkerCreated,
   WebhookWorkerListResponse,
   WebhookWorkerRequestListResponse,
   Worker,
@@ -136,11 +143,11 @@ import {
   WorkflowRunList,
   WorkflowRunOrderByDirection,
   WorkflowRunOrderByField,
-  WorkflowRunsCancelRequest,
   WorkflowRunShape,
-  WorkflowRunsMetrics,
   WorkflowRunStatus,
   WorkflowRunStatusList,
+  WorkflowRunsCancelRequest,
+  WorkflowRunsMetrics,
   WorkflowUpdateRequest,
   WorkflowVersion,
   WorkflowWorkersCount,
@@ -233,6 +240,14 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
        * @format date-time
        */
       until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
     },
     params: RequestParams = {}
   ) =>
@@ -264,6 +279,101 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Lists log lines for a tenant
+   *
+   * @tags Log
+   * @name V1TenantLogLineList
+   * @summary List log lines
+   * @request GET:/api/v1/stable/tenants/{tenant}/logs
+   * @secure
+   */
+  v1TenantLogLineList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The direction to order by */
+      order_by_direction?: V1LogLineOrderByDirection;
+      /** The attempt number to filter for */
+      attempt?: number;
+      /** The task external ID(s) to filter by */
+      taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1LogLineList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/logs`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get a minute by minute breakdown of log metrics for a tenant
+   *
+   * @tags Log
+   * @name V1TenantLogLineGetPointMetrics
+   * @summary Get log point metrics
+   * @request GET:/api/v1/stable/tenants/{tenant}/log-point-metrics
+   * @secure
+   */
+  v1TenantLogLineGetPointMetrics = (
+    tenant: string,
+    query?: {
+      /**
+       * The start time to get logs for
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end time to get logs for
+       * @format date-time
+       */
+      until?: string;
+      /** A full-text search query to filter for */
+      search?: string;
+      /** The log level(s) to include */
+      levels?: V1LogLineLevel[];
+      /** The task external ID(s) to filter by */
+      taskExternalIds?: string[];
+      /** The workflow id(s) to filter for */
+      workflow_ids?: string[];
+      /** The step id(s) to filter for */
+      step_ids?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1LogsPointMetrics, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/log-point-metrics`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Replay tasks
    *
    * @tags Task
@@ -279,6 +389,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Restore an evicted durable task
+   *
+   * @tags Task
+   * @name V1TaskRestore
+   * @summary Restore a task
+   * @request POST:/api/v1/stable/tasks/{task}/restore
+   * @secure
+   */
+  v1TaskRestore = (task: string, params: RequestParams = {}) =>
+    this.request<V1RestoreTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tasks/${task}/restore`,
+      method: 'POST',
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -376,6 +503,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       triggering_event_external_id?: string;
       /** A flag for whether or not to include the input and output payloads in the response. Defaults to `true` if unset. */
       include_payloads?: boolean;
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
     },
     params: RequestParams = {}
   ) =>
@@ -440,6 +569,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       additional_metadata?: string[];
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
+      /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
+      running_filter?: V1RunningFilter;
     },
     params: RequestParams = {}
   ) =>
@@ -467,6 +598,29 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1WorkflowRunDetails, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/workflow-runs/trigger`,
+      method: 'POST',
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Branch a durable task from a specific node, creating a new branch and re-processing its matches.
+   *
+   * @tags Workflow Runs
+   * @name V1DurableTaskBranch
+   * @summary Branch durable task
+   * @request POST:/api/v1/stable/tenants/{tenant}/durable-tasks/branch
+   * @secure
+   */
+  v1DurableTaskBranch = (
+    tenant: string,
+    data: V1BranchDurableTaskRequest,
+    params: RequestParams = {}
+  ) =>
+    this.request<V1BranchDurableTaskResponse, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/branch`,
       method: 'POST',
       body: data,
       secure: true,
@@ -535,6 +689,46 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<V1TaskEventList, APIErrors>({
       path: `/api/v1/stable/workflow-runs/${v1WorkflowRun}/task-events`,
+      method: 'GET',
+      query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get OTel trace for a workflow run
+   *
+   * @tags Observability
+   * @name V1ObservabilityGetTrace
+   * @summary Get OTel trace
+   * @request GET:/api/v1/stable/tenants/{tenant}/traces
+   * @secure
+   */
+  v1ObservabilityGetTrace = (
+    tenant: string,
+    query: {
+      /**
+       * The workflow run external id
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      run_external_id: string;
+      /**
+       * The number of spans to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number of spans to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<OtelSpanList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/traces`,
       method: 'GET',
       query: query,
       secure: true,
@@ -706,6 +900,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       path: `/api/v1/stable/tenants/${tenant}/events`,
       method: 'GET',
       query: query,
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get an event by its id
+   *
+   * @tags Event
+   * @name V1EventGet
+   * @summary Get events
+   * @request GET:/api/v1/stable/tenants/{tenant}/events/{v1-event}
+   * @secure
+   */
+  v1EventGet = (tenant: string, v1Event: string, params: RequestParams = {}) =>
+    this.request<V1Event, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/events/${v1Event}`,
+      method: 'GET',
       secure: true,
       format: 'json',
       ...params,
@@ -937,7 +1148,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request POST:/api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}
    */
   v1WebhookReceive = (tenant: string, v1Webhook: string, data?: any, params: RequestParams = {}) =>
-    this.request<Record<string, any>, APIErrors>({
+    this.request<V1WebhookResponse, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: 'POST',
       body: data,
@@ -1833,7 +2044,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   eventCreateBulk = (tenant: string, data: BulkCreateEventRequest, params: RequestParams = {}) =>
-    this.request<BulkCreateEventResponse, APIErrors>({
+    this.request<Events, APIErrors>({
       path: `/api/v1/tenants/${tenant}/events/bulk`,
       method: 'POST',
       body: data,
@@ -2011,6 +2222,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   eventDataGet = (event: string, params: RequestParams = {}) =>
     this.request<EventData, APIErrors>({
       path: `/api/v1/events/${event}/data`,
+      method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Get the data for an event.
+   *
+   * @tags Event
+   * @name EventDataGetWithTenant
+   * @summary Get event data
+   * @request GET:/api/v1/tenants/{tenant}/events/{event-with-tenant}/data
+   * @secure
+   */
+  eventDataGetWithTenant = (eventWithTenant: string, tenant: string, params: RequestParams = {}) =>
+    this.request<EventData, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/events/${eventWithTenant}/data`,
       method: 'GET',
       secure: true,
       format: 'json',
@@ -2567,47 +2795,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
   ) =>
     this.request<WorkflowMetrics, APIErrors>({
       path: `/api/v1/workflows/${workflow}/metrics`,
-      method: 'GET',
-      query: query,
-      secure: true,
-      format: 'json',
-      ...params,
-    });
-  /**
-   * @description Lists log lines for a step run.
-   *
-   * @tags Log
-   * @name LogLineList
-   * @summary List log lines
-   * @request GET:/api/v1/step-runs/{step-run}/logs
-   * @secure
-   */
-  logLineList = (
-    stepRun: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** A list of levels to filter by */
-      levels?: LogLineLevelField;
-      /** The search query to filter for */
-      search?: LogLineSearch;
-      /** What to order by */
-      orderByField?: LogLineOrderByField;
-      /** The order direction */
-      orderByDirection?: LogLineOrderByDirection;
-    },
-    params: RequestParams = {}
-  ) =>
-    this.request<LogLineList, APIErrors>({
-      path: `/api/v1/step-runs/${stepRun}/logs`,
       method: 'GET',
       query: query,
       secure: true,
@@ -3204,7 +3391,7 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @secure
    */
   tenantGetPrometheusMetrics = (tenant: string, params: RequestParams = {}) =>
-    this.request<EventSearch, APIErrors>({
+    this.request<EventKey, APIErrors>({
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: 'GET',
       secure: true,
@@ -3223,6 +3410,33 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: 'GET',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Evaluate a feature flag for a tenant
+   *
+   * @tags Feature Flags
+   * @name TenantFeatureFlagEvaluate
+   * @summary Evaluate a feature flag for a tenant
+   * @request GET:/api/v1/tenants/{tenant}/feature-flags
+   * @secure
+   */
+  tenantFeatureFlagEvaluate = (
+    tenant: string,
+    query: {
+      /** The feature flag id to evaluate */
+      featureFlagId: FeatureFlagId;
+      /** A flag indicating what the behavior of the feature flag should be if PostHog is disabled or unavailable */
+      isEnabledIfNoPosthog: boolean;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<FeatureFlagEvaluationResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/feature-flags`,
+      method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

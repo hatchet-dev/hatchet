@@ -1,13 +1,20 @@
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { DocPage } from '@/components/v1/docs/docs-button';
 import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
 import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
 import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
 import {
+  SpanDetail,
+  GroupDetail,
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/span-detail';
+import type { SpanGroupInfo } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/timeline/trace-timeline-utils';
+import {
   TaskRunDetail,
   TabOption,
 } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/step-run-detail';
+import { RunDetailSearchLocalProvider } from '@/pages/main/v1/workflow-runs-v1/hooks/use-run-detail-search';
 import { useLocation } from '@tanstack/react-router';
 import {
   createContext,
@@ -73,7 +80,51 @@ type UseSidePanelProps =
       content: {
         scheduledRun: ScheduledWorkflows;
       };
+    }
+  | {
+      type: 'span-details';
+      content: {
+        span: OtelSpanTree;
+        onSpanSelect?: (span: OtelSpanTree) => void;
+        onClose?: () => void;
+      };
+    }
+  | {
+      type: 'group-details';
+      content: {
+        group: SpanGroupInfo;
+        onClose?: () => void;
+      };
     };
+
+function SidePanelTaskRunDetail(props: {
+  taskRunId: string;
+  defaultOpenTab?: TabOption;
+  showViewTaskRunButton?: boolean;
+}) {
+  return (
+    <RunDetailSearchLocalProvider>
+      <TaskRunDetail {...props} />
+    </RunDetailSearchLocalProvider>
+  );
+}
+
+function SidePanelSpanDetail(
+  props: Omit<React.ComponentProps<typeof SpanDetail>, 'onOpenTaskRun'>,
+) {
+  const { open } = useSidePanel();
+  return (
+    <SpanDetail
+      {...props}
+      onOpenTaskRun={(taskRunId) =>
+        open({
+          type: 'task-run-details',
+          content: { taskRunId, showViewTaskRunButton: true },
+        })
+      }
+    />
+  );
+}
 
 function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
@@ -105,7 +156,7 @@ function useSidePanelData(): SidePanelData {
       case 'task-run-details':
         return {
           isDocs: false,
-          component: <TaskRunDetail {...props.content} />,
+          component: <SidePanelTaskRunDetail {...props.content} />,
         };
       case 'event-details':
         return {
@@ -127,6 +178,16 @@ function useSidePanelData(): SidePanelData {
               scheduledRun={props.content.scheduledRun}
             />
           ),
+        };
+      case 'span-details':
+        return {
+          isDocs: false,
+          component: <SidePanelSpanDetail {...props.content} />,
+        };
+      case 'group-details':
+        return {
+          isDocs: false,
+          component: <GroupDetail {...props.content} />,
         };
       case 'docs':
         const query = props.queryParams ?? {};

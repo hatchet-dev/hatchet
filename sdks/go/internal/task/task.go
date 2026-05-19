@@ -19,6 +19,18 @@ type TaskBase interface {
 	Dump(workflowName string, taskDefaults *create.TaskDefaults) *contracts.CreateTaskOpts
 }
 
+const (
+	slotTypeDefault = "default"
+	slotTypeDurable = "durable"
+)
+
+// EvictionPolicyOpts holds eviction policy parameters for durable tasks.
+type EvictionPolicyOpts struct {
+	TTL                   time.Duration
+	AllowCapacityEviction bool
+	Priority              int
+}
+
 type TaskShared struct {
 	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
 	ExecutionTimeout *time.Duration
@@ -100,6 +112,10 @@ type DurableTaskDeclaration[I any] struct {
 
 	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
 	CancelIf condition.Condition
+
+	// EvictionPolicy controls how this durable task participates in worker-slot eviction.
+	// When nil, the task is non-evictable.
+	EvictionPolicy *EvictionPolicyOpts
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error
@@ -231,6 +247,10 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
+	base.IsDurable = false
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
+	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 
@@ -283,6 +303,10 @@ func (t *DurableTaskDeclaration[I]) Dump(workflowName string, taskDefaults *crea
 	base := makeContractTaskOpts(&t.TaskShared, taskDefaults)
 	base.ReadableId = t.Name
 	base.Action = getActionID(workflowName, t.Name)
+	base.IsDurable = true
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDurable: 1}
+	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)
 	return base
@@ -294,6 +318,10 @@ func (t *OnFailureTaskDeclaration[I]) Dump(workflowName string, taskDefaults *cr
 
 	base.ReadableId = "on-failure"
 	base.Action = getActionID(workflowName, "on-failure")
+	base.IsDurable = false
+	if base.SlotRequests == nil {
+		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
+	}
 
 	return base
 }

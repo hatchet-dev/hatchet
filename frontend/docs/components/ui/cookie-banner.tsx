@@ -119,7 +119,7 @@ export default function CookieConsent({
                 </span>
                 <br />
                 <a
-                  href="https://www.iubenda.com/privacy-policy/76608149/cookie-policy"
+                  href="https://hatchet.run/policies/cookie"
                   className="text-xs underline"
                 >
                   Learn more.

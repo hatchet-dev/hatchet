@@ -3,7 +3,7 @@ package filtersv1
 import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/labstack/echo/v4"
 )
 

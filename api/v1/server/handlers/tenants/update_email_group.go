@@ -5,13 +5,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.AlertEmailGroupUpdateRequestObject) (gen.AlertEmailGroupUpdateResponseObject, error) {
-	emailGroup := ctx.Get("alert-email-group").(*dbsqlc.TenantAlertEmailGroup)
+	emailGroup := ctx.Get("alert-email-group").(*sqlcv1.TenantAlertEmailGroup)
 
 	// validate the request
 	if apiErrors, err := t.config.Validator.ValidateAPI(request.Body); err != nil {
@@ -21,11 +20,11 @@ func (t *TenantService) AlertEmailGroupUpdate(ctx echo.Context, request gen.Aler
 	}
 
 	// construct the database query
-	updateOpts := &repository.UpdateTenantAlertGroupOpts{
+	updateOpts := &v1.UpdateTenantAlertGroupOpts{
 		Emails: request.Body.Emails,
 	}
 
-	emailGroup, err := t.config.APIRepository.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), sqlchelpers.UUIDToStr(emailGroup.ID), updateOpts)
+	emailGroup, err := t.config.V1.TenantAlertingSettings().UpdateTenantAlertGroup(ctx.Request().Context(), emailGroup.ID, updateOpts)
 
 	if err != nil {
 		return nil, err

@@ -5,43 +5,112 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
+func allOlapStatuses(runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
+	statuses := []sqlcv1.V1ReadableStatusOlap{
+		sqlcv1.V1ReadableStatusOlapQUEUED,
+		sqlcv1.V1ReadableStatusOlapFAILED,
+		sqlcv1.V1ReadableStatusOlapCOMPLETED,
+		sqlcv1.V1ReadableStatusOlapCANCELLED,
+	}
+
+	rf := gen.ALL
+	if runningFilter != nil {
+		rf = *runningFilter
+	}
+	switch rf {
+	case gen.EVICTED:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapEVICTED)
+	case gen.ONWORKER:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+	default:
+		statuses = append(statuses, sqlcv1.V1ReadableStatusOlapRUNNING, sqlcv1.V1ReadableStatusOlapEVICTED)
+	}
+
+	return statuses
+}
+
+var taskStatusToOlapStatus = map[gen.V1TaskStatus]sqlcv1.V1ReadableStatusOlap{
+	gen.V1TaskStatusQUEUED:    sqlcv1.V1ReadableStatusOlapQUEUED,
+	gen.V1TaskStatusRUNNING:   sqlcv1.V1ReadableStatusOlapRUNNING,
+	gen.V1TaskStatusFAILED:    sqlcv1.V1ReadableStatusOlapFAILED,
+	gen.V1TaskStatusCOMPLETED: sqlcv1.V1ReadableStatusOlapCOMPLETED,
+	gen.V1TaskStatusCANCELLED: sqlcv1.V1ReadableStatusOlapCANCELLED,
+}
+
+func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *gen.V1RunningFilter) []sqlcv1.V1ReadableStatusOlap {
+	normalized := make([]sqlcv1.V1ReadableStatusOlap, 0, len(statuses))
+	seen := make(map[sqlcv1.V1ReadableStatusOlap]struct{}, len(statuses))
+
+	for _, status := range statuses {
+		if status == gen.V1TaskStatusRUNNING {
+			rf := gen.ALL
+			if runningFilter != nil {
+				rf = *runningFilter
+			}
+			switch rf {
+			case gen.EVICTED:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
+				}
+			case gen.ONWORKER:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+			default:
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapRUNNING]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapRUNNING] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapRUNNING)
+				}
+				if _, exists := seen[sqlcv1.V1ReadableStatusOlapEVICTED]; !exists {
+					seen[sqlcv1.V1ReadableStatusOlapEVICTED] = struct{}{}
+					normalized = append(normalized, sqlcv1.V1ReadableStatusOlapEVICTED)
+				}
+			}
+			continue
+		}
+
+		mapped, ok := taskStatusToOlapStatus[status]
+		if !ok {
+			continue
+		}
+
+		if _, exists := seen[mapped]; exists {
+			continue
+		}
+
+		seen[mapped] = struct{}{}
+		normalized = append(normalized, mapped)
+	}
+
+	return normalized
+}
+
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
 	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
-		since             = request.Params.Since
-		workflowIds       = []uuid.UUID{}
-		limit       int64 = 50
-		offset      int64
+		statuses       = allOlapStatuses(request.Params.RunningFilter)
+		since          = request.Params.Since
+		limit    int64 = 50
+		offset   int64
 	)
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
 		}
 	}
 
@@ -53,6 +122,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		offset = *request.Params.Offset
 	}
 
+	workflowIds := make([]uuid.UUID, 0)
 	if request.Params.WorkflowIds != nil {
 		workflowIds = *request.Params.WorkflowIds
 	}
@@ -89,14 +159,11 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	if request.Params.ParentTaskExternalId != nil {
-		parentTaskExternalId := request.Params.ParentTaskExternalId.String()
-		id := sqlchelpers.UUIDFromStr(parentTaskExternalId)
-		opts.ParentTaskExternalId = &id
+		opts.ParentTaskExternalId = request.Params.ParentTaskExternalId
 	}
 
 	if request.Params.TriggeringEventExternalId != nil {
-		id := sqlchelpers.UUIDFromStr(request.Params.TriggeringEventExternalId.String())
-		opts.TriggeringEventExternalId = &id
+		opts.TriggeringEventExternalId = request.Params.TriggeringEventExternalId
 	}
 
 	dags, total, err := t.config.V1.OLAP().ListWorkflowRuns(
@@ -109,7 +176,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		return nil, err
 	}
 
-	dagExternalIds := make([]pgtype.UUID, 0)
+	dagExternalIds := make([]uuid.UUID, 0)
 
 	for _, dag := range dags {
 		if dag.Kind == sqlcv1.V1RunKindDAG {
@@ -128,7 +195,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		return nil, err
 	}
 
-	pgWorkflowIds := make([]pgtype.UUID, 0)
+	pgWorkflowIds := make([]uuid.UUID, 0)
 
 	for _, wf := range dags {
 		pgWorkflowIds = append(pgWorkflowIds, wf.WorkflowID)
@@ -177,18 +244,12 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId string) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
 	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
+		statuses          = allOlapStatuses(request.Params.RunningFilter)
 		since             = request.Params.Since
 		workflowIds       = []uuid.UUID{}
 		limit       int64 = 50
@@ -197,10 +258,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
 		}
 	}
 
@@ -262,7 +320,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		return nil, err
 	}
 
-	workflowIdsForNames := make([]pgtype.UUID, 0)
+	workflowIdsForNames := make([]uuid.UUID, 0)
 	for _, task := range tasks {
 		workflowIdsForNames = append(workflowIdsForNames, task.WorkflowID)
 	}
@@ -294,8 +352,8 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.V1WorkflowRunListRequestObject) (gen.V1WorkflowRunListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
@@ -308,13 +366,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
-	externalIds := make([]pgtype.UUID, len(request.Params.ExternalIds))
-
-	for i, id := range request.Params.ExternalIds {
-		externalIds[i] = sqlchelpers.UUIDFromStr(id.String())
-	}
+	externalIds := request.Params.ExternalIds
 
 	displayNames, err := t.config.V1.OLAP().ListWorkflowRunDisplayNames(
 		ctx.Request().Context(),
@@ -334,29 +388,20 @@ func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, 
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, request gen.V1WorkflowRunExternalIdsListRequestObject) (gen.V1WorkflowRunExternalIdsListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := tenant.ID.String()
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 	spanCtx, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list-external-ids")
 	defer span.End()
 
 	var (
-		statuses = []sqlcv1.V1ReadableStatusOlap{
-			sqlcv1.V1ReadableStatusOlapQUEUED,
-			sqlcv1.V1ReadableStatusOlapRUNNING,
-			sqlcv1.V1ReadableStatusOlapFAILED,
-			sqlcv1.V1ReadableStatusOlapCOMPLETED,
-			sqlcv1.V1ReadableStatusOlapCANCELLED,
-		}
+		statuses    = allOlapStatuses(request.Params.RunningFilter)
 		since       = request.Params.Since
 		workflowIds = []uuid.UUID{}
 	)
 
 	if request.Params.Statuses != nil {
 		if len(*request.Params.Statuses) > 0 {
-			statuses = []sqlcv1.V1ReadableStatusOlap{}
-			for _, status := range *request.Params.Statuses {
-				statuses = append(statuses, sqlcv1.V1ReadableStatusOlap(status))
-			}
+			statuses = normalizeWorkflowRunStatuses(*request.Params.Statuses, request.Params.RunningFilter)
 		}
 	}
 
@@ -397,9 +442,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunExternalIdsList(ctx echo.Context, r
 		return nil, err
 	}
 
-	result := transformers.ToWorkflowRunExternalIds(externalIds)
-
 	return gen.V1WorkflowRunExternalIdsList200JSONResponse(
-		result,
+		externalIds,
 	), nil
 }

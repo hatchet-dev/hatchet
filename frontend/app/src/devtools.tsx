@@ -2,7 +2,7 @@ import { Button } from '@/components/v1/ui/button';
 import { cn } from '@/lib/utils';
 import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools';
 import { useRouter } from '@tanstack/react-router';
-import { TanStackRouterDevtoolsPanel } from '@tanstack/router-devtools';
+import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 import { useState } from 'react';
 
 export default function DevtoolsFooter() {
@@ -45,7 +45,7 @@ export default function DevtoolsFooter() {
         {anyOpen ? (
           <div
             className={cn(
-              'absolute bottom-full right-0 mb-2 overflow-hidden rounded-md border bg-background shadow-lg',
+              'absolute bottom-full right-0 z-50 mb-2 overflow-hidden rounded-md border bg-background shadow-lg',
               'w-[min(820px,calc(100vw-16px))] max-h-[70vh]',
             )}
           >

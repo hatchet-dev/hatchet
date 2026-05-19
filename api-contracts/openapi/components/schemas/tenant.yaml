@@ -17,12 +17,15 @@ Tenant:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
-    uiVersion:
-      $ref: "#/TenantUIVersion"
-      description: The UI of the tenant.
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
+    serverUrl:
+      type: string
+      description: The server URL for the tenant (includes scheme)
+    region:
+      type: string
+      description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
   required:
     - metadata
     - name
@@ -90,9 +93,6 @@ CreateTenantRequest:
       description: The slug of the tenant.
       x-oapi-codegen-extra-tags:
         validate: "required,hatchetName"
-    uiVersion:
-      $ref: "#/TenantUIVersion"
-      description: The UI version of the tenant. Defaults to V0.
     engineVersion:
       $ref: "#/TenantVersion"
       description: The engine version of the tenant. Defaults to V0.
@@ -136,9 +136,6 @@ UpdateTenantRequest:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
-    uiVersion:
-      $ref: "#/TenantUIVersion"
-      description: The UI of the tenant.
   type: object
 
 TenantResource:
@@ -146,11 +143,10 @@ TenantResource:
     - "WORKER"
     - "WORKER_SLOT"
     - "EVENT"
-    - "WORKFLOW_RUN"
     - "TASK_RUN"
     - "CRON"
     - "SCHEDULE"
-    - 'INCOMING_WEBHOOK'
+    - "INCOMING_WEBHOOK"
   type: string
 
 TenantResourceLimit:

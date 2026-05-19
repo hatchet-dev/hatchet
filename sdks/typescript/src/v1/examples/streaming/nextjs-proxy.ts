@@ -3,14 +3,13 @@ import { hatchet } from '../hatchet-client';
 import { streamingTask } from './workflow';
 
 // > NextJS Proxy
-export async function GET() {
+export async function GET(): Promise<Response> {
   try {
     const ref = await streamingTask.runNoWait({});
     const workflowRunId = await ref.getWorkflowRunId();
 
     const stream = Readable.from(hatchet.runs.subscribeToStream(workflowRunId));
 
-    // @ts-ignore
     return new Response(Readable.toWeb(stream), {
       headers: {
         'Content-Type': 'text/plain',

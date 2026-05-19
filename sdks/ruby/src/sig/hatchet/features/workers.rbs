@@ -1,0 +1,10 @@
+module Hatchet
+  module Features
+    class Workers
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+      def get: (String worker_id) -> untyped
+      def list: () -> untyped
+      def update: (String worker_id, Hash[Symbol, untyped] opts) -> untyped
+    end
+  end
+end

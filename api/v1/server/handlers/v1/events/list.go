@@ -11,14 +11,12 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListRequestObject) (gen.V1EventListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	limit := int64(50)
 	offset := int64(0)
@@ -37,7 +35,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	opts := sqlcv1.ListEventsParams{
-		Tenantid: sqlchelpers.UUIDFromStr(tenantId),
+		Tenantid: tenantId,
 		Limit: pgtype.Int8{
 			Int64: limit,
 			Valid: true,
@@ -64,13 +62,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	if request.Params.WorkflowIds != nil {
-		workflowIds := make([]pgtype.UUID, len(*request.Params.WorkflowIds))
-
-		for i, workflowId := range *request.Params.WorkflowIds {
-			workflowIds[i] = sqlchelpers.UUIDFromStr(workflowId.String())
-		}
-
-		opts.WorkflowIds = workflowIds
+		opts.WorkflowIds = *request.Params.WorkflowIds
 	}
 
 	if request.Params.WorkflowRunStatuses != nil {
@@ -82,11 +74,7 @@ func (t *V1EventsService) V1EventList(ctx echo.Context, request gen.V1EventListR
 	}
 
 	if request.Params.EventIds != nil {
-		eventIds := make([]pgtype.UUID, len(*request.Params.EventIds))
-		for i, eventId := range *request.Params.EventIds {
-			eventIds[i] = sqlchelpers.UUIDFromStr(eventId.String())
-		}
-		opts.EventIds = eventIds
+		opts.EventIds = *request.Params.EventIds
 	}
 
 	if request.Params.Scopes != nil {

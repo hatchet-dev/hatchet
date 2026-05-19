@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -27,9 +28,10 @@ type MetricsRecorder struct {
 	yesterdayRunCountGauge     metric.Int64Gauge
 
 	// Worker metrics
-	activeSlotsGauge   metric.Int64Gauge
-	activeWorkersGauge metric.Int64Gauge
-	activeSDKsGauge    metric.Int64Gauge
+	activeSlotsGauge      metric.Int64Gauge
+	activeSlotsByKeyGauge metric.Int64Gauge
+	activeWorkersGauge    metric.Int64Gauge
+	activeSDKsGauge       metric.Int64Gauge
 }
 
 // NewMetricsRecorder creates a new metrics recorder with all instruments registered
@@ -119,6 +121,14 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 		return nil, fmt.Errorf("failed to create active slots gauge: %w", err)
 	}
 
+	activeSlotsByKeyGauge, err := meter.Int64Gauge(
+		"hatchet.workers.active_slots.by_key",
+		metric.WithDescription("Number of active worker slots per tenant and slot key"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create active slots by key gauge: %w", err)
+	}
+
 	activeWorkersGauge, err := meter.Int64Gauge(
 		"hatchet.workers.active_count",
 		metric.WithDescription("Number of active workers per tenant"),
@@ -147,6 +157,7 @@ func NewMetricsRecorder(ctx context.Context) (*MetricsRecorder, error) {
 		olapTempTableSizeTaskGauge:        olapTempTableSizeTaskGauge,
 		yesterdayRunCountGauge:            yesterdayRunCountGauge,
 		activeSlotsGauge:                  activeSlotsGauge,
+		activeSlotsByKeyGauge:             activeSlotsByKeyGauge,
 		activeWorkersGauge:                activeWorkersGauge,
 		activeSDKsGauge:                   activeSDKsGauge,
 	}, nil
@@ -204,22 +215,31 @@ func (m *MetricsRecorder) RecordYesterdayRunCount(ctx context.Context, status st
 }
 
 // RecordActiveSlots records the number of active worker slots
-func (m *MetricsRecorder) RecordActiveSlots(ctx context.Context, tenantId string, count int64) {
+func (m *MetricsRecorder) RecordActiveSlots(ctx context.Context, tenantId uuid.UUID, count int64) {
 	m.activeSlotsGauge.Record(ctx, count,
-		metric.WithAttributes(attribute.String("tenant_id", tenantId)))
+		metric.WithAttributes(attribute.String("tenant_id", tenantId.String())))
+}
+
+// RecordActiveSlotsByKey records the number of active worker slots by key
+func (m *MetricsRecorder) RecordActiveSlotsByKey(ctx context.Context, tenantId uuid.UUID, slotKey string, count int64) {
+	m.activeSlotsByKeyGauge.Record(ctx, count,
+		metric.WithAttributes(
+			attribute.String("tenant_id", tenantId.String()),
+			attribute.String("slot_key", slotKey),
+		))
 }
 
 // RecordActiveWorkers records the number of active workers
-func (m *MetricsRecorder) RecordActiveWorkers(ctx context.Context, tenantId string, count int64) {
+func (m *MetricsRecorder) RecordActiveWorkers(ctx context.Context, tenantId uuid.UUID, count int64) {
 	m.activeWorkersGauge.Record(ctx, count,
-		metric.WithAttributes(attribute.String("tenant_id", tenantId)))
+		metric.WithAttributes(attribute.String("tenant_id", tenantId.String())))
 }
 
 // RecordActiveSDKs records the number of active SDKs
-func (m *MetricsRecorder) RecordActiveSDKs(ctx context.Context, tenantId string, sdk SDKInfo, count int64) {
+func (m *MetricsRecorder) RecordActiveSDKs(ctx context.Context, tenantId uuid.UUID, sdk SDKInfo, count int64) {
 	m.activeSDKsGauge.Record(ctx, count,
 		metric.WithAttributes(
-			attribute.String("tenant_id", tenantId),
+			attribute.String("tenant_id", tenantId.String()),
 			attribute.String("sdk_language", sdk.Language),
 			attribute.String("sdk_version", sdk.SdkVersion),
 			attribute.String("sdk_os", sdk.OperatingSystem),

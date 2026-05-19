@@ -5,16 +5,15 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (i *IngestorsService) SnsList(ctx echo.Context, req gen.SnsListRequestObject) (gen.SnsListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	// create the SNS integration
-	snsIntegrations, err := i.config.APIRepository.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)
+	snsIntegrations, err := i.config.V1.SNS().ListSNSIntegrations(ctx.Request().Context(), tenantId)
 
 	if err != nil {
 		return nil, err

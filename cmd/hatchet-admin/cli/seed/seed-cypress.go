@@ -10,11 +10,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 type User struct {
@@ -23,8 +23,8 @@ type User struct {
 	email       string
 	password    string
 	role        string
+	id          uuid.UUID
 	tenantSlugs []string
-	id          string
 }
 
 type Tenant struct {
@@ -88,20 +88,20 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 	for i := range users {
 		user := &users[i]
 
-		hashedPw, err := repository.HashPassword(user.password)
+		hashedPw, err := v1.HashPassword(user.password)
 		if err != nil {
 			return err
 		}
 
-		insertedUser, err := dc.APIRepository.User().GetUserByEmail(ctx, user.email)
+		insertedUser, err := dc.V1.User().GetUserByEmail(ctx, user.email)
 		action := "exists"
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				insertedUser, err = dc.APIRepository.User().CreateUser(ctx, &repository.CreateUserOpts{
+				insertedUser, err = dc.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 					Email:         user.email,
-					Name:          repository.StringPtr(user.name),
-					EmailVerified: repository.BoolPtr(true),
+					Name:          v1.StringPtr(user.name),
+					EmailVerified: v1.BoolPtr(true),
 					Password:      hashedPw,
 				})
 
@@ -118,7 +118,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingUsers++
 		}
 
-		user.id = sqlchelpers.UUIDToStr(insertedUser.ID)
+		user.id = insertedUser.ID
 		logger.Printf("user %s: name=%q email=%q role=%s user_id=%s", action, user.name, user.email, user.role, user.id)
 	}
 
@@ -127,11 +127,11 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 		tenant := &tenants[i]
 		action := "exists"
 
-		insertedTenant, err := dc.APIRepository.Tenant().GetTenantBySlug(ctx, tenant.slug)
+		insertedTenant, err := dc.V1.Tenant().GetTenantBySlug(ctx, tenant.slug)
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				insertedTenant, err = dc.APIRepository.Tenant().CreateTenant(ctx, &repository.CreateTenantOpts{
+				insertedTenant, err = dc.V1.Tenant().CreateTenant(ctx, &v1.CreateTenantOpts{
 					Name: tenant.name,
 					Slug: tenant.slug,
 				})
@@ -149,7 +149,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 			existingTenants++
 		}
 
-		tenant.id = sqlchelpers.UUIDToStr(insertedTenant.ID)
+		tenant.id = insertedTenant.ID.String()
 		logger.Printf("tenant %s: name=%q slug=%q tenant_id=%s", action, tenant.name, tenant.slug, tenant.id)
 	}
 
@@ -162,18 +162,23 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 
 			allowed := userHasTenantSlug(*user, tenant.slug)
 
+			tenantUUID, err := uuid.Parse(tenant.id)
+			if err != nil {
+				return fmt.Errorf("invalid tenant ID %s: %w", tenant.id, err)
+			}
+
 			// Idempotent: check membership first so reruns are clean.
-			member, err := dc.APIRepository.Tenant().GetTenantMemberByUserID(ctx, tenant.id, user.id)
+			member, err := dc.V1.Tenant().GetTenantMemberByUserID(ctx, tenantUUID, user.id)
 			if err == nil {
 				if !allowed {
-					if err := dc.APIRepository.Tenant().DeleteTenantMember(ctx, sqlchelpers.UUIDToStr(member.ID)); err != nil {
+					if err := dc.V1.Tenant().DeleteTenantMember(ctx, member.ID); err != nil {
 						return fmt.Errorf(
 							"deleting disallowed tenant member (tenant_slug=%s tenant_id=%s user_email=%s user_id=%s member_id=%s): %w",
 							tenant.slug,
 							tenant.id,
 							user.email,
 							user.id,
-							sqlchelpers.UUIDToStr(member.ID),
+							member.ID.String(),
 							err,
 						)
 					}
@@ -186,7 +191,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 						user.email,
 						user.id,
 						user.role,
-						sqlchelpers.UUIDToStr(member.ID),
+						member.ID.String(),
 					)
 					continue
 				}
@@ -199,7 +204,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 					user.email,
 					user.id,
 					user.role,
-					sqlchelpers.UUIDToStr(member.ID),
+					member.ID.String(),
 				)
 				continue
 			}
@@ -221,7 +226,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 				continue
 			}
 
-			createdMember, err := dc.APIRepository.Tenant().CreateTenantMember(ctx, tenant.id, &repository.CreateTenantMemberOpts{
+			createdMember, err := dc.V1.Tenant().CreateTenantMember(ctx, tenantUUID, &v1.CreateTenantMemberOpts{
 				Role:   user.role,
 				UserId: user.id,
 			})
@@ -246,7 +251,7 @@ func SeedDatabaseForCypress(dc *database.Layer) error {
 				user.email,
 				user.id,
 				user.role,
-				sqlchelpers.UUIDToStr(createdMember.ID),
+				createdMember.ID.String(),
 			)
 		}
 	}
@@ -282,11 +287,11 @@ func userHasTenantSlug(u User, tenantSlug string) bool {
 }
 
 type cypressSeededUser struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
-	UserID   string `json:"userId"`
+	Name     string    `json:"name"`
+	Email    string    `json:"email"`
+	Password string    `json:"password"`
+	Role     string    `json:"role"`
+	UserID   uuid.UUID `json:"userId"`
 }
 
 type cypressEnvUser struct {

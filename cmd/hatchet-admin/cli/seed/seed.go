@@ -5,33 +5,44 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func SeedDatabase(dc *database.Layer) error {
 	shouldSeedUser := dc.Seed.AdminEmail != "" && dc.Seed.AdminPassword != ""
-	var userID string
+	var userID uuid.UUID
 
 	if shouldSeedUser {
+		// validate the password meets complexity requirements before hashing
+		v := validator.NewDefaultValidator()
+		opts := struct {
+			Password string `validate:"password"`
+		}{dc.Seed.AdminPassword}
+
+		if err := v.Validate(opts); err != nil {
+			return fmt.Errorf("ADMIN_PASSWORD does not meet requirements: must be between 8 and 64 characters and contain at least one uppercase letter, one lowercase letter, and one number")
+		}
+
 		// seed an example user
-		hashedPw, err := repository.HashPassword(dc.Seed.AdminPassword)
+		hashedPw, err := v1.HashPassword(dc.Seed.AdminPassword)
 
 		if err != nil {
 			return err
 		}
 
-		user, err := dc.APIRepository.User().GetUserByEmail(context.Background(), dc.Seed.AdminEmail)
+		user, err := dc.V1.User().GetUserByEmail(context.Background(), dc.Seed.AdminEmail)
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				user, err = dc.APIRepository.User().CreateUser(context.Background(), &repository.CreateUserOpts{
+				user, err = dc.V1.User().CreateUser(context.Background(), &v1.CreateUserOpts{
 					Email:         dc.Seed.AdminEmail,
-					Name:          repository.StringPtr(dc.Seed.AdminName),
-					EmailVerified: repository.BoolPtr(true),
+					Name:          v1.StringPtr(dc.Seed.AdminName),
+					EmailVerified: v1.BoolPtr(true),
 					Password:      hashedPw,
 				})
 
@@ -43,17 +54,22 @@ func SeedDatabase(dc *database.Layer) error {
 			}
 		}
 
-		userID = sqlchelpers.UUIDToStr(user.ID)
+		userID = user.ID
 	}
 
-	_, err := dc.APIRepository.Tenant().GetTenantBySlug(context.Background(), dc.Seed.DefaultTenantSlug)
+	_, err := dc.V1.Tenant().GetTenantBySlug(context.Background(), dc.Seed.DefaultTenantSlug)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// seed an example tenant
 			// initialize a tenant
-			sqlcTenant, err := dc.APIRepository.Tenant().CreateTenant(context.Background(), &repository.CreateTenantOpts{
-				ID:   &dc.Seed.DefaultTenantID,
+			tenantID, err := uuid.Parse(dc.Seed.DefaultTenantID)
+			if err != nil {
+				return fmt.Errorf("invalid default tenant ID: %w", err)
+			}
+
+			sqlcTenant, err := dc.V1.Tenant().CreateTenant(context.Background(), &v1.CreateTenantOpts{
+				ID:   &tenantID,
 				Name: dc.Seed.DefaultTenantName,
 				Slug: dc.Seed.DefaultTenantSlug,
 			})
@@ -62,16 +78,16 @@ func SeedDatabase(dc *database.Layer) error {
 				return err
 			}
 
-			tenant, err := dc.APIRepository.Tenant().GetTenantByID(context.Background(), sqlchelpers.UUIDToStr(sqlcTenant.ID))
+			tenant, err := dc.V1.Tenant().GetTenantByID(context.Background(), sqlcTenant.ID)
 
 			if err != nil {
 				return err
 			}
 
-			fmt.Println("created tenant", sqlchelpers.UUIDToStr(tenant.ID))
+			fmt.Println("created tenant", tenant.ID.String())
 
 			// add the user to the tenant
-			_, err = dc.APIRepository.Tenant().CreateTenantMember(context.Background(), sqlchelpers.UUIDToStr(tenant.ID), &repository.CreateTenantMemberOpts{
+			_, err = dc.V1.Tenant().CreateTenantMember(context.Background(), tenant.ID, &v1.CreateTenantMemberOpts{
 				Role:   "OWNER",
 				UserId: userID,
 			})

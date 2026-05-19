@@ -72,6 +72,17 @@ func (r *RunsClient) GetStatus(ctx context.Context, runId string) (*rest.V1TaskS
 	return resp.JSON200, nil
 }
 
+// GetDetails retrieves detailed information about a workflow run via gRPC,
+// including task-level output, errors, and status.
+func (r *RunsClient) GetDetails(ctx context.Context, runId uuid.UUID) (*client.RunDetails, error) {
+	resp, err := r.v0Client.Admin().GetRunDetails(ctx, runId)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get workflow run details")
+	}
+
+	return resp, nil
+}
+
 // List retrieves a collection of workflow runs based on the provided parameters.
 func (r *RunsClient) List(ctx context.Context, opts rest.V1WorkflowRunListParams) (*rest.V1TaskSummaryList, error) {
 	resp, err := r.api.V1WorkflowRunListWithResponse(
@@ -138,6 +149,53 @@ func (r *RunsClient) Cancel(ctx context.Context, opts rest.V1CancelTaskRequest) 
 	return resp.JSON200, nil
 }
 
+// BranchDurableTask creates a branch from a durable task at the specified node.
+func (r *RunsClient) BranchDurableTask(ctx context.Context, taskExternalId string, nodeId, branchId int64) (*rest.V1BranchDurableTaskResponse, error) {
+	body := rest.V1BranchDurableTaskRequest{
+		TaskExternalId: uuid.MustParse(taskExternalId),
+		NodeId:         nodeId,
+		BranchId:       branchId,
+	}
+
+	jsonBytes, err := json.Marshal(body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal V1BranchDurableTaskRequest")
+	}
+
+	resp, err := r.api.V1DurableTaskBranchWithBodyWithResponse(
+		ctx,
+		r.tenantId,
+		"application/json; charset=utf-8",
+		bytes.NewReader(jsonBytes),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to branch durable task")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
+// Restore re-enqueues an evicted task so it can resume execution.
+func (r *RunsClient) Restore(ctx context.Context, taskExternalId string) (*rest.V1RestoreTaskResponse, error) {
+	resp, err := r.api.V1TaskRestoreWithResponse(
+		ctx,
+		uuid.MustParse(taskExternalId),
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to restore task")
+	}
+
+	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		return nil, err
+	}
+
+	return resp.JSON200, nil
+}
+
 // SubscribeToStream subscribes to streaming events for a specific workflow run.
 func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string) <-chan string {
 	ch := make(chan string)
@@ -145,10 +203,10 @@ func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string
 	go func() {
 		defer func() {
 			close(ch)
-			r.l.Info().Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
+			r.l.Info().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("stream subscription ended")
 		}()
 
-		r.l.Info().Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
+		r.l.Info().Ctx(ctx).Str("workflowRunId", workflowRunId).Msg("starting stream subscription")
 
 		err := r.v0Client.Subscribe().Stream(ctx, workflowRunId, func(event client.StreamEvent) error {
 			select {
@@ -159,7 +217,7 @@ func (r *RunsClient) SubscribeToStream(ctx context.Context, workflowRunId string
 			return nil
 		})
 		if err != nil {
-			r.l.Error().Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
+			r.l.Error().Ctx(ctx).Err(err).Str("workflowRunId", workflowRunId).Msg("failed to subscribe to stream")
 		}
 	}()
 

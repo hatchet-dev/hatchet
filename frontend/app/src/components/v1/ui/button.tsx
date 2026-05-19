@@ -5,7 +5,7 @@ import {
   TooltipTrigger,
 } from './tooltip';
 import { cn } from '@/lib/utils';
-import { Slot } from '@radix-ui/react-slot';
+import { Slot, Slottable } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import * as React from 'react';
 
@@ -43,10 +43,12 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   hoverText?: string;
+  hoverTextSide?: 'top' | 'right' | 'bottom' | 'left';
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
@@ -60,6 +62,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       hoverText = undefined,
+      hoverTextSide = 'top',
       leftIcon,
       rightIcon,
       fullWidth,
@@ -91,11 +94,13 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               {...props}
             >
               {leftIcon && <span className="-ml-1 mr-2">{leftIcon}</span>}
-              {children}
+              <Slottable>{children}</Slottable>
               {rightIcon && <span className="-mr-1 ml-2">{rightIcon}</span>}
             </Comp>
           </TooltipTrigger>
-          {hoverText && <TooltipContent>{hoverText}</TooltipContent>}
+          {hoverText && (
+            <TooltipContent side={hoverTextSide}>{hoverText}</TooltipContent>
+          )}
         </Tooltip>
       </TooltipProvider>
     );

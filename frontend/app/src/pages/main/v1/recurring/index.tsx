@@ -14,18 +14,20 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { CronWorkflows } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 export default function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:recurring', {});
 
   const {
     crons,
@@ -68,6 +70,21 @@ export default function CronsTable() {
       refetch();
     }
   };
+
+  const tableColumns = useMemo(
+    () =>
+      columns({
+        tenantId,
+        onDeleteClick: handleDeleteClick,
+        onEnableClick,
+        selectedJobId,
+        setSelectedJobId,
+        isUpdatePending,
+        updatingCronId,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenantId, selectedJobId, isUpdatePending, updatingCronId],
+  );
 
   const filters: ToolbarFilters = [
     {
@@ -112,15 +129,7 @@ export default function CronsTable() {
       <DataTable
         error={error}
         isLoading={isLoading}
-        columns={columns({
-          tenantId,
-          onDeleteClick: handleDeleteClick,
-          onEnableClick,
-          selectedJobId,
-          setSelectedJobId,
-          isUpdatePending,
-          updatingCronId,
-        })}
+        columns={tableColumns}
         data={crons}
         filters={filters}
         showColumnToggle={true}
@@ -146,7 +155,7 @@ export default function CronsTable() {
             <p className="text-lg font-semibold">No crons found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.home['cron-runs']}
+                doc={docsPages.v1['cron-runs']}
                 label="Learn about cron jobs in Hatchet"
               />
             </div>

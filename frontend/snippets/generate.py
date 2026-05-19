@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import asdict, dataclass
 from enum import Enum
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 ROOT = "../../"
 BASE_SNIPPETS_DIR = os.path.join(ROOT, "frontend", "docs", "lib")
@@ -19,6 +19,11 @@ IGNORED_FILE_PATTERNS = [
     r"test_.*\.go$",
     r"_test\.go$",
     r"\.e2e\.ts$",
+    r"test_.*_spec\.rb$",
+    r"spec_helper\.rb$",
+    r"Gemfile",
+    r"\.rspec$",
+    r"README\.md$",
 ]
 
 
@@ -40,6 +45,9 @@ class SDKParsingContext(Enum):
     )
     GO = ParsingContext(
         example_path="sdks/go/examples", extension=".go", comment_prefix="//"
+    )
+    RUBY = ParsingContext(
+        example_path="sdks/ruby/examples", extension=".rb", comment_prefix="#"
     )
 
 
@@ -224,6 +232,27 @@ def clean_example_content(content: str, comment_prefix: str) -> str:
     )
 
 
+def _read_sdk_version(lang: str) -> str:
+    """Read the published SDK version from the source package file."""
+    if lang == "python":
+        path = os.path.join(ROOT, "sdks", "python", "pyproject.toml")
+        for line in open(path):
+            if line.startswith("version = "):
+                return line.split('"')[1].strip()
+    elif lang == "typescript":
+        data = json.load(open(os.path.join(ROOT, "sdks", "typescript", "package.json")))
+        return data["version"]
+    elif lang == "ruby":
+        path = os.path.join(ROOT, "sdks", "ruby", "src", "lib", "hatchet", "version.rb")
+        for line in open(path):
+            if "VERSION" in line:
+                return line.split('"')[1].strip()
+    elif lang == "go":
+        # Go module uses monorepo; use Python SDK version as proxy for hatchet release
+        return _read_sdk_version("python")
+    return "0.0.0"
+
+
 def write_examples(examples: list[ProcessedExample]) -> None:
     for example in examples:
         out_path = os.path.join(ROOT, example.output_path)
@@ -244,10 +273,15 @@ class JavaScriptObjectDecoder(json.JSONDecoder):
         key = match.group(2)
         return f'{indent}"{key}":'
 
-    def decode(self, raw: str) -> dict[str, Any]:
+    def decode(self, s: str, _w: Callable[..., Any] = re.compile(r"\s").match) -> Any:  # type: ignore[override]
         pattern = r"^(\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:"
-        quoted = re.sub(pattern, self.replacement, raw)
+        quoted = re.sub(pattern, self.replacement, s)
         result = re.sub(pattern, self.replacement, quoted, flags=re.MULTILINE)
+        result = re.sub(
+            r"(\{\s*)([a-zA-Z_$][a-zA-Z0-9_$-]*)\s*:",
+            r'\1"\2":',
+            result,
+        )
         result = re.sub(r",(\s*\n?\s*})(\s*);?", r"\1", result)
 
         return super().decode(result)
@@ -294,7 +328,7 @@ def write_doc_index_to_app() -> None:
 
     for filename in glob.iglob(path, recursive=True):
         with open(filename) as f:
-            content = f.read().replace("export default ", "")
+            content = f.read().replace("export default ", "").strip().rstrip(";")
             parsed_meta = cast(
                 dict[str, Any], json.loads(content, cls=JavaScriptObjectDecoder)
             )
@@ -355,7 +389,7 @@ if __name__ == "__main__":
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
 
-    language_union = ' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])
+    language_union = " | ".join([f"'{v.name.lower()}'" for v in SDKParsingContext])
     snippet_type = (
         "export type Snippet = {\n"
         "    title: string;\n"

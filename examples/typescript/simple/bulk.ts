@@ -16,6 +16,26 @@ async function main() {
   console.log(res[0].TransformedMessage);
   console.log(res[1].TransformedMessage);
 
+  // > Bulk Run a Task with runMany
+  const runManyRes = await simple.runMany([
+    {
+      input: {
+        Message: 'HeLlO WoRlD',
+      },
+    },
+    {
+      input: {
+        Message: 'Hello MoOn',
+      },
+      opts: {
+        priority: 3,
+      },
+    },
+  ]);
+
+  console.log(runManyRes[0].TransformedMessage);
+  console.log(runManyRes[1].TransformedMessage);
+
   // > Bulk Run Tasks from within a Task
   const parent = hatchet.task({
     name: 'simple',

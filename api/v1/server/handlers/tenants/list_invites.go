@@ -5,18 +5,17 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) TenantInviteList(ctx echo.Context, request gen.TenantInviteListRequestObject) (gen.TenantInviteListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
-	tenantInvites, err := t.config.APIRepository.TenantInvite().ListTenantInvitesByTenantId(ctx.Request().Context(), tenantId, &repository.ListTenantInvitesOpts{
-		Expired: repository.BoolPtr(false),
-		Status:  repository.StringPtr("PENDING"),
+	tenantInvites, err := t.config.V1.TenantInvite().ListTenantInvitesByTenantId(ctx.Request().Context(), tenantId, &v1.ListTenantInvitesOpts{
+		Expired: v1.BoolPtr(false),
+		Status:  v1.StringPtr("PENDING"),
 	})
 
 	if err != nil {

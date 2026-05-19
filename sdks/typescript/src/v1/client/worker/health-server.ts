@@ -1,6 +1,15 @@
 import { createServer, Server, IncomingMessage, ServerResponse } from 'node:http';
 import { Logger } from '@hatchet/util/logger';
 
+interface PromRegistry {
+  metrics(): Promise<string>;
+  contentType: string;
+  registerMetric(metric: PromGauge): void;
+}
+interface PromGauge {
+  set(value: number): void;
+}
+
 export const workerStatus = {
   INITIALIZED: 'INITIALIZED',
   STARTING: 'STARTING',
@@ -20,10 +29,10 @@ interface HealthCheckResponse {
 
 export class HealthServer {
   private server: Server | null = null;
-  private register: any = null;
-  private workerStatusGauge: any = null;
-  private workerSlotsGauge: any = null;
-  private workerActionsGauge: any = null;
+  private register: PromRegistry | null = null;
+  private workerStatusGauge: PromGauge | null = null;
+  private workerSlotsGauge: PromGauge | null = null;
+  private workerActionsGauge: PromGauge | null = null;
   private metricsInitialized: boolean = false;
 
   constructor(
@@ -67,41 +76,41 @@ export class HealthServer {
 
   private initializeMetrics(): void {
     try {
-      // @ts-ignore - prom-client is an optional dependency
-      // eslint-disable-next-line
+      // THIS IS AN OPTIONAL DEPENDENCY
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Registry, Gauge, collectDefaultMetrics } = require('prom-client');
 
-      this.register = new Registry();
-      collectDefaultMetrics({ register: this.register });
+      this.register = new Registry() as PromRegistry;
+      collectDefaultMetrics({ register: this.register as never });
 
       this.workerStatusGauge = new Gauge({
         name: 'hatchet_worker_status',
         help: 'Current status of the Hatchet worker',
-        registers: [this.register],
+        registers: [this.register as never],
         collect: () => {
           this.workerStatusGauge!.set(this.getStatus() === workerStatus.HEALTHY ? 1 : 0);
         },
-      });
+      }) as PromGauge;
 
       this.workerSlotsGauge = new Gauge({
         name: 'hatchet_worker_slots',
         help: 'Total slots available on the worker',
-        registers: [this.register],
+        registers: [this.register as never],
         collect: () => {
           this.workerSlotsGauge!.set(this.getSlots());
         },
-      });
+      }) as PromGauge;
 
       this.workerActionsGauge = new Gauge({
         name: 'hatchet_worker_actions',
         help: 'Number of registered actions on the worker',
-        registers: [this.register],
+        registers: [this.register as never],
         collect: () => {
           this.workerActionsGauge!.set(this.getActions().length);
         },
-      });
+      }) as PromGauge;
       this.metricsInitialized = true;
-    } catch (error) {
+    } catch {
       this.metricsInitialized = false;
       this.logger.error('Metrics initialization failed - prom-client dependency not installed');
     }

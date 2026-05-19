@@ -11,7 +11,6 @@ export default {
     title: "Kubernetes",
   },
   "kubernetes-quickstart": "Quickstart",
-  "kubernetes-glasskube": "Installing with Glasskube",
   networking: "Networking",
   "kubernetes-helm-configuration": "Configuring the Helm Chart",
   "kubernetes-external-database": "Setting up an External Database",
@@ -21,6 +20,7 @@ export default {
     title: "Managing Hatchet",
   },
   "configuration-options": "Engine Configuration Options",
+  "using-pgbouncer": "Using PgBouncer",
   "prometheus-metrics": {
     title: "Prometheus Metrics",
     theme: {
@@ -28,10 +28,12 @@ export default {
     },
   },
   "worker-configuration-options": "Worker Configuration Options",
-  "downgrading-versions": "Downgrading Versions",
+  "upgrading-downgrading": "Upgrading and Downgrading",
+  "downgrading-db-schema-manually": "Downgrading DB Schema Manually",
   benchmarking: "Benchmarking",
   "data-retention": "Data Retention",
   "improving-performance": "Improving Performance",
   "read-replicas": "Read Replicas",
   sampling: "Trace Sampling",
+  "smtp-server": "SMTP Server",
 };

@@ -10,9 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1repo "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	v1repo "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const defaultBatchPollInterval = 200 * time.Millisecond
@@ -33,8 +32,8 @@ const (
 // items in-memory, flushing them once batch requirements are satisfied.
 type BatchScheduler struct {
 	cf             *sharedConfig
-	tenantId       pgtype.UUID
-	stepId         pgtype.UUID
+	tenantId       uuid.UUID
+	stepId         uuid.UUID
 	batchKey       string
 	repo           v1repo.BatchQueueRepository
 	queueFactory   v1repo.QueueFactoryRepository
@@ -111,7 +110,7 @@ type batchReservationFunc func(context.Context, *BatchReservationRequest) (bool,
 
 type BatchReservationRequest struct {
 	TenantID string
-	StepID   pgtype.UUID
+	StepID   uuid.UUID
 	ActionID string
 	BatchKey string
 	BatchID  string
@@ -120,7 +119,7 @@ type BatchReservationRequest struct {
 
 func newBatchScheduler(
 	cf *sharedConfig,
-	tenantId pgtype.UUID,
+	tenantId uuid.UUID,
 	resource *sqlcv1.ListDistinctBatchResourcesRow,
 	queueFactory v1repo.QueueFactoryRepository,
 	scheduler *Scheduler,
@@ -137,8 +136,8 @@ func newBatchScheduler(
 	}
 
 	logger := cf.l.With().
-		Str("tenant_id", sqlchelpers.UUIDToStr(tenantId)).
-		Str("step_id", sqlchelpers.UUIDToStr(resource.StepID)).
+		Str("tenant_id", tenantId.String()).
+		Str("step_id", resource.StepID.String()).
 		Str("batch_key", batchKey).
 		Logger()
 
@@ -373,8 +372,8 @@ func (b *BatchScheduler) maybeStopIfIdle() {
 	if b.cf != nil && b.cf.taskRepo != nil && strings.TrimSpace(b.batchKey) != "" {
 		cnt, err := b.cf.taskRepo.CountActiveTaskBatchRuns(
 			b.ctx,
-			sqlchelpers.UUIDToStr(b.tenantId),
-			sqlchelpers.UUIDToStr(b.stepId),
+			b.tenantId.String(),
+			b.stepId.String(),
 			strings.TrimSpace(b.batchKey),
 		)
 		if err != nil {
@@ -497,7 +496,7 @@ func (b *BatchScheduler) emitWaitingEvents(newItems []*sqlcv1.V1BatchedQueueItem
 				Pending:                      pending,
 				NextFlushAt:                  nextFlush,
 				BatchID:                      "",
-				StepID:                       sqlchelpers.UUIDToStr(queueItem.StepID),
+				StepID:                       queueItem.StepID.String(),
 				ActionID:                     queueItem.ActionID,
 				BatchGroupKey:                metaBatchKey,
 			},
@@ -530,7 +529,7 @@ func (b *BatchScheduler) assignQueueItems(
 	}
 
 	schedulingItem := queueItems[0]
-	stepKey := sqlchelpers.UUIDToStr(schedulingItem.StepID)
+	stepKey := schedulingItem.StepID.String()
 	stepLabels := labels[stepKey]
 
 	res, err := b.scheduler.tryAssignBatchQueueItem(ctx, schedulingItem, stepLabels)
@@ -647,7 +646,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 		batchKey := strings.TrimSpace(b.batchKey)
 
 		if len(group) > 0 && group[0] != nil {
-			if group[0].StepID.Valid {
+			if group[0].StepID != uuid.Nil {
 				stepID = group[0].StepID
 			}
 
@@ -703,21 +702,21 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 
 		schedulingItem := queueItems[0]
 
-		stepLabels, err := queueRepo.GetDesiredLabels(ctx, []pgtype.UUID{b.stepId})
+		stepLabelsMap, err := queueRepo.GetDesiredLabels(ctx, nil, []uuid.UUID{b.stepId})
 		if err != nil {
 			queueRepo.Cleanup()
 			return items, fmt.Errorf("get desired labels: %w", err)
 		}
 
-		rateLimits, err := queueRepo.GetTaskRateLimits(ctx, []*sqlcv1.V1QueueItem{schedulingItem})
+		rateLimits, err := queueRepo.GetTaskRateLimits(ctx, nil, []*sqlcv1.V1QueueItem{schedulingItem})
 		if err != nil {
 			queueRepo.Cleanup()
 			return items, fmt.Errorf("get task rate limits: %w", err)
 		}
 
-		stepKey := sqlchelpers.UUIDToStr(b.stepId)
+		stepKey := b.stepId.String()
 		assigned, failedQueueItems, err := b.assignQueueItems(ctx, []*sqlcv1.V1QueueItem{schedulingItem}, map[string][]*sqlcv1.GetDesiredLabelsRow{
-			stepKey: stepLabels[stepKey],
+			stepKey: stepLabelsMap[b.stepId],
 		}, rateLimits)
 		if err != nil {
 			queueRepo.Cleanup()
@@ -748,7 +747,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 		}
 
 		assignedItem := assigned[0]
-		if assignedItem == nil || assignedItem.QueueItem == nil || !assignedItem.WorkerId.Valid {
+		if assignedItem == nil || assignedItem.QueueItem == nil || assignedItem.WorkerId == uuid.Nil {
 			requeueGroup()
 			continue
 		}
@@ -760,8 +759,8 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 
 		batchKeyNormalized := strings.TrimSpace(batchKey)
 		if b.maxRuns > 0 && batchKeyNormalized != "" && b.cf.taskRepo != nil {
-			stepIDStr := sqlchelpers.UUIDToStr(stepID)
-			tenantIDStr := sqlchelpers.UUIDToStr(b.tenantId)
+			stepIDStr := stepID.String()
+			tenantIDStr := b.tenantId.String()
 
 			activeCount, err := b.cf.taskRepo.CountActiveTaskBatchRuns(ctx, tenantIDStr, stepIDStr, batchKeyNormalized)
 			if err != nil {
@@ -781,7 +780,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 
 		if b.reserveBatch != nil && b.maxRuns > 0 && batchKeyNormalized != "" {
 			req := &BatchReservationRequest{
-				TenantID: sqlchelpers.UUIDToStr(b.tenantId),
+				TenantID: b.tenantId.String(),
 				StepID:   stepID,
 				ActionID: actionID,
 				BatchKey: batchKeyNormalized,
@@ -846,7 +845,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 					Pending:                      0,
 					NextFlushAt:                  nil,
 					BatchID:                      batchID,
-					StepID:                       sqlchelpers.UUIDToStr(stepID),
+					StepID:                       stepID.String(),
 					ActionID:                     actionID,
 					BatchGroupKey:                batchKeyNormalized,
 				},

@@ -130,6 +130,8 @@ V1WebhookSourceName:
   $ref: "./v1/webhook.yaml#/V1WebhookSourceName"
 V1WebhookAuthType:
   $ref: "./v1/webhook.yaml#/V1WebhookAuthType"
+V1WebhookResponse:
+  $ref: "./v1/webhook.yaml#/V1WebhookResponse"
 RateLimit:
   $ref: "./rate_limits.yaml#/RateLimit"
 RateLimitList:
@@ -192,6 +194,8 @@ UpdateScheduledWorkflowRunRequest:
   $ref: "./workflow_run.yaml#/UpdateScheduledWorkflowRunRequest"
 ScheduledWorkflowsBulkDeleteRequest:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteRequest"
+ScheduledWorkflowsBulkDeleteFilter:
+  $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteFilter"
 ScheduledWorkflowsBulkDeleteResponse:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkDeleteResponse"
 ScheduledWorkflowsBulkUpdateRequest:
@@ -348,8 +352,14 @@ V1ReplayedTasks:
   $ref: "./v1/task.yaml#/V1ReplayedTasks"
 V1CancelledTasks:
   $ref: "./v1/task.yaml#/V1CancelledTasks"
+V1RestoreTaskResponse:
+  $ref: "./v1/task.yaml#/V1RestoreTaskResponse"
 V1TaskStatus:
   $ref: "./v1/task.yaml#/V1TaskStatus"
+V1RunningFilter:
+  $ref: "./v1/task.yaml#/V1RunningFilter"
+V1RunningDetailCount:
+  $ref: "./v1/task.yaml#/V1RunningDetailCount"
 V1TaskRunMetrics:
   $ref: "./v1/task.yaml#/V1TaskRunMetrics"
 V1TaskPointMetric:
@@ -370,12 +380,28 @@ V1TaskRunStatus:
   $ref: "./workflow_run.yaml#/V1TaskRunStatus"
 V1TriggerWorkflowRunRequest:
   $ref: "./v1/workflow_run.yaml#/V1TriggerWorkflowRunRequest"
+V1BranchDurableTaskRequest:
+  $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskRequest"
+V1BranchDurableTaskResponse:
+  $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskResponse"
+V1DurableEventLogKind:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogKind"
+V1DurableEventLogEntry:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogEntry"
+V1DurableEventLogList:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogList"
 V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:
   $ref: "./v1/logs.yaml#/V1LogLineLevel"
+V1LogLineOrderByDirection:
+  $ref: "./v1/logs.yaml#/V1LogLineOrderByDirection"
 V1LogLineList:
   $ref: "./v1/logs.yaml#/V1LogLineList"
+V1LogsPointMetric:
+  $ref: "./v1/logs.yaml#/V1LogsPointMetric"
+V1LogsPointMetrics:
+  $ref: "./v1/logs.yaml#/V1LogsPointMetrics"
 V1TaskTiming:
   $ref: "./v1/task.yaml#/V1TaskTiming"
 V1TaskTimingList:
@@ -394,3 +420,15 @@ V1CELDebugResponse:
   $ref: "./v1/cel.yaml#/V1CELDebugResponse"
 V1CELDebugResponseStatus:
   $ref: "./v1/cel.yaml#/V1CELDebugResponseStatus"
+OtelSpan:
+  $ref: "./v1/otel.yaml#/OtelSpan"
+OtelSpanKind:
+  $ref: "./v1/otel.yaml#/OtelSpanKind"
+OtelStatusCode:
+  $ref: "./v1/otel.yaml#/OtelStatusCode"
+OtelSpanList:
+  $ref: "./v1/otel.yaml#/OtelSpanList"
+FeatureFlagEvaluationResult:
+  $ref: "./v1/feature_flags.yaml#/FeatureFlagEvaluationResult"
+FeatureFlagId:
+  $ref: "./v1/feature_flags.yaml#/FeatureFlagId"

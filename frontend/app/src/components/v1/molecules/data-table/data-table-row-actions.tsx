@@ -1,4 +1,3 @@
-import { IDGetter } from './data-table';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -13,21 +12,17 @@ import {
   TooltipContent,
 } from '@/components/v1/ui/tooltip';
 import { DotsVerticalIcon } from '@radix-ui/react-icons';
-import { Row } from '@tanstack/react-table';
 
-interface DataTableRowActionsProps<TData extends IDGetter<TData>> {
-  row: Row<TData>;
+interface TableRowActionsProps<T> {
+  row: T;
   actions?: {
     label: string;
-    onClick: (data: TData) => void;
+    onClick: (data: T) => void;
     disabled?: boolean | string;
   }[];
 }
 
-export function DataTableRowActions<TData extends IDGetter<TData>>({
-  row,
-  actions,
-}: DataTableRowActionsProps<TData>) {
+export function TableRowActions<T>({ row, actions }: TableRowActionsProps<T>) {
   if (!actions?.length) {
     return null;
   }
@@ -50,7 +45,7 @@ export function DataTableRowActions<TData extends IDGetter<TData>>({
             <Tooltip>
               <TooltipTrigger className="w-full">
                 <DropdownMenuItem
-                  onClick={() => action.onClick(row.original)}
+                  onClick={() => action.onClick(row)}
                   disabled={!!action.disabled}
                   className="w-full hover:cursor-pointer"
                 >

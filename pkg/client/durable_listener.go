@@ -1,3 +1,5 @@
+// Deprecated: This package is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 package client
 
 import (
@@ -70,7 +72,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 			err := w.Close()
 
 			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close durable events listener")
+				r.l.Error().Ctx(ctx).Err(err).Msg("failed to close durable events listener")
 			}
 
 			r.durableEventsListenerMu.Lock()
@@ -81,7 +83,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		err := w.Listen(ctx)
 
 		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for durable events")
+			r.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")
 		}
 	}()
 
@@ -103,7 +105,7 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 
 		if err != nil {
 			retries++
-			w.l.Error().Err(err).Msgf("could not resubscribe to the durable event listener")
+			w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener")
 			continue
 		}
 
@@ -121,7 +123,7 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 			})
 
 			if err != nil {
-				w.l.Error().Err(err).Msgf("could not listen for durable events on the worker")
+				w.l.Error().Ctx(ctx).Err(err).Msgf("could not listen for durable events on the worker")
 				rangeErr = err
 				return false
 			}
@@ -174,24 +176,28 @@ func (l *DurableEventsListener) AddSignal(
 }
 
 func (l *DurableEventsListener) retrySend(t listenTuple) error {
-	l.clientMu.RLock()
-	defer l.clientMu.RUnlock()
+	for i := range DefaultActionListenerRetryCount {
+		if i > 0 {
+			time.Sleep(DefaultActionListenerRetryInterval)
+		}
 
-	if l.client == nil {
-		return fmt.Errorf("client is not connected")
-	}
+		err := func() error {
+			l.clientMu.RLock()
+			defer l.clientMu.RUnlock()
 
-	for i := 0; i < DefaultActionListenerRetryCount; i++ {
-		err := l.client.Send(&contracts.ListenForDurableEventRequest{
-			TaskId:    t.taskId,
-			SignalKey: t.signalKey,
-		})
+			if l.client == nil {
+				return fmt.Errorf("client is not connected")
+			}
+
+			return l.client.Send(&contracts.ListenForDurableEventRequest{
+				TaskId:    t.taskId,
+				SignalKey: t.signalKey,
+			})
+		}()
 
 		if err == nil {
 			return nil
 		}
-
-		time.Sleep(DefaultActionListenerRetryInterval)
 	}
 
 	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)

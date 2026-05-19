@@ -4,8 +4,9 @@ import {
   POSTHOG_DISTINCT_ID_LOCAL_STORAGE_KEY,
   POSTHOG_SESSION_ID_LOCAL_STORAGE_KEY,
 } from '@/hooks/use-analytics';
-import api, { UserRegisterRequest } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -54,17 +55,17 @@ function BasicRegister() {
   const navigate = useNavigate();
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { get: getUserUniverse } = useUserUniverse();
   const { handleApiError } = useApiError({
     setFieldErrors: setFieldErrors,
     setErrors: setErrors,
   });
 
+  const { userCreateMutation } = useUserApi();
   const createMutation = useMutation({
-    mutationKey: ['user:create'],
-    mutationFn: async (data: UserRegisterRequest) => {
-      await api.userCreate(data);
-    },
+    ...userCreateMutation(),
     onSuccess: () => {
+      getUserUniverse();
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,

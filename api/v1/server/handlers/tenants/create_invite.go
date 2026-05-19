@@ -9,17 +9,17 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantInviteCreateRequestObject) (gen.TenantInviteCreateResponseObject, error) {
-	user := ctx.Get("user").(*dbsqlc.User)
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
-	tenantMember := ctx.Get("tenant-member").(*dbsqlc.PopulateTenantMembersRow)
+	user := ctx.Get("user").(*sqlcv1.User)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+	tenantMember := ctx.Get("tenant-member").(*sqlcv1.PopulateTenantMembersRow)
 	if !t.config.Runtime.AllowInvites {
 		t.config.Logger.Warn().Msg("tenant invites are disabled")
 		return gen.TenantInviteCreate400JSONResponse(
@@ -36,7 +36,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// ensure that this user isn't already a member of the tenant
-	if _, err := t.config.APIRepository.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), tenantId, request.Body.Email); err == nil {
+	if _, err := t.config.V1.Tenant().GetTenantMemberByEmail(ctx.Request().Context(), tenantId, request.Body.Email); err == nil {
 		t.config.Logger.Warn().Msg("this user is already a member of this tenant")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("this user is already a member of this tenant"),
@@ -44,7 +44,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// if user is not an owner, they cannot change a role to owner
-	if tenantMember.Role != dbsqlc.TenantMemberRoleOWNER && request.Body.Role == gen.OWNER {
+	if tenantMember.Role != sqlcv1.TenantMemberRoleOWNER && request.Body.Role == gen.OWNER {
 		t.config.Logger.Warn().Msg("only an owner can change a role to owner")
 		return gen.TenantInviteCreate400JSONResponse(
 			apierrors.NewAPIErrors("only an owner can change a role to owner"),
@@ -52,7 +52,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// construct the database query
-	createOpts := &repository.CreateTenantInviteOpts{
+	createOpts := &v1.CreateTenantInviteOpts{
 		InviteeEmail: request.Body.Email,
 		InviterEmail: user.Email,
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour), // 1 week expiration
@@ -61,7 +61,7 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 	}
 
 	// create the invite
-	invite, err := t.config.APIRepository.TenantInvite().CreateTenantInvite(ctx.Request().Context(), tenantId, createOpts)
+	invite, err := t.config.V1.TenantInvite().CreateTenantInvite(ctx.Request().Context(), tenantId, createOpts)
 
 	if err != nil {
 		t.config.Logger.Err(err).Msg("could not create tenant invite")
@@ -85,19 +85,17 @@ func (t *TenantService) TenantInviteCreate(ctx echo.Context, request gen.TenantI
 		if err := t.config.Email.SendTenantInviteEmail(emailCtx, invite.InviteeEmail, email.TenantInviteEmailData{
 			InviteSenderName: name,
 			TenantName:       tenant.Name,
-			ActionURL:        t.config.Runtime.ServerURL,
+			ActionURL:        t.config.Runtime.FrontendURL,
 		}); err != nil {
 			t.config.Logger.Err(err).Msg("could not send tenant invite email")
 		}
 	}()
 
-	t.config.Analytics.Enqueue("user-invite:create",
-		sqlchelpers.UUIDToStr(user.ID),
-		&tenantId,
-		nil,
+	t.config.Analytics.Enqueue(ctx.Request().Context(),
+		analytics.Invite, analytics.Create,
+		invite.ID.String(),
 		map[string]interface{}{
-			"invite_id": invite.ID,
-			"role":      request.Body.Role,
+			"role": string(request.Body.Role),
 		},
 	)
 

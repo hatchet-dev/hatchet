@@ -1,34 +1,52 @@
+from __future__ import annotations
+
 from collections.abc import Callable
-from typing import ParamSpec, TypeVar
+from typing import TYPE_CHECKING, ParamSpec, TypeVar
 
 import grpc
 import tenacity
 
-from hatchet_sdk.logger import logger
+from hatchet_sdk.clients.rest.exceptions import (
+    NotFoundException,
+    RestTransportError,
+    ServiceException,
+    TooManyRequestsException,
+)
+
+if TYPE_CHECKING:
+    from hatchet_sdk.config import TenacityConfig
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-def tenacity_retry(func: Callable[P, R]) -> Callable[P, R]:
+def tenacity_retry(func: Callable[P, R], config: TenacityConfig) -> Callable[P, R]:
+    if config.max_attempts <= 0:
+        return func
+
+    def should_retry(ex: BaseException) -> bool:
+        return tenacity_should_retry(ex, config)
+
     return tenacity.retry(
         reraise=True,
-        wait=tenacity.wait_exponential_jitter(),
-        stop=tenacity.stop_after_attempt(5),
-        before_sleep=tenacity_alert_retry,
-        retry=tenacity.retry_if_exception(tenacity_should_retry),
+        wait=config.wait(),
+        stop=tenacity.stop_after_attempt(config.max_attempts),
+        before_sleep=config.before_sleep,
+        retry=tenacity.retry_if_exception(should_retry),
     )(func)
 
 
-def tenacity_alert_retry(retry_state: tenacity.RetryCallState) -> None:
-    """Called between tenacity retries."""
-    logger.debug(
-        f"retrying {retry_state.fn}: attempt "
-        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
-    )
+def tenacity_should_retry(
+    ex: BaseException, config: TenacityConfig | None = None
+) -> bool:
+    """Return True when the exception should be retried."""
+    if isinstance(ex, ServiceException | NotFoundException):
+        return True
 
+    if isinstance(ex, TooManyRequestsException):
+        return bool(config and config.retry_429)
 
-def tenacity_should_retry(ex: BaseException) -> bool:
+    # gRPC errors: retry most, except specific permanent failure codes
     if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
         return ex.code() not in [
             grpc.StatusCode.UNIMPLEMENTED,
@@ -38,4 +56,13 @@ def tenacity_should_retry(ex: BaseException) -> bool:
             grpc.StatusCode.UNAUTHENTICATED,
             grpc.StatusCode.PERMISSION_DENIED,
         ]
+
+    # REST transport errors: opt-in retry for configured HTTP methods
+    if isinstance(ex, RestTransportError):
+        if config is not None and config.retry_transport_errors:
+            method = ex.http_method
+            if method is not None:
+                return method in config.retry_transport_methods
+        return False
+
     return False

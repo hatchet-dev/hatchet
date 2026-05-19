@@ -20,6 +20,8 @@ cd hatchet-python-quickstart
 
 2. Set the required environment variable `HATCHET_CLIENT_TOKEN` created in the [Getting Started Guide](https://docs.hatchet.run/home/hatchet-cloud-quickstart).
 
+For most users, this token is the only required configuration — no server URL or additional settings are needed.
+
 ```bash
 export HATCHET_CLIENT_TOKEN=<token>
 ```

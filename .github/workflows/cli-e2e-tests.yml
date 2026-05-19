@@ -1,0 +1,125 @@
+name: cli-e2e-tests
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cli-e2e-tests.yml"
+      - "cmd/hatchet-cli/cli/templates/**"
+      - "cmd/hatchet-cli/cli/quickstart.go"
+      - "cmd/hatchet-cli/cli/internal/templater/**"
+      - "cmd/hatchet-cli/cli/quickstart_e2e_test.go"
+      - "cmd/hatchet-cli/cli/*.go"
+      - "cmd/hatchet-cli/cli/*_e2e_test.go"
+      - "cmd/hatchet-cli/cli/tui/**"
+      - "cmd/hatchet-cli/cli/testharness/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/cli-e2e-tests.yml"
+      - "cmd/hatchet-cli/cli/templates/**"
+      - "cmd/hatchet-cli/cli/quickstart.go"
+      - "cmd/hatchet-cli/cli/internal/templater/**"
+      - "cmd/hatchet-cli/cli/quickstart_e2e_test.go"
+      - "cmd/hatchet-cli/cli/*.go"
+      - "cmd/hatchet-cli/cli/*_e2e_test.go"
+      - "cmd/hatchet-cli/cli/tui/**"
+      - "cmd/hatchet-cli/cli/testharness/**"
+
+jobs:
+  test-templates:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: "1.25.9"
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13" # pinned because of poetry dependency issue
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Yarn
+        run: npm install -g yarn
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install tmux
+        run: sudo apt-get install -y tmux
+
+      - name: Build CLI
+        run: |
+          cd cmd/hatchet-cli
+          go build -o hatchet-cli
+          sudo mv hatchet-cli /usr/local/bin/hatchet
+          hatchet --version
+
+      - name: Start Hatchet server
+        run: |
+          echo "Starting Hatchet server (this will wait until healthy)..."
+          hatchet server start --profile local --dashboard-port 8080
+
+          echo "Hatchet server is ready!"
+
+      - name: Verify local profile was created
+        run: |
+          hatchet profile list
+
+      - name: Run template E2E tests
+        run: |
+          cd cmd/hatchet-cli/cli
+          go test -tags e2e_cli -run TestQuickstartTemplates -v -timeout 15m
+        env:
+          CI: true
+
+      - name: Run resource E2E tests
+        run: |
+          cd cmd/hatchet-cli/cli
+          go test -tags e2e_cli \
+            -run 'Test(Runs|Workflows|Worker|RateLimits|Scheduled|Cron|Webhooks)' \
+            -v -timeout 10m
+        env:
+          HATCHET_CLI_PROFILE: local
+
+      - name: Show server logs on failure
+        if: failure()
+        run: |
+          echo "=== Hatchet Container Logs ==="
+          docker logs hatchet-cli-hatchet-1 2>&1 || echo "Could not get hatchet container logs"
+          echo ""
+          echo "=== Postgres Container Logs ==="
+          docker logs hatchet-cli-postgres-1 2>&1 || echo "Could not get postgres container logs"
+          echo ""
+          echo "=== All Containers ==="
+          docker ps -a
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Stop Hatchet server (this will stop the containers)
+          hatchet server stop --profile local || true
+
+          # Cleanup any remaining docker containers
+          docker ps -q --filter "label=com.docker.compose.project=hatchet-cli" | xargs -r docker stop || true
+          docker ps -aq --filter "label=com.docker.compose.project=hatchet-cli" | xargs -r docker rm || true

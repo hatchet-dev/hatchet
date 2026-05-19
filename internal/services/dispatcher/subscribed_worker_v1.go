@@ -10,17 +10,21 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 
+	"github.com/google/uuid"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	task *v1.V1TaskWithPayload,
+	durableInvocationCount *int32,
 ) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context done before starting task: %w", ctx.Err())
@@ -35,7 +39,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task.V1Task, task.Runtime, task.RetryCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.Runtime, task.RetryCount, durableInvocationCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -56,30 +60,12 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	return nil
 }
 
-func (worker *subscribedWorker) incBacklogSize(delta int64) bool {
-	worker.backlogSizeMu.Lock()
-	defer worker.backlogSizeMu.Unlock()
-
-	if worker.backlogSize+delta > worker.maxBacklogSize {
-		return false
+func (worker *subscribedWorker) StartBatch(ctx context.Context, action *contracts.AssignedAction) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context done before starting batch: %w", ctx.Err())
 	}
 
-	worker.backlogSize += delta
-
-	return true
-}
-
-func (worker *subscribedWorker) decBacklogSize(delta int64) int64 {
-	worker.backlogSizeMu.Lock()
-	defer worker.backlogSizeMu.Unlock()
-
-	worker.backlogSize -= delta
-
-	if worker.backlogSize < 0 {
-		worker.backlogSize = 0
-	}
-
-	return worker.backlogSize
+	return worker.sendToWorker(ctx, action)
 }
 
 func (worker *subscribedWorker) sendToWorker(
@@ -118,12 +104,10 @@ func (worker *subscribedWorker) sendToWorker(
 
 	encodeSpan.End()
 
-	incSuccess := worker.incBacklogSize(1)
-
-	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
+	if !worker.sendLock.Acquire() {
+		err = fmt.Errorf("could not acquire worker send mutex, flow control is active")
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "worker backlog size exceeded max")
+		span.SetStatus(codes.Error, "flow control is active")
 		return err
 	}
 
@@ -131,10 +115,8 @@ func (worker *subscribedWorker) sendToWorker(
 
 	_, lockSpan := telemetry.NewSpan(ctx, "acquire-worker-stream-lock")
 
-	worker.sendMu.Lock()
-	defer worker.sendMu.Unlock()
-
-	lockSpan.End()
+	defer worker.sendLock.Release()
+	defer lockSpan.End()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{
 		Key:   "lock.duration_ms",
@@ -150,8 +132,6 @@ func (worker *subscribedWorker) sendToWorker(
 
 	go func() {
 		defer close(sentCh)
-		defer worker.decBacklogSize(1)
-
 		err = worker.stream.SendMsg(msg)
 
 		if err != nil {
@@ -176,7 +156,7 @@ func (worker *subscribedWorker) sendToWorker(
 
 func (worker *subscribedWorker) CancelTask(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	task *sqlcv1.V1Task,
 	retryCount int32,
 ) error {
@@ -187,26 +167,39 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, nil, retryCount)
+	action := populateAssignedAction(tenantId, task, nil, retryCount, nil)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
 	sentCh := make(chan error, 1)
-	incSuccess := worker.incBacklogSize(1)
+	acquiredLock := worker.sendLock.Acquire()
+	if !acquiredLock {
+		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
+			task.TenantID,
+			tasktypesv1.CreateMonitoringEventPayload{
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				WorkerId:       &worker.workerId,
+				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+				EventTimestamp: time.Now().UTC(),
+				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.Timeout),
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err)
+		}
 
-	if !incSuccess {
-		err := fmt.Errorf("worker backlog size exceeded max of %d", worker.maxBacklogSize)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "worker backlog size exceeded max")
-		return err
+		err = worker.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+		if err != nil {
+			return fmt.Errorf("could not publish monitoring event for task %d: %w", task.ID, err)
+		}
+
+		return nil
 	}
 
 	go func() {
 		defer close(sentCh)
-		defer worker.decBacklogSize(1)
-
-		worker.sendMu.Lock()
-		defer worker.sendMu.Unlock()
+		defer worker.sendLock.Release()
 
 		sentCh <- worker.stream.Send(action)
 	}()
@@ -224,24 +217,25 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, runtime *sqlcv1.V1TaskRuntime, retryCount int32) *contracts.AssignedAction {
-	workflowId := sqlchelpers.UUIDToStr(task.WorkflowID)
-	workflowVersionId := sqlchelpers.UUIDToStr(task.WorkflowVersionID)
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, runtime *sqlcv1.V1TaskRuntime, retryCount int32, invocationCount *int32) *contracts.AssignedAction {
+	workflowId := task.WorkflowID.String()
+	workflowVersionId := task.WorkflowVersionID.String()
 
 	action := &contracts.AssignedAction{
-		TenantId:          tenantID,
-		JobId:             sqlchelpers.UUIDToStr(task.StepID), // FIXME
-		JobName:           task.StepReadableID,
-		JobRunId:          sqlchelpers.UUIDToStr(task.ExternalID), // FIXME
-		StepId:            sqlchelpers.UUIDToStr(task.StepID),
-		StepRunId:         sqlchelpers.UUIDToStr(task.ExternalID),
-		ActionId:          task.ActionID,
-		StepName:          task.StepReadableID,
-		WorkflowRunId:     sqlchelpers.UUIDToStr(task.WorkflowRunID),
-		RetryCount:        retryCount,
-		Priority:          task.Priority.Int32,
-		WorkflowId:        &workflowId,
-		WorkflowVersionId: &workflowVersionId,
+		TenantId:                   tenantID.String(),
+		JobId:                      task.StepID.String(), // FIXME
+		JobName:                    task.StepReadableID,
+		JobRunId:                   task.ExternalID.String(), // FIXME
+		TaskId:                     task.StepID.String(),
+		TaskRunExternalId:          task.ExternalID.String(),
+		ActionId:                   task.ActionID,
+		TaskName:                   task.StepReadableID,
+		WorkflowRunId:              task.WorkflowRunID.String(),
+		RetryCount:                 retryCount,
+		Priority:                   task.Priority.Int32,
+		WorkflowId:                 &workflowId,
+		WorkflowVersionId:          &workflowVersionId,
+		DurableTaskInvocationCount: invocationCount,
 	}
 
 	if task.AdditionalMetadata != nil {
@@ -249,8 +243,8 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, runtime *sqlcv
 		action.AdditionalMetadata = &metadataStr
 	}
 
-	if task.ParentTaskExternalID.Valid {
-		parentId := sqlchelpers.UUIDToStr(task.ParentTaskExternalID)
+	if task.ParentTaskExternalID != nil {
+		parentId := task.ParentTaskExternalID.String()
 		action.ParentWorkflowRunId = &parentId
 	}
 
@@ -265,8 +259,8 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, runtime *sqlcv
 	}
 
 	if runtime != nil {
-		if runtime.BatchID.Valid {
-			batchID := sqlchelpers.UUIDToStr(runtime.BatchID)
+		if runtime.BatchID != nil {
+			batchID := runtime.BatchID.String()
 			action.BatchId = &batchID
 		}
 
@@ -293,6 +287,16 @@ func populateAssignedAction(tenantID string, task *sqlcv1.V1Task, runtime *sqlcv
 		if key != "" {
 			action.BatchKey = &key
 		}
+	}
+
+	if task.TriggeringEventExternalID != nil {
+		triggeringEventExternalId := task.TriggeringEventExternalID.String()
+		action.TriggeringEventExternalId = &triggeringEventExternalId
+	}
+
+	if task.TriggeringEventKey.Valid {
+		triggeringEventKey := task.TriggeringEventKey.String
+		action.TriggeringEventKey = &triggeringEventKey
 	}
 
 	return action

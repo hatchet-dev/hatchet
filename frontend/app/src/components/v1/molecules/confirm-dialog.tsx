@@ -13,6 +13,7 @@ interface ConfirmDialogProps {
 
   submitLabel: string;
   submitVariant?: ButtonProps['variant'];
+  submitDisabled?: boolean;
   cancelLabel?: string;
   className?: string;
   onSubmit: () => void;
@@ -27,6 +28,7 @@ export function ConfirmDialog({
   description,
   submitLabel,
   submitVariant = 'destructive',
+  submitDisabled = false,
   cancelLabel = 'Cancel',
   isOpen,
   ...props
@@ -48,7 +50,11 @@ export function ConfirmDialog({
             >
               {cancelLabel}
             </Button>
-            <Button variant={submitVariant} onClick={props.onSubmit}>
+            <Button
+              variant={submitVariant}
+              onClick={props.onSubmit}
+              disabled={props.isLoading || submitDisabled}
+            >
               {props.isLoading && <Spinner />}
               {submitLabel}
             </Button>

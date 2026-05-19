@@ -14,9 +14,9 @@ async def test_run() -> None:
 
     # Start all runs
     for i in range(1, num_groups + 1):
-        run = concurrency_limit_rr_workflow.run_no_wait()
+        run = concurrency_limit_rr_workflow.run(wait_for_result=False)
         runs.append(run)
-        run = concurrency_limit_rr_workflow.run_no_wait()
+        run = concurrency_limit_rr_workflow.run(wait_for_result=False)
         runs.append(run)
 
     # Wait for all results

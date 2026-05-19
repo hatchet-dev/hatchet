@@ -15,7 +15,7 @@ import (
 
 const (
 	EmailErr       = "Invalid email address"
-	PasswordErr    = "Invalid password. Passwords must be at least 8 characters in length, contain an upper and lowercase letter, and contain at least one number."
+	PasswordErr    = "Invalid password. Passwords must be between 8 and 64 characters in length, contain an upper and lowercase letter, and contain at least one number."
 	UUIDErr        = "Invalid UUID reference"
 	HatchetNameErr = "Hatchet names must match the regex ^[a-zA-Z0-9\\.\\-_]+$"
 	ActionIDErr    = "Invalid action ID. Action IDs must be in the format <integrationId>:<verb>"

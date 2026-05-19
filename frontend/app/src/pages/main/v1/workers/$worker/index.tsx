@@ -1,9 +1,17 @@
 import { RunsTable } from '../../workflow-runs-v1/components/runs-table';
 import { flattenDAGsKey } from '../../workflow-runs-v1/components/v1/task-runs-columns';
 import { RunsProvider } from '../../workflow-runs-v1/hooks/runs-provider';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge, BadgeProps } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { Separator } from '@/components/v1/ui/separator';
 import {
   Tooltip,
   TooltipContent,
@@ -22,8 +29,9 @@ import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { queries, UpdateWorkerRequest, Worker } from '@/lib/api';
 import { shouldRetryQueryError } from '@/lib/error-utils';
+import { docsPages } from '@/lib/generated/docs';
 import { useApiError } from '@/lib/hooks';
-import { capitalize } from '@/lib/utils';
+import { capitalize, cn } from '@/lib/utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -96,7 +104,7 @@ const WorkerStatus = ({
 
 const N_ACTIONS_TO_PREVIEW = 10;
 
-export default function ExpandedWorkflowRun() {
+export default function WorkerDetail() {
   const { handleApiError } = useApiError({});
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
@@ -127,7 +135,10 @@ export default function ExpandedWorkflowRun() {
   });
 
   const registeredWorkflows = useMemo(
-    () => worker?.registeredWorkflows || [],
+    () =>
+      worker?.registeredWorkflows?.sort((a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      ) ?? [],
     [worker],
   );
 
@@ -169,31 +180,31 @@ export default function ExpandedWorkflowRun() {
     return <Loading />;
   }
 
+  const slotCapacityEntries = Object.entries(worker.slotConfig || {}).sort(
+    ([a], [b]) => a.localeCompare(b),
+  );
+
+  // dynamically set the max columns in the grid based on the presence of runtime info and labels
+  const maxCols =
+    2 +
+    Number(!!worker.runtimeInfo) +
+    Number((worker?.labels?.length ?? 0) > 0);
+
   return (
     <div className="h-full w-full flex-grow">
-      <div className="mx-auto flex flex-col px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto p-4">
         <div className="flex flex-row items-center justify-between">
-          <div className="flex flex-row items-center justify-between gap-4">
+          <div className="flex flex-row items-center gap-4">
             <ServerStackIcon className="mt-1 h-6 w-6 text-foreground" />
             <h2 className="text-2xl font-bold leading-tight text-foreground">
-              <Link
-                to={appRoutes.tenantWorkersRoute.to}
-                params={{ tenant: tenantId }}
-              >
-                Workers/
-              </Link>
-              {worker.webhookUrl || worker.name}
+              {worker.name}
             </h2>
           </div>
           <div className="flex flex-row gap-2">
             <WorkerStatus status={worker.status} health={healthy} />
             <DropdownMenu>
               <DropdownMenuTrigger>
-                <Button
-                  aria-label="Workflow Actions"
-                  size="icon"
-                  variant="ghost"
-                >
+                <Button aria-label="Worker Actions" size="icon" variant="ghost">
                   <BiDotsVertical />
                 </Button>
               </DropdownMenuTrigger>
@@ -213,149 +224,266 @@ export default function ExpandedWorkflowRun() {
             </DropdownMenu>
           </div>
         </div>
-        <Separator className="my-4" />
-        <p className="mt-1 max-w-2xl text-gray-700 dark:text-gray-300">
-          First Connected: <RelativeDate date={worker.metadata?.createdAt} />
-          {worker.lastListenerEstablished && (
-            <>
-              <br />
-              Last Listener Established:{' '}
-              <RelativeDate date={worker.lastListenerEstablished} />
-            </>
-          )}
-          <br />
-          Last Heartbeat:{' '}
-          {worker.lastHeartbeatAt ? (
-            <RelativeDate date={worker.lastHeartbeatAt} />
-          ) : (
-            'never'
-          )}
-          <br />
-        </p>
-        <Separator className="my-4" />
 
-        <div className="mb-4 flex flex-row items-center justify-between">
-          <h3 className="text-xl font-bold leading-tight text-foreground">
-            {(worker.maxRuns ?? 0) > 0
-              ? `${worker.availableRuns} / ${worker.maxRuns ?? 0}`
-              : '100'}{' '}
-            Available Run Slots
-          </h3>
-        </div>
-        <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-          A slot represents one task run on a worker to limit load.{' '}
-          <a href="https://docs.hatchet.run/home/workers" className="underline">
-            Learn more.
-          </a>
-        </div>
-
-        <Separator className="my-4" />
-        <div className="mb-4 flex flex-row items-center justify-between">
-          <h3 className="text-xl font-bold leading-tight text-foreground">
-            Recent Task Runs
-          </h3>
-        </div>
-        <RunsProvider
-          tableKey={`worker-${worker.metadata.id}`}
-          display={{
-            hideMetrics: true,
-            hideCounts: true,
-            hideTriggerRunButton: true,
-            hiddenFilters: [flattenDAGsKey],
-            hideCancelAndReplayButtons: true,
-          }}
-          runFilters={{
-            workerId: worker.metadata.id,
-          }}
+        <div
+          className={cn(
+            'mt-6 grid gap-4 md:grid-cols-2',
+            `lg:grid-cols-${maxCols}`,
+          )}
         >
-          <RunsTable />
-        </RunsProvider>
-        <Separator className="my-4" />
-        <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
-          Registered Workflows
-        </h3>
-        <div className="flex flex-row flex-wrap gap-4">
-          {filteredWorkflows.map((workflow) => {
-            return (
-              <Link
-                to={appRoutes.tenantWorkflowRoute.to}
-                params={{ tenant: tenantId, workflow: workflow.id }}
-                key={workflow.id}
+          <Card
+            variant="light"
+            className="h-52 overflow-y-auto bg-background border-none"
+          >
+            <CardHeader>
+              <CardTitle>Connection Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div>
+                <div className="text-gray-500 dark:text-gray-400">
+                  First Connected
+                </div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">
+                  <RelativeDate date={worker.metadata?.createdAt} />
+                </div>
+              </div>
+              {worker.lastListenerEstablished && (
+                <div>
+                  <div className="text-gray-500 dark:text-gray-400">
+                    Last Listener Established
+                  </div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                    <RelativeDate date={worker.lastListenerEstablished} />
+                  </div>
+                </div>
+              )}
+              <div>
+                <div className="text-gray-500 dark:text-gray-400">
+                  Last Heartbeat
+                </div>
+                <div className="font-medium text-gray-900 dark:text-gray-100">
+                  {worker.lastHeartbeatAt ? (
+                    <RelativeDate date={worker.lastHeartbeatAt} />
+                  ) : (
+                    'Never'
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            variant="light"
+            className="h-52 overflow-y-auto bg-background border-none"
+          >
+            <CardHeader>
+              <CardTitle>Slots</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {slotCapacityEntries.length === 0 ? (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  No slots
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {slotCapacityEntries.map(([slotType, capacity]) => {
+                    const available = capacity?.available;
+                    const limit = capacity?.limit ?? 0;
+                    const showAvailability = available !== undefined;
+                    const used = showAvailability ? limit - available : 0;
+                    const usedPercentage =
+                      showAvailability && limit > 0
+                        ? Math.round((used / limit) * 100)
+                        : 0;
+                    const label = showAvailability
+                      ? `${available} / ${limit}`
+                      : `${limit}`;
+
+                    return (
+                      <div key={slotType} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">
+                            {slotType}
+                          </span>
+                          <span className="font-medium text-gray-900 dark:text-gray-100">
+                            {label}
+                          </span>
+                        </div>
+                        {showAvailability && limit > 0 && (
+                          <div className="space-y-1">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-600/40 dark:bg-gray-500/50">
+                              <div
+                                className="h-full bg-emerald-300 dark:bg-emerald-500 transition-all"
+                                style={{ width: `${usedPercentage}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {used} used, {available} available
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Slots represent concurrent task runs.{' '}
+                <DocsButton
+                  variant="text"
+                  doc={docsPages.v1.workers}
+                  label="Learn more"
+                  scrollTo={'understanding-slots'}
+                />
+              </p>
+            </CardContent>
+          </Card>
+
+          {worker.runtimeInfo &&
+            (worker.runtimeInfo?.sdkVersion ||
+              worker.runtimeInfo?.languageVersion ||
+              worker.runtimeInfo?.os) && (
+              <Card
+                variant="light"
+                className="h-52 overflow-y-auto bg-background border-none"
               >
-                <Button variant="outline">{workflow.name}</Button>
-              </Link>
-            );
-          })}
-        </div>
-        <div className="flex w-full flex-row items-center justify-center py-4">
-          {!showAllActions &&
-            registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
-              <Button variant="outline" onClick={() => setShowAllActions(true)}>
-                {`Show All (${registeredWorkflows.length - N_ACTIONS_TO_PREVIEW} more)`}
-              </Button>
+                <CardHeader>
+                  <CardTitle>Runtime Info</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  {worker.runtimeInfo?.os && (
+                    <div>
+                      <div className="text-gray-500 dark:text-gray-400">OS</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {worker.runtimeInfo.os}
+                      </div>
+                    </div>
+                  )}
+                  {worker.runtimeInfo?.languageVersion && (
+                    <div>
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Runtime
+                      </div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {capitalize(worker.runtimeInfo.language ?? '')}{' '}
+                        {worker.runtimeInfo.languageVersion}
+                      </div>
+                    </div>
+                  )}
+                  {worker.runtimeInfo?.sdkVersion && (
+                    <div>
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Hatchet SDK
+                      </div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {worker.runtimeInfo.sdkVersion}
+                      </div>
+                    </div>
+                  )}
+                  {worker.runtimeInfo?.runtimeExtra && (
+                    <div>
+                      <div className="text-gray-500 dark:text-gray-400">
+                        Runtime Extra
+                      </div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {worker.runtimeInfo.runtimeExtra}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
+
+          {worker.labels && worker.labels.length > 0 && (
+            <Card
+              variant="light"
+              className="h-52 overflow-y-auto bg-background border-none"
+            >
+              <CardHeader>
+                <CardTitle>Worker Labels</CardTitle>
+                <CardDescription>
+                  Key-value pairs used to prioritize step assignment to specific
+                  workers.{' '}
+                  <DocsButton
+                    variant="text"
+                    doc={docsPages.v1['advanced-assignment']['worker-affinity']}
+                    label="Learn more"
+                    scrollTo={'specifying-worker-labels'}
+                  />
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {worker.labels.map(({ key, value }) => (
+                    <Badge key={key} variant="secondary">
+                      {key}: {value}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
-        {worker.labels && worker.labels.length > 0 && (
-          <>
-            <Separator className="my-4" />
-            <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
-              Worker Labels
-            </h3>
-            <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-              Worker labels are key-value pairs that can be used to prioritize
-              assignment of steps to specific workers.{' '}
-              <a
-                className="underline"
-                href="https://docs.hatchet.run/home/features/worker-assignment/worker-affinity#specifying-worker-labels"
-              >
-                Learn more.
-              </a>
-            </div>
-            <div className="flex gap-2">
-              {worker.labels?.map(({ key, value }) => (
-                <Badge key={key}>
-                  {key}:{value}
-                </Badge>
+
+        <Card
+          variant="light"
+          className="mt-4 overflow-y-auto bg-background border-none"
+        >
+          <CardHeader>
+            <CardTitle>Registered Workflows</CardTitle>
+            <CardDescription>
+              Workflows that this worker can execute
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {filteredWorkflows.map((workflow) => (
+                <Link
+                  to={appRoutes.tenantWorkflowRoute.to}
+                  params={{ tenant: tenantId, workflow: workflow.id }}
+                  key={workflow.id}
+                >
+                  <Button variant="outline" size="sm">
+                    {workflow.name}
+                  </Button>
+                </Link>
               ))}
             </div>
-          </>
-        )}
-        {worker.runtimeInfo &&
-          (worker.runtimeInfo?.sdkVersion ||
-            worker.runtimeInfo?.languageVersion ||
-            worker.runtimeInfo?.os ||
-            worker.runtimeInfo?.runtimeExtra) && (
-            <>
-              <Separator className="my-4" />
-              <h3 className="mb-4 text-xl font-bold leading-tight text-foreground">
-                Worker Runtime Info
-              </h3>
-              <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-                {worker.runtimeInfo?.sdkVersion && (
-                  <div>
-                    <b>Hatchet SDK</b>: {worker.runtimeInfo?.sdkVersion}
-                  </div>
-                )}
-                {worker.runtimeInfo?.languageVersion && (
-                  <div>
-                    <b>Runtime</b>:{' '}
-                    {capitalize(worker.runtimeInfo?.language ?? '')}{' '}
-                    {worker.runtimeInfo?.languageVersion}
-                  </div>
-                )}
-                {worker.runtimeInfo?.os && (
-                  <div>
-                    <b>OS</b>: {worker.runtimeInfo?.os}
-                  </div>
-                )}
-                {worker.runtimeInfo?.runtimeExtra && (
-                  <div>
-                    <b>Runtime Extra</b>: {worker.runtimeInfo?.runtimeExtra}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+            {!showAllActions &&
+              registeredWorkflows.length > N_ACTIONS_TO_PREVIEW && (
+                <div className="mt-3 flex justify-start">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAllActions(true)}
+                  >
+                    Show {registeredWorkflows.length - N_ACTIONS_TO_PREVIEW}{' '}
+                    more
+                  </Button>
+                </div>
+              )}
+          </CardContent>
+        </Card>
+
+        <Card variant="light" className="mt-4 bg-primary border-none">
+          <CardContent className="flex-1 h-96 overflow-y-auto bg-background">
+            <RunsProvider
+              tableKey={`worker-${worker.metadata.id}`}
+              display={{
+                hideMetrics: true,
+                hideCounts: true,
+                hideTriggerRunButton: true,
+                hiddenFilters: [flattenDAGsKey],
+                hideCancelAndReplayButtons: true,
+              }}
+              runFilters={{
+                workerId: worker.metadata.id,
+              }}
+            >
+              <RunsTable leftLabel={'Recent runs'} />
+            </RunsProvider>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

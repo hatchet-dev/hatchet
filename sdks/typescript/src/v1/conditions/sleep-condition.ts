@@ -1,4 +1,4 @@
-import { Duration } from '../client/duration';
+import { Duration, durationToString } from '../client/duration';
 import { Condition, Action } from './base';
 
 export interface Sleep {
@@ -49,7 +49,7 @@ export class SleepCondition extends Condition {
    */
   constructor(sleepFor: Duration, readableDataKey?: string, action?: Action) {
     super({
-      readableDataKey: readableDataKey || `sleep-${sleepFor}`,
+      readableDataKey: readableDataKey || `sleep-${durationToString(sleepFor)}`,
       action,
       orGroupId: '',
       expression: '',

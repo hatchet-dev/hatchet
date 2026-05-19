@@ -43,7 +43,9 @@ def remove_null_unicode_character(
 
     if isinstance(data, dict):
         return {
-            key: remove_null_unicode_character(cast(Any, value), replacement)
+            remove_null_unicode_character(
+                cast(Any, key), replacement
+            ): remove_null_unicode_character(cast(Any, value), replacement)
             for key, value in data.items()
         }
 

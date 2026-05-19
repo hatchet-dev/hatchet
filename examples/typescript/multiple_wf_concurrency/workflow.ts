@@ -1,4 +1,4 @@
-import { ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk/workflow';
+import { ConcurrencyLimitStrategy } from '@hatchet-dev/typescript-sdk/v1';
 import { hatchet } from '../hatchet-client';
 
 type SimpleInput = {

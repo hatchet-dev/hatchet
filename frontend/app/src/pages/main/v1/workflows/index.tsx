@@ -8,15 +8,16 @@ import { DocsButton } from '@/components/v1/docs/docs-button';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
 
 export default function WorkflowTable() {
   const { tenantId } = useCurrentTenantId();
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:workflows', {});
 
   const {
     workflows,
@@ -47,7 +48,7 @@ export default function WorkflowTable() {
           <p className="text-lg font-semibold">No workflows found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.home['your-first-task']}
+              doc={docsPages.v1.quickstart}
               label="Learn about creating workflows and tasks"
             />
           </div>

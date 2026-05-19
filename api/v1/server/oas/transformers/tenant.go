@@ -1,17 +1,15 @@
 package transformers
 
 import (
+	"math"
 	"strings"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
-	uiVersion := gen.TenantUIVersion(tenant.UiVersion)
-
+func ToTenant(tenant *sqlcv1.Tenant, serverURL string) *gen.Tenant {
 	var environment *gen.TenantEnvironment
 	if tenant.Environment.Valid {
 		env := gen.TenantEnvironment(tenant.Environment.TenantEnvironment)
@@ -19,20 +17,20 @@ func ToTenant(tenant *dbsqlc.Tenant) *gen.Tenant {
 	}
 
 	return &gen.Tenant{
-		Metadata:          *toAPIMetadata(sqlchelpers.UUIDToStr(tenant.ID), tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
+		Metadata:          *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
 		Name:              tenant.Name,
 		Slug:              tenant.Slug,
 		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
 		AlertMemberEmails: &tenant.AlertMemberEmails,
 		Version:           gen.TenantVersion(tenant.Version),
-		UiVersion:         &uiVersion,
 		Environment:       environment,
+		ServerUrl:         &serverURL,
 	}
 }
 
-func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.TenantAlertingSettings {
+func ToTenantAlertingSettings(alerting *sqlcv1.TenantAlertingSettings) *gen.TenantAlertingSettings {
 	res := &gen.TenantAlertingSettings{
-		Metadata:                        *toAPIMetadata(sqlchelpers.UUIDToStr(alerting.ID), alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
+		Metadata:                        *toAPIMetadata(alerting.ID, alerting.CreatedAt.Time, alerting.UpdatedAt.Time),
 		MaxAlertingFrequency:            alerting.MaxFrequency,
 		EnableExpiringTokenAlerts:       &alerting.EnableExpiringTokenAlerts,
 		EnableWorkflowRunFailureAlerts:  &alerting.EnableWorkflowRunFailureAlerts,
@@ -46,20 +44,23 @@ func ToTenantAlertingSettings(alerting *dbsqlc.TenantAlertingSettings) *gen.Tena
 	return res
 }
 
-func ToTenantAlertEmailGroup(group *dbsqlc.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
+func ToTenantAlertEmailGroup(group *sqlcv1.TenantAlertEmailGroup) *gen.TenantAlertEmailGroup {
 	emails := strings.Split(group.Emails, ",")
 
 	return &gen.TenantAlertEmailGroup{
-		Metadata: *toAPIMetadata(sqlchelpers.UUIDToStr(group.ID), group.CreatedAt.Time, group.UpdatedAt.Time),
+		Metadata: *toAPIMetadata(group.ID, group.CreatedAt.Time, group.UpdatedAt.Time),
 		Emails:   emails,
 	}
 }
 
-func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantResourcePolicy {
+func ToTenantResourcePolicy(_limits []*sqlcv1.TenantResourceLimit) *gen.TenantResourcePolicy {
 
-	limits := make([]gen.TenantResourceLimit, len(_limits))
+	limits := make([]gen.TenantResourceLimit, 0, len(_limits))
 
-	for i, limit := range _limits {
+	for _, limit := range _limits {
+		if limit.LimitValue == math.MaxInt32 {
+			continue
+		}
 
 		var alarmValue int
 		if limit.AlarmValue.Valid {
@@ -71,15 +72,15 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantRe
 			window = limit.Window.String
 		}
 
-		limits[i] = gen.TenantResourceLimit{
-			Metadata:   *toAPIMetadata(sqlchelpers.UUIDToStr(limit.ID), limit.CreatedAt.Time, limit.UpdatedAt.Time),
+		limits = append(limits, gen.TenantResourceLimit{
+			Metadata:   *toAPIMetadata(limit.ID, limit.CreatedAt.Time, limit.UpdatedAt.Time),
 			Resource:   gen.TenantResource(limit.Resource),
 			LimitValue: int(limit.LimitValue),
 			AlarmValue: &alarmValue,
 			Value:      int(limit.Value),
 			Window:     &window,
 			LastRefill: &limit.LastRefill.Time,
-		}
+		})
 	}
 
 	return &gen.TenantResourcePolicy{
@@ -87,7 +88,7 @@ func ToTenantResourcePolicy(_limits []*dbsqlc.TenantResourceLimit) *gen.TenantRe
 	}
 }
 
-func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
+func ToTaskStats(stats map[string]v1.TaskStat, requiredNames []string) gen.TaskStats {
 	result := make(gen.TaskStats)
 
 	for taskName, taskStat := range stats {
@@ -107,7 +108,23 @@ func ToTaskStats(stats map[string]v1.TaskStat) gen.TaskStats {
 		}
 	}
 
+	for _, name := range requiredNames {
+		entry := result[name]
+		if entry.Queued == nil {
+			entry.Queued = zeroTaskStatusStat()
+		}
+		if entry.Running == nil {
+			entry.Running = zeroTaskStatusStat()
+		}
+		result[name] = entry
+	}
+
 	return result
+}
+
+func zeroTaskStatusStat() *gen.TaskStatusStat {
+	zero := int64(0)
+	return &gen.TaskStatusStat{Total: &zero}
 }
 
 func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {

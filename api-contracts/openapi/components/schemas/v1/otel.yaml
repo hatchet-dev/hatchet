@@ -1,0 +1,82 @@
+OtelSpan:
+  type: object
+  properties:
+    traceId:
+      type: string
+    spanId:
+      type: string
+    parentSpanId:
+      type: string
+    spanName:
+      type: string
+    spanKind:
+      $ref: "#/OtelSpanKind"
+    serviceName:
+      type: string
+    statusCode:
+      $ref: "#/OtelStatusCode"
+    statusMessage:
+      type: string
+    durationNs:
+      type: integer
+      format: int64
+    createdAt:
+      type: string
+      format: date-time
+    resourceAttributes:
+      type: object
+      additionalProperties:
+        type: string
+    spanAttributes:
+      type: object
+      additionalProperties:
+        type: string
+    scopeName:
+      type: string
+    scopeVersion:
+      type: string
+    retryCount:
+      type: integer
+      format: int32
+  required:
+    - traceId
+    - spanId
+    - spanName
+    - spanKind
+    - serviceName
+    - statusCode
+    - durationNs
+    - createdAt
+    - retryCount
+
+OtelSpanKind:
+  type: string
+  enum:
+    - UNSPECIFIED
+    - INTERNAL
+    - SERVER
+    - CLIENT
+    - PRODUCER
+    - CONSUMER
+
+OtelStatusCode:
+  type: string
+  enum:
+    - UNSET
+    - OK
+    - ERROR
+
+OtelSpanList:
+  type: object
+  properties:
+    pagination:
+      $ref: "../metadata.yaml#/PaginationResponse"
+    retryCounts:
+      type: array
+      items:
+        type: integer
+        format: int32
+    rows:
+      type: array
+      items:
+        $ref: "#/OtelSpan"

@@ -1,0 +1,117 @@
+module Hatchet
+  module Features
+    class RunFilter
+      attr_accessor since: Time
+      attr_accessor until_time: Time?
+      attr_accessor statuses: Array[untyped]?
+      attr_accessor workflow_ids: Array[String]?
+      attr_accessor additional_metadata: Hash[String, String]?
+
+      def initialize: (
+        since: Time,
+        ?until_time: Time?,
+        ?statuses: Array[untyped]?,
+        ?workflow_ids: Array[String]?,
+        ?additional_metadata: Hash[String, String]?
+      ) -> void
+    end
+
+    class BulkCancelReplayOpts
+      attr_accessor ids: Array[String]?
+      attr_accessor filters: RunFilter?
+
+      def initialize: (
+        ?ids: Array[String]?,
+        ?filters: RunFilter?
+      ) -> void
+
+      def v1_task_filter: () -> untyped?
+      def to_cancel_request: () -> untyped
+      def to_replay_request: () -> untyped
+    end
+
+    class Runs
+      DEFAULT_SINCE_DAYS: Integer
+      LARGE_DATE_RANGE_WARNING_DAYS: Integer
+
+      def initialize: (untyped rest_client, Hatchet::Config config, ?client: Hatchet::Client?) -> void
+
+      def get_task_run: (String task_run_id) -> untyped
+      def get: (String workflow_run_id) -> untyped
+      def get_details: (String workflow_run_id) -> untyped
+      def get_status: (String workflow_run_id) -> untyped
+
+      def list_with_pagination: (
+        ?since: Time?,
+        ?only_tasks: bool,
+        ?offset: Integer?,
+        ?limit: Integer?,
+        ?statuses: Array[untyped]?,
+        ?until_time: Time?,
+        ?additional_metadata: Hash[String, String]?,
+        ?workflow_ids: Array[String]?,
+        ?worker_id: String?,
+        ?parent_task_external_id: String?,
+        ?triggering_event_external_id: String?,
+        ?include_payloads: bool
+      ) -> Array[untyped]
+
+      def list: (
+        ?since: Time?,
+        ?only_tasks: bool,
+        ?offset: Integer?,
+        ?limit: Integer?,
+        ?statuses: Array[untyped]?,
+        ?until_time: Time?,
+        ?additional_metadata: Hash[String, String]?,
+        ?workflow_ids: Array[String]?,
+        ?worker_id: String?,
+        ?parent_task_external_id: String?,
+        ?triggering_event_external_id: String?,
+        ?include_payloads: bool
+      ) -> untyped
+
+      def create: (
+        name: String,
+        input: Hash[String, untyped],
+        ?additional_metadata: Hash[String, untyped]?,
+        ?priority: Integer?
+      ) -> untyped
+
+      def replay: (String run_id) -> void
+      def bulk_replay: (?untyped opts, ?ids: Array[String]?, ?filters: RunFilter?) -> void
+      def cancel: (String run_id) -> void
+      def bulk_cancel: (?untyped opts, ?ids: Array[String]?, ?filters: RunFilter?) -> void
+      def get_result: (String run_id) -> Hash[String, untyped]
+      def get_run_ref: (String workflow_run_id) -> Hatchet::WorkflowRunRef
+
+      def bulk_replay_by_filters_with_pagination: (
+        ?sleep_time: Integer,
+        ?chunk_size: Integer,
+        ?since: Time?,
+        ?until_time: Time?,
+        ?statuses: Array[untyped]?,
+        ?additional_metadata: Hash[String, String]?,
+        ?workflow_ids: Array[String]?
+      ) -> void
+
+      def bulk_cancel_by_filters_with_pagination: (
+        ?sleep_time: Integer,
+        ?chunk_size: Integer,
+        ?since: Time?,
+        ?until_time: Time?,
+        ?statuses: Array[untyped]?,
+        ?additional_metadata: Hash[String, String]?,
+        ?workflow_ids: Array[String]?
+      ) -> void
+
+      def poll: (
+        String workflow_run_id,
+        ?interval: Numeric,
+        ?timeout: Numeric?
+      ) -> untyped
+
+      def subscribe_to_stream: (String workflow_run_id) { (untyped chunk) -> void } -> void
+    end
+  end
+end

@@ -16,11 +16,12 @@ from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
 from hatchet_sdk.clients.rest.models.workflow_run_order_by_direction import (
     WorkflowRunOrderByDirection,
 )
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
-    retry,
 )
+from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 
@@ -48,10 +49,21 @@ class CreateCronTriggerConfig(BaseModel):
         if not v:
             raise ValueError("Cron expression is required")
 
+        ## allow cron aliases
+        if (alias := v.strip()) in {
+            "@yearly",
+            "@annually",
+            "@monthly",
+            "@weekly",
+            "@daily",
+            "@hourly",
+        }:
+            return alias
+
         parts = v.split()
-        if len(parts) != 5:
+        if len(parts) not in (5, 6):
             raise ValueError(
-                "Cron expression must have 5 parts: minute hour day month weekday"
+                "Cron expression must have 5 or 6 parts parts: minute hour day month weekday"
             )
 
         for part in parts:
@@ -82,7 +94,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a new workflow cron trigger.
@@ -96,6 +108,8 @@ class CronClient(BaseRestClient):
 
         :return: The created cron workflow instance.
         """
+        _warn_if_int_priority(priority)
+
         validated_input = CreateCronTriggerConfig(
             expression=expression, input=input, additional_metadata=additional_metadata
         )
@@ -120,7 +134,7 @@ class CronClient(BaseRestClient):
         expression: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> CronWorkflows:
         """
         Create a new workflow cron trigger.
@@ -202,7 +216,6 @@ class CronClient(BaseRestClient):
             cron_name=cron_name,
         )
 
-    @retry
     def list(
         self,
         offset: int | None = None,
@@ -229,7 +242,11 @@ class CronClient(BaseRestClient):
         :return: A list of cron workflows.
         """
         with self.client() as client:
-            return self._wa(client).cron_workflow_list(
+            cron_workflow_list = tenacity_retry(
+                self._wa(client).cron_workflow_list,
+                self.client_config.tenacity,
+            )
+            return cron_workflow_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -243,7 +260,6 @@ class CronClient(BaseRestClient):
                 cron_name=cron_name,
             )
 
-    @retry
     def get(self, cron_id: str) -> CronWorkflows:
         """
         Retrieve a specific workflow cron trigger by ID.
@@ -252,7 +268,10 @@ class CronClient(BaseRestClient):
         :return: The requested cron workflow instance.
         """
         with self.client() as client:
-            return self._wa(client).workflow_cron_get(
+            workflow_cron_get = tenacity_retry(
+                self._wa(client).workflow_cron_get, self.client_config.tenacity
+            )
+            return workflow_cron_get(
                 tenant=self.client_config.tenant_id, cron_workflow=str(cron_id)
             )
 

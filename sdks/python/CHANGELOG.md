@@ -5,6 +5,430 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.5] - 2026-05-12
+
+### Security
+
+- Bump urllib to `2.7.0` to address CVE-2026-44432
+
+## [1.33.4] - 2026-05-08
+
+### Changed
+
+- Fixes a bug where TLS credentials are not passed to the OTLP span exporter.
+
+## [1.33.3] - 2026-04-29
+
+### Changed
+
+- Fixes a bug where passing `wait_for_result=False` when spawning children out of a durable task would not be respected, causing unexpected errors and broken functionality.
+
+## [1.33.2] - 2026-04-22
+
+### Added
+
+- Adds `triggering_event_id` and `triggering_event_key` to the `Context`
+
+## [1.33.1] - 2026-04-21
+
+### Changed
+
+- Adds an optional `label` on durable event waits, which will propagate through to the dashboard
+
+## [1.33.0] - 2026-04-16
+
+### Changed
+
+- Adds `wait` and `before_sleep` parameters to `TenacityConfig` to allow custom retry strategies and retry callbacks.
+
+## [1.32.3] - 2026-04-16
+
+### Changed
+
+- Fixes a couple of internal uses of deprecated methods
+
+## [1.32.2] - 2026-04-15
+
+### Changed
+
+- Fixes a bug where failures sending a completed or failed event from the worker to the engine would fail the task and bypass any retries, even if some were configured on the task
+
+## [1.32.1] - 2026-04-09
+
+### Changed
+
+- Fixes a bug in the shutdown handlers that wouldn't correctly trigger graceful shutdown if only the parent process received a shutdown signal like `SIGTERM`, which might often be the case on e.g. Kubernetes.
+- Fixes an issue where we generated protobufs using a more recent grpcio version than the minimum allowed, causing breakages on older versions.
+
+## [1.32.0] - 2026-04-07
+
+### Added
+
+- Adds `scope` and `lookback_window` arguments for the `DurableContext.aio_wait_for_event`, which allows durable tasks to look back in time for events that may have been emitted before the task started.
+
+## [1.31.0] - 2026-04-03
+
+### Added
+
+- Adds `wait_for_result` parameter to `run()`, `aio_run()`, `run_many()`, and `aio_run_many()` on both `Workflow` and `Standalone`. Passing `wait_for_result=False` replaces the `run_no_wait` / `aio_run_no_wait` / `run_many_no_wait` / `aio_run_many_no_wait` methods.
+- Exports `WorkerLabel` from the top-level `hatchet_sdk` package, alongside the existing `DesiredWorkerLabel` and `WorkerLabelComparator`.
+- Exports `Priority`, `ConcurrencyExpression`, `ConcurrencyLimitStrategy`, `RateLimit`, `RateLimitDuration`, `StickyStrategy`, `SlotType`, `BulkPushEventOptions`, `BulkPushEventWithMetadata`, `PushEventOptions`, and `WorkflowRunTriggerConfig` from the top-level `hatchet_sdk` package.
+- Adds a `current_context` property to `Hatchet` as a replacement for the deprecated `get_current_context()` method.
+
+### Changed
+
+- `worker_labels` and `desired_worker_labels` are now stored internally as `list[WorkerLabel]` / `list[DesiredWorkerLabel]` and converted to the protobuf representation at the last moment, rather than eagerly at construction time.
+- Adds top-level parameters to all of the `run`, `schedule`, etc. methods to pass options directly, instead of needing to import e.g. `TriggerWorkflowOptions` which wasn't very Pythonic.
+
+### Deprecated
+
+- `run_no_wait()`, `aio_run_no_wait()`, `run_many_no_wait()`, and `aio_run_many_no_wait()` are deprecated in favor of `run(wait_for_result=False)`, `aio_run(wait_for_result=False)`, `run_many(wait_for_result=False)`, and `aio_run_many(wait_for_result=False)` respectively.
+- Passing duration parameters (e.g. `schedule_timeout`, `execution_timeout`) as strings is deprecated. Use `timedelta` objects instead.
+- Non-async durable tasks are deprecated. Please convert durable task functions to async.
+- Passing `desired_worker_labels` as a `dict` to task decorators (`@workflow.task`, `@hatchet.task`, etc.) is deprecated. Use a `list[DesiredWorkerLabel]` with the `key` field set instead.
+- Passing `desired_worker_label` as a `dict` to `TriggerWorkflowOptions` is deprecated. Use a `list[DesiredWorkerLabel]` with the `key` field set instead.
+- Passing `priority` as an `int` to task and workflow decorators is deprecated. Use `Priority.LOW`, `Priority.MEDIUM`, or `Priority.HIGH` instead.
+- Passing `comparator` as an `int` to `DesiredWorkerLabel` is deprecated. Use `WorkerLabelComparator` enum values instead.
+- The `debug` parameter on `Hatchet()` is deprecated. Set debug mode via the `HATCHET_CLIENT_DEBUG` environment variable instead.
+- The `client` parameter on `Hatchet()` is deprecated and will be removed in v2.0.0.
+- `Hatchet.get_current_context()` is deprecated. Use the `Hatchet.current_context` property instead.
+- `Context.step_run_id` is deprecated. Use `Context.task_run_id` instead.
+- `Context.workflow_input` and `Context.input` are deprecated. Use the input argument passed directly to the task function instead.
+- `Context.aio_task_output()` is deprecated. Use `Context.task_output()` instead.
+- `Context.done` is deprecated. Use `Context.is_cancelled` instead.
+- `Context.fetch_task_run_error()` is deprecated. Use `Context.get_task_run_error()` instead.
+- Deprecates a number of internal properties and methods on the `Worker` and `Context` that are not intended for public use. These will be removed in v2.0.0.
+- Accessing `ctx.worker` is now deprecated. Use the various properties on the context directly, such as `ctx.worker_id` instead of `ctx.worker.id()`.
+
+## [1.30.0] - 2026-03-30
+
+### Changed
+
+- Adds `mcp_tool` methods to Workflows and Standalone tasks providing compatibility with Claude and OpenAI MCP server tools.
+
+## [1.29.5] - 2026-03-25
+
+### Changed
+
+- Event source info (`hatchet__source_workflow_run_id`, `hatchet__source_step_run_id`) is now injected into event metadata at the `EventClient` level, so cross-workflow trace linking works even without the OTel instrumentor enabled.
+
+## [1.29.3] - 2026-03-23
+
+### Changed
+
+- Fixes `aio_memo` wrapping issue in the OTel instrumentor
+
+## [1.29.2] - 2026-03-17
+
+### Added
+
+- Added `list` and `aio_list` method for Rate Limits Client
+- Added `pause`, `unpause`, `aio_pause`, and `aio_unpause` methods for workers client
+
+## [1.29.1] - 2026-03-17
+
+### Changed
+
+- Updates the `DurableTaskRunAckEntry` model to include `workflow_run_external_id` field, to enable spawning children from durable tasks fire-and-forget style.
+
+## [1.29.0] - 2026-03-16
+
+### Added
+
+- Added a `DurableContext.wait_for_event` helper which returns the payload of the awaited event.
+- Added an `EvictionPolicy`, which allows durable tasks to be evicted from the worker when idle.
+
+### Changed
+
+- Makes a bunch of internal-facing changes for new durable execution features
+
+## [1.28.2] - 2026-03-12
+
+### Changed
+
+- Fixes a bug where the literal string (`\u0000`) in task output was incorrectly rejected as null unicode.
+
+## [1.28.1] - 2026-03-05
+
+### Changed
+
+- Fixes a bug where lifespans are shut down eagerly before the worker is drained, causing unexpected behavior in still-running tasks.
+- Cron expressions now support an optional leading seconds field (6-part expressions), e.g. `30 * * * * *` to trigger at 30 seconds past every minute.
+
+## [1.28.0] - 2026-03-02
+
+### Added
+
+- Adds a `desired_worker_labels` parameter to the `TriggerWorkflowOptions` to allow for dynamically routing task runs to a specific worker at trigger time
+
+### Changed
+
+- Adds support for second-level (six-entry) cron expressions (only supported on new engine versions)
+
+## [1.27.2] - 2026-02-28
+
+### Added
+
+- Adds the `worker_id` to the `Context`
+
+### Changed
+
+- Fixes a bug where failed serialization of task outputs causes the task to hang indefinitely.
+
+## [1.27.1] - 2026-02-27
+
+### Changed
+
+- Updated internal dependencies to address security advisories.
+
+## [1.27.0] - 2026-02-27
+
+### Added
+
+- Adds a `get_current_context` helper on the main `Hatchet` client to allow users to get the current `Context` in tasks (generally in functions called from tasks) without needing to drill the `Context` through function parameters.
+
+### Changed
+
+- Significantly improves serialization performance for task inputs and outputs by using the `dump_json` method on the `TypeAdapter` to do serialization in Rust. Mimics a similar [recent change in FastAPI](https://github.com/fastapi/fastapi/pull/14962).
+
+## [1.26.2] - 2026-02-26
+
+### Added
+
+- Adds `retry_transport_errors` and `retry_transport_methods` to `TenacityConfig` to optionally retry REST transport-level failures for configured HTTP methods (default: `GET`, `DELETE`). Default behavior is unchanged.
+
+### Changed
+
+- Uses a structured `http_method` on `RestTransportError` for determining retry eligibility.
+
+## [1.26.1] - 2026-02-25
+
+### Added
+
+- Adds `retry_429` to `TenacityConfig` (default: `False`) to optionally retry REST HTTP 429 responses.
+- Adds `TooManyRequestsException` and maps REST HTTP 429 responses to it.
+
+## [1.26.0] - 2026-02-25
+
+### Fixed
+
+- Fixes dependencies not working when using `type Dependency = Annotated[..., ...]` syntax for annotations on python version 3.12 and 3.13. Adds `typing-inspection` as a dependency.
+
+### Changed
+
+- Changes one function in the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
+
+## [1.25.2] - 2026-02-19
+
+### Fixed
+
+- Reverts cancellation changes in 1.25.0 that introduced a regression
+
+## [1.25.1] - 2026-02-17
+
+### Fixed
+
+- Fixes internal registration of durable slots
+
+## [1.25.0] - 2026-02-17 **YANKED ON 2/19/26**
+
+### Added
+
+- Adds a `CancellationToken` class for coordinating cancellation across async and sync operations. The token provides both `asyncio.Event` and `threading.Event` primitives, and supports registering child workflow run IDs and callbacks.
+- Adds a `CancellationReason` enum with structured reasons for cancellation (`user_requested`, `timeout`, `parent_cancelled`, `workflow_cancelled`, `token_cancelled`).
+- Adds a `CancelledError` exception (inherits from `BaseException`, mirroring `asyncio.CancelledError`) for sync code paths.
+- Adds `cancellation_grace_period` and `cancellation_warning_threshold` configuration options to `ClientConfig` for controlling cancellation timing behavior.
+- Adds `await_with_cancellation` and `race_against_token` utility functions for racing awaitables against cancellation tokens.
+- The `Context` now exposes a `cancellation_token` property, allowing tasks to observe and react to cancellation signals directly.
+
+### Changed
+
+- The `Context.exit_flag` is now backed by a `CancellationToken` instead of a plain boolean. The property is maintained for backwards compatibility.
+- Durable context `aio_wait_for` now respects the cancellation token, raising `asyncio.CancelledError` if the task is cancelled while waiting.
+
+## [1.24.0] - 2026-02-13
+
+### Added
+
+- Webhooks client for managing incoming webhooks: create, list, get, update, and delete methods for webhooks, so external systems (e.g. GitHub, Stripe) can trigger workflows via HTTP.
+
+## [1.23.4] - 2026-02-13
+
+### Changed
+
+- Fixes cases where raising exception classes or exceptions with no message would cause the whole error including stack trace to be converted to an empty string.
+- When an error is raised because a workflow has no tasks it now includes the workflows name.
+
+## [1.23.3] - 2026-02-12
+
+### Added
+
+- Adds type-hinted `Standalone.output_validator` and `Standalone.output_validator_type` properties to support easier type-safety and match the `input_validator` property pattern on `BaseWorkflow`.
+- Adds type-hinted `Task.output_validator` and `Task.output_validator_type` properties to support easier type-safety and match the patterns on `BaseWorkflow/Standalone`.
+- Adds parameterized unit tests documenting current retry behavior of the Python SDK’s tenacity retry predicate for REST and gRPC errors.
+
+## [1.23.2] - 2026-02-11
+
+### Changed
+
+- Improves error handling for REST transport-level failures by raising typed exceptions for timeouts, connection, TLS, and protocol errors while preserving existing diagnostics.
+
+## [1.23.1] - 2026-02-10
+
+### Changed
+
+- Fixes a bug introduced in v1.21.0 where the `BaseWorkflow.input_validator` class property became incorrectly typed. Now separate properties are available for the type adapter and the underlying type.
+
+## [1.23.0] - 2026-02-05
+
+### Internal Only
+
+- Updated gRPC/REST contract field names to snake_case for consistency across SDKs.
+
+## [1.22.16] - 2026-02-05
+
+### Changed
+
+- Changes the python SDK to use `inspect.iscoroutinefunction` instead of `asyncio.iscoroutinefunction` which is deprecated.
+- Improves error diagnostics for transport-level failures in the REST client, such as SSL, connection, and timeout errors, by surfacing additional context.
+
+## [1.22.15] - 2026-02-02
+
+### Added
+
+- Adds `task_name` and `workflow_name` properties to the `Context` and `DurableContext` classes to allow tasks and lifespans to access their own names.
+
+### Changed
+
+- Fixes a bug to allow `ContextVars` to be used in lifespans
+- Improves worker shutdown + cleanup logic to avoid leaking semaphores in the action listener process.
+
+## [1.22.14] - 2026-01-31
+
+### Changed
+
+- Allows `None` to be sent from `send_step_action_event` to help limit an internal error on the engine.
+
+## [1.22.13] - 2026-01-29
+
+### Added
+
+- Sends the `task_retry_count` when sending logs to the engine to enable filtering on the frontend.
+
+## [1.22.12] - 2026-01-28
+
+### Added
+
+- Adds a `default_additional_metadata` to the `hatchet.workflow`, `hatchet.task`, and `hatchet.durable_task` methods, which allows you to declaratively provide additional metadata that will be attached to each run of the workflow or task by default.
+
+### Internal Only
+
+- Sends a JSON schema to the engine on workflow registration in order to power autocomplete for triggering workflows from the dashboard.
+
+## [1.22.11] - 2026-01-27
+
+### Changed
+
+- Improves handling of cancellations for tasks to limit how often tasks receive a cancellation but then are marked as succeeded anyways.
+
+## [1.22.10] - 2026-01-26
+
+### Added
+
+- `HATCHET_CLIENT_WORKER_HEALTHCHECK_BIND_ADDRESS` now allows configuring the bind address for the worker healthcheck server (default: `0.0.0.0`)
+
+## [1.22.9] - 2026-01-26
+
+### Added
+
+- Adds missing `unwrap` for `schedule_workflow` in OpenTelemetry instrumentor.
+
+## [1.22.8] - 2026-01-20
+
+### Added
+
+- Adds `HATCHET_CLIENT_WORKER_HEALTHCHECK_EVENT_LOOP_BLOCK_THRESHOLD_SECONDS` to configure when the worker healthcheck becomes unhealthy if the listener process event loop is blocked / task runs are not starting promptly.
+
+### Removed
+
+- Removes a bunch of Poetry scripts that were mostly used for local development and are not necessary for end users of the SDK.
+
+### Changed
+
+- The worker healthcheck server (`/health`, `/metrics`) now runs in the spawned action-listener process (non-durable preferred; durable fallback), instead of the main worker process.
+- The worker `/health` endpoint now checks for listener connection status and aio event loop health.
+- The worker `/metrics` endpoint now exposes listener-focused metrics like `hatchet_worker_listener_health_<worker_name>` and `hatchet_worker_event_loop_lag_seconds_<worker_name>`.
+
+## [1.22.7] - 2026-01-19
+
+### Added
+
+- Adds `is_in_hatchet_serialization_context` function which can be used on a Pydantic `ValidationInfo.context` to determine if the validation/serialization is occurring as a part of Hatchet deserializing task input or serializing task outputs.
+
+## [1.22.6] - 2026-01-14
+
+### Added
+
+- Adds `max_attempts: int` (retries + 1) to the Context
+
+## [1.22.5] - 2026-01-09
+
+### Added
+
+- Adds an `additional_metadata` field to the `get_details` response.
+
+## [1.22.4] - 2026-01-08
+
+### Added
+
+- Adds a `get_details` method to the runs client
+
+## [1.22.3] - 2026-01-07
+
+### Changed
+
+- Fixes an issue with the type signature for chained dependencies
+- Truncates log messages to 10,000 characters to avoid issues with overly large logs.
+
+## [1.22.2] - 2025-12-31
+
+### Added
+
+- Crons can now be provided by alias, e.g. `@daily`
+
+### Changed
+
+- Failed workflow logs are only reported at the `exception` level either on the last retry attempt or if the task is marked as `non_retryable`, to avoid spamming e.g. Sentry with exceptions.
+
+## [1.22.1] - 2025-12-30
+
+### Changed
+
+- Regenerates some API signatures after deprecating many v0 routes.
+
+## [1.22.0] - 2025-12-26
+
+### Added
+
+- Dependencies are now chainable, so one dependency can rely on an upstream one, similar to in FastAPI.
+- Dependencies can now be both functions (sync and async) and context managers (sync and async) to allow for cleaning up things like database connections, etc.
+- The `ClientConfig` has a new `Tenacity` object, which allows for specifying retry config.
+- Concurrency limits can now be specified as integers, which will provide behavior equivalent to setting a constant key with a `GROUP_ROUND_ROBIN` strategy.
+
+### Changed
+
+- Improves the errors raised out of the sync `result` method on the `WorkflowRunRef` to be more in line with the async version, raising a `FailedTaskRunExceptionGroup` that contains all of the task run errors instead of just the first one.
+
+### Internal
+
+- Replaces manual validation logic with Pydantic's `TypeAdapter` for improved correctness and flexibility.
+
+## [1.21.8] - 2025-12-26
+
+### Changed
+
+- Fixes a bug where static rate limits reset their own values to zero on task registration.
+
 ## [1.21.7] - 2025-12-15
 
 ### Added

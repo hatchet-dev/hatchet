@@ -13,6 +13,8 @@ export interface FilterOption {
   label: string;
   value: string;
   icon?: React.ComponentType<{ className?: string }>;
+  subFilterColumnId?: string;
+  subOptions?: FilterOption[];
 }
 
 export enum ToolbarType {
@@ -36,12 +38,17 @@ export interface TimeRangeConfig {
   finishedBefore?: string;
 }
 
+export interface FilterSearchConfig {
+  onSearch: (term: string) => void;
+}
+
 export type ToolbarFilters = {
   columnId: string;
   title: string;
   type: ToolbarType;
   options?: FilterOption[];
   timeRangeConfig?: TimeRangeConfig;
+  searchConfig?: FilterSearchConfig;
 }[];
 
 type RefetchProps = {
@@ -104,7 +111,7 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between">
       <div className="flex w-full flex-shrink-0 flex-row items-center justify-between overflow-x-auto">
         <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
-          {isLoading && <Spinner />}
+          {!leftActions && isLoading && <Spinner />}
           {leftActions}
         </div>
         <div className="flex flex-shrink-0 flex-row items-center gap-2">

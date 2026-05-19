@@ -20,20 +20,23 @@ defaults:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
-          version: 1.5.1
+          version: 2.3.0
           virtualenvs-create: true
           virtualenvs-in-project: true
 
@@ -42,9 +45,6 @@ jobs:
 
       - name: Run Black
         run: poetry run black . --check --verbose --diff --color
-
-      - name: Run Isort
-        run: poetry run isort . --check-only --diff
 
       - name: Run MyPy
         run: poetry run mypy --config-file=pyproject.toml
@@ -59,29 +59,30 @@ jobs:
         run: pip install -e .
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.14"]') || fromJSON('["3.10", "3.11", "3.12", "3.13", "3.14"]') }}
+        optimistic-scheduling: ["true", "false"]
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "25.1"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.25.9"
 
       - name: Start Docker dependencies
         working-directory: .
@@ -92,7 +93,6 @@ jobs:
         run: |
           export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
           go run ./cmd/hatchet-migrate
-          task generate-go
 
       - name: Setup
         working-directory: .
@@ -104,6 +104,8 @@ jobs:
           export SERVER_AUTH_COOKIE_INSECURE=true
           export SERVER_DEFAULT_ENGINE_VERSION=V1
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
+          export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
+          export SERVER_OBSERVABILITY_ENABLED=true
 
           go run ./cmd/hatchet-admin quickstart
 
@@ -112,7 +114,7 @@ jobs:
 
           sleep 30
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -120,9 +122,9 @@ jobs:
         run: python -c "import sys; print(sys.version)"
 
       - name: Install Poetry
-        uses: snok/install-poetry@v1
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
-          version: 1.5.1
+          version: 2.3.0
           virtualenvs-create: true
           virtualenvs-in-project: true
 
@@ -146,40 +148,162 @@ jobs:
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
 
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 8
+
+      - name: Test with wheel
+        run: |
+          poetry build
+          poetry run pip uninstall hatchet_sdk -y
+          poetry run pip install --no-cache-dir --no-index --find-links dist/  hatchet_sdk -v
+          poetry run python -c "from hatchet_sdk import Workflow;"
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: $HATCHET_CLIENT_NAMESPACE-engine-logs
-          path: $HATCHET_CLIENT_NAMESPACE-engine.log
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-engine-logs
+          path: engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: $HATCHET_CLIENT_NAMESPACE-api-logs
-          path: $HATCHET_CLIENT_NAMESPACE-api.log
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-api-logs
+          path: api.log
+
+  old-engine-new-sdk:
+    runs-on: ubicloud-standard-4
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: "1.25.9"
+
+      - name: Start Docker dependencies
+        working-directory: .
+        run: docker compose up -d
+
+      - name: Determine latest stable release tag
+        working-directory: .
+        run: |
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "ERROR: No stable release tag found"
+            exit 1
+          fi
+          echo "Latest stable tag: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Pull release images
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml pull hatchet-migrate hatchet-admin hatchet-engine hatchet-api
+
+      - name: Run migrations
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm hatchet-migrate
+
+      - name: Setup config and seed database
+        working-directory: .
+        run: |
+          mkdir -p generated
+          docker compose -f docker-compose.yml -f docker-compose.release.yml run --rm \
+            hatchet-admin /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+
+      - name: Generate API token
+        working-directory: .
+        run: |
+          TOKEN=$(docker compose -f docker-compose.yml -f docker-compose.release.yml run -T --rm \
+            hatchet-admin /hatchet/hatchet-admin token create --config /hatchet/generated --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)
+          echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
+
+      - name: Start engine and API
+        working-directory: .
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.release.yml up -d hatchet-engine hatchet-api
+          sleep 30
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: 2.3.0
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --all-extras
+
+      - name: Set HATCHET_CLIENT_NAMESPACE
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "HATCHET_CLIENT_NAMESPACE=old-engine-new-sdk-${SHORT_SHA}" >> $GITHUB_ENV
+
+      - name: Run pytest
+        env:
+          HATCHET_CLIENT_TLS_STRATEGY: none
+          HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "True"
+        run: |
+          echo "Testing current SDK against engine ${{ env.LATEST_TAG }}"
+          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+
+      - name: Collect engine logs
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-engine > /tmp/engine.log 2>&1 || true
+
+      - name: Upload engine logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
+          path: /tmp/engine.log
+
+      - name: Collect API logs
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml logs hatchet-api > /tmp/api.log 2>&1 || true
+
+      - name: Upload API logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
+          path: /tmp/api.log
+
+      - name: Teardown
+        if: always()
+        working-directory: .
+        run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     needs: [lint, test]
     if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.x"
 
       - name: Install Poetry
         run: |
-          pipx install poetry==1.7.1
+          pipx install poetry==2.3.0
 
       - name: Run publish.sh script
         run: |

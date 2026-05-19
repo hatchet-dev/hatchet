@@ -1,0 +1,206 @@
+# Webhooks Client
+
+Bases: `BaseRestClient`
+
+The webhooks client provides methods for managing incoming webhooks in Hatchet.
+
+Webhooks allow external systems to trigger Hatchet workflows by sending HTTP requests to dedicated endpoints. This enables real-time integration with third-party services like GitHub, Stripe, Slack, or any system that can send webhook events.
+
+Methods:
+
+| Name         | Description                       |
+| ------------ | --------------------------------- |
+| `aio_create` | Create a new webhook.             |
+| `aio_delete` | Delete a webhook by its name.     |
+| `aio_get`    | Get a webhook by its name.        |
+| `aio_list`   | List webhooks for a given tenant. |
+| `aio_update` | Update a webhook by its name.     |
+| `create`     | Create a new webhook.             |
+| `delete`     | Delete a webhook by its name.     |
+| `get`        | Get a webhook by its name.        |
+| `list`       | List webhooks for a given tenant. |
+| `update`     | Update a webhook by its name.     |
+
+### Functions
+
+#### `aio_create`
+
+Create a new webhook.
+
+Parameters:
+
+| Name                   | Type                                                             | Description                                                                      | Default    |
+| ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------- |
+| `source_name`          | `V1WebhookSourceName`                                            | The source name identifying the external system sending webhook events.          | _required_ |
+| `name`                 | `str`                                                            | The name of the webhook.                                                         | _required_ |
+| `event_key_expression` | `str`                                                            | A CEL expression used to extract the event key from the incoming payload.        | _required_ |
+| `auth`                 | `V1WebhookBasicAuth \| V1WebhookAPIKeyAuth \| V1WebhookHMACAuth` | The authentication configuration for the webhook (basic auth, API key, or HMAC). | _required_ |
+| `scope_expression`     | `str \| None`                                                    | An optional CEL expression used to extract the scope from the incoming payload.  | `None`     |
+| `static_payload`       | `dict[str, Any] \| None`                                         | An optional static payload to merge into every triggered event.                  | `None`     |
+
+Returns:
+
+| Type        | Description          |
+| ----------- | -------------------- |
+| `V1Webhook` | The created webhook. |
+
+#### `aio_delete`
+
+Delete a webhook by its name.
+
+Parameters:
+
+| Name           | Type  | Description                        | Default    |
+| -------------- | ----- | ---------------------------------- | ---------- |
+| `webhook_name` | `str` | The name of the webhook to delete. | _required_ |
+
+Returns:
+
+| Type        | Description          |
+| ----------- | -------------------- |
+| `V1Webhook` | The deleted webhook. |
+
+#### `aio_get`
+
+Get a webhook by its name.
+
+Parameters:
+
+| Name           | Type  | Description                          | Default    |
+| -------------- | ----- | ------------------------------------ | ---------- |
+| `webhook_name` | `str` | The name of the webhook to retrieve. | _required_ |
+
+Returns:
+
+| Type        | Description                          |
+| ----------- | ------------------------------------ |
+| `V1Webhook` | The webhook with the specified name. |
+
+#### `aio_list`
+
+List webhooks for a given tenant.
+
+Parameters:
+
+| Name            | Type                                | Description                                                               | Default |
+| --------------- | ----------------------------------- | ------------------------------------------------------------------------- | ------- |
+| `limit`         | `int \| None`                       | The maximum number of webhooks to return.                                 | `None`  |
+| `offset`        | `int \| None`                       | The number of webhooks to skip before starting to collect the result set. | `None`  |
+| `webhook_names` | `list[str] \| None`                 | A list of webhook names to filter by.                                     | `None`  |
+| `source_names`  | `list[V1WebhookSourceName] \| None` | A list of source names to filter by.                                      | `None`  |
+
+Returns:
+
+| Type            | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `V1WebhookList` | A list of webhooks matching the specified criteria. |
+
+#### `aio_update`
+
+Update a webhook by its name.
+
+Parameters:
+
+| Name                   | Type                     | Description                                                                        | Default    |
+| ---------------------- | ------------------------ | ---------------------------------------------------------------------------------- | ---------- |
+| `webhook_name`         | `str`                    | The name of the webhook to update.                                                 | _required_ |
+| `event_key_expression` | `str \| None`            | An updated CEL expression used to extract the event key from the incoming payload. | `None`     |
+| `scope_expression`     | `str \| None`            | An updated CEL expression used to extract the scope from the incoming payload.     | `None`     |
+| `static_payload`       | `dict[str, Any] \| None` | An updated static payload to merge into every triggered event.                     | `None`     |
+
+Returns:
+
+| Type        | Description          |
+| ----------- | -------------------- |
+| `V1Webhook` | The updated webhook. |
+
+#### `create`
+
+Create a new webhook.
+
+Parameters:
+
+| Name                   | Type                                                             | Description                                                                      | Default    |
+| ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------- |
+| `source_name`          | `V1WebhookSourceName`                                            | The source name identifying the external system sending webhook events.          | _required_ |
+| `name`                 | `str`                                                            | The name of the webhook.                                                         | _required_ |
+| `event_key_expression` | `str`                                                            | A CEL expression used to extract the event key from the incoming payload.        | _required_ |
+| `auth`                 | `V1WebhookBasicAuth \| V1WebhookAPIKeyAuth \| V1WebhookHMACAuth` | The authentication configuration for the webhook (basic auth, API key, or HMAC). | _required_ |
+| `scope_expression`     | `str \| None`                                                    | An optional CEL expression used to extract the scope from the incoming payload.  | `None`     |
+| `static_payload`       | `dict[str, Any] \| None`                                         | An optional static payload to merge into every triggered event.                  | `None`     |
+
+Returns:
+
+| Type        | Description          |
+| ----------- | -------------------- |
+| `V1Webhook` | The created webhook. |
+
+#### `delete`
+
+Delete a webhook by its name.
+
+Parameters:
+
+| Name           | Type  | Description                        | Default    |
+| -------------- | ----- | ---------------------------------- | ---------- |
+| `webhook_name` | `str` | The name of the webhook to delete. | _required_ |
+
+Returns:
+
+| Type        | Description          |
+| ----------- | -------------------- |
+| `V1Webhook` | The deleted webhook. |
+
+#### `get`
+
+Get a webhook by its name.
+
+Parameters:
+
+| Name           | Type  | Description                          | Default    |
+| -------------- | ----- | ------------------------------------ | ---------- |
+| `webhook_name` | `str` | The name of the webhook to retrieve. | _required_ |
+
+Returns:
+
+| Type        | Description                          |
+| ----------- | ------------------------------------ |
+| `V1Webhook` | The webhook with the specified name. |
+
+#### `list`
+
+List webhooks for a given tenant.
+
+Parameters:
+
+| Name            | Type                                | Description                                                               | Default |
+| --------------- | ----------------------------------- | ------------------------------------------------------------------------- | ------- |
+| `limit`         | `int \| None`                       | The maximum number of webhooks to return.                                 | `None`  |
+| `offset`        | `int \| None`                       | The number of webhooks to skip before starting to collect the result set. | `None`  |
+| `webhook_names` | `list[str] \| None`                 | A list of webhook names to filter by.                                     | `None`  |
+| `source_names`  | `list[V1WebhookSourceName] \| None` | A list of source names to filter by.                                      | `None`  |
+
+Returns:
+
+| Type            | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `V1WebhookList` | A list of webhooks matching the specified criteria. |
+
+#### `update`
+
+Update a webhook by its name.
+
+Parameters:
+
+| Name                   | Type                     | Description                                                                        | Default    |
+| ---------------------- | ------------------------ | ---------------------------------------------------------------------------------- | ---------- |
+| `webhook_name`         | `str`                    | The name of the webhook to update.                                                 | _required_ |
+| `event_key_expression` | `str \| None`            | An updated CEL expression used to extract the event key from the incoming payload. | `None`     |
+| `scope_expression`     | `str \| None`            | An updated CEL expression used to extract the scope from the incoming payload.     | `None`     |
+| `static_payload`       | `dict[str, Any] \| None` | An updated static payload to merge into every triggered event.                     | `None`     |
+
+Returns:
+
+| Type        | Description          |
+| ----------- | -------------------- |
+| `V1Webhook` | The updated webhook. |

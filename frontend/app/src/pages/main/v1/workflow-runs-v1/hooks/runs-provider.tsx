@@ -7,10 +7,23 @@ import { useMetrics } from './use-metrics';
 import { useRuns } from './use-runs';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { PaginationState, Updater } from '@tanstack/react-table';
-import { createContext, useContext, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
+
+const ALWAYS_HIDDEN_RUN_COLUMNS: VisibilityState = {
+  parentTaskExternalId: false,
+  flattenDAGs: false,
+  runningFilter: false,
+};
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -20,7 +33,6 @@ type DisplayProps = {
   hideCancelAndReplayButtons?: boolean;
   hideColumnToggle?: boolean;
   hiddenFilters?: TaskRunColumnKeys[];
-  hidePagination?: boolean;
 };
 
 type RunFilteringProps = {
@@ -33,17 +45,19 @@ type RunFilteringProps = {
 type RunsProviderProps = {
   tableKey: string;
   children: React.ReactNode;
-  disableTaskRunPagination?: boolean;
   initColumnVisibility?: Record<string, boolean>;
   filterVisibility?: Record<string, boolean>;
   display?: DisplayProps;
   runFilters?: RunFilteringProps;
+  // When provided, column visibility is persisted to localStorage under
+  // `hatchet:columns:<persistColumnVisibilityKey>`. Use a stable key — avoid
+  // embedding per-row IDs to prevent unbounded localStorage growth.
+  persistColumnVisibilityKey?: string;
 };
 
 type RunsContextType = {
   actions: {
     setIsActionModalOpen: (isOpen: boolean) => void;
-    setIsActionDropdownOpen: (isOpen: boolean) => void;
     setSelectedActionType: (actionType: ActionType | null) => void;
     refetchRuns: () => void;
     refetchMetrics: () => void;
@@ -69,7 +83,6 @@ type RunsContextType = {
   runStatusCounts: V1TaskRunMetrics;
   queueMetrics: object;
   isActionModalOpen: boolean;
-  isActionDropdownOpen: boolean;
   selectedActionType: ActionType | null;
   actionModalParams: BaseTaskRunActionParams;
   display: DisplayProps;
@@ -85,14 +98,13 @@ const RunsContext = createContext<RunsContextType | null>(null);
 export const RunsProvider = ({
   tableKey,
   children,
-  disableTaskRunPagination = false,
   initColumnVisibility = {},
   filterVisibility = {},
   display,
   runFilters,
+  persistColumnVisibilityKey,
 }: RunsProviderProps) => {
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
-  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
     useState<ActionType | null>(null);
 
@@ -100,11 +112,46 @@ export const RunsProvider = ({
   const [showQueueMetrics, setShowQueueMetrics] = useState(false);
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    ...initColumnVisibility,
-    parentTaskExternalId: false, // Always hidden, used for filtering only
-    flattenDAGs: false, // Always hidden, used for filtering only
-  });
+  const initialVisibility: VisibilityState = useMemo(
+    () => ({
+      ...initColumnVisibility,
+      ...ALWAYS_HIDDEN_RUN_COLUMNS,
+    }),
+    [initColumnVisibility],
+  );
+
+  const [persistedVisibility, setPersistedVisibility] =
+    useLocalStorageState<VisibilityState>(
+      `hatchet:columns:${persistColumnVisibilityKey ?? '__none__'}`,
+      initialVisibility,
+    );
+  const [transientVisibility, setTransientVisibility] =
+    useState<VisibilityState>(initialVisibility);
+
+  const columnVisibility: VisibilityState = useMemo(
+    () =>
+      persistColumnVisibilityKey
+        ? { ...persistedVisibility, ...ALWAYS_HIDDEN_RUN_COLUMNS }
+        : transientVisibility,
+    [persistColumnVisibilityKey, persistedVisibility, transientVisibility],
+  );
+
+  const setColumnVisibility = useCallback(
+    (updater: Updater<VisibilityState>) => {
+      if (persistColumnVisibilityKey) {
+        setPersistedVisibility((prev) => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          return { ...next, ...ALWAYS_HIDDEN_RUN_COLUMNS };
+        });
+      } else {
+        setTransientVisibility((prev) => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          return { ...next, ...ALWAYS_HIDDEN_RUN_COLUMNS };
+        });
+      }
+    },
+    [persistColumnVisibilityKey, setPersistedVisibility],
+  );
 
   const {
     workflowId,
@@ -153,13 +200,13 @@ export const RunsProvider = ({
     createdAfter: filters.apiFilters.since,
     finishedBefore: filters.apiFilters.until,
     statuses: filters.apiFilters.statuses,
+    runningFilter: filters.apiFilters.runningFilter,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     workerId,
     workflowIds:
       filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
     parentTaskExternalId,
     triggeringEventExternalId,
-    disablePagination: disableTaskRunPagination,
     onlyTasks: !!workerId || flattenDAGs,
   });
 
@@ -210,7 +257,6 @@ export const RunsProvider = ({
       runStatusCounts,
       queueMetrics,
       isActionModalOpen,
-      isActionDropdownOpen,
       actionModalParams,
       selectedActionType,
       pagination,
@@ -225,12 +271,10 @@ export const RunsProvider = ({
         hideTriggerRunButton,
         hideCancelAndReplayButtons,
         hideColumnToggle,
-        hidePagination: disableTaskRunPagination,
         hiddenFilters,
       },
       actions: {
         setIsActionModalOpen,
-        setIsActionDropdownOpen,
         setSelectedActionType,
         refetchRuns,
         refetchMetrics,
@@ -257,7 +301,6 @@ export const RunsProvider = ({
       runStatusCounts,
       queueMetrics,
       isActionModalOpen,
-      isActionDropdownOpen,
       hideMetrics,
       hideCounts,
       hideDateFilter,
@@ -266,7 +309,6 @@ export const RunsProvider = ({
       actionModalParams,
       selectedActionType,
       setIsActionModalOpen,
-      setIsActionDropdownOpen,
       setSelectedActionType,
       refetchRuns,
       refetchMetrics,
@@ -276,7 +318,6 @@ export const RunsProvider = ({
       setPagination,
       hideCancelAndReplayButtons,
       hideColumnToggle,
-      disableTaskRunPagination,
       isRefetching,
       setShowQueueMetrics,
       showQueueMetrics,

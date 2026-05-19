@@ -1,53 +1,49 @@
 from datetime import datetime, timedelta, timezone
 
 from examples.priority.worker import priority_workflow
-from hatchet_sdk import ScheduleTriggerWorkflowOptions, TriggerWorkflowOptions
+from hatchet_sdk import Priority
 
-priority_workflow.run_no_wait()
+priority_workflow.run(wait_for_result=False)
 
 # > Runtime priority
-low_prio = priority_workflow.run_no_wait(
-    options=TriggerWorkflowOptions(
-        ## 👀 Adding priority and key to metadata to show them in the dashboard
-        priority=1,
-        additional_metadata={"priority": "low", "key": 1},
-    )
+low_prio = priority_workflow.run(
+    ## 👀 Adding priority and key to metadata to show them in the dashboard
+    priority=Priority.LOW,
+    additional_metadata={"priority": "low", "key": 1},
+    wait_for_result=False,
 )
 
-high_prio = priority_workflow.run_no_wait(
-    options=TriggerWorkflowOptions(
-        ## 👀 Adding priority and key to metadata to show them in the dashboard
-        priority=3,
-        additional_metadata={"priority": "high", "key": 1},
-    )
+high_prio = priority_workflow.run(
+    ## 👀 Adding priority and key to metadata to show them in the dashboard
+    priority=Priority.HIGH,
+    additional_metadata={"priority": "high", "key": 1},
+    wait_for_result=False,
 )
 # !!
 
 # > Scheduled priority
 schedule = priority_workflow.schedule(
     run_at=datetime.now(tz=timezone.utc) + timedelta(minutes=1),
-    options=ScheduleTriggerWorkflowOptions(priority=3),
+    priority=Priority.HIGH,
 )
 
 cron = priority_workflow.create_cron(
     cron_name="my-scheduled-cron",
     expression="0 * * * *",
-    priority=3,
+    priority=Priority.HIGH,
 )
 # !!
 
 # > Default priority
-low_prio = priority_workflow.run_no_wait(
-    options=TriggerWorkflowOptions(
-        ## 👀 Adding priority and key to metadata to show them in the dashboard
-        priority=1,
-        additional_metadata={"priority": "low", "key": 2},
-    )
+low_prio = priority_workflow.run(
+    ## 👀 Adding priority and key to metadata to show them in the dashboard
+    priority=Priority.LOW,
+    additional_metadata={"priority": "low", "key": 2},
+    wait_for_result=False,
 )
-high_prio = priority_workflow.run_no_wait(
-    options=TriggerWorkflowOptions(
-        ## 👀 Adding priority and key to metadata to show them in the dashboard
-        priority=3,
-        additional_metadata={"priority": "high", "key": 2},
-    )
+high_prio = priority_workflow.run(
+    ## 👀 Adding priority and key to metadata to show them in the dashboard
+    priority=Priority.HIGH,
+    additional_metadata={"priority": "high", "key": 2},
+    wait_for_result=False,
 )

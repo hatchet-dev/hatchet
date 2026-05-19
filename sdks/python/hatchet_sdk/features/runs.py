@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import AsyncIterator
@@ -7,6 +9,7 @@ from warnings import warn
 
 from pydantic import BaseModel, model_validator
 
+from hatchet_sdk.clients.admin import AdminClient, WorkflowRunDetail
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListenerClient,
     StepRunEventType,
@@ -15,6 +18,12 @@ from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunLis
 from hatchet_sdk.clients.rest.api.task_api import TaskApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
+from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
+    V1BranchDurableTaskRequest,
+)
+from hatchet_sdk.clients.rest.models.v1_branch_durable_task_response import (
+    V1BranchDurableTaskResponse,
+)
 from hatchet_sdk.clients.rest.models.v1_cancel_task_request import V1CancelTaskRequest
 from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskRequest
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
@@ -25,18 +34,20 @@ from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
 )
 from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
     BaseRestClient,
     maybe_additional_metadata_to_kv,
-    retry,
 )
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.types.priority import _warn_if_int_priority
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.datetimes import partition_date_range
 from hatchet_sdk.utils.iterables import create_chunks
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 if TYPE_CHECKING:
+    from hatchet_sdk.types.priority import Priority
     from hatchet_sdk.workflow_run import WorkflowRunRef
 
 
@@ -53,7 +64,7 @@ class BulkCancelReplayOpts(BaseModel):
     filters: RunFilter | None = None
 
     @model_validator(mode="after")
-    def validate_model(self) -> "BulkCancelReplayOpts":
+    def validate_model(self) -> BulkCancelReplayOpts:
         if not self.ids and not self.filters:
             raise ValueError("ids or filters must be set")
 
@@ -109,11 +120,40 @@ class RunsClient(BaseRestClient):
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
+        admin_client: AdminClient,
     ) -> None:
         super().__init__(config)
 
-        self.workflow_run_listener = workflow_run_listener
-        self.workflow_run_event_listener = workflow_run_event_listener
+        self._workflow_run_listener = workflow_run_listener
+        self._workflow_run_event_listener = workflow_run_event_listener
+        self._admin_client = admin_client
+
+    @property
+    def workflow_run_listener(self) -> PooledWorkflowRunListener:
+        warn(
+            "The workflow_run_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_listener
+
+    @property
+    def workflow_run_event_listener(self) -> RunEventListenerClient:
+        warn(
+            "The workflow_run_event_listener property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._workflow_run_event_listener
+
+    @property
+    def admin_client(self) -> AdminClient:
+        warn(
+            "The admin_client property is internal and should not be used directly. It will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._admin_client
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -121,7 +161,6 @@ class RunsClient(BaseRestClient):
     def _ta(self, client: ApiClient) -> TaskApi:
         return TaskApi(client)
 
-    @retry
     def get_task_run(self, task_run_id: str) -> V1TaskSummary:
         """
         Get task run details for a given task run ID.
@@ -130,7 +169,10 @@ class RunsClient(BaseRestClient):
         :return: Task run details for the specified task run ID.
         """
         with self.client() as client:
-            return self._ta(client).v1_task_get(task_run_id)
+            v1_task_get = tenacity_retry(
+                self._ta(client).v1_task_get, self.client_config.tenacity
+            )
+            return v1_task_get(task_run_id)
 
     async def aio_get_task_run(self, task_run_id: str) -> V1TaskSummary:
         """
@@ -141,7 +183,6 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get_task_run, task_run_id)
 
-    @retry
     def get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         """
         Get workflow run details for a given workflow run ID.
@@ -150,7 +191,10 @@ class RunsClient(BaseRestClient):
         :return: Workflow run details for the specified workflow run ID.
         """
         with self.client() as client:
-            return self._wra(client).v1_workflow_run_get(str(workflow_run_id))
+            v1_workflow_run_get = tenacity_retry(
+                self._wra(client).v1_workflow_run_get, self.client_config.tenacity
+            )
+            return v1_workflow_run_get(str(workflow_run_id))
 
     async def aio_get(self, workflow_run_id: str) -> V1WorkflowRunDetails:
         """
@@ -161,7 +205,6 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.get, workflow_run_id)
 
-    @retry
     def get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
         Get workflow run status for a given workflow run ID.
@@ -170,7 +213,11 @@ class RunsClient(BaseRestClient):
         :return: The task status
         """
         with self.client() as client:
-            return self._wra(client).v1_workflow_run_get_status(workflow_run_id)
+            v1_workflow_run_get_status = tenacity_retry(
+                self._wra(client).v1_workflow_run_get_status,
+                self.client_config.tenacity,
+            )
+            return v1_workflow_run_get_status(workflow_run_id)
 
     async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
@@ -391,7 +438,6 @@ class RunsClient(BaseRestClient):
             workflow_ids=workflow_ids,
         )
 
-    @retry
     def list_with_pagination(
         self,
         since: datetime | None = None,
@@ -432,8 +478,11 @@ class RunsClient(BaseRestClient):
         )
 
         with self.client() as client:
+            v1_workflow_run_list = tenacity_retry(
+                self._wra(client).v1_workflow_run_list, self.client_config.tenacity
+            )
             responses = [
-                self._wra(client).v1_workflow_run_list(
+                v1_workflow_run_list(
                     tenant=self.client_config.tenant_id,
                     since=s,
                     until=u,
@@ -464,7 +513,6 @@ class RunsClient(BaseRestClient):
                 reverse=True,
             )
 
-    @retry
     async def aio_list_with_pagination(
         self,
         since: datetime | None = None,
@@ -505,9 +553,13 @@ class RunsClient(BaseRestClient):
         )
 
         with self.client() as client:
+            v1_workflow_run_list = tenacity_retry(
+                self._wra(client).v1_workflow_run_list, self.client_config.tenacity
+            )
+
             coros = [
                 asyncio.to_thread(
-                    self._wra(client).v1_workflow_run_list,
+                    v1_workflow_run_list,
                     tenant=self.client_config.tenant_id,
                     since=s,
                     until=u,
@@ -592,7 +644,6 @@ class RunsClient(BaseRestClient):
             include_payloads=include_payloads,
         )
 
-    @retry
     def list(
         self,
         since: datetime | None = None,
@@ -639,7 +690,11 @@ class RunsClient(BaseRestClient):
             )
 
         with self.client() as client:
-            return self._wra(client).v1_workflow_run_list(
+            v1_workflow_run_list = tenacity_retry(
+                self._wra(client).v1_workflow_run_list, self.client_config.tenacity
+            )
+
+            return v1_workflow_run_list(
                 tenant=self.client_config.tenant_id,
                 since=since,
                 only_tasks=only_tasks,
@@ -662,7 +717,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -676,6 +731,8 @@ class RunsClient(BaseRestClient):
 
         :return: The details of the triggered workflow run.
         """
+        _warn_if_int_priority(priority)
+
         with self.client() as client:
             return self._wra(client).v1_workflow_run_create(
                 tenant=self.client_config.tenant_id,
@@ -692,7 +749,7 @@ class RunsClient(BaseRestClient):
         workflow_name: str,
         input: JSONSerializableMapping,
         additional_metadata: JSONSerializableMapping | None = None,
-        priority: int | None = None,
+        priority: int | Priority | None = None,
     ) -> V1WorkflowRunDetails:
         """
         Trigger a new workflow run.
@@ -790,7 +847,6 @@ class RunsClient(BaseRestClient):
         """
         return await asyncio.to_thread(self.bulk_cancel, opts)
 
-    @retry
     def get_result(self, run_id: str) -> JSONSerializableMapping:
         """
         Get the result of a workflow run by its external ID.
@@ -813,7 +869,7 @@ class RunsClient(BaseRestClient):
 
         return details.run.output
 
-    def get_run_ref(self, workflow_run_id: str) -> "WorkflowRunRef":
+    def get_run_ref(self, workflow_run_id: str) -> WorkflowRunRef:
         """
         Get a reference to a workflow run.
 
@@ -824,9 +880,9 @@ class RunsClient(BaseRestClient):
 
         return WorkflowRunRef(
             workflow_run_id=workflow_run_id,
-            workflow_run_event_listener=self.workflow_run_event_listener,
-            workflow_run_listener=self.workflow_run_listener,
-            runs_client=self,
+            workflow_run_event_listener=self._workflow_run_event_listener,
+            workflow_run_listener=self._workflow_run_listener,
+            admin_client=self._admin_client,
         )
 
     async def subscribe_to_stream(
@@ -835,6 +891,46 @@ class RunsClient(BaseRestClient):
     ) -> AsyncIterator[str]:
         ref = self.get_run_ref(workflow_run_id=workflow_run_id)
 
-        async for chunk in ref.stream():
+        async for chunk in ref._stream():
             if chunk.type == StepRunEventType.STEP_RUN_EVENT_TYPE_STREAM:
                 yield chunk.payload
+
+    def reset_durable_task(
+        self, task_external_id: str, node_id: int, branch_id: int
+    ) -> V1BranchDurableTaskResponse:
+        """
+        Reset a durable task from a specific node id, creating a new branch.
+
+        :param task_external_id: The external ID (UUID) of the durable task to reset.
+        :param node_id: The node ID to replay from.
+        :param branch_id: The branch ID to replay from.
+        :return: The reset response containing the new node_id and branch_id.
+        """
+        with self.client() as client:
+            return self._wra(client).v1_durable_task_branch(
+                tenant=self.client_config.tenant_id,
+                v1_branch_durable_task_request=V1BranchDurableTaskRequest(
+                    taskExternalId=task_external_id, nodeId=node_id, branchId=branch_id
+                ),
+            )
+
+    async def aio_reset_durable_task(
+        self, task_external_id: str, node_id: int, branch_id: int
+    ) -> V1BranchDurableTaskResponse:
+        """
+        Reset a durable task from a specific node id, creating a new branch.
+
+        :param task_external_id: The external ID (UUID) of the durable task to reset.
+        :param node_id: The node ID to replay from.
+        :param branch_id: The branch ID to replay from.
+        :return: The reset response containing the new node_id and branch_id.
+        """
+        return await asyncio.to_thread(
+            self.reset_durable_task, task_external_id, node_id, branch_id
+        )
+
+    def get_details(self, external_id: str) -> WorkflowRunDetail:
+        return self._admin_client.get_details(external_id=external_id)
+
+    async def aio_get_details(self, external_id: str) -> WorkflowRunDetail:
+        return await asyncio.to_thread(self._admin_client.get_details, external_id)

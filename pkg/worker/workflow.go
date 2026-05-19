@@ -18,10 +18,14 @@ type triggerConverter interface {
 
 type cron string
 
+// Deprecated: Cron is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Cron(c string) cron {
 	return cron(c)
 }
 
+// Deprecated: ToWorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c cron) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Cron == nil {
 		wt.Cron = []string{}
@@ -32,10 +36,14 @@ func (c cron) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 
 type cronArr []string
 
+// Deprecated: Crons is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Crons(c ...string) cronArr {
 	return cronArr(c)
 }
 
+// Deprecated: ToWorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Cron == nil {
 		wt.Cron = []string{}
@@ -46,20 +54,28 @@ func (c cronArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string
 
 type noTrigger struct{}
 
+// Deprecated: NoTrigger is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NoTrigger() noTrigger {
 	return noTrigger{}
 }
 
+// Deprecated: ToWorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (n noTrigger) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	// do nothing
 }
 
 type scheduled []time.Time
 
+// Deprecated: At is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func At(t ...time.Time) scheduled {
 	return t
 }
 
+// Deprecated: ToWorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Schedules == nil {
 		wt.Schedules = []time.Time{}
@@ -68,6 +84,8 @@ func (s scheduled) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace stri
 	wt.Schedules = append(wt.Schedules, s...)
 }
 
+// Deprecated: Call is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *Worker) Call(action string) *WorkflowStep {
 	registeredAction, exists := w.actions[action]
 
@@ -89,10 +107,14 @@ func (w *Worker) Call(action string) *WorkflowStep {
 
 type event string
 
+// Deprecated: Event is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Event(e string) event {
 	return event(e)
 }
 
+// Deprecated: ToWorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Events == nil {
 		wt.Events = []string{}
@@ -108,10 +130,14 @@ func (e event) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) 
 
 type eventsArr []string
 
+// Deprecated: Events is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Events(events ...string) eventsArr {
 	return events
 }
 
+// Deprecated: ToWorkflowTriggers is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e eventsArr) ToWorkflowTriggers(wt *types.WorkflowTriggers, namespace string) {
 	if wt.Events == nil {
 		wt.Events = []string{}
@@ -131,12 +157,18 @@ type workflowConverter interface {
 	ToWorkflowTrigger() triggerConverter
 }
 
+// Deprecated: Workflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Workflow struct {
 	Jobs []WorkflowJob
 }
 
+// Deprecated: GetWorkflowConcurrencyGroupFn is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type GetWorkflowConcurrencyGroupFn func(ctx HatchetContext) (string, error)
 
+// Deprecated: WorkflowJob is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowJob struct {
 	// The name of the job
 	Name string
@@ -157,6 +189,8 @@ type WorkflowJob struct {
 	StickyStrategy *types.StickyStrategy
 }
 
+// Deprecated: WorkflowConcurrency is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowConcurrency struct {
 	fn            GetWorkflowConcurrencyGroupFn
 	expr          *string
@@ -164,28 +198,38 @@ type WorkflowConcurrency struct {
 	limitStrategy *types.WorkflowConcurrencyLimitStrategy
 }
 
+// Deprecated: Expression is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Expression(expr string) *WorkflowConcurrency {
 	return &WorkflowConcurrency{
 		expr: &expr,
 	}
 }
 
+// Deprecated: Concurrency is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Concurrency(fn GetWorkflowConcurrencyGroupFn) *WorkflowConcurrency {
 	return &WorkflowConcurrency{
 		fn: fn,
 	}
 }
 
+// Deprecated: MaxRuns is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *WorkflowConcurrency) MaxRuns(maxRuns int32) *WorkflowConcurrency {
 	c.maxRuns = &maxRuns
 	return c
 }
 
+// Deprecated: LimitStrategy is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (c *WorkflowConcurrency) LimitStrategy(limitStrategy types.WorkflowConcurrencyLimitStrategy) *WorkflowConcurrency {
 	c.limitStrategy = &limitStrategy
 	return c
 }
 
+// Deprecated: ToWorkflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflow {
 	apiJob, err := j.ToWorkflowJob(svcName, namespace)
 
@@ -242,6 +286,8 @@ func (j *WorkflowJob) ToWorkflow(svcName string, namespace string) types.Workflo
 	return w
 }
 
+// Deprecated: ToWorkflowJob is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *WorkflowJob) ToWorkflowJob(svcName string, namespace string) (*types.WorkflowJob, error) {
 	apiJob := &types.WorkflowJob{
 		Description: j.Description,
@@ -262,17 +308,25 @@ func (j *WorkflowJob) ToWorkflowJob(svcName string, namespace string) (*types.Wo
 	return apiJob, nil
 }
 
+// Deprecated: ToWorkflowTrigger is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *WorkflowJob) ToWorkflowTrigger() triggerConverter {
 	return j.On
 }
 
+// Deprecated: ActionWithCompute is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ActionWithCompute struct {
 	fn      any
 	compute *compute.Compute
 }
 
+// Deprecated: ActionMap is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ActionMap map[string]ActionWithCompute
 
+// Deprecated: ToActionMap is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
 	res := ActionMap{}
 
@@ -303,6 +357,8 @@ func (j *WorkflowJob) ToActionMap(svcName string) ActionMap {
 	return res
 }
 
+// Deprecated: WorkflowStep is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WorkflowStep struct {
 	// The step timeout
 	Timeout string
@@ -329,6 +385,8 @@ type WorkflowStep struct {
 	Compute *compute.Compute
 }
 
+// Deprecated: RateLimit is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type RateLimit struct {
 	// Key is the rate limit key
 	Key     string  `yaml:"key,omitempty"`
@@ -343,6 +401,8 @@ type RateLimit struct {
 	Duration *types.RateLimitDuration `yaml:"duration,omitempty"`
 }
 
+// Deprecated: Fn is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func Fn(f any) *WorkflowStep {
 	return &WorkflowStep{
 		Function:  f,
@@ -351,55 +411,77 @@ func Fn(f any) *WorkflowStep {
 	}
 }
 
+// Deprecated: SetName is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetName(name string) *WorkflowStep {
 	w.Name = name
 	return w
 }
 
+// Deprecated: SetCompute is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetCompute(compute *compute.Compute) *WorkflowStep {
 	w.Compute = compute
 	return w
 }
 
+// Deprecated: SetDesiredLabels is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetDesiredLabels(labels map[string]*types.DesiredWorkerLabel) *WorkflowStep {
 	w.DesiredLabels = labels
 	return w
 }
 
+// Deprecated: SetRateLimit is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetRateLimit(rateLimit RateLimit) *WorkflowStep {
 	w.RateLimit = append(w.RateLimit, rateLimit)
 	return w
 }
 
+// Deprecated: SetTimeout is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetTimeout(timeout string) *WorkflowStep {
 	w.Timeout = timeout
 	return w
 }
 
+// Deprecated: SetRetries is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetRetries(retries int) *WorkflowStep {
 	w.Retries = retries
 	return w
 }
 
+// Deprecated: SetRetryBackoffFactor is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetRetryBackoffFactor(retryBackoffFactor float32) *WorkflowStep {
 	w.RetryBackoffFactor = &retryBackoffFactor
 	return w
 }
 
+// Deprecated: SetRetryMaxBackoffSeconds is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) SetRetryMaxBackoffSeconds(retryMaxBackoffSeconds int32) *WorkflowStep {
 	w.RetryMaxBackoffSeconds = &retryMaxBackoffSeconds
 	return w
 }
 
+// Deprecated: AddParents is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) AddParents(parents ...string) *WorkflowStep {
 	w.Parents = append(w.Parents, parents...)
 	return w
 }
 
+// Deprecated: ToWorkflowTrigger is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) ToWorkflowTrigger() triggerConverter {
 	return NoTrigger()
 }
 
+// Deprecated: ToWorkflow is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) ToWorkflow(svcName string, namespace string) types.Workflow {
 	jobName := w.Name
 
@@ -416,6 +498,8 @@ func (w *WorkflowStep) ToWorkflow(svcName string, namespace string) types.Workfl
 	return workflowJob.ToWorkflow(svcName, namespace)
 }
 
+// Deprecated: ToActionMap is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) ToActionMap(svcName string) ActionMap {
 	step := *w
 
@@ -427,6 +511,8 @@ func (w *WorkflowStep) ToActionMap(svcName string) ActionMap {
 	}
 }
 
+// Deprecated: Step is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type Step struct {
 	Id string
 
@@ -439,6 +525,8 @@ type Step struct {
 	APIStep types.WorkflowStep
 }
 
+// Deprecated: ToWorkflowStep is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace string) (*Step, error) {
 	fnType := reflect.TypeOf(w.Function)
 
@@ -510,6 +598,8 @@ func (w *WorkflowStep) ToWorkflowStep(svcName string, index int, namespace strin
 	return res, nil
 }
 
+// Deprecated: GetStepId is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) GetStepId(index int) string {
 	if w.Name != "" {
 		return w.Name
@@ -525,6 +615,8 @@ func (w *WorkflowStep) GetStepId(index int) string {
 	return stepId
 }
 
+// Deprecated: GetActionId is part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WorkflowStep) GetActionId(svcName string, index int) string {
 	stepId := w.GetStepId(index)
 

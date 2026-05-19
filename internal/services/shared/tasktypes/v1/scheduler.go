@@ -1,11 +1,13 @@
 package v1
 
 import (
+	"github.com/google/uuid"
+
 	"time"
 
-	msgqueue "github.com/hatchet-dev/hatchet/internal/msgqueue/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/v1/sqlcv1"
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type CheckTenantQueuesPayload struct {
@@ -14,7 +16,7 @@ type CheckTenantQueuesPayload struct {
 	StrategyIds   []int64  `json:"strategy_ids"`
 }
 
-func NotifyTaskReleased(tenantId string, tasks []*sqlcv1.ReleaseTasksRow) (*msgqueue.Message, error) {
+func NotifyTaskReleased(tenantId uuid.UUID, tasks []*sqlcv1.ReleaseTasksRow) (*msgqueue.Message, error) {
 	uniqueQueueNames := make(map[string]struct{})
 	uniqueStrategies := make(map[int64]struct{})
 
@@ -42,14 +44,14 @@ func NotifyTaskReleased(tenantId string, tasks []*sqlcv1.ReleaseTasksRow) (*msgq
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"check-tenant-queue",
+		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		payload,
 	)
 }
 
-func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueue.Message, error) {
+func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgqueue.Message, error) {
 	uniqueQueueNames := make(map[string]struct{})
 	uniqueStrategies := make(map[int64]struct{})
 
@@ -76,7 +78,7 @@ func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueu
 
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"check-tenant-queue",
+		msgqueue.MsgIDCheckTenantQueue,
 		true,
 		false,
 		payload,
@@ -84,7 +86,8 @@ func NotifyTaskCreated(tenantId string, tasks []*v1.V1TaskWithPayload) (*msgqueu
 }
 
 type TaskAssignedBulkTaskPayload struct {
-	WorkerBatches map[string][]TaskAssignedBatch `json:"worker_batches" validate:"required"`
+	WorkerBatches     map[string][]TaskAssignedBatch `json:"worker_batches" validate:"required"`
+	WorkerIdToTaskIds map[uuid.UUID][]int64          `json:"worker_id_to_task_id" validate:"required"`
 }
 
 type TaskAssignedBatch struct {
@@ -106,12 +109,66 @@ type StartBatchTaskPayload struct {
 	TriggerTime   time.Time `json:"trigger_time" validate:"required"`
 }
 
-func StartBatchMessage(tenantId string, payload StartBatchTaskPayload) (*msgqueue.Message, error) {
+func StartBatchMessage(tenantId uuid.UUID, payload StartBatchTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		"batch-start",
 		false,
 		true,
+		payload,
+	)
+}
+
+type NewWorkerPayload struct {
+	WorkerId uuid.UUID `json:"worker_id"`
+}
+
+func NotifyNewWorker(tenantId uuid.UUID, workerId uuid.UUID) (*msgqueue.Message, error) {
+	payload := NewWorkerPayload{
+		WorkerId: workerId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewWorker,
+		true,
+		false,
+		payload,
+	)
+}
+
+type NewQueuePayload struct {
+	QueueName string `json:"queue_name"`
+}
+
+func NotifyNewQueue(tenantId uuid.UUID, queueName string) (*msgqueue.Message, error) {
+	payload := NewQueuePayload{
+		QueueName: queueName,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewQueue,
+		true,
+		false,
+		payload,
+	)
+}
+
+type NewConcurrencyStrategyPayload struct {
+	StrategyId int64 `json:"strategy_id"`
+}
+
+func NotifyNewConcurrencyStrategy(tenantId uuid.UUID, strategyId int64) (*msgqueue.Message, error) {
+	payload := NewConcurrencyStrategyPayload{
+		StrategyId: strategyId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewConcurrencyStrategy,
+		true,
+		false,
 		payload,
 	)
 }

@@ -1,0 +1,483 @@
+# Hatchet TypeScript SDK Reference
+
+This is the TypeScript SDK reference, documenting methods available for interacting with Hatchet resources.
+Check out the [user guide](https://docs.hatchet.run/home/) for an introduction to getting your first tasks running.
+
+<a id="hatchetclient"></a>
+
+### HatchetClient
+
+HatchetV1 implements the main client interface for interacting with the Hatchet workflow engine.
+It provides methods for creating and executing workflows, as well as managing workers.
+
+Implements
+
+- `IHatchetClient`
+
+Properties
+
+| Property                                  | Type     | Description                          |
+| ----------------------------------------- | -------- | ------------------------------------ |
+| <a id="property-tenantid"></a> `tenantId` | `string` | The tenant ID for the Hatchet client |
+
+Accessors
+
+<a id="api"></a>
+
+##### `api`
+
+Get Signature
+
+Get the API client for making HTTP requests to the Hatchet API
+Note: This is not recommended for general use, but is available for advanced scenarios
+
+Returns
+
+`Api`\<`unknown`\>
+
+A API client instance
+
+<a id="crons"></a>
+
+##### `crons`
+
+Get Signature
+
+Get the cron client for creating and managing cron workflow runs
+
+Returns
+
+[`CronClient`](feature-clients/crons.mdx#cronclient)
+
+A cron client instance
+
+Implementation of
+
+```ts
+IHatchetClient.crons;
+```
+
+<a id="events"></a>
+
+##### `events`
+
+Get Signature
+
+Get the event client for creating and managing event workflow runs
+
+Returns
+
+`EventClient`
+
+A event client instance
+
+Implementation of
+
+```ts
+IHatchetClient.events;
+```
+
+<a id="filters"></a>
+
+##### `filters`
+
+Get Signature
+
+Get the filters client for creating and managing filters
+
+Returns
+
+[`FiltersClient`](feature-clients/filters.mdx#filtersclient)
+
+A filters client instance
+
+Implementation of
+
+```ts
+IHatchetClient.filters;
+```
+
+<a id="logs"></a>
+
+##### `logs`
+
+Get Signature
+
+Get the logs client for creating and managing logs
+
+Returns
+
+[`LogsClient`](feature-clients/logs.mdx#logsclient)
+
+A logs client instance
+
+Implementation of
+
+```ts
+IHatchetClient.logs;
+```
+
+<a id="metrics"></a>
+
+##### `metrics`
+
+Get Signature
+
+Get the metrics client for creating and managing metrics
+
+Returns
+
+[`MetricsClient`](feature-clients/metrics.mdx#metricsclient)
+
+A metrics client instance
+
+Implementation of
+
+```ts
+IHatchetClient.metrics;
+```
+
+<a id="ratelimits"></a>
+
+##### `ratelimits`
+
+Get Signature
+
+Get the rate limits client for creating and managing rate limits
+
+Returns
+
+[`RatelimitsClient`](feature-clients/ratelimits.mdx#ratelimitsclient)
+
+A rate limits client instance
+
+Implementation of
+
+```ts
+IHatchetClient.ratelimits;
+```
+
+<a id="runs"></a>
+
+##### `runs`
+
+Get Signature
+
+Get the runs client for creating and managing runs
+
+Returns
+
+[`RunsClient`](feature-clients/runs.mdx#runsclient)
+
+A runs client instance
+
+Implementation of
+
+```ts
+IHatchetClient.runs;
+```
+
+<a id="scheduled"></a>
+
+##### `scheduled`
+
+Get Signature
+
+Get the schedules client for creating and managing scheduled workflow runs
+
+Returns
+
+[`ScheduleClient`](feature-clients/schedules.mdx#scheduleclient)
+
+A schedules client instance
+
+Implementation of
+
+```ts
+IHatchetClient.scheduled;
+```
+
+<a id="schedules"></a>
+
+##### `schedules`
+
+Get Signature
+
+Alias
+
+scheduled
+
+Returns
+
+[`ScheduleClient`](feature-clients/schedules.mdx#scheduleclient)
+
+<a id="tasks"></a>
+
+##### `tasks`
+
+Get Signature
+
+Get the tasks client for creating and managing tasks
+
+Returns
+
+[`WorkflowsClient`](feature-clients/workflows.mdx#workflowsclient)
+
+A tasks client instance
+
+<a id="tenant"></a>
+
+##### `tenant`
+
+Get Signature
+
+Get the tenant client for managing tenants
+
+Returns
+
+`TenantClient`
+
+A tenant client instance
+
+Implementation of
+
+```ts
+IHatchetClient.tenant;
+```
+
+<a id="webhooks"></a>
+
+##### `webhooks`
+
+Get Signature
+
+Get the webhooks client for creating and managing webhooks
+
+Returns
+
+[`WebhooksClient`](feature-clients/webhooks.mdx#webhooksclient)
+
+A webhooks client instance
+
+Implementation of
+
+```ts
+IHatchetClient.webhooks;
+```
+
+<a id="workers"></a>
+
+##### `workers`
+
+Get Signature
+
+Get the workers client for creating and managing workers
+
+Returns
+
+[`WorkersClient`](feature-clients/workers.mdx#workersclient)
+
+A workers client instance
+
+Implementation of
+
+```ts
+IHatchetClient.workers;
+```
+
+<a id="workflows"></a>
+
+##### `workflows`
+
+Get Signature
+
+Get the workflows client for creating and managing workflows
+
+Returns
+
+[`WorkflowsClient`](feature-clients/workflows.mdx#workflowsclient)
+
+A workflows client instance
+
+Implementation of
+
+```ts
+IHatchetClient.workflows;
+```
+
+#### Methods
+
+<a id="durabletask"></a>
+
+##### `durableTask()`
+
+Implementation of the durableTask method.
+
+Creates a new durable task workflow.
+Types can be explicitly specified as generics or inferred from the function signature.
+
+Parameters
+
+| Parameter | Type                                                                                                                               | Description                        |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `options` | `CreateDurableTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Durable task configuration options |
+
+Returns
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance for a durable task
+
+Creates a new durable task workflow with types inferred from the function parameter.
+
+Parameters
+
+| Parameter | Type                                                                     | Description                                                         |
+| --------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `options` | `object` & `Omit`\<`CreateDurableTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | Durable task configuration options with function that defines types |
+
+Returns
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance with inferred types
+
+<a id="run"></a>
+
+##### `run()`
+
+Triggers a workflow run and waits for the result.
+
+Parameters
+
+| Parameter  | Type                                                            | Description                                                         |
+| ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `workflow` | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`I`, `O`\> | The workflow to run, either as a Workflow instance or workflow name |
+| `input`    | `I`                                                             | The input data for the workflow                                     |
+| `options`  | `RunOpts`                                                       | Configuration options for the workflow run                          |
+
+Returns
+
+`Promise`\<`O`\>
+
+A promise that resolves with the workflow result
+
+<a id="runandwait"></a>
+
+##### `runAndWait()`
+
+Triggers a workflow run and waits for the result.
+
+Parameters
+
+| Parameter  | Type                                                            | Description                                                         |
+| ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `workflow` | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`I`, `O`\> | The workflow to run, either as a Workflow instance or workflow name |
+| `input`    | `I`                                                             | The input data for the workflow                                     |
+| `options`  | `RunOpts`                                                       | Configuration options for the workflow run                          |
+
+Returns
+
+`Promise`\<`O`\>
+
+A promise that resolves with the workflow result
+
+Alias
+
+run
+
+<a id="runnowait"></a>
+
+##### `runNoWait()`
+
+Triggers a workflow run without waiting for completion.
+
+Parameters
+
+| Parameter  | Type                                                            | Description                                                         |
+| ---------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `workflow` | `string` \| `Workflow` \| `BaseWorkflowDeclaration`\<`I`, `O`\> | The workflow to run, either as a Workflow instance or workflow name |
+| `input`    | `I`                                                             | The input data for the workflow                                     |
+| `options`  | `RunOpts`                                                       | Configuration options for the workflow run                          |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<`O`\>\>
+
+A WorkflowRunRef containing the run ID and methods to interact with the run
+
+<a id="task"></a>
+
+##### `task()`
+
+Implementation of the task method.
+
+Creates a new task workflow.
+Types can be explicitly specified as generics or inferred from the function signature.
+
+Parameters
+
+| Parameter | Type                                                                                                                        | Description                |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `options` | `CreateTaskWorkflowOpts`\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Task configuration options |
+
+Returns
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance
+
+Creates a new task workflow with types inferred from the function parameter.
+
+Parameters
+
+| Parameter | Type                                                              | Description                                                 |
+| --------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `options` | `object` & `Omit`\<`CreateTaskWorkflowOpts`\<`I`, `O`\>, `"fn"`\> | Task configuration options with function that defines types |
+
+Returns
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance with inferred types
+
+<a id="worker"></a>
+
+##### `worker()`
+
+Creates a new worker instance for processing workflow tasks.
+
+Parameters
+
+| Parameter  | Type                           | Description                                   |
+| ---------- | ------------------------------ | --------------------------------------------- |
+| `name`     | `string`                       | -                                             |
+| `options?` | `number` \| `CreateWorkerOpts` | Configuration options for creating the worker |
+
+Returns
+
+`Promise`\<`Worker`\>
+
+A promise that resolves with a new HatchetWorker instance
+
+<a id="workflow"></a>
+
+##### `workflow()`
+
+Creates a new workflow definition.
+
+Parameters
+
+| Parameter | Type                 | Description                                     |
+| --------- | -------------------- | ----------------------------------------------- |
+| `options` | `CreateWorkflowOpts` | Configuration options for creating the workflow |
+
+Returns
+
+[`WorkflowDeclaration`](Runnables.mdx#workflowdeclaration)\<`I`, `O`, `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>\>
+
+A new Workflow instance
+
+Note
+
+It is possible to create an orphaned workflow if no client is available using @hatchet/client CreateWorkflow

@@ -10,11 +10,11 @@ import { useFilters } from './hooks/use-filters';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
 
 export default function Filters() {
   const sidePanel = useSidePanel();
@@ -38,9 +38,10 @@ export default function Filters() {
     key: 'table',
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    [isDeclarativeKey]: false,
-  });
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:filters', {
+      [isDeclarativeKey]: false,
+    });
 
   const handleRowClick = (filter: V1Filter) => {
     sidePanel.open({
@@ -97,8 +98,8 @@ export default function Filters() {
           <p className="text-lg font-semibold">No filters found</p>
           <div className="w-fit">
             <DocsButton
-              doc={docsPages.home['run-on-event']}
-              scrollTo="event-filtering"
+              doc={docsPages.v1.events}
+              scrollTo="event-filters"
               label="Learn about event filters"
             />
           </div>

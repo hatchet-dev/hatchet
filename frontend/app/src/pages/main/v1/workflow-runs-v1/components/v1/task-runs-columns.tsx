@@ -4,7 +4,7 @@ import {
 } from '../../../events/components/additional-metadata';
 import { V1RunStatus } from '../../../workflow-runs/components/run-statuses';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
-import { DataTableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Duration } from '@/components/v1/shared/duration';
 import { Button } from '@/components/v1/ui/button';
@@ -22,6 +22,7 @@ export const TaskRunColumn = {
   workflow: 'Workflow',
   parentTaskExternalId: 'Parent Task External ID',
   flattenDAGs: 'Flatten DAGs',
+  runningFilter: 'Running Filter',
   createdAt: 'Created At',
   startedAt: 'Started At',
   finishedAt: 'Finished At',
@@ -46,6 +47,7 @@ export const createdAfterKey = 'createdAfter';
 export const finishedBeforeKey = 'finishedBefore';
 export const isCustomTimeRangeKey = 'isCustomTimeRange';
 export const timeWindowKey = 'timeWindow';
+export const runningFilterKey: TaskRunColumnKeys = 'runningFilter';
 
 export const columns: (
   tenantId: string,
@@ -202,6 +204,18 @@ export const columns: (
     enableHiding: false,
   },
   {
+    accessorKey: runningFilterKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.runningFilter}
+      />
+    ),
+    cell: () => null,
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
     accessorKey: createdAtKey,
     header: ({ column }) => (
       <DataTableColumnHeader
@@ -320,8 +334,8 @@ export const columns: (
     id: 'actions',
     cell: ({ row }) => {
       return (
-        <DataTableRowActions
-          row={row}
+        <TableRowActions
+          row={row.original}
           actions={[
             {
               label: 'Copy Run Id',

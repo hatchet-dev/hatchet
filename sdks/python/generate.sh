@@ -5,9 +5,10 @@
 set -eux
 
 # deps
-version=7.3.0
+version=7.12.0
 
 openapi-generator-cli version || npm install @openapitools/openapi-generator-cli -g
+openapi-generator-cli version-manager set "$version"
 
 # if [ "$(openapi-generator-cli version)" != "$version" ]; then
 #   version-manager set "$version"
@@ -23,6 +24,9 @@ dst_dir=./hatchet_sdk/clients/rest
 mkdir -p $dst_dir
 
 tmp_dir=./tmp
+
+rm -rf hatchet_sdk/clients/rest/models
+rm -rf hatchet_sdk/clients/rest/api
 
 # generate into tmp folder
 openapi-generator-cli generate -i ../../bin/oas/openapi.yaml -g python -o ./tmp --skip-validate-spec \
@@ -55,16 +59,17 @@ cp $tmp_dir/hatchet_sdk/clients/rest/api/__init__.py $dst_dir/api/__init__.py
 rm -rf $tmp_dir
 
 
-MIN_GRPCIO_VERSION=$(grep -A 1 'grpcio =' pyproject.toml | grep 'version' | sed -E 's/.*">=([0-9]+\.[0-9]+\.[0-9]+).*/\1/' | sort -V | head -n 1
-)
+MIN_GRPCIO_VERSION=$(grep '"grpcio>=' pyproject.toml | cut -d'"' -f2 | cut -d'=' -f2 | cut -d',' -f1)
 
 poetry add "grpcio@$MIN_GRPCIO_VERSION" "grpcio-tools@$MIN_GRPCIO_VERSION"
+
 
 proto_paths=(
   "../../api-contracts/dispatcher dispatcher.proto"
   "../../api-contracts/events events.proto"
   "../../api-contracts/workflows workflows.proto"
   "../../api-contracts v1/shared/condition.proto"
+  "../../api-contracts v1/shared/trigger.proto"
   "../../api-contracts v1/dispatcher.proto"
   "../../api-contracts v1/workflows.proto"
 )
@@ -77,6 +82,7 @@ for entry in "${proto_paths[@]}"; do
 
   poetry run python -m grpc_tools.protoc \
     --proto_path="$proto_path" \
+    --proto_path=../../api-contracts \
     --python_out=./hatchet_sdk/contracts \
     --pyi_out=./hatchet_sdk/contracts \
     --grpc_python_out=./hatchet_sdk/contracts \

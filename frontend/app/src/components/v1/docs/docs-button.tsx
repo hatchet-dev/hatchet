@@ -11,6 +11,7 @@ type DocsButtonProps = {
   label: string;
   queryParams?: Record<string, string>;
   scrollTo?: string;
+  variant?: 'button' | 'text';
 };
 
 export const DocsButton = ({
@@ -18,6 +19,7 @@ export const DocsButton = ({
   label,
   queryParams,
   scrollTo,
+  variant = 'button',
 }: DocsButtonProps) => {
   const { open } = useSidePanel();
 
@@ -30,13 +32,28 @@ export const DocsButton = ({
     });
   };
 
-  return (
-    <Button
-      onClick={handleClick}
-      leftIcon={<BookOpenText className="size-4" />}
-      variant="outline"
-    >
-      <span>{label}</span>
-    </Button>
-  );
+  switch (variant) {
+    case 'button':
+      return (
+        <Button
+          onClick={handleClick}
+          leftIcon={<BookOpenText className="size-4" />}
+          variant="outline"
+        >
+          <span>{label}</span>
+        </Button>
+      );
+    case 'text':
+      return (
+        <span
+          onClick={handleClick}
+          className="underline hover:text-gray-900 dark:hover:text-gray-100 hover:cursor-pointer"
+        >
+          {label}
+        </span>
+      );
+    default:
+      const exhaustiveCheck: never = variant;
+      throw new Error(`Unhandled variant type: ${exhaustiveCheck}`);
+  }
 };

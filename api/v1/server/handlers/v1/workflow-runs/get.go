@@ -2,22 +2,22 @@ package workflowruns
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository/v1"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	transformers "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 )
 
 func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V1WorkflowRunGetRequestObject) (gen.V1WorkflowRunGetResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 	rawWorkflowRun := ctx.Get("v1-workflow-run").(*v1.V1WorkflowRunPopulator)
 
 	requestContext := ctx.Request().Context()
@@ -32,7 +32,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 		return nil, err
 	}
 
-	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunGet200JSONResponse(
 		*details,
 	), nil
@@ -40,7 +39,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGet(ctx echo.Context, request gen.V
 
 func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	ctx context.Context,
-	tenantId string,
+	tenantId uuid.UUID,
 	rawWorkflowRun *v1.V1WorkflowRunPopulator,
 ) (*gen.V1WorkflowRunDetails, error) {
 	workflowRun := rawWorkflowRun.WorkflowRun
@@ -68,25 +67,26 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	stepIdToTaskExternalId := make(map[pgtype.UUID]pgtype.UUID)
+	stepIdToTaskExternalId := make(map[uuid.UUID]uuid.UUID)
 
 	for _, task := range tasks {
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
 	}
 
-	workflowVersionId := uuid.MustParse(sqlchelpers.UUIDToStr(workflowRun.WorkflowVersionId))
-
-	shape, err := t.config.APIRepository.WorkflowRun().GetWorkflowRunShape(
-		ctx, workflowVersionId,
+	shape, err := t.config.V1.Workflows().GetWorkflowShape(
+		ctx, workflowRun.WorkflowVersionId,
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workflowVersion, _, _, _, err := t.config.APIRepository.Workflow().GetWorkflowVersionById(tenantId, workflowRun.WorkflowVersionId.String())
+	var workflowVersion *sqlcv1.GetWorkflowVersionByIdRow
 
-	if err != nil {
+	workflowVersion, _, _, _, _, _, err = t.config.V1.Workflows().GetWorkflowVersionWithTriggers(ctx, tenantId, workflowRun.WorkflowVersionId)
+
+	// a workflow version or the workflow itself may be deleted but we still want to return the workflow run details
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 

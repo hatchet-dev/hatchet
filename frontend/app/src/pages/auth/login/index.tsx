@@ -1,7 +1,8 @@
 import { AuthPage } from '../components/auth-page';
 import { UserLoginForm } from './components/user-login-form';
-import api, { UserLoginRequest } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -32,13 +33,14 @@ function BasicLogin() {
   const [errors, setErrors] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { handleApiError } = useApiError({ setFieldErrors, setErrors });
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
 
+  const { userUpdateLoginMutation } = useUserApi();
   const loginMutation = useMutation({
-    mutationKey: ['user:update:login'],
-    mutationFn: async (data: UserLoginRequest) => {
-      await api.userUpdateLogin(data);
-    },
-    onSuccess: () => {
+    ...userUpdateLoginMutation(),
+    onSuccess: async () => {
+      await invalidateUserUniverse();
+      await new Promise((resolve) => setTimeout(resolve, 0));
       navigate({ to: appRoutes.authenticatedRoute.to });
     },
     onError: handleApiError,

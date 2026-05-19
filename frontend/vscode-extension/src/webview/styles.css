@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * The StepNode component uses hardcoded hex colors (bg-[#ffffff], dark:bg-[#050c1c])
+ * so it doesn't need CSS variable-based theming.  The variables below exist only for
+ * any Tailwind utilities that reference the theme (border, muted, etc.).
+ *
+ * IMPORTANT: The Hatchet app defines these as raw HSL components used via
+ * hsl(var(--X)).  VS Code variables are full hex/rgb colors, so we cannot
+ * map them directly.  Instead we hardcode the Hatchet dark/light values and
+ * let the `dark:` class variants handle theme switching.
+ */
+
+/* ── Dark theme (default in VS Code) ─────────────────────────────────────── */
+:root {
+  --background:       222 47% 5%;
+  --foreground:       0 0% 100%;
+  --muted:            217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --border:           217 33% 30%;
+  --primary:          252 82% 49%;
+  --primary-foreground: 0 0% 100%;
+  --radius: 4px;
+}
+
+/* ── Light theme ──────────────────────────────────────────────────────────── */
+html:not(.dark) {
+  --background:       0 0% 100%;
+  --foreground:       222 47% 5%;
+  --muted:            210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --border:           214 32% 91%;
+  --primary:          252 82% 49%;
+  --primary-foreground: 0 0% 100%;
+}
+
+/* ── ReactFlow canvas ─────────────────────────────────────────────────────── */
+/*
+ * ReactFlow 11 doesn't inherit background from its container.
+ * Match the Hatchet dark canvas color (#050c1c) in dark mode,
+ * and white in light mode.
+ */
+.react-flow {
+  height: 100% !important;
+  width: 100% !important;
+  background-color: #050c1c;
+}
+
+html:not(.dark) .react-flow {
+  background-color: #ffffff;
+}
+
+/* ReactFlow edge/marker colors to match the app */
+.react-flow__edge-path,
+.react-flow__connection-path {
+  stroke: #ffffff;
+}
+
+html:not(.dark) .react-flow__edge-path,
+html:not(.dark) .react-flow__connection-path {
+  stroke: #000000;
+}

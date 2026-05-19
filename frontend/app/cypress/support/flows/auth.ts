@@ -22,10 +22,47 @@ export function loginSession(
       // Let the SPA hydrate using the authenticated session.
       cy.visit('/');
 
-      // Authenticated root redirect should land you on a tenant route if memberships exist.
+      // Wait for auth redirects to settle; in fast environments the first read can still be "/".
+      cy.location('pathname', { timeout: 30000 }).should((pathname) => {
+        expect(
+          pathname,
+          `expected redirect to land on tenant shell or onboarding, got ${pathname}`,
+        ).to.satisfy(
+          (p: string) =>
+            p.includes('/tenants/') ||
+            p.includes('/onboarding/create-tenant') ||
+            p.includes('/onboarding/invites'),
+        );
+      });
+
+      cy.location('pathname').then((pathname) => {
+        // If the user has no tenant memberships, the app intentionally redirects to onboarding.
+        // Complete create-tenant via UI (this triggers the app's own refetch + navigation).
+        if (pathname.includes('/onboarding/create-tenant')) {
+          const ts = Date.now();
+          const tenantName = `CypressSeedTenant${String(ts).slice(-6)}`;
+
+          cy.get('input#tenant-name')
+            .filter(':visible')
+            .first()
+            .clear()
+            .type(tenantName);
+          cy.contains('button', 'Get started').click();
+        }
+
+        // If the user has pending invites, accept the first one to proceed
+        if (pathname.includes('/onboarding/invites')) {
+          cy.intercept('POST', '/api/v1/users/invites/accept').as(
+            'acceptInvite',
+          );
+          cy.contains('button', 'Accept').first().click();
+          cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
+        }
+      });
+
       cy.location('pathname', { timeout: 30000 }).should(
-        'match',
-        /\/tenants\/.+/,
+        'include',
+        '/tenants/',
       );
     },
     {

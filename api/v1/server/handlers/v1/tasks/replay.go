@@ -7,11 +7,11 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *TasksService) V1TaskReplay(ctx echo.Context, request gen.V1TaskReplayRequestObject) (gen.V1TaskReplayResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 
 	var err error
 

@@ -17,14 +17,12 @@ from examples.events.worker import (
     event_workflow,
 )
 from hatchet_sdk.clients.events import (
-    BulkPushEventOptions,
     BulkPushEventWithMetadata,
-    PushEventOptions,
+    Event,
 )
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.contracts.events_pb2 import Event
-from hatchet_sdk.hatchet import Hatchet
+from hatchet_sdk import Hatchet, Priority
 
 
 class ProcessedEvent(BaseModel):
@@ -67,11 +65,11 @@ async def event_filter(
 async def fetch_runs_for_event(
     hatchet: Hatchet, event: Event
 ) -> tuple[ProcessedEvent, list[V1TaskSummary]]:
-    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.eventId)
+    runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
 
     meta = (
-        cast(dict[str, str | int | bool], json.loads(event.additionalMetadata))
-        if event.additionalMetadata
+        cast(dict[str, str | int | bool], json.loads(event.additional_metadata))
+        if event.additional_metadata
         else {}
     )
     payload = (
@@ -79,7 +77,7 @@ async def fetch_runs_for_event(
     )
 
     processed_event = ProcessedEvent(
-        id=event.eventId,
+        id=event.event_id,
         payload=payload,
         meta=meta,
         should_have_runs=meta.get("should_have_runs", False) is True,
@@ -110,7 +108,7 @@ async def wait_for_result(
 
     persisted = (await hatchet.event.aio_list(limit=100, since=since)).rows or []
 
-    assert {e.eventId for e in events}.issubset({e.metadata.id for e in persisted})
+    assert {e.event_id for e in events}.issubset({e.metadata.id for e in persisted})
 
     iters = 0
     while True:
@@ -163,9 +161,14 @@ async def wait_for_result_and_assert(hatchet: Hatchet, events: list[Event]) -> N
     event_to_runs = await wait_for_result(hatchet, events)
 
     unique_events_with_runs = {
-        event.eventId
+        event.event_id
         for event in events
-        if json.loads(event.additionalMetadata).get("should_have_runs", False) is True
+        if (
+            json.loads(event.additional_metadata)
+            if isinstance(event.additional_metadata, str)
+            else {}
+        ).get("should_have_runs", False)
+        is True
     }
 
     unique_events_with_runs_in_results = {
@@ -232,14 +235,14 @@ def cp(should_skip: bool) -> dict[str, bool]:
 async def test_event_push(hatchet: Hatchet) -> None:
     e = hatchet.event.push(EVENT_KEY, cp(False))
 
-    assert e.eventId is not None
+    assert e.event_id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_async_event_push(hatchet: Hatchet) -> None:
     e = await hatchet.event.aio_push(EVENT_KEY, cp(False))
 
-    assert e.eventId is not None
+    assert e.event_id is not None
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -261,22 +264,20 @@ async def test_async_event_bulk_push(hatchet: Hatchet) -> None:
             additional_metadata={"source": "test", "user_id": "user789"},
         ),
     ]
-    opts = BulkPushEventOptions(namespace="bulk-test")
 
-    e = await hatchet.event.aio_bulk_push(events, opts)
+    e = await hatchet.event.aio_bulk_push(events)
 
     assert len(e) == 3
 
     # Sort both lists of events by their key to ensure comparison order
     sorted_events = sorted(events, key=lambda x: x.key)
     sorted_returned_events = sorted(e, key=lambda x: x.key)
-    namespace = "bulk-test"
 
     # Check that the returned events match the original events
     for original_event, returned_event in zip(
         sorted_events, sorted_returned_events, strict=False
     ):
-        assert returned_event.key == namespace + original_event.key
+        assert returned_event.key == hatchet.config.apply_namespace(original_event.key)
 
 
 @pytest.fixture(scope="function")
@@ -367,14 +368,15 @@ async def test_event_skipping_filtering(hatchet: Hatchet, test_run_id: str) -> N
 
 
 async def bulk_to_single(hatchet: Hatchet, event: BulkPushEventWithMetadata) -> Event:
+    priority = (
+        Priority(event.priority) if isinstance(event.priority, int) else event.priority
+    )
     return await hatchet.event.aio_push(
         event_key=event.key,
         payload=event.payload,
-        options=PushEventOptions(
-            scope=event.scope,
-            additional_metadata=event.additional_metadata,
-            priority=event.priority,
-        ),
+        scope=event.scope,
+        additional_metadata=event.additional_metadata,
+        priority=priority,
     )
 
 
@@ -402,14 +404,12 @@ async def test_event_payload_filtering(hatchet: Hatchet, test_run_id: str) -> No
         event = await hatchet.event.aio_push(
             event_key=EVENT_KEY,
             payload={"message": "This is event 1", "should_skip": False},
-            options=PushEventOptions(
-                scope=test_run_id,
-                additional_metadata={
-                    "should_have_runs": False,
-                    "test_run_id": test_run_id,
-                    "key": 1,
-                },
-            ),
+            scope=test_run_id,
+            additional_metadata={
+                "should_have_runs": False,
+                "test_run_id": test_run_id,
+                "key": 1,
+            },
         )
 
         await wait_for_result_and_assert(hatchet, [event])
@@ -428,14 +428,12 @@ async def test_event_payload_filtering_with_payload_match(
         event = await hatchet.event.aio_push(
             event_key=EVENT_KEY,
             payload={"message": "This is event 1", "should_skip": False},
-            options=PushEventOptions(
-                scope=test_run_id,
-                additional_metadata={
-                    "should_have_runs": True,
-                    "test_run_id": test_run_id,
-                    "key": 1,
-                },
-            ),
+            scope=test_run_id,
+            additional_metadata={
+                "should_have_runs": True,
+                "test_run_id": test_run_id,
+                "key": 1,
+            },
         )
 
         await wait_for_result_and_assert(hatchet, [event])
@@ -454,13 +452,11 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
                 "message": "Should run because filter matches",
                 "should_skip": False,
             },
-            options=PushEventOptions(
-                scope=test_run_id,
-                additional_metadata={
-                    "should_have_runs": True,
-                    "test_run_id": test_run_id,
-                },
-            ),
+            scope=test_run_id,
+            additional_metadata={
+                "should_have_runs": True,
+                "test_run_id": test_run_id,
+            },
         )
         event_2 = await hatchet.event.aio_push(
             event_key=EVENT_KEY,
@@ -468,13 +464,11 @@ async def test_filtering_by_event_key(hatchet: Hatchet, test_run_id: str) -> Non
                 "message": "Should skip because filter does not match",
                 "should_skip": False,
             },
-            options=PushEventOptions(
-                scope=test_run_id,
-                additional_metadata={
-                    "should_have_runs": False,
-                    "test_run_id": test_run_id,
-                },
-            ),
+            scope=test_run_id,
+            additional_metadata={
+                "should_have_runs": False,
+                "test_run_id": test_run_id,
+            },
         )
 
         await wait_for_result_and_assert(hatchet, [event_1, event_2])
@@ -499,13 +493,11 @@ async def test_key_wildcards(hatchet: Hatchet, test_run_id: str) -> None:
                 payload={
                     "should_skip": False,
                 },
-                options=PushEventOptions(
-                    scope=test_run_id,
-                    additional_metadata={
-                        "should_have_runs": key != "foobar",
-                        "test_run_id": test_run_id,
-                    },
-                ),
+                scope=test_run_id,
+                additional_metadata={
+                    "should_have_runs": key != "foobar",
+                    "test_run_id": test_run_id,
+                },
             )
             for key in keys
         ]
@@ -528,13 +520,11 @@ async def test_multiple_runs_for_multiple_scope_matches(
                 payload={
                     "should_skip": False,
                 },
-                options=PushEventOptions(
-                    scope=test_run_id,
-                    additional_metadata={
-                        "should_have_runs": True,
-                        "test_run_id": test_run_id,
-                    },
-                ),
+                scope=test_run_id,
+                additional_metadata={
+                    "should_have_runs": True,
+                    "test_run_id": test_run_id,
+                },
             )
 
             event_to_runs = await wait_for_result(hatchet, [event])
@@ -578,7 +568,7 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
 
             for event in events:
                 runs = await hatchet.runs.aio_list(
-                    triggering_event_external_id=event.eventId,
+                    triggering_event_external_id=event.event_id,
                     additional_metadata={"test_run_id": test_run_id},
                 )
 

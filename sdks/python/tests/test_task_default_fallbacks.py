@@ -28,7 +28,9 @@ def dummy_task(input: EmptyModel, context: Context) -> dict[str, str]:
     return {"foo": "bar"}
 
 
-def dummy_durable_task(input: EmptyModel, context: DurableContext) -> dict[str, str]:
+async def dummy_durable_task(
+    input: EmptyModel, context: DurableContext
+) -> dict[str, str]:
     return {"foo": "bar"}
 
 

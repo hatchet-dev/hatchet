@@ -1,72 +1,63 @@
-// Single unit durations
-type MillisecondsDuration = `${number}ms`;
 type SecondsDuration = `${number}s`;
 type MinutesDuration = `${number}m`;
 type HoursDuration = `${number}h`;
+type TwoUnitDurations = `${number}h${number}m` | `${number}h${number}s` | `${number}m${number}s`;
+type ThreeUnitDurations = `${number}h${number}m${number}s`;
 
-// Combined durations
-type TwoUnitDurations =
-  | `${number}h${number}m`
-  | `${number}h${number}s`
-  | `${number}h${number}ms`
-  | `${number}m${number}s`
-  | `${number}m${number}ms`
-  | `${number}s${number}ms`;
-type ThreeUnitDurations =
-  | `${number}h${number}m${number}s`
-  | `${number}h${number}m${number}ms`
-  | `${number}h${number}s${number}ms`
-  | `${number}m${number}s${number}ms`;
-type FourUnitDurations = `${number}h${number}m${number}s${number}ms`;
-
-export type Duration =
-  | MillisecondsDuration
+type DurationString =
   | SecondsDuration
   | MinutesDuration
   | HoursDuration
   | TwoUnitDurations
-  | ThreeUnitDurations
-  | FourUnitDurations;
+  | ThreeUnitDurations;
 
-export function durationToMilliseconds(duration: Duration): number {
-  // Supports Go-style duration strings limited to h/m/s as defined by the Duration type.
-  // Examples: "10s", "1m", "1m5s", "2h10m30s"
-  const re = /(\d+)(ms|h|m|s)/g;
+export interface DurationObject {
+  hours?: number;
+  minutes?: number;
+  seconds?: number;
+}
 
-  let total = 0;
-  let matched = false;
+/** A number is treated as milliseconds. */
+export type Duration = DurationString | DurationObject | number;
 
-  for (let m = re.exec(duration); m !== null; m = re.exec(duration)) {
-    matched = true;
-    const value = Number(m[1]);
-    const unit = m[2];
+const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
 
-    if (!Number.isFinite(value) || value < 0) {
-      throw new Error(`Invalid duration value: '${duration}'`);
-    }
+/** Normalizes a Duration to Go-style string format (e.g. "1h30m5s"). */
+export function durationToString(d: Duration): string {
+  if (typeof d === 'string') return d;
+  if (typeof d === 'number') {
+    const totalSeconds = Math.floor(d / 1000);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    let out = '';
+    if (h) out += `${h}h`;
+    if (m) out += `${m}m`;
+    if (s || !out) out += `${s}s`;
+    return out;
+  }
+  let s = '';
+  if (d.hours) s += `${d.hours}h`;
+  if (d.minutes) s += `${d.minutes}m`;
+  if (d.seconds) s += `${d.seconds}s`;
+  return s || '0s';
+}
 
-    switch (unit) {
-      case 'h':
-        total += value * 60 * 60 * 1000;
-        break;
-      case 'm':
-        total += value * 60 * 1000;
-        break;
-      case 's':
-        total += value * 1000;
-        break;
-      case 'ms':
-        total += value;
-        break;
-      default:
-        // should be unreachable due to regex
-        throw new Error(`Invalid duration unit: '${duration}'`);
-    }
+export function durationToMs(d: Duration): number {
+  if (typeof d === 'number') return d;
+  if (typeof d === 'object') {
+    return ((d.hours ?? 0) * 3600 + (d.minutes ?? 0) * 60 + (d.seconds ?? 0)) * 1000;
   }
 
-  if (!matched || total <= 0) {
-    throw new Error(`Invalid duration: '${duration}'`);
+  const match = (d as string).match(DURATION_RE);
+  if (!match) {
+    throw new Error(
+      `Invalid duration string: "${d}". Expected format like "1h30m5s", "10m", "30s".`
+    );
   }
 
-  return total;
+  const [, h, m, s] = match;
+  return (
+    (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) * 1000
+  );
 }

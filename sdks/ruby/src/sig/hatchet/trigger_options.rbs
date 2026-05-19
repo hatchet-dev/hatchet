@@ -1,0 +1,28 @@
+module Hatchet
+  class TriggerWorkflowOptions
+    attr_reader additional_metadata: Hash[String, untyped]?
+    attr_reader key: String?
+    attr_reader priority: Integer?
+    attr_reader parent_id: String?
+    attr_reader parent_step_run_id: String?
+    attr_reader child_index: Integer?
+    attr_reader sticky: bool?
+    attr_reader desired_worker_labels: Hash[Symbol, untyped]?
+
+    def initialize: (
+      ?additional_metadata: Hash[String, untyped]?,
+      ?key: String?,
+      ?priority: Integer?,
+      ?parent_id: String?,
+      ?parent_step_run_id: String?,
+      ?child_index: Integer?,
+      ?sticky: bool?,
+      ?desired_worker_labels: Hash[Symbol, untyped]?
+    ) -> void
+
+    def to_h: () -> Hash[Symbol, untyped]
+  end
+
+  class ScheduleTriggerWorkflowOptions < TriggerWorkflowOptions
+  end
+end

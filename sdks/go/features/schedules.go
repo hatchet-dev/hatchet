@@ -6,9 +6,14 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
+	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 // CreateScheduledRunTrigger contains the configuration for creating a scheduled run trigger.
@@ -49,6 +54,17 @@ func NewSchedulesClient(
 
 // Create creates a new scheduled workflow run.
 func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigger CreateScheduledRunTrigger) (*rest.ScheduledWorkflows, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
+	ctx, span := tracer.Start(ctx, hatchetotel.SpanScheduleWorkflow,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
+			attribute.String(hatchetotel.AttrWorkflowName, workflowName),
+			attribute.String(hatchetotel.AttrTriggerAt, trigger.TriggerAt.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
+
 	workflowName = client.ApplyNamespace(workflowName, s.namespace)
 
 	var priority *int32
@@ -72,13 +88,16 @@ func (s *SchedulesClient) Create(ctx context.Context, workflowName string, trigg
 		request,
 	)
 	if err != nil {
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, errors.Wrap(err, "failed to create scheduled workflow run")
 	}
 
 	if err := validateJSON200Response(resp.StatusCode(), resp.Body, resp.JSON200); err != nil {
+		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 
+	span.SetStatus(otelcodes.Ok, "")
 	return resp.JSON200, nil
 }
 

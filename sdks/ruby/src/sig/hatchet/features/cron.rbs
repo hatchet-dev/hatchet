@@ -1,0 +1,33 @@
+module Hatchet
+  module Features
+    class Cron
+      CRON_ALIASES: Array[String]
+
+      def initialize: (untyped rest_client, Hatchet::Config config) -> void
+
+      def create: (
+        workflow_name: String,
+        cron_name: String,
+        expression: String,
+        ?input: Hash[String, untyped],
+        ?additional_metadata: Hash[String, untyped],
+        ?priority: Integer?
+      ) -> untyped
+
+      def delete: (String cron_id) -> void
+
+      def list: (
+        ?offset: Integer?,
+        ?limit: Integer?,
+        ?workflow_id: String?,
+        ?additional_metadata: Hash[String, String]?,
+        ?order_by_field: String?,
+        ?order_by_direction: String?,
+        ?workflow_name: String?,
+        ?cron_name: String?
+      ) -> untyped
+
+      def get: (String cron_id) -> untyped
+    end
+  end
+end

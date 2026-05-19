@@ -2,6 +2,7 @@ import {
   additionalMetadataKey,
   createdAtKey,
   flattenDAGsKey,
+  runningFilterKey,
   statusKey,
   workflowKey,
 } from '../components/v1/task-runs-columns';
@@ -13,10 +14,10 @@ import {
   ToolbarType,
   TimeRangeConfig,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { V1TaskStatus } from '@/lib/api';
-import { useMemo } from 'react';
+import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
+import { useMemo, useState } from 'react';
 
-export const workflowRunStatusFilters = [
+export const workflowRunStatusFilters: FilterOption[] = [
   {
     value: V1TaskStatus.COMPLETED,
     label: 'Succeeded',
@@ -28,6 +29,11 @@ export const workflowRunStatusFilters = [
   {
     value: V1TaskStatus.RUNNING,
     label: 'Running',
+    subFilterColumnId: runningFilterKey,
+    subOptions: [
+      { value: V1RunningFilter.ON_WORKER, label: 'On Worker' },
+      { value: V1RunningFilter.EVICTED, label: 'Evicted' },
+    ],
   },
   {
     value: V1TaskStatus.QUEUED,
@@ -46,7 +52,8 @@ export const useToolbarFilters = ({
   filterVisibility: { [key: string]: boolean };
   filterActions: FilterActions;
 }): ToolbarFilters => {
-  const workflows = useWorkflows();
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const workflows = useWorkflows(workflowSearch);
 
   const workflowKeyFilters = useMemo((): FilterOption[] => {
     return (
@@ -106,6 +113,9 @@ export const useToolbarFilters = ({
       title: 'Workflow',
       options: workflowKeyFilters,
       type: ToolbarType.Checkbox,
+      searchConfig: {
+        onSearch: setWorkflowSearch,
+      },
     },
     {
       columnId: statusKey,

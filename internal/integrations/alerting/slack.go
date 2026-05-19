@@ -6,10 +6,10 @@ import (
 	"github.com/slack-go/slack"
 
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting/alerttypes"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *dbsqlc.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
+func (t *TenantAlertManager) sendSlackWorkflowRunAlert(slackWebhook *sqlcv1.SlackAppWebhook, numFailed int, failedRuns []alerttypes.WorkflowRunFailedItem) error {
 	headerText, blocks := t.getSlackWorkflowRunTextAndBlocks(numFailed, failedRuns)
 
 	// decrypt the webhook url
@@ -80,7 +80,7 @@ func (t *TenantAlertManager) getSlackWorkflowRunTextAndBlocks(numFailed int, fai
 	}
 }
 
-func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *dbsqlc.SlackAppWebhook, payload *alerttypes.ExpiringTokenItem) error {
+func (t *TenantAlertManager) sendSlackExpiringTokenAlert(slackWebhook *sqlcv1.SlackAppWebhook, payload *alerttypes.ExpiringTokenItem) error {
 	headerText, blocks := t.getSlackExpiringTokenTextAndBlocks(payload)
 
 	// decrypt the webhook url
@@ -140,7 +140,7 @@ func (t *TenantAlertManager) getSlackExpiringTokenTextAndBlocks(payload *alertty
 	}
 }
 
-func (t *TenantAlertManager) sendSlackTenantResourceLimitAlert(slackWebhook *dbsqlc.SlackAppWebhook, payload *alerttypes.ResourceLimitAlert) error {
+func (t *TenantAlertManager) sendSlackTenantResourceLimitAlert(slackWebhook *sqlcv1.SlackAppWebhook, payload *alerttypes.ResourceLimitAlert) error {
 	headerText, blocks := t.getSlackTenantResourceLimitTextAndBlocks(payload)
 
 	// decrypt the webhook url
@@ -167,11 +167,11 @@ func (t *TenantAlertManager) getSlackTenantResourceLimitTextAndBlocks(payload *a
 
 	var headerText string
 
-	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeAlarm) {
+	if payload.AlertType == string(sqlcv1.TenantResourceLimitAlertTypeAlarm) {
 		headerText = fmt.Sprintf(":warning: Limit Alarm! `%s` resource is at %d%% of its limit (%d/%d)", payload.Resource, payload.Percentage, payload.CurrentValue, payload.LimitValue)
 	}
 
-	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeExhausted) {
+	if payload.AlertType == string(sqlcv1.TenantResourceLimitAlertTypeExhausted) {
 		headerText = fmt.Sprintf(":no_entry: Limit Exhausted! `%s` resource is at 100%% of its limit (%d/%d)", payload.Resource, payload.CurrentValue, payload.LimitValue)
 	}
 
@@ -192,7 +192,7 @@ func (t *TenantAlertManager) getSlackTenantResourceLimitTextAndBlocks(payload *a
 	buttonAccessory.ButtonElement.URL = payload.Link
 	buttonAccessory.ButtonElement.ActionID = "button-action"
 
-	if payload.AlertType == string(dbsqlc.TenantResourceLimitAlertTypeExhausted) {
+	if payload.AlertType == string(sqlcv1.TenantResourceLimitAlertTypeExhausted) {
 		res = append(res, slack.NewSectionBlock(
 			slack.NewTextBlockObject(
 				slack.MarkdownType,

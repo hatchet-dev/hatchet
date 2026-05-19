@@ -1,31 +1,20 @@
 # frozen_string_literal: true
 
 # Additional Rake tasks for REST API client generation
+#
+# All generation goes through sdks/ruby/generate.sh, which is the single
+# entry point for both protobuf and REST generation.
 
 require "rake"
 
 namespace :api do
+  # Path to the unified generate script
+  GENERATE_SH = File.expand_path("../../generate.sh", __dir__)
+
   desc "Generate REST API client from OpenAPI specification"
   task :generate do
-    puts "Generating REST API client from OpenAPI specification..."
-
-    ruby_script = File.join(__dir__, "scripts", "generate_api.rb")
-
-    unless File.exist?(ruby_script)
-      puts "❌ Generator script not found at #{ruby_script}"
-      exit 1
-    end
-
-    # Make the script executable
-    File.chmod(0755, ruby_script)
-
-    # Execute the generation script
-    system("ruby #{ruby_script}") || begin
-      puts "❌ API generation failed"
-      exit 1
-    end
-
-    puts "✅ REST API client generation completed"
+    puts "Generating REST API client..."
+    system("bash", GENERATE_SH, "rest") || abort("REST API generation failed")
   end
 
   desc "Clean generated REST API client files"
@@ -33,12 +22,12 @@ namespace :api do
     rest_client_dir = File.join(__dir__, "lib", "hatchet", "clients", "rest")
 
     if Dir.exist?(rest_client_dir)
-      puts "🧹 Cleaning generated REST API client files..."
+      puts "Cleaning generated REST API client files..."
       require "fileutils"
       FileUtils.rm_rf(rest_client_dir)
-      puts "✅ REST API client files cleaned"
+      puts "REST API client files cleaned"
     else
-      puts "ℹ️  No REST API client files to clean"
+      puts "No REST API client files to clean"
     end
   end
 
@@ -51,83 +40,10 @@ namespace :api do
     main_client_file = File.join(rest_client_dir, "lib", "hatchet-sdk-rest.rb")
 
     unless File.exist?(main_client_file)
-      puts "🔄 REST API client not found, generating..."
+      puts "REST API client not found, generating..."
       Rake::Task["api:generate"].invoke
     else
-      puts "✅ REST API client already exists, skipping generation"
-    end
-  end
-
-  desc "Validate OpenAPI specification"
-  task :validate do
-    openapi_spec = File.join(__dir__, "..", "..", "..", "bin", "oas", "openapi.yaml")
-
-    unless File.exist?(openapi_spec)
-      puts "❌ OpenAPI specification not found at #{openapi_spec}"
-      exit 1
-    end
-
-    puts "🔍 Validating OpenAPI specification..."
-
-    # Use openapi-generator-cli to validate the spec
-    cmd = ["openapi-generator-cli", "validate", "-i", openapi_spec]
-
-    if system(*cmd)
-      puts "✅ OpenAPI specification is valid"
-    else
-      puts "❌ OpenAPI specification validation failed"
-      exit 1
-    end
-  end
-
-  desc "Install OpenAPI Generator CLI if not present"
-  task :install_generator do
-    puts "🔧 Checking OpenAPI Generator CLI installation..."
-
-    if system("which openapi-generator-cli > /dev/null 2>&1")
-      puts "✅ OpenAPI Generator CLI is already installed"
-    else
-      puts "📦 Installing OpenAPI Generator CLI..."
-
-      if system("npm install -g @openapitools/openapi-generator-cli@7.13.0")
-        puts "✅ OpenAPI Generator CLI installed successfully"
-      else
-        puts "❌ Failed to install OpenAPI Generator CLI"
-        puts "Please install it manually: npm install -g @openapitools/openapi-generator-cli"
-        exit 1
-      end
-    end
-  end
-
-  desc "Show information about the OpenAPI specification"
-  task :info do
-    openapi_spec = File.join(__dir__, "..", "..", "..", "bin", "oas", "openapi.yaml")
-
-    unless File.exist?(openapi_spec)
-      puts "❌ OpenAPI specification not found at #{openapi_spec}"
-      exit 1
-    end
-
-    puts "📊 OpenAPI Specification Information:"
-    puts "  File: #{openapi_spec}"
-    puts "  Size: #{File.size(openapi_spec)} bytes"
-    puts "  Modified: #{File.mtime(openapi_spec)}"
-
-    # Try to parse and show basic info
-    begin
-      require "yaml"
-      spec = YAML.load_file(openapi_spec)
-
-      puts "  OpenAPI Version: #{spec.dig('openapi')}"
-      puts "  API Version: #{spec.dig('info', 'version')}"
-      puts "  API Title: #{spec.dig('info', 'title')}"
-      puts "  Paths: #{spec.dig('paths')&.keys&.count || 0}"
-      puts "  Components: #{spec.dig('components', 'schemas')&.keys&.count || 0} schemas"
-    rescue => e
-      puts "  ⚠️  Could not parse specification: #{e.message}"
+      puts "REST API client already exists, skipping generation"
     end
   end
 end
-
-# Add REST API tasks to the default rake task
-task default: ["api:validate"]

@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
 import { expectTypeTestsToPassAsync } from 'jest-tsd';
 
 describe('test-typing', () => {

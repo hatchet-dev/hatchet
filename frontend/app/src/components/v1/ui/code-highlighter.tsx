@@ -1,5 +1,5 @@
 import CopyToClipboard from './copy-to-clipboard';
-import { useTheme } from '@/components/theme-provider';
+import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
@@ -25,6 +25,7 @@ export function CodeHighlighter({
   minWidth,
   copy = true,
   wrapLines = true,
+  onCopy,
 }: {
   code: string;
   copyCode?: string;
@@ -36,6 +37,7 @@ export function CodeHighlighter({
   minWidth?: string;
   copy?: boolean;
   wrapLines?: boolean;
+  onCopy?: () => void;
 }) {
   const { theme } = useTheme();
 
@@ -71,6 +73,7 @@ export function CodeHighlighter({
         <CopyToClipboard
           className="absolute right-2 top-2"
           text={(copyCode || code).trim()}
+          onCopy={onCopy}
         />
       )}
     </div>

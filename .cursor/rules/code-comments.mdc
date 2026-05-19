@@ -1,0 +1,43 @@
+---
+description: Comment and logging conventions for the Hatchet codebase
+alwaysApply: true
+---
+
+# Comments
+
+- Do NOT add section-separator comments like `# ----------- section name -----------` or `// ===== section =====`. Use whitespace and clear naming instead.
+- Do NOT add comments that narrate what the code does (e.g., `// Import the module`, `// Return the result`). Comments explain **why**, not **what**.
+- `TODO` and `FIXME` comments must include context: `// TODO: reason` or `// FIXME: description of the issue`.
+- `NOTE:` for important non-obvious context: `// NOTE: we break this into a separate query because CTEs can't see modified rows`.
+
+## Python-specific
+
+- Docstrings: Google style with `:param:` and `:returns:` for public APIs.
+- Type ignores must be specific: `# type: ignore[attr-defined]`, never bare `# type: ignore`.
+- Linter suppressions (`# noqa: E501`) are fine in generated code; avoid in hand-written code.
+
+## Go-specific
+
+- Exported types and functions must have godoc comments.
+- Struct fields use inline comments for `(required)` / `(optional)` annotations.
+- Logger field is named `l`, not `logger` or `log`.
+
+# Logging
+
+- Avoid logging state at every line.
+
+## Python
+
+- Import the shared logger: `from hatchet_sdk.logger import logger` (named `"hatchet"`).
+- Do NOT create per-module loggers with `logging.getLogger(__name__)` in SDK code.
+- Levels: `debug` for internals, `info` for key events, `warning` for recoverable issues, `error` for failures, `exception` for failures with tracebacks.
+- Use `logger.exception(...)` (not `logger.error` + `traceback`) when logging caught exceptions.
+
+## Go
+
+- Create loggers via `logger.NewDefaultLogger("service-name")` with kebab-case service names.
+- Store as `*zerolog.Logger` in a struct field named `l`.
+- Chain structured fields before the message: `d.l.Error().Err(err).Str("key", val).Msg("description")`.
+- Use `.Err(err)` to attach errors — do not format errors into the message string.
+- Use `.Msgf()` only when dynamic values are needed; prefer `.Msg()` with structured fields.
+- Log errors at the point of handling, not at every level of the call stack.

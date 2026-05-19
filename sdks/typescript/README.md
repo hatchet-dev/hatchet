@@ -63,9 +63,21 @@ pnpm install
 pnpm build
 ```
 
-3. Run tests:
+3. Run unit tests:
 ```bash
-pnpm test
+pnpm test:unit
+```
+
+4. Run e2e tests (requires a running Hatchet engine):
+```bash
+# Run all e2e tests
+pnpm test:e2e
+
+# Run a specific e2e test file
+pnpm test:e2e durable.e2e.ts
+
+# Run a specific test by name
+pnpm test:e2e durable.e2e.ts -t "durable replay reset"
 ```
 
 ## Contributing

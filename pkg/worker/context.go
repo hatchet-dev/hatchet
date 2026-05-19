@@ -9,10 +9,17 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
+	"github.com/hatchet-dev/hatchet/pkg/client/types"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
@@ -87,6 +94,18 @@ type HatchetContext interface {
 
 	ParentOutput(parent create.NamedTask, output interface{}) error
 
+	WasSkipped(parent create.NamedTask) bool
+
+	TenantId() string
+
+	WorkerId() string
+
+	ActionId() string
+
+	// DurableTaskInvocationCount returns the invocation count for durable task replay tracking.
+	// Returns 0 if not set (non-durable tasks).
+	DurableTaskInvocationCount() int32
+
 	client() client.Client
 
 	action() *client.Action
@@ -97,22 +116,68 @@ type HatchetContext interface {
 	Priority() int32
 
 	FilterPayload() map[string]interface{}
+
+	ParentWorkflowRunId() *string
+
+	ChildIndex() *int32
+
+	ChildKey() *string
+
+	TriggeringEventId() *string
+
+	TriggeringEventKey() *string
 }
 
+// DurableEvictionHook observes waiting state transitions for a durable run so an
+// eviction manager can decide when to evict a waiting run. Implementations must be
+// safe for concurrent use. Kinds used by the SDK: "wait_for", "sleep", "wait_for_event",
+// "spawn_child".
+type DurableEvictionHook interface {
+	// MarkWaiting signals that the run identified by key has entered a waiting state.
+	// waitKind describes what the run is waiting on; resourceID is an opaque identifier
+	// (e.g. signal key, event key, child workflow name) useful for logging.
+	MarkWaiting(key, waitKind, resourceID string)
+
+	// MarkActive signals that the run identified by key has exited a waiting state.
+	// It is reference-counted against MarkWaiting calls with the same key.
+	MarkActive(key string)
+}
+
+// SetContextDurableHooks attaches eviction and durable-task infrastructure to ctx.
+// Pass nil hook and nil listener to clear. Intended for internal SDK use only.
+func SetContextDurableHooks(ctx HatchetContext, hook DurableEvictionHook, listener *client.DurableTaskListener, supportsEviction bool) {
+	type durableSetter interface {
+		SetDurableEvictionHook(hook DurableEvictionHook)
+		SetDurableTaskListener(listener *client.DurableTaskListener, supportsEviction bool)
+	}
+	if s, ok := ctx.(durableSetter); ok {
+		s.SetDurableEvictionHook(hook)
+		s.SetDurableTaskListener(listener, supportsEviction)
+	}
+}
+
+// Deprecated: TriggeredBy is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type TriggeredBy string
 
+// Deprecated: These constants are part of the legacy v0 workflow definition system.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 const (
 	TriggeredByEvent    TriggeredBy = "event"
 	TriggeredByCron     TriggeredBy = "cron"
 	TriggeredBySchedule TriggeredBy = "schedule"
 )
 
+// Deprecated: JobRunLookupData is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type JobRunLookupData struct {
 	Input       map[string]interface{} `json:"input"`
 	TriggeredBy TriggeredBy            `json:"triggered_by"`
 	Steps       map[string]StepData    `json:"steps,omitempty"`
 }
 
+// Deprecated: StepRunData is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type StepRunData struct {
 	Input              map[string]interface{}            `json:"input"`
 	TriggeredBy        TriggeredBy                       `json:"triggered_by"`
@@ -123,6 +188,8 @@ type StepRunData struct {
 	StepRunErrors      map[string]string                 `json:"step_run_errors,omitempty"`
 }
 
+// Deprecated: StepData is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type StepData map[string]interface{}
 
 type hatchetContext struct {
@@ -142,6 +209,13 @@ type hatchetContext struct {
 
 	streamEventIndex   int64
 	streamEventIndexMu sync.Mutex
+
+	evictionHook   DurableEvictionHook
+	evictionHookMu sync.RWMutex
+
+	durableTaskListener      *client.DurableTaskListener
+	durableEvictionSupported bool
+	durableTaskListenerMu    sync.RWMutex
 }
 
 type hatchetWorkerContext struct {
@@ -194,6 +268,18 @@ func (h *hatchetContext) action() *client.Action {
 	return h.a
 }
 
+func (h *hatchetContext) TenantId() string {
+	return h.a.TenantId
+}
+
+func (h *hatchetContext) WorkerId() string {
+	return h.a.WorkerId
+}
+
+func (h *hatchetContext) ActionId() string {
+	return h.a.ActionId
+}
+
 func (h *hatchetContext) Worker() HatchetWorkerContext {
 	return h.w
 }
@@ -242,14 +328,34 @@ func (h *hatchetContext) ParentOutput(parent create.NamedTask, output interface{
 	return fmt.Errorf("parent %s not found in action payload", stepName)
 }
 
+func (h *hatchetContext) WasSkipped(parent create.NamedTask) bool {
+	stepName := parent.GetName()
+
+	if val, ok := h.stepData.Parents[stepName]; ok {
+		if skipped, ok := val["skipped"]; ok {
+			if skippedBool, ok := skipped.(bool); ok {
+				return skippedBool
+			}
+		}
+	}
+
+	return false
+}
+
+// Deprecated: TriggeredByEvent is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) TriggeredByEvent() bool {
 	return h.stepData.TriggeredBy == TriggeredByEvent
 }
 
+// Deprecated: WorkflowInput is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
 }
 
+// Deprecated: StepRunErrors is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepRunErrors() map[string]string {
 	errors := h.stepData.StepRunErrors
 
@@ -260,52 +366,151 @@ func (h *hatchetContext) StepRunErrors() map[string]string {
 	return errors
 }
 
+// Deprecated: UserData is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) UserData(target interface{}) error {
 	return toTarget(h.stepData.UserData, target)
 }
 
+// Deprecated: FilterPayload is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) FilterPayload() map[string]interface{} {
 	payload := h.stepData.Triggers["filter_payload"]
 
 	return payload
 }
 
+// Deprecated: AdditionalMetadata is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) AdditionalMetadata() map[string]string {
 	return h.stepData.AdditionalMetadata
 }
 
+// Deprecated: StepName is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepName() string {
 	return h.a.StepName
 }
 
+// Deprecated: StepRunId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepRunId() string {
 	return h.a.StepRunId
 }
 
+// Deprecated: StepId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StepId() string {
 	return h.a.StepId
 }
 
+func (h *hatchetContext) DurableTaskInvocationCount() int32 {
+	if h.a.DurableTaskInvocationCount != nil {
+		return *h.a.DurableTaskInvocationCount
+	}
+	return 0
+}
+
+func (h *hatchetContext) SetDurableEvictionHook(hook DurableEvictionHook) {
+	h.evictionHookMu.Lock()
+	defer h.evictionHookMu.Unlock()
+	h.evictionHook = hook
+}
+
+func (h *hatchetContext) DurableEvictionHook() DurableEvictionHook {
+	h.evictionHookMu.RLock()
+	defer h.evictionHookMu.RUnlock()
+	return h.evictionHook
+}
+
+func (h *hatchetContext) SetDurableTaskListener(listener *client.DurableTaskListener, supportsEviction bool) {
+	h.durableTaskListenerMu.Lock()
+	defer h.durableTaskListenerMu.Unlock()
+	h.durableTaskListener = listener
+	h.durableEvictionSupported = supportsEviction
+}
+
+func (h *hatchetContext) DurableTaskListener() *client.DurableTaskListener {
+	h.durableTaskListenerMu.RLock()
+	defer h.durableTaskListenerMu.RUnlock()
+	return h.durableTaskListener
+}
+
+func (h *hatchetContext) DurableEvictionSupported() bool {
+	h.durableTaskListenerMu.RLock()
+	defer h.durableTaskListenerMu.RUnlock()
+	return h.durableEvictionSupported
+}
+
+// Deprecated: WorkflowRunId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowRunId() string {
 	return h.a.WorkflowRunId
 }
 
+// Deprecated: WorkflowId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowId() *string {
 	return h.a.WorkflowId
 }
 
+// Deprecated: WorkflowVersionId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowVersionId() *string {
 	return h.a.WorkflowVersionId
 }
 
+// Deprecated: Log is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) Log(message string) {
-	err := h.c.Event().PutLog(h, h.a.StepRunId, message)
+	infoLevel := "INFO"
 
-	if err != nil {
-		h.l.Err(err).Msg("could not put log")
+	runes := []rune(message)
+
+	if len(runes) > 10_000 {
+		h.l.Warn().Msg("log message is too long, truncating to the first 10,000 characters")
+		message = string(runes[:10_000])
 	}
+
+	stepRunId := h.a.StepRunId
+	retryCount := h.a.RetryCount
+	createdAt := timestamppb.Now()
+
+	go func() {
+		const maxRetries = 3
+		baseDelay := 100 * time.Millisecond
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		var err error
+
+		for attempt := range maxRetries + 1 {
+			if attempt > 0 {
+				delay := baseDelay * time.Duration(1<<(attempt-1))
+
+				select {
+				case <-ctx.Done():
+					h.l.Warn().Err(err).Msg("log delivery timed out, abandoning")
+					return
+				case <-time.After(delay):
+				}
+			}
+
+			err = h.c.Event().PutLogWithTimestamp(ctx, stepRunId, message, &infoLevel, &retryCount, createdAt)
+			if err == nil {
+				return
+			}
+
+			h.l.Warn().Err(err).Msgf("failed to put log (attempt %d/%d)", attempt+1, maxRetries+1)
+		}
+
+		h.l.Err(err).Msg("could not put log after all retries")
+	}()
 }
 
+// Deprecated: ReleaseSlot is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ReleaseSlot() error {
 	err := h.c.Dispatcher().ReleaseSlot(h, h.a.StepRunId)
 
@@ -316,6 +521,8 @@ func (h *hatchetContext) ReleaseSlot() error {
 	return nil
 }
 
+// Deprecated: RefreshTimeout is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	err := h.c.Dispatcher().RefreshTimeout(h, h.a.StepRunId, incrementTimeoutBy)
 
@@ -326,6 +533,8 @@ func (h *hatchetContext) RefreshTimeout(incrementTimeoutBy string) error {
 	return nil
 }
 
+// Deprecated: StreamEvent is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) StreamEvent(message []byte) {
 	h.streamEventIndexMu.Lock()
 	currentIndex := h.streamEventIndex
@@ -339,14 +548,20 @@ func (h *hatchetContext) StreamEvent(message []byte) {
 	}
 }
 
+// Deprecated: PutStream is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) PutStream(message string) {
 	h.StreamEvent([]byte(message))
 }
 
+// Deprecated: RetryCount is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) RetryCount() int {
 	return int(h.a.RetryCount)
 }
 
+// Deprecated: CurChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) CurChildIndex() int {
 	h.indexMu.Lock()
 	defer h.indexMu.Unlock()
@@ -354,26 +569,61 @@ func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
+// Deprecated: IncChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) IncChildIndex() {
 	h.indexMu.Lock()
 	h.i++
 	h.indexMu.Unlock()
 }
 
+// Deprecated: SpawnWorkflowOpts is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowOpts struct {
-	Key                *string
-	Sticky             *bool
-	AdditionalMetadata *map[string]string
-	Priority           *int32
+	Key                 *string
+	Sticky              *bool
+	AdditionalMetadata  *map[string]string
+	Priority            *int32
+	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
 	return h.client().Subscribe().SubscribeToWorkflowRunEvents(h)
 }
 
+// injectTraceparent serializes the current span's W3C traceparent from ctx
+// into the AdditionalMetadata map so child workflows inherit the trace.
+func injectTraceparent(ctx context.Context, meta *map[string]string) *map[string]string {
+	propagator := propagation.TraceContext{}
+	carrier := propagation.MapCarrier{}
+	propagator.Inject(ctx, carrier)
+
+	tp, ok := carrier["traceparent"]
+	if !ok || tp == "" {
+		return meta
+	}
+
+	if meta == nil {
+		m := map[string]string{"traceparent": tp}
+		return &m
+	}
+
+	(*meta)["traceparent"] = tp
+	return meta
+}
+
+// Deprecated: SpawnWorkflow is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.Workflow, error) {
 	if opts == nil {
 		opts = &SpawnWorkflowOpts{}
+	}
+
+	// Only inject traceparent if the caller hasn't already set one (e.g. the
+	// new Go SDK's RunNoWait injects a traceparent pointing to its own
+	// hatchet.run_workflow span — we must not overwrite it).
+	if opts.AdditionalMetadata == nil || (*opts.AdditionalMetadata)["traceparent"] == "" {
+		opts.AdditionalMetadata = injectTraceparent(h.GetContext(), opts.AdditionalMetadata)
 	}
 
 	var desiredWorker *string
@@ -405,13 +655,14 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 		workflowName,
 		input,
 		&client.ChildWorkflowOpts{
-			ParentId:           h.WorkflowRunId(),
-			ParentStepRunId:    h.StepRunId(),
-			ChildIndex:         childIndex,
-			ChildKey:           opts.Key,
-			DesiredWorkerId:    desiredWorker,
-			AdditionalMetadata: opts.AdditionalMetadata,
-			Priority:           opts.Priority,
+			ParentId:            h.WorkflowRunId(),
+			ParentTaskRunId:     h.StepRunId(),
+			ChildIndex:          childIndex,
+			ChildKey:            opts.Key,
+			DesiredWorkerId:     desiredWorker,
+			AdditionalMetadata:  opts.AdditionalMetadata,
+			Priority:            opts.Priority,
+			DesiredWorkerLabels: opts.DesiredWorkerLabels,
 		},
 	)
 
@@ -422,20 +673,28 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	return client.NewWorkflow(workflowRunId, listener), nil
 }
 
+// Deprecated: SpawnWorkflowsOpts is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SpawnWorkflowsOpts struct {
-	WorkflowName       string
-	Input              any
-	Key                *string
-	Sticky             *bool
-	AdditionalMetadata *map[string]string
+	WorkflowName        string
+	Input               any
+	Key                 *string
+	Sticky              *bool
+	AdditionalMetadata  *map[string]string
+	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
+// Deprecated: SpawnWorkflows is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([]*client.Workflow, error) {
 
 	triggerWorkflows := make([]*client.RunChildWorkflowsOpts, len(childWorkflows))
 	listener, err := h.saveOrLoadListener()
 
 	for i, c := range childWorkflows {
+		if c.AdditionalMetadata == nil || (*c.AdditionalMetadata)["traceparent"] == "" {
+			c.AdditionalMetadata = injectTraceparent(h.GetContext(), c.AdditionalMetadata)
+		}
 
 		var desiredWorker *string
 
@@ -465,12 +724,13 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 			WorkflowName: workflowName,
 			Input:        c.Input,
 			Opts: &client.ChildWorkflowOpts{
-				ParentId:           h.WorkflowRunId(),
-				ParentStepRunId:    h.StepRunId(),
-				ChildIndex:         childIndex,
-				ChildKey:           c.Key,
-				DesiredWorkerId:    desiredWorker,
-				AdditionalMetadata: c.AdditionalMetadata,
+				ParentId:            h.WorkflowRunId(),
+				ParentTaskRunId:     h.StepRunId(),
+				ChildIndex:          childIndex,
+				ChildKey:            c.Key,
+				DesiredWorkerId:     desiredWorker,
+				AdditionalMetadata:  c.AdditionalMetadata,
+				DesiredWorkerLabels: c.DesiredWorkerLabels,
 			},
 		}
 	}
@@ -492,18 +752,34 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	return createdWorkflows, nil
 }
 
+// Deprecated: ChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ChildIndex() *int32 {
 	return h.a.ChildIndex
 }
 
+// Deprecated: ChildKey is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ChildKey() *string {
 	return h.a.ChildKey
 }
 
+func (h *hatchetContext) TriggeringEventId() *string {
+	return h.a.TriggeringEventExternalId
+}
+
+func (h *hatchetContext) TriggeringEventKey() *string {
+	return h.a.TriggeringEventKey
+}
+
+// Deprecated: ParentWorkflowRunId is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) ParentWorkflowRunId() *string {
 	return h.a.ParentWorkflowRunId
 }
 
+// Deprecated: Priority is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) Priority() int32 {
 	return h.a.Priority
 }
@@ -568,14 +844,20 @@ func toTarget(data interface{}, target interface{}) error {
 	return nil
 }
 
+// Deprecated: SetContext is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) SetContext(ctx context.Context) {
 	wc.Context = ctx
 }
 
+// Deprecated: GetContext is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) GetContext() context.Context {
 	return wc.Context
 }
 
+// Deprecated: ID is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) ID() string {
 	if wc.id == nil {
 		return ""
@@ -584,10 +866,14 @@ func (wc *hatchetWorkerContext) ID() string {
 	return *wc.id
 }
 
+// Deprecated: GetLabels is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) GetLabels() map[string]interface{} {
 	return wc.worker.labels
 }
 
+// Deprecated: UpsertLabels is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) error {
 
 	if wc.id == nil {
@@ -604,10 +890,14 @@ func (wc *hatchetWorkerContext) UpsertLabels(labels map[string]interface{}) erro
 	return nil
 }
 
+// Deprecated: HasWorkflow is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (wc *hatchetWorkerContext) HasWorkflow(workflowName string) bool {
 	return wc.worker.registered_workflows[workflowName]
 }
 
+// Deprecated: SingleWaitResult is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type SingleWaitResult struct {
 	*WaitResult
 
@@ -621,10 +911,14 @@ func newSingleWaitResult(key string, wr *WaitResult) *SingleWaitResult {
 	}
 }
 
+// Deprecated: Unmarshal is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *SingleWaitResult) Unmarshal(in interface{}) error {
 	return w.WaitResult.Unmarshal(w.key, in)
 }
 
+// Deprecated: WaitResult is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type WaitResult struct {
 	allResults map[string]map[string][]map[string]interface{}
 }
@@ -643,14 +937,20 @@ func newWaitResult(dataBytes []byte) (*WaitResult, error) {
 	}, nil
 }
 
+// Deprecated: ErrMarshalKeyNotFound is an internal type used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 type ErrMarshalKeyNotFound struct {
 	Key string
 }
 
+// Deprecated: Error is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (e ErrMarshalKeyNotFound) Error() string {
 	return fmt.Sprintf("key %s not found", e.Key)
 }
 
+// Deprecated: Keys is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WaitResult) Keys() []string {
 	keys := make([]string, 0, len(w.allResults))
 
@@ -663,6 +963,8 @@ func (w *WaitResult) Keys() []string {
 	return keys
 }
 
+// Deprecated: Unmarshal is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (w *WaitResult) Unmarshal(key string, in interface{}) error {
 	eNotFound := ErrMarshalKeyNotFound{
 		Key: key,
@@ -700,16 +1002,33 @@ type DurableHatchetContext interface {
 	// SleepFor pauses execution for the specified duration and returns after that time has elapsed.
 	// Duration is "global" meaning it will wait in real time regardless of transient failures
 	// like worker restarts.
-	// Example: "10s" for 10 seconds, "1m" for 1 minute, etc.
 	SleepFor(duration time.Duration) (*SingleWaitResult, error)
 
-	// TODO: docs
+	// WaitForEvent pauses execution until the specified user event is received.
 	WaitForEvent(eventKey, expression string) (*SingleWaitResult, error)
 
 	// WaitFor pauses execution until the specified conditions are met.
 	// Conditions are "global" meaning they will wait in real time regardless of transient failures
 	// like worker restarts.
 	WaitFor(conditions condition.Condition) (*WaitResult, error)
+
+	// Memo executes fn, JSON-serializes the result, and persists it via the engine's
+	// durable event log. On replay, the cached payload is returned without re-executing
+	// fn. Callers should json.Unmarshal the returned bytes into their concrete type.
+	// If the engine does not support durable memoization, fn is executed and the result
+	// is cached in process only (it will not survive replay).
+	// The key must be unique within the task.
+	Memo(key string, fn func() (any, error)) (json.RawMessage, error)
+
+	// Now returns the current time, memoized via Memo so replays return the same value.
+	Now() (time.Time, error)
+
+	// InvocationCount returns the current invocation count for this durable task.
+	// Increments each time the task is started (including after eviction/restore).
+	InvocationCount() int32
+
+	// SleepUntil sleeps until the specified absolute time. Combines Now() with SleepFor.
+	SleepUntil(t time.Time) (*SingleWaitResult, error)
 }
 
 // durableHatchetContext implements the DurableHatchetContext interface.
@@ -721,15 +1040,17 @@ type durableHatchetContext struct {
 
 	durableEventListener *client.DurableEventsListener
 	durableListenerMu    sync.Mutex
+
+	invocationCount int32
+	memoMu          sync.Mutex
+	memoCache       map[string]json.RawMessage
 }
 
 // SleepFor implements the DurableHatchetContext.SleepFor method.
 func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitResult, error) {
-	// Implement SleepFor functionality
-	// Call appropriate client methods to register a durable event
 	c := condition.SleepCondition(duration)
 
-	wr, err := d.WaitFor(c)
+	wr, err := d.waitFor(c, "sleep", c.Key())
 
 	if err != nil {
 		return nil, err
@@ -740,9 +1061,7 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
 func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
-	// Implement WaitForEvent functionality
-	// Call appropriate client methods to register a durable event
-	wr, err := d.WaitFor(condition.UserEventCondition(eventKey, expression))
+	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
 
 	if err != nil {
 		return nil, err
@@ -753,6 +1072,20 @@ func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*Sing
 
 // WaitFor implements the DurableHatchetContext.WaitFor method.
 func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitResult, error) {
+	return d.waitFor(conditions, "wait_for", "")
+}
+
+func (d *durableHatchetContext) waitFor(conditions condition.Condition, waitKind, resourceID string) (*WaitResult, error) {
+	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/pkg/worker")
+	_, span := tracer.Start(d.GetContext(), "hatchet.durable.wait_for",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("instrumentor", "hatchet"),
+			attribute.String("hatchet.step_run_id", d.StepRunId()),
+		),
+	)
+	defer span.End()
+
 	// Increment wait key to ensure unique keys for multiple wait operations
 	d.waitKeyCounterMu.Lock()
 	d.waitKeyCounter++
@@ -763,6 +1096,7 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	durableListener, err := d.saveOrLoadDurableEventListener()
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -770,16 +1104,47 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	c := conditions.ToPB(v1.Action_CREATE)
 	signalKey := fmt.Sprintf("signal-%d", count)
 
+	if resourceID == "" {
+		resourceID = signalKey
+	}
+
+	span.SetAttributes(attribute.String("hatchet.signal_key", signalKey))
+
+	conditionsPB := &v1.DurableEventListenerConditions{
+		SleepConditions:     c.SleepConditions,
+		UserEventConditions: c.UserEventConditions,
+	}
+
+	if listener := d.DurableTaskListener(); listener != nil && d.DurableEvictionSupported() {
+		if hook := d.DurableEvictionHook(); hook != nil {
+			hook.MarkWaiting(d.StepRunId(), waitKind, resourceID)
+			defer hook.MarkActive(d.StepRunId())
+		}
+
+		data, waitErr := listener.SendWaitForRequest(
+			d.GetContext(),
+			d.StepRunId(),
+			d.invocationCount,
+			conditionsPB,
+			"",
+		)
+		if waitErr != nil {
+			span.SetStatus(codes.Error, waitErr.Error())
+			return nil, fmt.Errorf("failed to wait for durable event: %w", waitErr)
+		}
+
+		span.SetStatus(codes.Ok, "")
+		return newWaitResult(data)
+	}
+
 	_, err = d.client().Dispatcher().RegisterDurableEvent(d, &v1.RegisterDurableEventRequest{
-		TaskId:    d.StepRunId(),
-		SignalKey: signalKey,
-		Conditions: &v1.DurableEventListenerConditions{
-			SleepConditions:     c.SleepConditions,
-			UserEventConditions: c.UserEventConditions,
-		},
+		TaskId:     d.StepRunId(),
+		SignalKey:  signalKey,
+		Conditions: conditionsPB,
 	})
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to register durable event: %w", err)
 	}
 
@@ -792,30 +1157,156 @@ func (d *durableHatchetContext) WaitFor(conditions condition.Condition) (*WaitRe
 	})
 
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("failed to add signal: %w", err)
 	}
 
-	data := <-resCh
+	if hook := d.DurableEvictionHook(); hook != nil {
+		hook.MarkWaiting(d.StepRunId(), waitKind, resourceID)
+		defer hook.MarkActive(d.StepRunId())
+	}
 
+	var data []byte
+	select {
+	case data = <-resCh:
+	case <-d.GetContext().Done():
+		span.SetStatus(codes.Error, d.GetContext().Err().Error())
+		return nil, d.GetContext().Err()
+	}
+
+	span.SetStatus(codes.Ok, "")
 	return newWaitResult(data)
 }
 
-func (h *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
-	return h.client().Subscribe().ListenForDurableEvents(context.Background())
+// Memo executes fn, JSON-serializes the result, and persists it via the engine's
+// durable event log. On replay, the cached payload is returned without re-executing
+// fn. Callers should json.Unmarshal the returned bytes into their concrete type.
+//
+// When the engine does not support durable memoization (or no listener is attached),
+// the result is cached in process only and will be re-computed on a fresh task run.
+func (d *durableHatchetContext) Memo(key string, fn func() (any, error)) (json.RawMessage, error) {
+	d.memoMu.Lock()
+	if d.memoCache == nil {
+		d.memoCache = make(map[string]json.RawMessage)
+	}
+	if cached, ok := d.memoCache[key]; ok {
+		d.memoMu.Unlock()
+		return cached, nil
+	}
+	d.memoMu.Unlock()
+
+	listener := d.DurableTaskListener()
+	supportsEviction := d.DurableEvictionSupported()
+
+	if listener != nil && supportsEviction {
+		memoKey := []byte(key)
+		ack, err := listener.SendMemoRequest(d.GetContext(), d.StepRunId(), d.invocationCount, memoKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to send memo request: %w", err)
+		}
+
+		if ack.MemoAlreadyExisted && len(ack.CachedPayload) > 0 {
+			d.memoMu.Lock()
+			d.memoCache[key] = ack.CachedPayload
+			d.memoMu.Unlock()
+			return ack.CachedPayload, nil
+		}
+
+		result, err := fn()
+		if err != nil {
+			return nil, err
+		}
+		payload, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal memo result: %w", err)
+		}
+
+		listener.SendMemoCompleted(ack.Ref, memoKey, payload)
+
+		d.memoMu.Lock()
+		d.memoCache[key] = payload
+		d.memoMu.Unlock()
+		return payload, nil
+	}
+
+	// Engine does not support durable memoization; fall back to in-process cache.
+	result, err := fn()
+	if err != nil {
+		return nil, err
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal memo result: %w", err)
+	}
+
+	d.memoMu.Lock()
+	d.memoCache[key] = payload
+	d.memoMu.Unlock()
+	return payload, nil
 }
 
-// NewDurableHatchetContext creates a DurableHatchetContext from a HatchetContext.
+// Now returns the current time, memoized across replays via Memo.
+func (d *durableHatchetContext) Now() (time.Time, error) {
+	raw, err := d.Memo("__now__", func() (any, error) {
+		return time.Now().UTC(), nil
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	var t time.Time
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return time.Time{}, fmt.Errorf("failed to unmarshal memoized time: %w", err)
+	}
+	return t, nil
+}
+
+// InvocationCount returns the current invocation count for this durable task.
+func (d *durableHatchetContext) InvocationCount() int32 {
+	return d.invocationCount
+}
+
+// SetInvocationCount sets the invocation count (called by the runner when starting a durable task).
+func (d *durableHatchetContext) SetInvocationCount(count int32) {
+	d.invocationCount = count
+}
+
+// SleepUntil sleeps until the specified absolute time.
+func (d *durableHatchetContext) SleepUntil(t time.Time) (*SingleWaitResult, error) {
+	now, err := d.Now()
+	if err != nil {
+		return nil, err
+	}
+	duration := t.Sub(now)
+	if duration <= 0 {
+		return nil, nil
+	}
+	return d.SleepFor(duration)
+}
+
+func (d *durableHatchetContext) saveOrLoadDurableEventListener() (*client.DurableEventsListener, error) {
+	return d.client().Subscribe().ListenForDurableEvents(context.Background())
+}
+
+// Deprecated: NewDurableHatchetContext is an internal function used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 	// Try to cast directly if it's already a DurableHatchetContext
 	if durableCtx, ok := ctx.(DurableHatchetContext); ok {
 		return durableCtx
 	}
 
+	var invCount int32 = 1
+	if act := ctx.action(); act != nil && act.DurableTaskInvocationCount != nil {
+		invCount = *act.DurableTaskInvocationCount
+	}
+
 	// If it's a hatchetContext, wrap it in a durableHatchetContext
 	if hCtx, ok := ctx.(*hatchetContext); ok {
 		return &durableHatchetContext{
-			hatchetContext: hCtx,
-			waitKeyCounter: 0,
+			hatchetContext:  hCtx,
+			waitKeyCounter:  0,
+			invocationCount: invCount,
+			memoCache:       make(map[string]json.RawMessage),
 		}
 	}
 
@@ -827,11 +1318,14 @@ func NewDurableHatchetContext(ctx HatchetContext) DurableHatchetContext {
 			c:       ctx.client(),
 			w:       ctx.Worker().(*hatchetWorkerContext),
 		},
-		waitKeyCounter: 0,
+		waitKeyCounter:  0,
+		invocationCount: invCount,
+		memoCache:       make(map[string]json.RawMessage),
 	}
 }
 
-// Implementation of RunChild method for the hatchetContext
+// Deprecated: RunChild is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) RunChild(workflowName string, input any, opts *SpawnWorkflowOpts) (*client.WorkflowResult, error) {
 	// Spawn the child workflow
 	workflow, err := h.SpawnWorkflow(workflowName, input, opts)

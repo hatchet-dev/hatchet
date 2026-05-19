@@ -1,0 +1,63 @@
+import { snippets } from "@/lib/generated/snippets";
+import { Snippet } from "@/components/code";
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import InstallCommand from "@/components/InstallCommand";
+
+#### Cd into your project directory
+
+```bash copy
+cd path-to-your-project
+```
+
+#### Install the Hatchet SDK and required dependencies
+
+<InstallCommand withDevDependencies />
+
+#### Create project directories
+
+By convention it is recommended to create your workflows in the `workflows` directory and your workers in the `workers` directory.
+
+```bash copy
+mkdir workflows &&
+mkdir workers
+```
+
+#### Instantiate your Hatchet Client
+
+It is recommended to instantiate a shared Hatchet Client in a separate file as a singleton.
+
+Create a new file called `hatchet-client.ts` in your project root.
+
+```bash copy
+touch hatchet-client.ts
+```
+
+Add the following code to the file:
+
+<Snippet src={snippets.typescript.hatchet_client.create_client} />
+#### Start a Worker
+
+The fastest way to run a worker during development is with the Hatchet CLI:
+
+```bash copy
+hatchet worker dev
+```
+
+You can also run the worker script directly. This requires a `HATCHET_CLIENT_TOKEN` environment variable. You can generate an API token from the Hatchet dashboard by navigating to the `Settings` tab and clicking `API Tokens`. Click `Generate API Token` to create a new token, and **do not share it publicly**.
+
+```bash copy
+export HATCHET_CLIENT_TOKEN="<your-client-token>"
+```
+
+If you are a self-hosted user without TLS enabled, also set:
+
+```bash copy
+export HATCHET_CLIENT_TLS_STRATEGY=none
+```
+
+Then run your worker:
+
+```bash copy
+npx ts-node src/worker.ts
+```

@@ -75,7 +75,7 @@ func init() {
 }
 
 func runCreateLocalKeysets() error {
-	masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+	masterKeyBytes, privateEc256, publicEc256, insecurePublicHandleEc256, err := encryption.GenerateLocalKeys()
 
 	if err != nil {
 		return err
@@ -100,6 +100,12 @@ func runCreateLocalKeysets() error {
 		if err != nil {
 			return err
 		}
+
+		err = os.WriteFile(encryptionKeyDir+"/public_handle_unencrypted_ec256.key", insecurePublicHandleEc256, 0600)
+
+		if err != nil {
+			return err
+		}
 	} else {
 		fmt.Println("Master Key Bytes:")
 		fmt.Println(string(masterKeyBytes))
@@ -109,6 +115,9 @@ func runCreateLocalKeysets() error {
 
 		fmt.Println("Public EC256 Keyset:")
 		fmt.Println(string(publicEc256))
+
+		fmt.Println("Insecure Public Handle EC256 Keyset:")
+		fmt.Println(string(insecurePublicHandleEc256))
 	}
 
 	return nil
@@ -129,7 +138,7 @@ func runCreateCloudKMSJWTKeyset() error {
 		return err
 	}
 
-	privateEc256, publicEc256, err := encryption.GenerateJWTKeysetsFromCloudKMS(cloudKMSKeyURI, credentials)
+	privateEc256, publicEc256, insecurePublicHandleEc256, err := encryption.GenerateJWTKeysetsFromCloudKMS(cloudKMSKeyURI, credentials)
 
 	if err != nil {
 		return err
@@ -148,12 +157,21 @@ func runCreateCloudKMSJWTKeyset() error {
 		if err != nil {
 			return err
 		}
+
+		err = os.WriteFile(encryptionKeyDir+"/public_handle_unencrypted_ec256.key", insecurePublicHandleEc256, 0600)
+
+		if err != nil {
+			return err
+		}
 	} else {
 		fmt.Println("Private EC256 Keyset:")
 		fmt.Println(string(privateEc256))
 
 		fmt.Println("Public EC256 Keyset:")
 		fmt.Println(string(publicEc256))
+
+		fmt.Println("Insecure Public Handle EC256 Keyset:")
+		fmt.Println(string(insecurePublicHandleEc256))
 	}
 
 	return nil

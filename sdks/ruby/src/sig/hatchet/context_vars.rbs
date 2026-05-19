@@ -1,0 +1,28 @@
+module Hatchet
+  module ContextVars
+    KEYS: Array[Symbol]
+
+    def self.set: (
+      workflow_run_id: String,
+      step_run_id: String,
+      worker_id: String,
+      action_key: String,
+      ?additional_metadata: Hash[String, untyped],
+      ?retry_count: Integer
+    ) -> void
+
+    def self.clear: () -> void
+    def self.workflow_run_id: () -> String?
+    def self.step_run_id: () -> String?
+    def self.worker_id: () -> String?
+    def self.action_key: () -> String?
+    def self.additional_metadata: () -> Hash[String, untyped]
+    def self.retry_count: () -> Integer
+
+    class SpawnIndexTracker
+      def initialize: () -> void
+      def next_index: (String action_key) -> Integer
+      def reset: () -> void
+    end
+  end
+end

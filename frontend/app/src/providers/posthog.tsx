@@ -1,6 +1,6 @@
-import { useTenantDetails } from '@/hooks/use-tenant';
 import type { User } from '@/lib/api';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
+import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
@@ -17,7 +17,7 @@ const PostHogContext = createContext<PostHogContextValue>({ isReady: false });
 
 interface PostHogProviderProps {
   children: React.ReactNode;
-  user: User;
+  user?: User;
 }
 
 /**
@@ -31,8 +31,8 @@ interface PostHogProviderProps {
  * - Session recording with input masking
  */
 export function PostHogProvider({ children, user }: PostHogProviderProps) {
-  const meta = useApiMeta();
-  const { tenant } = useTenantDetails();
+  const { meta } = useApiMeta();
+  const { tenant } = useAppContext();
   const initializedRef = useRef(false);
 
   const config = useMemo(() => {
@@ -42,8 +42,8 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
         apiHost: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
       };
     }
-    return meta.data?.posthog;
-  }, [meta.data?.posthog]);
+    return meta?.posthog;
+  }, [meta?.posthog]);
 
   // Check for cross-domain tracking params in URL hash
   const bootstrapIds = useMemo(() => {

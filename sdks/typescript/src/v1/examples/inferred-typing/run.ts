@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { crazyWorkflow, declaredType, inferredType, inferredTypeDurable } from './workflow';
 
 async function main() {

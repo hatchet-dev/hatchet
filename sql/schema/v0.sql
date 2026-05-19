@@ -38,7 +38,6 @@ CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY', 'BAT
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
-    'WORKFLOW_RUN',
     'TASK_RUN',
     'EVENT',
     'WORKER',
@@ -131,7 +130,7 @@ CREATE TYPE "WorkerLabelComparator" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT');
+CREATE TYPE "WorkerSDKS" AS ENUM ('UNKNOWN', 'GO', 'PYTHON', 'TYPESCRIPT', 'RUBY');
 
 -- CreateEnum
 CREATE TYPE "WorkerType" AS ENUM ('WEBHOOK', 'MANAGED', 'SELFHOSTED');
@@ -455,6 +454,7 @@ CREATE TABLE "Step" (
     -- the maximum amount of time in seconds to wait between retries
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
+    "isDurable" BOOLEAN NOT NULL DEFAULT false,
     "batch_max_size" INTEGER,
     "batch_max_interval" INTEGER,
     "batch_group_key" TEXT,
@@ -611,7 +611,7 @@ CREATE TABLE "Tenant" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "deletedAt" TIMESTAMP(3),
-    "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V0',
+    "version" "TenantMajorEngineVersion" NOT NULL DEFAULT 'V1',
     "uiVersion" "TenantMajorUIVersion" NOT NULL DEFAULT 'V0',
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
@@ -855,6 +855,7 @@ CREATE TABLE "Worker" (
     "lastHeartbeatAt" TIMESTAMP(3),
     "name" TEXT NOT NULL,
     "dispatcherId" UUID,
+    -- FIXME: maxRuns is deprecated, remove this column in a future migration
     "maxRuns" INTEGER NOT NULL DEFAULT 100,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
     "lastListenerEstablished" TIMESTAMP(3),
@@ -866,6 +867,7 @@ CREATE TABLE "Worker" (
     "os" TEXT,
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
+    "durableTaskDispatcherId" UUID,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -1021,7 +1023,8 @@ CREATE TABLE "WorkflowTriggerCronRef" (
     "name" TEXT,
     "id" UUID NOT NULL,
     "method" "WorkflowTriggerCronRefMethods" NOT NULL DEFAULT 'DEFAULT',
-    "priority" INTEGER NOT NULL DEFAULT 1
+    "priority" INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT "WorkflowTriggerCronRef_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -1085,6 +1088,7 @@ CREATE TABLE
         "kind" "WorkflowKind" NOT NULL DEFAULT 'DAG',
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
+        "inputJsonSchema" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 
@@ -1537,6 +1541,9 @@ CREATE UNIQUE INDEX "WorkflowTriggerEventRef_parentId_eventKey_key" ON "Workflow
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_id_key" ON "WorkflowTriggerScheduledRef" ("id" ASC);
+
+-- CreateIndex
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "ix_WorkflowTriggerScheduledRef_triggerAt_tickerId" ON "WorkflowTriggerScheduledRef" ("triggerAt", "tickerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WorkflowTriggerScheduledRef_parentId_parentStepRunId_childK_key" ON "WorkflowTriggerScheduledRef" (

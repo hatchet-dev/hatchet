@@ -1,10 +1,15 @@
 import json
+from collections.abc import Callable
+from datetime import timedelta
+from enum import Enum
 from logging import Logger, getLogger
 from typing import overload
 
+import tenacity
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.logger import logger
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
@@ -36,6 +41,39 @@ class HealthcheckConfig(BaseSettings):
 
     port: int = 8001
     enabled: bool = False
+    event_loop_block_threshold_seconds: timedelta = Field(
+        default=timedelta(seconds=5),
+        description="If the worker listener process event loop appears blocked longer than this threshold, /health returns 503. Value is interpreted as seconds.",
+    )
+    bind_address: str | None = "0.0.0.0"
+
+    @field_validator("event_loop_block_threshold_seconds", mode="before")
+    @classmethod
+    def validate_event_loop_block_threshold_seconds(
+        cls, value: timedelta | int | float | str
+    ) -> timedelta:
+        if isinstance(value, timedelta):
+            return value
+
+        if isinstance(value, int | float):
+            return timedelta(seconds=float(value))
+
+        v = value.strip()
+        if v.endswith("s"):
+            v = v[:-1].strip()
+
+        return timedelta(seconds=float(v))
+
+    @field_validator("bind_address", mode="after")
+    @classmethod
+    def validate_bind_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        if value.lower() == "none" or not value.strip():
+            return None
+
+        return value
 
 
 class OpenTelemetryConfig(BaseSettings):
@@ -51,6 +89,47 @@ class OpenTelemetryConfig(BaseSettings):
     include_task_name_in_start_step_run_span_name: bool = False
 
 
+class HTTPMethod(str, Enum):
+    GET = "GET"
+    DELETE = "DELETE"
+    POST = "POST"
+    PUT = "PUT"
+    PATCH = "PATCH"
+    HEAD = "HEAD"
+    OPTIONS = "OPTIONS"
+
+
+def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
+    """Called between tenacity retries."""
+    logger.debug(
+        f"retrying {retry_state.fn}: attempt "
+        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
+    )
+
+
+class TenacityConfig(BaseSettings):
+    model_config = create_settings_config(
+        env_prefix="HATCHET_CLIENT_TENACITY_",
+    )
+
+    max_attempts: int = 5
+
+    retry_429: bool = Field(
+        default=False,
+        description="Enable retries for HTTP 429 Too Many Requests responses. Default: off.",
+    )
+    retry_transport_errors: bool = Field(
+        default=False,
+        description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
+    )
+    retry_transport_methods: list[HTTPMethod] = Field(
+        default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
+        description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
+    )
+    wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
+    before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
+
+
 DEFAULT_HOST_PORT = "localhost:7070"
 
 
@@ -61,6 +140,8 @@ class ClientConfig(BaseSettings):
 
     token: str = ""
     logger: Logger = getLogger()
+
+    debug: bool = False
 
     tenant_id: str = ""
     host_port: str = DEFAULT_HOST_PORT
@@ -89,6 +170,7 @@ class ClientConfig(BaseSettings):
     log_queue_size: int = 1000
     grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
+    tenacity: TenacityConfig = TenacityConfig()
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
@@ -126,17 +208,6 @@ class ClientConfig(BaseSettings):
             self.tls_config.server_name = "localhost"
 
         return self
-
-    @field_validator("listener_v2_timeout")
-    @classmethod
-    def validate_listener_timeout(cls, value: int | None | str) -> int | None:
-        if value is None:
-            return None
-
-        if isinstance(value, int):
-            return value
-
-        return int(value)
 
     @field_validator("namespace")
     @classmethod

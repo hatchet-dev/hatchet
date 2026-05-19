@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import asyncio
 import threading
 from collections import Counter
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
 
 from hatchet_sdk.runnables.action import ActionKey
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.context.context import Context, DurableContext
 
 ctx_workflow_run_id: ContextVar[str | None] = ContextVar(
     "ctx_workflow_run_id", default=None
@@ -17,6 +23,13 @@ ctx_worker_id: ContextVar[str | None] = ContextVar("ctx_worker_id", default=None
 ctx_additional_metadata: ContextVar[JSONSerializableMapping | None] = ContextVar(
     "ctx_additional_metadata", default=None
 )
+ctx_task_retry_count: ContextVar[int | None] = ContextVar(
+    "ctx_task_retry_count", default=0
+)
+ctx_durable_context: ContextVar[DurableContext | None] = ContextVar(
+    "ctx_durable_context", default=None
+)
+
 
 workflow_spawn_indices = Counter[ActionKey]()
 spawn_index_lock = asyncio.Lock()
@@ -38,3 +51,13 @@ class TaskCounter:
 
 
 task_count = TaskCounter()
+
+ctx_hatchet_context: ContextVar[Context | None] = ContextVar(
+    "ctx_hatchet_context", default=None
+)
+
+# Holds the hatchet.* attributes from the active hatchet.start_step_run span
+# so that HatchetAttributeSpanProcessor can inject them into child spans.
+ctx_hatchet_span_attributes: ContextVar[dict[str, str | int] | None] = ContextVar(
+    "ctx_hatchet_span_attributes", default=None
+)

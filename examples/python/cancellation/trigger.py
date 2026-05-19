@@ -2,7 +2,7 @@ import time
 
 from examples.cancellation.worker import cancellation_workflow, hatchet
 
-id = cancellation_workflow.run_no_wait()
+id = cancellation_workflow.run(wait_for_result=False)
 
 time.sleep(5)
 

@@ -2,6 +2,7 @@ import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as _trigger_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -26,6 +27,15 @@ class RateLimitDuration(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     MONTH: _ClassVar[RateLimitDuration]
     YEAR: _ClassVar[RateLimitDuration]
 
+class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    QUEUED: _ClassVar[RunStatus]
+    RUNNING: _ClassVar[RunStatus]
+    COMPLETED: _ClassVar[RunStatus]
+    FAILED: _ClassVar[RunStatus]
+    CANCELLED: _ClassVar[RunStatus]
+    EVICTED: _ClassVar[RunStatus]
+
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
@@ -33,15 +43,6 @@ class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     QUEUE_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
     GROUP_ROUND_ROBIN: _ClassVar[ConcurrencyLimitStrategy]
     CANCEL_NEWEST: _ClassVar[ConcurrencyLimitStrategy]
-
-class WorkerLabelComparator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    EQUAL: _ClassVar[WorkerLabelComparator]
-    NOT_EQUAL: _ClassVar[WorkerLabelComparator]
-    GREATER_THAN: _ClassVar[WorkerLabelComparator]
-    GREATER_THAN_OR_EQUAL: _ClassVar[WorkerLabelComparator]
-    LESS_THAN: _ClassVar[WorkerLabelComparator]
-    LESS_THAN_OR_EQUAL: _ClassVar[WorkerLabelComparator]
 SOFT: StickyStrategy
 HARD: StickyStrategy
 SECOND: RateLimitDuration
@@ -51,33 +52,33 @@ DAY: RateLimitDuration
 WEEK: RateLimitDuration
 MONTH: RateLimitDuration
 YEAR: RateLimitDuration
+QUEUED: RunStatus
+RUNNING: RunStatus
+COMPLETED: RunStatus
+FAILED: RunStatus
+CANCELLED: RunStatus
+EVICTED: RunStatus
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
 GROUP_ROUND_ROBIN: ConcurrencyLimitStrategy
 CANCEL_NEWEST: ConcurrencyLimitStrategy
-EQUAL: WorkerLabelComparator
-NOT_EQUAL: WorkerLabelComparator
-GREATER_THAN: WorkerLabelComparator
-GREATER_THAN_OR_EQUAL: WorkerLabelComparator
-LESS_THAN: WorkerLabelComparator
-LESS_THAN_OR_EQUAL: WorkerLabelComparator
 
 class CancelTasksRequest(_message.Message):
-    __slots__ = ("externalIds", "filter")
-    EXTERNALIDS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("external_ids", "filter")
+    EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    externalIds: _containers.RepeatedScalarFieldContainer[str]
+    external_ids: _containers.RepeatedScalarFieldContainer[str]
     filter: TasksFilter
-    def __init__(self, externalIds: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
+    def __init__(self, external_ids: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
 
 class ReplayTasksRequest(_message.Message):
-    __slots__ = ("externalIds", "filter")
-    EXTERNALIDS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("external_ids", "filter")
+    EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
     FILTER_FIELD_NUMBER: _ClassVar[int]
-    externalIds: _containers.RepeatedScalarFieldContainer[str]
+    external_ids: _containers.RepeatedScalarFieldContainer[str]
     filter: TasksFilter
-    def __init__(self, externalIds: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
+    def __init__(self, external_ids: _Optional[_Iterable[str]] = ..., filter: _Optional[_Union[TasksFilter, _Mapping]] = ...) -> None: ...
 
 class TasksFilter(_message.Message):
     __slots__ = ("statuses", "since", "until", "workflow_ids", "additional_metadata")
@@ -106,16 +107,25 @@ class ReplayTasksResponse(_message.Message):
     def __init__(self, replayed_tasks: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRunRequest(_message.Message):
-    __slots__ = ("workflow_name", "input", "additional_metadata", "priority")
+    __slots__ = ("workflow_name", "input", "additional_metadata", "priority", "desired_worker_labels")
+    class DesiredWorkerLabelsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: _trigger_pb2.DesiredWorkerLabels
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[_trigger_pb2.DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
     WORKFLOW_NAME_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    DESIRED_WORKER_LABELS_FIELD_NUMBER: _ClassVar[int]
     workflow_name: str
     input: bytes
     additional_metadata: bytes
     priority: int
-    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ...) -> None: ...
+    desired_worker_labels: _containers.MessageMap[str, _trigger_pb2.DesiredWorkerLabels]
+    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ...) -> None: ...
 
 class TriggerWorkflowRunResponse(_message.Message):
     __slots__ = ("external_id",)
@@ -123,8 +133,28 @@ class TriggerWorkflowRunResponse(_message.Message):
     external_id: str
     def __init__(self, external_id: _Optional[str] = ...) -> None: ...
 
+class BranchDurableTaskRequest(_message.Message):
+    __slots__ = ("task_external_id", "node_id", "branch_id")
+    TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
+    task_external_id: str
+    node_id: int
+    branch_id: int
+    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
+
+class BranchDurableTaskResponse(_message.Message):
+    __slots__ = ("task_external_id", "node_id", "branch_id")
+    TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    BRANCH_ID_FIELD_NUMBER: _ClassVar[int]
+    task_external_id: str
+    node_id: int
+    branch_id: int
+    def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
+
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -138,6 +168,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     DEFAULT_PRIORITY_FIELD_NUMBER: _ClassVar[int]
     CONCURRENCY_ARR_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
+    INPUT_JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -151,7 +182,8 @@ class CreateWorkflowVersionRequest(_message.Message):
     default_priority: int
     concurrency_arr: _containers.RepeatedCompositeFieldContainer[Concurrency]
     default_filters: _containers.RepeatedCompositeFieldContainer[DefaultFilter]
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ...) -> None: ...
+    input_json_schema: bytes
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ...) -> None: ...
 
 class DefaultFilter(_message.Message):
     __slots__ = ("expression", "scope", "payload")
@@ -173,41 +205,22 @@ class Concurrency(_message.Message):
     limit_strategy: ConcurrencyLimitStrategy
     def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
 
-class DesiredWorkerLabels(_message.Message):
-    __slots__ = ("strValue", "intValue", "required", "comparator", "weight")
-    STRVALUE_FIELD_NUMBER: _ClassVar[int]
-    INTVALUE_FIELD_NUMBER: _ClassVar[int]
-    REQUIRED_FIELD_NUMBER: _ClassVar[int]
-    COMPARATOR_FIELD_NUMBER: _ClassVar[int]
-    WEIGHT_FIELD_NUMBER: _ClassVar[int]
-    strValue: str
-    intValue: int
-    required: bool
-    comparator: WorkerLabelComparator
-    weight: int
-    def __init__(self, strValue: _Optional[str] = ..., intValue: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
-
-class TaskBatchConfig(_message.Message):
-    __slots__ = ("batch_max_size", "batch_max_interval", "batch_group_key", "batch_group_max_runs")
-    BATCH_MAX_SIZE_FIELD_NUMBER: _ClassVar[int]
-    BATCH_MAX_INTERVAL_FIELD_NUMBER: _ClassVar[int]
-    BATCH_GROUP_KEY_FIELD_NUMBER: _ClassVar[int]
-    BATCH_GROUP_MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
-    batch_max_size: int
-    batch_max_interval: int
-    batch_group_key: str
-    batch_group_max_runs: int
-    def __init__(self, batch_max_size: _Optional[int] = ..., batch_max_interval: _Optional[int] = ..., batch_group_key: _Optional[str] = ..., batch_group_max_runs: _Optional[int] = ...) -> None: ...
-
 class CreateTaskOpts(_message.Message):
-    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "batch")
+    __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "is_durable", "slot_requests")
     class WorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
-        value: DesiredWorkerLabels
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
+        value: _trigger_pb2.DesiredWorkerLabels
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[_trigger_pb2.DesiredWorkerLabels, _Mapping]] = ...) -> None: ...
+    class SlotRequestsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: int
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[int] = ...) -> None: ...
     READABLE_ID_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_FIELD_NUMBER: _ClassVar[int]
@@ -221,7 +234,8 @@ class CreateTaskOpts(_message.Message):
     CONCURRENCY_FIELD_NUMBER: _ClassVar[int]
     CONDITIONS_FIELD_NUMBER: _ClassVar[int]
     SCHEDULE_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
-    BATCH_FIELD_NUMBER: _ClassVar[int]
+    IS_DURABLE_FIELD_NUMBER: _ClassVar[int]
+    SLOT_REQUESTS_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
@@ -229,14 +243,15 @@ class CreateTaskOpts(_message.Message):
     parents: _containers.RepeatedScalarFieldContainer[str]
     retries: int
     rate_limits: _containers.RepeatedCompositeFieldContainer[CreateTaskRateLimit]
-    worker_labels: _containers.MessageMap[str, DesiredWorkerLabels]
+    worker_labels: _containers.MessageMap[str, _trigger_pb2.DesiredWorkerLabels]
     backoff_factor: float
     backoff_max_seconds: int
     concurrency: _containers.RepeatedCompositeFieldContainer[Concurrency]
     conditions: _condition_pb2.TaskConditions
     schedule_timeout: str
-    batch: TaskBatchConfig
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., batch: _Optional[_Union[TaskBatchConfig, _Mapping]] = ...) -> None: ...
+    is_durable: bool
+    slot_requests: _containers.ScalarMap[str, int]
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: bool = ..., slot_requests: _Optional[_Mapping[str, int]] = ...) -> None: ...
 
 class CreateTaskRateLimit(_message.Message):
     __slots__ = ("key", "units", "key_expr", "units_expr", "limit_values_expr", "duration")
@@ -261,3 +276,48 @@ class CreateWorkflowVersionResponse(_message.Message):
     id: str
     workflow_id: str
     def __init__(self, id: _Optional[str] = ..., workflow_id: _Optional[str] = ...) -> None: ...
+
+class GetRunDetailsRequest(_message.Message):
+    __slots__ = ("external_id",)
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    def __init__(self, external_id: _Optional[str] = ...) -> None: ...
+
+class TaskRunDetail(_message.Message):
+    __slots__ = ("external_id", "status", "error", "output", "readable_id", "is_evicted")
+    EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    READABLE_ID_FIELD_NUMBER: _ClassVar[int]
+    IS_EVICTED_FIELD_NUMBER: _ClassVar[int]
+    external_id: str
+    status: RunStatus
+    error: str
+    output: bytes
+    readable_id: str
+    is_evicted: bool
+    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ..., is_evicted: bool = ...) -> None: ...
+
+class GetRunDetailsResponse(_message.Message):
+    __slots__ = ("input", "status", "task_runs", "done", "additional_metadata", "is_evicted")
+    class TaskRunsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: TaskRunDetail
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[TaskRunDetail, _Mapping]] = ...) -> None: ...
+    INPUT_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    TASK_RUNS_FIELD_NUMBER: _ClassVar[int]
+    DONE_FIELD_NUMBER: _ClassVar[int]
+    ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
+    IS_EVICTED_FIELD_NUMBER: _ClassVar[int]
+    input: bytes
+    status: RunStatus
+    task_runs: _containers.MessageMap[str, TaskRunDetail]
+    done: bool
+    additional_metadata: bytes
+    is_evicted: bool
+    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: bool = ..., additional_metadata: _Optional[bytes] = ..., is_evicted: bool = ...) -> None: ...

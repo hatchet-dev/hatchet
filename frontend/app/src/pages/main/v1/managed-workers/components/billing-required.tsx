@@ -1,6 +1,8 @@
 import { Button } from '@/components/v1/ui/button';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { Tenant } from '@/lib/api';
 import { queries } from '@/lib/api/queries';
+import { BillingContext } from '@/lib/atoms';
 import { appRoutes } from '@/router';
 import {
   CalendarIcon,
@@ -11,8 +13,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
 interface BillingRequiredProps {
-  tenant: any;
-  billing: any;
+  tenant?: Tenant | undefined;
+  billing?: BillingContext | undefined;
   manageClicked: () => Promise<void>;
   portalLoading: boolean;
 }
@@ -46,8 +48,8 @@ export function BillingRequired({
               Ready to supercharge your task runs?
             </h3>
 
-            <p className="mb-6 text-muted-foreground">
-              Unlock Managed Compute by adding a payment method. No commitment
+            <p className="text-muted-foreground mb-6">
+              Unlock Managed Compute by setting up billing. No commitment
               required - you only pay for what you use!
             </p>
 
@@ -77,7 +79,10 @@ export function BillingRequired({
                             Monthly Free Credits:
                           </span>
                           <span className="font-medium text-green-500">
-                            ${computeCostQuery.data.creditsRemaining.toFixed(2)}
+                            {new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                            }).format(computeCostQuery.data.creditsRemaining)}
                           </span>
                         </div>
                       )}
@@ -114,7 +119,7 @@ export function BillingRequired({
                 className="min-w-40 px-8 py-6 text-base"
                 size="lg"
               >
-                {portalLoading ? 'Loading...' : 'Add Payment Method →'}
+                {portalLoading ? 'Loading...' : 'Set Up Billing →'}
               </Button>
 
               <div className="relative">

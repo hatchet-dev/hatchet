@@ -2,7 +2,7 @@ import { BillingRequired } from '../components/billing-required';
 import CreateWorkerForm from './components/create-worker-form';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { cloudApi } from '@/lib/api/api';
+import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import { CreateManagedWorkerRequest } from '@/lib/api/generated/cloud/data-contracts';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
@@ -15,7 +15,7 @@ import { useState } from 'react';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
-  const { billing, can } = useTenantDetails();
+  const { tenant, billing, can } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -35,7 +35,12 @@ export default function CreateWorker() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await cloudApi.billingPortalLinkGet(tenantId);
+      const link = await controlPlaneApi.request<{ url?: string }>({
+        path: `/api/v1/control-plane/billing/tenants/${tenantId}/billing-portal-link`,
+        method: 'GET',
+        secure: true,
+        format: 'json',
+      });
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -47,13 +52,7 @@ export default function CreateWorker() {
   const createManagedWorkerMutation = useMutation({
     mutationKey: ['managed-worker:create', tenantId],
     mutationFn: async (data: CreateManagedWorkerRequest) => {
-      const dataCopy = { ...data };
-
-      if (dataCopy.isIac) {
-        delete dataCopy.runtimeConfig;
-      }
-
-      const res = await cloudApi.managedWorkerCreate(tenantId, dataCopy);
+      const res = await cloudApi.managedWorkerCreate(tenantId, data);
       return res.data;
     },
     onSuccess: (data) => {
@@ -69,7 +68,7 @@ export default function CreateWorker() {
   if (isBillingRequired) {
     return (
       <BillingRequired
-        tenant={tenantId}
+        tenant={tenant}
         billing={billing}
         manageClicked={manageClicked}
         portalLoading={portalLoading}

@@ -1,0 +1,78 @@
+# Profiles
+
+The Hatchet CLI supports managing multiple Hatchet instances and tenants using named profiles. This feature makes it easy to switch between different environments, such as development, staging, and production.
+
+## Creating a Profile
+
+You can create a new profile using the `hatchet profile add` command. You will need to provide a Hatchet API token for the profile.
+
+```sh
+hatchet profile add
+```
+
+This command will prompt you to enter the API token followed by the profile name. You can also provide these as flags:
+
+```sh
+hatchet profile add --name [name] --token [token]
+```
+
+## Listing Profiles
+
+You can list all the profiles you have configured using the `hatchet profile list` command:
+
+```sh
+hatchet profile list
+```
+
+This will display all configured profiles, with the default profile marked with `(default)` if one is set.
+
+## Setting a Default Profile
+
+You can set a profile as the default using the `hatchet profile set-default` command. The default profile will be automatically used when no profile is specified with the `--profile` flag.
+
+```sh
+# Set default profile interactively (prompts for selection)
+hatchet profile set-default
+
+# Set a specific profile as default
+hatchet profile set-default --name [name]
+```
+
+Once a default profile is set, you can run commands without specifying the `--profile` flag:
+
+```sh
+# Uses the default profile
+hatchet worker dev
+```
+
+To unset the default profile:
+
+```sh
+hatchet profile unset-default
+```
+
+## Using a Profile
+
+To use a specific profile for your Hatchet CLI commands, you can specify the profile name using the `--profile` flag. This overrides the default profile if one is set.
+
+```sh
+hatchet worker dev --profile [name]
+```
+
+## Updating a Profile
+
+You can update an existing profile using the `hatchet profile update` command. This allows you to change the API token associated with a profile.
+
+```sh
+hatchet profile update
+```
+
+## Deleting a Profile
+
+You can delete a profile using the `hatchet profile remove` command:
+
+```sh
+hatchet profile remove
+```
+
+If you remove a profile that is set as the default, the default profile setting will be automatically cleared.

@@ -441,6 +441,50 @@ replayTasks:
     tags:
       - Task
 
+restoreTask:
+  post:
+    x-resources: ["tenant", "task"]
+    description: Restore an evicted durable task
+    operationId: v1-task:restore
+    parameters:
+      - description: The task id
+        in: path
+        name: task
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1RestoreTaskResponse"
+        description: Successfully restored the task
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: The task was not found
+    summary: Restore a task
+    tags:
+      - Task
+
 listLogs:
   get:
     x-resources: ["tenant", "task"]
@@ -477,6 +521,32 @@ listLogs:
         schema:
           type: string
           format: date-time
+      - description: A full-text search query to filter for
+        in: query
+        name: search
+        required: false
+        schema:
+          type: string
+      - description: The log level(s) to include
+        in: query
+        name: levels
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../../components/schemas/_index.yaml#/V1LogLineLevel"
+      - description: The direction to order by
+        in: query
+        name: order_by_direction
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1LogLineOrderByDirection"
+      - description: The attempt number to filter for
+        in: query
+        name: attempt
+        required: false
+        schema:
+          type: integer
     responses:
       "200":
         content:

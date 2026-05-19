@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
       - id: check-merge-conflict
         exclude: ^examples/
@@ -12,10 +12,10 @@ repos:
       - id: trailing-whitespace
         exclude: ^examples/
       - id: check-yaml
-        exclude: ^examples/
+        exclude: (^examples/|^cmd/hatchet-cli/cli/templates/)
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.5.0
+    rev: v2.8.0
     hooks:
       - id: golangci-lint
-        args: ["--config=.golangci.yml"]
-        exclude: ^examples/
+        args: ["--config=.golangci.yml", "--allow-parallel-runners"]
+        exclude: ^(examples/|sdks/guides/go/|sdks/go/examples/)

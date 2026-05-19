@@ -14,7 +14,7 @@ func (u *UserService) UserUpdateGoogleOauthStart(ctx echo.Context, _ gen.UserUpd
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, nil, "User signup is disabled.")
 	}
 
-	state, err := authn.NewSessionHelpers(u.config).SaveOAuthState(ctx, "google")
+	state, err := authn.NewSessionHelpers(u.config.SessionStore).SaveOAuthState(ctx, "google")
 
 	if err != nil {
 		return nil, redirect.GetRedirectWithError(ctx, u.config.Logger, err, "Could not get cookie. Please make sure cookies are enabled.")

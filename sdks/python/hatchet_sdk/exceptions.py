@@ -2,6 +2,28 @@ import json
 import traceback
 from typing import cast
 
+from hatchet_sdk.engine_version import MinEngineVersion
+
+
+class NonDeterminismError(Exception):
+    def __init__(
+        self, task_external_id: str, invocation_count: int, message: str, node_id: int
+    ) -> None:
+        self.task_external_id = task_external_id
+        self.invocation_count = invocation_count
+        self.message = message
+        self.node_id = node_id
+
+        detail = (
+            message
+            if message
+            else f"Non-determinism detected in task {task_external_id} on invocation {invocation_count} at node {node_id}"
+        )
+
+        super().__init__(
+            f"{detail}\nCheck out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns"
+        )
+
 
 class InvalidDependencyError(Exception):
     pass
@@ -38,27 +60,26 @@ class TaskRunError(Exception):
         return str(self)
 
     def serialize(self, include_metadata: bool) -> str:
-        if not self.exc_type or not self.exc:
-            return ""
-
-        metadata = json.dumps(
-            {
-                TASK_RUN_ERROR_METADATA_KEY: {
-                    "task_run_external_id": self.task_run_external_id,
-                }
-            },
-            indent=None,
-        )
-
+        exc_type = self.exc_type.replace(": ", ":::")
+        exc = self.exc.replace("\n", "\\\n")
+        header = f"{exc_type}: {exc}" if exc_type and exc else f"{exc_type}{exc}"
         result = (
-            self.exc_type.replace(": ", ":::")
-            + ": "
-            + self.exc.replace("\n", "\\\n")
-            + "\n"
-            + self.trace
+            f"{header}\n{self.trace}"
+            if header and self.trace
+            else f"{header}{self.trace}"
         )
+        if result == "":
+            return result
 
         if include_metadata:
+            metadata = json.dumps(
+                {
+                    TASK_RUN_ERROR_METADATA_KEY: {
+                        "task_run_external_id": self.task_run_external_id,
+                    }
+                },
+                indent=None,
+            )
             return result + "\n\n" + metadata
 
         return result
@@ -144,7 +165,7 @@ class TaskRunError(Exception):
         )
 
 
-class FailedTaskRunExceptionGroup(Exception):  # noqa: N818
+class FailedTaskRunExceptionGroup(ValueError):  # noqa: N818
     def __init__(self, message: str, exceptions: list[TaskRunError]):
         self.message = message
         self.exceptions = exceptions
@@ -171,3 +192,15 @@ class IllegalTaskOutputError(Exception):
 
 class LifespanSetupError(Exception):
     pass
+
+
+class EvictionNotSupportedError(NonRetryableException):
+    """Raised when an eviction policy is configured against an engine version
+    that does not support durable-task eviction."""
+
+    def __init__(self, engine_version: str | None = None) -> None:
+        version_info = f" (engine version: {engine_version})" if engine_version else ""
+        super().__init__(
+            f"Eviction policies require engine >= {MinEngineVersion.DURABLE_EVICTION}{version_info}. "
+            "Please upgrade your Hatchet engine or remove the eviction policy from your task."
+        )

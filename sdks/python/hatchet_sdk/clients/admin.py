@@ -2,25 +2,26 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime
+from enum import Enum
 from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
+from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
+from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
-from hatchet_sdk.features.runs import RunsClient
-from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.rate_limit import RateLimitDuration
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
@@ -30,6 +31,22 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.types.labels import (
+    DesiredWorkerLabel,
+    _warn_if_dict_desired_worker_labels,
+)
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.rate_limit import RateLimitDuration
+from hatchet_sdk.types.trigger import (
+    ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    TriggerWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
+)
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -39,27 +56,75 @@ T = TypeVar("T")
 MAX_BULK_WORKFLOW_RUN_BATCH_SIZE = 1000
 
 
-class ScheduleTriggerWorkflowOptions(BaseModel):
-    parent_id: str | None = None
-    parent_step_run_id: str | None = None
-    child_index: int | None = None
-    child_key: str | None = None
-    namespace: str | None = None
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
+class RunStatus(str, Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+    @staticmethod
+    def from_proto(proto_status: workflow_protos.RunStatus) -> "RunStatus":
+        if proto_status == workflow_protos.RunStatus.COMPLETED:
+            return RunStatus.COMPLETED
+        if proto_status == workflow_protos.RunStatus.CANCELLED:
+            return RunStatus.CANCELLED
+        if proto_status == workflow_protos.RunStatus.FAILED:
+            return RunStatus.FAILED
+        if proto_status == workflow_protos.RunStatus.RUNNING:
+            return RunStatus.RUNNING
+        if proto_status == workflow_protos.RunStatus.QUEUED:
+            return RunStatus.QUEUED
+        raise ValueError(f"Unknown proto status: {proto_status}")
+
+    @staticmethod
+    def from_v1_task_status(
+        v1_task_status: V1TaskStatus,
+    ) -> "RunStatus":
+        if v1_task_status == V1TaskStatus.COMPLETED:
+            return RunStatus.COMPLETED
+        if v1_task_status == V1TaskStatus.CANCELLED:
+            return RunStatus.CANCELLED
+        if v1_task_status == V1TaskStatus.FAILED:
+            return RunStatus.FAILED
+        if v1_task_status == V1TaskStatus.RUNNING:
+            return RunStatus.RUNNING
+        if v1_task_status == V1TaskStatus.QUEUED:
+            return RunStatus.QUEUED
+
+        raise ValueError(f"Unknown V1TaskStatus: {v1_task_status}")
+
+    def to_v1_task_status(self) -> V1TaskStatus:
+        if self == RunStatus.COMPLETED:
+            return V1TaskStatus.COMPLETED
+        if self == RunStatus.CANCELLED:
+            return V1TaskStatus.CANCELLED
+        if self == RunStatus.FAILED:
+            return V1TaskStatus.FAILED
+        if self == RunStatus.RUNNING:
+            return V1TaskStatus.RUNNING
+        if self == RunStatus.QUEUED:
+            return V1TaskStatus.QUEUED
+
+        raise ValueError(f"Unknown RunStatus: {self}")
 
 
-class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    desired_worker_id: str | None = None
-    sticky: bool = False
-    key: str | None = None
+class TaskRunDetail(BaseModel):
+    external_id: str
+    readable_id: str
+    output: JSONSerializableMapping | None = None
+    error: str | None = None
+    status: V1TaskStatus
+    is_evicted: bool = False
 
 
-class WorkflowRunTriggerConfig(BaseModel):
-    workflow_name: str
-    input: JSONSerializableMapping
-    options: TriggerWorkflowOptions
-    key: str | None = None
+class WorkflowRunDetail(BaseModel):
+    external_id: str
+    status: RunStatus
+    input: JSONSerializableMapping | None = None
+    additional_metadata: JSONSerializableMapping | None = None
+    task_runs: dict[str, TaskRunDetail]
+    done: bool = False
 
 
 class AdminClient:
@@ -68,10 +133,8 @@ class AdminClient:
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-        runs_client: RunsClient,
     ):
         self.config = config
-        self.runs_client = runs_client
         self.token = config.token
         self.namespace = config.namespace
 
@@ -97,7 +160,10 @@ class AdminClient:
         child_key: str | None = None
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
-        priority: int | None = None
+        priority: int | Priority | None = None
+        desired_worker_label: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -115,32 +181,56 @@ class AdminClient:
     def _prepare_workflow_request(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions,
-    ) -> v0_workflow_protos.TriggerWorkflowRequest:
-        try:
-            payload_data = json.dumps(input)
-        except json.JSONDecodeError as e:
-            raise ValueError("Error encoding payload") from e
-
+    ) -> trigger_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
-        return v0_workflow_protos.TriggerWorkflowRequest(
+        desired_worker_labels = None
+        if _options.desired_worker_label:
+            _warn_if_dict_desired_worker_labels(
+                _options.desired_worker_label, stacklevel=6
+            )
+            if isinstance(_options.desired_worker_label, list):
+                labels_dict = {
+                    d.key: d for d in _options.desired_worker_label if d.key is not None
+                }
+            else:
+                labels_dict = _options.desired_worker_label
+            desired_worker_labels = {
+                key: trigger_protos.DesiredWorkerLabels(
+                    str_value=d.value if not isinstance(d.value, int) else None,
+                    int_value=d.value if isinstance(d.value, int) else None,
+                    required=d.required,
+                    weight=d.weight,
+                    comparator=d.comparator,  # type: ignore[arg-type]
+                )
+                for key, d in labels_dict.items()
+            }
+
+        return trigger_protos.TriggerWorkflowRequest(
             name=workflow_name,
-            input=payload_data,
+            input=input,
             parent_id=_options.parent_id,
-            parent_step_run_id=_options.parent_step_run_id,
+            parent_task_run_external_id=_options.parent_step_run_id,
             child_index=_options.child_index,
             child_key=_options.child_key,
             additional_metadata=_options.additional_metadata,
             desired_worker_id=_options.desired_worker_id,
             priority=_options.priority,
+            desired_worker_labels=desired_worker_labels,
         )
 
-    def _parse_schedule(
-        self, schedule: datetime | timestamp_pb2.Timestamp
-    ) -> timestamp_pb2.Timestamp:
+    def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
         if isinstance(schedule, datetime):
+            if not schedule.tzinfo:
+                logger.warning(
+                    "Timezone-naive datetime provided for schedule. Assuming UTC timezone."
+                )
+            elif schedule.tzinfo.fromutc(schedule) != schedule:
+                logger.warning(
+                    "Non-UTC datetime provided for schedule. Assuming UTC timezone. Note: This is a bug which will be fixed in v2.0.0 of the SDK to support non-UTC datetimes. For now, convert your datetime to UTC to avoid this warning and ensure correct scheduling."
+                )
             t = schedule.timestamp()
             seconds = int(t)
             nanos = int(t % 1 * 1e9)
@@ -154,30 +244,28 @@ class AdminClient:
     def _prepare_schedule_workflow_request(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: JSONSerializableMapping | None = None,
+        schedules: list[datetime],
+        input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
         return v0_workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
-            input=json.dumps(input),
+            input=input,
             parent_id=options.parent_id,
-            parent_step_run_id=options.parent_step_run_id,
+            parent_task_run_external_id=options.parent_step_run_id,
             child_index=options.child_index,
             child_key=options.child_key,
             additional_metadata=json.dumps(options.additional_metadata),
             priority=options.priority,
         )
 
-    @tenacity_retry
     async def aio_put_workflow(
         self,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
         return await asyncio.to_thread(self.put_workflow, workflow)
 
-    @tenacity_retry
     async def aio_put_rate_limit(
         self,
         key: str,
@@ -186,19 +274,17 @@ class AdminClient:
     ) -> None:
         return await asyncio.to_thread(self.put_rate_limit, key, limit, duration)
 
-    @tenacity_retry
     async def aio_schedule_workflow(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: JSONSerializableMapping | None = None,
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        schedules: list[datetime],
+        input: str | None = None,
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> v0_workflow_protos.WorkflowVersion:
         return await asyncio.to_thread(
             self.schedule_workflow, name, schedules, input, options
         )
 
-    @tenacity_retry
     def put_workflow(
         self,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
@@ -207,15 +293,15 @@ class AdminClient:
             conn = new_conn(self.config, False)
             self.client = AdminServiceStub(conn)
 
+        put_workflow = tenacity_retry(self.client.PutWorkflow, self.config.tenacity)
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
-            self.client.PutWorkflow(
+            put_workflow(
                 workflow,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
-    @tenacity_retry
     def put_rate_limit(
         self,
         key: str,
@@ -227,25 +313,26 @@ class AdminClient:
         )
 
         client = self._get_or_create_v0_client()
+        put_rate_limit = tenacity_retry(client.PutRateLimit, self.config.tenacity)
 
-        client.PutRateLimit(
+        put_rate_limit(
             v0_workflow_protos.PutRateLimitRequest(
                 key=key,
                 limit=limit,
                 duration=duration_proto,  # type: ignore[arg-type]
             ),
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
-    @tenacity_retry
     def schedule_workflow(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
-        input: JSONSerializableMapping | None = None,
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        schedules: list[datetime],
+        input: str | None = None,
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
+            options = options or ScheduleTriggerWorkflowOptions()
             namespace = options.namespace or self.namespace
 
             name = self.config.apply_namespace(name, namespace)
@@ -255,12 +342,15 @@ class AdminClient:
             )
 
             client = self._get_or_create_v0_client()
+            schedule_workflow = tenacity_retry(
+                client.ScheduleWorkflow, self.config.tenacity
+            )
 
             return cast(
                 v0_workflow_protos.WorkflowVersion,
-                client.ScheduleWorkflow(
+                schedule_workflow(
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -272,9 +362,9 @@ class AdminClient:
     def _create_workflow_run_request(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions,
-    ) -> v0_workflow_protos.TriggerWorkflowRequest:
+    ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
@@ -304,6 +394,7 @@ class AdminClient:
             namespace=options.namespace,
             sticky=options.sticky,
             key=options.key,
+            desired_worker_label=options.desired_worker_label,
         )
 
         namespace = options.namespace or self.namespace
@@ -312,23 +403,22 @@ class AdminClient:
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def run_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         request = self._create_workflow_run_request(workflow_name, input, options)
         client = self._get_or_create_v0_client()
+        trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
 
         try:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
-                client.TriggerWorkflow(
+                trigger_workflow(
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -340,18 +430,17 @@ class AdminClient:
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
-            runs_client=self.runs_client,
+            admin_client=self,
         )
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     async def aio_run_workflow(
         self,
         workflow_name: str,
-        input: JSONSerializableMapping,
+        input: str | None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
         client = self._get_or_create_v0_client()
+        trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
         async with spawn_index_lock:
             request = self._create_workflow_run_request(workflow_name, input, options)
 
@@ -359,9 +448,9 @@ class AdminClient:
             resp = cast(
                 v0_workflow_protos.TriggerWorkflowResponse,
                 await asyncio.to_thread(
-                    client.TriggerWorkflow,
+                    trigger_workflow,
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -371,18 +460,16 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            runs_client=self.runs_client,
             workflow_run_id=resp.workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
+            admin_client=self,
         )
 
     def chunk(self, xs: list[T], n: int) -> Generator[list[T], None, None]:
         for i in range(0, len(xs), n):
             yield xs[i : i + n]
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
-    @tenacity_retry
     def run_workflows(
         self,
         workflows: list[WorkflowRunTriggerConfig],
@@ -394,6 +481,9 @@ class AdminClient:
             )
             for workflow in workflows
         ]
+        bulk_trigger_workflow = tenacity_retry(
+            client.BulkTriggerWorkflow, self.config.tenacity
+        )
 
         refs: list[WorkflowRunRef] = []
 
@@ -404,9 +494,9 @@ class AdminClient:
 
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
-                client.BulkTriggerWorkflow(
+                bulk_trigger_workflow(
                     bulk_request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
 
@@ -416,7 +506,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -424,7 +514,6 @@ class AdminClient:
 
         return refs
 
-    @tenacity_retry
     async def aio_run_workflows(
         self,
         workflows: list[WorkflowRunTriggerConfig],
@@ -432,6 +521,9 @@ class AdminClient:
         client = self._get_or_create_v0_client()
         chunks = self.chunk(workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)
         refs: list[WorkflowRunRef] = []
+        bulk_trigger_workflow = tenacity_retry(
+            client.BulkTriggerWorkflow, self.config.tenacity
+        )
 
         for chunk in chunks:
             async with spawn_index_lock:
@@ -449,9 +541,9 @@ class AdminClient:
             resp = cast(
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
                 await asyncio.to_thread(
-                    client.BulkTriggerWorkflow,
+                    bulk_trigger_workflow,
                     bulk_request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
 
@@ -461,7 +553,7 @@ class AdminClient:
                         workflow_run_id=workflow_run_id,
                         workflow_run_event_listener=self.workflow_run_event_listener,
                         workflow_run_listener=self.workflow_run_listener,
-                        runs_client=self.runs_client,
+                        admin_client=self,
                     )
                     for workflow_run_id in resp.workflow_run_ids
                 ]
@@ -471,8 +563,54 @@ class AdminClient:
 
     def get_workflow_run(self, workflow_run_id: str) -> WorkflowRunRef:
         return WorkflowRunRef(
-            runs_client=self.runs_client,
+            admin_client=self,
             workflow_run_id=workflow_run_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
+        )
+
+    def get_details(self, external_id: str) -> WorkflowRunDetail:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
+        get_run_payloads = tenacity_retry(
+            self.client.GetRunDetails, self.config.tenacity
+        )
+
+        response = cast(
+            workflow_protos.GetRunDetailsResponse,
+            get_run_payloads(
+                workflow_protos.GetRunDetailsRequest(external_id=external_id),
+                metadata=create_authorization_header(self.token),
+            ),
+        )
+
+        return WorkflowRunDetail(
+            external_id=external_id,
+            input=(
+                json.loads(response.input.decode("utf-8")) if response.input else None
+            ),
+            additional_metadata=(
+                json.loads(response.additional_metadata.decode("utf-8"))
+                if response.additional_metadata
+                else None
+            ),
+            status=RunStatus.from_proto(response.status),
+            task_runs={
+                readable_id: TaskRunDetail(
+                    readable_id=readable_id,
+                    external_id=details.external_id,
+                    output=(
+                        json.loads(details.output.decode("utf-8"))
+                        if details.output
+                        else None
+                    ),
+                    error=details.error if details.error else None,
+                    status=RunStatus.from_proto(details.status).to_v1_task_status(),
+                    is_evicted=getattr(details, "is_evicted", False),
+                )
+                for readable_id, details in response.task_runs.items()
+            },
+            done=response.done,
         )

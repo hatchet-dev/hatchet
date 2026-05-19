@@ -12,25 +12,27 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/dbsqlc"
-	"github.com/hatchet-dev/hatchet/pkg/repository/postgres/sqlchelpers"
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.WorkflowScheduledListRequestObject) (gen.WorkflowScheduledListResponseObject, error) {
-	tenant := ctx.Get("tenant").(*dbsqlc.Tenant)
-	tenantId := sqlchelpers.UUIDToStr(tenant.ID)
+	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
 
 	limit := 50
 	offset := 0
 	orderDirection := "DESC"
 	orderBy := "triggerAt"
 
-	listOpts := &repository.ListScheduledWorkflowsOpts{
-		Limit:          &limit,
-		Offset:         &offset,
-		OrderBy:        &orderBy,
-		OrderDirection: &orderDirection,
+	listOpts := &v1.ListScheduledWorkflowsOpts{
+		Limit:               &limit,
+		Offset:              &offset,
+		OrderBy:             &orderBy,
+		OrderDirection:      &orderDirection,
+		WorkflowId:          request.Params.WorkflowId,
+		ParentWorkflowRunId: request.Params.ParentWorkflowRunId,
+		ParentStepRunId:     request.Params.ParentStepRunId,
 	}
 
 	if request.Params.OrderByField != nil {
@@ -53,16 +55,11 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 		listOpts.Offset = &offset
 	}
 
-	if request.Params.WorkflowId != nil {
-		workflowIdStr := request.Params.WorkflowId.String()
-		listOpts.WorkflowId = &workflowIdStr
-	}
-
 	if request.Params.Statuses != nil {
-		statuses := make([]dbsqlc.WorkflowRunStatus, len(*request.Params.Statuses))
+		statuses := make([]sqlcv1.WorkflowRunStatus, len(*request.Params.Statuses))
 
 		for i, status := range *request.Params.Statuses {
-			statuses[i] = dbsqlc.WorkflowRunStatus(status)
+			statuses[i] = sqlcv1.WorkflowRunStatus(status)
 		}
 
 		listOpts.Statuses = &statuses
@@ -88,7 +85,7 @@ func (t *WorkflowService) WorkflowScheduledList(ctx echo.Context, request gen.Wo
 	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
 	defer cancel()
 
-	scheduled, count, err := t.config.APIRepository.WorkflowRun().ListScheduledWorkflows(dbCtx, tenantId, listOpts)
+	scheduled, count, err := t.config.V1.WorkflowSchedules().ListScheduledWorkflows(dbCtx, tenantId, listOpts)
 
 	if err != nil {
 		return nil, err
