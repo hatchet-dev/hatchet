@@ -50,6 +50,20 @@ describe('ConfigLoader', () => {
     });
   });
 
+  it('should throw on a malformed grpc max recv message length env var', () => {
+    process.env.HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH = '4mb';
+    expect(() => ConfigLoader.loadClientConfig()).toThrow(
+      /HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH.*"4mb".*positive integer/
+    );
+  });
+
+  it('should throw on a malformed grpc max send message length env var', () => {
+    process.env.HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH = '4mb';
+    expect(() => ConfigLoader.loadClientConfig()).toThrow(
+      /HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH.*"4mb".*positive integer/
+    );
+  });
+
   it('should throw an error if the file is not found', () => {
     expect(() =>
       ConfigLoader.loadClientConfig(

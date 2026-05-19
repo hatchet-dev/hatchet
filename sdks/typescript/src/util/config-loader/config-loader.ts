@@ -110,13 +110,13 @@ export class ConfigLoader {
     const grpcMaxRecvMessageLength =
       override?.grpc_max_recv_message_length ??
       yaml?.grpc_max_recv_message_length ??
-      this.parseIntEnv(this.env('HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH')) ??
+      this.parseIntEnv('HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH') ??
       4 * 1024 * 1024;
 
     const grpcMaxSendMessageLength =
       override?.grpc_max_send_message_length ??
       yaml?.grpc_max_send_message_length ??
-      this.parseIntEnv(this.env('HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH')) ??
+      this.parseIntEnv('HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH') ??
       4 * 1024 * 1024;
 
     return {
@@ -138,10 +138,15 @@ export class ConfigLoader {
     };
   }
 
-  private static parseIntEnv(value: string | undefined): number | undefined {
-    if (!value) return undefined;
-    const parsed = parseInt(value, 10);
-    return Number.isNaN(parsed) ? undefined : parsed;
+  private static parseIntEnv(envName: EnvVars): number | undefined {
+    const value = this.env(envName);
+    if (value === undefined || value === '') return undefined;
+    if (!/^\d+$/.test(value.trim())) {
+      throw new Error(
+        `Invalid value for ${envName}: "${value}". Expected a positive integer.`
+      );
+    }
+    return parseInt(value, 10);
   }
 
   private static parseJsonArray(value: string): string[] {
