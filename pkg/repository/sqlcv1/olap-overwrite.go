@@ -464,13 +464,7 @@ type CutoverOLAPPayloadToInsert struct {
 	Location            V1PayloadLocationOlap
 }
 
-type InsertCutOverOLAPPayloadsIntoTempTableRow struct {
-	TenantId   uuid.UUID
-	ExternalId uuid.UUID
-	InsertedAt pgtype.Timestamptz
-}
-
-func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverOLAPPayloadToInsert) (*InsertCutOverOLAPPayloadsIntoTempTableRow, error) {
+func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverOLAPPayloadToInsert) (*uuid.UUID, error) {
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	externalIds := make([]uuid.UUID, 0, len(payloads))
@@ -516,9 +510,9 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 					ON CONFLICT(tenant_id, external_id, inserted_at) DO NOTHING
 				)
 
-				SELECT tenant_id, external_id, inserted_at
+				SELECT external_id
 				FROM inputs
-				ORDER BY tenant_id DESC, external_id DESC, inserted_at DESC
+				ORDER BY external_id DESC
 				LIMIT 1
 				`,
 			tableName,
@@ -531,10 +525,11 @@ func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableN
 		inlineContents,
 	)
 
-	var insertRow InsertCutOverOLAPPayloadsIntoTempTableRow
-	err := row.Scan(&insertRow.TenantId, &insertRow.ExternalId, &insertRow.InsertedAt)
+	var lastExternalId uuid.UUID
 
-	return &insertRow, err
+	err := row.Scan(&lastExternalId)
+
+	return &lastExternalId, err
 }
 
 const findV1OLAPPayloadPartitionsBeforeDate = `-- name: findV1OLAPPayloadPartitionsBeforeDate :many

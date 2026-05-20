@@ -749,7 +749,7 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	var wg sync.WaitGroup
 	var errs []error
 	var errsMutex sync.Mutex
-
+	var workflowRefsMutex sync.Mutex
 	wg.Add(len(inputs))
 
 	for _, input := range inputs {
@@ -763,8 +763,9 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 				errsMutex.Unlock()
 				return
 			}
-
+			workflowRefsMutex.Lock()
 			workflowRefs = append(workflowRefs, *workflowRef)
+			workflowRefsMutex.Unlock()
 		}()
 	}
 

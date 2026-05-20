@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 
 const LOCAL_STORAGE_EVENT = 'hatchet:local-storage';
 
+type SetStateValue<T> = T | ((prev: T) => T);
+
 export function useLocalStorageState<T>(
   key: string,
   defaultValue: T,
-): [T, (value: T) => void] {
+): [T, (value: SetStateValue<T>) => void] {
   const [state, setState] = useState<T>(() => {
     try {
       const item = window.localStorage.getItem(key);
@@ -15,15 +17,21 @@ export function useLocalStorageState<T>(
     }
   });
 
-  const setValue = (value: T) => {
+  const setValue = (value: SetStateValue<T>) => {
     try {
-      setState(value);
-      window.localStorage.setItem(key, JSON.stringify(value));
-      // Ensure other hook instances in the same tab update too (the native `storage`
-      // event does not fire within the same document).
-      window.dispatchEvent(
-        new CustomEvent(LOCAL_STORAGE_EVENT, { detail: { key, value } }),
-      );
+      setState((prev) => {
+        const next =
+          typeof value === 'function' ? (value as (prev: T) => T)(prev) : value;
+        window.localStorage.setItem(key, JSON.stringify(next));
+        // Ensure other hook instances in the same tab update too (the native `storage`
+        // event does not fire within the same document).
+        window.dispatchEvent(
+          new CustomEvent(LOCAL_STORAGE_EVENT, {
+            detail: { key, value: next },
+          }),
+        );
+        return next;
+      });
     } catch (error) {
       console.warn(`Error setting localStorage key "${key}":`, error);
     }

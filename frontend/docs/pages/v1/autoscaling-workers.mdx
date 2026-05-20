@@ -95,7 +95,7 @@ spec:
     - type: metrics-api
       metadata:
         targetValue: "100"
-        url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats"
+        url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats?taskNames=my-task"
         valueLocation: "my-task.queued.total"
         authMode: "bearer"
       authenticationRef:
@@ -123,6 +123,12 @@ spec:
 <Callout type="info">
   The `valueLocation` field uses JSONPath-style notation to extract a specific
   value from the response. Adjust `my-task` to match your actual task name.
+
+Pass each task you scale on via the `taskNames` query parameter so the
+endpoint guarantees the JSONPath resolves with `0` when no work is queued.
+Without it, the response can be `{}` and KEDA's metrics-api scaler will fail
+to scale from zero.
+
 </Callout>
 
 ### Scaling Based on Multiple Tasks
@@ -134,7 +140,7 @@ triggers:
   - type: metrics-api
     metadata:
       targetValue: "50"
-      url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats"
+      url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats?taskNames=task-a"
       valueLocation: "task-a.queued.total"
       authMode: "bearer"
     authenticationRef:
@@ -142,7 +148,7 @@ triggers:
   - type: metrics-api
     metadata:
       targetValue: "50"
-      url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats"
+      url: "https://cloud.onhatchet.run/api/v1/tenants/YOUR_TENANT_ID/task-stats?taskNames=task-b"
       valueLocation: "task-b.queued.total"
       authMode: "bearer"
     authenticationRef:

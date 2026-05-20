@@ -147,8 +147,8 @@ jobs:
       - name: Run pytest
         run: |
           echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-
-          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n auto
+          export HATCHET_CLIENT_SERVER_URL=http://localhost:8080
+          poetry run pytest -s -vvv --maxfail=5 --capture=no --retries 3 --retry-delay 2 -n 8
 
       - name: Test with wheel
         run: |

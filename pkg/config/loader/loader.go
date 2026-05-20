@@ -411,6 +411,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
 		cookie.WithCookieSecrets(getStrArr(cf.Auth.Cookie.Secrets)...),
+		cookie.WithLogger(&l),
 	)
 
 	if err != nil {
@@ -813,6 +814,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
+		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
 }
 

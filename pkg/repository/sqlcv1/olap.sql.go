@@ -18,46 +18,30 @@ WITH inputs AS (
         $2::DATE AS key,
         $1::UUID AS lease_process_id,
         $3::TIMESTAMPTZ AS lease_expires_at,
-        $4::UUID AS last_tenant_id,
-        $5::UUID AS last_external_id,
-        $6::TIMESTAMPTZ AS last_inserted_at
+        $4::UUID AS last_external_id
 ), any_lease_held_by_other_process AS (
     -- need coalesce here in case there are no rows that don't belong to this process
     SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
     FROM v1_payloads_olap_cutover_job_offset
     WHERE lease_process_id != $1::UUID
 ), to_insert AS (
-    SELECT key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at
+    SELECT key, lease_process_id, lease_expires_at, last_external_id
     FROM inputs
     -- if a lease is held by another process, we shouldn't try to insert a new row regardless
     -- of which key we're trying to acquire a lease on
     WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
 )
 
-INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
-SELECT
-    ti.key,
-    ti.lease_process_id,
-    ti.lease_expires_at,
-    ti.last_tenant_id,
-    ti.last_external_id,
-    ti.last_inserted_at
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_external_id)
+SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_external_id
 FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new value
     -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
-    last_tenant_id = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
-        ELSE v1_payloads_olap_cutover_job_offset.last_tenant_id
-    END,
     last_external_id = CASE
         WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
         ELSE v1_payloads_olap_cutover_job_offset.last_external_id
-    END,
-    last_inserted_at = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
-        ELSE v1_payloads_olap_cutover_job_offset.last_inserted_at
     END,
 
     lease_process_id = EXCLUDED.lease_process_id,
@@ -70,9 +54,7 @@ type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
 	Leaseprocessid uuid.UUID          `json:"leaseprocessid"`
 	Key            pgtype.Date        `json:"key"`
 	Leaseexpiresat pgtype.Timestamptz `json:"leaseexpiresat"`
-	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
 	Lastexternalid uuid.UUID          `json:"lastexternalid"`
-	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
 }
 
 func (q *Queries) AcquireOrExtendOLAPCutoverJobLease(ctx context.Context, db DBTX, arg AcquireOrExtendOLAPCutoverJobLeaseParams) (*V1PayloadsOlapCutoverJobOffset, error) {
@@ -80,9 +62,7 @@ func (q *Queries) AcquireOrExtendOLAPCutoverJobLease(ctx context.Context, db DBT
 		arg.Leaseprocessid,
 		arg.Key,
 		arg.Leaseexpiresat,
-		arg.Lasttenantid,
 		arg.Lastexternalid,
-		arg.Lastinsertedat,
 	)
 	var i V1PayloadsOlapCutoverJobOffset
 	err := row.Scan(
@@ -222,28 +202,18 @@ const computeOLAPPayloadBatchSize = `-- name: ComputeOLAPPayloadBatchSize :one
 SELECT compute_olap_payload_batch_size(
     $1::DATE,
     $2::UUID,
-    $3::UUID,
-    $4::TIMESTAMPTZ,
-    $5::INTEGER
+    $3::INTEGER
 ) AS total_size_bytes
 `
 
 type ComputeOLAPPayloadBatchSizeParams struct {
-	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
-	Lastexternalid uuid.UUID          `json:"lastexternalid"`
-	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
-	Batchsize      int32              `json:"batchsize"`
+	Partitiondate  pgtype.Date `json:"partitiondate"`
+	Lastexternalid uuid.UUID   `json:"lastexternalid"`
+	Batchsize      int32       `json:"batchsize"`
 }
 
 func (q *Queries) ComputeOLAPPayloadBatchSize(ctx context.Context, db DBTX, arg ComputeOLAPPayloadBatchSizeParams) (int64, error) {
-	row := db.QueryRow(ctx, computeOLAPPayloadBatchSize,
-		arg.Partitiondate,
-		arg.Lasttenantid,
-		arg.Lastexternalid,
-		arg.Lastinsertedat,
-		arg.Batchsize,
-	)
+	row := db.QueryRow(ctx, computeOLAPPayloadBatchSize, arg.Partitiondate, arg.Lastexternalid, arg.Batchsize)
 	var total_size_bytes int64
 	err := row.Scan(&total_size_bytes)
 	return total_size_bytes, err
@@ -447,38 +417,26 @@ WITH chunks AS (
         $1::DATE,
         $2::INTEGER,
         $3::INTEGER,
-        $4::UUID,
-        $5::UUID,
-        $6::TIMESTAMPTZ
+        $4::UUID
     ) p
 )
 
 SELECT
-    lower_tenant_id::UUID,
     lower_external_id::UUID,
-    lower_inserted_at::TIMESTAMPTZ,
-    upper_tenant_id::UUID,
-    upper_external_id::UUID,
-    upper_inserted_at::TIMESTAMPTZ
+    upper_external_id::UUID
 FROM chunks
 `
 
 type CreateOLAPPayloadRangeChunksParams struct {
-	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Windowsize     int32              `json:"windowsize"`
-	Chunksize      int32              `json:"chunksize"`
-	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
-	Lastexternalid uuid.UUID          `json:"lastexternalid"`
-	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
+	Partitiondate  pgtype.Date `json:"partitiondate"`
+	Windowsize     int32       `json:"windowsize"`
+	Chunksize      int32       `json:"chunksize"`
+	Lastexternalid uuid.UUID   `json:"lastexternalid"`
 }
 
 type CreateOLAPPayloadRangeChunksRow struct {
-	LowerTenantID   uuid.UUID          `json:"lower_tenant_id"`
-	LowerExternalID uuid.UUID          `json:"lower_external_id"`
-	LowerInsertedAt pgtype.Timestamptz `json:"lower_inserted_at"`
-	UpperTenantID   uuid.UUID          `json:"upper_tenant_id"`
-	UpperExternalID uuid.UUID          `json:"upper_external_id"`
-	UpperInsertedAt pgtype.Timestamptz `json:"upper_inserted_at"`
+	LowerExternalID uuid.UUID `json:"lower_external_id"`
+	UpperExternalID uuid.UUID `json:"upper_external_id"`
 }
 
 func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg CreateOLAPPayloadRangeChunksParams) ([]*CreateOLAPPayloadRangeChunksRow, error) {
@@ -486,9 +444,7 @@ func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg
 		arg.Partitiondate,
 		arg.Windowsize,
 		arg.Chunksize,
-		arg.Lasttenantid,
 		arg.Lastexternalid,
-		arg.Lastinsertedat,
 	)
 	if err != nil {
 		return nil, err
@@ -497,14 +453,7 @@ func (q *Queries) CreateOLAPPayloadRangeChunks(ctx context.Context, db DBTX, arg
 	var items []*CreateOLAPPayloadRangeChunksRow
 	for rows.Next() {
 		var i CreateOLAPPayloadRangeChunksRow
-		if err := rows.Scan(
-			&i.LowerTenantID,
-			&i.LowerExternalID,
-			&i.LowerInsertedAt,
-			&i.UpperTenantID,
-			&i.UpperExternalID,
-			&i.UpperInsertedAt,
-		); err != nil {
+		if err := rows.Scan(&i.LowerExternalID, &i.UpperExternalID); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -529,7 +478,7 @@ type CreateTaskEventsOLAPParams struct {
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
-	ExternalID             *uuid.UUID           `json:"external_id"`
+	ExternalID             uuid.UUID            `json:"external_id"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
@@ -1601,11 +1550,7 @@ WITH payloads AS (
         $1::DATE,
         $2::UUID,
         $3::UUID,
-        $4::TIMESTAMPTZ,
-        $5::UUID,
-        $6::UUID,
-        $7::TIMESTAMPTZ,
-        $8::INTEGER
+        $4::INTEGER
     ) p
 )
 SELECT
@@ -1620,14 +1565,10 @@ FROM payloads
 `
 
 type ListPaginatedOLAPPayloadsForOffloadParams struct {
-	Partitiondate  pgtype.Date        `json:"partitiondate"`
-	Lasttenantid   uuid.UUID          `json:"lasttenantid"`
-	Lastexternalid uuid.UUID          `json:"lastexternalid"`
-	Lastinsertedat pgtype.Timestamptz `json:"lastinsertedat"`
-	Nexttenantid   uuid.UUID          `json:"nexttenantid"`
-	Nextexternalid uuid.UUID          `json:"nextexternalid"`
-	Nextinsertedat pgtype.Timestamptz `json:"nextinsertedat"`
-	Batchsize      int32              `json:"batchsize"`
+	Partitiondate  pgtype.Date `json:"partitiondate"`
+	Lastexternalid uuid.UUID   `json:"lastexternalid"`
+	Nextexternalid uuid.UUID   `json:"nextexternalid"`
+	Batchsize      int32       `json:"batchsize"`
 }
 
 type ListPaginatedOLAPPayloadsForOffloadRow struct {
@@ -1643,12 +1584,8 @@ type ListPaginatedOLAPPayloadsForOffloadRow struct {
 func (q *Queries) ListPaginatedOLAPPayloadsForOffload(ctx context.Context, db DBTX, arg ListPaginatedOLAPPayloadsForOffloadParams) ([]*ListPaginatedOLAPPayloadsForOffloadRow, error) {
 	rows, err := db.Query(ctx, listPaginatedOLAPPayloadsForOffload,
 		arg.Partitiondate,
-		arg.Lasttenantid,
 		arg.Lastexternalid,
-		arg.Lastinsertedat,
-		arg.Nexttenantid,
 		arg.Nextexternalid,
-		arg.Nextinsertedat,
 		arg.Batchsize,
 	)
 	if err != nil {
@@ -1748,7 +1685,7 @@ type ListTaskEventsRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -1873,7 +1810,7 @@ type ListTaskEventsForWorkflowRunRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -2268,7 +2205,8 @@ WITH input AS (
     SELECT
         run_id,
         output,
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -2286,6 +2224,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB AS output,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
@@ -2322,6 +2261,7 @@ type PopulateDAGMetadataRow struct {
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	Output                []byte               `json:"output"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	RetryCount            int32                `json:"retry_count"`
 }
 
@@ -2359,6 +2299,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.ErrorMessage,
 			&i.Output,
 			&i.OutputEventExternalID,
+			&i.OutputEventInsertedAt,
 			&i.RetryCount,
 		); err != nil {
 			return nil, err
@@ -2483,7 +2424,8 @@ WITH selected_retry_count AS (
 ), task_output AS (
     SELECT
         external_id,
-        output
+        output,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -2532,6 +2474,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -2595,6 +2538,7 @@ type PopulateSingleTaskRunDataRow struct {
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	Output                []byte               `json:"output"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
@@ -2641,6 +2585,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.StartedAt,
 		&i.QueuedAt,
 		&i.OutputEventExternalID,
+		&i.OutputEventInsertedAt,
 		&i.Output,
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
@@ -2769,7 +2714,8 @@ WITH input AS (
         DISTINCT ON (task_id)
         task_id,
         output,
-        external_id AS output_event_external_id
+        external_id AS output_event_external_id,
+        inserted_at AS output_event_inserted_at
     FROM
         relevant_events
     WHERE
@@ -2812,6 +2758,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
+    o.output_event_inserted_at AS output_event_inserted_at,
     COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
@@ -2863,6 +2810,7 @@ type PopulateTaskRunDataRow struct {
 	RetryCount            int32                `json:"retry_count"`
 	Output                []byte               `json:"output"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	IsDurable             bool                 `json:"is_durable"`
 }
 
@@ -2908,6 +2856,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.RetryCount,
 			&i.Output,
 			&i.OutputEventExternalID,
+			&i.OutputEventInsertedAt,
 			&i.IsDurable,
 		); err != nil {
 			return nil, err
@@ -3114,7 +3063,7 @@ type ReadTaskByExternalIDRow struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	Output               []byte               `json:"output"`
-	EventExternalID      *uuid.UUID           `json:"event_external_id"`
+	EventExternalID      uuid.UUID            `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 
@@ -3247,7 +3196,8 @@ WITH runs AS (
     LIMIT 1
 ), output_event_external_id AS (
     SELECT
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -3264,7 +3214,8 @@ SELECT
     m.finished_at,
     e.error_message,
     m.task_metadata,
-    o.external_id AS output_event_external_id
+    o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
@@ -3293,6 +3244,7 @@ type ReadWorkflowRunByExternalIdRow struct {
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	TaskMetadata          []byte               `json:"task_metadata"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 }
 
 func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid uuid.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
@@ -3319,6 +3271,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.ErrorMessage,
 		&i.TaskMetadata,
 		&i.OutputEventExternalID,
+		&i.OutputEventInsertedAt,
 	)
 	return &i, err
 }
