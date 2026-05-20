@@ -38,6 +38,68 @@ func (q *Queries) CleanupOldWorkers(ctx context.Context, db DBTX, arg CleanupOld
 	return db.Exec(ctx, cleanupOldWorkers, arg.Tenantid, arg.Lastheartbeatbefore, arg.Batchsize)
 }
 
+const countWorkers = `-- name: CountWorkers :one
+SELECT count(*)
+FROM
+    "Worker" workers
+WHERE
+    workers."tenantId" = $1
+    AND (
+        $2::text IS NULL OR
+        workers."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = $1 AND "Action"."actionId" = $2::text
+        )
+    )
+    AND (
+        $3::timestamp IS NULL OR
+        workers."lastHeartbeatAt" > $3::timestamp
+    )
+    AND (
+        $4::boolean IS NULL OR
+        ($4::boolean AND (
+            SELECT COALESCE(SUM(cap.max_units), 0)
+            FROM v1_worker_slot_config cap
+            WHERE cap.tenant_id = workers."tenantId" AND cap.worker_id = workers."id"
+        ) > (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
+        ))
+    )
+    AND (
+        $5::text[] IS NULL OR
+        CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            ELSE 'ACTIVE'
+        END = ANY($5::text[])
+    )
+`
+
+type CountWorkersParams struct {
+	Tenantid           uuid.UUID        `json:"tenantid"`
+	ActionId           pgtype.Text      `json:"actionId"`
+	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
+	Assignable         pgtype.Bool      `json:"assignable"`
+	Statuses           []string         `json:"statuses"`
+}
+
+func (q *Queries) CountWorkers(ctx context.Context, db DBTX, arg CountWorkersParams) (int64, error) {
+	row := db.QueryRow(ctx, countWorkers,
+		arg.Tenantid,
+		arg.ActionId,
+		arg.LastHeartbeatAfter,
+		arg.Assignable,
+		arg.Statuses,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createWorker = `-- name: CreateWorker :one
 INSERT INTO "Worker" (
     "id",
@@ -1255,8 +1317,20 @@ WHERE
             WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
-GROUP BY
-    workers."id"
+    AND (
+        $5::text[] IS NULL OR
+        CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            ELSE 'ACTIVE'
+        END = ANY($5::text[])
+    )
+ORDER BY
+    workers."createdAt" DESC
+OFFSET
+    COALESCE($6, 0)
+LIMIT
+    COALESCE($7, 50)
 `
 
 type ListWorkersParams struct {
@@ -1264,6 +1338,9 @@ type ListWorkersParams struct {
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
+	Statuses           []string         `json:"statuses"`
+	Offset             interface{}      `json:"offset"`
+	Limit              interface{}      `json:"limit"`
 }
 
 type ListWorkersRow struct {
@@ -1276,6 +1353,9 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 		arg.ActionId,
 		arg.LastHeartbeatAfter,
 		arg.Assignable,
+		arg.Statuses,
+		arg.Offset,
+		arg.Limit,
 	)
 	if err != nil {
 		return nil, err

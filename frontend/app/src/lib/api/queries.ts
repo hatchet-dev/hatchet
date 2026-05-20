@@ -6,6 +6,7 @@ import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
+type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
@@ -421,9 +422,9 @@ export const queries = createQueryKeyStore({
     }),
   },
   workers: {
-    list: (tenant: string) => ({
-      queryKey: ['worker:list', tenant],
-      queryFn: async () => (await api.workerList(tenant)).data,
+    list: (tenant: string, query?: ListWorkersQuery) => ({
+      queryKey: ['worker:list', tenant, query],
+      queryFn: async () => (await api.workerList(tenant, query)).data,
     }),
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],
