@@ -68,7 +68,8 @@ export default function Workers() {
 
   const rows = listWorkersQuery.data?.rows ?? [];
   const pageCount =
-    listWorkersQuery.data?.pagination?.num_pages ?? Math.ceil(rows.length / limit);
+    listWorkersQuery.data?.pagination?.num_pages ??
+    Math.ceil(rows.length / limit);
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
