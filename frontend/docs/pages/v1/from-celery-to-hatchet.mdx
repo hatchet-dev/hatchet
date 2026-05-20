@@ -722,6 +722,8 @@ Once your tasks are running on Hatchet, these features go beyond Celery parity:
 
 None of these are needed for a basic migration. They become useful when your workloads grow from background tasks into durable workflows.
 
+After the basic migration is working, use [async APIs](/reference/python/asyncio) for I/O-bound tasks, [lifespans](/reference/python/lifespans) to initialize shared resources once per worker, and [dependency injection](/reference/python/dependency-injection) to pass common dependencies into tasks without wiring them manually in every function.
+
 ## Before migrating every workload
 
 Migration does not have to be all-or-nothing. Consider keeping specific workloads on Celery if:
