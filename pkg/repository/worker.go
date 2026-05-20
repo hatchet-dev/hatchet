@@ -10,10 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type RuntimeInfo struct {
@@ -277,6 +279,9 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 }
 
 func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error) {
+	ctx, span := telemetry.NewSpan(ctx, "WorkerRepository.GetWorkerActionsForWorkers")
+	defer span.End()
+
 	actionHashSet := make(map[string]struct{})
 	workerIds := make([]uuid.UUID, 0)
 	actionHashToWorkerIds := make(map[string][]uuid.UUID)
@@ -331,6 +336,11 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 			}
 		}
 	}
+
+	span.SetAttributes(
+		attribute.Int("num_worker_ids", len(workerIds)),
+		attribute.Int("num_worker_action_hashes", len(actionHashes)),
+	)
 
 	if len(workerIds) > 0 {
 		recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
