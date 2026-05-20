@@ -72,9 +72,9 @@ WHERE
     AND (
         $5::text[] IS NULL OR
         CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
             WHEN workers."isPaused" = true THEN 'PAUSED'
-            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
-            ELSE 'INACTIVE'
+            ELSE 'ACTIVE'
         END = ANY($5::text[])
     )
 `
@@ -1320,9 +1320,9 @@ WHERE
     AND (
         $5::text[] IS NULL OR
         CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
             WHEN workers."isPaused" = true THEN 'PAUSED'
-            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
-            ELSE 'INACTIVE'
+            ELSE 'ACTIVE'
         END = ANY($5::text[])
     )
 ORDER BY

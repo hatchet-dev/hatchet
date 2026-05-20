@@ -145,9 +145,9 @@ WHERE
     AND (
         sqlc.narg('statuses')::text[] IS NULL OR
         CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
             WHEN workers."isPaused" = true THEN 'PAUSED'
-            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
-            ELSE 'INACTIVE'
+            ELSE 'ACTIVE'
         END = ANY(sqlc.narg('statuses')::text[])
     )
 ORDER BY
@@ -191,9 +191,9 @@ WHERE
     AND (
         sqlc.narg('statuses')::text[] IS NULL OR
         CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
             WHEN workers."isPaused" = true THEN 'PAUSED'
-            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
-            ELSE 'INACTIVE'
+            ELSE 'ACTIVE'
         END = ANY(sqlc.narg('statuses')::text[])
     );
 
