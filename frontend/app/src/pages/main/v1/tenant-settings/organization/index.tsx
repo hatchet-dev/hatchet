@@ -72,7 +72,6 @@ import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   PlusIcon,
-  KeyIcon,
   ArrowRightIcon,
   CheckIcon,
   EllipsisVerticalIcon,
@@ -1042,15 +1041,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                       rowKey={(row) => row.domain}
                     />
                   ) : (
-                    <div className="py-8 text-center">
-                      <KeyIcon className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-                      <h3 className="mb-1 text-base font-medium">
-                        No SSO Domains
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Add a domain below to enable SSO for your organization.
-                      </p>
-                    </div>
+                    <div className="py-8 text-center"></div>
                   )}
 
                   {organizationSsoDomainGetQuery.data &&
