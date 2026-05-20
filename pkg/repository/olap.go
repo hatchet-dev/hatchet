@@ -3085,29 +3085,35 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)
-	externalIdToExternalKey := make(map[uuid.UUID]ExternalPayloadLocationKey)
-	externalKeys := make([]ExternalPayloadLocationKey, 0)
+	externalIdToRetrieveFromExternalOpt := make(map[uuid.UUID]RetrieveFromExternalOpts)
+	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
 
 	for _, payload := range payloads {
 		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+			retrieveFromExternalOpt := RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByKey,
+				ByKey: &RetrieveFromExternalByKeyOpt{
+					Key: key,
+				},
+			}
 
-			externalIdToExternalKey[payload.ExternalID] = key
-			externalKeys = append(externalKeys, key)
+			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
+			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
 		}
 	}
 
-	if len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled() {
-		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
+	if len(retrieveFromExternalOpts) > 0 && r.payloadStore.ExternalStoreEnabled() {
+		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
 
 		if err != nil {
 			return nil, err
 		}
 
-		for externalId, externalKey := range externalIdToExternalKey {
-			externalIdToPayload[externalId] = keyToPayload[externalKey]
+		for externalId, opt := range externalIdToRetrieveFromExternalOpt {
+			externalIdToPayload[externalId] = keyToPayload[opt]
 		}
 	}
 
@@ -3449,9 +3455,11 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
+
 			if pr.UpperExternalID.String() > maxExternalId.String() {
 				maxExternalId = pr.UpperExternalID
 			}
+
 			mu.Unlock()
 
 			return nil
@@ -3474,10 +3482,22 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
+	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
+	}
+
+	defer rollback()
+
 	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, maxExternalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
 	if numPayloads < int(windowSize) {
