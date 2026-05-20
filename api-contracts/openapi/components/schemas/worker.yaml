@@ -143,12 +143,8 @@ Worker:
       items:
         $ref: "./_index.yaml#/RecentStepRuns"
     status:
-      type: string
+      $ref: "#/WorkerStatus"
       description: The status of the worker.
-      enum:
-        - ACTIVE
-        - INACTIVE
-        - PAUSED
     slotConfig:
       type: object
       description: Slot availability and limits for this worker (slot_type -> { available, limit }).
@@ -218,3 +214,9 @@ WorkerRuntimeInfo:
     runtimeExtra:
       type: string
 
+WorkerStatus:
+  type: string
+  enum:
+    - ACTIVE
+    - INACTIVE
+    - PAUSED

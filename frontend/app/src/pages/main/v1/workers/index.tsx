@@ -9,6 +9,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
+import { WorkerStatus } from '@/lib/api/generated/data-contracts';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
@@ -57,18 +58,15 @@ export default function Workers() {
   );
 
   const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenantId, { offset, limit }),
+    ...queries.workers.list(tenantId, {
+      offset,
+      limit,
+      statuses: statuses as WorkerStatus[],
+    }),
     refetchInterval,
   });
 
-  const rows = useMemo(
-    () =>
-      listWorkersQuery.data?.rows?.filter(
-        (w) => w.status && statuses.includes(w.status),
-      ) ?? [],
-    [listWorkersQuery.data?.rows, statuses],
-  );
-
+  const rows = listWorkersQuery.data?.rows ?? [];
   const pageCount =
     listWorkersQuery.data?.pagination?.num_pages ?? Math.ceil(rows.length / limit);
 

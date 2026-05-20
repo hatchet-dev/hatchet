@@ -142,6 +142,14 @@ WHERE
             WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        CASE
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
+            ELSE 'INACTIVE'
+        END = ANY(sqlc.narg('statuses')::text[])
+    )
 ORDER BY
     workers."createdAt" DESC
 OFFSET
@@ -179,6 +187,14 @@ WHERE
             FROM v1_task_runtime_slot runtime
             WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
+    )
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        CASE
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
+            ELSE 'INACTIVE'
+        END = ANY(sqlc.narg('statuses')::text[])
     );
 
 -- name: GetWorkerById :one

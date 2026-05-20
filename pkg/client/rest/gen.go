@@ -333,19 +333,19 @@ const (
 	V1WorkflowTypeTASK V1WorkflowType = "TASK"
 )
 
-// Defines values for WorkerStatus.
-const (
-	ACTIVE   WorkerStatus = "ACTIVE"
-	INACTIVE WorkerStatus = "INACTIVE"
-	PAUSED   WorkerStatus = "PAUSED"
-)
-
 // Defines values for WorkerRuntimeSDKs.
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
 	PYTHON     WorkerRuntimeSDKs = "PYTHON"
 	RUBY       WorkerRuntimeSDKs = "RUBY"
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
+)
+
+// Defines values for WorkerStatus.
+const (
+	ACTIVE   WorkerStatus = "ACTIVE"
+	INACTIVE WorkerStatus = "INACTIVE"
+	PAUSED   WorkerStatus = "PAUSED"
 )
 
 // Defines values for WorkerType.
@@ -2345,11 +2345,9 @@ type Worker struct {
 	SlotConfig *map[string]WorkerSlotConfig `json:"slotConfig,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
-	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
-
-	// Status The status of the worker.
-	Status *WorkerStatus `json:"status,omitempty"`
-	Type   WorkerType    `json:"type"`
+	Slots  *[]SemaphoreSlots `json:"slots,omitempty"`
+	Status *WorkerStatus     `json:"status,omitempty"`
+	Type   WorkerType        `json:"type"`
 
 	// WebhookId The webhook ID for the worker.
 	WebhookId *openapi_types.UUID `json:"webhookId,omitempty"`
@@ -2357,9 +2355,6 @@ type Worker struct {
 	// WebhookUrl The webhook URL for the worker.
 	WebhookUrl *string `json:"webhookUrl,omitempty"`
 }
-
-// WorkerStatus The status of the worker.
-type WorkerStatus string
 
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {
@@ -2397,6 +2392,9 @@ type WorkerSlotConfig struct {
 	// Limit The maximum number of units for this slot type.
 	Limit int `json:"limit"`
 }
+
+// WorkerStatus defines model for WorkerStatus.
+type WorkerStatus string
 
 // WorkerType defines model for WorkerType.
 type WorkerType string
@@ -3047,6 +3045,9 @@ type WorkerListParams struct {
 
 	// Limit The number to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Statuses Filter by worker status
+	Statuses *[]WorkerStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -11615,6 +11616,22 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *Work
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

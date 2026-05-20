@@ -135,6 +135,7 @@ import {
   WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
+  WorkerStatus,
   Workflow,
   WorkflowID,
   WorkflowKindList,
@@ -3549,6 +3550,8 @@ export class Api<
        * @format int64
        */
       limit?: number;
+      /** Filter by worker status */
+      statuses?: WorkerStatus[];
     },
     params: RequestParams = {},
   ) =>

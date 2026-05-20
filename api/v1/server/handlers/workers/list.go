@@ -55,6 +55,14 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		opts.Offset = &offset
 	}
 
+	if request.Params.Statuses != nil {
+		statuses := make([]string, len(*request.Params.Statuses))
+		for i, s := range *request.Params.Statuses {
+			statuses[i] = string(s)
+		}
+		opts.Statuses = statuses
+	}
+
 	_, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v0.list-workers")
 	defer listSpan.End()
 
@@ -134,6 +142,14 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	if request.Params.Offset != nil {
 		offset = int(*request.Params.Offset)
 		opts.Offset = &offset
+	}
+
+	if request.Params.Statuses != nil {
+		statuses := make([]string, len(*request.Params.Statuses))
+		for i, s := range *request.Params.Statuses {
+			statuses[i] = string(s)
+		}
+		opts.Statuses = statuses
 	}
 
 	listCtx, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v1.list-workers")

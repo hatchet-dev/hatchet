@@ -27,6 +27,14 @@ withTenant:
         schema:
           type: integer
           format: int64
+      - description: Filter by worker status
+        in: query
+        name: statuses
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../components/schemas/_index.yaml#/WorkerStatus"
     responses:
       "200":
         content:

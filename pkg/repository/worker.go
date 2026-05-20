@@ -73,6 +73,8 @@ type ListWorkersOpts struct {
 	Limit *int
 
 	Offset *int
+
+	Statuses []string
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -179,6 +181,11 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 			Valid: true,
 		}
 		countParams.Assignable = queryParams.Assignable
+	}
+
+	if opts.Statuses != nil {
+		queryParams.Statuses = opts.Statuses
+		countParams.Statuses = opts.Statuses
 	}
 
 	if opts.Limit != nil {

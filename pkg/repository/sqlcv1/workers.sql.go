@@ -69,6 +69,14 @@ WHERE
             WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
+    AND (
+        $5::text[] IS NULL OR
+        CASE
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
+            ELSE 'INACTIVE'
+        END = ANY($5::text[])
+    )
 `
 
 type CountWorkersParams struct {
@@ -76,6 +84,7 @@ type CountWorkersParams struct {
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
+	Statuses           []string         `json:"statuses"`
 }
 
 func (q *Queries) CountWorkers(ctx context.Context, db DBTX, arg CountWorkersParams) (int64, error) {
@@ -84,6 +93,7 @@ func (q *Queries) CountWorkers(ctx context.Context, db DBTX, arg CountWorkersPar
 		arg.ActionId,
 		arg.LastHeartbeatAfter,
 		arg.Assignable,
+		arg.Statuses,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1307,12 +1317,20 @@ WHERE
             WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
+    AND (
+        $5::text[] IS NULL OR
+        CASE
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            WHEN workers."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds' THEN 'ACTIVE'
+            ELSE 'INACTIVE'
+        END = ANY($5::text[])
+    )
 ORDER BY
     workers."createdAt" DESC
 OFFSET
-    COALESCE($5, 0)
+    COALESCE($6, 0)
 LIMIT
-    COALESCE($6, 50)
+    COALESCE($7, 50)
 `
 
 type ListWorkersParams struct {
@@ -1320,6 +1338,7 @@ type ListWorkersParams struct {
 	ActionId           pgtype.Text      `json:"actionId"`
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
+	Statuses           []string         `json:"statuses"`
 	Offset             interface{}      `json:"offset"`
 	Limit              interface{}      `json:"limit"`
 }
@@ -1334,6 +1353,7 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 		arg.ActionId,
 		arg.LastHeartbeatAfter,
 		arg.Assignable,
+		arg.Statuses,
 		arg.Offset,
 		arg.Limit,
 	)
