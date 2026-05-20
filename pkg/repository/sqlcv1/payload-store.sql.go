@@ -186,68 +186,6 @@ func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db D
 	return err
 }
 
-const diffPayloadSourceAndTargetPartitions = `-- name: DiffPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_payload_source_and_target_partitions($1::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    id::BIGINT,
-    inserted_at::TIMESTAMPTZ,
-    external_id::UUID,
-    type::v1_payload_type,
-    location::v1_payload_location,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-`
-
-type DiffPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            uuid.UUID          `json:"tenant_id"`
-	ID                  int64              `json:"id"`
-	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          uuid.UUID          `json:"external_id"`
-	Type                V1PayloadType      `json:"type"`
-	Location            V1PayloadLocation  `json:"location"`
-	ExternalLocationKey string             `json:"external_location_key"`
-	InlineContent       []byte             `json:"inline_content"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
-}
-
-func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffPayloadSourceAndTargetPartitionsRow, error) {
-	rows, err := db.Query(ctx, diffPayloadSourceAndTargetPartitions, partitiondate)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*DiffPayloadSourceAndTargetPartitionsRow
-	for rows.Next() {
-		var i DiffPayloadSourceAndTargetPartitionsRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.Type,
-			&i.Location,
-			&i.ExternalLocationKey,
-			&i.InlineContent,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many
 WITH payloads AS (
     SELECT
@@ -394,32 +332,6 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		return nil, err
 	}
 	return items, nil
-}
-
-const setFinalPayloadCutoverRowCounts = `-- name: SetFinalPayloadCutoverRowCounts :exec
-UPDATE v1_payload_cutover_job_offset
-SET
-    final_source_table_row_count = $1::BIGINT,
-    final_target_table_row_count = $2::BIGINT,
-    final_row_count_diff = $3::BIGINT
-WHERE key = $4::DATE
-`
-
-type SetFinalPayloadCutoverRowCountsParams struct {
-	Finalsourcetablerowcount int64       `json:"finalsourcetablerowcount"`
-	Finaltargettablerowcount int64       `json:"finaltargettablerowcount"`
-	Finalrowcountdiff        int64       `json:"finalrowcountdiff"`
-	Key                      pgtype.Date `json:"key"`
-}
-
-func (q *Queries) SetFinalPayloadCutoverRowCounts(ctx context.Context, db DBTX, arg SetFinalPayloadCutoverRowCountsParams) error {
-	_, err := db.Exec(ctx, setFinalPayloadCutoverRowCounts,
-		arg.Finalsourcetablerowcount,
-		arg.Finaltargettablerowcount,
-		arg.Finalrowcountdiff,
-		arg.Key,
-	)
-	return err
 }
 
 const swapV1PayloadPartitionWithTemp = `-- name: SwapV1PayloadPartitionWithTemp :exec

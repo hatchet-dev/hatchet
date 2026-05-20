@@ -491,62 +491,6 @@ func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, 
 	return err
 }
 
-const diffOLAPPayloadSourceAndTargetPartitions = `-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_olap_payload_source_and_target_partitions($1::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    external_id::UUID,
-    inserted_at::TIMESTAMPTZ,
-    location::v1_payload_location_olap,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-`
-
-type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            uuid.UUID             `json:"tenant_id"`
-	ExternalID          uuid.UUID             `json:"external_id"`
-	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
-	Location            V1PayloadLocationOlap `json:"location"`
-	ExternalLocationKey string                `json:"external_location_key"`
-	InlineContent       []byte                `json:"inline_content"`
-	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
-}
-
-func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffOLAPPayloadSourceAndTargetPartitionsRow, error) {
-	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, partitiondate)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*DiffOLAPPayloadSourceAndTargetPartitionsRow
-	for rows.Next() {
-		var i DiffOLAPPayloadSourceAndTargetPartitionsRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ExternalID,
-			&i.InsertedAt,
-			&i.Location,
-			&i.ExternalLocationKey,
-			&i.InlineContent,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
 WITH tenants AS (
     SELECT UNNEST(
@@ -3376,32 +3320,6 @@ func (q *Queries) ReconcileTaskStatusesFromEvents(ctx context.Context, db DBTX, 
 		return nil, err
 	}
 	return items, nil
-}
-
-const setFinalOLAPPayloadCutoverRowCounts = `-- name: SetFinalOLAPPayloadCutoverRowCounts :exec
-UPDATE v1_payloads_olap_cutover_job_offset
-SET
-    final_source_table_row_count = $1::BIGINT,
-    final_target_table_row_count = $2::BIGINT,
-    final_row_count_diff = $3::BIGINT
-WHERE key = $4::DATE
-`
-
-type SetFinalOLAPPayloadCutoverRowCountsParams struct {
-	Finalsourcetablerowcount int64       `json:"finalsourcetablerowcount"`
-	Finaltargettablerowcount int64       `json:"finaltargettablerowcount"`
-	Finalrowcountdiff        int64       `json:"finalrowcountdiff"`
-	Key                      pgtype.Date `json:"key"`
-}
-
-func (q *Queries) SetFinalOLAPPayloadCutoverRowCounts(ctx context.Context, db DBTX, arg SetFinalOLAPPayloadCutoverRowCountsParams) error {
-	_, err := db.Exec(ctx, setFinalOLAPPayloadCutoverRowCounts,
-		arg.Finalsourcetablerowcount,
-		arg.Finaltargettablerowcount,
-		arg.Finalrowcountdiff,
-		arg.Key,
-	)
-	return err
 }
 
 const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec

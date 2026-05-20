@@ -2294,25 +2294,6 @@ DELETE FROM v1_payloads_olap_cutover_job_offset
 WHERE NOT key = ANY(@keysToKeep::DATE[])
 ;
 
-
--- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_olap_payload_source_and_target_partitions(@partitionDate::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    external_id::UUID,
-    inserted_at::TIMESTAMPTZ,
-    location::v1_payload_location_olap,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-;
-
 -- name: ComputeOLAPPayloadBatchSize :one
 SELECT compute_olap_payload_batch_size(
     @partitionDate::DATE,
@@ -2372,13 +2353,3 @@ WHERE
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
-
-
--- name: SetFinalOLAPPayloadCutoverRowCounts :exec
-UPDATE v1_payloads_olap_cutover_job_offset
-SET
-    final_source_table_row_count = @finalSourceTableRowCount::BIGINT,
-    final_target_table_row_count = @finalTargetTableRowCount::BIGINT,
-    final_row_count_diff = @finalRowCountDiff::BIGINT
-WHERE key = @key::DATE
-;
