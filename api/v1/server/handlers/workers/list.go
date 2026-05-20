@@ -99,11 +99,17 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workers, err := t.config.V1.Workers().ListWorkers(listCtx, tenantId, opts)
+	workerRows, err := t.config.V1.Workers().ListWorkers(listCtx, tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
 		return nil, err
+	}
+
+	workers := make([]sqlcv1.Worker, len(workerRows))
+
+	for i, workerRow := range workerRows {
+		workers[i] = workerRow.Worker
 	}
 
 	telemetry.WithAttributes(listSpan,
@@ -113,7 +119,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 	workerIdSet := make(map[uuid.UUID]struct{})
 
 	for _, worker := range workers {
-		workerIdSet[worker.Worker.ID] = struct{}{}
+		workerIdSet[worker.ID] = struct{}{}
 	}
 
 	workerIds := make([]uuid.UUID, 0, len(workerIdSet))
@@ -128,10 +134,10 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "workers.unique_ids.count", Value: len(workerIds)},
 	)
 
-	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
+	workerIdToActionIds, err := t.config.V1.Workers().GetWorkerActionsForWorkers(
 		listCtx,
 		tenant.ID,
-		workerIds,
+		workers,
 	)
 
 	if err != nil {
@@ -160,11 +166,11 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 	for i, worker := range workers {
 		workerCp := worker
-		actions := workerIdToActionIds[workerCp.Worker.ID.String()]
-		slotConfig := workerSlotConfig[workerCp.Worker.ID]
-		labels := workerIdToLabels[workerCp.Worker.ID]
+		actions := workerIdToActionIds[workerCp.ID.String()]
+		slotConfig := workerSlotConfig[workerCp.ID]
+		labels := workerIdToLabels[workerCp.ID]
 
-		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp.Worker, slotConfig, actions, nil, labels)
+		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp, slotConfig, actions, nil, labels)
 	}
 
 	return gen.WorkerList200JSONResponse(
