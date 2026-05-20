@@ -57,26 +57,20 @@ export default function Workers() {
   );
 
   const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenantId),
+    ...queries.workers.list(tenantId, { offset, limit }),
     refetchInterval,
   });
 
-  const data = useMemo(
+  const rows = useMemo(
     () =>
-      listWorkersQuery.data?.rows
-        ?.filter((w) => w.status && statuses.includes(w.status))
-        ?.sort(
-          (a, b) =>
-            new Date(b.metadata?.createdAt).getTime() -
-            new Date(a.metadata?.createdAt).getTime(),
-        ) ?? [],
+      listWorkersQuery.data?.rows?.filter(
+        (w) => w.status && statuses.includes(w.status),
+      ) ?? [],
     [listWorkersQuery.data?.rows, statuses],
   );
 
-  const paginatedData = useMemo(
-    () => data.slice(offset, offset + limit),
-    [data, limit, offset],
-  );
+  const pageCount =
+    listWorkersQuery.data?.pagination?.num_pages ?? Math.ceil(rows.length / limit);
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -85,7 +79,7 @@ export default function Workers() {
   return (
     <DataTable
       columns={tableColumns}
-      data={paginatedData}
+      data={rows}
       filters={[
         {
           columnId: 'status',
@@ -123,7 +117,7 @@ export default function Workers() {
       pagination={pagination}
       setPagination={setPagination}
       onSetPageSize={setPageSize}
-      pageCount={Math.ceil(data.length / limit)}
+      pageCount={pageCount}
     />
   );
 }

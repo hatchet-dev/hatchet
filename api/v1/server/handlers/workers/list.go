@@ -2,6 +2,7 @@ package workers
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,8 +36,23 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
+	limit := 50
+	offset := 0
+
 	opts := &v1.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
+		Limit:              &limit,
+		Offset:             &offset,
+	}
+
+	if request.Params.Limit != nil {
+		limit = int(*request.Params.Limit)
+		opts.Limit = &limit
+	}
+
+	if request.Params.Offset != nil {
+		offset = int(*request.Params.Offset)
+		opts.Offset = &offset
 	}
 
 	_, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v0.list-workers")
@@ -46,7 +62,7 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workers, err := t.config.V1.Workers().ListWorkers(reqCtx, tenantId, opts)
+	workers, count, err := t.config.V1.Workers().ListWorkers(reqCtx, tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
@@ -75,9 +91,22 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		rows[i] = *transformers.ToWorkerSqlc(&workerCp.Worker, slotConfig, nil)
 	}
 
+	totalPages := int64(math.Ceil(float64(count) / float64(limit)))
+	currPage := 1 + int64(math.Ceil(float64(offset)/float64(limit)))
+	nextPage := currPage + 1
+
+	if currPage == totalPages {
+		nextPage = currPage
+	}
+
 	return gen.WorkerList200JSONResponse(
 		gen.WorkerList{
 			Rows: &rows,
+			Pagination: &gen.PaginationResponse{
+				NumPages:    &totalPages,
+				CurrentPage: &currPage,
+				NextPage:    &nextPage,
+			},
 		},
 	), nil
 }
@@ -88,8 +117,23 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
+	limit := 50
+	offset := 0
+
 	opts := &v1.ListWorkersOpts{
 		LastHeartbeatAfter: &sixSecAgo,
+		Limit:              &limit,
+		Offset:             &offset,
+	}
+
+	if request.Params.Limit != nil {
+		limit = int(*request.Params.Limit)
+		opts.Limit = &limit
+	}
+
+	if request.Params.Offset != nil {
+		offset = int(*request.Params.Offset)
+		opts.Offset = &offset
 	}
 
 	listCtx, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v1.list-workers")
@@ -99,7 +143,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		telemetry.AttributeKV{Key: "tenant.id", Value: tenant.ID},
 	)
 
-	workerRows, err := t.config.V1.Workers().ListWorkers(listCtx, tenantId, opts)
+	workerRows, count, err := t.config.V1.Workers().ListWorkers(listCtx, tenantId, opts)
 
 	if err != nil {
 		listSpan.RecordError(err)
@@ -173,9 +217,22 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		rows[i] = *transformersv1.ToWorkerSqlc(&workerCp, slotConfig, actions, nil, labels)
 	}
 
+	totalPages := int64(math.Ceil(float64(count) / float64(limit)))
+	currPage := 1 + int64(math.Ceil(float64(offset)/float64(limit)))
+	nextPage := currPage + 1
+
+	if currPage == totalPages {
+		nextPage = currPage
+	}
+
 	return gen.WorkerList200JSONResponse(
 		gen.WorkerList{
 			Rows: &rows,
+			Pagination: &gen.PaginationResponse{
+				NumPages:    &totalPages,
+				CurrentPage: &currPage,
+				NextPage:    &nextPage,
+			},
 		},
 	), nil
 }
