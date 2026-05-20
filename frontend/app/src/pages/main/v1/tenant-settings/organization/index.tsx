@@ -159,14 +159,20 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
   const [ssoIsConfigured, setSsoIsConfigured] = useState(false);
 
+  const organizationEntitlementsQuery = useQuery({
+    ...orgApi.organizationEntitlementsGetQuery(orgId!),
+    enabled: !!orgId && canManageSso,
+  });
+  const canUseSso = organizationEntitlementsQuery.data?.canSSO === true;
+
   const organizationSsoDomainGetQuery = useQuery({
     ...orgApi.organizationSsoDomainGetQuery(orgId),
-    enabled: !!orgId && canManageSso,
+    enabled: !!orgId && canUseSso,
   });
 
   const organizationSsoConfigGetQuery = useQuery({
     ...orgApi.organizationSsoConfigGetQuery(orgId),
-    enabled: !!orgId && canManageSso,
+    enabled: !!orgId && canUseSso,
   });
 
   const ssoConfigUpdateMutation = useMutation({
@@ -942,126 +948,145 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
           </TabsContent>
           {canManageSso && (
             <TabsContent value="sso">
-              <div className="space-y-6">
-                <CreateSSOPage
-                  orgId={orgId}
-                  onConfigLoaded={setSsoIsConfigured}
-                />
-                {/* Force SSO toggle */}
-                {isOrganizationOwner && (
-                  <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Force SSO</p>
-                      <p className="text-sm text-muted-foreground">
-                        Require all organization members to sign in with SSO.
-                        All other login methods will be disabled.
+              {organizationEntitlementsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loading />
+                </div>
+              ) : canUseSso ? (
+                <div className="space-y-6">
+                  <CreateSSOPage
+                    orgId={orgId}
+                    onConfigLoaded={setSsoIsConfigured}
+                  />
+                  {/* Force SSO toggle */}
+                  {isOrganizationOwner && (
+                    <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">Force SSO</p>
+                        <p className="text-sm text-muted-foreground">
+                          Require all organization members to sign in with SSO.
+                          All other login methods will be disabled.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={
+                          organizationSsoConfigGetQuery.data?.forceSSO ?? false
+                        }
+                        onCheckedChange={(checked) =>
+                          ssoConfigUpdateMutation.mutate(checked)
+                        }
+                        disabled={
+                          organizationSsoConfigGetQuery.isLoading ||
+                          ssoConfigUpdateMutation.isPending
+                        }
+                      />
+                    </div>
+                  )}
+                  {/* SSO Domains */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold">SSO Domains</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Domains associated with your organization for SSO login.
+                        Members signing in with a verified domain will be
+                        automatically directed to your identity provider.
                       </p>
                     </div>
-                    <Switch
-                      checked={
-                        organizationSsoConfigGetQuery.data?.forceSSO ?? false
-                      }
-                      onCheckedChange={(checked) =>
-                        ssoConfigUpdateMutation.mutate(checked)
-                      }
-                      disabled={
-                        organizationSsoConfigGetQuery.isLoading ||
-                        ssoConfigUpdateMutation.isPending
-                      }
-                    />
-                  </div>
-                )}
-                {/* SSO Domains */}
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-base font-semibold">SSO Domains</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Domains associated with your organization for SSO login.
-                      Members signing in with a verified domain will be
-                      automatically directed to your identity provider.
-                    </p>
-                  </div>
-                  {ssoIsConfigured &&
-                    !organizationSsoDomainGetQuery.isLoading &&
-                    (!organizationSsoDomainGetQuery.data ||
-                      organizationSsoDomainGetQuery.data.length === 0) && (
-                      <div className="flex items-start gap-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm">
-                        <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-                        <div>
-                          <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                            SSO is configured but no domains are set up.
+                    {ssoIsConfigured &&
+                      !organizationSsoDomainGetQuery.isLoading &&
+                      (!organizationSsoDomainGetQuery.data ||
+                        organizationSsoDomainGetQuery.data.length === 0) && (
+                        <div className="flex items-start gap-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm">
+                          <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+                          <div>
+                            <p className="font-medium text-yellow-600 dark:text-yellow-400">
+                              SSO is configured but no domains are set up.
+                            </p>
+                            <p className="mt-0.5 text-muted-foreground">
+                              Without a verified domain, members will not be
+                              automatically redirected to your identity
+                              provider. Add a domain below to complete your SSO
+                              setup.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    {organizationSsoDomainGetQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loading />
+                      </div>
+                    ) : organizationSsoDomainGetQuery.data &&
+                      organizationSsoDomainGetQuery.data.length > 0 ? (
+                      <SimpleTable
+                        data={organizationSsoDomainGetQuery.data.map((v) => ({
+                          domain: v.ssoDomain,
+                          verified: v.verified,
+                          verification_token: v.verificationToken,
+                        }))}
+                        columns={ssoDomainColumns}
+                        rowKey={(row) => row.domain}
+                      />
+                    ) : (
+                      <div className="py-8 text-center"></div>
+                    )}
+                    {/* Add New SSO Domain */}
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="example.com"
+                          value={newSsoDomain}
+                          onChange={(e) => setNewSsoDomain(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddSsoDomain();
+                            }
+                          }}
+                          className="max-w-sm"
+                          disabled={isAddingSsoDomain}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddSsoDomain}
+                          disabled={isAddingSsoDomain || !newSsoDomain.trim()}
+                          leftIcon={<PlusIcon className="size-4" />}
+                        >
+                          Add Domain
+                        </Button>
+                      </div>
+                    </div>
+                    {organizationSsoDomainGetQuery.data &&
+                      organizationSsoDomainGetQuery.data.length > 0 && (
+                        <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                          <p>
+                            To verify your domain, add a DNS TXT record with the
+                            value:
                           </p>
-                          <p className="mt-0.5 text-muted-foreground">
-                            Without a verified domain, members will not be
-                            automatically redirected to your identity provider.
-                            Add a domain below to complete your SSO setup.
+                          <p className="mt-1 font-mono">
+                            hatchet-sso-verify=&#123;verification_token&#125;
+                          </p>
+                          <p className="mt-2">
+                            It may take a few minutes for DNS changes to
+                            propagate and for the verified status to update.
                           </p>
                         </div>
-                      </div>
-                    )}
-                  {/* Add New SSO Domain */}
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="example.com"
-                        value={newSsoDomain}
-                        onChange={(e) => setNewSsoDomain(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleAddSsoDomain();
-                          }
-                        }}
-                        className="max-w-sm"
-                        disabled={isAddingSsoDomain}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddSsoDomain}
-                        disabled={isAddingSsoDomain || !newSsoDomain.trim()}
-                        leftIcon={<PlusIcon className="size-4" />}
-                      >
-                        Add Domain
-                      </Button>
-                    </div>
+                      )}
                   </div>
-                  {organizationSsoDomainGetQuery.isLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loading />
-                    </div>
-                  ) : organizationSsoDomainGetQuery.data &&
-                    organizationSsoDomainGetQuery.data.length > 0 ? (
-                    <SimpleTable
-                      data={organizationSsoDomainGetQuery.data.map((v) => ({
-                        domain: v.ssoDomain,
-                        verified: v.verified,
-                        verification_token: v.verificationToken,
-                      }))}
-                      columns={ssoDomainColumns}
-                      rowKey={(row) => row.domain}
-                    />
-                  ) : (
-                    <div className="py-8 text-center"></div>
-                  )}
-
-                  {organizationSsoDomainGetQuery.data &&
-                    organizationSsoDomainGetQuery.data.length > 0 && (
-                      <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                        <p>
-                          To verify your domain, add a DNS TXT record with the
-                          value:
-                        </p>
-                        <p className="mt-1 font-mono">
-                          hatchet-sso-verify=&#123;verification_token&#125;
-                        </p>
-                        <p className="mt-2">
-                          It may take a few minutes for DNS changes to propagate
-                          and for the verified status to update.
-                        </p>
-                      </div>
-                    )}
                 </div>
-              </div>
+              ) : (
+                <div className="py-16 text-center text-sm text-muted-foreground">
+                  SSO is not enabled for this organization. Please{' '}
+                  <a
+                    href={OFFICE_HOURS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    contact us
+                  </a>{' '}
+                  to get access.
+                </div>
+              )}
             </TabsContent>
           )}
         </Tabs>
