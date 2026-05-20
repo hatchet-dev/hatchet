@@ -311,43 +311,45 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 		return nil, err
 	}
 
-	recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
-		Workerids: workerIds,
-		Tenantid:  tenantId,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
 	workerIdToActionIds := make(map[string][]string)
 
-	for _, record := range recordsFromWorkerIds {
-		workerId := record.WorkerId.String()
+	if len(recordsFromActionHashes) > 0 {
+		for _, record := range recordsFromActionHashes {
+			workerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
 
-		if _, ok := workerIdToActionIds[workerId]; !ok {
-			workerIdToActionIds[workerId] = make([]string, 0)
+			if !ok {
+				continue
+			}
+
+			for _, workerIdUuid := range workerIds {
+				workerId := workerIdUuid.String()
+				if _, ok := workerIdToActionIds[workerId]; !ok {
+					workerIdToActionIds[workerId] = make([]string, 0)
+				}
+
+				workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.ActionID)
+			}
 		}
-
-		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
 	}
 
-	for _, record := range recordsFromActionHashes {
-		workerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
+	if len(workerIds) > 0 {
+		recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+			Workerids: workerIds,
+			Tenantid:  tenantId,
+		})
 
-		if !ok {
-			continue
+		if err != nil {
+			return nil, err
 		}
+		for _, record := range recordsFromWorkerIds {
+			workerId := record.WorkerId.String()
 
-		for _, workerIdUuid := range workerIds {
-			workerId := workerIdUuid.String()
 			if _, ok := workerIdToActionIds[workerId]; !ok {
 				workerIdToActionIds[workerId] = make([]string, 0)
 			}
 
-			workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.ActionID)
+			workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
 		}
-
 	}
 
 	return workerIdToActionIds, nil
