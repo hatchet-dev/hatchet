@@ -1011,24 +1011,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                           </div>
                         </div>
                       )}
-                    {organizationSsoDomainGetQuery.isLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loading />
-                      </div>
-                    ) : organizationSsoDomainGetQuery.data &&
-                      organizationSsoDomainGetQuery.data.length > 0 ? (
-                      <SimpleTable
-                        data={organizationSsoDomainGetQuery.data.map((v) => ({
-                          domain: v.ssoDomain,
-                          verified: v.verified,
-                          verification_token: v.verificationToken,
-                        }))}
-                        columns={ssoDomainColumns}
-                        rowKey={(row) => row.domain}
-                      />
-                    ) : (
-                      <div className="py-8 text-center"></div>
-                    )}
                     {/* Add New SSO Domain */}
                     <div className="space-y-2">
                       <div className="flex gap-2">
@@ -1055,6 +1037,24 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                         </Button>
                       </div>
                     </div>
+                    {organizationSsoDomainGetQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loading />
+                      </div>
+                    ) : organizationSsoDomainGetQuery.data &&
+                      organizationSsoDomainGetQuery.data.length > 0 ? (
+                      <SimpleTable
+                        data={organizationSsoDomainGetQuery.data.map((v) => ({
+                          domain: v.ssoDomain,
+                          verified: v.verified,
+                          verification_token: v.verificationToken,
+                        }))}
+                        columns={ssoDomainColumns}
+                        rowKey={(row) => row.domain}
+                      />
+                    ) : (
+                      <div className="py-8 text-center"></div>
+                    )}
                     {organizationSsoDomainGetQuery.data &&
                       organizationSsoDomainGetQuery.data.length > 0 && (
                         <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
