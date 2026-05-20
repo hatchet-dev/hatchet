@@ -413,7 +413,8 @@ WITH selected_retry_count AS (
 ), task_output AS (
     SELECT
         external_id,
-        output
+        output,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -462,6 +463,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -605,7 +607,8 @@ WITH input AS (
         DISTINCT ON (task_id)
         task_id,
         output,
-        external_id AS output_event_external_id
+        external_id AS output_event_external_id,
+        inserted_at AS output_event_inserted_at
     FROM
         relevant_events
     WHERE
@@ -648,6 +651,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
+    o.output_event_inserted_at AS output_event_inserted_at,
     COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
@@ -1400,7 +1404,8 @@ WITH input AS (
     SELECT
         run_id,
         output,
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -1418,6 +1423,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB AS output,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
@@ -1600,7 +1606,8 @@ WITH runs AS (
     LIMIT 1
 ), output_event_external_id AS (
     SELECT
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -1617,7 +1624,8 @@ SELECT
     m.finished_at,
     e.error_message,
     m.task_metadata,
-    o.external_id AS output_event_external_id
+    o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true

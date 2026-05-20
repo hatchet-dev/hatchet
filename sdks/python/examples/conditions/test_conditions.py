@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from examples.conditions.worker import task_condition_workflow
+from examples.test_utils import wait_for_running_status
 from hatchet_sdk import Hatchet
 
 
@@ -10,10 +11,12 @@ from hatchet_sdk import Hatchet
 async def test_waits(hatchet: Hatchet) -> None:
     ref = task_condition_workflow.run(wait_for_result=False)
 
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
     await asyncio.sleep(15)
 
     hatchet.event.push("skip_on_event:skip", {})
     hatchet.event.push("wait_for_event:start", {})
+    await asyncio.sleep(5)
 
     result = await ref.aio_result()
 

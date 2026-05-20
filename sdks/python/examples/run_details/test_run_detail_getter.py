@@ -1,9 +1,9 @@
-import asyncio
 from uuid import uuid4
 
 import pytest
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
+from examples.test_utils import wait_for_running_status
 from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
 
 
@@ -18,9 +18,8 @@ async def test_run(hatchet: Hatchet) -> None:
         wait_for_result=False,
     )
 
-    await asyncio.sleep(2)
-
-    details = hatchet.runs.get_details(ref.workflow_run_id)
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
     assert details.status == RunStatus.RUNNING
     assert details.input == mock_input.model_dump()

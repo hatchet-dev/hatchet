@@ -3635,14 +3635,14 @@ type V1TaskEvent struct {
 	EventKey       pgtype.Text        `json:"event_key"`
 	CreatedAt      pgtype.Timestamp   `json:"created_at"`
 	Data           []byte             `json:"data"`
-	ExternalID     *uuid.UUID         `json:"external_id"`
+	ExternalID     uuid.UUID          `json:"external_id"`
 }
 
 type V1TaskEventsOlap struct {
 	TenantID               uuid.UUID            `json:"tenant_id"`
 	ID                     int64                `json:"id"`
 	InsertedAt             pgtype.Timestamptz   `json:"inserted_at"`
-	ExternalID             *uuid.UUID           `json:"external_id"`
+	ExternalID             uuid.UUID            `json:"external_id"`
 	TaskID                 int64                `json:"task_id"`
 	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
 	EventType              V1EventTypeOlap      `json:"event_type"`
@@ -3822,6 +3822,7 @@ type Worker struct {
 	RuntimeExtra            pgtype.Text      `json:"runtimeExtra"`
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
+	ActionHash              []byte           `json:"actionHash"`
 }
 
 type WorkerAssignEvent struct {
