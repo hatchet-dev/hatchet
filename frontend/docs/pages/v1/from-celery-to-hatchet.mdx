@@ -30,7 +30,7 @@ Use this table to find the Celery pattern you have in your project and jump to t
 | [6](#step-6-migrate-retries-and-timeouts)                  | `autoretry_for` / `self.retry()`         | `retries` + `backoff_factor` + `NonRetryableException`                               | Small rewrite       |
 | [6](#step-6-migrate-retries-and-timeouts)                  | `time_limit` / `soft_time_limit`         | `execution_timeout` / `schedule_timeout`                                             | Direct API swap     |
 | [7](#step-7-migrate-delayed-and-periodic-tasks)            | `apply_async(countdown=...)` / `eta=...` | `task.aio_schedule(run_at, input)`                                                   | Small rewrite       |
-| [7](#step-7-migrate-delayed-and-periodic-tasks)            | `beat_schedule` + `celery beat` process  | `on_crons=["..."]` in workflow definition                                            | Small rewrite       |
+| [7](#step-7-migrate-delayed-and-periodic-tasks)            | `beat_schedule` + `celery beat` process  | `on_crons=["..."]` in task definition                                                | Small rewrite       |
 | [8](#step-8-migrate-chains-groups-and-chords)              | `chain(a.s(), b.s())`                    | DAG workflow with `parents=[a]`                                                      | Conceptual redesign |
 | [8](#step-8-migrate-chains-groups-and-chords)              | `group(a.s(), b.s())`                    | Parallel DAG tasks (no `parents`)                                                    | Conceptual redesign |
 | [8](#step-8-migrate-chains-groups-and-chords)              | `chord(group, callback)`                 | DAG task with multiple `parents`                                                     | Conceptual redesign |
@@ -351,14 +351,14 @@ In production, Beat may be run through your process supervisor, container runtim
 celery -A tasks beat  # must run exactly one instance
 ```
 
-In Hatchet, [cron triggers](/v1/cron-runs) are declared on the workflow with the `on_crons` parameter, which accepts a list of cron expressions managed by the Hatchet engine. When migrating periodic tasks to Hatchet, convert Beat schedules that use Celery's `crontab(...)` helper into `on_crons` entries:
+In Hatchet, [cron triggers](/v1/cron-runs) are declared on the task with the `on_crons` parameter, which accepts a list of cron expressions managed by the Hatchet engine. When migrating periodic tasks to Hatchet, convert Beat schedules that use Celery's `crontab(...)` helper into `on_crons` entries:
 
 <Snippet src={snippets.python.migration_guides.celery.hatchet_cron} />
 
 What changed:
 
 - **Celery Beat is removed.** You do not run a separate `celery beat` process or ensure that only one Beat instance is active.
-- **The schedule moves onto the workflow.** Replace the `beat_schedule` entry with `on_crons=["0 9 * * *"]`.
+- **The schedule moves onto the task.** Replace the `beat_schedule` entry with `on_crons=["0 9 * * *"]`.
 - **Celery `crontab(...)` becomes a cron expression.** Use standard 5-field or 6-field cron syntax.
 - **Non-crontab schedules need review.** Interval, solar, or custom Beat schedules may not convert directly to a cron expression.
 - **Runtime schedule management moves to the cron client.** If your application creates, lists, or deletes schedules dynamically, use the [`hatchet.cron` client](/reference/python/feature-clients/cron).

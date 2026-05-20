@@ -126,10 +126,7 @@ async def schedule_for_later() -> None:
 
 
 # > Hatchet cron
-daily_report = hatchet.workflow(name="DailyReport", on_crons=["0 9 * * *"])
-
-
-@daily_report.task()
+@hatchet.task(name="DailyReport", on_crons=["0 9 * * *"])
 async def generate_report(input: EmptyModel, ctx: Context) -> dict[str, str]:
     await build_report()
     return {"status": "sent"}
