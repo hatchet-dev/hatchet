@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,22 +57,22 @@ type RetrieveFromExternalByKeyOpt struct {
 	Key ExternalPayloadLocationKey
 }
 
-type RetrieveFromExternalByExternalIdAndTimestampOpt struct {
-	ExternalId uuid.UUID
-	InsertedAt pgtype.Timestamptz
+type RetrieveFromExternalByIndexFileOpt struct {
+	IndexFileKey ExternalIndexFileLocationKey
+	ExternalId   uuid.UUID
 }
 
 type RetrieveFromExternalMethod int
 
 const (
 	RetrieveFromExternalByKey RetrieveFromExternalMethod = iota
-	RetrieveFromExternalByExternalIdAndTimestamp
+	RetrieveFromExternalByIndexFile
 )
 
 type RetrieveFromExternalOpts struct {
-	Method                   RetrieveFromExternalMethod
-	ByKey                    *RetrieveFromExternalByKeyOpt
-	ByExternalIdAndTimestamp *RetrieveFromExternalByExternalIdAndTimestampOpt
+	Method      RetrieveFromExternalMethod
+	ByKey       *RetrieveFromExternalByKeyOpt
+	ByIndexFile *RetrieveFromExternalByIndexFileOpt
 }
 
 type PayloadLocation string
@@ -320,11 +321,21 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey: &RetrieveFromExternalByKeyOpt{
-					Key: key,
-				},
+			var retrieveFromExternalOpt RetrieveFromExternalOpts
+
+			if strings.HasSuffix(string(key), ".index") {
+				retrieveFromExternalOpt = RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(key),
+						ExternalId:   payload.ExternalID,
+					},
+				}
+			} else {
+				retrieveFromExternalOpt = RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByKey,
+					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
+				}
 			}
 
 			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opts

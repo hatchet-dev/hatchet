@@ -164,6 +164,15 @@ SELECT compute_payload_batch_size(
     @batchSize::INTEGER
 ) AS total_size_bytes;
 
+-- name: GetOffloadedPayloadIndexBlock :one
+SELECT index_file_key
+FROM v1_payload_offloaded_block_index
+WHERE payload_inserted_at_date = @insertedAtDate::DATE
+  AND block_lower_external_id_bound <= @externalId::UUID
+  AND block_upper_external_id_bound >= @externalId::UUID
+LIMIT 1
+;
+
 -- name: CreateOffloadedPayloadIndexBlock :one
 INSERT INTO v1_payload_offloaded_block_index (
     payload_inserted_at_date,
