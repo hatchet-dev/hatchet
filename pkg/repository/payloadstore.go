@@ -106,7 +106,6 @@ type PayloadStoreRepository interface {
 	ExternalCutoverNumConcurrentOffloads() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	ImmediateOffloadsEnabled() bool
 	ProcessPayloadCutovers(ctx context.Context) error
 	CreateIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error
 }
@@ -125,7 +124,6 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverProcessInterval       time.Duration
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
-	enableImmediateOffloads              bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -137,7 +135,6 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverBatchSize             int32
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
-	EnableImmediateOffloads              bool
 }
 
 func NewPayloadStoreRepository(
@@ -161,7 +158,6 @@ func NewPayloadStoreRepository(
 		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
-		enableImmediateOffloads:              opts.EnableImmediateOffloads,
 	}
 }
 
@@ -393,10 +389,6 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverNumConcurrentOffloads() int3
 
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
-}
-
-func (p *payloadStoreRepositoryImpl) ImmediateOffloadsEnabled() bool {
-	return p.enableImmediateOffloads
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
