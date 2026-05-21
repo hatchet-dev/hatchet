@@ -1777,6 +1777,14 @@ CREATE TABLE v1_payload_cutover_job_offset (
     final_row_count_diff BIGINT
 );
 
+CREATE TABLE v1_payload_offloaded_block_index (
+    payload_inserted_at_date DATE NOT NULL,
+    block_lower_external_id_bound UUID NOT NULL,
+    block_upper_external_id_bound UUID NOT NULL,
+    index_file_key TEXT NOT NULL,
+    PRIMARY KEY (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound)
+) PARTITION BY RANGE (payload_inserted_at_date);
+
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
 ) RETURNS text
