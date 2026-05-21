@@ -16,5 +16,5 @@ SELECT create_v1_range_partition('v1_payload_offloaded_block_index', (NOW() + IN
 
 -- +goose Down
 -- +goose StatementBegin
-SELECT 'down SQL query';
+DROP TABLE v1_payload_offloaded_block_index;
 -- +goose StatementEnd
