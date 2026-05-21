@@ -2301,6 +2301,31 @@ SELECT compute_olap_payload_batch_size(
     @batchSize::INTEGER
 ) AS total_size_bytes;
 
+-- name: GetOLAPOffloadedPayloadIndexBlock :one
+SELECT index_file_key
+FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date = @insertedAtDate::DATE
+  AND block_lower_external_id_bound <= @externalId::UUID
+  AND block_upper_external_id_bound >= @externalId::UUID
+LIMIT 1
+;
+
+-- name: CreateOLAPOffloadedPayloadIndexBlock :one
+INSERT INTO v1_payloads_olap_offloaded_block_index (
+    payload_inserted_at_date,
+    block_lower_external_id_bound,
+    block_upper_external_id_bound,
+    index_file_key
+)
+VALUES (
+    @payloadInsertedAtDate::DATE,
+    @blockLowerExternalIdBound::UUID,
+    @blockUpperExternalIdBound::UUID,
+    @indexFileKey::TEXT
+)
+RETURNING *
+;
+
 -- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
     SELECT

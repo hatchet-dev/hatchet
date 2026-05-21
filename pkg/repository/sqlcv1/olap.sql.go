@@ -378,6 +378,46 @@ func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date p
 	return err
 }
 
+const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :one
+INSERT INTO v1_payloads_olap_offloaded_block_index (
+    payload_inserted_at_date,
+    block_lower_external_id_bound,
+    block_upper_external_id_bound,
+    index_file_key
+)
+VALUES (
+    $1::DATE,
+    $2::UUID,
+    $3::UUID,
+    $4::TEXT
+)
+RETURNING payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound, index_file_key
+`
+
+type CreateOLAPOffloadedPayloadIndexBlockParams struct {
+	Payloadinsertedatdate     pgtype.Date `json:"payloadinsertedatdate"`
+	Blocklowerexternalidbound uuid.UUID   `json:"blocklowerexternalidbound"`
+	Blockupperexternalidbound uuid.UUID   `json:"blockupperexternalidbound"`
+	Indexfilekey              string      `json:"indexfilekey"`
+}
+
+func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOLAPOffloadedPayloadIndexBlockParams) (*V1PayloadsOlapOffloadedBlockIndex, error) {
+	row := db.QueryRow(ctx, createOLAPOffloadedPayloadIndexBlock,
+		arg.Payloadinsertedatdate,
+		arg.Blocklowerexternalidbound,
+		arg.Blockupperexternalidbound,
+		arg.Indexfilekey,
+	)
+	var i V1PayloadsOlapOffloadedBlockIndex
+	err := row.Scan(
+		&i.PayloadInsertedAtDate,
+		&i.BlockLowerExternalIDBound,
+		&i.BlockUpperExternalIDBound,
+		&i.IndexFileKey,
+	)
+	return &i, err
+}
+
 const createOLAPOtelPartitions = `-- name: CreateOLAPOtelPartitions :exec
 SELECT
     create_v1_range_partition('v1_otel_trace_olap'::text, $1::date),
@@ -748,6 +788,27 @@ func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX
 		&i.TriggeringWebhookName,
 	)
 	return &i, err
+}
+
+const getOLAPOffloadedPayloadIndexBlock = `-- name: GetOLAPOffloadedPayloadIndexBlock :one
+SELECT index_file_key
+FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date = $1::DATE
+  AND block_lower_external_id_bound <= $2::UUID
+  AND block_upper_external_id_bound >= $2::UUID
+LIMIT 1
+`
+
+type GetOLAPOffloadedPayloadIndexBlockParams struct {
+	Insertedatdate pgtype.Date `json:"insertedatdate"`
+	Externalid     uuid.UUID   `json:"externalid"`
+}
+
+func (q *Queries) GetOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg GetOLAPOffloadedPayloadIndexBlockParams) (string, error) {
+	row := db.QueryRow(ctx, getOLAPOffloadedPayloadIndexBlock, arg.Insertedatdate, arg.Externalid)
+	var index_file_key string
+	err := row.Scan(&index_file_key)
+	return index_file_key, err
 }
 
 const getRunsListRecursive = `-- name: GetRunsListRecursive :many

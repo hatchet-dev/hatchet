@@ -3437,7 +3437,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	}
 
 	if blockIndexKey != nil {
-		if err := p.PayloadStore().CreateIndexBlock(ctx, CreateIndexBlockOpts{
+		if err := p.createOLAPIndexBlock(ctx, CreateIndexBlockOpts{
 			PartitionDate:             partitionDate,
 			BlockLowerExternalIdBound: lastExternalId,
 			BlockUpperExternalIdBound: maxExternalId,
@@ -3621,6 +3621,16 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	return nil
 }
 
+func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error {
+	_, err := p.queries.CreateOLAPOffloadedPayloadIndexBlock(ctx, p.pool, sqlcv1.CreateOLAPOffloadedPayloadIndexBlockParams{
+		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
+		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
+		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
+		Indexfilekey:              opts.IndexFileKey,
+	})
+	return err
+}
+
 func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
 	if !externalStoreEnabled {
 		return nil
@@ -3634,7 +3644,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * *inlineStoreTTL),
+		Time:  time.Now().UTC().Add(-1 * *inlineStoreTTL),
 		Valid: true,
 	}
 

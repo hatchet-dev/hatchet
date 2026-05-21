@@ -122,27 +122,6 @@ func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, arg Comp
 	return total_size_bytes, err
 }
 
-const getOffloadedPayloadIndexBlock = `-- name: GetOffloadedPayloadIndexBlock :one
-SELECT index_file_key
-FROM v1_payload_offloaded_block_index
-WHERE payload_inserted_at_date = $1::DATE
-  AND block_lower_external_id_bound <= $2::UUID
-  AND block_upper_external_id_bound >= $2::UUID
-LIMIT 1
-`
-
-type GetOffloadedPayloadIndexBlockParams struct {
-	Insertedatdate pgtype.Date `json:"insertedatdate"`
-	Externalid     uuid.UUID   `json:"externalid"`
-}
-
-func (q *Queries) GetOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg GetOffloadedPayloadIndexBlockParams) (string, error) {
-	row := db.QueryRow(ctx, getOffloadedPayloadIndexBlock, arg.Insertedatdate, arg.Externalid)
-	var index_file_key string
-	err := row.Scan(&index_file_key)
-	return index_file_key, err
-}
-
 const createOffloadedPayloadIndexBlock = `-- name: CreateOffloadedPayloadIndexBlock :one
 INSERT INTO v1_payload_offloaded_block_index (
     payload_inserted_at_date,
@@ -245,6 +224,27 @@ SELECT copy_v1_payload_partition_structure($1::DATE)
 func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, createV1PayloadCutoverTemporaryTable, date)
 	return err
+}
+
+const getOffloadedPayloadIndexBlock = `-- name: GetOffloadedPayloadIndexBlock :one
+SELECT index_file_key
+FROM v1_payload_offloaded_block_index
+WHERE payload_inserted_at_date = $1::DATE
+  AND block_lower_external_id_bound <= $2::UUID
+  AND block_upper_external_id_bound >= $2::UUID
+LIMIT 1
+`
+
+type GetOffloadedPayloadIndexBlockParams struct {
+	Insertedatdate pgtype.Date `json:"insertedatdate"`
+	Externalid     uuid.UUID   `json:"externalid"`
+}
+
+func (q *Queries) GetOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg GetOffloadedPayloadIndexBlockParams) (string, error) {
+	row := db.QueryRow(ctx, getOffloadedPayloadIndexBlock, arg.Insertedatdate, arg.Externalid)
+	var index_file_key string
+	err := row.Scan(&index_file_key)
+	return index_file_key, err
 }
 
 const listPaginatedPayloadsForOffload = `-- name: ListPaginatedPayloadsForOffload :many

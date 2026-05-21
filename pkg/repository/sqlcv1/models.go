@@ -3475,6 +3475,13 @@ type V1PayloadsOlapCutoverJobOffset struct {
 	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
 }
 
+type V1PayloadsOlapOffloadedBlockIndex struct {
+	PayloadInsertedAtDate     pgtype.Date `json:"payload_inserted_at_date"`
+	BlockLowerExternalIDBound uuid.UUID   `json:"block_lower_external_id_bound"`
+	BlockUpperExternalIDBound uuid.UUID   `json:"block_upper_external_id_bound"`
+	IndexFileKey              string      `json:"index_file_key"`
+}
+
 type V1Queue struct {
 	TenantID   uuid.UUID        `json:"tenant_id"`
 	Name       string           `json:"name"`
