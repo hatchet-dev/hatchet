@@ -894,7 +894,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventPayloads := make([]string, 0)
 	eventMessages := make([]string, 0)
 	timestamps := make([]pgtype.Timestamptz, 0)
-	eventExternalIds := make([]*uuid.UUID, 0)
+	eventExternalIds := make([]uuid.UUID, 0)
 	msgIxToSpanEvent := make(map[int]engineSpanEvent)
 
 	for ix, msg := range msgs {
@@ -920,7 +920,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventMessages = append(eventMessages, msg.EventMessage)
 		timestamps = append(timestamps, sqlchelpers.TimestamptzFromTime(msg.EventTimestamp))
 		externalId := uuid.New()
-		eventExternalIds = append(eventExternalIds, &externalId)
+		eventExternalIds = append(eventExternalIds, externalId)
 
 		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
 		externalIdToMsg[externalId] = msg
@@ -1177,12 +1177,7 @@ func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId
 
 func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, tenantId uuid.UUID, opts []sqlcv1.CreateTaskEventsOLAPParams, externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload) error {
 	for _, opt := range opts {
-		if opt.ExternalID == nil {
-			tc.l.Error().Ctx(ctx).Msgf("cannot republish monitoring event for task event with nil external ID, task ID: %d", opt.TaskID)
-			continue
-		}
-
-		payload, ok := externalIdToMsg[*opt.ExternalID]
+		payload, ok := externalIdToMsg[opt.ExternalID]
 		if !ok {
 			continue
 		}

@@ -7,8 +7,8 @@ RSpec.describe "TaskConditionWorkflow" do
   it "runs the condition workflow with event triggers" do
     ref = TASK_CONDITION_WORKFLOW.run_no_wait
 
-    # Wait for the sleep conditions, then push events
-    sleep 2
+    wait_for_running_status(HATCHET, ref.workflow_run_id)
+    sleep 5
 
     HATCHET.events.create(key: "wait_for_event:start", data: {})
 

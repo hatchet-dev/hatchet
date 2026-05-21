@@ -1596,6 +1596,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 	}
 
@@ -1615,6 +1616,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}]
 
 		if !ok {

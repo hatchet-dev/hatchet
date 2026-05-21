@@ -245,6 +245,7 @@ func (d *DispatcherImpl) populateTaskData(
 			InsertedAt: task.Task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.Task.TenantID,
+			ExternalId: task.Task.ExternalID,
 		}
 	}
 
@@ -274,6 +275,7 @@ func (d *DispatcherImpl) populateTaskData(
 			InsertedAt: task.Task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.Task.TenantID,
+			ExternalId: task.Task.ExternalID,
 		}]
 
 		if !ok {
@@ -318,6 +320,7 @@ func (d *DispatcherImpl) populateTaskData(
 				InsertedAt: task.Task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 				TenantId:   task.Task.TenantID,
+				ExternalId: task.Task.ExternalID,
 			}] = currInput.Bytes()
 		}
 	}
@@ -330,6 +333,7 @@ func (d *DispatcherImpl) populateTaskData(
 			InsertedAt: task.Task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.Task.TenantID,
+			ExternalId: task.Task.ExternalID,
 		}]
 
 		if !ok {

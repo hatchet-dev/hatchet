@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -9,10 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type RuntimeInfo struct {
@@ -66,6 +69,12 @@ type ListWorkersOpts struct {
 	LastHeartbeatAfter *time.Time
 
 	Assignable *bool
+
+	Limit *int
+
+	Offset *int
+
+	Statuses []string
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -80,15 +89,15 @@ type DurableTaskDispatcherLookup struct {
 }
 
 type WorkerRepository interface {
-	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error)
+	ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, int64, error)
 	GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error)
 	ListTotalActiveSlotsPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListActiveSlotsPerTenantAndSlotType(ctx context.Context) (map[TenantIdSlotTypeTuple]int64, error)
 	CountActiveWorkersPerTenant(ctx context.Context) (map[uuid.UUID]int64, error)
 	ListActiveSDKsPerTenant(ctx context.Context) (map[TenantIdSDKTuple]int64, error)
 
-	// GetWorkerActionsByWorkerId returns a list of actions for a worker
-	GetWorkerActionsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId []uuid.UUID) (map[string][]string, error)
+	// GetWorkerActionsForWorkers returns actions keyed by worker action hash.
+	GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error)
 
 	// GetWorkerWorkflowsByWorkerId returns a list of workflows for a worker
 	GetWorkerWorkflowsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) ([]*sqlcv1.Workflow, error)
@@ -143,21 +152,27 @@ func newWorkerRepository(shared *sharedRepository) WorkerRepository {
 	}
 }
 
-func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, error) {
+func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, opts *ListWorkersOpts) ([]*sqlcv1.ListWorkersRow, int64, error) {
 	if err := w.v.Validate(opts); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	queryParams := sqlcv1.ListWorkersParams{
 		Tenantid: tenantId,
 	}
 
+	countParams := sqlcv1.CountWorkersParams{
+		Tenantid: tenantId,
+	}
+
 	if opts.Action != nil {
 		queryParams.ActionId = sqlchelpers.TextFromStr(*opts.Action)
+		countParams.ActionId = queryParams.ActionId
 	}
 
 	if opts.LastHeartbeatAfter != nil {
 		queryParams.LastHeartbeatAfter = sqlchelpers.TimestampFromTime(opts.LastHeartbeatAfter.UTC())
+		countParams.LastHeartbeatAfter = queryParams.LastHeartbeatAfter
 	}
 
 	if opts.Assignable != nil {
@@ -165,6 +180,32 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 			Bool:  *opts.Assignable,
 			Valid: true,
 		}
+		countParams.Assignable = queryParams.Assignable
+	}
+
+	if opts.Statuses != nil {
+		queryParams.Statuses = opts.Statuses
+		countParams.Statuses = opts.Statuses
+	}
+
+	if opts.Limit != nil {
+		queryParams.Limit = pgtype.Int4{
+			Int32: int32(*opts.Limit), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	if opts.Offset != nil {
+		queryParams.Offset = pgtype.Int4{
+			Int32: int32(*opts.Offset), // nolint: gosec
+			Valid: true,
+		}
+	}
+
+	count, err := w.queries.CountWorkers(ctx, w.pool, countParams)
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, 0, fmt.Errorf("could not count workers: %w", err)
 	}
 
 	workers, err := w.queries.ListWorkers(ctx, w.pool, queryParams)
@@ -173,11 +214,11 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 		if errors.Is(err, pgx.ErrNoRows) {
 			workers = make([]*sqlcv1.ListWorkersRow, 0)
 		} else {
-			return nil, fmt.Errorf("could not list workers: %w", err)
+			return nil, 0, fmt.Errorf("could not list workers: %w", err)
 		}
 	}
 
-	return workers, nil
+	return workers, count, nil
 }
 
 func (w *workerRepository) GetWorkerById(ctx context.Context, workerId uuid.UUID) (*sqlcv1.GetWorkerByIdRow, error) {
@@ -275,10 +316,38 @@ func (w *workerRepository) CountActiveWorkersPerTenant(ctx context.Context) (map
 	return tenantToWorkers, nil
 }
 
-func (w *workerRepository) GetWorkerActionsByWorkerId(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[string][]string, error) {
-	records, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
-		Workerids: workerIds,
-		Tenantid:  tenantId,
+func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenantId uuid.UUID, workers []sqlcv1.Worker) (map[string][]string, error) {
+	ctx, span := telemetry.NewSpan(ctx, "WorkerRepository.GetWorkerActionsForWorkers")
+	defer span.End()
+
+	actionHashSet := make(map[string]struct{})
+	workerIds := make([]uuid.UUID, 0)
+	actionHashToWorkerIds := make(map[string][]uuid.UUID)
+
+	for _, worker := range workers {
+		if len(worker.ActionHash) == 0 {
+			// if the worker has no action hash, we have no choice but to look
+			// it up by its id
+			workerIds = append(workerIds, worker.ID)
+			continue
+		}
+
+		actionHashToWorkerIds[string(worker.ActionHash)] = append(actionHashToWorkerIds[string(worker.ActionHash)], worker.ID)
+
+		if _, ok := actionHashSet[string(worker.ActionHash)]; !ok {
+			actionHashSet[string(worker.ActionHash)] = struct{}{}
+		}
+	}
+
+	actionHashes := make([][]byte, 0, len(actionHashSet))
+
+	for actionHash := range actionHashSet {
+		actionHashes = append(actionHashes, []byte(actionHash))
+	}
+
+	recordsFromActionHashes, err := w.queries.GetWorkerActionsByWorkerActionHash(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerActionHashParams{
+		Actionhashes: actionHashes,
+		Tenantid:     tenantId,
 	})
 
 	if err != nil {
@@ -287,15 +356,48 @@ func (w *workerRepository) GetWorkerActionsByWorkerId(ctx context.Context, tenan
 
 	workerIdToActionIds := make(map[string][]string)
 
-	for _, record := range records {
-		workerId := record.WorkerId.String()
-		actionId := record.Actionid.String
+	if len(recordsFromActionHashes) > 0 {
+		for _, record := range recordsFromActionHashes {
+			actionWorkerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
 
-		if _, ok := workerIdToActionIds[workerId]; !ok {
-			workerIdToActionIds[workerId] = make([]string, 0)
+			if !ok {
+				continue
+			}
+
+			for _, workerIdUuid := range actionWorkerIds {
+				workerId := workerIdUuid.String()
+				if _, ok := workerIdToActionIds[workerId]; !ok {
+					workerIdToActionIds[workerId] = make([]string, 0)
+				}
+
+				workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.ActionID)
+			}
 		}
+	}
 
-		workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], actionId)
+	span.SetAttributes(
+		attribute.Int("num_worker_ids", len(workerIds)),
+		attribute.Int("num_worker_action_hashes", len(actionHashes)),
+	)
+
+	if len(workerIds) > 0 {
+		recordsFromWorkerIds, err := w.queries.GetWorkerActionsByWorkerId(ctx, w.pool, sqlcv1.GetWorkerActionsByWorkerIdParams{
+			Workerids: workerIds,
+			Tenantid:  tenantId,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range recordsFromWorkerIds {
+			workerId := record.WorkerId.String()
+
+			if _, ok := workerIdToActionIds[workerId]; !ok {
+				workerIdToActionIds[workerId] = make([]string, 0)
+			}
+
+			workerIdToActionIds[workerId] = append(workerIdToActionIds[workerId], record.Actionid)
+		}
 	}
 
 	return workerIdToActionIds, nil
@@ -393,6 +495,17 @@ func (w *workerRepository) GetWorkerForEngine(ctx context.Context, tenantId uuid
 	})
 }
 
+func hashActions(actions []string) []byte {
+	h := sha256.New()
+
+	for _, action := range actions {
+		h.Write([]byte(action))
+		h.Write([]byte(";")) // separator to avoid collisions (e.g. ["ab", "c"] vs ["a", "bc"])
+	}
+
+	return h.Sum(nil)
+}
+
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
 	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
@@ -429,6 +542,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		Tenantid:     tenantId,
 		Dispatcherid: opts.DispatcherId,
 		Name:         opts.Name,
+		Actionhash:   hashActions(opts.Actions),
 	}
 
 	// Default to self hosted
