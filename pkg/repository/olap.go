@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"log"
 	"math/rand"
+	"strings"
 	"slices"
 	"sort"
 	"sync"
@@ -3060,11 +3061,21 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByKey,
-				ByKey: &RetrieveFromExternalByKeyOpt{
-					Key: key,
-				},
+			var retrieveFromExternalOpt RetrieveFromExternalOpts
+
+			if strings.HasSuffix(string(key), ".index") {
+				retrieveFromExternalOpt = RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(key),
+						ExternalId:   payload.ExternalID,
+					},
+				}
+			} else {
+				retrieveFromExternalOpt = RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByKey,
+					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
+				}
 			}
 
 			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
