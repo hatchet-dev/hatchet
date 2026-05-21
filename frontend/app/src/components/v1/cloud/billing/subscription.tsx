@@ -21,22 +21,22 @@ import {
 } from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
-import { controlPlaneApi } from '@/lib/api/api';
+import { cloudApi } from '@/lib/api/api';
 import {
-  TenantBillingStateSubscription,
+  TenantSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
   SubscriptionPeriod,
   Coupon,
-} from '@/lib/api/generated/control-plane/data-contracts';
+} from '@/lib/api/generated/cloud/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
-  active?: TenantBillingStateSubscription;
-  upcoming?: TenantBillingStateSubscription;
+  active?: TenantSubscription;
+  upcoming?: TenantSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
 }
@@ -110,7 +110,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
       setPortalLoading(true);
-      const link = await controlPlaneApi.billingPortalLinkGet(tenantId);
+      const link = await cloudApi.billingPortalLinkGet(tenantId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -124,17 +124,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
-      const response = await controlPlaneApi.tenantSubscriptionUpdate(
-        tenantId,
-        {
-          plan: plan as SubscriptionPlanCode,
-          period: period as SubscriptionPeriod,
-        },
-      );
+      const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
+        plan: plan as SubscriptionPlanCode,
+        period: period as SubscriptionPeriod,
+      });
       return response.data;
     },
     onSuccess: async (data) => {
-      if (data.checkoutUrl) {
+      if (data && 'checkoutUrl' in data) {
         window.location.href = data.checkoutUrl;
         return;
       }

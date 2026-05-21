@@ -1,5 +1,5 @@
 import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi, controlPlaneApi } from './api';
+import api, { cloudApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import invariant from 'tiny-invariant';
@@ -31,23 +31,27 @@ export const queries = createQueryKeyStore({
   cloud: {
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
-      queryFn: async () =>
-        (await controlPlaneApi.tenantBillingStateGet(tenant)).data,
+      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
     }),
     creditBalance: (tenant: string) => ({
       queryKey: ['credit-balance:get', tenant],
-      queryFn: async () =>
-        (await controlPlaneApi.tenantCreditBalanceGet(tenant)).data,
+      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
     }),
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
-      queryFn: async () => (await controlPlaneApi.subscriptionPlansList()).data,
+      queryFn: async () =>
+        (
+          await cloudApi.subscriptionPlansList({
+            secure: true,
+            useExchangeToken: true,
+          })
+        ).data,
     }),
 
     paymentMethods: (tenant: string) => ({
       queryKey: ['payment-methods:get', tenant],
       queryFn: async () =>
-        (await controlPlaneApi.tenantPaymentMethodsGet(tenant)).data,
+        (await cloudApi.tenantPaymentMethodsGet(tenant)).data,
     }),
 
     getComputeCost: (tenant: string) => ({

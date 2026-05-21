@@ -9,11 +9,11 @@ import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { queries } from '@/lib/api';
-import { controlPlaneApi } from '@/lib/api/api';
+import { cloudApi } from '@/lib/api/api';
 import {
   SubscriptionPlanCode,
   SubscriptionPeriod,
-} from '@/lib/api/generated/control-plane/data-contracts';
+} from '@/lib/api/generated/cloud/data-contracts';
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
@@ -41,19 +41,16 @@ export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
       if (!tenantId) {
         throw new Error('No tenant id');
       }
-      const response = await controlPlaneApi.tenantSubscriptionUpdate(
-        tenantId,
-        {
-          plan: SubscriptionPlanCode.Developer,
-          period: SubscriptionPeriod.Monthly,
-        },
-      );
+      const response = await cloudApi.tenantSubscriptionUpdate(tenantId, {
+        plan: SubscriptionPlanCode.Developer,
+        period: SubscriptionPeriod.Monthly,
+      });
       return response.data;
     },
     onSuccess: (data) => {
       localStorage.removeItem(WELCOME_KEY);
       onClose();
-      if (data.checkoutUrl) {
+      if (data && 'checkoutUrl' in data) {
         window.location.href = data.checkoutUrl;
       }
     },
