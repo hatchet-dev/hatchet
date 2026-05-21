@@ -3458,21 +3458,21 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
-	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
 	}
 
-	defer rollback()
+	defer leaseRollback()
 
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, maxExternalId)
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, maxExternalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
 	}
 
-	if err := commit(ctx); err != nil {
+	if err := leaseCommit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 

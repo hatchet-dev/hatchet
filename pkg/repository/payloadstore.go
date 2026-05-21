@@ -600,13 +600,21 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, maxExternalId)
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for extending cutover job lease: %w", err)
+	}
+
+	defer leaseRollback()
+
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, maxExternalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
 	}
 
-	if err := commit(ctx); err != nil {
+	if err := leaseCommit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
