@@ -1177,6 +1177,9 @@ type Tenant struct {
 	// ServerUrl The server URL for the tenant (includes scheme)
 	ServerUrl *string `json:"serverUrl,omitempty"`
 
+	// ShardDisplayName Human-readable shard label from control-plane shard config, when configured.
+	ShardDisplayName *string `json:"shardDisplayName,omitempty"`
+
 	// Slug The slug of the tenant.
 	Slug    string        `json:"slug"`
 	Version TenantVersion `json:"version"`

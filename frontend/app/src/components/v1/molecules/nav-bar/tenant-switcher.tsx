@@ -88,7 +88,10 @@ export function TenantSwitcher({
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <BuildingOffice2Icon className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
-            <TenantRegionBadge region={tenant.region} />
+            <TenantRegionBadge
+              region={tenant.region}
+              shardDisplayName={tenant.shardDisplayName}
+            />
           </div>
           {!isUserUniverseLoaded ? (
             <Spinner className="mr-0" />
@@ -130,7 +133,10 @@ export function TenantSwitcher({
                     <span className="min-w-0 flex-1 truncate">
                       {membership.tenant?.name}
                     </span>
-                    <TenantRegionBadge region={membership.tenant?.region} />
+                    <TenantRegionBadge
+                      region={membership.tenant?.region}
+                      shardDisplayName={membership.tenant?.shardDisplayName}
+                    />
                   </div>
                   <CheckIcon
                     className={cn(

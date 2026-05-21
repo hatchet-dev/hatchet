@@ -1,5 +1,11 @@
 import { usePylon } from '@/components/support-chat';
-import { formatTenantRegionDisplay } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
+import {
+  formatTenantDeploymentBadgeLabel,
+  formatTenantRegionDisplay,
+  shardDeploymentKey,
+} from '@/components/v1/molecules/nav-bar/tenant-region-badge';
+
+export { shardDeploymentKey };
 import { Button } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -12,13 +18,6 @@ import {
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
-
-export function shardDeploymentKey(shard: OrganizationAvailableShard): string {
-  if (shard.provider) {
-    return `${shard.provider}:${shard.region}`;
-  }
-  return shard.region;
-}
 
 type RegionSelectProps = {
   shards: OrganizationAvailableShard[];
@@ -59,9 +58,16 @@ export function RegionSelect({
         <SelectContent>
           {shards.map((shard) => {
             const key = shardDeploymentKey(shard);
-            const label = formatTenantRegionDisplay(key) ?? key;
+            const label =
+              formatTenantDeploymentBadgeLabel({
+                region: key,
+                shardDisplayName: shard.displayName,
+              }) ?? key;
+            const title = shard.displayName
+              ? `${shard.displayName} (${formatTenantRegionDisplay(key) ?? key})`
+              : (formatTenantRegionDisplay(key) ?? key);
             return (
-              <SelectItem key={key} value={key}>
+              <SelectItem key={key} value={key} title={title}>
                 {label}
               </SelectItem>
             );

@@ -192,6 +192,8 @@ export interface OrganizationTenant {
   archivedAt?: string;
   /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
   region?: string;
+  /** Human-readable shard label from control-plane shard config, when configured. */
+  shardDisplayName?: string;
 }
 
 export interface OrganizationTenantList {
@@ -375,6 +377,8 @@ export interface OrganizationAvailableShard {
   region: string;
   /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
   shardClass: OrganizationAvailableShardClass;
+  /** Optional human-readable label for this deployment target in the UI. */
+  displayName?: string;
 }
 
 export interface OrganizationAvailableShardList {

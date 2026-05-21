@@ -168,7 +168,10 @@ function OrganizationGroup({
                   <span className="min-w-0 flex-1 truncate text-muted-foreground">
                     {membership.tenant?.name}
                   </span>
-                  <TenantRegionBadge region={membership.tenant?.region} />
+                  <TenantRegionBadge
+                    region={membership.tenant?.region}
+                    shardDisplayName={membership.tenant?.shardDisplayName}
+                  />
                 </div>
                 <CheckIcon
                   className={cn(
@@ -314,7 +317,10 @@ export function OrganizationSelector({
               <span className="min-w-0 flex-1 truncate">
                 {tenant?.name ?? 'Loading tenant…'}
               </span>
-              <TenantRegionBadge region={tenant?.region} />
+              <TenantRegionBadge
+                region={tenant?.region}
+                shardDisplayName={tenant?.shardDisplayName}
+              />
             </div>
             {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />

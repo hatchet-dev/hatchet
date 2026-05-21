@@ -115,6 +115,7 @@ function formatTimeoutMs(ms: number): string {
 // FIXME: remove this once we migrate everyone to the control plane
 type OrganizationTenantWithRegion = OrganizationTenant & {
   region?: ControlPlaneOrganizationTenant['region'];
+  shardDisplayName?: ControlPlaneOrganizationTenant['shardDisplayName'];
   canManage?: boolean;
 };
 
@@ -490,6 +491,15 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   ];
 
   const availableShardColumns = [
+    {
+      columnLabel: 'Display name',
+      cellRenderer: (row: OrganizationAvailableShard) =>
+        row.displayName ? (
+          <span className="font-medium">{row.displayName}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
     {
       columnLabel: 'Cloud Provider',
       cellRenderer: (row: OrganizationAvailableShard) =>
@@ -1176,6 +1186,8 @@ export function OssOrganizationSettings() {
             name: m.tenant.name,
             status: TenantStatusType.ACTIVE,
             slug: m.tenant.slug,
+            region: m.tenant.region,
+            shardDisplayName: m.tenant.shardDisplayName,
             canManage:
               m.role === TenantMemberRole.OWNER ||
               m.role === TenantMemberRole.ADMIN,
@@ -1358,7 +1370,10 @@ function TenantAccordionItem({
             <p className="min-w-0 truncate font-medium leading-5">
               {tenant.name || tenant.id}
             </p>
-            <TenantRegionBadge region={tenant.region} />
+            <TenantRegionBadge
+              region={tenant.region}
+              shardDisplayName={tenant.shardDisplayName}
+            />
           </div>
         </AccordionTrigger>
 
