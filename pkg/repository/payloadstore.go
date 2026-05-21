@@ -515,6 +515,48 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 	)
 }
 
+type DuplicatedExternalIdRow struct {
+	ExternalId uuid.UUID
+	Count      int64
+}
+
+func (p *payloadStoreRepositoryImpl) ValidateNoDuplicateExternalIds(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate) ([]*DuplicatedExternalIdRow, error) {
+	tableName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			`
+			SELECT external_id, COUNT(*)
+			FROM %s
+			GROUP BY external_id
+			HAVING COUNT(*) > 1
+			LIMIT 100
+			`,
+			tableName,
+		),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*DuplicatedExternalIdRow
+	for rows.Next() {
+		var i DuplicatedExternalIdRow
+		if err := rows.Scan(
+			&i.ExternalId,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*CutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
@@ -775,14 +817,28 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 
 	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate)
 
-	// todo: count for duped ext ids here
-
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
 	}
 
 	if !jobMeta.ShouldRun {
 		return nil
+	}
+
+	duplicatedExternalIds, err := p.ValidateNoDuplicateExternalIds(ctx, p.pool, partitionDate)
+
+	if err != nil {
+		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+	}
+
+	if len(duplicatedExternalIds) > 0 {
+		var duplicatedIds []string
+
+		for _, row := range duplicatedExternalIds {
+			duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+		}
+
+		return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
 	}
 
 	lastExternalId := jobMeta.LastExternalId
