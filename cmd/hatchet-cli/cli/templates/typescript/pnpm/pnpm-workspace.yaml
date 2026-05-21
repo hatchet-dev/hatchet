@@ -1,6 +1,4 @@
-ignoredBuiltDependencies:
-  - '@hatchet-dev/typescript-sdk'
-  - protobufjs
+onlyBuiltDependencies: []
 
 overrides:
   qs: '>=6.14.2'
