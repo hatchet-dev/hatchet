@@ -745,16 +745,22 @@ WITH worker_capacities AS (
         AND slot_type = $3::text
 ), worker_used_slots AS (
     SELECT
-        worker_id,
-        SUM(units) AS used_units
+        runtime.worker_id,
+        (
+            COALESCE(SUM(CASE WHEN tr.batch_id IS NULL THEN runtime.units ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT tr.batch_id)::integer
+        ) AS used_units
     FROM
-        v1_task_runtime_slot
+        v1_task_runtime_slot runtime
+    LEFT JOIN v1_task_runtime tr ON tr.task_id = runtime.task_id
+        AND tr.task_inserted_at = runtime.task_inserted_at
+        AND tr.retry_count = runtime.retry_count
     WHERE
-        tenant_id = $1::uuid
-        AND worker_id = ANY($2::uuid[])
-        AND slot_type = $3::text
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id = ANY($2::uuid[])
+        AND runtime.slot_type = $3::text
     GROUP BY
-        worker_id
+        runtime.worker_id
 )
 SELECT
     wc.worker_id AS "id",
@@ -810,18 +816,24 @@ WITH worker_capacities AS (
         AND slot_type = ANY($3::text[])
 ), worker_used_slots AS (
     SELECT
-        worker_id,
-        slot_type,
-        SUM(units) AS used_units
+        runtime.worker_id,
+        runtime.slot_type,
+        (
+            COALESCE(SUM(CASE WHEN tr.batch_id IS NULL THEN runtime.units ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT tr.batch_id)::integer
+        ) AS used_units
     FROM
-        v1_task_runtime_slot
+        v1_task_runtime_slot runtime
+    LEFT JOIN v1_task_runtime tr ON tr.task_id = runtime.task_id
+        AND tr.task_inserted_at = runtime.task_inserted_at
+        AND tr.retry_count = runtime.retry_count
     WHERE
-        tenant_id = $1::uuid
-        AND worker_id = ANY($2::uuid[])
-        AND slot_type = ANY($3::text[])
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id = ANY($2::uuid[])
+        AND runtime.slot_type = ANY($3::text[])
     GROUP BY
-        worker_id,
-        slot_type
+        runtime.worker_id,
+        runtime.slot_type
 )
 SELECT
     wc.worker_id AS "id",

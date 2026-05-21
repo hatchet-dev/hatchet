@@ -28,6 +28,16 @@ func createAssignmentRepositoryForTest(pool *pgxpool.Pool) *assignmentRepository
 	})
 }
 
+func createWorkerRepositoryForTest(pool *pgxpool.Pool) WorkerRepository {
+	logger := zerolog.New(io.Discard)
+
+	return newWorkerRepository(&sharedRepository{
+		pool:    pool,
+		l:       &logger,
+		queries: sqlcv1.New(),
+	})
+}
+
 func TestListAvailableSlotsCountsBatchesOnce(t *testing.T) {
 	t.Parallel()
 
@@ -70,6 +80,7 @@ func TestListAvailableSlotsCountsBatchesOnce(t *testing.T) {
 	results, err := repo.ListAvailableSlotsForWorkers(ctx, tenantID, sqlcv1.ListAvailableSlotsForWorkersParams{
 		Tenantid:  tenantID,
 		Workerids: []uuid.UUID{workerID},
+		Slottype:  "default",
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
