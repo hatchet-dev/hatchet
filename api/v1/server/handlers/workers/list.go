@@ -125,7 +125,7 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 
 	sixSecAgo := time.Now().Add(-24 * time.Hour)
 
-	limit := 50
+	limit := 10000 // default to 10k for backwards compat (more or less) to before when we had no `LIMIT` set
 	offset := 0
 
 	opts := &v1.ListWorkersOpts{

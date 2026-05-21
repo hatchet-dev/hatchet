@@ -1330,7 +1330,7 @@ ORDER BY
 OFFSET
     COALESCE($6, 0)
 LIMIT
-    COALESCE($7, 50)
+    COALESCE($7, 10000)
 `
 
 type ListWorkersParams struct {
