@@ -88,7 +88,7 @@ INSERT INTO v1_task (
 	is_durable,
 	desired_worker_label,
 	triggering_event_external_id,
-	triggering_event_key
+	triggering_event_key,
 	batch_key
 )
 SELECT
@@ -128,8 +128,7 @@ SELECT
 	i.is_durable,
 	i.desired_worker_label,
 	i.triggering_event_external_id,
-	i.triggering_event_key
-	i.workflow_run_id,
+	i.triggering_event_key,
 	CASE
 		WHEN s."batch_max_size" IS NOT NULL AND s."batch_max_size" >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
 		ELSE NULLIF(BTRIM(i.batch_key), '')
