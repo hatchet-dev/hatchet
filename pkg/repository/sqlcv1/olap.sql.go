@@ -107,6 +107,15 @@ func (q *Queries) AnalyzeV1LookupTableOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
+const analyzeV1PayloadOffloadedBlockIndexOLAP = `-- name: AnalyzeV1PayloadOffloadedBlockIndexOLAP :exec
+ANALYZE v1_payloads_olap_offloaded_block_index
+`
+
+func (q *Queries) AnalyzeV1PayloadOffloadedBlockIndexOLAP(ctx context.Context, db DBTX) error {
+	_, err := db.Exec(ctx, analyzeV1PayloadOffloadedBlockIndexOLAP)
+	return err
+}
+
 const analyzeV1PayloadsOLAP = `-- name: AnalyzeV1PayloadsOLAP :exec
 ANALYZE v1_payloads_olap
 `
@@ -436,7 +445,8 @@ SELECT
     create_v1_range_partition('v1_tasks_olap'::text, $2::date),
     create_v1_range_partition('v1_runs_olap'::text, $2::date),
     create_v1_range_partition('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date)
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date),
+    create_v1_range_partition('v1_payloads_olap_offloaded_block_index'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -1426,6 +1436,8 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $3::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $3::date) AS p
+), payload_block_index_partitions AS (
+    SELECT 'v1_payloads_olap_offloaded_block_index' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap_offloaded_block_index', $3::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1501,6 +1513,13 @@ WITH task_partitions AS (
         parent_table, partition_name
     FROM
         otel_trace_lookup_partitions
+
+    UNION ALL
+
+    SELECT
+         parent_table, partition_name
+    FROM
+        payload_block_index_partitions
 )
 
 SELECT parent_table, partition_name

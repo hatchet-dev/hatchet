@@ -61,6 +61,9 @@ DO UPDATE SET
 -- name: AnalyzeV1Payload :exec
 ANALYZE v1_payload;
 
+-- name: AnalyzeV1PayloadBlockIndex :exec
+ANALYZE v1_payload_offloaded_block_index;
+
 -- name: ListPaginatedPayloadsForOffload :many
 WITH payloads AS (
     SELECT

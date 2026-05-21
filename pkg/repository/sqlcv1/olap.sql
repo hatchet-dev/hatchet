@@ -5,7 +5,8 @@ SELECT
     create_v1_range_partition('v1_tasks_olap'::text, @date::date),
     create_v1_range_partition('v1_runs_olap'::text, @date::date),
     create_v1_range_partition('v1_dags_olap'::text, @date::date),
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date),
+    create_v1_range_partition('v1_payloads_olap_offloaded_block_index'::text, @date::date)
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -41,6 +42,9 @@ ANALYZE v1_payloads_olap;
 -- name: AnalyzeV1LookupTableOLAP :exec
 ANALYZE v1_lookup_table_olap;
 
+-- name: AnalyzeV1PayloadOffloadedBlockIndexOLAP :exec
+ANALYZE v1_payloads_olap_offloaded_block_index;
+
 -- name: ListOLAPPartitionsBeforeDate :many
 WITH task_partitions AS (
     SELECT 'v1_tasks_olap' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_tasks_olap'::text, @date::date) AS p
@@ -64,6 +68,8 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
+), payload_block_index_partitions AS (
+    SELECT 'v1_payloads_olap_offloaded_block_index' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap_offloaded_block_index', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -139,6 +145,13 @@ WITH task_partitions AS (
         *
     FROM
         otel_trace_lookup_partitions
+
+    UNION ALL
+
+    SELECT
+         *
+    FROM
+        payload_block_index_partitions
 )
 
 SELECT *

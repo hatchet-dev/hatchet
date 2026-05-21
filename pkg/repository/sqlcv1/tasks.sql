@@ -10,7 +10,8 @@ SELECT
     create_v1_range_partition('v1_event_to_run', @date::date),
     create_v1_range_partition('v1_durable_event_log_file', @date::date),
     create_v1_range_partition('v1_durable_event_log_entry', @date::date, 80),
-    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80)
+    create_v1_range_partition('v1_durable_event_log_branch_point', @date::date, 80),
+    create_v1_range_partition('v1_payload_offloaded_block_index', @date::date)
 ;
 
 -- name: EnsureTablePartitionsExist :one
@@ -35,6 +36,8 @@ WITH tomorrow_date AS (
     SELECT 'v1_durable_event_log_entry_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
     UNION ALL
     SELECT 'v1_durable_event_log_branch_point_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
+    UNION ALL
+    SELECT 'v1_payload_offloaded_block_index_' || to_char((SELECT date FROM tomorrow_date), 'YYYYMMDD')
 ), partition_check AS (
     SELECT
         COUNT(*) AS total_tables,
@@ -72,6 +75,8 @@ WITH task_partitions AS (
     SELECT 'v1_durable_event_log_entry' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_entry', @date::date) AS p
 ), durable_event_log_branch_point_partitions AS (
     SELECT 'v1_durable_event_log_branch_point' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_durable_event_log_branch_point', @date::date) AS p
+), payload_offloaded_block_index_partitions AS (
+    SELECT 'v1_payload_offloaded_block_index' AS parent_table, p::text as partition_name FROM get_v1_partitions_before_date('v1_payload_offloaded_block_index', @date::date) AS p
 )
 
 SELECT
@@ -148,6 +153,13 @@ SELECT
     *
 FROM
     durable_event_log_branch_point_partitions
+
+UNION ALL
+
+SELECT
+    *
+FROM
+    payload_offloaded_block_index_partitions
 ;
 
 -- name: DefaultTaskActivityGauge :one
