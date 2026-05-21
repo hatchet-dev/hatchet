@@ -1782,6 +1782,7 @@ CREATE TABLE v1_payload_offloaded_block_index (
     block_lower_external_id_bound UUID NOT NULL,
     block_upper_external_id_bound UUID NOT NULL,
     index_file_key TEXT NOT NULL,
+    -- todo: add source db here?
     PRIMARY KEY (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound)
 ) PARTITION BY RANGE (payload_inserted_at_date);
 
