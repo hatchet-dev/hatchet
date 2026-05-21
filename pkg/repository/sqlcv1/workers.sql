@@ -155,7 +155,7 @@ ORDER BY
 OFFSET
     COALESCE(sqlc.narg('offset'), 0)
 LIMIT
-    COALESCE(sqlc.narg('limit'), 50);
+    COALESCE(sqlc.narg('limit'), 10000);
 
 -- name: CountWorkers :one
 SELECT count(*)
