@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"sync"
@@ -519,8 +518,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayloadMetadata := make(map[uuid.UUID]PayloadMetadata)
-	alreadyExternalPayloads := make(map[uuid.UUID]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 	maxExternalId := lastExternalId
 
@@ -540,8 +537,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
-			alreadyExternalPayloadsInner := make(map[uuid.UUID]ExternalPayloadLocationKey)
-			externalIdToPayloadMetadataInner := make(map[uuid.UUID]PayloadMetadata)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
@@ -551,16 +546,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 					externalId = uuid.New()
 				}
 
-				externalIdToPayloadMetadataInner[externalId] = PayloadMetadata{
-					TenantID:   payload.TenantID,
-					ID:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-				}
-
-				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-				} else {
+				if payload.Location == sqlcv1.V1PayloadLocationINLINE {
 					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
 						TenantId:   payload.TenantID,
 						ExternalID: externalId,
@@ -571,8 +557,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			}
 
 			mu.Lock()
-			maps.Copy(externalIdToPayloadMetadata, externalIdToPayloadMetadataInner)
-			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
 

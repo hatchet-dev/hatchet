@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
-	"maps"
 	"math/rand"
 	"slices"
 	"sort"
@@ -3377,8 +3376,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayload := make(map[uuid.UUID]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
-	alreadyExternalPayloads := make(map[uuid.UUID]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
 	maxExternalId := lastExternalId
 
@@ -3398,17 +3395,12 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 				return fmt.Errorf("failed to list paginated payloads for offload")
 			}
 
-			alreadyExternalPayloadsInner := make(map[uuid.UUID]ExternalPayloadLocationKey)
-			externalIdToPayloadInner := make(map[uuid.UUID]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
 				externalId := uuid.UUID(payload.ExternalID)
-				externalIdToPayloadInner[externalId] = *payload
 
-				if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
-					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-				} else {
+				if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
 						TenantId:   payload.TenantID,
 						ExternalID: externalId,
@@ -3419,8 +3411,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			}
 
 			mu.Lock()
-			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
-			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
 
