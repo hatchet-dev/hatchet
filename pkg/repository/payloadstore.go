@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -459,6 +462,11 @@ type BulkCutOverPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
+type CutoverBatchOutcome struct {
+	ShouldContinue bool
+	NextExternalId uuid.UUID
+}
+
 type PartitionDate pgtype.Date
 
 type PayloadMetadata struct {
@@ -507,14 +515,181 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 	)
 }
 
-type payloadStoreCutoverDriver struct {
-	impl *payloadStoreRepositoryImpl
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*CutoverBatchOutcome, error) {
+	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
+	defer span.End()
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for copying offloaded payloads: %w", err)
+	}
+
+	defer rollback()
+
+	windowSizePtr, err := p.OptimizePayloadWindowSize(
+		ctx,
+		tx,
+		partitionDate,
+		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
+		lastExternalId,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+	}
+
+	windowSize := *windowSizePtr
+
+	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
+		Chunksize:      p.externalCutoverBatchSize,
+		Partitiondate:  pgtype.Date(partitionDate),
+		Windowsize:     windowSize,
+		Lastexternalid: lastExternalId,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
+	}
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextExternalId: lastExternalId,
+		}, nil
+	}
+
+	if err = commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit payload range chunks transaction: %w", err)
+	}
+
+	mu := sync.Mutex{}
+	eg := errgroup.Group{}
+
+	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
+	maxExternalId := lastExternalId
+
+	numPayloads := 0
+
+	for _, payloadRange := range payloadRanges {
+		pr := payloadRange
+		eg.Go(func() error {
+			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
+				Partitiondate:  pgtype.Date(partitionDate),
+				Lastexternalid: pr.LowerExternalID,
+				Nextexternalid: pr.UpperExternalID,
+				Batchsize:      p.externalCutoverBatchSize,
+			})
+
+			if err != nil {
+				return fmt.Errorf("failed to list paginated payloads for offload")
+			}
+
+			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
+
+			for _, payload := range payloads {
+				externalId := payload.ExternalID
+
+				if externalId == uuid.Nil {
+					externalId = uuid.New()
+				}
+
+				if payload.Location == sqlcv1.V1PayloadLocationINLINE {
+					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
+						TenantId:   payload.TenantID,
+						ExternalID: externalId,
+						InsertedAt: payload.InsertedAt,
+						Payload:    payload.InlineContent,
+					})
+				}
+			}
+
+			mu.Lock()
+			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
+			numPayloads += len(payloads)
+
+			if pr.UpperExternalID.String() > maxExternalId.String() {
+				maxExternalId = pr.UpperExternalID
+			}
+
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	err = eg.Wait()
+
+	if err != nil {
+		return nil, err
+	}
+
+	blockIndexKey, err := p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	}
+
+	if blockIndexKey != nil {
+		if err := p.CreateIndexBlock(ctx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
+		}
+	}
+
+	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
+
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction for extending cutover job lease: %w", err)
+	}
+
+	defer leaseRollback()
+
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, maxExternalId)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
+	}
+
+	if !extendedLease.ShouldRun {
+		return nil, fmt.Errorf("lease for partition %s was taken by another process during batch processing", partitionDate.String())
+	}
+
+	if err := leaseCommit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
+	}
+
+	if numPayloads < int(windowSize) {
+		return &CutoverBatchOutcome{
+			ShouldContinue: false,
+			NextExternalId: extendedLease.LastExternalId,
+		}, nil
+	}
+
+	return &CutoverBatchOutcome{
+		ShouldContinue: true,
+		NextExternalId: extendedLease.LastExternalId,
+	}, nil
 }
 
-func (d *payloadStoreCutoverDriver) acquireOrExtendLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*cutoverLeaseMetadata, error) {
-	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(2 * time.Minute))
+type CutoverJobRunMetadata struct {
+	ShouldRun      bool
+	LastExternalId uuid.UUID
+	PartitionDate  PartitionDate
+	LeaseProcessId uuid.UUID
+}
 
-	lease, err := d.impl.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
+func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*CutoverJobRunMetadata, error) {
+	leaseInterval := 2 * time.Minute
+	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
+
+	lease, err := p.queries.AcquireOrExtendCutoverJobLease(ctx, tx, sqlcv1.AcquireOrExtendCutoverJobLeaseParams{
 		Key:            pgtype.Date(partitionDate),
 		Leaseprocessid: processId,
 		Leaseexpiresat: leaseExpiresAt,
@@ -522,113 +697,135 @@ func (d *payloadStoreCutoverDriver) acquireOrExtendLease(ctx context.Context, tx
 	})
 
 	if err != nil {
+		// ErrNoRows here means that something else is holding the lease
+		// since we did not insert a new record, and the `UPDATE` returned an empty set
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &cutoverLeaseMetadata{ShouldRun: false, PartitionDate: partitionDate, LeaseProcessId: processId}, nil
+			return &CutoverJobRunMetadata{
+				ShouldRun:      false,
+				PartitionDate:  partitionDate,
+				LeaseProcessId: processId,
+			}, nil
 		}
 		return nil, fmt.Errorf("failed to create initial cutover job lease: %w", err)
 	}
 
 	if lease.LeaseProcessID != processId || lease.IsCompleted {
-		return &cutoverLeaseMetadata{ShouldRun: false, LastExternalId: lease.LastExternalID, PartitionDate: partitionDate, LeaseProcessId: lease.LeaseProcessID}, nil
+		return &CutoverJobRunMetadata{
+			ShouldRun:      false,
+			LastExternalId: lease.LastExternalID,
+			PartitionDate:  partitionDate,
+			LeaseProcessId: lease.LeaseProcessID,
+		}, nil
 	}
 
-	return &cutoverLeaseMetadata{ShouldRun: true, LastExternalId: lease.LastExternalID, PartitionDate: partitionDate, LeaseProcessId: processId}, nil
+	return &CutoverJobRunMetadata{
+		ShouldRun:      true,
+		LastExternalId: lease.LastExternalID,
+		PartitionDate:  partitionDate,
+		LeaseProcessId: processId,
+	}, nil
 }
 
-func (d *payloadStoreCutoverDriver) optimizeWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatch int32, lastExternalId uuid.UUID) (*int32, error) {
-	return d.impl.OptimizePayloadWindowSize(ctx, tx, partitionDate, candidateBatch, lastExternalId)
-}
+func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate) (*CutoverJobRunMetadata, error) {
+	if p.inlineStoreTTL == nil {
+		return nil, fmt.Errorf("inline store TTL is not set")
+	}
 
-func (d *payloadStoreCutoverDriver) createRangeChunks(ctx context.Context, tx pgx.Tx, partitionDate PartitionDate, chunkSize, windowSize int32, lastExternalId uuid.UUID) ([]cutoverPayloadRange, error) {
-	rows, err := d.impl.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
-		Chunksize:      chunkSize,
-		Partitiondate:  pgtype.Date(partitionDate),
-		Windowsize:     windowSize,
-		Lastexternalid: lastExternalId,
-	})
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
 	if err != nil {
 		return nil, err
 	}
-	ranges := make([]cutoverPayloadRange, len(rows))
-	for i, r := range rows {
-		ranges[i] = cutoverPayloadRange{LowerExternalID: r.LowerExternalID, UpperExternalID: r.UpperExternalID}
-	}
-	return ranges, nil
-}
 
-func (d *payloadStoreCutoverDriver) listPayloadsForOffload(ctx context.Context, partitionDate PartitionDate, lower, upper uuid.UUID, batchSize int32) ([]offloadablePayload, int, error) {
-	payloads, err := d.impl.queries.ListPaginatedPayloadsForOffload(ctx, d.impl.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
-		Partitiondate:  pgtype.Date(partitionDate),
-		Lastexternalid: lower,
-		Nextexternalid: upper,
-		Batchsize:      batchSize,
-	})
+	defer rollback()
+
+	var zeroUuid uuid.UUID
+
+	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, zeroUuid)
+
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list paginated payloads for offload: %w", err)
+		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
 	}
 
-	result := make([]offloadablePayload, 0, len(payloads))
-	for _, p := range payloads {
-		if p.Location != sqlcv1.V1PayloadLocationINLINE {
-			continue
-		}
-		externalId := p.ExternalID
-		if externalId == uuid.Nil {
-			externalId = uuid.New()
-		}
-		result = append(result, offloadablePayload{
-			ExternalID: externalId,
-			TenantID:   p.TenantID,
-			InsertedAt: p.InsertedAt,
-			Content:    p.InlineContent,
-		})
+	if !lease.ShouldRun {
+		return lease, nil
 	}
 
-	return result, len(payloads), nil
-}
+	err = p.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
 
-func (d *payloadStoreCutoverDriver) createTempTable(ctx context.Context, tx pgx.Tx, partitionDate PartitionDate) error {
-	return d.impl.queries.CreateV1PayloadCutoverTemporaryTable(ctx, tx, pgtype.Date(partitionDate))
-}
-
-func (d *payloadStoreCutoverDriver) swapPartition(ctx context.Context, tx pgx.Tx, partitionDate PartitionDate) error {
-	return d.impl.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, pgtype.Date(partitionDate))
-}
-
-func (d *payloadStoreCutoverDriver) markJobCompleted(ctx context.Context, tx pgx.Tx, partitionDate PartitionDate) error {
-	return d.impl.queries.MarkCutoverJobAsCompleted(ctx, tx, pgtype.Date(partitionDate))
-}
-
-func (d *payloadStoreCutoverDriver) createIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error {
-	return d.impl.CreateIndexBlock(ctx, opts)
-}
-
-func (d *payloadStoreCutoverDriver) externalStore() ExternalStore {
-	return d.impl.ExternalStore()
-}
-
-func (d *payloadStoreCutoverDriver) batchSize() int32 {
-	return d.impl.externalCutoverBatchSize
-}
-
-func (d *payloadStoreCutoverDriver) numConcurrentOffloads() int32 {
-	return d.impl.externalCutoverNumConcurrentOffloads
-}
-
-func (d *payloadStoreCutoverDriver) inlineStoreTTL() *time.Duration {
-	return d.impl.inlineStoreTTL
-}
-
-func (d *payloadStoreCutoverDriver) findPartitions(ctx context.Context, cutoffDate pgtype.Date) ([]cutoverPartition, error) {
-	rows, err := d.impl.queries.FindV1PayloadPartitionsBeforeDate(ctx, d.impl.pool, MAX_PARTITIONS_TO_OFFLOAD, cutoffDate)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create payload cutover temporary table: %w", err)
 	}
-	partitions := make([]cutoverPartition, len(rows))
-	for i, r := range rows {
-		partitions[i] = cutoverPartition{PartitionName: r.PartitionName, PartitionDate: PartitionDate(r.PartitionDate)}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
-	return partitions, nil
+
+	return &CutoverJobRunMetadata{
+		ShouldRun:      true,
+		LastExternalId: lease.LastExternalId,
+		PartitionDate:  partitionDate,
+		LeaseProcessId: processId,
+	}, nil
+}
+
+func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate) error {
+	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.processSinglePartition")
+	defer span.End()
+
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate)
+
+	// todo: count for duped ext ids here
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare cutover table job: %w", err)
+	}
+
+	if !jobMeta.ShouldRun {
+		return nil
+	}
+
+	lastExternalId := jobMeta.LastExternalId
+
+	for {
+		outcome, err := p.ProcessPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId)
+
+		if err != nil {
+			return fmt.Errorf("failed to process payload cutover batch: %w", err)
+		}
+
+		if !outcome.ShouldContinue {
+			break
+		}
+
+		lastExternalId = outcome.NextExternalId
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare transaction for swapping payload cutover temp table: %w", err)
+	}
+
+	defer rollback()
+
+	err = p.queries.SwapV1PayloadPartitionWithTemp(ctx, tx, pgtype.Date(partitionDate))
+
+	if err != nil {
+		return fmt.Errorf("failed to swap payload cutover temp table: %w", err)
+	}
+
+	err = p.queries.MarkCutoverJobAsCompleted(ctx, tx, pgtype.Date(partitionDate))
+
+	if err != nil {
+		return fmt.Errorf("failed to mark cutover job as completed: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit swap payload cutover temp table transaction: %w", err)
+	}
+
+	return nil
 }
 
 func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context) error {
@@ -639,14 +836,33 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	ctx, span := telemetry.NewSpan(ctx, "payload_store_repository_impl.ProcessPayloadCutovers")
 	defer span.End()
 
-	job := &cutoverJob{
-		pool:       p.pool,
-		l:          p.l,
-		driver:     &payloadStoreCutoverDriver{impl: p},
-		spanPrefix: "payload_store",
+	if p.inlineStoreTTL == nil {
+		return fmt.Errorf("inline store TTL is not set")
 	}
 
-	return job.run(ctx)
+	mostRecentPartitionToOffload := pgtype.Date{
+		Time:  time.Now().UTC().Add(-1 * *p.inlineStoreTTL),
+		Valid: true,
+	}
+
+	partitions, err := p.queries.FindV1PayloadPartitionsBeforeDate(ctx, p.pool, MAX_PARTITIONS_TO_OFFLOAD, mostRecentPartitionToOffload)
+
+	if err != nil {
+		return fmt.Errorf("failed to find payload partitions before date %s: %w", mostRecentPartitionToOffload.Time.String(), err)
+	}
+
+	processId := uuid.New()
+
+	for _, partition := range partitions {
+		p.l.Info().Ctx(ctx).Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate))
+
+		if err != nil {
+			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)
+		}
+	}
+
+	return nil
 }
 
 func (p *payloadStoreRepositoryImpl) CreateIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error {
