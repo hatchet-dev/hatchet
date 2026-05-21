@@ -77,6 +77,13 @@ type RetrieveFromExternalOpts struct {
 type PayloadLocation string
 type ExternalPayloadLocationKey string
 
+type CreateIndexBlockOpts struct {
+	PartitionDate             PartitionDate
+	BlockLowerExternalIdBound uuid.UUID
+	BlockUpperExternalIdBound uuid.UUID
+	IndexFileKey              string
+}
+
 type ExternalStore interface {
 	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error)
 	Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
@@ -100,6 +107,7 @@ type PayloadStoreRepository interface {
 	ExternalStore() ExternalStore
 	ImmediateOffloadsEnabled() bool
 	ProcessPayloadCutovers(ctx context.Context) error
+	CreateIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -865,6 +873,17 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	return nil
+}
+
+func (p *payloadStoreRepositoryImpl) CreateIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error {
+	_, err := p.queries.CreateOffloadedPayloadIndexBlock(ctx, p.pool, sqlcv1.CreateOffloadedPayloadIndexBlockParams{
+		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
+		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
+		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
+		Indexfilekey:              opts.IndexFileKey,
+	})
+
+	return err
 }
 
 type NoOpExternalStore struct{}
