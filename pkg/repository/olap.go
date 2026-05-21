@@ -3446,15 +3446,16 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
-	externalIdToKey := make(map[uuid.UUID]ExternalPayloadLocationKey)
-
 	if blockIndexKey != nil {
-		for _, opt := range offloadToExternalStoreOpts {
-			externalIdToKey[opt.ExternalID] = ExternalPayloadLocationKey(*blockIndexKey)
+		if err := p.PayloadStore().CreateIndexBlock(ctx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
 		}
 	}
-
-	maps.Copy(externalIdToKey, alreadyExternalPayloads)
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
