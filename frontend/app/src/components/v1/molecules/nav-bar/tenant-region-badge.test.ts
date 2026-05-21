@@ -1,11 +1,10 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-
 import {
   formatTenantDeploymentBadgeLabel,
   formatTenantDeploymentBadgeTooltip,
   formatTenantRegionDisplay,
-} from './tenant-region-badge.ts';
+} from './tenant-region-badge';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 
 describe('formatTenantRegionDisplay', () => {
   it('strips provider prefix', () => {

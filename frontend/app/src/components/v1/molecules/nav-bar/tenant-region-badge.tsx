@@ -67,7 +67,10 @@ export function TenantRegionBadge({
     return null;
   }
 
-  const title = formatTenantDeploymentBadgeTooltip({ region, shardDisplayName });
+  const title = formatTenantDeploymentBadgeTooltip({
+    region,
+    shardDisplayName,
+  });
 
   return (
     <Badge

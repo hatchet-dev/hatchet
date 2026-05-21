@@ -4,8 +4,6 @@ import {
   formatTenantRegionDisplay,
   shardDeploymentKey,
 } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
-
-export { shardDeploymentKey };
 import { Button } from '@/components/v1/ui/button';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -16,6 +14,8 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
+
+export { shardDeploymentKey };
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
