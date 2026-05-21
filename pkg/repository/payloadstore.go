@@ -592,10 +592,21 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, err
 	}
 
-	_, err = p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
+	blockIndexKey, err := p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
+	}
+
+	if blockIndexKey != nil {
+		if err := p.CreateIndexBlock(ctx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
+		}
 	}
 
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
