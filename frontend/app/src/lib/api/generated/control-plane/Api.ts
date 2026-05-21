@@ -31,6 +31,7 @@ import {
   ManagementTokenList,
   Organization,
   OrganizationAvailableShardList,
+  OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
@@ -847,6 +848,25 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Get entitlements for an organization
+   *
+   * @name OrganizationEntitlementsGet
+   * @summary Get organization entitlements
+   * @request GET:/api/v1/control-plane/organizations/{organization}/entitlements
+   * @secure
+   */
+  organizationEntitlementsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationEntitlements, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/entitlements`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
   /**

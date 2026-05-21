@@ -51,13 +51,20 @@ function makeApi(orgId: string): SsoApi {
   };
 }
 
-export default function CreateSSOPage({ orgId }: { orgId: string }) {
+export default function CreateSSOPage({
+  orgId,
+  onConfigLoaded,
+}: {
+  orgId: string;
+  onConfigLoaded?: (hasExistingConfig: boolean) => void;
+}) {
   const api = useMemo(() => makeApi(orgId), [orgId]);
 
   return (
     <SsoSetup
       redirectUrl={`${window.location.origin}/api/v1/control-plane/users/sso/callback`}
       api={api}
+      onConfigLoaded={onConfigLoaded}
     />
   );
 }

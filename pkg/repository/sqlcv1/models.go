@@ -3822,6 +3822,7 @@ type Worker struct {
 	RuntimeExtra            pgtype.Text      `json:"runtimeExtra"`
 	SdkVersion              pgtype.Text      `json:"sdkVersion"`
 	DurableTaskDispatcherId *uuid.UUID       `json:"durableTaskDispatcherId"`
+	ActionHash              []byte           `json:"actionHash"`
 }
 
 type WorkerAssignEvent struct {
