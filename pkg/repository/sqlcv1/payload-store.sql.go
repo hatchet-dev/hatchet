@@ -122,6 +122,46 @@ func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, arg Comp
 	return total_size_bytes, err
 }
 
+const createOffloadedPayloadIndexBlock = `-- name: CreateOffloadedPayloadIndexBlock :one
+INSERT INTO v1_payload_offloaded_block_index (
+    payload_inserted_at_date,
+    block_lower_external_id_bound,
+    block_upper_external_id_bound,
+    index_file_key
+)
+VALUES (
+    $1::DATE,
+    $2::UUID,
+    $3::UUID,
+    $4::TEXT
+)
+RETURNING payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound, index_file_key
+`
+
+type CreateOffloadedPayloadIndexBlockParams struct {
+	Payloadinsertedatdate     pgtype.Date `json:"payloadinsertedatdate"`
+	Blocklowerexternalidbound uuid.UUID   `json:"blocklowerexternalidbound"`
+	Blockupperexternalidbound uuid.UUID   `json:"blockupperexternalidbound"`
+	Indexfilekey              string      `json:"indexfilekey"`
+}
+
+func (q *Queries) CreateOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOffloadedPayloadIndexBlockParams) (*V1PayloadOffloadedBlockIndex, error) {
+	row := db.QueryRow(ctx, createOffloadedPayloadIndexBlock,
+		arg.Payloadinsertedatdate,
+		arg.Blocklowerexternalidbound,
+		arg.Blockupperexternalidbound,
+		arg.Indexfilekey,
+	)
+	var i V1PayloadOffloadedBlockIndex
+	err := row.Scan(
+		&i.PayloadInsertedAtDate,
+		&i.BlockLowerExternalIDBound,
+		&i.BlockUpperExternalIDBound,
+		&i.IndexFileKey,
+	)
+	return &i, err
+}
+
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
 WITH chunks AS (
     SELECT
