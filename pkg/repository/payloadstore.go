@@ -305,12 +305,21 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	retrieveFromExternalOptsToOpts := make(map[RetrieveFromExternalOpts]RetrievePayloadOpts)
 	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
 
+	foundKeys := make(map[PayloadUniqueKey]struct{})
+
 	for _, payload := range payloads {
 		if payload == nil {
 			continue
 		}
 
-		opts := RetrievePayloadOpts{
+		foundKeys[PayloadUniqueKey{
+			ID:         payload.ID,
+			InsertedAt: payload.InsertedAt,
+			TenantId:   payload.TenantID,
+			Type:       payload.Type,
+		}] = struct{}{}
+
+		opt := RetrievePayloadOpts{
 			Id:         payload.ID,
 			InsertedAt: payload.InsertedAt,
 			Type:       payload.Type,
@@ -337,10 +346,49 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 				}
 			}
 
-			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opts
+			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
 			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
 		} else {
-			optsToPayload[opts] = payload.InlineContent
+			optsToPayload[opt] = payload.InlineContent
+		}
+	}
+
+	if p.externalStoreEnabled {
+		for _, opt := range opts {
+			if opt.ExternalId == uuid.Nil {
+				continue
+			}
+
+			key := PayloadUniqueKey{
+				ID:         opt.Id,
+				InsertedAt: opt.InsertedAt,
+				TenantId:   opt.TenantId,
+				Type:       opt.Type,
+			}
+
+			if _, found := foundKeys[key]; found {
+				continue
+			}
+
+			indexFileKey, err := p.queries.GetOffloadedPayloadIndexBlock(ctx, p.pool, sqlcv1.GetOffloadedPayloadIndexBlockParams{
+				Insertedatdate: pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true},
+				Externalid:     opt.ExternalId,
+			})
+
+			if err != nil {
+				continue
+			}
+
+			retrieveFromExternalOpt := RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByIndexFile,
+				ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+					IndexFileKey: ExternalIndexFileLocationKey(indexFileKey),
+					ExternalId:   opt.ExternalId,
+				},
+			}
+
+			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
+			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
 		}
 	}
 

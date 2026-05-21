@@ -10,9 +10,9 @@ import (
 	"hash/fnv"
 	"log"
 	"math/rand"
-	"strings"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -3079,6 +3079,37 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 			}
 
 			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
+			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+		}
+	}
+
+	if r.payloadStore.ExternalStoreEnabled() {
+		for _, opt := range opts {
+			if _, found := externalIdToPayload[opt.ExternalId]; found {
+				continue
+			}
+			if _, found := externalIdToRetrieveFromExternalOpt[opt.ExternalId]; found {
+				continue
+			}
+
+			indexFileKey, err := r.queries.GetOLAPOffloadedPayloadIndexBlock(ctx, r.pool, sqlcv1.GetOLAPOffloadedPayloadIndexBlockParams{
+				Insertedatdate: pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true},
+				Externalid:     opt.ExternalId,
+			})
+
+			if err != nil {
+				continue
+			}
+
+			retrieveFromExternalOpt := RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByIndexFile,
+				ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+					IndexFileKey: ExternalIndexFileLocationKey(indexFileKey),
+					ExternalId:   opt.ExternalId,
+				},
+			}
+
+			externalIdToRetrieveFromExternalOpt[opt.ExternalId] = retrieveFromExternalOpt
 			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
 		}
 	}
