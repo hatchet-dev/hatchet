@@ -1,14 +1,10 @@
 // eslint-disable-next-line
-import { getTemperature, getTemperatureWorkflow } from './workflow';
+import { createTemperatureWorkflowToolClaude } from './workflow';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 
 async function main() {
-  // Generate a tool from a standalone task
-  // const temperatureTool = getTemperature.mcpTool('claude');
-
-  // Or from a workflow
-  const temperatureTool = getTemperatureWorkflow.mcpTool('claude');
+  const temperatureTool = createTemperatureWorkflowToolClaude();
 
   // Wrap the tool in an in-process MCP server
   const weatherServer = createSdkMcpServer({
