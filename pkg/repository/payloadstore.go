@@ -777,6 +777,8 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 
 	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate)
 
+	// todo: count for duped ext ids here
+
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
 	}
