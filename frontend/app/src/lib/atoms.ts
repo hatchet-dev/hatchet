@@ -1,5 +1,5 @@
 import { Tenant } from './api';
-import { TenantBillingState } from './api/generated/cloud/data-contracts';
+import { TenantBillingState } from './api/generated/control-plane/data-contracts';
 import { atom } from 'jotai';
 
 const getInitialValue = <T>(key: string, defaultValue?: T): T | undefined => {
