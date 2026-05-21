@@ -173,7 +173,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
-	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalIds := make([]uuid.UUID, 0, len(payloads))
@@ -209,13 +208,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		inlineContents = append(inlineContents, payload.Payload)
 		externalIds = append(externalIds, payload.ExternalId)
 		externalLocationKeys = append(externalLocationKeys, "")
-
-		offloadAt := pgtype.Timestamptz{Time: time.Now(), Valid: true}
-		if p.inlineStoreTTL != nil {
-			offloadAt = pgtype.Timestamptz{Time: time.Now().Add(*p.inlineStoreTTL), Valid: true}
-		}
-
-		offloadAts = append(offloadAts, offloadAt)
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
