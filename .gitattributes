@@ -22,3 +22,6 @@ sdks/python/hatchet-sdk/contracts/** linguist-generated=true
 sdks/typescript/src/clients/rest/generated/** linguist-generated=true
 sdks/typescript/src/protoc/** linguist-generated=true
 pkg/client/rest/gen.go linguist-generated=true
+
+### examples
+examples/** linguist-generated=true

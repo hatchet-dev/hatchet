@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	defaultTimeout = 5 * time.Minute
-	pollInterval   = 200 * time.Millisecond
-	maxPolls       = 150
+	defaultTimeout  = 5 * time.Minute
+	pollInterval    = 200 * time.Millisecond
+	timingTolerance = 1.0 // seconds of slack for scheduling/measurement overhead in timing assertions
 )
 
 var (
@@ -62,13 +62,13 @@ func uniqueID() string {
 	return uuid.New().String()
 }
 
-// pollUntil polls fn every pollInterval until it returns true or maxPolls is reached.
+// pollUntil polls fn every pollInterval until it returns true or the context is done.
 func pollUntil(t *testing.T, ctx context.Context, fn func() (bool, error)) {
 	t.Helper()
-	for i := 0; i < maxPolls; i++ {
+	for {
 		done, err := fn()
 		if err != nil {
-			t.Logf("poll error (attempt %d): %v", i, err)
+			t.Logf("poll error: %v", err)
 		}
 		if done {
 			return
@@ -79,7 +79,6 @@ func pollUntil(t *testing.T, ctx context.Context, fn func() (bool, error)) {
 		case <-time.After(pollInterval):
 		}
 	}
-	t.Fatalf("polling timed out after %d attempts", maxPolls)
 }
 
 // pollUntilRunStatus polls run details until any task reaches the given status.

@@ -33,6 +33,8 @@ export default defineConfig({
     port: 5173,
     allowedHosts: [
       'local.hatchet-tools.com',
+      'local-oss.hatchet-tools.com',
+      'local-cloud.hatchet-tools.com',
       'app.dev.hatchet-tools.com',
       'app.localtest.me',
       'localhost',

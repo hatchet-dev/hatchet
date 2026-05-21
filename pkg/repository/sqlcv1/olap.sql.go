@@ -478,7 +478,7 @@ type CreateTaskEventsOLAPParams struct {
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
-	ExternalID             *uuid.UUID           `json:"external_id"`
+	ExternalID             uuid.UUID            `json:"external_id"`
 	DurableInvocationCount int32                `json:"durable_invocation_count"`
 }
 
@@ -1685,7 +1685,7 @@ type ListTaskEventsRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -1810,7 +1810,7 @@ type ListTaskEventsForWorkflowRunRow struct {
 	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
 	ErrorMessage           pgtype.Text          `json:"error_message"`
 	Output                 []byte               `json:"output"`
-	EventExternalID        *uuid.UUID           `json:"event_external_id"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
 	WorkerID               *uuid.UUID           `json:"worker_id"`
 	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
 	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
@@ -2205,7 +2205,8 @@ WITH input AS (
     SELECT
         run_id,
         output,
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -2223,6 +2224,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB AS output,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
@@ -2259,6 +2261,7 @@ type PopulateDAGMetadataRow struct {
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	Output                []byte               `json:"output"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	RetryCount            int32                `json:"retry_count"`
 }
 
@@ -2296,6 +2299,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.ErrorMessage,
 			&i.Output,
 			&i.OutputEventExternalID,
+			&i.OutputEventInsertedAt,
 			&i.RetryCount,
 		); err != nil {
 			return nil, err
@@ -2420,7 +2424,8 @@ WITH selected_retry_count AS (
 ), task_output AS (
     SELECT
         external_id,
-        output
+        output,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -2469,6 +2474,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -2532,6 +2538,7 @@ type PopulateSingleTaskRunDataRow struct {
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	QueuedAt              pgtype.Timestamptz   `json:"queued_at"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	Output                []byte               `json:"output"`
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	SpawnedChildren       pgtype.Int8          `json:"spawned_children"`
@@ -2578,6 +2585,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.StartedAt,
 		&i.QueuedAt,
 		&i.OutputEventExternalID,
+		&i.OutputEventInsertedAt,
 		&i.Output,
 		&i.ErrorMessage,
 		&i.SpawnedChildren,
@@ -2706,7 +2714,8 @@ WITH input AS (
         DISTINCT ON (task_id)
         task_id,
         output,
-        external_id AS output_event_external_id
+        external_id AS output_event_external_id,
+        inserted_at AS output_event_inserted_at
     FROM
         relevant_events
     WHERE
@@ -2749,6 +2758,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
+    o.output_event_inserted_at AS output_event_inserted_at,
     COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
@@ -2800,6 +2810,7 @@ type PopulateTaskRunDataRow struct {
 	RetryCount            int32                `json:"retry_count"`
 	Output                []byte               `json:"output"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	IsDurable             bool                 `json:"is_durable"`
 }
 
@@ -2845,6 +2856,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.RetryCount,
 			&i.Output,
 			&i.OutputEventExternalID,
+			&i.OutputEventInsertedAt,
 			&i.IsDurable,
 		); err != nil {
 			return nil, err
@@ -3051,7 +3063,7 @@ type ReadTaskByExternalIDRow struct {
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
 	Output               []byte               `json:"output"`
-	EventExternalID      *uuid.UUID           `json:"event_external_id"`
+	EventExternalID      uuid.UUID            `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
 }
 
@@ -3184,7 +3196,8 @@ WITH runs AS (
     LIMIT 1
 ), output_event_external_id AS (
     SELECT
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -3201,7 +3214,8 @@ SELECT
     m.finished_at,
     e.error_message,
     m.task_metadata,
-    o.external_id AS output_event_external_id
+    o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
@@ -3230,6 +3244,7 @@ type ReadWorkflowRunByExternalIdRow struct {
 	ErrorMessage          pgtype.Text          `json:"error_message"`
 	TaskMetadata          []byte               `json:"task_metadata"`
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
+	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 }
 
 func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, workflowrunexternalid uuid.UUID) (*ReadWorkflowRunByExternalIdRow, error) {
@@ -3256,6 +3271,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.ErrorMessage,
 		&i.TaskMetadata,
 		&i.OutputEventExternalID,
+		&i.OutputEventInsertedAt,
 	)
 	return &i, err
 }

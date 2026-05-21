@@ -32,7 +32,7 @@ dagWithConditions.task({
   parents: [firstTask],
   waitFor: Or({ eventKey: 'user:event' }, { sleepFor: '10s' }),
   fn: async (_, ctx) => {
-    console.log('triggered by condition', ctx.triggers());
+    ctx.logger.info('triggered by condition', { triggers: ctx.triggers() });
 
     return {
       Completed: true,

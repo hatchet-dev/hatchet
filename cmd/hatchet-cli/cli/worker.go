@@ -106,7 +106,7 @@ var workerListCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 		tenantUUID := clientTenantUUID(hatchetClient)
-		resp, err := hatchetClient.API().WorkerListWithResponse(ctx, tenantUUID)
+		resp, err := hatchetClient.API().WorkerListWithResponse(ctx, tenantUUID, nil)
 		if err != nil {
 			cli.Logger.Fatalf("failed to list workers: %v", err)
 		}
