@@ -439,7 +439,6 @@ type GetOrCreateLogEntryOpt struct {
 	UserMessage         *string
 	WaitData            string // JSON-encoded WaitData, empty string means no wait data
 	SatisfiedAt         *time.Time
-	ExternalId          uuid.UUID
 	ChildTaskExternalId uuid.UUID
 	ShouldSkip          bool
 }
@@ -785,12 +784,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 
 		for _, entry := range nodeIdBranchIdToNewEntry {
-			externalId := entry.ExternalId
-			if externalId == uuid.Nil {
-				externalId = uuid.New()
-			}
 			createParams.Tenantids = append(createParams.Tenantids, opts.TenantId)
-			createParams.Externalids = append(createParams.Externalids, externalId)
+			createParams.Externalids = append(createParams.Externalids, uuid.New())
 			createParams.Childtaskexternalids = append(createParams.Childtaskexternalids, entry.ChildTaskExternalId)
 			createParams.Durabletaskids = append(createParams.Durabletaskids, opts.DurableTaskId)
 			createParams.Durabletaskinsertedats = append(createParams.Durabletaskinsertedats, opts.DurableTaskInsertedAt)
@@ -857,24 +852,24 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 
 	if len(skipOpts) > 0 {
 		childTaskExternalIds := make([]uuid.UUID, 0, len(skipOpts))
-		seen := make(map[uuid.UUID]struct{}, len(skipOpts))
+		seenChildTaskExternalIds := make(map[uuid.UUID]struct{}, len(skipOpts))
 		for _, o := range skipOpts {
 			if o.ChildTaskExternalId == uuid.Nil {
 				return nil, fmt.Errorf("skipped child entries must include a non-nil child task external id")
 			}
 
-			if _, ok := seen[o.ChildTaskExternalId]; ok {
+			if _, ok := seenChildTaskExternalIds[o.ChildTaskExternalId]; ok {
 				continue
 			}
 
-			seen[o.ChildTaskExternalId] = struct{}{}
+			seenChildTaskExternalIds[o.ChildTaskExternalId] = struct{}{}
 			childTaskExternalIds = append(childTaskExternalIds, o.ChildTaskExternalId)
 		}
 
 		skipRows, err := r.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
-			Durabletaskid:          opts.DurableTaskId,
-			Durabletaskinsertedat:  opts.DurableTaskInsertedAt,
-			Childtaskexternalids:   childTaskExternalIds,
+			Durabletaskid:         opts.DurableTaskId,
+			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
+			Childtaskexternalids:  childTaskExternalIds,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to get log entries by child task external ids: %w", err)
