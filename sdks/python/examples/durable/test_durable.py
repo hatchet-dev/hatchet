@@ -55,9 +55,9 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
 
     workers = await hatchet.workers.aio_list()
 
-    assert workers.rows
+    assert workers
 
-    active_workers = [w for w in workers.rows if w.status == "ACTIVE"]
+    active_workers = [w for w in workers if w.status == "ACTIVE"]
 
     assert any(
         w.name == hatchet.config.apply_namespace("e2e-test-worker")

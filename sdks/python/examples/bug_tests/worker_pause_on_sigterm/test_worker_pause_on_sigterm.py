@@ -51,7 +51,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
 
         matching = [
             w
-            for w in (worker_list.rows or [])
+            for w in (worker_list or [])
             if w.name == hatchet.config.apply_namespace(WORKER_NAME)
             and w.status == "PAUSED"
         ]

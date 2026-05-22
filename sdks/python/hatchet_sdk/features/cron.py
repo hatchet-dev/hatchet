@@ -9,7 +9,6 @@ from hatchet_sdk.clients.rest.models.create_cron_workflow_trigger_request import
     CreateCronWorkflowTriggerRequest,
 )
 from hatchet_sdk.clients.rest.models.cron_workflows import CronWorkflows
-from hatchet_sdk.clients.rest.models.cron_workflows_list import CronWorkflowsList
 from hatchet_sdk.clients.rest.models.cron_workflows_order_by_field import (
     CronWorkflowsOrderByField,
 )
@@ -188,7 +187,7 @@ class CronClient(BaseRestClient):
         order_by_direction: WorkflowRunOrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> CronWorkflowsList:
+    ) -> list[CronWorkflows]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -225,7 +224,7 @@ class CronClient(BaseRestClient):
         order_by_direction: WorkflowRunOrderByDirection | None = None,
         workflow_name: str | None = None,
         cron_name: str | None = None,
-    ) -> CronWorkflowsList:
+    ) -> list[CronWorkflows]:
         """
         Retrieve a list of all workflow cron triggers matching the criteria.
 
@@ -245,7 +244,7 @@ class CronClient(BaseRestClient):
                 self._wa(client).cron_workflow_list,
                 self.client_config.tenacity,
             )
-            return cron_workflow_list(
+            cwl = cron_workflow_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -258,6 +257,8 @@ class CronClient(BaseRestClient):
                 workflow_name=workflow_name,
                 cron_name=cron_name,
             )
+
+            return cwl.rows or []
 
     def get(self, cron_id: str) -> CronWorkflows:
         """
