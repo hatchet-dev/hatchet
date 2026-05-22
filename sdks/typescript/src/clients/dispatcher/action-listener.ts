@@ -25,7 +25,7 @@ export type Action = AssignedAction & { readonly key: ActionKey };
 
 export function createAction(assignedAction: AssignedAction): Action {
   const action = assignedAction as Action;
-  if (action.actionType == ActionType.START_BATCH ){
+  if (action.actionType == ActionType.START_BATCH) {
     const batchKey = action.batchId ?? action.actionId ?? 'unknown';
     return `${batchKey}/${action.retryCount ?? 0}`;
   }

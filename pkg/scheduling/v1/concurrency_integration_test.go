@@ -370,6 +370,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		l := zerolog.Nop()
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			&l,
 			100,
 			20,

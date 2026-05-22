@@ -665,10 +665,7 @@ export class InternalWorker {
           return {
             readableId: task.name,
             action: `${workflow.name}:${task.name}`,
-            timeout:
-              resolveExecutionTimeout(
-              task,
-              workflow.taskDefaults),
+            timeout: resolveExecutionTimeout(task, workflow.taskDefaults),
             scheduleTimeout: resolveScheduleTimeout(task, workflow.taskDefaults),
             inputs: '{}',
             parents: task.parents?.map((p) => p.name) ?? [],
@@ -682,9 +679,9 @@ export class InternalWorker {
             backoffMaxSeconds:
               task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
             conditions: taskConditionsToPb(task, this.client.config.namespace),
-          isDurable: durableTaskSet.has(task),
-          slotRequests:
-            task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
+            isDurable: durableTaskSet.has(task),
+            slotRequests:
+              task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
             concurrency: task.concurrency
               ? Array.isArray(task.concurrency)
                 ? task.concurrency

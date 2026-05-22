@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { dag } from './workflow';
 
 async function main() {
