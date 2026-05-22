@@ -1206,19 +1206,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
 		for i, entry := range logEntries {
-			var workflowRunExternalId uuid.UUID
-			if entry.Entry.ChildTaskExternalID != nil {
-				workflowRunExternalId = *entry.Entry.ChildTaskExternalID
-			} else {
-				triggerOpts := nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
-					NodeId:   entry.Entry.NodeID,
-					BranchId: entry.Entry.BranchID,
-				}]
-				if triggerOpts == nil {
-					return nil, fmt.Errorf("missing trigger opts for nodeId %d and branchId %d", entry.Entry.NodeID, entry.Entry.BranchID)
-				}
-				workflowRunExternalId = triggerOpts.ExternalId
+			if entry.Entry.ChildTaskExternalID == nil {
+				return nil, fmt.Errorf("RUN log entry at nodeId %d branchId %d is missing child_task_external_id", entry.Entry.NodeID, entry.Entry.BranchID)
 			}
+			workflowRunExternalId := *entry.Entry.ChildTaskExternalID
 
 			entries[i] = &IngestTriggerRunsEntry{
 				NodeId:                entry.Entry.NodeID,
@@ -1242,16 +1233,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				continue
 			}
 
-			var triggerOpts *WorkflowNameTriggerOpts
-			if le.Entry.ChildTaskExternalID != nil {
-				triggerOpts = externalIdToTriggerOpts[*le.Entry.ChildTaskExternalID]
+			if le.Entry.ChildTaskExternalID == nil {
+				return nil, fmt.Errorf("new RUN log entry at nodeId %d branchId %d is missing child_task_external_id", le.Entry.NodeID, le.Entry.BranchID)
 			}
-			if triggerOpts == nil {
-				triggerOpts = nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
-					NodeId:   le.Entry.NodeID,
-					BranchId: le.Entry.BranchID,
-				}]
-			}
+
+			triggerOpts := externalIdToTriggerOpts[*le.Entry.ChildTaskExternalID]
 			if triggerOpts != nil {
 				newTriggerOpts = append(newTriggerOpts, triggerOpts)
 			}
