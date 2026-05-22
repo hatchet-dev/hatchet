@@ -63,11 +63,24 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
-		for workerId, taskIds := range innerMsg.WorkerIdToTaskIds {
-			workerId := workerId
+		for workerIdStr, batches := range innerMsg.WorkerBatches {
+			workerId, err := uuid.Parse(workerIdStr)
+			if err != nil {
+				d.l.Error().Ctx(ctx).Err(err).Msgf("could not parse worker id %s", workerIdStr)
+				continue
+			}
+
+			batchTaskIds := make([]int64, 0)
+			for _, batch := range batches {
+				batchTaskIds = append(batchTaskIds, batch.TaskIds...)
+			}
+
+			if len(batchTaskIds) == 0 {
+				continue
+			}
 
 			outerEg.Go(func() error {
-				return d.sendTasksToWorker(ctx, requeue, msg.TenantID, workerId, taskIds, taskIdToData)
+				return d.sendTasksToWorker(ctx, requeue, msg.TenantID, workerId, batchTaskIds, taskIdToData)
 			})
 		}
 	}
@@ -350,6 +363,7 @@ func (d *DispatcherImpl) populateTaskData(
 		taskIdToData[task.Task.ID] = &V1TaskWithPayloadAndInvocationCount{
 			&v1.V1TaskWithPayload{
 				V1Task:  task.Task,
+				Runtime: task.Runtime,
 				Payload: input,
 			},
 			invocationCount,
