@@ -127,7 +127,8 @@ class WorkerActionRunLoopManager:
             return
 
         logger.info("gracefully exiting runner...")
-
+        await self.evict_all_waiting_durable_runs()
+        await self.wait_for_tasks()
         self.cleanup()
 
         # Wait for 1 second to allow last calls to flush. These are calls which have been

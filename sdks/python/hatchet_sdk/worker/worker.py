@@ -32,7 +32,7 @@ from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
@@ -113,9 +113,14 @@ class Worker:
         self._ctx = multiprocessing.get_context("spawn")
 
         self._action_queue: Queue[Action | STOP_LOOP_TYPE] = self._ctx.Queue()
-        self._event_queue: Queue[ActionEvent] = self._ctx.Queue()
+        self._event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = self._ctx.Queue()
         self._durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
         self._durable_event_queue: Queue[ActionEvent] | None = None
+
+        # The listener subprocess writes its worker_id here once it has
+        # registered with the engine.  The worker reads it back so it can
+        # pause task assignment directly without going through the subprocess.
+        self._worker_id_queue: Queue[str] = self._ctx.Queue()
 
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -606,6 +611,7 @@ class Worker:
                     self._handle_kill,
                     self._client.debug,
                     self._labels,
+                    self._worker_id_queue,
                 ),
             )
             process.start()
@@ -725,18 +731,31 @@ class Worker:
 
         self._close_queues()
 
-    async def exit_gracefully(self) -> None:
-        logger.debug(f"gracefully stopping worker: {self.name}")
+    async def _pause_task_assignment(self) -> None:
+        """Pause task assignment at the engine level.
 
-        if self._killing:
-            return await self._exit_forcefully()
+        Reads the worker_id that the listener subprocess deposited at startup,
+        then calls the REST API to mark the worker as paused so the engine
+        stops routing new work here while in-flight tasks finish.
+        """
+        try:
+            worker_id = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: self._worker_id_queue.get(timeout=10)
+            )
+        except Exception:
+            logger.warning("could not read worker_id; skipping pause")
+            return
+        logger.info("pausing task assignment...")
+        await self._client.workers.aio_pause(worker_id)
+        logger.info("task assignment paused")
 
-        self._killing = True
+    def _stop_listener_action_loops(self) -> None:
+        """Send SIGTERM to each listener subprocess.
 
-        # IMPORTANT: Ideally, we'd pause task assignment on the parent process,
-        # but only the listeners know what worker id we're on, so instead we need
-        # to propagate the SIGTERM to all child listener processes. Each child's SIGTERM
-        # handler calls pause_task_assignment() to pause assignment to this worker
+        The listener's SIGTERM handler stops the gRPC action stream so no new
+        actions are dispatched.  The event_send_loop keeps running so any
+        in-flight completion events can still be delivered.
+        """
         for process in [
             self._action_listener_process,
             self._durable_action_listener_process,
@@ -745,19 +764,31 @@ class Worker:
                 with contextlib.suppress(ProcessLookupError):
                     os.kill(process.pid, signal.SIGTERM)
 
+    async def exit_gracefully(self) -> None:
+        logger.debug(f"gracefully stopping worker: {self.name}")
+
+        if self._killing:
+            return await self._exit_forcefully()
+
+        self._killing = True
+
+        # tell the engine that the worker is paused
+        await self._pause_task_assignment()
+
+        # stop the gRPC stream — no new actions will be dispatched.
+        self._stop_listener_action_loops()
+
+        # wait for tasks to complete, needs the event queue so that completion tasks aren't dropped
         if self._action_runner:
-            await self._action_runner.evict_all_waiting_durable_runs()
-            await self._action_runner.wait_for_tasks()
             await self._action_runner.exit_gracefully()
 
-        # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner:
-            await self._legacy_durable_action_runner.evict_all_waiting_durable_runs()
-            await self._legacy_durable_action_runner.wait_for_tasks()
             await self._legacy_durable_action_runner.exit_gracefully()
 
-        if self._action_listener_process and self._action_listener_process.is_alive():
-            self._action_listener_process.kill()
+        # drain event_send_loop
+        self._event_queue.put(STOP_LOOP)
+        if self._durable_event_queue is not None:
+            self._durable_event_queue.put(STOP_LOOP)
 
         if (
             self._durable_action_listener_process
