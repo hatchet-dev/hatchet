@@ -915,6 +915,8 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 const updateLogFile = `-- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
 SET
+    -- important: need ` + "`" + `GREATEST` + "`" + ` here to avoid moving the ` + "`" + `latest_node_id` + "`" + ` backwards in the case of child spawning with
+    -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
     latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id)),
     latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)

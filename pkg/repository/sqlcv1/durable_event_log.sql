@@ -44,6 +44,8 @@ RETURNING v1_durable_event_log_file.*
 -- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
 SET
+    -- important: need `GREATEST` here to avoid moving the `latest_node_id` backwards in the case of child spawning with
+    -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
     latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id)),
     latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE(sqlc.narg('branchId')::BIGINT, v1_durable_event_log_file.latest_branch_id)
