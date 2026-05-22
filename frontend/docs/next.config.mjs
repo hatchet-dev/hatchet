@@ -60,6 +60,7 @@ const nextConfig = {
       { source: '/v1/patterns', destination: '/v1/durable-execution', permanent: true, basePath: false },
       { source: '/v1/patterns/:path*', destination: '/v1/durable-execution', permanent: true, basePath: false },
       { source: '/v1/durable-tasks-vs-dags', destination: '/cookbooks/durable-tasks-vs-dags', permanent: false, basePath: false },
+      { source: '/cookbooks/human-in-the-loop', destination: '/v1/durable-event-waits', permanent: true, basePath: false },
       // --- Old main: /home/* → /v1/* (only paths that existed on main) ---
       { source: '/home/conditional-workflows', destination: '/v1/directed-acyclic-graphs#branching-with-parent-conditions', permanent: true, basePath: false },
       { source: '/home/on-failure-tasks', destination: '/v1/error-handling', permanent: true, basePath: false },
@@ -75,6 +76,7 @@ const nextConfig = {
       { source: '/home/hatchet-cloud-quickstart', destination: '/v1/quickstart', permanent: true, basePath: false },
       { source: '/home/coding-agents', destination: '/v1/setup/using-coding-agents', permanent: true, basePath: false },
       { source: '/home/install-docs-mcp', destination: '/v1/setup/using-coding-agents', permanent: true, basePath: false },
+      { source: '/v1/setup/using-coding-agents', destination: '/v1/using-coding-agents', permanent: true, basePath: false },
       { source: '/home/guarantees-and-tradeoffs', destination: '/v1/architecture-and-guarantees', permanent: true, basePath: false },
       { source: '/home/v1-sdk-improvements', destination: '/v1/migrating/v1-sdk-improvements', permanent: true, basePath: false },
       { source: '/home/migration-guide-engine', destination: '/v1/migrating/migration-guide-engine', permanent: true, basePath: false },
@@ -113,6 +115,7 @@ const nextConfig = {
       { source: '/sdks/:path*', destination: '/reference/:path*', permanent: false, basePath: false },
       { source: '/sdk/:path*', destination: '/reference/:path*', permanent: false, basePath: false },
       { source: '/cli/:path*', destination: '/reference/cli/:path*', permanent: false, basePath: false },
+      { source: '/guides/human-in-the-loop', destination: '/v1/durable-event-waits', permanent: true, basePath: false },
       { source: '/guides/:path*', destination: '/cookbooks/:path*', permanent: true, basePath: false },
       // --- Misc ---
       { source: '/ingest/:path*', destination: 'https://app.posthog.com/:path*', permanent: false, basePath: false },

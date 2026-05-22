@@ -135,6 +135,7 @@ import {
   WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
+  WorkerStatus,
   Workflow,
   WorkflowID,
   WorkflowKindList,
@@ -3536,10 +3537,28 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/worker
    * @secure
    */
-  workerList = Object.assign((tenant: string, params: RequestParams = {}) =>
+  workerList = Object.assign((
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** Filter by worker status */
+      statuses?: WorkerStatus[];
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<WorkerList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/worker`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

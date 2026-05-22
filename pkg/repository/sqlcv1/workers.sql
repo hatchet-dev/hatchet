@@ -142,8 +142,60 @@ WHERE
             WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
         ))
     )
-GROUP BY
-    workers."id";
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            ELSE 'ACTIVE'
+        END = ANY(sqlc.narg('statuses')::text[])
+    )
+ORDER BY
+    workers."createdAt" DESC
+OFFSET
+    COALESCE(sqlc.narg('offset'), 0)
+LIMIT
+    COALESCE(sqlc.narg('limit'), 10000);
+
+-- name: CountWorkers :one
+SELECT count(*)
+FROM
+    "Worker" workers
+WHERE
+    workers."tenantId" = @tenantId
+    AND (
+        sqlc.narg('actionId')::text IS NULL OR
+        workers."id" IN (
+            SELECT "_ActionToWorker"."B"
+            FROM "_ActionToWorker"
+            INNER JOIN "Action" ON "Action"."id" = "_ActionToWorker"."A"
+            WHERE "Action"."tenantId" = @tenantId AND "Action"."actionId" = sqlc.narg('actionId')::text
+        )
+    )
+    AND (
+        sqlc.narg('lastHeartbeatAfter')::timestamp IS NULL OR
+        workers."lastHeartbeatAt" > sqlc.narg('lastHeartbeatAfter')::timestamp
+    )
+    AND (
+        sqlc.narg('assignable')::boolean IS NULL OR
+        (sqlc.narg('assignable')::boolean AND (
+            SELECT COALESCE(SUM(cap.max_units), 0)
+            FROM v1_worker_slot_config cap
+            WHERE cap.tenant_id = workers."tenantId" AND cap.worker_id = workers."id"
+        ) > (
+            SELECT COALESCE(SUM(runtime.units), 0)
+            FROM v1_task_runtime_slot runtime
+            WHERE runtime.tenant_id = workers."tenantId" AND runtime.worker_id = workers."id"
+        ))
+    )
+    AND (
+        sqlc.narg('statuses')::text[] IS NULL OR
+        CASE
+            WHEN workers."lastHeartbeatAt" IS NULL OR workers."lastHeartbeatAt" <= NOW() - INTERVAL '5 seconds' THEN 'INACTIVE'
+            WHEN workers."isPaused" = true THEN 'PAUSED'
+            ELSE 'ACTIVE'
+        END = ANY(sqlc.narg('statuses')::text[])
+    );
 
 -- name: GetWorkerById :one
 SELECT
@@ -247,19 +299,27 @@ GROUP BY "tenantId"
 ;
 
 -- name: GetWorkerActionsByWorkerId :many
-WITH inputs AS (
-    SELECT UNNEST(@workerIds::UUID[]) AS "workerId"
-)
-
 SELECT
     w."id" AS "workerId",
     a."actionId" AS actionId
 FROM "Worker" w
-JOIN inputs i ON w."id" = i."workerId"
-LEFT JOIN "_ActionToWorker" aw ON w.id = aw."B"
-LEFT JOIN "Action" a ON aw."A" = a.id
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
 WHERE
     a."tenantId" = @tenantId::UUID
+    AND w.id = ANY(@workerIds::UUID[])
+;
+
+-- name: GetWorkerActionsByWorkerActionHash :many
+SELECT DISTINCT
+    w."actionHash" AS action_hash,
+    a."actionId" AS action_id
+FROM "Worker" w
+JOIN "_ActionToWorker" aw ON w.id = aw."B"
+JOIN "Action" a ON aw."A" = a.id
+WHERE
+    w."tenantId" = @tenantId::UUID
+    AND w."actionHash" = ANY(@actionHashes::BYTEA[])
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many
@@ -438,7 +498,8 @@ INSERT INTO "Worker" (
     "language",
     "languageVersion",
     "os",
-    "runtimeExtra"
+    "runtimeExtra",
+    "actionHash"
 ) VALUES (
     gen_random_uuid(),
     CURRENT_TIMESTAMP,
@@ -451,7 +512,8 @@ INSERT INTO "Worker" (
     sqlc.narg('language')::"WorkerSDKS",
     sqlc.narg('languageVersion')::text,
     sqlc.narg('os')::text,
-    sqlc.narg('runtimeExtra')::text
+    sqlc.narg('runtimeExtra')::text,
+    @actionHash::bytea
 ) RETURNING *;
 
 -- name: LinkServicesToWorker :exec

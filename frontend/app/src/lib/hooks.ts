@@ -1,11 +1,29 @@
-import api, { APIErrors } from './api';
+import api, { APIError, APIErrors } from './api';
 import { controlPlaneApi } from './api/api';
 import { getFieldErrors } from './utils';
-import { useToast } from '@/components/hooks/use-toast';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { Dispatch, SetStateAction } from 'react';
+
+function isAPIErrors(data: unknown): data is APIErrors {
+  return (
+    !!data &&
+    typeof data === 'object' &&
+    Array.isArray((data as Partial<APIErrors>).errors)
+  );
+}
+
+function isAPIError(data: unknown): data is APIError {
+  return (
+    !!data &&
+    typeof data === 'object' &&
+    typeof (data as Partial<APIError>).description === 'string'
+  );
+}
+
+const GENERIC_MESSAGE = 'An internal error occurred.';
 
 export function useApiError(
   props: {
@@ -33,46 +51,40 @@ export function useApiError(
 
   const handleError = (error: AxiosError) => {
     console.log(error);
-    if (error.response?.status) {
-      if (error.response?.status >= 500) {
-        handler(['An internal error occurred.']);
 
+    const status = error.response?.status;
+    const data: unknown = error.response?.data;
+
+    if (status !== undefined && status >= 500) {
+      handler([GENERIC_MESSAGE]);
+      return;
+    }
+
+    if (status === 400 && isAPIErrors(data) && data.errors.length > 0) {
+      const fieldErrors = getFieldErrors(data);
+
+      if (Object.keys(fieldErrors).length !== 0) {
+        if (props.setFieldErrors) {
+          props.setFieldErrors(fieldErrors);
+        }
+        if (props.setErrors) {
+          props.setErrors(Object.values(fieldErrors));
+        }
         return;
       }
     }
 
-    const apiErrors = error.response?.data as APIErrors;
-
-    if (error.response?.status === 400) {
-      if (apiErrors && apiErrors.errors && apiErrors.errors.length > 0) {
-        const fieldErrors = getFieldErrors(apiErrors);
-
-        if (Object.keys(fieldErrors).length != 0) {
-          if (props.setFieldErrors) {
-            props.setFieldErrors(fieldErrors);
-          }
-
-          if (props.setErrors) {
-            const errors = Object.values(fieldErrors);
-            props.setErrors(errors);
-          }
-
-          return;
-        }
-      }
-    }
-
-    if (!apiErrors || !apiErrors.errors || apiErrors.errors.length === 0) {
-      handler(['An internal error occurred.']);
-
+    if (isAPIErrors(data) && data.errors.length > 0) {
+      handler(data.errors.map((e) => e.description || GENERIC_MESSAGE));
       return;
     }
 
-    handler(
-      apiErrors.errors.map(
-        (error) => error.description || 'An internal error occurred.',
-      ),
-    );
+    if (isAPIError(data)) {
+      handler([data.description || GENERIC_MESSAGE]);
+      return;
+    }
+
+    handler([GENERIC_MESSAGE]);
   };
 
   return {

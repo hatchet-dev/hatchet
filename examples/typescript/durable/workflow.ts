@@ -16,8 +16,8 @@ export const durableWorkflow = hatchet.workflow({
 
 durableWorkflow.task({
   name: 'ephemeral_task',
-  fn: async () => {
-    console.log('Running non-durable task');
+  fn: async (_, ctx) => {
+    ctx.logger.info('Running non-durable task');
   },
 });
 
@@ -25,13 +25,13 @@ durableWorkflow.durableTask({
   name: 'durable_task',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
-    console.log('Waiting for sleep');
+    ctx.logger.info('Waiting for sleep');
     const sleepResult = await ctx.sleepFor(SLEEP_TIME, { label: 'waiting for sleep' });
-    console.log('Sleep finished');
+    ctx.logger.info('Sleep finished');
 
-    console.log('Waiting for event');
+    ctx.logger.info('Waiting for event');
     const event = await ctx.waitForEvent(EVENT_KEY, 'true');
-    console.log('Event received');
+    ctx.logger.info('Event received');
 
     return {
       status: 'success',

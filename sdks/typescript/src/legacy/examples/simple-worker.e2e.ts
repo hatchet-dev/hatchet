@@ -1,6 +1,8 @@
 import { Workflow, Worker } from '../..';
 import sleep from '../../util/sleep';
 import Hatchet from '../../sdk';
+import {poll} from "@hatchet/v1/examples/__e2e__/harness";
+import {V1TaskEventType, V1TaskStatus} from "@clients/rest/generated/data-contracts";
 
 describe('e2e', () => {
   let hatchet: Hatchet;
@@ -64,10 +66,18 @@ describe('e2e', () => {
       test: 'test',
     });
 
-    await sleep(10000);
-
     console.log('invoked', invoked);
-
+    await poll(
+      async () => {
+        return invoked;
+      },
+      {
+        timeoutMs: 60_000,
+        intervalMs: 400,
+        label: 'nonRetryableWorkflow terminal with events',
+        shouldStop: (d) => d >= 2,
+      }
+    );
     expect(invoked).toEqual(2);
 
     await worker.stop();

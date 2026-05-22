@@ -595,8 +595,8 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 		return nil, nil, fmt.Errorf("failed to start worker: %w", err)
 	}
 
-	// Give the worker a moment to register
-	time.Sleep(2 * time.Second)
+	// Give the worker a moment to register with the server
+	time.Sleep(5 * time.Second)
 
 	return worker, cleanup, nil
 }
