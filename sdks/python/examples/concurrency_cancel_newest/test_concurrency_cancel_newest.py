@@ -52,8 +52,6 @@ async def test_run(hatchet: Hatchet) -> None:
     assert successful_run.run.status == V1TaskStatus.COMPLETED
     assert all(
         r.status == V1TaskStatus.CANCELLED
-        for r in hatchet.runs.list(
-            additional_metadata={"test_run_id": test_run_id}
-        ).rows
+        for r in hatchet.runs.list(additional_metadata={"test_run_id": test_run_id})
         if r.metadata.id != to_run.workflow_run_id
     )

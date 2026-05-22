@@ -37,10 +37,10 @@ async def test_additional_metadata_propagation(hatchet: Hatchet) -> None:
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    assert runs.rows
+    assert runs
 
     """Assert that the additional metadata is propagated to the child runs."""
-    for run in runs.rows:
+    for run in runs:
         assert run.additional_metadata
         assert run.additional_metadata["test_run_id"] == test_run_id
 

@@ -93,9 +93,7 @@ async def test_priority(
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
-    ).rows
+    workflows = await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
 
     assert workflows
 
@@ -120,7 +118,7 @@ async def test_priority(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -195,15 +193,13 @@ async def test_priority_via_scheduling(
             limit=1_000,
         )
 
-        if not runs.rows:
+        if not runs:
             continue
 
-        if any(
-            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
-        ):
+        if any(r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+        if all(r.status == V1TaskStatus.COMPLETED for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -213,7 +209,7 @@ async def test_priority_via_scheduling(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -306,15 +302,13 @@ async def test_priority_via_cron(
             limit=1_000,
         )
 
-        if not runs.rows:
+        if not runs:
             continue
 
-        if any(
-            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
-        ):
+        if any(r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+        if all(r.status == V1TaskStatus.COMPLETED for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -324,7 +318,7 @@ async def test_priority_via_cron(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )

@@ -76,12 +76,10 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(
-            workflow_name=concurrency_multiple_keys_workflow.name,
-            limit=1_000,
-        )
-    ).rows
+    workflows = await hatchet.workflows.aio_list(
+        workflow_name=concurrency_multiple_keys_workflow.name,
+        limit=1_000,
+    )
 
     assert workflows
 
@@ -103,7 +101,7 @@ async def test_multi_concurrency_key(hatchet: Hatchet) -> None:
     )
 
     sorted_runs = sorted(
-        [RunMetadata.parse(r) for r in runs.rows], key=lambda r: r.started_at
+        [RunMetadata.parse(r) for r in runs], key=lambda r: r.started_at
     )
 
     overlapping_groups: dict[int, list[RunMetadata]] = {}

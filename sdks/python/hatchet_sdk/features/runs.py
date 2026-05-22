@@ -5,7 +5,6 @@ import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, overload
-from warnings import warn
 
 from pydantic import BaseModel, model_validator
 
@@ -29,7 +28,6 @@ from hatchet_sdk.clients.rest.models.v1_replay_task_request import V1ReplayTaskR
 from hatchet_sdk.clients.rest.models.v1_task_filter import V1TaskFilter
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_trigger_workflow_run_request import (
     V1TriggerWorkflowRunRequest,
 )

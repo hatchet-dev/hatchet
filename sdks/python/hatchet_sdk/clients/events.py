@@ -11,7 +11,6 @@ from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
 from hatchet_sdk.clients.rest.api_client import ApiClient
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
-from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import (
@@ -73,6 +72,7 @@ class Event(BaseModel):
     additional_metadata: str | None = None
     scope: str | None = None
     seen_at: datetime.datetime
+    triggering_webhook_name: str | None = None
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
@@ -281,7 +281,7 @@ class EventClient(BaseRestClient):
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> V1EventList:
+    ) -> list[V1Event]:
         return await asyncio.to_thread(
             self.list,
             offset=offset,
@@ -308,9 +308,9 @@ class EventClient(BaseRestClient):
         event_ids: list[str] | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         scopes: list[str] | None = None,
-    ) -> V1EventList:
+    ) -> list[V1Event]:
         with self.client() as client:
-            return self._ea(client).v1_event_list(
+            el = self._ea(client).v1_event_list(
                 tenant=self.client_config.tenant_id,
                 offset=offset,
                 limit=limit,
@@ -325,6 +325,8 @@ class EventClient(BaseRestClient):
                 ),
                 scopes=scopes,
             )
+
+            return el.rows or []
 
     def get(
         self,

@@ -35,12 +35,12 @@ async def wait_for_event(
     )
     async def get_events() -> V1Event | None:
         events = await hatchet.event.aio_list(since=test_start)
-        if not events.rows:
+        if not events:
             raise Exception()
         filtered_event = next(
             (
                 event
-                for event in events.rows
+                for event in events
                 if event.triggering_webhook_name == webhook_name
             ),
             None,
@@ -68,7 +68,7 @@ async def wait_for_workflow_run(
                 "hatchet__event_id": event_id,
             },
         )
-        for row in runs.rows:
+        for row in runs:
             if row.status == V1TaskStatus.COMPLETED:
                 return row
         raise Exception()

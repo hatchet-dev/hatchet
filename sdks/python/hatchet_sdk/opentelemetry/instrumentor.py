@@ -636,9 +636,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.ACTION_PAYLOAD: payload,
-            OTelAttribute.PARENT_ID: options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: options.child_index,
             OTelAttribute.CHILD_KEY: options.child_key,
             OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -695,9 +692,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.WORKFLOW_NAME: workflow_name,
             OTelAttribute.ACTION_PAYLOAD: payload,
-            OTelAttribute.PARENT_ID: options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: options.child_index,
             OTelAttribute.CHILD_KEY: options.child_key,
             OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -771,9 +765,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 [ts.isoformat() for ts in schedules]
             ),
             OTelAttribute.ACTION_PAYLOAD: input,
-            OTelAttribute.PARENT_ID: options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: options.child_index,
             OTelAttribute.CHILD_KEY: options.child_key,
             OTelAttribute.NAMESPACE: options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -955,9 +946,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                     for k, v in {
                         OTelAttribute.WORKFLOW_NAME: config.workflow_name,
                         OTelAttribute.ACTION_PAYLOAD: config.input,
-                        OTelAttribute.PARENT_ID: config.options.parent_id,
-                        OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
-                        OTelAttribute.CHILD_INDEX: config.options.child_index,
                         OTelAttribute.CHILD_KEY: config.options.child_key,
                         OTelAttribute.NAMESPACE: config.options.namespace,
                         OTelAttribute.ADDITIONAL_METADATA: json.dumps(

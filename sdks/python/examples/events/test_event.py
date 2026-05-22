@@ -88,14 +88,14 @@ async def fetch_runs_for_event(
         [
             r.status
             in [V1TaskStatus.COMPLETED, V1TaskStatus.FAILED, V1TaskStatus.CANCELLED]
-            for r in runs.rows
+            for r in runs
         ]
     ):
         return (processed_event, [])
 
     return (
         processed_event,
-        runs.rows or [],
+        runs or [],
     )
 
 
@@ -106,7 +106,7 @@ async def wait_for_result(
 
     since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
 
-    persisted = (await hatchet.event.aio_list(limit=100, since=since)).rows or []
+    persisted = (await hatchet.event.aio_list(limit=100, since=since)) or []
 
     assert {e.event_id for e in events}.issubset({e.metadata.id for e in persisted})
 
@@ -572,4 +572,4 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
                     additional_metadata={"test_run_id": test_run_id},
                 )
 
-                assert len(runs.rows) == 1
+                assert len(runs) == 1

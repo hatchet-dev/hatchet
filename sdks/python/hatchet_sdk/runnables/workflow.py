@@ -421,10 +421,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         workflows = self._client.workflows.list(workflow_name=self.name)
 
-        if not workflows.rows:
+        if not workflows:
             raise ValueError(f"No id found for {self.name}")
 
-        for workflow in workflows.rows:
+        for workflow in workflows:
             if workflow.name == self.name:
                 return workflow.metadata.id
 
@@ -459,7 +459,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return self._client.runs.list_with_pagination(
+        return self._client.runs.list(
             workflow_ids=[self.id],
             since=since,
             only_tasks=only_tasks,
@@ -502,7 +502,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
         :returns: A list of `V1TaskSummary` objects representing the runs of the workflow.
         """
-        return await self._client.runs.aio_list_with_pagination(
+        return await self._client.runs.aio_list(
             workflow_ids=[self.id],
             since=since,
             only_tasks=only_tasks,

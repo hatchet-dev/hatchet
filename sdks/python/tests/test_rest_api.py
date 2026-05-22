@@ -24,7 +24,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
         )
 
         for v in dag_result.values():
-            if v not in [r.output for r in runs.rows]:
+            if v not in [r.output for r in runs]:
                 raise Exception()
         return True
 
@@ -49,14 +49,14 @@ async def test_get_run(hatchet: Hatchet) -> None:
 async def test_list_workflows(hatchet: Hatchet) -> None:
     workflows = await hatchet.workflows.aio_list(workflow_name=dag_workflow.name)
 
-    assert workflows.rows
-    assert len(workflows.rows) >= 1
+    assert workflows
+    assert len(workflows) >= 1
 
     relevant_wf = next(
         iter(
             [
                 wf
-                for wf in workflows.rows
+                for wf in workflows
                 if wf.name == hatchet.config.apply_namespace(dag_workflow.name)
             ]
         ),

@@ -80,7 +80,7 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def get_runs() -> V1TaskSummaryList:
+    async def get_runs() -> list[V1TaskSummary]:
         runs = await hatchet.runs.aio_list(
             workflow_ids=workflow_ids,
             since=test_start,
@@ -97,28 +97,24 @@ async def test_bulk_replay(hatchet: Hatchet) -> None:
                 and r.attempt >= 2
             )
 
-        for r in runs.rows:
+        for r in runs:
             if not predicate(r):
                 raise Exception
         return runs
 
     runs = await get_runs()
 
-    assert len(runs.rows) == n + 1 + (n // 2 - 1) + (n // 2 - 2)
+    assert len(runs) == n + 1 + (n // 2 - 1) + (n // 2 - 2)
 
-    for run in runs.rows:
+    for run in runs:
         assert run.status == V1TaskStatus.COMPLETED
         assert run.retry_count and run.retry_count >= 1
         assert run.attempt and run.attempt >= 2
 
+    assert len([r for r in runs if r.workflow_id == bulk_replay_test_1.id]) == n + 1
     assert (
-        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_1.id]) == n + 1
+        len([r for r in runs if r.workflow_id == bulk_replay_test_2.id]) == n // 2 - 1
     )
     assert (
-        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_2.id])
-        == n // 2 - 1
-    )
-    assert (
-        len([r for r in runs.rows if r.workflow_id == bulk_replay_test_3.id])
-        == n // 2 - 2
+        len([r for r in runs if r.workflow_id == bulk_replay_test_3.id]) == n // 2 - 2
     )
