@@ -1,6 +1,5 @@
 from hatchet_sdk.runnables.task import Depends
 from hatchet_sdk import Context
-from hatchet_sdk.runnables.types import EmptyModel
 from typing import Annotated, TypeAlias
 
 
