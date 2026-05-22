@@ -1,8 +1,8 @@
-// > Declaring a Task
 import { hatchet } from '../hatchet-client';
 import { z } from 'zod/v4';
 
-// Note that for agent tools, Zod must be used to create the input and output types for workflows/tasks
+// > Models
+// Agent tools require a Zod v4 inputValidator so the SDK can generate the tool input schema.
 const TemperatureCoordinates = z.object({
   latitude: z.number(),
   longitude: z.number(),
@@ -22,18 +22,11 @@ const temperatureRequest = async (input: TemperatureInputWithZod) => {
   const data: any = await response.json();
 
   return {
-    text: `Temperature: ${data.current.temperature_2m}°F`,
+    text: `Temperature in ${input.locationName}: ${data.current.temperature_2m}°F`,
   };
 };
 
-export const getTemperature = hatchet.task({
-  name: 'getTemperature',
-  retries: 3,
-  fn: temperatureRequest,
-  inputValidator: TemperatureInput,
-  description: 'Get the current temperature at a location',
-});
-
+// > Workflow definition
 export const getTemperatureWorkflow = hatchet.workflow<TemperatureInputWithZod>({
   name: 'getTemperatureWorkflow',
   inputValidator: TemperatureInput,
@@ -45,3 +38,28 @@ getTemperatureWorkflow.task({
   fn: temperatureRequest,
 });
 
+// > Standalone task
+export const getTemperature = hatchet.task({
+  name: 'getTemperature',
+  retries: 3,
+  fn: temperatureRequest,
+  inputValidator: TemperatureInput,
+  description: 'Get the current temperature at a location',
+});
+
+// > Create MCP tools
+export function createTemperatureWorkflowToolClaude() {
+  return getTemperatureWorkflow.mcpTool('claude');
+}
+
+export function createTemperatureWorkflowToolOpenai() {
+  return getTemperatureWorkflow.mcpTool('openai');
+}
+
+export function createTemperatureTaskToolClaude() {
+  return getTemperature.mcpTool('claude');
+}
+
+export function createTemperatureTaskToolOpenai() {
+  return getTemperature.mcpTool('openai');
+}
