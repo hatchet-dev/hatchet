@@ -207,16 +207,16 @@ To test the full round trip between the agent and the Hatchet-backed tool, start
 
     ```bash
     cd sdks/typescript
-    pnpm exec ts-node -r tsconfig-paths/register -P tsconfig.json src/v1/examples/agent/worker.ts
+    pnpm exec tsx -r tsconfig-paths/register src/v1/examples/agent/worker.ts
     ```
 
     In a second terminal, run the Claude or OpenAI agent example:
 
     ```bash
     cd sdks/typescript
-    pnpm exec ts-node -r tsconfig-paths/register -P tsconfig.json src/v1/examples/agent/agent-claude.ts
+    pnpm exec tsx -r tsconfig-paths/register src/v1/examples/agent/agent-claude.ts
     # or
-    pnpm exec ts-node -r tsconfig-paths/register -P tsconfig.json src/v1/examples/agent/agent-openai.ts
+    pnpm exec tsx -r tsconfig-paths/register src/v1/examples/agent/agent-openai.ts
     ```
 
   </Tabs.Tab>

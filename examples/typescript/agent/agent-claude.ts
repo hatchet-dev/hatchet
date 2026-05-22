@@ -3,8 +3,8 @@ import { createTemperatureWorkflowToolClaude } from './workflow';
 async function main() {
   const temperatureTool = createTemperatureWorkflowToolClaude();
 
-  // Dynamic import — the Claude Agent SDK is ESM-only, so we use import()
-  // instead of a static import to avoid ERR_REQUIRE_ESM under ts-node/CJS.
+  // The Claude Agent SDK is ESM-only, so avoid loading it at module import time.
+  // Run this example with an ESM-compatible TypeScript runner.
   const { query, createSdkMcpServer } = await import('@anthropic-ai/claude-agent-sdk');
 
   // Wrap the tool in an in-process MCP server
