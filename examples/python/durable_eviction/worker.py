@@ -94,7 +94,7 @@ async def evictable_child_bulk_spawn(
                 input=BulkChildTaskInput(
                     sleep_for=timedelta(seconds=(EVICTION_TTL_SECONDS + 5) * (i + 1))
                 ),
-                key=f"child{i}",
+                child_key=f"child{i}",
             )
             for i in range(3)
         ]

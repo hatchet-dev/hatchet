@@ -37,9 +37,7 @@ class TestOutput(BaseModel):
     final_result: str
 
 
-serde_workflow = hatchet.workflow(
-    name="serde-example-workflow", input_validator=EmptyModel
-)
+serde_workflow = hatchet.workflow(name="serde-example-workflow")
 
 
 @serde_workflow.task()
@@ -55,6 +53,7 @@ def read_result(input: None, ctx: Context) -> TestOutput:
 def main() -> None:
     worker = hatchet.worker("test-worker", workflows=[serde_workflow])
     worker.start()
+
 
 
 if __name__ == "__main__":

@@ -18,6 +18,8 @@ def step1(input: None, ctx: Context) -> dict[str, str]:
     }
 
 
+
+
 def main() -> None:
     worker = hatchet.worker("test-worker", slots=1, workflows=[cron_workflow])
     worker.start()

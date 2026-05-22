@@ -3,7 +3,6 @@ from typing import Any
 from examples.child.worker import SimpleInput, child_task
 from hatchet_sdk.context.context import Context
 from hatchet_sdk.hatchet import Hatchet
-from hatchet_sdk.runnables.types import EmptyModel
 
 hatchet = Hatchet()
 
@@ -17,3 +16,5 @@ async def spawn(input: None, ctx: Context) -> dict[str, Any]:
     )
 
     return {"results": result}
+
+

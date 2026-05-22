@@ -12,6 +12,8 @@ def always_fail(input: None, ctx: Context) -> dict[str, str]:
     raise Exception("simple task failed")
 
 
+
+
 # > Retries with Count
 @simple_workflow.task(retries=3)
 def fail_twice(input: None, ctx: Context) -> dict[str, str]:
@@ -19,6 +21,8 @@ def fail_twice(input: None, ctx: Context) -> dict[str, str]:
         raise Exception("simple task failed")
 
     return {"status": "success"}
+
+
 
 
 # > Retries with Backoff
@@ -35,6 +39,8 @@ def backoff_task(input: None, ctx: Context) -> dict[str, str]:
         raise Exception("backoff task failed")
 
     return {"status": "success"}
+
+
 
 
 def main() -> None:

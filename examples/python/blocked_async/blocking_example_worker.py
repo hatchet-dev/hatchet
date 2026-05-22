@@ -30,6 +30,8 @@ async def blocking(input: None, ctx: Context) -> None:
         time.sleep(1)
 
 
+
+
 def main() -> None:
     worker = hatchet.worker(
         "test-worker", workflows=[non_blocking_async, non_blocking_sync, blocking]

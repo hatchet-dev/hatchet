@@ -24,6 +24,7 @@ def root_logger(input: None, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
+
 # > ContextLogger
 
 
@@ -36,3 +37,5 @@ def context_logger(input: None, ctx: Context) -> dict[str, str]:
         time.sleep(0.1)
 
     return {"status": "success"}
+
+

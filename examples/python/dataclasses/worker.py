@@ -15,6 +15,8 @@ class Output:
     message: str
 
 
+
+
 hatchet = Hatchet()
 
 
@@ -22,6 +24,8 @@ hatchet = Hatchet()
 @hatchet.task(input_validator=Input)
 def say_hello(input: Input, ctx: Context) -> Output:
     return Output(message=f"Hello, {input.name}!")
+
+
 
 
 def main() -> None:

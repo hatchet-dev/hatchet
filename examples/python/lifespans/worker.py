@@ -38,6 +38,8 @@ def sync_lifespan_task(input: None, ctx: Context) -> TaskOutput:
         )
 
 
+
+
 @lifespan_workflow.task()
 async def async_lifespan_task(input: None, ctx: Context) -> TaskOutput:
     pool = cast(Lifespan, ctx.lifespan).pool

@@ -25,3 +25,5 @@ async def hello_from_hatchet(input: None, ctx: Context) -> dict[str, int]:
         results = await asyncio.gather(*tasks)
 
         return {"count": results.count(True)}
+
+

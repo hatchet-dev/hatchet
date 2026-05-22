@@ -209,7 +209,6 @@ __all__ = [
     "Depends",
     "DesiredWorkerLabel",
     "DurableContext",
-    "EmptyModel",
     "Event",
     "EventData",
     "EventKeyList",

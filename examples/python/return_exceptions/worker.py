@@ -1,9 +1,10 @@
 from hatchet_sdk import Context, Hatchet
+from pydantic import BaseModel
 
 hatchet = Hatchet()
 
 
-class Input(EmptyModel):
+class Input(BaseModel):
     index: int
 
 

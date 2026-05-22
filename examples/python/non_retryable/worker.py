@@ -12,6 +12,8 @@ def should_not_retry(input: None, ctx: Context) -> None:
     raise NonRetryableException("This task should not retry")
 
 
+
+
 @non_retryable_workflow.task(retries=1)
 def should_retry_wrong_exception_type(input: None, ctx: Context) -> None:
     raise TypeError("This task should retry because it's not a NonRetryableException")

@@ -32,6 +32,8 @@ async def stream_task(input: None, ctx: Context) -> None:
         await asyncio.sleep(0.20)
 
 
+
+
 def main() -> None:
     worker = hatchet.worker("test-worker", workflows=[stream_task])
     worker.start()

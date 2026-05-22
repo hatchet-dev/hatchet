@@ -27,6 +27,7 @@ def step1(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
+
 # > Task with parents
 
 
@@ -41,6 +42,8 @@ async def step3(input: None, ctx: Context) -> RandomSum:
     two = ctx.task_output(step2).random_number
 
     return RandomSum(sum=one + two)
+
+
 
 
 @dag_workflow.task(parents=[step1, step3])
@@ -62,6 +65,7 @@ def main() -> None:
     worker = hatchet.worker("dag-worker", workflows=[dag_workflow])
 
     worker.start()
+
 
 
 if __name__ == "__main__":

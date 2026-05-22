@@ -1,6 +1,5 @@
 from hatchet_sdk import (
     Context,
-    EmptyModel,
     Hatchet,
     StickyStrategy,
 )
@@ -27,6 +26,7 @@ def step1b(input: None, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker_id}
 
 
+
 # > StickyChild
 
 sticky_child_workflow = hatchet.workflow(
@@ -49,6 +49,8 @@ async def step2(input: None, ctx: Context) -> dict[str, str | None]:
 @sticky_child_workflow.task()
 def child(input: None, ctx: Context) -> dict[str, str | None]:
     return {"worker": ctx.worker_id}
+
+
 
 
 def main() -> None:

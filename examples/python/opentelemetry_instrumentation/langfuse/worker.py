@@ -31,6 +31,8 @@ async def langfuse_task(input: None, ctx: Context) -> dict[str, str | None]:
     }
 
 
+
+
 def main() -> None:
     worker = hatchet.worker("langfuse-example-worker", workflows=[langfuse_task])
     worker.start()

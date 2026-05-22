@@ -21,6 +21,8 @@ async def self_cancel(input: None, ctx: Context) -> dict[str, str]:
     return {"error": "Task should have been cancelled"}
 
 
+
+
 # > Checking exit flag
 @cancellation_workflow.task()
 def check_flag(input: None, ctx: Context) -> dict[str, str]:
@@ -34,6 +36,8 @@ def check_flag(input: None, ctx: Context) -> dict[str, str]:
             raise ValueError("Task has been cancelled")
 
     return {"error": "Task should have been cancelled"}
+
+
 
 
 def main() -> None:

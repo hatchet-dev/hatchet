@@ -33,6 +33,8 @@ def on_failure(input: None, ctx: Context) -> dict[str, str]:
     return {"status": "success"}
 
 
+
+
 # > OnFailure With Details
 # We can access the failure details in the onFailure step
 # via the context method
@@ -64,6 +66,8 @@ def details_on_failure(input: None, ctx: Context) -> dict[str, str | None]:
         }
 
     raise Exception("unexpected failure")
+
+
 
 
 def main() -> None:
