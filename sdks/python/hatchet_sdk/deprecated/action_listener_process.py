@@ -59,7 +59,6 @@ class LegacyWorkerActionListenerProcess:
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
-        debug: bool,
         labels: list[WorkerLabel],
     ) -> None:
         self.name = name
@@ -68,7 +67,6 @@ class LegacyWorkerActionListenerProcess:
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
-        self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
 
@@ -90,7 +88,7 @@ class LegacyWorkerActionListenerProcess:
             asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
         ] = set()
 
-        if self.debug:
+        if self.config.debug:
             logger.setLevel(logging.DEBUG)
 
         self._workers_client = WorkersClient(self.config)
@@ -481,7 +479,6 @@ def legacy_worker_action_listener_process(
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
-    debug: bool,
     labels: list[WorkerLabel],
 ) -> None:
     async def run() -> None:
@@ -493,7 +490,6 @@ def legacy_worker_action_listener_process(
             action_queue=action_queue,
             event_queue=event_queue,
             handle_kill=handle_kill,
-            debug=debug,
             labels=labels,
         )
         await process.start_health_server()
