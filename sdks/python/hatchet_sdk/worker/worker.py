@@ -15,7 +15,10 @@ from multiprocessing.process import BaseProcess
 from types import FrameType
 from typing import Any, TypeVar
 
-from hatchet_sdk.client import Client
+from hatchet_sdk.clients.admin import AdminClient
+from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
+from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.v1.workflows_pb2 import CreateWorkflowVersionRequest
 from hatchet_sdk.deprecated.deprecation import emit_deprecation_notice, semver_less_than
@@ -76,7 +79,6 @@ class Worker:
         config: ClientConfig,
         slot_config: dict[str, int],
         labels: dict[str, str | int] | None = None,
-        debug: bool = False,
         handle_kill: bool = True,
         workflows: list[BaseWorkflow[Any]] | None = None,
         lifespan: LifespanFn | None = None,
@@ -86,7 +88,6 @@ class Worker:
         self._slot_config = slot_config
         self._slots = slot_config.get("default", 0)
         self._durable_slots = slot_config.get("durable", 0)
-        self._debug = debug
 
         self._labels = (
             [WorkerLabel(key=k, value=v) for k, v in labels.items()] if labels else []
@@ -117,8 +118,6 @@ class Worker:
 
         self._loop: asyncio.AbstractEventLoop | None = None
 
-        self._client = Client(config=self._config, debug=self._debug)
-
         self._setup_signal_handlers()
 
         self._lifespan = lifespan
@@ -126,13 +125,22 @@ class Worker:
         self._lifespan_cleanup_complete: asyncio.Event | None = None
         self._workflows = workflows or []
 
+        self._dispatcher_client = DispatcherClient(config=self._config)
+        self._listener_client = RunEventListenerClient(self._config)
+        self._workflow_listener_client = PooledWorkflowRunListener(self._config)
+        self._admin_client = AdminClient(
+            config=self._config,
+            workflow_run_listener=self._workflow_listener_client,
+            workflow_run_event_listener=self._listener_client,
+        )
+
     @property
     def name(self) -> str:
         return self._name
 
     def register_workflow_from_opts(self, opts: CreateWorkflowVersionRequest) -> None:
         try:
-            self._client.admin.put_workflow(opts)
+            self._admin_client.put_workflow(opts)
         except Exception:
             logger.exception(f"failed to register workflow: {opts.name}")
             sys.exit(1)
@@ -143,7 +151,7 @@ class Worker:
             raise ValueError(msg)
 
         try:
-            self._client.admin.put_workflow(workflow.to_proto())
+            self._admin_client.put_workflow(workflow.to_proto())
         except Exception:
             logger.exception(f"failed to register workflow: {workflow.name}")
             sys.exit(1)
@@ -241,7 +249,7 @@ class Worker:
         version for slot_config support. Returns the version string for modern
         engines so callers can branch on specific versions.
         """
-        version = await self._client.dispatcher.get_version()
+        version = await self._dispatcher_client.get_version()
 
         if not version or semver_less_than(version, MinEngineVersion.SLOT_CONFIG):
             self._emit_legacy_slot_deprecation()
@@ -325,7 +333,6 @@ class Worker:
                 self._event_queue,
                 self._loop,
                 self._handle_kill,
-                self._client.debug,
                 self._labels,
                 lifespan_context,
                 engine_version=self._engine_version,
@@ -378,7 +385,6 @@ class Worker:
                     self._action_queue,
                     self._event_queue,
                     self._handle_kill,
-                    self._client.debug,
                     self._labels,
                 ),
             )

@@ -15,7 +15,6 @@ from aiohttp.web_response import Response
 from grpc.aio import UnaryUnaryCall
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
@@ -25,6 +24,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     StepActionEvent,
 )
 from hatchet_sdk.deprecated.dispatcher import legacy_get_action_listener
+from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
@@ -93,8 +93,7 @@ class LegacyWorkerActionListenerProcess:
         if self.debug:
             logger.setLevel(logging.DEBUG)
 
-        self.client = Client(config=self.config, debug=self.debug)
-
+        self._workers_client = WorkersClient(self.config)
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(
             signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment())
@@ -264,7 +263,7 @@ class LegacyWorkerActionListenerProcess:
         if self.listener is None:
             raise ValueError("listener not started")
 
-        await self.client.workers.aio_update(
+        await self._workers_client.aio_update(
             worker_id=self.listener.worker_id,
             opts=UpdateWorkerRequest(isPaused=True),
         )

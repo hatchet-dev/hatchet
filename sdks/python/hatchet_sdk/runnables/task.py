@@ -509,13 +509,13 @@ class Task(Generic[TWorkflowInput, R]):
 
         return constructor(
             action=action,
-            dispatcher_client=self._workflow._client._client.dispatcher,
-            admin_client=self._workflow._client._client.admin,
-            event_client=self._workflow._client._client.event,
+            dispatcher_client=self._workflow._client._dispatcher_client,
+            admin_client=self._workflow._client._admin_client,
+            event_client=self._workflow._client._event_client,
             durable_event_listener=None,
-            runs_client=self._workflow._client._client.runs,
+            runs_client=self._workflow._client._runs_client,
             lifespan_context=lifespan_context,
-            log_sender=AsyncLogSender(self._workflow._client._client.event),
+            log_sender=AsyncLogSender(self._workflow._client._event_client),
             max_attempts=self.retries + 1,
             task_name=self.name,
             workflow_name=self._workflow.name,

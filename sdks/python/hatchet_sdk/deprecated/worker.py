@@ -177,7 +177,7 @@ def _legacy_start_action_listener(
                 action_queue,
                 event_queue,
                 worker._handle_kill,
-                worker._client.debug,
+                worker._config.debug,
                 worker._labels,
             ),
         )
@@ -211,7 +211,6 @@ def _legacy_run_action_runner(
             event_queue,
             worker._loop,
             worker._handle_kill,
-            worker._client.debug,
             worker._labels,
             lifespan_context,
         )

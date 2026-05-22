@@ -3,7 +3,7 @@ import logging
 from multiprocessing import Queue
 from typing import Any, TypeVar
 
-from hatchet_sdk.client import Client
+from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
@@ -29,7 +29,6 @@ class WorkerActionRunLoopManager:
         event_queue: "Queue[ActionEvent]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
-        debug: bool,
         labels: list[WorkerLabel],
         lifespan_context: Any | None,
         engine_version: str | None = None,
@@ -43,20 +42,20 @@ class WorkerActionRunLoopManager:
         self.event_queue = event_queue
         self.loop = loop
         self.handle_kill = handle_kill
-        self.debug = debug
         self.labels = labels
         self.lifespan_context = lifespan_context
         self.engine_version = engine_version
+        self.config = config
 
-        if self.debug:
+        if self.config.debug:
             logger.setLevel(logging.DEBUG)
 
         self.killing = False
         self.runner: Runner | None = None
 
-        self.client = Client(config=self.config, debug=self.debug)
+        self._event_client = EventClient(config)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
-        self.log_sender = AsyncLogSender(self.client.event)
+        self.log_sender = AsyncLogSender(self._event_client)
         self.log_task = self.loop.create_task(self.log_sender.consume())
 
         self.start()
@@ -65,11 +64,11 @@ class WorkerActionRunLoopManager:
         self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
     async def aio_start(self, retry_count: int = 1) -> None:
-        if self.client.config.disable_log_capture:
+        if self.config.disable_log_capture:
             await self._async_start()
         else:
             await capture_logs(
-                self.client.log_interceptor,
+                self.config.logger,
                 self.log_sender,
                 self._async_start,
             )()

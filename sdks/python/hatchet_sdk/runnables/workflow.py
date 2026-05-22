@@ -585,7 +585,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             priority=priority,
         )
 
-        return self._client._client.admin.schedule_workflow(
+        return self._client._admin_client.schedule_workflow(
             name=self._config.name,
             schedules=[run_at],
             input=self._serialize_input(input, target="string"),
@@ -858,7 +858,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
 
-        ref = self._client._client.admin.run_workflow(
+        ref = self._client._admin_client.run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
@@ -958,7 +958,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             durable_spawn_result = durable_spawn_results[0]
 
             if not wait_for_result:
-                return self._client._client.admin.get_workflow_run(
+                return self._client._admin_client.get_workflow_run(
                     durable_spawn_result.workflow_run_external_id
                 )
 
@@ -968,7 +968,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 workflow_name=durable_spawn_result.workflow_name,
             )
 
-        ref = await self._client._client.admin.aio_run_workflow(
+        ref = await self._client._admin_client.aio_run_workflow(
             workflow_name=self._config.name,
             input=self._serialize_input(input, target="string"),
             options=opts,
@@ -1031,7 +1031,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param wait_for_result: If True, block until all runs complete and return results. If False, return a list of WorkflowRunRef immediately.
         :returns: A list of results for each workflow run, or a list of WorkflowRunRef if wait_for_result is False.
         """
-        refs = self._client._client.admin.run_workflows(
+        refs = self._client._admin_client.run_workflows(
             workflows=workflows,
         )
 
@@ -1089,7 +1089,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
             if not wait_for_result:
                 return [
-                    self._client._client.admin.get_workflow_run(
+                    self._client._admin_client.get_workflow_run(
                         durable_spawn_result.workflow_run_external_id
                     )
                     for durable_spawn_result in durable_spawn_results
@@ -1107,7 +1107,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 return_exceptions=return_exceptions,
             )
 
-        refs = await self._client._client.admin.aio_run_workflows(
+        refs = await self._client._admin_client.aio_run_workflows(
             workflows=workflows,
         )
 
@@ -1950,7 +1950,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param run_id: The ID of the run to get the reference for.
         :returns: A `TaskRunRef` object representing the reference to the task run.
         """
-        wrr = self._workflow._client._client.runs.get_run_ref(run_id)
+        wrr = self._workflow._client._runs_client.get_run_ref(run_id)
         return TaskRunRef[TWorkflowInput, R](self, wrr)
 
     async def aio_get_result(self, run_id: str) -> R:

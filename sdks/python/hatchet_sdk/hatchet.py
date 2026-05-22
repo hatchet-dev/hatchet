@@ -6,10 +6,11 @@ from typing import Any, Concatenate, ParamSpec, overload
 from pydantic import TypeAdapter
 
 from hatchet_sdk import Context, DurableContext
-from hatchet_sdk.client import Client
+from hatchet_sdk.clients.admin import AdminClient
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
+from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.features.cel import CELClient
 from hatchet_sdk.features.cron import CronClient
@@ -20,6 +21,7 @@ from hatchet_sdk.features.rate_limits import RateLimitsClient
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.features.scheduled import ScheduledClient
 from hatchet_sdk.features.stubs import StubsClient
+from hatchet_sdk.features.tenant import TenantClient
 from hatchet_sdk.features.webhooks import WebhooksClient
 from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.features.workflows import WorkflowsClient
@@ -61,82 +63,105 @@ class Hatchet:
         self,
         config: ClientConfig | None = None,
     ):
-        _config = config or ClientConfig()
+        self._config = config or ClientConfig()
 
-        if _config.debug:
+        if self._config.debug:
             logger.setLevel(logging.DEBUG)
 
-        self._client = Client(config=_config, debug=_config.debug)
+        self._dispatcher_client = DispatcherClient(self._config)
+        self._event_client = EventClient(self._config)
+        self._listener_client = RunEventListenerClient(self._config)
+        self._workflow_listener_client = PooledWorkflowRunListener(self._config)
+        self._cel_client = CELClient(self._config)
+        self._cron_client = CronClient(self._config)
+        self._filters_client = FiltersClient(self._config)
+        self._logs_client = LogsClient(self._config)
+        self._metrics_client = MetricsClient(self._config)
+        self._rate_limits_client = RateLimitsClient(self._config)
+        self._admin_client = AdminClient(
+            self._config, self._workflow_listener_client, self.listener
+        )
+        self._runs_client = RunsClient(
+            config=self._config,
+            workflow_run_event_listener=self.listener,
+            workflow_run_listener=self._workflow_listener_client,
+            admin_client=self._admin_client,
+        )
+        self._scheduled_client = ScheduledClient(self._config)
+        self._tenant_client = TenantClient(self._config)
+        self._webhooks_client = WebhooksClient(self._config)
+        self._workers_client = WorkersClient(self._config)
+        self._workflows_client = WorkflowsClient(self._config)
 
     @property
     def cel(self) -> CELClient:
         """
         The CEL client is a client for interacting with Hatchet's CEL API.
         """
-        return self._client.cel
+        return self._cel_client
 
     @property
     def cron(self) -> CronClient:
         """
         The cron client is a client for managing cron workflows within Hatchet.
         """
-        return self._client.cron
+        return self._cron_client
 
     @property
     def filters(self) -> FiltersClient:
         """
         The filters client is a client for interacting with Hatchet's filters API.
         """
-        return self._client.filters
+        return self._filters_client
 
     @property
     def logs(self) -> LogsClient:
         """
         The logs client is a client for interacting with Hatchet's logs API.
         """
-        return self._client.logs
+        return self._logs_client
 
     @property
     def metrics(self) -> MetricsClient:
         """
         The metrics client is a client for reading metrics out of Hatchet's metrics API.
         """
-        return self._client.metrics
+        return self._metrics_client
 
     @property
     def rate_limits(self) -> RateLimitsClient:
         """
         The rate limits client is a wrapper for Hatchet's gRPC API that makes it easier to work with rate limits in Hatchet.
         """
-        return self._client.rate_limits
+        return self._rate_limits_client
 
     @property
     def runs(self) -> RunsClient:
         """
         The runs client is a client for interacting with task and workflow runs within Hatchet.
         """
-        return self._client.runs
+        return self._runs_client
 
     @property
     def scheduled(self) -> ScheduledClient:
         """
         The scheduled client is a client for managing scheduled workflows within Hatchet.
         """
-        return self._client.scheduled
+        return self._scheduled_client
 
     @property
     def webhooks(self) -> WebhooksClient:
         """
         The webhooks client provides methods for managing webhook endpoints in Hatchet.
         """
-        return self._client.webhooks
+        return self._webhooks_client
 
     @property
     def workers(self) -> WorkersClient:
         """
         The workers client is a client for managing workers programmatically within Hatchet.
         """
-        return self._client.workers
+        return self._workers_client
 
     @property
     def workflows(self) -> WorkflowsClient:
@@ -145,22 +170,22 @@ class Hatchet:
 
         Note that workflows are the declaration, _not_ the individual runs. If you're looking for runs, use the `RunsClient` instead.
         """
-        return self._client.workflows
+        return self._workflows_client
 
     @property
     def dispatcher(self) -> DispatcherClient:
-        return self._client.dispatcher
+        return self._dispatcher_client
 
     @property
     def event(self) -> EventClient:
         """
         The event client, which you can use to push events to Hatchet.
         """
-        return self._client.event
+        return self._event_client
 
     @property
     def listener(self) -> RunEventListenerClient:
-        return self._client.listener
+        return self._listener_client
 
     @property
     def stubs(self) -> StubsClient:
@@ -168,21 +193,21 @@ class Hatchet:
 
     @property
     def config(self) -> ClientConfig:
-        return self._client.config
+        return self._config
 
     @property
     def tenant_id(self) -> str:
         """
         The tenant id you're operating in.
         """
-        return self._client.config.tenant_id
+        return self._config.tenant_id
 
     @property
     def namespace(self) -> str:
         """
         The current namespace you're interacting with.
         """
-        return self._client.config.namespace
+        return self._config.namespace
 
     async def aio_get_engine_version(self) -> str | None:
         """Fetch the engine version via the dispatcher's GetVersion RPC.
@@ -190,7 +215,7 @@ class Hatchet:
         :return: The engine version string, or ``None`` if the engine is too old
             to support GetVersion.
         """
-        return await self._client.dispatcher.get_version()
+        return await self.dispatcher.get_version()
 
     def worker(
         self,
@@ -233,8 +258,7 @@ class Hatchet:
             name=name,
             slot_config=normalize_slot_config(resolved_config),
             labels=labels,
-            config=self._client.config,
-            debug=self._client.debug,
+            config=self._config,
             workflows=workflows,
             lifespan=lifespan,
         )
