@@ -1454,7 +1454,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         parents: list[Task[TWorkflowInput, Any]] | None = None,
         retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
-        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: list[ConcurrencyExpression] | None = None,

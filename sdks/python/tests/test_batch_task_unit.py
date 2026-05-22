@@ -35,9 +35,10 @@ async def test_batch_flush_orders_by_index() -> None:
         slots=10,
         handle_kill=False,
         action_registry={action_id: step},
-        labels=None,
+        labels=[],
         lifespan_context=None,
         log_sender=cast(Any, object()),  # not used in these unit tests
+        durable_slots=100,
     )
 
     controller = runner._batch_controllers[action_id]
@@ -107,9 +108,10 @@ async def test_batch_flush_validates_output_length() -> None:
         slots=10,
         handle_kill=False,
         action_registry={action_id: step},
-        labels=None,
+        labels=[],
         lifespan_context=None,
         log_sender=cast(Any, object()),  # not used
+        durable_slots=100,
     )
     controller = runner._batch_controllers[action_id]
     loop = asyncio.get_running_loop()
@@ -158,9 +160,10 @@ async def test_batch_flush_fans_out_errors() -> None:
         slots=10,
         handle_kill=False,
         action_registry={action_id: step},
-        labels=None,
+        labels=[],
         lifespan_context=None,
         log_sender=cast(Any, object()),  # not used
+        durable_slots=100,
     )
     controller = runner._batch_controllers[action_id]
     loop = asyncio.get_running_loop()

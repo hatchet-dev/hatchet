@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta, timezone
 from random import choice
 from subprocess import Popen
-from typing import Any, Literal, cast
+from typing import Any, Literal
 from uuid import uuid4
 
 import pytest
@@ -91,7 +91,6 @@ async def test_priority(
         wait_for_result=False,
     )
 
-    run_refs = await priority_workflow.aio_run_many_no_wait(items)
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
     workflows = (

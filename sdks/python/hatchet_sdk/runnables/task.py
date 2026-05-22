@@ -184,7 +184,7 @@ class Task(Generic[TWorkflowInput, R]):
         slot_requests: dict[str, int] | None = None,
         eviction_policy: EvictionPolicy | None = None,
     ) -> None:
-        self.is_durable = is_durable
+        self._is_durable = is_durable
         self.batch = batch
         self.is_batch = batch is not None
         self.eviction_policy = eviction_policy
