@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,7 @@ func TestDAGPayloadFreshRunConcurrent(t *testing.T) {
 
 	for i, ref := range refs {
 		_, err := ref.Result()
+		fmt.Println("got one payload")
 		require.NoError(t, err, "run %d: step B failed (payload not propagated)", i)
 	}
 }
