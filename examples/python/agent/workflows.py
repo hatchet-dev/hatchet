@@ -1,4 +1,6 @@
 # > Agent
+from typing import Any
+
 import httpx
 from pydantic import BaseModel
 
@@ -82,19 +84,19 @@ async def get_temperature_standalone(
 
 
 # > Create MCP tools
-def create_temperature_workflow_tool_claude():
+def create_temperature_workflow_tool_claude() -> Any:
     return get_temperature_workflow.mcp_tool(MCPProvider.CLAUDE)
 
 
-def create_temperature_workflow_tool_openai():
+def create_temperature_workflow_tool_openai() -> Any:
     return get_temperature_workflow.mcp_tool(MCPProvider.OPENAI)
 
 
-def create_temperature_task_tool_claude():
+def create_temperature_task_tool_claude() -> Any:
     return get_temperature_standalone.mcp_tool(MCPProvider.CLAUDE)
 
 
-def create_temperature_task_tool_openai():
+def create_temperature_task_tool_openai() -> Any:
     return get_temperature_standalone.mcp_tool(MCPProvider.OPENAI)
 
 

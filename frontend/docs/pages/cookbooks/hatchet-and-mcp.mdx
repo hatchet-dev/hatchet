@@ -3,7 +3,7 @@ import UniversalTabs from "@/components/UniversalTabs";
 import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 
-# Hatchet and MCP: Exposing Workflows as Agent Tools
+# Hatchet and MCP: Exposing Tasks and Workflows as Agent Tools
 
 The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard for connecting AI agents to external tools, data sources, and services. This guide shows how to expose Hatchet [workflows](/v1/directed-acyclic-graphs) and [standalone tasks](/v1/tasks) as tools that frameworks like the Claude Agent SDK and OpenAI Agents SDK can invoke. Later cookbooks in this series will show how to integrate those tools into a full agent loop.
 
@@ -14,15 +14,19 @@ In this guide, we define a Hatchet workflow and a standalone task, each with a d
 This guide builds a temperature lookup tool backed by Hatchet. The workflow and standalone task call the [Open-Meteo API](https://open-meteo.com/) and return the current temperature for a given location. The same operation is implemented as both a workflow and a standalone task, so you can see how each becomes an agent tool.
 
 ```mermaid
-flowchart LR
-    A[AI Agent] -->|invokes tool| B[Tool handler]
-    B -->|submits run via gRPC and waits| C[Hatchet Engine]
-    C -->|dispatches work| D[Hatchet Worker]
-    D -->|executes code| E[Workflow or task]
-    E -->|result| D
-    D -->|reports result| C
-    C -->|run result| B
-    B -->|tool result| A
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Handler as Tool handler
+    participant Engine as Hatchet Engine
+    participant Worker as Hatchet Worker
+
+    Agent->>Handler: Invoke tool
+    Handler->>Engine: Submit run via gRPC and wait
+    Engine->>Worker: Dispatch work
+    Worker->>Worker: Execute workflow or task
+    Worker-->>Engine: Report result
+    Engine-->>Handler: Run result
+    Handler-->>Agent: Tool result
 ```
 
 The agent process contains the tool handler that submits the run, but it does not execute the workflow or task. Instead, a Hatchet worker executes the registered workflow or task and reports the result through Hatchet to the waiting tool handler. Since each tool call submits a run through Hatchet, the work the agent triggers gets the same observability and [core reliability guarantees](/v1/architecture-and-guarantees#core-reliability-guarantees) as any other Hatchet task or workflow.

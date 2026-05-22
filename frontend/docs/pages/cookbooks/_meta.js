@@ -19,5 +19,5 @@ export default {
     title: "Agent Patterns",
     type: "separator",
   },
-  "hatchet-and-mcp": "Hatchet and MCP",
+  "hatchet-and-mcp": "Hatchet Agent Tools",
 };
