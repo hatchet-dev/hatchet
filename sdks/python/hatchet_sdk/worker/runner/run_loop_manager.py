@@ -26,7 +26,7 @@ class WorkerActionRunLoopManager:
         durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
-        event_queue: "Queue[ActionEvent]",
+        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
         debug: bool,

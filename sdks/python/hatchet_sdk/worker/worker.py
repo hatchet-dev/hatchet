@@ -115,7 +115,7 @@ class Worker:
         self._action_queue: Queue[Action | STOP_LOOP_TYPE] = self._ctx.Queue()
         self._event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = self._ctx.Queue()
         self._durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
-        self._durable_event_queue: Queue[ActionEvent] | None = None
+        self._durable_event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] | None = None
 
         # The listener subprocess writes its worker_id here once it has
         # registered with the engine.  The worker reads it back so it can
@@ -266,7 +266,7 @@ class Worker:
         return self._action_queue
 
     @property
-    def event_queue(self) -> "Queue[ActionEvent]":
+    def event_queue(self) -> "Queue[ActionEvent | STOP_LOOP_TYPE]":
         warn(
             "The event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,
@@ -284,7 +284,7 @@ class Worker:
         return self._durable_action_queue
 
     @property
-    def durable_event_queue(self) -> "Queue[ActionEvent] | None":
+    def durable_event_queue(self) -> "Queue[ActionEvent | STOP_LOOP_TYPE] | None":
         warn(
             "The durable_event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,

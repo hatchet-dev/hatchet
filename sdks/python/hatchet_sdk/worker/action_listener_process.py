@@ -551,7 +551,9 @@ def worker_action_listener_process(
         # event_send_loop creates them as fire-and-forget; if we exit before
         # they complete asyncio.run() will cancel them, dropping completion events.
         if process.step_action_events:
-            await asyncio.gather(*list(process.step_action_events), return_exceptions=True)
+            await asyncio.gather(
+                *list(process.step_action_events), return_exceptions=True
+            )
 
         for task in [process.action_loop_task, process.blocked_main_loop]:
             if task is not None and not task.done():
