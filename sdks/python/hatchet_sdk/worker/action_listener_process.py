@@ -114,20 +114,6 @@ class WorkerActionListenerProcess:
 
         self.client = Client(config=self.config, debug=self.debug)
 
-        if self.handle_kill:
-            loop = asyncio.get_event_loop()
-            # OS-level signal fallback: only registered in the main thread (i.e.
-            # real subprocesses). Skipped when handle_kill=False (tests in threads).
-            loop.add_signal_handler(
-                signal.SIGINT, lambda: asyncio.create_task(self._stop_action_loop())
-            )
-            loop.add_signal_handler(
-                signal.SIGTERM, lambda: asyncio.create_task(self._stop_action_loop())
-            )
-            loop.add_signal_handler(
-                signal.SIGQUIT, lambda: asyncio.create_task(self._stop_action_loop())
-            )
-
         if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(
                 "hatchet_worker_listener_health",
