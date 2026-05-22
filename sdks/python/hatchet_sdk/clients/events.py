@@ -5,7 +5,7 @@ from datetime import timezone
 from typing import cast
 
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 from hatchet_sdk.clients.rest.api.event_api import EventApi
 from hatchet_sdk.clients.rest.api.workflow_runs_api import WorkflowRunsApi
@@ -73,8 +73,6 @@ class Event(BaseModel):
     additional_metadata: str | None = None
     scope: str | None = None
     seen_at: datetime.datetime
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
