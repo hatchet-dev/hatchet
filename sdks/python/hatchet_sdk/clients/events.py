@@ -70,20 +70,11 @@ class Event(BaseModel):
     event_id: str
     key: str
     payload: str
-    event_timestamp: timestamp_pb2.Timestamp
     additional_metadata: str | None = None
     scope: str | None = None
     seen_at: datetime.datetime
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @property
-    def eventTimestamp(self) -> timestamp_pb2.Timestamp:  # noqa: N802
-        return self.event_timestamp
-
-    @property
-    def additionalMetadata(self) -> str | None:  # noqa: N802
-        return self.additional_metadata
 
     @classmethod
     def from_proto(cls, proto: EventProto) -> "Event":
@@ -97,7 +88,6 @@ class Event(BaseModel):
             event_id=proto.event_id,
             key=proto.key,
             payload=proto.payload,
-            event_timestamp=proto.event_timestamp,
             additional_metadata=additional_metadata,
             scope=scope,
             seen_at=proto.event_timestamp.ToDatetime(tzinfo=timezone.utc),
