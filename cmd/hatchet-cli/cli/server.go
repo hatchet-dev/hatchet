@@ -31,15 +31,48 @@ var startCmd = &cobra.Command{
   hatchet server start --dashboard-port 9000 --grpc-port 8077 --project-name my-hatchet
 
   # Start server with custom profile name
-  hatchet server start --profile my-local`,
+  hatchet server start --profile my-local
+
+  # Start server with a specific hatchet-lite version
+  hatchet server start --tag v0.83.1
+
+  # Start server without pulling images (use local images only)
+  hatchet server start --pull-policy never
+
+  # Only pull images if they are not already available locally
+  hatchet server start --pull-policy missing`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get flag values
 		dashboardPort, _ := cmd.Flags().GetInt("dashboard-port")
 		grpcPort, _ := cmd.Flags().GetInt("grpc-port")
 		projectName, _ := cmd.Flags().GetString("project-name")
 		profileName, _ := cmd.Flags().GetString("profile")
+		tag, _ := cmd.Flags().GetString("tag")
+		pullPolicy, _ := cmd.Flags().GetString("pull-policy")
 
-		result, err := startLocalServer(cmd, profileName, dashboardPort, grpcPort, projectName)
+		opts := []docker.HatchetLiteOpt{}
+
+		if dashboardPort != 0 {
+			opts = append(opts, docker.WithOverrideDashboardPort(dashboardPort))
+		}
+
+		if grpcPort != 0 {
+			opts = append(opts, docker.WithOverrideGrpcPort(grpcPort))
+		}
+
+		if projectName != "" {
+			opts = append(opts, docker.WithProjectName(projectName))
+		}
+
+		if tag != "" {
+			opts = append(opts, docker.WithImageTag(tag))
+		}
+
+		if pullPolicy != "" {
+			opts = append(opts, docker.WithPullPolicy(pullPolicy))
+		}
+
+		result, err := startLocalServer(cmd, profileName, opts...)
 		if err != nil {
 			cli.Logger.Fatalf("%v", err)
 		}
@@ -94,7 +127,7 @@ type ServerStartResult struct {
 }
 
 // startLocalServer starts a local Hatchet server and returns connection details
-func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grpcPort int, projectName string) (*ServerStartResult, error) {
+func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.HatchetLiteOpt) (*ServerStartResult, error) {
 	dockerDriver, err := docker.NewDockerDriver(cmd.Context())
 	if err != nil {
 		return nil, fmt.Errorf("Docker is required to run a local server. Please ensure Docker is installed and running: %w", err)
@@ -104,7 +137,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grp
 	var actualDashboardPort, actualGrpcPort int
 
 	// Build options for RunHatchetLite
-	opts := []docker.HatchetLiteOpt{
+	allOpts := append(opts,
 		docker.WithCreateTokenCallback(func(tok string) {
 			token = tok
 		}),
@@ -112,21 +145,9 @@ func startLocalServer(cmd *cobra.Command, profileName string, dashboardPort, grp
 			actualDashboardPort = dashboard
 			actualGrpcPort = grpc
 		}),
-	}
+	)
 
-	if dashboardPort != 0 {
-		opts = append(opts, docker.WithOverrideDashboardPort(dashboardPort))
-	}
-
-	if grpcPort != 0 {
-		opts = append(opts, docker.WithOverrideGrpcPort(grpcPort))
-	}
-
-	if projectName != "" {
-		opts = append(opts, docker.WithProjectName(projectName))
-	}
-
-	err = dockerDriver.RunHatchetLite(cmd.Context(), opts...)
+	err = dockerDriver.RunHatchetLite(cmd.Context(), allOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start hatchet-lite container: %w", err)
 	}
@@ -183,6 +204,8 @@ func init() {
 	startCmd.Flags().IntP("grpc-port", "g", 0, "Port for the Hatchet gRPC server (default: auto-detect starting at 7077)")
 	startCmd.Flags().StringP("project-name", "p", "", "Docker project name for containers (default: hatchet-cli)")
 	startCmd.Flags().StringP("profile", "n", "local", "Name for the local profile (default: local)")
+	startCmd.Flags().StringP("tag", "t", "latest", `Image tag for the hatchet-lite container (e.g. "v0.83.1")`)
+	startCmd.Flags().String("pull-policy", "always", `Image pull policy: "always", "missing", or "never"`)
 
 	stopCmd.Flags().StringP("project-name", "p", "", "Docker project name for containers (default: hatchet-cli)")
 }

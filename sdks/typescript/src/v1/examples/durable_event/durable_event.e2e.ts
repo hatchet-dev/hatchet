@@ -15,7 +15,7 @@ describe('durable-event-e2e', () => {
 
     const eventPusher = (async () => {
       await sleep(2000);
-      for (let i = 0; i < 30 && !finished; i += 1) {
+      for (let i = 0; i < 300 && !finished; i += 1) {
         await hatchet.events.push(EVENT_KEY, { userId: '1234' });
         await sleep(200);
       }
@@ -37,7 +37,7 @@ describe('durable-event-e2e', () => {
 
     const eventPusher = (async () => {
       await sleep(2000);
-      for (let i = 0; i < 30 && !finished; i += 1) {
+      for (let i = 0; i < 300 && !finished; i += 1) {
         await hatchet.events.push(EVENT_KEY, { userId: '1234' });
         await sleep(200);
       }

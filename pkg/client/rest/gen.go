@@ -333,19 +333,19 @@ const (
 	V1WorkflowTypeTASK V1WorkflowType = "TASK"
 )
 
-// Defines values for WorkerStatus.
-const (
-	ACTIVE   WorkerStatus = "ACTIVE"
-	INACTIVE WorkerStatus = "INACTIVE"
-	PAUSED   WorkerStatus = "PAUSED"
-)
-
 // Defines values for WorkerRuntimeSDKs.
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
 	PYTHON     WorkerRuntimeSDKs = "PYTHON"
 	RUBY       WorkerRuntimeSDKs = "RUBY"
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
+)
+
+// Defines values for WorkerStatus.
+const (
+	ACTIVE   WorkerStatus = "ACTIVE"
+	INACTIVE WorkerStatus = "INACTIVE"
+	PAUSED   WorkerStatus = "PAUSED"
 )
 
 // Defines values for WorkerType.
@@ -2345,11 +2345,9 @@ type Worker struct {
 	SlotConfig *map[string]WorkerSlotConfig `json:"slotConfig,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
-	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
-
-	// Status The status of the worker.
-	Status *WorkerStatus `json:"status,omitempty"`
-	Type   WorkerType    `json:"type"`
+	Slots  *[]SemaphoreSlots `json:"slots,omitempty"`
+	Status *WorkerStatus     `json:"status,omitempty"`
+	Type   WorkerType        `json:"type"`
 
 	// WebhookId The webhook ID for the worker.
 	WebhookId *openapi_types.UUID `json:"webhookId,omitempty"`
@@ -2357,9 +2355,6 @@ type Worker struct {
 	// WebhookUrl The webhook URL for the worker.
 	WebhookUrl *string `json:"webhookUrl,omitempty"`
 }
-
-// WorkerStatus The status of the worker.
-type WorkerStatus string
 
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {
@@ -2397,6 +2392,9 @@ type WorkerSlotConfig struct {
 	// Limit The maximum number of units for this slot type.
 	Limit int `json:"limit"`
 }
+
+// WorkerStatus defines model for WorkerStatus.
+type WorkerStatus string
 
 // WorkerType defines model for WorkerType.
 type WorkerType string
@@ -3038,6 +3036,18 @@ type RateLimitListParams struct {
 type TenantGetTaskStatsParams struct {
 	// TaskNames Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
 	TaskNames *[]string `form:"taskNames,omitempty" json:"taskNames,omitempty"`
+}
+
+// WorkerListParams defines parameters for WorkerList.
+type WorkerListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Statuses Filter by worker status
+	Statuses *[]WorkerStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -3817,7 +3827,7 @@ type ClientInterface interface {
 	WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerList request
-	WorkerList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkerList(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunUpdateReplayWithBody request with any body
 	WorkflowRunUpdateReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5397,8 +5407,8 @@ func (c *Client) WebhookCreate(ctx context.Context, tenant openapi_types.UUID, b
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkerList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkerListRequest(c.Server, tenant)
+func (c *Client) WorkerList(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -11559,7 +11569,7 @@ func NewWebhookCreateRequestWithBody(server string, tenant openapi_types.UUID, c
 }
 
 // NewWorkerListRequest generates requests for WorkerList
-func NewWorkerListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *WorkerListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11582,6 +11592,60 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID) (*http.Reque
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -14561,7 +14625,7 @@ type ClientWithResponsesInterface interface {
 	WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*WebhookCreateResponse, error)
 
 	// WorkerListWithResponse request
-	WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerListResponse, error)
+	WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*WorkerListResponse, error)
 
 	// WorkflowRunUpdateReplayWithBodyWithResponse request with any body
 	WorkflowRunUpdateReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunUpdateReplayResponse, error)
@@ -19192,8 +19256,8 @@ func (c *ClientWithResponses) WebhookCreateWithResponse(ctx context.Context, ten
 }
 
 // WorkerListWithResponse request returning *WorkerListResponse
-func (c *ClientWithResponses) WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerListResponse, error) {
-	rsp, err := c.WorkerList(ctx, tenant, reqEditors...)
+func (c *ClientWithResponses) WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*WorkerListResponse, error) {
+	rsp, err := c.WorkerList(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

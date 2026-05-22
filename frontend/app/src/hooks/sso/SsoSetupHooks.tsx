@@ -17,7 +17,7 @@ import {
   toSsoIdpInfo,
 } from '@/lib/sso/sso-utils';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export type SsoSetupContextValue = {
   provider: ProviderKey;
@@ -51,6 +51,7 @@ export type SsoSetupProviderProps = {
   redirectUrl: string;
   onSave?: (data: IdpInfoFromCustomer) => void;
   onDelete?: () => void;
+  onConfigLoaded?: (hasExistingConfig: boolean) => void;
 };
 
 export function SsoSetupProvider({
@@ -59,6 +60,7 @@ export function SsoSetupProvider({
   redirectUrl,
   onSave: onSaveCallback,
   onDelete: onDeleteCallback,
+  onConfigLoaded: onConfigLoadedCallback,
 }: SsoSetupProviderProps) {
   const [provider, setProvider] = useState<ProviderKey>('Generic');
   const [form, setForm] = useState<FormValues>(
@@ -100,6 +102,16 @@ export function SsoSetupProvider({
     }
     setConfigInitialized(true);
   }
+
+  useEffect(() => {
+    if (configInitialized && ssoConfigData) {
+      const hasConfig = !!(
+        ssoConfigData.ok && ssoConfigData.data.idpInfoFromCustomer
+      );
+      onConfigLoadedCallback?.(hasConfig);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configInitialized, ssoConfigData]);
 
   // Upsert mutation
   const upsertMutation = useMutation({

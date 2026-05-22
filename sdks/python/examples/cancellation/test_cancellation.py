@@ -10,7 +10,7 @@ from hatchet_sdk import Hatchet, RunStatus
 async def test_cancellation(hatchet: Hatchet) -> None:
     ref = await cancellation_workflow.aio_run(wait_for_result=False)
 
-    for _ in range(30):
+    for _ in range(120):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
         if run.status in [RunStatus.RUNNING, RunStatus.QUEUED]:

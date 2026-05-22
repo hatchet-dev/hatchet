@@ -27,3 +27,18 @@ end
 def hatchet
   RSpec.configuration.hatchet_client
 end
+
+# Poll until the workflow run reaches RUNNING status or timeout is exceeded.
+# Retries on 404s since the run record may not be immediately visible.
+def wait_for_running_status(client, run_id, timeout: 60, interval: 0.5)
+  max_iters = (timeout / interval).to_i
+  max_iters.times do
+    begin
+      details = client.runs.get_details(run_id)
+      return if details.run&.status == "RUNNING"
+    rescue HatchetSdkRest::ApiError => e
+      raise unless e.code == 404
+    end
+    sleep interval
+  end
+end
