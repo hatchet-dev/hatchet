@@ -428,19 +428,20 @@ func nonDeterminismDetail(opts IngestDurableTaskEventOpts, expectedKind sqlcv1.V
 }
 
 type GetOrCreateLogEntryOpt struct {
-	Kind            sqlcv1.V1DurableEventLogKind
-	IdempotencyKey  []byte
-	InputPayload    []byte
-	ResultPayload   []byte
-	NodeId          int64
-	BranchId        int64
-	InvocationCount int32
-	IsSatisfied     bool
-	UserMessage     *string
-	WaitData        string // JSON-encoded WaitData, empty string means no wait data
-	SatisfiedAt     *time.Time
-	ExternalId      uuid.UUID
-	ShouldSkip      bool
+	Kind                sqlcv1.V1DurableEventLogKind
+	IdempotencyKey      []byte
+	InputPayload        []byte
+	ResultPayload       []byte
+	NodeId              int64
+	BranchId            int64
+	InvocationCount     int32
+	IsSatisfied         bool
+	UserMessage         *string
+	WaitData            string // JSON-encoded WaitData, empty string means no wait data
+	SatisfiedAt         *time.Time
+	ExternalId          uuid.UUID
+	ChildTaskExternalId uuid.UUID
+	ShouldSkip          bool
 }
 
 type GetOrCreateLogEntryOpts struct {
@@ -771,6 +772,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		createParams := sqlcv1.BulkCreateDurableEventLogEntriesParams{
 			Tenantids:              make([]uuid.UUID, 0),
 			Externalids:            make([]uuid.UUID, 0),
+			Childtaskexternalids:   make([]uuid.UUID, 0),
 			Durabletaskids:         make([]int64, 0),
 			Durabletaskinsertedats: make([]pgtype.Timestamptz, 0),
 			Kinds:                  make([]string, 0),
@@ -789,6 +791,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			}
 			createParams.Tenantids = append(createParams.Tenantids, opts.TenantId)
 			createParams.Externalids = append(createParams.Externalids, externalId)
+			createParams.Childtaskexternalids = append(createParams.Childtaskexternalids, entry.ChildTaskExternalId)
 			createParams.Durabletaskids = append(createParams.Durabletaskids, opts.DurableTaskId)
 			createParams.Durabletaskinsertedats = append(createParams.Durabletaskinsertedats, opts.DurableTaskInsertedAt)
 			createParams.Kinds = append(createParams.Kinds, string(entry.Kind))
@@ -850,37 +853,41 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 	}
 
-	externalIdToSkipEntry := make(map[uuid.UUID]*sqlcv1.BulkGetDurableEventLogEntriesRow)
+	childTaskExternalIdToSkipEntry := make(map[uuid.UUID]*sqlcv1.BulkGetDurableEventLogEntriesRow)
 
 	if len(skipOpts) > 0 {
-		externalIds := make([]uuid.UUID, 0, len(skipOpts))
-		seenExternalIds := make(map[uuid.UUID]struct{}, len(skipOpts))
+		childTaskExternalIds := make([]uuid.UUID, 0, len(skipOpts))
+		seen := make(map[uuid.UUID]struct{}, len(skipOpts))
 		for _, o := range skipOpts {
-			if o.ExternalId == uuid.Nil {
-				return nil, fmt.Errorf("skipped child entries must include a non-nil external id")
+			if o.ChildTaskExternalId == uuid.Nil {
+				return nil, fmt.Errorf("skipped child entries must include a non-nil child task external id")
 			}
 
-			if _, ok := seenExternalIds[o.ExternalId]; ok {
+			if _, ok := seen[o.ChildTaskExternalId]; ok {
 				continue
 			}
 
-			seenExternalIds[o.ExternalId] = struct{}{}
-			externalIds = append(externalIds, o.ExternalId)
+			seen[o.ChildTaskExternalId] = struct{}{}
+			childTaskExternalIds = append(childTaskExternalIds, o.ChildTaskExternalId)
 		}
 
-		skipRows, err := r.queries.GetDurableEventLogEntriesByExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByExternalIdsParams{
-			Durabletaskid:         opts.DurableTaskId,
-			Durabletaskinsertedat: opts.DurableTaskInsertedAt,
-			Externalids:           externalIds,
+		skipRows, err := r.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
+			Durabletaskid:          opts.DurableTaskId,
+			Durabletaskinsertedat:  opts.DurableTaskInsertedAt,
+			Childtaskexternalids:   childTaskExternalIds,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to get log entries by external ids: %w", err)
+			return nil, fmt.Errorf("failed to get log entries by child task external ids: %w", err)
 		}
 
 		for _, row := range skipRows {
-			externalIdToSkipEntry[row.ExternalID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
+			if row.ChildTaskExternalID == nil {
+				continue
+			}
+			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
 				TenantID:                row.TenantID,
 				ExternalID:              row.ExternalID,
+				ChildTaskExternalID:     row.ChildTaskExternalID,
 				ResultPayloadExternalID: row.ResultPayloadExternalID,
 				InsertedAt:              row.InsertedAt,
 				ID:                      row.ID,
@@ -899,9 +906,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 
 		for _, o := range skipOpts {
-			if _, ok := externalIdToSkipEntry[o.ExternalId]; !ok {
-				// todo: is raising the right thing to do here?
-				return nil, fmt.Errorf("expected to find log entry for skipped child external id %s", o.ExternalId)
+			if _, ok := childTaskExternalIdToSkipEntry[o.ChildTaskExternalId]; !ok {
+				return nil, fmt.Errorf("expected to find log entry for skipped child task external id %s", o.ChildTaskExternalId)
 			}
 		}
 	}
@@ -917,7 +923,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		})
 	}
 
-	for _, entry := range externalIdToSkipEntry {
+	for _, entry := range childTaskExternalIdToSkipEntry {
 		retrieveOpts = append(retrieveOpts, RetrievePayloadOpts{
 			Id:         entry.ID,
 			InsertedAt: entry.InsertedAt,
@@ -967,6 +973,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 				Entry: &sqlcv1.BulkGetDurableEventLogEntriesRow{
 					TenantID:              created.TenantID,
 					ExternalID:            created.ExternalID,
+					ChildTaskExternalID:   created.ChildTaskExternalID,
 					ID:                    created.ID,
 					DurableTaskID:         created.DurableTaskID,
 					DurableTaskInsertedAt: created.DurableTaskInsertedAt,
@@ -985,7 +992,7 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	}
 
 	for _, o := range skipOpts {
-		e := externalIdToSkipEntry[o.ExternalId]
+		e := childTaskExternalIdToSkipEntry[o.ChildTaskExternalId]
 		results = append(results, &EventLogEntryWithPayloads{
 			Entry:          e,
 			AlreadyExisted: true,
@@ -1059,9 +1066,9 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			if triggerOpts.ShouldSkip {
 				innerOpts[i] = GetOrCreateLogEntryOpt{
-					Kind:       sqlcv1.V1DurableEventLogKindRUN,
-					ExternalId: triggerOpts.ExternalId,
-					ShouldSkip: true,
+					Kind:                sqlcv1.V1DurableEventLogKindRUN,
+					ChildTaskExternalId: triggerOpts.ExternalId,
+					ShouldSkip:          true,
 				}
 				continue
 			}
@@ -1081,14 +1088,14 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			}
 
 			innerOpts[i] = GetOrCreateLogEntryOpt{
-				Kind:            sqlcv1.V1DurableEventLogKindRUN,
-				NodeId:          nodeId,
-				BranchId:        branchId,
-				ExternalId:      triggerOpts.ExternalId,
-				InvocationCount: opts.InvocationCount,
-				IdempotencyKey:  idempotencyKey,
-				InputPayload:    inputPayload,
-				WaitData:        marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
+				Kind:                sqlcv1.V1DurableEventLogKindRUN,
+				NodeId:              nodeId,
+				BranchId:            branchId,
+				ChildTaskExternalId: triggerOpts.ExternalId,
+				InvocationCount:     opts.InvocationCount,
+				IdempotencyKey:      idempotencyKey,
+				InputPayload:        inputPayload,
+				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
 			}
 
 			nodeBranchKey := NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}
@@ -1199,9 +1206,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
 		for i, entry := range logEntries {
-			workflowRunExternalId := entry.Entry.ExternalID
-			if triggerOpts := externalIdToTriggerOpts[workflowRunExternalId]; triggerOpts == nil {
-				triggerOpts = nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
+			var workflowRunExternalId uuid.UUID
+			if entry.Entry.ChildTaskExternalID != nil {
+				workflowRunExternalId = *entry.Entry.ChildTaskExternalID
+			} else {
+				triggerOpts := nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
 					NodeId:   entry.Entry.NodeID,
 					BranchId: entry.Entry.BranchID,
 				}]
@@ -1233,7 +1242,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				continue
 			}
 
-			triggerOpts := externalIdToTriggerOpts[le.Entry.ExternalID]
+			var triggerOpts *WorkflowNameTriggerOpts
+			if le.Entry.ChildTaskExternalID != nil {
+				triggerOpts = externalIdToTriggerOpts[*le.Entry.ChildTaskExternalID]
+			}
 			if triggerOpts == nil {
 				triggerOpts = nodeIdBranchIdToTriggerOpts[NodeIdBranchIdTuple{
 					NodeId:   le.Entry.NodeID,
