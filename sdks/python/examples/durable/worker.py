@@ -9,8 +9,11 @@ from pydantic import BaseModel
 from hatchet_sdk import (
     Context,
     DurableContext,
+    EventWaitResult,
     Hatchet,
+    OrGroupResult,
     SleepCondition,
+    SleepResult,
     UserEventCondition,
     or_,
 )
@@ -92,7 +95,7 @@ async def durable_task(input: None, ctx: DurableContext) -> dict[str, str | int]
 
     return {
         "status": "success",
-        "event_id": event.id,
+        "event_id": event.payload.id,
         "sleep_duration_seconds": sleep.duration.seconds,
     }
 
@@ -116,13 +119,20 @@ async def wait_for_or_group_1(
         ),
     )
 
-    key = list(wait_result.keys())[0]
-    event_id = list(wait_result[key].keys())[0]
+    or_result = next((r for r in wait_result if isinstance(r, OrGroupResult)), None)
+    if or_result is None:
+        raise ValueError("Expected OrGroupResult")
+
+    if isinstance(or_result.result, SleepResult):
+        resolved = "sleep"
+    elif isinstance(or_result.result, EventWaitResult):
+        resolved = or_result.result.key
+    else:
+        resolved = "unknown"
 
     return {
         "runtime": time.time() - start,
-        "key": key,
-        "event_id": event_id,
+        "resolved": resolved,
     }
 
 
@@ -142,13 +152,20 @@ async def wait_for_or_group_2(
         ),
     )
 
-    key = list(wait_result.keys())[0]
-    event_id = list(wait_result[key].keys())[0]
+    or_result = next((r for r in wait_result if isinstance(r, OrGroupResult)), None)
+    if or_result is None:
+        raise ValueError("Expected OrGroupResult")
+
+    if isinstance(or_result.result, SleepResult):
+        resolved = "sleep"
+    elif isinstance(or_result.result, EventWaitResult):
+        resolved = or_result.result.key
+    else:
+        resolved = "unknown"
 
     return {
         "runtime": time.time() - start,
-        "key": key,
-        "event_id": event_id,
+        "resolved": resolved,
     }
 
 
@@ -282,7 +299,9 @@ async def wait_for_event_lookback(
         payload_validator=LookbackEventPayload,
     )
     # !!
-    return EventLookbackResultWithEvent(event=event, elapsed=time.time() - start)
+    return EventLookbackResultWithEvent(
+        event=event.payload, elapsed=time.time() - start
+    )
 
 
 @hatchet.durable_task(input_validator=EventLookbackInput)
@@ -327,7 +346,9 @@ async def wait_for_two_events_second_pushed_first(
         payload_validator=LookbackEventPayload,
         label="waiting for event 2",
     )
-    return TwoEventsResult(event1=event1, event2=event2, elapsed=time.time() - start)
+    return TwoEventsResult(
+        event1=event1.payload, event2=event2.payload, elapsed=time.time() - start
+    )
 
 
 class NonDeterminismOutput(BaseModel):
@@ -421,7 +442,7 @@ async def durable_child_key_dedup_replay(
     )
 
 
-class SleepResult(BaseModel):
+class MemoResult(BaseModel):
     message: str
     duration: float
 
@@ -430,22 +451,22 @@ class MemoInput(BaseModel):
     message: str
 
 
-async def expensive_computation(message: str) -> SleepResult:
+async def expensive_computation(message: str) -> MemoResult:
     await asyncio.sleep(SLEEP_TIME)
 
-    return SleepResult(message=message, duration=SLEEP_TIME)
+    return MemoResult(message=message, duration=SLEEP_TIME)
 
 
 @hatchet.durable_task(input_validator=MemoInput)
-async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
+async def memo_task(input: MemoInput, ctx: DurableContext) -> MemoResult:
     start = time.time()
     res = await ctx._aio_memo(
         expensive_computation,
-        SleepResult,
+        MemoResult,
         input.message,
     )
 
-    return SleepResult(message=res.message, duration=time.time() - start)
+    return MemoResult(message=res.message, duration=time.time() - start)
 
 
 def main() -> None:

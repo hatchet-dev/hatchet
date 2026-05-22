@@ -76,10 +76,8 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
     wait_group_1 = result["wait_for_or_group_1"]
     wait_group_2 = result["wait_for_or_group_2"]
 
-    assert wait_group_1["key"] == wait_group_2["key"]
-    assert wait_group_1["key"] == "CREATE"
-    assert "sleep" in wait_group_1["event_id"]
-    assert "event" in wait_group_2["event_id"]
+    assert wait_group_1["resolved"] == "sleep"
+    assert "event" in wait_group_2["resolved"]
 
 
 @requires_durable_eviction

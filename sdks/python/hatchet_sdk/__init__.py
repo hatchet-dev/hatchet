@@ -127,7 +127,13 @@ from hatchet_sdk.conditions import (
     or_,
 )
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
-from hatchet_sdk.context.context import Context, DurableContext
+from hatchet_sdk.context.context import (
+    Context,
+    DurableContext,
+    EventWaitResult,
+    OrGroupResult,
+    SleepResult,
+)
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
@@ -210,6 +216,7 @@ __all__ = [
     "EventList",
     "EventOrderByDirection",
     "EventOrderByField",
+    "EventWaitResult",
     "EventWorkflowRunSummary",
     "EvictionNotSupportedError",
     "FailedTaskRunExceptionGroup",
@@ -235,6 +242,7 @@ __all__ = [
     "OTelAttribute",
     "OpenTelemetryConfig",
     "OrGroup",
+    "OrGroupResult",
     "PaginationResponse",
     "ParentCondition",
     "Priority",
@@ -252,6 +260,7 @@ __all__ = [
     "ScheduleTriggerWorkflowOptions",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
+    "SleepResult",
     "SlotType",
     "StepRun",
     "StepRunDiff",

@@ -6,7 +6,7 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar, cast, overload
+from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -33,6 +33,7 @@ from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener im
     PreEvictionDurableEventListener,
 )
 from hatchet_sdk.conditions import (
+    Condition,
     OrGroup,
     SleepCondition,
     UserEventCondition,
@@ -70,6 +71,8 @@ from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogReco
 PMemo = ParamSpec("PMemo")
 TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 
+TEvent = TypeVar("TEvent")
+
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
 
@@ -81,8 +84,71 @@ class SleepResult(BaseModel):
     duration: timedelta
 
 
+class EventWaitResult(BaseModel, Generic[TEvent]):
+    key: str
+    payload: TEvent
+
+
 class MemoNowResult(BaseModel):
     ts: datetime
+
+
+class OrGroupResult(BaseModel):
+    result: SleepResult | EventWaitResult[Any] | OrGroupResult
+
+
+OrGroupResult.model_rebuild()
+
+
+@dataclass
+class _ConditionMeta:
+    key_to_condition: dict[str, Condition]
+    or_group_ids: set[str]
+
+
+def _build_condition_meta(flat_conditions: list[Condition]) -> _ConditionMeta:
+    key_to_condition = {c.base.readable_data_key: c for c in flat_conditions}
+    group_counts: dict[str, int] = {}
+    for c in flat_conditions:
+        group_counts[c.base.or_group_id] = group_counts.get(c.base.or_group_id, 0) + 1
+    or_group_ids = {gid for gid, count in group_counts.items() if count > 1}
+    return _ConditionMeta(key_to_condition=key_to_condition, or_group_ids=or_group_ids)
+
+
+def _parse_single_result(
+    key: str, condition: Condition, match_data: dict[str, Any]
+) -> SleepResult | EventWaitResult[Any]:
+    if isinstance(condition, SleepCondition):
+        return SleepResult(
+            duration=expr_to_timedelta(match_data.get("sleep_duration", ""))
+        )
+    return EventWaitResult(key=key, payload=match_data)
+
+
+def _parse_wait_for_payload(
+    payload: dict[str, Any],
+    meta: _ConditionMeta,
+) -> list[SleepResult | EventWaitResult[Any] | OrGroupResult]:
+    results: list[SleepResult | EventWaitResult[Any] | OrGroupResult] = []
+    seen_or_groups: set[str] = set()
+
+    for key, matches in payload.get("CREATE", {}).items():
+        condition = meta.key_to_condition.get(key)
+        if condition is None:
+            continue
+
+        for match_data in matches:
+            inner = _parse_single_result(key, condition, match_data)
+            group_id = condition.base.or_group_id
+
+            if group_id in meta.or_group_ids:
+                if group_id not in seen_or_groups:
+                    seen_or_groups.add(group_id)
+                    results.append(OrGroupResult(result=inner))
+            else:
+                results.append(inner)
+
+    return results
 
 
 def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
@@ -628,7 +694,7 @@ class DurableContext(Context):
         signal_key: str,
         *conditions: SleepCondition | UserEventCondition | OrGroup,
         label: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> list[SleepResult | EventWaitResult[Any] | OrGroupResult]:
         """
         Durably wait for either a sleep or an event.
 
@@ -644,14 +710,17 @@ class DurableContext(Context):
         if self._durable_event_listener is None:
             raise ValueError("Durable task client is not available")
 
+        flat_conditions = flatten_conditions(list(conditions))
+        meta = _build_condition_meta(flat_conditions)
+
         if not self._supports_durable_eviction:
-            return await aio_wait_for_pre_eviction(self, signal_key, *conditions)
+            raw = await aio_wait_for_pre_eviction(self, signal_key, *conditions)
+            return _parse_wait_for_payload(raw, meta)
 
         listener = self._durable_listener
 
         await self._ensure_stream_started()
 
-        flat_conditions = flatten_conditions(list(conditions))
         conditions_proto = build_conditions_proto(
             flat_conditions, self._runs_client.client_config
         )
@@ -673,14 +742,14 @@ class DurableContext(Context):
             action_key=self._action.key,
             eviction_manager=self._durable_eviction_manager,
         ):
-            result = await listener.wait_for_callback(
+            callback_result = await listener.wait_for_callback(
                 durable_task_external_id=self._step_run_id,
                 node_id=node_id,
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
 
-        return result.payload or {}
+        return _parse_wait_for_payload(callback_result.payload or {}, meta)
 
     async def aio_sleep_for(
         self, duration: timedelta, label: str | None = None
@@ -703,20 +772,8 @@ class DurableContext(Context):
             label=label,
         )
 
-        ## lots of implicit use of engine semantics / internal logic here.
-        ## the engine returns an object like this:
-        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
-        ## since we have a single match we're looking for, we know that
-        ## the list of matches will only have one item, so we can extract and parse it
-        matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
-        _, raw_matches = next(iter(matches.items()))
-        sleep = raw_matches[0]
-
-        return SleepResult(
-            duration=expr_to_timedelta(
-                sleep.get("sleep_duration", timedelta_to_expr(duration))
-            )
-        )
+        sleep_result = next((r for r in res if isinstance(r, SleepResult)), None)
+        return sleep_result or SleepResult(duration=duration)
 
     @overload
     async def aio_wait_for_event(
@@ -728,7 +785,7 @@ class DurableContext(Context):
         scope: str | None = None,
         lookback_window: timedelta | None = None,
         label: str | None = None,
-    ) -> TPayload: ...
+    ) -> EventWaitResult[TPayload]: ...
 
     @overload
     async def aio_wait_for_event(
@@ -740,7 +797,7 @@ class DurableContext(Context):
         scope: str | None = None,
         lookback_window: timedelta | None = None,
         label: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> EventWaitResult[dict[str, Any]]: ...
 
     async def aio_wait_for_event(
         self,
@@ -751,7 +808,7 @@ class DurableContext(Context):
         scope: str | None = None,
         lookback_window: timedelta | None = None,
         label: str | None = None,
-    ) -> Any:
+    ) -> EventWaitResult[Any]:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
 
@@ -789,22 +846,18 @@ class DurableContext(Context):
             label=label,
         )
 
-        ## lots of implicit use of engine semantics / internal logic here.
-        ## the engine returns an object like this:
-        ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
-        ## since we have a single match we're looking for, we know that
-        ## the list of matches will only have one item, so we can extract and parse it
-        matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
-        _, raw_matches = next(iter(matches.items()))
-        raw_payload = raw_matches[0]
+        event_result = next((r for r in result if isinstance(r, EventWaitResult)), None)
+        if event_result is None:
+            raise ValueError(f"No matching event result found for key '{key}'")
 
         if payload_validator is not None:
             adapter = TypeAdapter(payload_validator)
-            return adapter.validate_python(
-                raw_payload, context=HATCHET_PYDANTIC_SENTINEL
+            validated = adapter.validate_python(
+                event_result.payload, context=HATCHET_PYDANTIC_SENTINEL
             )
+            return EventWaitResult(key=event_result.key, payload=validated)
 
-        return raw_payload
+        return cast(EventWaitResult[dict[str, Any]], event_result)
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
     ## Keep the signature in sync with the instrumentor wrapper.
