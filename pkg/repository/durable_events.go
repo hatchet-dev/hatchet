@@ -1201,10 +1201,13 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		entries := make([]*IngestTriggerRunsEntry, len(getOrCreateOpts.Entries))
 
 		for i, entry := range logEntries {
-			if entry.Entry.ChildTaskExternalID == nil {
-				return nil, fmt.Errorf("RUN log entry at nodeId %d branchId %d is missing child_task_external_id", entry.Entry.NodeID, entry.Entry.BranchID)
+			// important: this is a hack for falling back for child_task_external_id
+			// for task runs created before this column was added, since those external ids
+			// were written to the external_id column on the event log entry
+			workflowRunExternalId := entry.Entry.ExternalID
+			if entry.Entry.ChildTaskExternalID != nil {
+				workflowRunExternalId = *entry.Entry.ChildTaskExternalID
 			}
-			workflowRunExternalId := *entry.Entry.ChildTaskExternalID
 
 			entries[i] = &IngestTriggerRunsEntry{
 				NodeId:                entry.Entry.NodeID,
