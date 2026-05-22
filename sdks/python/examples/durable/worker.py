@@ -417,7 +417,7 @@ class ChildKeyDedupResult(BaseModel):
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=30))
 async def durable_child_key_dedup_replay(
-    input: EmptyModel, ctx: DurableContext
+    input: None, ctx: DurableContext
 ) -> ChildKeyDedupResult:
     start = time.time()
     await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
