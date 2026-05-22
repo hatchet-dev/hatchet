@@ -176,3 +176,41 @@ async def my_durable_task(input: MyInput, ctx: DurableContext) -> dict[str, str]
 #### Internal `Worker` properties removed
 
 Several internal `Worker` properties that were never intended for external use have been removed: `worker.config`, `worker.slot_config`, `worker.debug`, `worker.labels`, `worker.handle_kill`, `worker.owned_loop`, `worker.action_registry`, `worker.killing`, and `worker.action_listener_process`. If your code accessed any of these, remove those usages.
+
+#### List methods now return plain lists
+
+All `list` and `aio_list` methods on feature clients previously returned paginated wrapper types (e.g. `V1EventList`, `WorkerList`, `WorkflowList`). In V2, they return plain Python lists. Update any code that accessed `.rows`, `.pagination`, or other wrapper properties:
+
+```python
+# V1
+result = hatchet.runs.list(...)
+runs = result.rows  # V1TaskSummaryList
+
+# V2
+runs = hatchet.runs.list(...)  # list[V1TaskSummary] directly
+```
+
+This applies to all feature clients: `events`, `cron`, `filters`, `logs`, `rate_limits`, `runs`, `scheduled`, `webhooks`, `workers`, and `workflows`.
+
+#### `runs.list_with_pagination` and `aio_list_with_pagination` removed
+
+The `list_with_pagination` and `aio_list_with_pagination` methods on the runs client have been removed. Use `list` and `aio_list` instead — they now handle pagination internally and return `list[V1TaskSummary]` directly:
+
+```python
+# V1
+result = await hatchet.runs.aio_list_with_pagination(since=..., until=...)
+runs = result  # already a list
+
+# V2
+runs = await hatchet.runs.aio_list(since=..., until=...)
+```
+
+#### `Event` class field and property changes
+
+The `event_timestamp` field and its deprecated camelCase aliases (`eventTimestamp`, `additionalMetadata`) have been removed from the `Event` class. Use the snake_case fields directly:
+
+| V1                          | V2                       |
+| --------------------------- | ------------------------ |
+| `event.event_timestamp`     | `event.seen_at`          |
+| `event.eventTimestamp`      | `event.seen_at`          |
+| `event.additionalMetadata`  | `event.additional_metadata` |
