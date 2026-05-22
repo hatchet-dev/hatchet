@@ -122,6 +122,10 @@ class Worker:
         # pause task assignment directly without going through the subprocess.
         self._worker_id_queue: Queue[str] = self._ctx.Queue()
 
+        # Set by the parent to tell listener subprocesses to stop their action
+        # loops.  Using a multiprocessing.Event avoids sending OS signals.
+        self._stop_listener_event = self._ctx.Event()
+
         self._loop: asyncio.AbstractEventLoop | None = None
 
         self._client = Client(config=self._config, debug=self._debug)
@@ -612,6 +616,7 @@ class Worker:
                     self._client.debug,
                     self._labels,
                     self._worker_id_queue,
+                    self._stop_listener_event,
                 ),
             )
             process.start()
@@ -699,15 +704,16 @@ class Worker:
                 continue
 
     def _terminate_processes(self) -> None:
+        # Signal subprocesses to stop their action loops via the shared event
+        # rather than sending OS signals.
+        self._stop_listener_event.set()
+
         for process in [
             self._action_listener_process,
             self._durable_action_listener_process,
         ]:
             if process is not None and process.pid is not None:
                 try:
-                    if process.is_alive():
-                        os.kill(process.pid, signal.SIGQUIT)
-
                     process.join(timeout=5)
 
                     if process.is_alive():
@@ -750,19 +756,14 @@ class Worker:
         logger.info("task assignment paused")
 
     def _stop_listener_action_loops(self) -> None:
-        """Send SIGTERM to each listener subprocess.
+        """Tell listener subprocesses to stop their gRPC action streams.
 
-        The listener's SIGTERM handler stops the gRPC action stream so no new
-        actions are dispatched.  The event_send_loop keeps running so any
-        in-flight completion events can still be delivered.
+        Setting the event causes each subprocess's _wait_for_stop_event task
+        to fire _stop_action_loop(), which closes the stream without needing
+        an OS signal.  The event_send_loop keeps running so any in-flight
+        completion events can still be delivered.
         """
-        for process in [
-            self._action_listener_process,
-            self._durable_action_listener_process,
-        ]:
-            if process is not None and process.pid is not None and process.is_alive():
-                with contextlib.suppress(ProcessLookupError):
-                    os.kill(process.pid, signal.SIGTERM)
+        self._stop_listener_event.set()
 
     async def exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
@@ -790,11 +791,11 @@ class Worker:
         if self._durable_event_queue is not None:
             self._durable_event_queue.put(STOP_LOOP)
 
-        if (
-            self._durable_action_listener_process
-            and self._durable_action_listener_process.is_alive()
-        ):
-            self._durable_action_listener_process.kill()
+        if self._durable_action_listener_process is not None:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._durable_action_listener_process.join(),  # type: ignore[union-attr]
+            )
 
         try:
             await self._cleanup_lifespan()
