@@ -7,11 +7,11 @@ import { Snippet } from "@/components/code";
 
 The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard for connecting AI agents to external tools, data sources, and services. This guide shows how to expose Hatchet [workflows](/v1/directed-acyclic-graphs) and [standalone tasks](/v1/tasks) as tools that frameworks like the Claude Agent SDK and OpenAI Agents SDK can invoke. Later cookbooks in this series will show how to integrate those tools into a full agent loop.
 
-In this guide, we define a Hatchet workflow and a standalone task, each with a description and a typed input schema, then convert each into an agent tool. When an agent invokes one of those tools, the tool handler submits work to the Hatchet engine. A worker picks up and executes the workflow or task and reports the result to Hatchet. The tool handler returns that result to the agent.
+In this guide, we define a Hatchet workflow and a standalone task, each with a description and a typed input schema, then convert each into an agent tool. When an agent invokes one of those tools, the tool handler submits a run to the Hatchet engine. A worker picks up and executes the workflow or task and reports the result to Hatchet. The tool handler returns that result to the agent.
 
 ## What this guide builds
 
-This guide builds a temperature lookup tool backed by Hatchet. The example calls the [Open-Meteo API](https://open-meteo.com/) and returns the current temperature for a given location. The same operation is implemented as both a workflow and a standalone task, so you can see how each becomes an agent tool.
+This guide builds a temperature lookup tool backed by Hatchet. The workflow and standalone task call the [Open-Meteo API](https://open-meteo.com/) and return the current temperature for a given location. The same operation is implemented as both a workflow and a standalone task, so you can see how each becomes an agent tool.
 
 ```mermaid
 flowchart LR
@@ -122,7 +122,7 @@ You can expose a standalone task the same way. This is useful when the agent too
 
 ### Create agent tools
 
-Create the tool in the process that runs your agent. The examples use helper functions around Hatchet's mcp tool conversion call so the workflow and task definitions can be imported without loading every optional provider SDK. Each helper returns a provider specific tool definition that the agent SDK can use. The description and input validator you added above become part of that tool definition, which is why they are required.
+Create the tool in the process that runs your agent. The examples use helper functions around Hatchet's MCP tool conversion call so the workflow and task definitions can be imported without loading every optional provider SDK. Each helper returns a provider-specific tool definition that the agent SDK can use. The description and input validator you added above become part of that tool definition, which is why they are required.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
@@ -141,7 +141,7 @@ Create the tool in the process that runs your agent. The examples use helper fun
 
 ### Register and start the worker
 
-The worker must be running for tools to function. When the agent calls a tool, the adapter submits work to the Hatchet engine, and the engine dispatches it to a worker for execution.
+The worker must be running for tools to function. When the agent calls a tool, the tool handler submits a run to the Hatchet engine, and the engine dispatches it to a worker for execution.
 
 <UniversalTabs items={["Python", "Typescript"]}>
   <Tabs.Tab title="Python">
@@ -161,7 +161,7 @@ You can confirm that the workflow definitions and helper functions import succes
 
     ```bash
     cd sdks/python
-    poetry run python -c "from examples.agent.workflows import get_temperature_workflow, create_temperature_task_tool_claude; print('OK')"
+    poetry run python -c "from examples.agent.workflows import create_temperature_workflow_tool_claude, create_temperature_task_tool_claude; print('OK')"
     ```
 
   </Tabs.Tab>

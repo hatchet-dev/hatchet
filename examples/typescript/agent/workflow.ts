@@ -26,15 +26,6 @@ const temperatureRequest = async (input: TemperatureInputWithZod) => {
   };
 };
 
-// > Standalone task
-export const getTemperature = hatchet.task({
-  name: 'getTemperature',
-  retries: 3,
-  fn: temperatureRequest,
-  inputValidator: TemperatureInput,
-  description: 'Get the current temperature at a location',
-});
-
 // > Workflow definition
 export const getTemperatureWorkflow = hatchet.workflow<TemperatureInputWithZod>({
   name: 'getTemperatureWorkflow',
@@ -45,6 +36,15 @@ export const getTemperatureWorkflow = hatchet.workflow<TemperatureInputWithZod>(
 getTemperatureWorkflow.task({
   name: 'getTemperature',
   fn: temperatureRequest,
+});
+
+// > Standalone task
+export const getTemperature = hatchet.task({
+  name: 'getTemperature',
+  retries: 3,
+  fn: temperatureRequest,
+  inputValidator: TemperatureInput,
+  description: 'Get the current temperature at a location',
 });
 
 // > Create MCP tools
