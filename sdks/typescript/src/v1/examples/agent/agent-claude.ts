@@ -1,10 +1,12 @@
 // eslint-disable-next-line
 import { createTemperatureWorkflowToolClaude } from './workflow';
-import { query } from '@anthropic-ai/claude-agent-sdk';
-import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk';
 
 async function main() {
   const temperatureTool = createTemperatureWorkflowToolClaude();
+
+  // The Claude Agent SDK is ESM-only, so avoid loading it at module import time.
+  // Run this example with an ESM-compatible TypeScript runner.
+  const { query, createSdkMcpServer } = await import('@anthropic-ai/claude-agent-sdk');
 
   // Wrap the tool in an in-process MCP server
   const weatherServer = createSdkMcpServer({
