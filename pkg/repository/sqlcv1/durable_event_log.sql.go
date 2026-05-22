@@ -915,7 +915,7 @@ func (q *Queries) UpdateDurableEventLogEntriesSatisfied(ctx context.Context, db 
 const updateLogFile = `-- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
 SET
-    latest_node_id = COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id),
+    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id)),
     latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)
 WHERE durable_task_id = $4::BIGINT

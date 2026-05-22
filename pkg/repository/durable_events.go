@@ -1432,17 +1432,16 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 	}
 
-	nonSkipCount := int64(0)
-	for _, e := range getOrCreateOpts.Entries {
-		if !e.ShouldSkip {
-			nonSkipCount++
+	maxNodeId := int64(0)
+	for _, le := range logEntries {
+		if le.Entry.NodeID > maxNodeId {
+			maxNodeId = le.Entry.NodeID
 		}
 	}
 
-	if nonSkipCount > 0 {
-		finalNodeId := baseNodeId + nonSkipCount - 1
+	if maxNodeId > 0 {
 		_, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-			NodeId:                sqlchelpers.ToBigInt(&finalNodeId),
+			NodeId:                sqlchelpers.ToBigInt(&maxNodeId),
 			Durabletaskid:         task.ID,
 			Durabletaskinsertedat: task.InsertedAt,
 		})
