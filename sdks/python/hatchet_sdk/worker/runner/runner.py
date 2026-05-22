@@ -4,7 +4,7 @@ import functools
 import re
 from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from datetime import datetime
 from enum import Enum
 from multiprocessing import Queue

@@ -27,13 +27,13 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.runnables.action import (
     Action,
     ActionPayload,
     ActionType,
     BatchStartPayload,
 )
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping

@@ -688,10 +688,7 @@ class Hatchet:
                     on_crons=on_crons or [],
                     sticky=sticky,
                     default_priority=default_priority,
-                    input_validator=cast(
-                        type[BaseModel] | type[DataclassInstance],
-                        input_validator or EmptyModel,
-                    ),
+                    input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_filters=default_filters or [],
                 ),
                 self,

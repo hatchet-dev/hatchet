@@ -1505,6 +1505,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 list[R] | CoroutineLike[list[R]],
             ],
         ) -> Task[TWorkflowInput, R]:
+            _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
+            labels: list[DesiredWorkerLabel] = (
+                desired_worker_labels
+                if isinstance(desired_worker_labels, list)
+                else [
+                    DesiredWorkerLabel(key=k, **d.model_dump(exclude={"key"}))
+                    for k, d in (desired_worker_labels or {}).items()
+                ]
+            )
             task = Task(
                 _fn=func,  # batch handler; executed by worker batch coordinator
                 is_durable=False,
@@ -1516,10 +1525,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 parents=parents,
                 retries=computed_params.retries,
                 rate_limits=[r.to_proto() for r in rate_limits or []],
-                desired_worker_labels={
-                    key: transform_desired_worker_label(d)
-                    for key, d in (desired_worker_labels or {}).items()
-                },
+                desired_worker_labels=labels,
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
