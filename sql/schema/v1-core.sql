@@ -2322,9 +2322,10 @@ CREATE TYPE v1_durable_event_log_kind AS ENUM (
 CREATE TABLE v1_durable_event_log_entry (
     tenant_id UUID NOT NULL,
 
-    -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
     result_payload_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    -- Only set for RUN entries; holds the external_id of the child task that was spawned.
+    child_task_external_id UUID,
 
     -- The id and inserted_at of the durable task which created this entry
     -- The inserted_at time of this event from a DB clock perspective.
