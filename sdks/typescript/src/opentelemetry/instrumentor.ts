@@ -562,39 +562,53 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           },
           (batchSpan: Span) => {
             const itemSpans: Span[] = [];
-            const enhancedWorkflowRuns = workflowRuns.map((run) => {
-              const itemAttributes = filterAttributes(
-                {
-                  [OTelAttribute.WORKFLOW_NAME]: run.workflowName,
-                  [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(run.input),
-                  [OTelAttribute.PARENT_ID]: run.options?.parentId,
-                  [OTelAttribute.PARENT_STEP_RUN_ID]: run.options?.parentStepRunId,
-                  [OTelAttribute.CHILD_INDEX]: run.options?.childIndex,
-                  [OTelAttribute.CHILD_KEY]: run.options?.childKey,
-                  [OTelAttribute.ADDITIONAL_METADATA]: run.options?.additionalMetadata
-                    ? JSON.stringify(run.options.additionalMetadata)
-                    : undefined,
-                  [OTelAttribute.PRIORITY]: run.options?.priority,
-                  [OTelAttribute.DESIRED_WORKER_ID]: run.options?.desiredWorkerId,
-                },
-                getConfig().excludedAttributes
-              );
-              const itemSpan = tracer.startSpan('hatchet.run_workflow', {
-                kind: SpanKind.PRODUCER,
-                attributes: itemAttributes,
-              });
-              itemSpans.push(itemSpan);
+            let enhancedWorkflowRuns: typeof workflowRuns;
+            try {
+              enhancedWorkflowRuns = workflowRuns.map((run) => {
+                const itemAttributes = filterAttributes(
+                  {
+                    [OTelAttribute.WORKFLOW_NAME]: run.workflowName,
+                    [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(run.input),
+                    [OTelAttribute.PARENT_ID]: run.options?.parentId,
+                    [OTelAttribute.PARENT_STEP_RUN_ID]: run.options?.parentStepRunId,
+                    [OTelAttribute.CHILD_INDEX]: run.options?.childIndex,
+                    [OTelAttribute.CHILD_KEY]: run.options?.childKey,
+                    [OTelAttribute.ADDITIONAL_METADATA]: run.options?.additionalMetadata
+                      ? JSON.stringify(run.options.additionalMetadata)
+                      : undefined,
+                    [OTelAttribute.PRIORITY]: run.options?.priority,
+                    [OTelAttribute.DESIRED_WORKER_ID]: run.options?.desiredWorkerId,
+                  },
+                  getConfig().excludedAttributes
+                );
+                const itemSpan = tracer.startSpan('hatchet.run_workflow', {
+                  kind: SpanKind.PRODUCER,
+                  attributes: itemAttributes,
+                });
+                itemSpans.push(itemSpan);
 
-              const enhancedMetadata: Carrier = { ...(run.options?.additionalMetadata ?? {}) };
-              propagation.inject(trace.setSpan(context.active(), itemSpan), enhancedMetadata);
-              return {
-                ...run,
-                options: {
-                  ...run.options,
-                  additionalMetadata: enhancedMetadata,
-                },
-              };
-            });
+                const enhancedMetadata: Carrier = { ...(run.options?.additionalMetadata ?? {}) };
+                propagation.inject(trace.setSpan(context.active(), itemSpan), enhancedMetadata);
+                return {
+                  ...run,
+                  options: {
+                    ...run.options,
+                    additionalMetadata: enhancedMetadata,
+                  },
+                };
+              });
+            } catch (error) {
+              const err = error as Error;
+              batchSpan.recordException(err);
+              batchSpan.setStatus({ code: SpanStatusCode.ERROR, message: err?.message });
+              itemSpans.forEach((s) => {
+                s.recordException(err);
+                s.setStatus({ code: SpanStatusCode.ERROR, message: err?.message });
+                s.end();
+              });
+              batchSpan.end();
+              throw error;
+            }
 
             return original
               .call(this, enhancedWorkflowRuns, batchSize)
