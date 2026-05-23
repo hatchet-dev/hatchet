@@ -610,21 +610,34 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
               throw error;
             }
 
-            return original
-              .call(this, enhancedWorkflowRuns, batchSize)
-              .catch((error: Error) => {
-                batchSpan.recordException(error);
-                batchSpan.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
-                itemSpans.forEach((s) => {
-                  s.recordException(error);
-                  s.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+            try {
+              return original
+                .call(this, enhancedWorkflowRuns, batchSize)
+                .catch((error: Error) => {
+                  batchSpan.recordException(error);
+                  batchSpan.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                  itemSpans.forEach((s) => {
+                    s.recordException(error);
+                    s.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                  });
+                  throw error;
+                })
+                .finally(() => {
+                  itemSpans.forEach((s) => s.end());
+                  batchSpan.end();
                 });
-                throw error;
-              })
-              .finally(() => {
-                itemSpans.forEach((s) => s.end());
-                batchSpan.end();
+            } catch (error) {
+              const err = error as Error;
+              batchSpan.recordException(err);
+              batchSpan.setStatus({ code: SpanStatusCode.ERROR, message: err?.message });
+              itemSpans.forEach((s) => {
+                s.recordException(err);
+                s.setStatus({ code: SpanStatusCode.ERROR, message: err?.message });
+                s.end();
               });
+              batchSpan.end();
+              throw error;
+            }
           }
         );
       } as AdminClient['runWorkflows'];
