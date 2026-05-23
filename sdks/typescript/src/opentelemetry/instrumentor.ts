@@ -46,7 +46,7 @@ const otelInstrumentation =
   require('@opentelemetry/instrumentation') as typeof import('@opentelemetry/instrumentation');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-const { context, propagation, SpanKind, SpanStatusCode, diag } = otelApi;
+const { context, propagation, SpanKind, SpanStatusCode, diag, trace } = otelApi;
 
 const {
   InstrumentationBase,
@@ -560,10 +560,33 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             kind: SpanKind.PRODUCER,
             attributes,
           },
-          (span: Span) => {
+          (batchSpan: Span) => {
+            const itemSpans: Span[] = [];
             const enhancedWorkflowRuns = workflowRuns.map((run) => {
+              const itemAttributes = filterAttributes(
+                {
+                  [OTelAttribute.WORKFLOW_NAME]: run.workflowName,
+                  [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(run.input),
+                  [OTelAttribute.PARENT_ID]: run.options?.parentId,
+                  [OTelAttribute.PARENT_STEP_RUN_ID]: run.options?.parentStepRunId,
+                  [OTelAttribute.CHILD_INDEX]: run.options?.childIndex,
+                  [OTelAttribute.CHILD_KEY]: run.options?.childKey,
+                  [OTelAttribute.ADDITIONAL_METADATA]: run.options?.additionalMetadata
+                    ? JSON.stringify(run.options.additionalMetadata)
+                    : undefined,
+                  [OTelAttribute.PRIORITY]: run.options?.priority,
+                  [OTelAttribute.DESIRED_WORKER_ID]: run.options?.desiredWorkerId,
+                },
+                getConfig().excludedAttributes
+              );
+              const itemSpan = tracer.startSpan('hatchet.run_workflow', {
+                kind: SpanKind.PRODUCER,
+                attributes: itemAttributes,
+              });
+              itemSpans.push(itemSpan);
+
               const enhancedMetadata: Carrier = { ...(run.options?.additionalMetadata ?? {}) };
-              injectContext(enhancedMetadata);
+              propagation.inject(trace.setSpan(context.active(), itemSpan), enhancedMetadata);
               return {
                 ...run,
                 options: {
@@ -576,12 +599,17 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             return original
               .call(this, enhancedWorkflowRuns, batchSize)
               .catch((error: Error) => {
-                span.recordException(error);
-                span.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                batchSpan.recordException(error);
+                batchSpan.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                itemSpans.forEach((s) => {
+                  s.recordException(error);
+                  s.setStatus({ code: SpanStatusCode.ERROR, message: error?.message });
+                });
                 throw error;
               })
               .finally(() => {
-                span.end();
+                itemSpans.forEach((s) => s.end());
+                batchSpan.end();
               });
           }
         );
