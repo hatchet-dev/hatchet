@@ -653,6 +653,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 	h.indexMu.Unlock()
 
 	workflowRunId, err := h.client().Admin().RunChildWorkflow(
+		h,
 		workflowName,
 		input,
 		&client.ChildWorkflowOpts{
@@ -737,6 +738,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 	}
 
 	workflowRunIds, err := h.client().Admin().RunChildWorkflows(
+		h,
 		triggerWorkflows,
 	)
 

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/compute"
@@ -43,7 +44,7 @@ func (s *Service) On(t triggerConverter, workflow workflowConverter) error {
 	apiWorkflow.Triggers = *wt
 
 	// create the workflow via the API
-	err := s.worker.client.Admin().PutWorkflow(&apiWorkflow)
+	err := s.worker.client.Admin().PutWorkflow(context.TODO(), &apiWorkflow)
 
 	if err != nil {
 		return err

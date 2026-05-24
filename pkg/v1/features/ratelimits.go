@@ -57,7 +57,7 @@ func NewRateLimitsClient(
 //
 // Upsert creates or updates a rate limit with the provided options.
 func (c *rlClientImpl) Upsert(opts CreateRatelimitOpts) error {
-	return (*c.admin).PutRateLimit(opts.Key, &types.RateLimitOpts{
+	return (*c.admin).PutRateLimit(context.Background(), opts.Key, &types.RateLimitOpts{
 		Max:      opts.Limit,
 		Duration: opts.Duration,
 	})

@@ -620,18 +620,18 @@ func triggerWorkflowWithClient(hatchetClient client.Client, workflowName string,
 	}
 	resultChan := make(chan result, 1)
 
+	// Wait for result with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	go func() {
-		workflow, err := hatchetClient.Admin().RunWorkflow(workflowName, inputData)
+		workflow, err := hatchetClient.Admin().RunWorkflow(ctx, workflowName, inputData)
 		if err != nil {
 			resultChan <- result{err: fmt.Errorf("could not trigger workflow: %w", err)}
 			return
 		}
 		resultChan <- result{runID: workflow.RunId()}
 	}()
-
-	// Wait for result with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	select {
 	case res := <-resultChan:

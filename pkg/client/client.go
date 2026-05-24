@@ -396,7 +396,7 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 
 	// if init workflows is set, then we need to initialize the workflows
 	if opts.initWorkflows {
-		if err := initWorkflows(opts.filesLoader, admin); err != nil {
+		if err := initWorkflows(context.TODO(), opts.filesLoader, admin); err != nil {
 			return nil, fmt.Errorf("could not init workflows: %w", err)
 		}
 	}
@@ -472,11 +472,11 @@ func (c *clientImpl) RunnableActions() []string {
 	return c.runnableActions
 }
 
-func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {
+func initWorkflows(ctx context.Context, fl filesLoaderFunc, adminClient AdminClient) error {
 	files := fl()
 
 	for _, file := range files {
-		if err := adminClient.PutWorkflow(file); err != nil {
+		if err := adminClient.PutWorkflow(ctx, file); err != nil {
 			return fmt.Errorf("could not create workflow: %w", err)
 		}
 	}
