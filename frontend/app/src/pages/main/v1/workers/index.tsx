@@ -9,6 +9,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
+import { WorkerStatus } from '@/lib/api/generated/data-contracts';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
@@ -57,26 +58,18 @@ export default function Workers() {
   );
 
   const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenantId),
+    ...queries.workers.list(tenantId, {
+      offset,
+      limit,
+      statuses: statuses as WorkerStatus[],
+    }),
     refetchInterval,
   });
 
-  const data = useMemo(
-    () =>
-      listWorkersQuery.data?.rows
-        ?.filter((w) => w.status && statuses.includes(w.status))
-        ?.sort(
-          (a, b) =>
-            new Date(b.metadata?.createdAt).getTime() -
-            new Date(a.metadata?.createdAt).getTime(),
-        ) ?? [],
-    [listWorkersQuery.data?.rows, statuses],
-  );
-
-  const paginatedData = useMemo(
-    () => data.slice(offset, offset + limit),
-    [data, limit, offset],
-  );
+  const rows = listWorkersQuery.data?.rows ?? [];
+  const pageCount =
+    listWorkersQuery.data?.pagination?.num_pages ??
+    Math.ceil(rows.length / limit);
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -85,7 +78,7 @@ export default function Workers() {
   return (
     <DataTable
       columns={tableColumns}
-      data={paginatedData}
+      data={rows}
       filters={[
         {
           columnId: 'status',
@@ -123,7 +116,7 @@ export default function Workers() {
       pagination={pagination}
       setPagination={setPagination}
       onSetPageSize={setPageSize}
-      pageCount={Math.ceil(data.length / limit)}
+      pageCount={pageCount}
     />
   );
 }

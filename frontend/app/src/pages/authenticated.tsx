@@ -457,7 +457,7 @@ function AuthenticatedInner() {
 
                   if (result.type === 'cloud') {
                     void queryClient.prefetchQuery(
-                      queries.controlPlane.subscriptionPlans(),
+                      queries.cloud.subscriptionPlans(),
                     );
                   }
 

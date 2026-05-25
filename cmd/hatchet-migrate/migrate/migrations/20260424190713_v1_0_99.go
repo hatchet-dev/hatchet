@@ -47,6 +47,7 @@ BEGIN
 		);
 
 		PERFORM create_v1_range_partition('` + newParent + `', partition_date);
+		EXECUTE format('ALTER TABLE %I SET UNLOGGED', '` + newParent + `' || '_' || to_char(partition_date, 'YYYYMMDD'));
 	END LOOP;
 END;
 $$`

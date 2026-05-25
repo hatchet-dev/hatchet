@@ -252,6 +252,8 @@ WorkerRuntimeInfo:
   $ref: "./worker.yaml#/WorkerRuntimeInfo"
 WorkerRuntimeSDKs:
   $ref: "./worker.yaml#/WorkerRuntimeSDKs"
+WorkerStatus:
+  $ref: "./worker.yaml#/WorkerStatus"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 SemaphoreSlots:

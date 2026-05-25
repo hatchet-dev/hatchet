@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import hashlib
 import hmac
@@ -12,11 +11,10 @@ from uuid import uuid4
 import aiohttp
 import pytest
 
+from examples.test_utils import wait_for_event, wait_for_workflow_run
 from examples.webhooks.worker import WebhookInput
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
@@ -81,13 +79,14 @@ def create_hmac_signature(
     raise ValueError(f"Unsupported encoding: {encoding}")
 
 
+@asynccontextmanager
 async def send_webhook_request(
     url: str,
     body: WebhookInput,
     auth_type: str,
     auth_data: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
-) -> aiohttp.ClientResponse:
+) -> AsyncGenerator[aiohttp.ClientResponse, None]:
     request_headers = headers or {}
     auth = None
 
@@ -106,49 +105,10 @@ async def send_webhook_request(
         request_headers[auth_data["header_name"]] = signature
 
     async with aiohttp.ClientSession() as session:
-        return await session.post(
+        async with session.post(
             url, json=body.model_dump(), auth=auth, headers=request_headers
-        )
-
-
-async def wait_for_event(
-    hatchet: Hatchet,
-    webhook_name: str,
-    test_start: datetime,
-) -> V1Event | None:
-    await asyncio.sleep(5)
-
-    events = await hatchet.event.aio_list(since=test_start)
-
-    if events.rows is None:
-        return None
-
-    return next(
-        (
-            event
-            for event in events.rows
-            if event.triggering_webhook_name == webhook_name
-        ),
-        None,
-    )
-
-
-async def wait_for_workflow_run(
-    hatchet: Hatchet, event_id: str, test_start: datetime
-) -> V1TaskSummary | None:
-    await asyncio.sleep(5)
-
-    runs = await hatchet.runs.aio_list(
-        since=test_start,
-        additional_metadata={
-            "hatchet__event_id": event_id,
-        },
-    )
-
-    if len(runs.rows) == 0:
-        return None
-
-    return runs.rows[0]
+        ) as response:
+            yield response
 
 
 @asynccontextmanager
@@ -227,8 +187,8 @@ async def hmac_webhook(
         hatchet.webhooks.delete(incoming_webhook.name)
 
 
-def url(tenant_id: str, webhook_name: str) -> str:
-    return f"http://localhost:8080/api/v1/stable/tenants/{tenant_id}/webhooks/{webhook_name}"
+def url(hatchet: Hatchet, webhook_name: str) -> str:
+    return f"{hatchet.config.server_url}/api/v1/stable/tenants/{hatchet.tenant_id}/webhooks/{webhook_name}"
 
 
 async def assert_has_runs(
@@ -277,8 +237,8 @@ async def test_basic_auth_success(
     webhook_body: WebhookInput,
 ) -> None:
     async with basic_auth_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "BASIC",
             {"username": TEST_BASIC_USERNAME, "password": TEST_BASIC_PASSWORD},
@@ -316,8 +276,8 @@ async def test_basic_auth_failure(
 ) -> None:
     """Test basic authentication failures."""
     async with basic_auth_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "BASIC",
             {"username": username, "password": password},
@@ -339,8 +299,8 @@ async def test_basic_auth_missing_credentials(
     webhook_body: WebhookInput,
 ) -> None:
     async with basic_auth_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name), webhook_body, "NONE"
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name), webhook_body, "NONE"
         ) as response:
             assert response.status == 403
 
@@ -359,8 +319,8 @@ async def test_api_key_success(
     webhook_body: WebhookInput,
 ) -> None:
     async with api_key_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "API_KEY",
             {"header_name": TEST_API_KEY_HEADER, "api_key": TEST_API_KEY_VALUE},
@@ -395,8 +355,8 @@ async def test_api_key_failure(
     api_key: str,
 ) -> None:
     async with api_key_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "API_KEY",
             {"header_name": TEST_API_KEY_HEADER, "api_key": api_key},
@@ -418,8 +378,8 @@ async def test_api_key_missing_header(
     webhook_body: WebhookInput,
 ) -> None:
     async with api_key_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name), webhook_body, "NONE"
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name), webhook_body, "NONE"
         ) as response:
             assert response.status == 403
 
@@ -438,8 +398,8 @@ async def test_hmac_success(
     webhook_body: WebhookInput,
 ) -> None:
     async with hmac_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "HMAC",
             {
@@ -483,8 +443,8 @@ async def test_hmac_different_algorithms_and_encodings(
     async with hmac_webhook(
         hatchet, test_run_id, algorithm=algorithm, encoding=encoding
     ) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "HMAC",
             {
@@ -524,8 +484,8 @@ async def test_hmac_signature_failure(
     secret: str,
 ) -> None:
     async with hmac_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "HMAC",
             {
@@ -552,8 +512,8 @@ async def test_hmac_missing_signature_header(
     webhook_body: WebhookInput,
 ) -> None:
     async with hmac_webhook(hatchet, test_run_id) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name), webhook_body, "NONE"
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name), webhook_body, "NONE"
         ) as response:
             assert response.status == 403
 
@@ -582,8 +542,8 @@ async def test_different_source_types(
     async with basic_auth_webhook(
         hatchet, test_run_id, source_name=source_name
     ) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body,
             "BASIC",
             {"username": TEST_BASIC_USERNAME, "password": TEST_BASIC_PASSWORD},
