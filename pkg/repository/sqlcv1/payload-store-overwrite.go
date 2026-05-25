@@ -19,14 +19,7 @@ type CutoverPayloadToInsert struct {
 	Location            V1PayloadLocation
 }
 
-type InsertCutOverPayloadsIntoTempTableRow struct {
-	TenantId   uuid.UUID
-	ID         int64
-	InsertedAt pgtype.Timestamptz
-	Type       V1PayloadType
-}
-
-func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (*InsertCutOverPayloadsIntoTempTableRow, error) {
+func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverPayloadToInsert) (*uuid.UUID, error) {
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	ids := make([]int64, 0, len(payloads))
 	insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
@@ -80,9 +73,9 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 					ON CONFLICT(tenant_id, id, inserted_at, type) DO NOTHING
 				)
 
-				SELECT tenant_id, inserted_at, id, type
+				SELECT external_id
 				FROM inputs
-				ORDER BY tenant_id DESC, inserted_at DESC, id DESC, type DESC
+				ORDER BY external_id DESC
 				LIMIT 1
 				`,
 			tableName,
@@ -97,16 +90,13 @@ func InsertCutOverPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName 
 		inlineContents,
 	)
 
-	var insertRow InsertCutOverPayloadsIntoTempTableRow
+	var lastExternalId uuid.UUID
 
 	err := row.Scan(
-		&insertRow.TenantId,
-		&insertRow.InsertedAt,
-		&insertRow.ID,
-		&insertRow.Type,
+		&lastExternalId,
 	)
 
-	return &insertRow, err
+	return &lastExternalId, err
 }
 
 type PartitionRowCounts struct {

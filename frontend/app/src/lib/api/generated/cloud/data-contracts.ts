@@ -136,6 +136,11 @@ export interface APICloudMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  /**
+   * when set, the dashboard may prompt users to continue on this frontend host (same path)
+   * @example "https://cloud.hatchet.run"
+   */
+  redirectFrontendHost?: string;
 }
 
 export type APIErrors = any;

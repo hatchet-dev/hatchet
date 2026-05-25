@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import grpc
 
+from hatchet_sdk.connection import load_channel_credentials
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -347,12 +348,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         endpoint = self.config.host_port
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
-        credentials: grpc.ChannelCredentials | None = None
-
-        if self.config.tls_config.root_ca_file:
-            with open(self.config.tls_config.root_ca_file, "rb") as f:
-                root_certs = f.read()
-            credentials = grpc.ssl_channel_credentials(root_certificates=root_certs)
+        credentials = load_channel_credentials(self.config)
 
         otlp_exporter = OTLPSpanExporter(
             endpoint=endpoint,

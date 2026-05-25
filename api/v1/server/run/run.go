@@ -50,6 +50,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/telemetry"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -469,7 +470,10 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 			return nil, "", err
 		}
 
-		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID, v1Event.ExternalID)
+		payload, err := t.config.V1.OLAP().ReadPayload(timeoutCtx, v1Event.TenantID, repository.ReadOLAPPayloadOpts{
+			ExternalId: v1Event.ExternalID,
+			InsertedAt: v1Event.SeenAt,
+		})
 
 		if err != nil {
 			return nil, "", err

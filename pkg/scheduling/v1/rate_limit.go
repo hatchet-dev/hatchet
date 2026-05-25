@@ -45,10 +45,12 @@ type rateLimiter struct {
 }
 
 func newRateLimiter(conf *sharedConfig, tenantId uuid.UUID) *rateLimiter {
+	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
+
 	rl := &rateLimiter{
 		rateLimitRepo: conf.repo.RateLimit(),
 		tenantId:      tenantId,
-		l:             conf.l,
+		l:             &l,
 		unacked:       make(map[int64]rateLimitSet),
 		unflushed:     make(rateLimitSet),
 		dbRateLimits:  make(rateLimitSet),

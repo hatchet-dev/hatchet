@@ -9,7 +9,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 
 	"github.com/rs/zerolog"
 )
@@ -109,11 +108,11 @@ func (p *TenantOperationPool) Cleanup() {
 	})
 }
 
-func (p *TenantOperationPool) setTenants(tenants []*sqlcv1.Tenant) {
+func (p *TenantOperationPool) setTenants(tenants []uuid.UUID) {
 	tenantMap := make(map[uuid.UUID]bool)
 
 	for _, t := range tenants {
-		tenantMap[t.ID] = true
+		tenantMap[t] = true
 	}
 
 	// init ops for new tenants

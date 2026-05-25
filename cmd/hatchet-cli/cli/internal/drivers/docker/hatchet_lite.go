@@ -33,6 +33,15 @@ func printInfo(message string) {
 	fmt.Println(infoStyle.Render(fmt.Sprintf("  %s", message)))
 }
 
+// PullPolicy controls when Docker images are pulled, mirroring Docker Compose's pull_policy.
+type pullPolicy string
+
+const (
+	pullPolicyAlways  pullPolicy = "always"
+	pullPolicyMissing pullPolicy = "missing"
+	pullPolicyNever   pullPolicy = "never"
+)
+
 // hatchet lite opts
 const (
 	defaultpostgresName          = "postgres"
@@ -54,6 +63,8 @@ type HatchetLiteOpts struct {
 	serviceName           string
 	overrideDashboardPort int
 	overrideGrpcPort      int
+	imageTag              string
+	pullPolicy            pullPolicy
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
@@ -62,6 +73,8 @@ func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
 		hatchetName:  defaulthatchetName,
 		projectName:  defaultprojectName,
 		serviceName:  defaultserviceName,
+		imageTag:     "latest",
+		pullPolicy:   pullPolicyAlways,
 	}
 }
 
@@ -130,6 +143,31 @@ func WithOverrideGrpcPort(port int) HatchetLiteOpt {
 
 		o.overrideGrpcPort = port
 		return nil
+	}
+}
+
+// WithImageTag sets the image tag for the hatchet-lite container (e.g. "v0.83.1").
+func WithImageTag(tag string) HatchetLiteOpt {
+	return func(o *HatchetLiteOpts) error {
+		if tag == "" {
+			return fmt.Errorf("image tag must not be empty")
+		}
+
+		o.imageTag = tag
+		return nil
+	}
+}
+
+// WithPullPolicy sets the image pull policy. Valid values are "always", "missing", and "never".
+func WithPullPolicy(policy string) HatchetLiteOpt {
+	return func(o *HatchetLiteOpts) error {
+		switch pullPolicy(policy) {
+		case pullPolicyAlways, pullPolicyMissing, pullPolicyNever:
+			o.pullPolicy = pullPolicy(policy)
+			return nil
+		default:
+			return fmt.Errorf("invalid pull policy %q: must be \"always\", \"missing\", or \"never\"", policy)
+		}
 	}
 }
 
@@ -249,14 +287,9 @@ func (d *DockerDriver) startPostgresContainer(ctx context.Context, opts *Hatchet
 	imageName := "postgres:17"
 	containerName := canonicalContainerName(opts.projectName, opts.postgresName)
 
-	out, err := d.apiClient.ImagePull(ctx, imageName, image.PullOptions{})
-	if err != nil {
+	if err := d.pullImageWithPolicy(ctx, imageName, opts.pullPolicy); err != nil {
 		return fmt.Errorf("could not pull image %s: %w", imageName, err)
 	}
-	defer out.Close()
-
-	// Display progress while pulling the image
-	displayImagePullProgress(out, imageName)
 
 	// Get image details for proper labeling
 	imageInspect, err := d.apiClient.ImageInspect(ctx, imageName)
@@ -356,17 +389,12 @@ func (d *DockerDriver) stopPostgresContainer(ctx context.Context, opts *HatchetL
 }
 
 func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string, dashboardPort, grpcPort int, sharedLabels map[string]string) error {
-	imageName := "ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest"
+	imageName := "ghcr.io/hatchet-dev/hatchet/hatchet-lite:" + opts.imageTag
 	containerName := canonicalContainerName(opts.projectName, opts.hatchetName)
 
-	out, err := d.apiClient.ImagePull(ctx, imageName, image.PullOptions{})
-	if err != nil {
+	if err := d.pullImageWithPolicy(ctx, imageName, opts.pullPolicy); err != nil {
 		return fmt.Errorf("could not pull image %s: %w", imageName, err)
 	}
-	defer out.Close()
-
-	// Display progress while pulling the image
-	displayImagePullProgress(out, imageName)
 
 	// Get image details for proper labeling
 	imageInspect, err := d.apiClient.ImageInspect(ctx, imageName)
@@ -551,4 +579,39 @@ func getSharedLabels(opts *HatchetLiteOpts) map[string]string {
 	return map[string]string{
 		"com.docker.compose.project": opts.projectName,
 	}
+}
+
+func (d *DockerDriver) pullImageWithPolicy(ctx context.Context, imageName string, policy pullPolicy) error {
+	switch policy {
+	case pullPolicyNever:
+		_, err := d.apiClient.ImageInspect(ctx, imageName)
+		if err != nil {
+			return fmt.Errorf("image %s not found locally and pull policy is \"never\": %w", imageName, err)
+		}
+
+		printInfo(fmt.Sprintf("Using local image %s (pull policy: never)", imageName))
+
+		return nil
+	case pullPolicyMissing:
+		if _, err := d.apiClient.ImageInspect(ctx, imageName); err == nil {
+			printInfo(fmt.Sprintf("Image %s already exists locally, skipping pull (pull policy: missing)", imageName))
+
+			return nil
+		}
+
+		printInfo(fmt.Sprintf("Image %s not found locally, pulling... (pull policy: missing)", imageName))
+	case pullPolicyAlways:
+	default:
+		return fmt.Errorf("unknown pull policy: %q", policy)
+	}
+
+	out, err := d.apiClient.ImagePull(ctx, imageName, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("could not pull image %s: %w", imageName, err)
+	}
+	defer out.Close()
+
+	displayImagePullProgress(out, imageName)
+
+	return nil
 }

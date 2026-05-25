@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/cleanup"
@@ -176,7 +177,7 @@ func (p *Partition) GetInternalTenantForController(ctx context.Context) (*sqlcv1
 	return p.repo.GetInternalTenantForController(ctx, p.GetControllerPartitionId())
 }
 
-func (p *Partition) ListTenantsForController(ctx context.Context) ([]*sqlcv1.Tenant, error) {
+func (p *Partition) ListTenantsForController(ctx context.Context) ([]uuid.UUID, error) {
 	return p.repo.ListTenantsByControllerPartition(ctx, p.GetControllerPartitionId())
 }
 

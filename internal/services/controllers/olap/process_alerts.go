@@ -26,10 +26,8 @@ func (o *OLAPControllerImpl) runTenantProcessAlerts(ctx context.Context) func() 
 
 		o.processTenantAlertOperations.SetTenants(tenants)
 
-		for i := range tenants {
-			tenantId := tenants[i].ID.String()
-
-			o.processTenantAlertOperations.RunOrContinue(tenantId)
+		for _, tenantId := range tenants {
+			o.processTenantAlertOperations.RunOrContinue(tenantId.String())
 		}
 	}
 }
