@@ -106,7 +106,7 @@ var workerListCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 		tenantUUID := clientTenantUUID(hatchetClient)
-		resp, err := hatchetClient.API().WorkerListWithResponse(ctx, tenantUUID)
+		resp, err := hatchetClient.API().WorkerListWithResponse(ctx, tenantUUID, nil)
 		if err != nil {
 			cli.Logger.Fatalf("failed to list workers: %v", err)
 		}
@@ -314,7 +314,7 @@ func handleNoProfiles(cmd *cobra.Command) string {
 func startLocalServerAndCreateProfile(cmd *cobra.Command) string {
 	fmt.Println(styles.InfoMessage("Starting local Hatchet server..."))
 
-	result, err := startLocalServer(cmd, "local", 0, 0, "")
+	result, err := startLocalServer(cmd, "local")
 	if err != nil {
 		cli.Logger.Errorf("%v", err)
 		fmt.Println()

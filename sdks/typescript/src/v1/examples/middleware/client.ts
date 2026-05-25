@@ -12,7 +12,7 @@ export type GlobalOutputType = {
 
 const myMiddleware = {
   before: (input, ctx) => {
-    console.log('before', input.first);
+    ctx.logger.info('before', { first: input.first });
     return { ...input, dependency: 'abc-123' };
   },
   after: (output, ctx, input) => {
@@ -29,7 +29,7 @@ export const hatchetWithMiddleware = HatchetClient.init<
 // > Chaining middleware
 const firstMiddleware = {
   before: (input, ctx) => {
-    console.log('before', input.first);
+    ctx.logger.info('before', { first: input.first });
     return { ...input, dependency: 'abc-123' };
   },
   after: (output, ctx, input) => {
@@ -39,7 +39,7 @@ const firstMiddleware = {
 
 const secondMiddleware = {
   before: (input, ctx) => {
-    console.log('before', input.dependency); // available from previous middleware
+    ctx.logger.info('before', { dependency: input.dependency }); // available from previous middleware
     return { ...input, anotherDep: true };
   },
   after: (output, ctx, input) => {

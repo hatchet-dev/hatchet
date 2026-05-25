@@ -33,9 +33,9 @@ export const handleStripePayment = hatchet.task({
   on: {
     event: 'stripe:payment_intent.succeeded',
   },
-  fn: async (input: StripePaymentInput) => {
+  fn: async (input: StripePaymentInput, ctx) => {
     const { customer, amount } = input.data.object;
-    console.log(`Payment of ${amount} from ${customer}`);
+    ctx.logger.info(`Payment of ${amount} from ${customer}`);
     return { customer, amount };
   },
 });
@@ -57,11 +57,11 @@ export const handleGitHubPR = hatchet.task({
   on: {
     event: 'github:pull_request:opened',
   },
-  fn: async (input: GitHubPRInput) => {
+  fn: async (input: GitHubPRInput, ctx) => {
     const repo = input.repository.full_name;
     const prNumber = input.pull_request.number;
     const { title } = input.pull_request;
-    console.log(`PR #${prNumber} opened on ${repo}: ${title}`);
+    ctx.logger.info(`PR #${prNumber} opened on ${repo}: ${title}`);
     return { repo, pr: prNumber };
   },
 });
@@ -81,9 +81,9 @@ export const handleSlackMention = hatchet.task({
   on: {
     event: 'slack:event:app_mention',
   },
-  fn: async (input: SlackEventInput) => {
+  fn: async (input: SlackEventInput, ctx) => {
     const { user, text, channel } = input.event;
-    console.log(`Mentioned by ${user} in ${channel}: ${text}`);
+    ctx.logger.info(`Mentioned by ${user} in ${channel}: ${text}`);
     return { handled: true };
   },
 });
@@ -101,8 +101,8 @@ export const handleSlackCommand = hatchet.task({
   on: {
     event: 'slack:command:/deploy',
   },
-  fn: async (input: SlackCommandInput) => {
-    console.log(`${input.user_name} ran ${input.command} ${input.text}`);
+  fn: async (input: SlackCommandInput, ctx) => {
+    ctx.logger.info(`${input.user_name} ran ${input.command} ${input.text}`);
     return { command: input.command, args: input.text };
   },
 });
@@ -119,9 +119,9 @@ export const handleSlackInteraction = hatchet.task({
   on: {
     event: 'slack:interaction:block_actions',
   },
-  fn: async (input: SlackInteractionInput) => {
+  fn: async (input: SlackInteractionInput, ctx) => {
     const [action] = input.actions;
-    console.log(`${input.user.username} clicked button: ${action.action_id}`);
+    ctx.logger.info(`${input.user.username} clicked button: ${action.action_id}`);
     return { action: action.action_id };
   },
 });
