@@ -17,7 +17,7 @@ export const retriesWithCount = hatchet.task({
     // > Get the current retry count
     const retryCount = ctx.retryCount();
 
-    console.log(`Retry count: ${retryCount}`);
+    ctx.logger.info(`Retry count: ${retryCount}`);
 
     if (retryCount < 2) {
       throw new Error('intentional failure');

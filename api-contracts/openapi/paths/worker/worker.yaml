@@ -13,6 +13,28 @@ withTenant:
           format: uuid
           minLength: 36
           maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: Filter by worker status
+        in: query
+        name: statuses
+        required: false
+        schema:
+          type: array
+          items:
+            $ref: "../../components/schemas/_index.yaml#/WorkerStatus"
     responses:
       "200":
         content:

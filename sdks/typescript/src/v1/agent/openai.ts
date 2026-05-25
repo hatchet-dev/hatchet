@@ -13,8 +13,11 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   // z is imported from 'zod', so '_zod' in z.string() reflects the user's actual installed version.
   const hasZodV4 = '_zod' in z.string();
   let hasOpenAIAgents = true;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let tool: any;
   try {
-    require.resolve('@openai/agents');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ({ tool } = require('@openai/agents'));
   } catch {
     hasOpenAIAgents = false;
   }
@@ -26,8 +29,6 @@ export const OpenAIToolFunc = <I extends InputType, O extends OutputType>(
   if (!runnable.definition.inputValidator) {
     throw new Error('inputValidator must be defined');
   }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { tool } = require('@openai/agents');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const inputValidatorV4 = runnable.definition.inputValidator as unknown as z.ZodObject<any>;
   const { description } = runnable.definition;
