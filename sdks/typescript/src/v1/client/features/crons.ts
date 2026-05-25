@@ -1,5 +1,5 @@
 import { CronWorkflows, CronWorkflowsList } from '@hatchet/clients/rest/generated/data-contracts';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { AxiosError } from 'axios';
 import { isValidUUID } from '@util/uuid';
 import { BaseWorkflowDeclaration } from '@hatchet/v1';
@@ -15,8 +15,8 @@ import { workflowNameString, WorkflowsClient } from './workflows';
 export const CreateCronTriggerSchema = z.object({
   name: z.string(),
   expression: z.string(),
-  input: z.record(z.any()).optional(),
-  additionalMetadata: z.record(z.string()).optional(),
+  input: z.record(z.any(), z.any()).optional(),
+  additionalMetadata: z.record(z.string(), z.string()).optional(),
   priority: z.number().optional(),
 });
 

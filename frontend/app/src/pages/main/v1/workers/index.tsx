@@ -4,14 +4,16 @@ import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-too
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
+import { WorkerStatus } from '@/lib/api/generated/data-contracts';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { z } from 'zod';
 
 const workersQuerySchema = z
@@ -31,6 +33,9 @@ export default function Workers() {
     usePagination({
       key: paramKey,
     });
+  const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
+    null,
+  );
 
   const {
     state: { s: statuses },
@@ -39,29 +44,32 @@ export default function Workers() {
     resetFilters,
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:workers', {});
+
+  const handleSetOpenLabelsPopover = useCallback(
+    (id: string | null) => setOpenLabelsPopover(id),
+    [],
+  );
+
+  const tableColumns = useMemo(
+    () => columns(tenantId, openLabelsPopover, handleSetOpenLabelsPopover),
+    [tenantId, openLabelsPopover, handleSetOpenLabelsPopover],
+  );
 
   const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenantId),
+    ...queries.workers.list(tenantId, {
+      offset,
+      limit,
+      statuses: statuses as WorkerStatus[],
+    }),
     refetchInterval,
   });
 
-  const data = useMemo(
-    () =>
-      listWorkersQuery.data?.rows
-        ?.filter((w) => w.status && statuses.includes(w.status))
-        ?.sort(
-          (a, b) =>
-            new Date(b.metadata?.createdAt).getTime() -
-            new Date(a.metadata?.createdAt).getTime(),
-        ) ?? [],
-    [listWorkersQuery.data?.rows, statuses],
-  );
-
-  const paginatedData = useMemo(
-    () => data.slice(offset, offset + limit),
-    [data, limit, offset],
-  );
+  const rows = listWorkersQuery.data?.rows ?? [];
+  const pageCount =
+    listWorkersQuery.data?.pagination?.num_pages ??
+    Math.ceil(rows.length / limit);
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -69,8 +77,8 @@ export default function Workers() {
 
   return (
     <DataTable
-      columns={columns(tenantId)}
-      data={paginatedData}
+      columns={tableColumns}
+      data={rows}
       filters={[
         {
           columnId: 'status',
@@ -108,7 +116,7 @@ export default function Workers() {
       pagination={pagination}
       setPagination={setPagination}
       onSetPageSize={setPageSize}
-      pageCount={Math.ceil(data.length / limit)}
+      pageCount={pageCount}
     />
   );
 }

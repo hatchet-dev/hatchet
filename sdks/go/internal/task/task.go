@@ -24,6 +24,13 @@ const (
 	slotTypeDurable = "durable"
 )
 
+// EvictionPolicyOpts holds eviction policy parameters for durable tasks.
+type EvictionPolicyOpts struct {
+	TTL                   time.Duration
+	AllowCapacityEviction bool
+	Priority              int
+}
+
 type TaskShared struct {
 	// ExecutionTimeout specifies the maximum duration a task can run before being terminated
 	ExecutionTimeout *time.Duration
@@ -105,6 +112,10 @@ type DurableTaskDeclaration[I any] struct {
 
 	// CancelIf represents a set of conditions which, if satisfied, will cause the task to be canceled.
 	CancelIf condition.Condition
+
+	// EvictionPolicy controls how this durable task participates in worker-slot eviction.
+	// When nil, the task is non-evictable.
+	EvictionPolicy *EvictionPolicyOpts
 
 	// The function to execute when the task runs
 	// must be a function that takes an input and a DurableHatchetContext and returns an output and an error

@@ -104,7 +104,7 @@ func passwordValidation(pw string) bool {
 		}
 	}
 
-	return hasNumber && hasUpper && hasLower && pwLen >= 8 && pwLen <= 32
+	return hasNumber && hasUpper && hasLower && pwLen >= 8 && pwLen <= 64
 }
 
 func IsValidUUID(u string) bool {

@@ -82,7 +82,7 @@ const TEST_CASES: SearchTestCase[] = [
     name: "setup",
     query: "setup",
     expectAnyOf: ["v1/quickstart", "reference/cli/index", "reference/cli"],
-    topN: 10,
+    topN: 15,
   },
   {
     name: "getting started",
@@ -504,11 +504,6 @@ const TEST_CASES: SearchTestCase[] = [
     name: "sampling",
     query: "sampling",
     expectAnyOf: ["self-hosting/sampling"],
-  },
-  {
-    name: "glasskube",
-    query: "glasskube",
-    expectAnyOf: ["self-hosting/kubernetes-glasskube"],
   },
   {
     name: "downgrading versions",

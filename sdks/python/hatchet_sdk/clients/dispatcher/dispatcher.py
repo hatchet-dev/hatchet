@@ -9,11 +9,10 @@ from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.rest.tenacity_utils import (
-    tenacity_alert_retry,
     tenacity_retry,
     tenacity_should_retry,
 )
-from hatchet_sdk.config import ClientConfig, TenacityConfig
+from hatchet_sdk.config import ClientConfig, TenacityConfig, tenacity_before_sleep
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
@@ -105,7 +104,7 @@ class DispatcherClient:
         reraise=True,
         wait=tenacity.wait_exponential_jitter(initial=0.5, max=5),
         stop=tenacity.stop_after_attempt(3),
-        before_sleep=tenacity_alert_retry,
+        before_sleep=tenacity_before_sleep,
         retry=tenacity.retry_if_exception(tenacity_should_retry),
     )
     async def get_version(self) -> str | None:

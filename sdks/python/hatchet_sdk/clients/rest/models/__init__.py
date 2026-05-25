@@ -268,6 +268,15 @@ from hatchet_sdk.clients.rest.models.v1_create_webhook_request_hmac import (
     V1CreateWebhookRequestHMAC,
 )
 from hatchet_sdk.clients.rest.models.v1_dag_children import V1DagChildren
+from hatchet_sdk.clients.rest.models.v1_durable_event_log_entry import (
+    V1DurableEventLogEntry,
+)
+from hatchet_sdk.clients.rest.models.v1_durable_event_log_kind import (
+    V1DurableEventLogKind,
+)
+from hatchet_sdk.clients.rest.models.v1_durable_wait_condition_kind import (
+    V1DurableWaitConditionKind,
+)
 from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_event_list import V1EventList
 from hatchet_sdk.clients.rest.models.v1_event_triggered_run import V1EventTriggeredRun

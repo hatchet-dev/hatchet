@@ -79,7 +79,7 @@ func (g *SlackAppService) UserUpdateSlackOauthCallback(ctx echo.Context, _ gen.U
 
 	return gen.UserUpdateSlackOauthCallback302Response{
 		Headers: gen.UserUpdateSlackOauthCallback302ResponseHeaders{
-			Location: "/tenant-settings/alerting",
+			Location: "/settings/alerting",
 		},
 	}, nil
 }

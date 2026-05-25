@@ -1,5 +1,5 @@
 import { ChannelCredentials } from 'nice-grpc';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Context } from '@hatchet/v1/client/worker/context';
 import { Logger, LogLevel } from '@util/logger';
 

@@ -14,6 +14,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
   pendingInvitesQuery,
@@ -21,7 +22,11 @@ import {
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
-import { fetchControlPlaneStatus } from '@/lib/api/api';
+import {
+  CONTROL_PLANE_TENANT_STORAGE_KEY,
+  fetchControlPlaneStatus,
+} from '@/lib/api/api';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
@@ -33,7 +38,7 @@ import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   useLoaderData,
   useLocation,
@@ -59,6 +64,8 @@ export async function loader(_args: { request: Request }) {
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
+    isCloudEnabled,
+    isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
   };
@@ -100,6 +107,7 @@ function AuthenticatedInner() {
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
+  const isTenantsPage = Boolean(matchRoute({ to: appRoutes.tenantsRoute.to }));
   const isOnboardingVerifyEmailPage = Boolean(
     matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
   );
@@ -121,28 +129,46 @@ function AuthenticatedInner() {
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
-    onSuccess: () => {
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
 
-  useInactivityDetection({
-    timeoutMs: loaderData.inactivityLogoutMs,
-    onInactive: () => {
-      logoutMutation.mutate();
-    },
+  const { pendingInvitesQuery } = usePendingInvites({
+    isCloudEnabled: loaderData.isCloudEnabled,
+    isControlPlaneEnabled: loaderData.isControlPlaneEnabled,
   });
-
-  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
     isLoaded: isUserUniverseLoaded,
+    isFetching: isUserUniverseFetching,
     organizations,
     tenantMemberships,
   } = useUserUniverse();
 
+  const { isControlPlaneEnabled } = useControlPlane();
+  const orgApi = useOrganizationApi();
+  const orgIdForTenant = organizations?.find((o) =>
+    o.tenants?.some((t) => t.id === tenant?.metadata?.id),
+  )?.metadata?.id;
+  const orgQuery = useQuery({
+    ...orgApi.organizationGetQuery(orgIdForTenant!),
+    enabled: !!orgIdForTenant && isControlPlaneEnabled,
+  });
+  const inactivityTimeoutMs = isControlPlaneEnabled
+    ? ((orgQuery.data as { inactivity_timeout?: number } | undefined)
+        ?.inactivity_timeout ?? -1)
+    : loaderData.inactivityLogoutMs;
+
+  useInactivityDetection({
+    timeoutMs: inactivityTimeoutMs,
+    onInactive: () => {
+      logoutMutation.mutate();
+    },
+  });
   const ctx = useContextFromParent({
     user: currentUser,
     memberships: tenantMemberships,
@@ -161,8 +187,8 @@ function AuthenticatedInner() {
       }
     };
 
-    // Skip all redirects for organization pages
-    if (isOrganizationsPage) {
+    // Skip all redirects for organization/tenants pages
+    if (isOrganizationsPage || isTenantsPage) {
       return;
     }
 
@@ -192,41 +218,54 @@ function AuthenticatedInner() {
       ? pendingInvitesQuery.data
       : null;
 
-    if (
-      pendingInvites &&
-      pendingInvites.inviteCount > 0 &&
-      !isOnboardingInvitesPage
-    ) {
-      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
-      return;
-    }
-
     const okayToMakeOnboardingRedirectDecisions =
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
-      isUserUniverseLoaded;
+      isUserUniverseLoaded &&
+      !isUserUniverseFetching;
 
-    if (okayToMakeOnboardingRedirectDecisions) {
-      const shouldHaveAnOrganizationButDoesnt =
-        isCloudEnabled && organizations.length === 0;
+    const shouldHaveAnOrganizationButDoesnt =
+      isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
 
-      if (shouldHaveAnOrganizationButDoesnt) {
-        storeRedirectPath();
-        navigate({
-          to: appRoutes.onboardingCreateOrganizationRoute.to,
-          replace: true,
-        });
-        return;
-      }
+    const mustAcceptOrganizationInviteNow =
+      okayToMakeOnboardingRedirectDecisions &&
+      shouldHaveAnOrganizationButDoesnt &&
+      pendingInvites &&
+      pendingInvites.organizationInvites.length > 0;
 
-      if (tenantMemberships.length === 0) {
-        storeRedirectPath();
-        navigate({
-          to: appRoutes.onboardingCreateTenantRoute.to,
-          replace: true,
-        });
-        return;
-      }
+    const mustAcceptTenantInviteNow =
+      okayToMakeOnboardingRedirectDecisions &&
+      tenantMemberships &&
+      tenantMemberships.length === 0 &&
+      pendingInvites &&
+      pendingInvites.tenantInvites.length > 0;
+
+    if (
+      !isOnboardingInvitesPage &&
+      (mustAcceptOrganizationInviteNow || mustAcceptTenantInviteNow)
+    ) {
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      shouldHaveAnOrganizationButDoesnt
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingCreateOrganizationRoute.to,
+        replace: true,
+      });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      tenantMemberships.length === 0
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingCreateTenantRoute.to,
+        replace: true,
+      });
+      return;
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
@@ -249,12 +288,22 @@ function AuthenticatedInner() {
       // clear it so we don't keep trying to use a stale tenant.
       if (lastTenantId && !lastTenantInMemberships) {
         setLastTenant(undefined);
+        if (loaderData.isControlPlaneEnabled) {
+          localStorage.removeItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
+        }
       }
 
       const targetTenant =
         lastTenantInMemberships ?? tenantMemberships[0].tenant;
 
       if (targetTenant) {
+        if (loaderData.isControlPlaneEnabled) {
+          localStorage.setItem(
+            CONTROL_PLANE_TENANT_STORAGE_KEY,
+            JSON.stringify(targetTenant),
+          );
+        }
+
         // Check if tenant has workflows to decide where to redirect
         api
           .workflowList(targetTenant.metadata.id, { limit: 1 })
@@ -292,6 +341,7 @@ function AuthenticatedInner() {
     lastTenant,
     pathname,
     isOrganizationsPage,
+    isTenantsPage,
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,
@@ -299,9 +349,11 @@ function AuthenticatedInner() {
     setLastTenant,
     isCloudEnabled,
     isUserUniverseLoaded,
+    isUserUniverseFetching,
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
+    loaderData.isControlPlaneEnabled,
   ]);
 
   useEffect(

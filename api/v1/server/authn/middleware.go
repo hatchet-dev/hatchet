@@ -60,22 +60,6 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
-	var cookieErr error
-
-	if r.Security.CookieAuth() {
-		cookieErr = a.handleCookieAuth(c)
-
-		c.Set("auth_strategy", "cookie")
-
-		if cookieErr == nil {
-			return nil
-		}
-	}
-
-	if cookieErr != nil && !r.Security.BearerAuth() && !r.Security.CustomAuth() {
-		return cookieErr
-	}
-
 	var bearerErr error
 
 	if r.Security.BearerAuth() {
@@ -88,7 +72,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	if bearerErr != nil && !r.Security.CustomAuth() {
+	if bearerErr != nil && !r.Security.CustomAuth() && !r.Security.CookieAuth() {
 		return bearerErr
 	}
 
@@ -104,8 +88,26 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		}
 	}
 
-	if customErr != nil {
+	if customErr != nil && !r.Security.CookieAuth() {
 		return customErr
+	}
+
+	var cookieErr error
+
+	if r.Security.CookieAuth() {
+		// FIXME(gregfurman): handleCookieAuth (practically) always creates a new UserSession entry.
+		// Hence, the ordering of bearer -> custom -> cookie intentionally prevents this.
+		cookieErr = a.handleCookieAuth(c)
+
+		c.Set("auth_strategy", "cookie")
+
+		if cookieErr == nil {
+			return nil
+		}
+	}
+
+	if cookieErr != nil {
+		return cookieErr
 	}
 
 	return fmt.Errorf("no auth strategy found")
@@ -213,16 +215,7 @@ func (a *AuthN) handleCookieAuth(c echo.Context) error {
 func (a *AuthN) handleBearerAuth(c echo.Context) error {
 	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
 
-	// a tenant id must exist in the context in order for the bearer auth to succeed, since
-	// these tokens are tenant-scoped
 	ctx := c.Request().Context()
-	queriedTenant, ok := c.Get("tenant").(*sqlcv1.Tenant)
-
-	if !ok {
-		a.l.Debug().Ctx(ctx).Msgf("tenant not found in context")
-
-		return fmt.Errorf("tenant not found in context")
-	}
 
 	token, isExchangeToken, err := getBearerTokenFromRequest(c.Request())
 
@@ -231,6 +224,8 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 
 		return forbidden
 	}
+
+	queriedTenant, isTenantScoped := c.Get("tenant").(*sqlcv1.Tenant)
 
 	if isExchangeToken {
 		if a.config.Auth.ExchangeTokenClient == nil {
@@ -247,7 +242,9 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 			return forbidden
 		}
 
-		if *tenantId != queriedTenant.ID {
+		// we permit exchange token auth if the token is valid and represents a user if the endpoint is not tenant-scoped, because
+		// this is effectively a PAT without the tenant scoping
+		if isTenantScoped && *tenantId != queriedTenant.ID {
 			a.l.Error().Msgf("tenant id in token does not match tenant id in context")
 
 			return forbidden
@@ -282,6 +279,13 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		c.SetRequest(c.Request().WithContext(ctx))
 
 		return nil
+	}
+
+	// If we've reached this point, and it's not tenant-scoped, this endpoint is forbidden
+	if !isTenantScoped {
+		a.l.Debug().Ctx(ctx).Msgf("bearer token auth attempted on non-tenant-scoped endpoint")
+
+		return forbidden
 	}
 
 	// Validate the token.

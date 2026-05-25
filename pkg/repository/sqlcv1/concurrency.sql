@@ -144,6 +144,18 @@ WHERE
 -- name: AdvisoryLock :exec
 SELECT pg_advisory_xact_lock(@key::bigint);
 
+-- name: TryAdvisoryLockMany :many
+WITH keys AS (
+    SELECT UNNEST(@keys::BIGINT[]) AS key
+), ordered_keys AS (
+    SELECT key
+    FROM keys
+    ORDER BY key
+)
+
+SELECT key::BIGINT, pg_try_advisory_xact_lock(key)::BOOLEAN AS "acquired"
+FROM ordered_keys;
+
 -- name: TryAdvisoryLock :one
 SELECT pg_try_advisory_xact_lock(@key::bigint) AS "locked";
 
@@ -775,3 +787,38 @@ SELECT
     'RUNNING' AS "operation"
 FROM
     updated_slots;
+
+
+-- name: ListTenantsWithManyStepConcurrencies :many
+SELECT tenant_id, COUNT(*) AS total
+FROM v1_step_concurrency
+WHERE is_active = TRUE
+GROUP BY tenant_id
+HAVING COUNT(*) > @threshold::BIGINT;
+
+-- name: DeactivateStaleStepConcurrency :exec
+WITH tenant_step_concurrencies AS (
+    SELECT sc.id
+    FROM v1_step_concurrency sc
+    WHERE sc.tenant_id = @tenantId::UUID
+        AND sc.is_active = TRUE
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE
+                cs.strategy_id = sc.id
+                AND cs.tenant_id = @tenantId::UUID -- tenant id filter to force index usage
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            JOIN v1_workflow_concurrency_slot wcs
+            ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id)
+                = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+            WHERE cs.strategy_id = sc.id
+        )
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_step_concurrency sc
+SET is_active = FALSE
+FROM tenant_step_concurrencies
+WHERE sc.id = tenant_step_concurrencies.id;

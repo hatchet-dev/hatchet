@@ -79,11 +79,9 @@ function statusToBadgeVariant(status: V1TaskStatus) {
 const GraphView = ({
   shape,
   handleTaskRunExpand,
-  onMiniMapClick,
 }: {
   shape: WorkflowRunShapeForWorkflowRunDetails;
   handleTaskRunExpand: (stepRunId: string) => void;
-  onMiniMapClick: (stepRunId: string) => void;
 }) => {
   const [view] = useAtom(preferredWorkflowRunViewAtom);
 
@@ -96,7 +94,7 @@ const GraphView = ({
     <JobMiniMap
       onClick={(stepRunId) => {
         if (stepRunId) {
-          onMiniMapClick(stepRunId);
+          handleTaskRunExpand(stepRunId);
         }
       }}
     />
@@ -241,7 +239,7 @@ export default function Run() {
 }
 
 function ExpandedTaskRun({ id }: { id: string }) {
-  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Output} />;
+  return <TaskRunDetail taskRunId={id} defaultOpenTab={TabOption.Activity} />;
 }
 
 function ExpandedWorkflowRun({ id }: { id: string }) {
@@ -264,7 +262,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         type: 'task-run-details',
         content: {
           taskRunId,
-          defaultOpenTab: TabOption.Output,
+          defaultOpenTab: TabOption.Activity,
           showViewTaskRunButton: true,
         },
       });
@@ -274,13 +272,6 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
       }, 100);
     },
     [open],
-  );
-
-  const handleMiniMapClick = useCallback(
-    (taskRunId: string) => {
-      search.set({ focusedTaskRunId: taskRunId, tab: 'traces' });
-    },
-    [search],
   );
 
   const { workflowRun, shape, taskRuns, isLoading, isError } =
@@ -311,6 +302,11 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
     [taskRuns],
   );
 
+  const durableTaskIds = useMemo(
+    () => taskRuns.filter((t) => t.isDurable).map((t) => t.taskExternalId),
+    [taskRuns],
+  );
+
   if (isLoading || isError || !workflowRun) {
     return null;
   }
@@ -319,8 +315,8 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
   const additionalMetadata = workflowRun.additionalMetadata;
 
   return (
-    <div className="h-full w-full flex-grow">
-      <div className="mx-auto px-4 pt-2 sm:px-6 lg:px-8">
+    <div className="flex h-full w-full flex-1 flex-col min-h-0">
+      <div className="mx-auto flex h-full w-full flex-1 min-h-0 flex-col px-4 pt-2 sm:px-6 lg:px-8">
         <V1RunDetailHeader />
         <Separator className="my-4" />
         <div className="mb-4 flex flex-row gap-x-4">
@@ -333,7 +329,7 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
         <Tabs
           value={activeTab}
           onValueChange={search.setTab}
-          className="flex h-full flex-col"
+          className="flex min-h-0 flex-1 flex-col"
         >
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="overview">
@@ -346,17 +342,22 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
               Logs
             </TabsTrigger>
           </TabsList>
-          <TabsContent value="overview" className="min-h-0 flex-1">
-            <div className="relative flex h-fit w-full overflow-auto bg-slate-100 dark:bg-slate-900">
+          <TabsContent
+            value="overview"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="relative flex w-full shrink-0 overflow-auto bg-slate-100 dark:bg-slate-900">
               <GraphView
                 shape={shape}
                 handleTaskRunExpand={handleTaskRunExpand}
-                onMiniMapClick={handleMiniMapClick}
               />
               <ViewToggle />
             </div>
             <div className="h-4" />
-            <Tabs defaultValue="activity">
+            <Tabs
+              defaultValue="activity"
+              className="flex h-full flex-col min-h-0"
+            >
               <TabsList layout="underlined">
                 <TabsTrigger variant="underlined" value="activity">
                   Activity
@@ -371,18 +372,25 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   Additional Metadata
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="activity" className="py-4">
+              <TabsContent
+                value="activity"
+                className="flex min-h-0 flex-1 flex-col py-4"
+              >
                 <StepRunEvents
                   workflowRunId={id}
                   fallbackTaskDisplayName={workflowRun.displayName}
                   onClick={handleTaskRunExpand}
+                  durableTaskIds={durableTaskIds}
                 />
               </TabsContent>
-              <TabsContent value="output">
+              <TabsContent
+                value="output"
+                className="flex min-h-0 flex-1 flex-col py-4"
+              >
                 <CodeHighlighter
-                  className="my-4 h-[400px] max-h-[400px] overflow-y-auto"
-                  maxHeight="400px"
-                  minHeight="400px"
+                  className="flex-1 min-h-0 overflow-hidden"
+                  maxHeight="100%"
+                  minHeight="100%"
                   language="json"
                   code={
                     workflowRun.status === V1TaskStatus.FAILED
@@ -391,12 +399,20 @@ function ExpandedWorkflowRun({ id }: { id: string }) {
                   }
                 />
               </TabsContent>
-              <TabsContent value="input">
+              <TabsContent
+                value="input"
+                className="flex min-h-0 flex-1 flex-col py-4"
+              >
                 <WorkflowRunInputDialog input={JSON.parse(inputData)} />
               </TabsContent>
-              <TabsContent value="additional-metadata">
+              <TabsContent
+                value="additional-metadata"
+                className="flex min-h-0 flex-1 flex-col py-4"
+              >
                 <CodeHighlighter
-                  className="my-4"
+                  className="flex-1 min-h-0 overflow-hidden"
+                  maxHeight="100%"
+                  minHeight="100%"
                   language="json"
                   code={JSON.stringify(additionalMetadata, null, 2)}
                 />

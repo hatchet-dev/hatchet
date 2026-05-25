@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
@@ -16,8 +16,8 @@ export const durableWorkflow = hatchet.workflow({
 
 durableWorkflow.task({
   name: 'ephemeral_task',
-  fn: async () => {
-    console.log('Running non-durable task');
+  fn: async (_, ctx) => {
+    ctx.logger.info('Running non-durable task');
   },
 });
 
@@ -25,13 +25,13 @@ durableWorkflow.durableTask({
   name: 'durable_task',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
-    console.log('Waiting for sleep');
-    const sleepResult = await ctx.sleepFor(SLEEP_TIME);
-    console.log('Sleep finished');
+    ctx.logger.info('Waiting for sleep');
+    const sleepResult = await ctx.sleepFor(SLEEP_TIME, { label: 'waiting for sleep' });
+    ctx.logger.info('Sleep finished');
 
-    console.log('Waiting for event');
+    ctx.logger.info('Waiting for event');
     const event = await ctx.waitForEvent(EVENT_KEY, 'true');
-    console.log('Event received');
+    ctx.logger.info('Event received');
 
     return {
       status: 'success',
@@ -254,6 +254,10 @@ const lookbackEventPayloadSchema = z.object({
   user_id: z.number(),
 });
 
+const twoEventsPayloadSchema = z.object({
+  order: z.string(),
+});
+
 export const waitForEventLookback = hatchet.durableTask({
   name: 'wait-for-event-lookback',
   executionTimeout: '10m',
@@ -312,14 +316,14 @@ export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
     const event1 = await ctx.waitForEvent(
       'key1',
       undefined,
-      undefined,
+      twoEventsPayloadSchema,
       input.scope,
       LOOKBACK_WINDOW
     );
     const event2 = await ctx.waitForEvent(
       'key2',
       undefined,
-      undefined,
+      twoEventsPayloadSchema,
       input.scope,
       LOOKBACK_WINDOW
     );

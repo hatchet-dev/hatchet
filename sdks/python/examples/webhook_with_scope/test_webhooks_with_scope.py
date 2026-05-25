@@ -1,21 +1,20 @@
-import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, AsyncGenerator
 from uuid import uuid4
 
 import aiohttp
 import pytest
+from aiohttp import ClientResponse
 
+from examples.test_utils import wait_for_event, wait_for_workflow_run
 from examples.webhook_with_scope.worker import (
     WebhookInputWithScope,
     WebhookInputWithStaticPayload,
 )
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_event import V1Event
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_source_name import V1WebhookSourceName
@@ -51,56 +50,18 @@ def test_start() -> datetime:
     return datetime.now(timezone.utc)
 
 
+@asynccontextmanager
 async def send_webhook_request(
     url: str,
     body: dict[str, Any],
     username: str = TEST_BASIC_USERNAME,
     password: str = TEST_BASIC_PASSWORD,
-) -> aiohttp.ClientResponse:
+) -> AsyncGenerator[ClientResponse, Any]:
     auth = aiohttp.BasicAuth(username, password)
 
     async with aiohttp.ClientSession() as session:
-        return await session.post(url, json=body, auth=auth)
-
-
-async def wait_for_event(
-    hatchet: Hatchet,
-    webhook_name: str,
-    test_start: datetime,
-) -> V1Event | None:
-    await asyncio.sleep(5)
-
-    events = await hatchet.event.aio_list(since=test_start)
-
-    if events.rows is None:
-        return None
-
-    return next(
-        (
-            event
-            for event in events.rows
-            if event.triggering_webhook_name == webhook_name
-        ),
-        None,
-    )
-
-
-async def wait_for_workflow_run(
-    hatchet: Hatchet, event_id: str, test_start: datetime
-) -> V1TaskSummary | None:
-    await asyncio.sleep(5)
-
-    runs = await hatchet.runs.aio_list(
-        since=test_start,
-        additional_metadata={
-            "hatchet__event_id": event_id,
-        },
-    )
-
-    if len(runs.rows) == 0:
-        return None
-
-    return runs.rows[0]
+        async with session.post(url, json=body, auth=auth) as response:
+            yield response
 
 
 @asynccontextmanager
@@ -201,8 +162,8 @@ async def webhook_with_scope_and_static(
         hatchet.webhooks.delete(incoming_webhook.name)
 
 
-def url(tenant_id: str, webhook_name: str) -> str:
-    return f"http://localhost:8080/api/v1/stable/tenants/{tenant_id}/webhooks/{webhook_name}"
+def url(hatchet: Hatchet, webhook_name: str) -> str:
+    return f"{hatchet.config.server_url}/api/v1/stable/tenants/{hatchet.tenant_id}/webhooks/{webhook_name}"
 
 
 async def assert_has_runs(
@@ -256,8 +217,8 @@ async def test_scope_expression_from_payload(
     ) as incoming_webhook:
         assert incoming_webhook.scope_expression == "input.scope"
 
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body_with_scope.model_dump(),
         ) as response:
             assert response.status == 200
@@ -290,7 +251,7 @@ async def test_scope_expression_from_headers(
         auth = aiohttp.BasicAuth(TEST_BASIC_USERNAME, TEST_BASIC_PASSWORD)
         async with aiohttp.ClientSession() as session:
             async with await session.post(
-                url(hatchet.tenant_id, incoming_webhook.name),
+                url(hatchet, incoming_webhook.name),
                 json=webhook_body.model_dump(),
                 auth=auth,
                 headers={"X-Custom-Scope": "header-scope-value"},
@@ -320,8 +281,8 @@ async def test_scope_expression_concatenation(
         test_run_id,
         scope_expression="'prefix:' + input.type + ':' + input.scope",
     ) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body_with_scope.model_dump(),
         ) as response:
             assert response.status == 200
@@ -355,8 +316,8 @@ async def test_static_payload_adds_fields(
     ) as incoming_webhook:
         assert incoming_webhook.static_payload == static_payload
 
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body_for_static.model_dump(),
         ) as response:
             assert response.status == 200
@@ -396,8 +357,8 @@ async def test_static_payload_overrides_existing_fields(
         test_run_id,
         static_payload=static_payload,
     ) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             incoming_body,
         ) as response:
             assert response.status == 200
@@ -436,8 +397,8 @@ async def test_scope_expression_uses_static_payload_values(
         scope_expression="input.customer_id",
         static_payload=static_payload,
     ) as incoming_webhook:
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             incoming_body,
         ) as response:
             assert response.status == 200
@@ -471,8 +432,8 @@ async def test_webhook_update_scope_expression(
         assert updated.scope_expression == "input.scope"
         assert updated.event_key_expression == incoming_webhook.event_key_expression
 
-        async with await send_webhook_request(
-            url(hatchet.tenant_id, incoming_webhook.name),
+        async with send_webhook_request(
+            url(hatchet, incoming_webhook.name),
             webhook_body_with_scope.model_dump(),
         ) as response:
             assert response.status == 200

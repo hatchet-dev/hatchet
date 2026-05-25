@@ -12,11 +12,11 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^22.15.3",
+    "@types/node": "^22.19.19",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@hatchet-dev/typescript-sdk": "1.19.1"
+    "@hatchet-dev/typescript-sdk": "1.22.3"
   },
   "pnpm": {
     "overrides": {

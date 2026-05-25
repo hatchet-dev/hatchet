@@ -110,6 +110,9 @@ type ConfigFileOperations struct {
 
 	// PollInterval is the polling interval for operations in seconds
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
+
+	// OLAPMQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
+	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"2000"`
 }
 
 type TaskOperationLimitsConfigFile struct {
@@ -166,6 +169,10 @@ type ConfigFileRuntime struct {
 
 	// ServerURL is the full server URL of the instance, including protocol.
 	ServerURL string `mapstructure:"url" json:"url,omitempty" default:"http://localhost:8080"`
+
+	// FrontendURL is the full URL of the frontend, used to render actionable links in emails and other notifications.
+	// Defaults to the ServerURL if not set.
+	FrontendURL string `mapstructure:"frontendUrl" json:"frontendUrl,omitempty"`
 
 	// Healthcheck controls whether the server has a healthcheck endpoint
 	Healthcheck bool `mapstructure:"healthcheck" json:"healthcheck,omitempty" default:"true"`
@@ -688,6 +695,8 @@ type ServerConfig struct {
 	CronOperations CronOperationsConfigFile
 
 	OLAPStatusUpdates OLAPStatusUpdateConfigFile
+
+	MQMaxDeathCount int
 }
 
 type PayloadStoreConfig struct {
@@ -720,6 +729,7 @@ func BindAllEnv(v *viper.Viper) {
 	// runtime options
 	_ = v.BindEnv("runtime.port", "SERVER_PORT")
 	_ = v.BindEnv("runtime.url", "SERVER_URL")
+	_ = v.BindEnv("runtime.frontendUrl", "SERVER_FRONTEND_URL")
 	_ = v.BindEnv("runtime.healthcheck", "SERVER_HEALTHCHECK")
 	_ = v.BindEnv("runtime.healthcheckPort", "SERVER_HEALTHCHECK_PORT")
 	_ = v.BindEnv("runtime.grpcPort", "SERVER_GRPC_PORT")
@@ -989,6 +999,7 @@ func BindAllEnv(v *viper.Viper) {
 	// OLAP status update options
 	_ = v.BindEnv("statusUpdates.dagBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_DAG_BATCH_SIZE_LIMIT")
 	_ = v.BindEnv("statusUpdates.taskBatchSizeLimit", "SERVER_OLAP_STATUS_UPDATE_TASK_BATCH_SIZE_LIMIT")
+	_ = v.BindEnv("olap.olapMqQos", "SERVER_OLAP_MQ_QOS")
 
 	// exchange token options
 	_ = v.BindEnv("auth.controlPlaneExchangeToken.enabled", "SERVER_AUTH_CONTROL_PLANE_EXCHANGE_TOKEN_ENABLED")

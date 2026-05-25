@@ -14,6 +14,8 @@ module V1
       self.unmarshal_class_method = :decode
       self.service_name = 'v1.V1Dispatcher'
 
+      rpc :DurableTask, stream(::V1::DurableTaskRequest), stream(::V1::DurableTaskResponse)
+      # NOTE: deprecated after DurableEventLog is implemented
       rpc :RegisterDurableEvent, ::V1::RegisterDurableEventRequest, ::V1::RegisterDurableEventResponse
       rpc :ListenForDurableEvent, stream(::V1::ListenForDurableEventRequest), stream(::V1::DurableEvent)
     end

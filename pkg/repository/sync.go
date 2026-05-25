@@ -40,6 +40,8 @@ type SyncRepository interface {
 	SyncUpsertTenantMember(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantMemberParams) (*sqlcv1.TenantMember, error)
 	SyncUpdateTenantMember(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpdateTenantMemberParams) (*sqlcv1.TenantMember, error)
 	SyncDeleteTenantMember(ctx context.Context, db sqlcv1.DBTX, id uuid.UUID) error
+
+	SyncUpsertTenantAlertingSettings(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantAlertingSettingsParams) (*sqlcv1.TenantAlertingSettings, error)
 }
 
 type syncRepository struct {
@@ -98,4 +100,8 @@ func (r *syncRepository) SyncUpdateTenantMember(ctx context.Context, db sqlcv1.D
 
 func (r *syncRepository) SyncDeleteTenantMember(ctx context.Context, db sqlcv1.DBTX, id uuid.UUID) error {
 	return r.queries.DeleteTenantMember(ctx, db, id)
+}
+
+func (r *syncRepository) SyncUpsertTenantAlertingSettings(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantAlertingSettingsParams) (*sqlcv1.TenantAlertingSettings, error) {
+	return r.queries.SyncUpsertTenantAlertingSettings(ctx, db, arg)
 }

@@ -77,13 +77,14 @@ export class Api<
    * @summary Get metadata
    * @request GET:/api/v1/cloud/metadata
    */
-  metadataGet = (params: RequestParams = {}) =>
+  metadataGet = Object.assign((params: RequestParams = {}) =>
     this.request<APICloudMetadata, APIErrors>({
       path: `/api/v1/cloud/metadata`,
       method: "GET",
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Starts the OAuth flow
    *
@@ -93,7 +94,7 @@ export class Api<
    * @request GET:/api/v1/cloud/users/github-app/start
    * @secure
    */
-  userUpdateGithubAppOauthStart = (
+  userUpdateGithubAppOauthStart = Object.assign((
     query?: {
       /** Redirect To */
       redirect_to?: string;
@@ -108,7 +109,8 @@ export class Api<
       query: query,
       secure: true,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Completes the OAuth flow
    *
@@ -118,13 +120,14 @@ export class Api<
    * @request GET:/api/v1/cloud/users/github-app/callback
    * @secure
    */
-  userUpdateGithubAppOauthCallback = (params: RequestParams = {}) =>
+  userUpdateGithubAppOauthCallback = Object.assign((params: RequestParams = {}) =>
     this.request<any, void>({
       path: `/api/v1/cloud/users/github-app/callback`,
       method: "GET",
       secure: true,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Github App global webhook
    *
@@ -133,12 +136,13 @@ export class Api<
    * @summary Github app global webhook
    * @request POST:/api/v1/cloud/github/webhook
    */
-  githubUpdateGlobalWebhook = (params: RequestParams = {}) =>
+  githubUpdateGlobalWebhook = Object.assign((params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github/webhook`,
       method: "POST",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Github App tenant webhook
    *
@@ -147,12 +151,13 @@ export class Api<
    * @summary Github app tenant webhook
    * @request POST:/api/v1/cloud/github/webhook/{webhook}
    */
-  githubUpdateTenantWebhook = (webhook: string, params: RequestParams = {}) =>
+  githubUpdateTenantWebhook = Object.assign((webhook: string, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/cloud/github/webhook/${webhook}`,
       method: "POST",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description List Github App installations
    *
@@ -162,7 +167,7 @@ export class Api<
    * @request GET:/api/v1/cloud/github-app/installations
    * @secure
    */
-  githubAppListInstallations = (
+  githubAppListInstallations = Object.assign((
     query?: {
       /**
        * The tenant id
@@ -181,7 +186,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description List Github App repositories
    *
@@ -191,7 +197,7 @@ export class Api<
    * @request GET:/api/v1/cloud/github-app/installations/{gh-installation}/repos
    * @secure
    */
-  githubAppListRepos = (
+  githubAppListRepos = Object.assign((
     ghInstallation: string,
     query: {
       /**
@@ -211,7 +217,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["gh-installation"],
+    }), { resources: new Set<string>(["gh-installation"]) });
   /**
    * @description Link Github App installation to a tenant
    *
@@ -221,7 +228,7 @@ export class Api<
    * @request GET:/api/v1/cloud/github-app/installations/{gh-installation}/link
    * @secure
    */
-  githubAppUpdateInstallation = (
+  githubAppUpdateInstallation = Object.assign((
     ghInstallation: string,
     query: {
       /**
@@ -240,7 +247,8 @@ export class Api<
       query: query,
       secure: true,
       ...params,
-    });
+      xResources: ["gh-installation"],
+    }), { resources: new Set<string>(["gh-installation"]) });
   /**
    * @description List Github App branches
    *
@@ -250,7 +258,7 @@ export class Api<
    * @request GET:/api/v1/cloud/github-app/installations/{gh-installation}/repos/{gh-repo-owner}/{gh-repo-name}/branches
    * @secure
    */
-  githubAppListBranches = (
+  githubAppListBranches = Object.assign((
     ghInstallation: string,
     ghRepoOwner: string,
     ghRepoName: string,
@@ -272,7 +280,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["gh-installation"],
+    }), { resources: new Set<string>(["gh-installation"]) });
   /**
    * @description Get all managed workers for the tenant
    *
@@ -282,14 +291,15 @@ export class Api<
    * @request GET:/api/v1/cloud/tenants/{tenant}/managed-worker
    * @secure
    */
-  managedWorkerList = (tenant: string, params: RequestParams = {}) =>
+  managedWorkerList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<ManagedWorkerList, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create a managed worker for the tenant
    *
@@ -299,7 +309,7 @@ export class Api<
    * @request POST:/api/v1/cloud/tenants/{tenant}/managed-worker
    * @secure
    */
-  managedWorkerCreate = (
+  managedWorkerCreate = Object.assign((
     tenant: string,
     data: CreateManagedWorkerRequest,
     params: RequestParams = {},
@@ -312,7 +322,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create a managed worker from a template
    *
@@ -322,7 +333,7 @@ export class Api<
    * @request POST:/api/v1/cloud/tenants/{tenant}/managed-worker/template
    * @secure
    */
-  managedWorkerTemplateCreate = (
+  managedWorkerTemplateCreate = Object.assign((
     tenant: string,
     data: CreateManagedWorkerFromTemplateRequest,
     params: RequestParams = {},
@@ -335,7 +346,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the total compute costs for the tenant
    *
@@ -345,14 +357,15 @@ export class Api<
    * @request GET:/api/v1/cloud/tenants/{tenant}/managed-worker/cost
    * @secure
    */
-  computeCostGet = (tenant: string, params: RequestParams = {}) =>
+  computeCostGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<MonthlyComputeCost, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/managed-worker/cost`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get a managed worker for the tenant
    *
@@ -362,14 +375,15 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}
    * @secure
    */
-  managedWorkerGet = (managedWorker: string, params: RequestParams = {}) =>
+  managedWorkerGet = Object.assign((managedWorker: string, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Update a managed worker for the tenant
    *
@@ -379,7 +393,7 @@ export class Api<
    * @request POST:/api/v1/cloud/managed-worker/{managed-worker}
    * @secure
    */
-  managedWorkerUpdate = (
+  managedWorkerUpdate = Object.assign((
     managedWorker: string,
     data: UpdateManagedWorkerRequest,
     params: RequestParams = {},
@@ -392,7 +406,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Delete a managed worker for the tenant
    *
@@ -402,14 +417,15 @@ export class Api<
    * @request DELETE:/api/v1/cloud/managed-worker/{managed-worker}
    * @secure
    */
-  managedWorkerDelete = (managedWorker: string, params: RequestParams = {}) =>
+  managedWorkerDelete = Object.assign((managedWorker: string, params: RequestParams = {}) =>
     this.request<ManagedWorker, APIErrors>({
       path: `/api/v1/cloud/managed-worker/${managedWorker}`,
       method: "DELETE",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Registers runtime configs via infra-as-code
    *
@@ -419,7 +435,7 @@ export class Api<
    * @request POST:/api/v1/cloud/infra-as-code/{infra-as-code-request}
    * @secure
    */
-  infraAsCodeCreate = (
+  infraAsCodeCreate = Object.assign((
     infraAsCodeRequest: string,
     data: InfraAsCodeRequest,
     params: RequestParams = {},
@@ -431,7 +447,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: ["tenant", "infra-as-code-request"],
+    }), { resources: new Set<string>(["tenant", "infra-as-code-request"]) });
   /**
    * @description Get a list of runtime config actions for a managed worker
    *
@@ -441,7 +458,7 @@ export class Api<
    * @request GET:/api/v1/cloud/runtime-config/{runtime-config}/actions
    * @secure
    */
-  runtimeConfigListActions = (
+  runtimeConfigListActions = Object.assign((
     runtimeConfig: string,
     params: RequestParams = {},
   ) =>
@@ -451,7 +468,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker", "runtime-config"],
+    }), { resources: new Set<string>(["tenant", "managed-worker", "runtime-config"]) });
   /**
    * @description Get all instances for a managed worker
    *
@@ -461,7 +479,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/instances
    * @secure
    */
-  managedWorkerInstancesList = (
+  managedWorkerInstancesList = Object.assign((
     managedWorker: string,
     params: RequestParams = {},
   ) =>
@@ -471,7 +489,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get a build
    *
@@ -481,14 +500,15 @@ export class Api<
    * @request GET:/api/v1/cloud/build/{build}
    * @secure
    */
-  buildGet = (build: string, params: RequestParams = {}) =>
+  buildGet = Object.assign((build: string, params: RequestParams = {}) =>
     this.request<Build, APIErrors>({
       path: `/api/v1/cloud/build/${build}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker", "build"],
+    }), { resources: new Set<string>(["tenant", "managed-worker", "build"]) });
   /**
    * @description Get events for a managed worker
    *
@@ -498,7 +518,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/events
    * @secure
    */
-  managedWorkerEventsList = (
+  managedWorkerEventsList = Object.assign((
     managedWorker: string,
     params: RequestParams = {},
   ) =>
@@ -508,7 +528,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get CPU metrics for a managed worker
    *
@@ -518,7 +539,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/metrics/cpu
    * @secure
    */
-  metricsCpuGet = (
+  metricsCpuGet = Object.assign((
     managedWorker: string,
     query?: {
       /**
@@ -541,7 +562,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get memory metrics for a managed worker
    *
@@ -551,7 +573,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/metrics/memory
    * @secure
    */
-  metricsMemoryGet = (
+  metricsMemoryGet = Object.assign((
     managedWorker: string,
     query?: {
       /**
@@ -574,7 +596,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get disk metrics for a managed worker
    *
@@ -584,7 +607,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/metrics/disk
    * @secure
    */
-  metricsDiskGet = (
+  metricsDiskGet = Object.assign((
     managedWorker: string,
     query?: {
       /**
@@ -607,7 +630,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get a minute by minute breakdown of workflow run metrics for a tenant
    *
@@ -617,7 +641,7 @@ export class Api<
    * @request GET:/api/v1/cloud/tenants/{tenant}/runs-metrics
    * @secure
    */
-  workflowRunEventsGetMetrics = (
+  workflowRunEventsGetMetrics = Object.assign((
     tenant: string,
     query?: {
       /**
@@ -642,7 +666,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Lists logs for a managed worker
    *
@@ -652,7 +677,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/logs
    * @secure
    */
-  logList = (
+  logList = Object.assign((
     managedWorker: string,
     query?: {
       /**
@@ -679,7 +704,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get the build logs for a specific build of a managed worker
    *
@@ -689,7 +715,7 @@ export class Api<
    * @request GET:/api/v1/cloud/managed-worker/{managed-worker}/iac-logs
    * @secure
    */
-  iacLogsList = (
+  iacLogsList = Object.assign((
     managedWorker: string,
     query: {
       /** The deploy key */
@@ -704,7 +730,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker"],
+    }), { resources: new Set<string>(["tenant", "managed-worker"]) });
   /**
    * @description Get the build logs for a specific build of a managed worker
    *
@@ -714,14 +741,15 @@ export class Api<
    * @request GET:/api/v1/cloud/build/{build}/logs
    * @secure
    */
-  buildLogsList = (build: string, params: RequestParams = {}) =>
+  buildLogsList = Object.assign((build: string, params: RequestParams = {}) =>
     this.request<LogLineList, APIErrors>({
       path: `/api/v1/cloud/build/${build}/logs`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant", "managed-worker", "build"],
+    }), { resources: new Set<string>(["tenant", "managed-worker", "build"]) });
   /**
    * @description Push a log entry for the tenant
    *
@@ -731,7 +759,7 @@ export class Api<
    * @request POST:/api/v1/cloud/tenants/{tenant}/logs
    * @secure
    */
-  logCreate = (
+  logCreate = Object.assign((
     tenant: string,
     data: VectorPushRequest,
     params: RequestParams = {},
@@ -743,7 +771,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description List all available subscription plans and their features
    *
@@ -752,13 +781,14 @@ export class Api<
    * @summary List subscription plans
    * @request GET:/api/v1/billing/plans
    */
-  subscriptionPlansList = (params: RequestParams = {}) =>
+  subscriptionPlansList = Object.assign((params: RequestParams = {}) =>
     this.request<SubscriptionPlanList, APIErrors>({
       path: `/api/v1/billing/plans`,
       method: "GET",
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Receive a webhook message from Autumn
    *
@@ -767,14 +797,15 @@ export class Api<
    * @summary Receive a webhook message from Autumn
    * @request POST:/api/v1/billing/autumn/webhook
    */
-  autumnEventCreate = (data: AutumnWebhookEvent, params: RequestParams = {}) =>
+  autumnEventCreate = Object.assign((data: AutumnWebhookEvent, params: RequestParams = {}) =>
     this.request<void, APIErrors>({
       path: `/api/v1/billing/autumn/webhook`,
       method: "POST",
       body: data,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Gets the billing state for a tenant
    *
@@ -784,14 +815,15 @@ export class Api<
    * @request GET:/api/v1/billing/tenants/{tenant}
    * @secure
    */
-  tenantBillingStateGet = (tenant: string, params: RequestParams = {}) =>
+  tenantBillingStateGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantBillingState, APIErrors | APIError>({
       path: `/api/v1/billing/tenants/${tenant}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Update a subscription
    *
@@ -801,7 +833,7 @@ export class Api<
    * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
    * @secure
    */
-  tenantSubscriptionUpdate = (
+  tenantSubscriptionUpdate = Object.assign((
     tenant: string,
     data: UpdateTenantSubscriptionRequest,
     params: RequestParams = {},
@@ -814,7 +846,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the billing portal link
    *
@@ -824,7 +857,7 @@ export class Api<
    * @request GET:/api/v1/billing/tenants/{tenant}/billing-portal-link
    * @secure
    */
-  billingPortalLinkGet = (tenant: string, params: RequestParams = {}) =>
+  billingPortalLinkGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<
       {
         /** The url to the billing portal */
@@ -837,7 +870,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the payment methods for a tenant
    *
@@ -847,14 +881,15 @@ export class Api<
    * @request GET:/api/v1/billing/tenants/{tenant}/payment-methods
    * @secure
    */
-  tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
+  tenantPaymentMethodsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantPaymentMethodList, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/payment-methods`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Get the Stripe credit balance for a tenant
    *
@@ -864,14 +899,15 @@ export class Api<
    * @request GET:/api/v1/billing/tenants/{tenant}/credit-balance
    * @secure
    */
-  tenantCreditBalanceGet = (tenant: string, params: RequestParams = {}) =>
+  tenantCreditBalanceGet = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<TenantCreditBalance, APIErrors>({
       path: `/api/v1/billing/tenants/${tenant}/credit-balance`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description List all offers for the authenticated user
    *
@@ -881,14 +917,15 @@ export class Api<
    * @request GET:/api/v1/billing/offers
    * @secure
    */
-  userOffersList = (params: RequestParams = {}) =>
+  userOffersList = Object.assign((params: RequestParams = {}) =>
     this.request<UserOffer[], APIErrors>({
       path: `/api/v1/billing/offers`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Redeem an offer for the authenticated user, applying credit to the specified organization
    *
@@ -898,7 +935,7 @@ export class Api<
    * @request POST:/api/v1/billing/offers/redeem
    * @secure
    */
-  userOfferRedeem = (data: RedeemOfferRequest, params: RequestParams = {}) =>
+  userOfferRedeem = Object.assign((data: RedeemOfferRequest, params: RequestParams = {}) =>
     this.request<RedeemOfferResponse, APIErrors>({
       path: `/api/v1/billing/offers/redeem`,
       method: "POST",
@@ -907,7 +944,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Get all feature flags for the tenant
    *
@@ -917,14 +955,15 @@ export class Api<
    * @request GET:/api/v1/cloud/tenants/{tenant}/feature-flags
    * @secure
    */
-  featureFlagsList = (tenant: string, params: RequestParams = {}) =>
+  featureFlagsList = Object.assign((tenant: string, params: RequestParams = {}) =>
     this.request<FeatureFlags, APIErrors>({
       path: `/api/v1/cloud/tenants/${tenant}/feature-flags`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description Create autoscaling configuration for the tenant
    *
@@ -934,7 +973,7 @@ export class Api<
    * @request POST:/api/v1/cloud/tenants/{tenant}/autoscaling
    * @secure
    */
-  externalAutoscalingConfigCreate = (
+  externalAutoscalingConfigCreate = Object.assign((
     tenant: string,
     data: CreateOrUpdateAutoscalingRequest,
     params: RequestParams = {},
@@ -946,7 +985,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
   /**
    * @description List all organizations the authenticated user is a member of
    *
@@ -955,14 +995,15 @@ export class Api<
    * @request GET:/api/v1/management/organizations
    * @secure
    */
-  organizationList = (params: RequestParams = {}) =>
+  organizationList = Object.assign((params: RequestParams = {}) =>
     this.request<OrganizationForUserList, APIError>({
       path: `/api/v1/management/organizations`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Create a new organization
    *
@@ -971,7 +1012,7 @@ export class Api<
    * @request POST:/api/v1/management/organizations
    * @secure
    */
-  organizationCreate = (
+  organizationCreate = Object.assign((
     data: CreateOrganizationRequest,
     params: RequestParams = {},
   ) =>
@@ -983,7 +1024,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Get organization details
    *
@@ -993,14 +1035,15 @@ export class Api<
    * @request GET:/api/v1/management/organizations/{organization}
    * @secure
    */
-  organizationGet = (organization: string, params: RequestParams = {}) =>
+  organizationGet = Object.assign((organization: string, params: RequestParams = {}) =>
     this.request<Organization, APIError>({
       path: `/api/v1/management/organizations/${organization}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Update an organization
    *
@@ -1009,7 +1052,7 @@ export class Api<
    * @request PATCH:/api/v1/management/organizations/{organization}
    * @secure
    */
-  organizationUpdate = (
+  organizationUpdate = Object.assign((
     organization: string,
     data: UpdateOrganizationRequest,
     params: RequestParams = {},
@@ -1022,7 +1065,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Create a new tenant in the organization
    *
@@ -1032,7 +1076,7 @@ export class Api<
    * @request POST:/api/v1/management/organizations/{organization}/tenants
    * @secure
    */
-  organizationCreateTenant = (
+  organizationCreateTenant = Object.assign((
     organization: string,
     data: CreateNewTenantForOrganizationRequest,
     params: RequestParams = {},
@@ -1045,7 +1089,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Update a tenant in the organization
    *
@@ -1055,7 +1100,7 @@ export class Api<
    * @request PATCH:/api/v1/management/organization-tenants/{organization-tenant}
    * @secure
    */
-  organizationTenantUpdate = (
+  organizationTenantUpdate = Object.assign((
     organizationTenant: string,
     data: UpdateOrganizationTenantRequest,
     params: RequestParams = {},
@@ -1068,7 +1113,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
   /**
    * @description Delete (archive) a tenant in the organization
    *
@@ -1078,7 +1124,7 @@ export class Api<
    * @request DELETE:/api/v1/management/organization-tenants/{organization-tenant}
    * @secure
    */
-  organizationTenantDelete = (
+  organizationTenantDelete = Object.assign((
     organizationTenant: string,
     params: RequestParams = {},
   ) =>
@@ -1088,7 +1134,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
   /**
    * @description List all API tokens for a tenant
    *
@@ -1098,7 +1145,7 @@ export class Api<
    * @request GET:/api/v1/management/organization-tenants/{organization-tenant}/api-tokens
    * @secure
    */
-  organizationTenantListApiTokens = (
+  organizationTenantListApiTokens = Object.assign((
     organizationTenant: string,
     params: RequestParams = {},
   ) =>
@@ -1108,7 +1155,8 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
   /**
    * @description Create a new API token for a tenant
    *
@@ -1118,7 +1166,7 @@ export class Api<
    * @request POST:/api/v1/management/organization-tenants/{organization-tenant}/api-tokens
    * @secure
    */
-  organizationTenantCreateApiToken = (
+  organizationTenantCreateApiToken = Object.assign((
     organizationTenant: string,
     data: CreateTenantAPITokenRequest,
     params: RequestParams = {},
@@ -1131,7 +1179,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
   /**
    * @description Delete an API token for a tenant
    *
@@ -1141,7 +1190,7 @@ export class Api<
    * @request DELETE:/api/v1/management/organization-tenants/{organization-tenant}/api-tokens/{api-token}
    * @secure
    */
-  organizationTenantDeleteApiToken = (
+  organizationTenantDeleteApiToken = Object.assign((
     organizationTenant: string,
     apiToken: string,
     params: RequestParams = {},
@@ -1151,7 +1200,8 @@ export class Api<
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
   /**
    * @description Remove a member from an organization
    *
@@ -1161,7 +1211,7 @@ export class Api<
    * @request DELETE:/api/v1/management/organization-members/{organization-member}
    * @secure
    */
-  organizationMemberDelete = (
+  organizationMemberDelete = Object.assign((
     organizationMember: string,
     data: RemoveOrganizationMembersRequest,
     params: RequestParams = {},
@@ -1173,7 +1223,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: ["organization", "organization-member"],
+    }), { resources: new Set<string>(["organization", "organization-member"]) });
   /**
    * @description Create a new management token for an organization
    *
@@ -1183,7 +1234,7 @@ export class Api<
    * @request POST:/api/v1/management/organizations/{organization}/management-tokens
    * @secure
    */
-  managementTokenCreate = (
+  managementTokenCreate = Object.assign((
     organization: string,
     data: CreateManagementTokenRequest,
     params: RequestParams = {},
@@ -1196,7 +1247,8 @@ export class Api<
       type: ContentType.Json,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Get a management token for an organization
    *
@@ -1205,14 +1257,15 @@ export class Api<
    * @request GET:/api/v1/management/organizations/{organization}/management-tokens
    * @secure
    */
-  managementTokenList = (organization: string, params: RequestParams = {}) =>
+  managementTokenList = Object.assign((organization: string, params: RequestParams = {}) =>
     this.request<ManagementTokenList, APIError>({
       path: `/api/v1/management/organizations/${organization}/management-tokens`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Delete a management token for an organization
    *
@@ -1221,7 +1274,7 @@ export class Api<
    * @request DELETE:/api/v1/management/management-tokens/{management-token}
    * @secure
    */
-  managementTokenDelete = (
+  managementTokenDelete = Object.assign((
     managementToken: string,
     params: RequestParams = {},
   ) =>
@@ -1230,7 +1283,8 @@ export class Api<
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["organization", "management-token"],
+    }), { resources: new Set<string>(["organization", "management-token"]) });
   /**
    * @description List all organization invites for the authenticated user
    *
@@ -1239,14 +1293,15 @@ export class Api<
    * @request GET:/api/v1/management/invites
    * @secure
    */
-  userListOrganizationInvites = (params: RequestParams = {}) =>
+  userListOrganizationInvites = Object.assign((params: RequestParams = {}) =>
     this.request<OrganizationInviteList, APIError>({
       path: `/api/v1/management/invites`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Accept an organization invite
    *
@@ -1255,7 +1310,7 @@ export class Api<
    * @request POST:/api/v1/management/invites/accept
    * @secure
    */
-  organizationInviteAccept = (
+  organizationInviteAccept = Object.assign((
     data: AcceptOrganizationInviteRequest,
     params: RequestParams = {},
   ) =>
@@ -1266,7 +1321,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description Reject an organization invite
    *
@@ -1275,7 +1331,7 @@ export class Api<
    * @request POST:/api/v1/management/invites/reject
    * @secure
    */
-  organizationInviteReject = (
+  organizationInviteReject = Object.assign((
     data: RejectOrganizationInviteRequest,
     params: RequestParams = {},
   ) =>
@@ -1286,7 +1342,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: [],
+    }), { resources: new Set<string>([]) });
   /**
    * @description List all organization invites for an organization
    *
@@ -1296,14 +1353,15 @@ export class Api<
    * @request GET:/api/v1/management/organizations/{organization}/invites
    * @secure
    */
-  organizationInviteList = (organization: string, params: RequestParams = {}) =>
+  organizationInviteList = Object.assign((organization: string, params: RequestParams = {}) =>
     this.request<OrganizationInviteList, APIError>({
       path: `/api/v1/management/organizations/${organization}/invites`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Create a new organization invite
    *
@@ -1313,7 +1371,7 @@ export class Api<
    * @request POST:/api/v1/management/organizations/{organization}/invites
    * @secure
    */
-  organizationInviteCreate = (
+  organizationInviteCreate = Object.assign((
     organization: string,
     data: CreateOrganizationInviteRequest,
     params: RequestParams = {},
@@ -1325,7 +1383,8 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
   /**
    * @description Delete an organization invite
    *
@@ -1335,7 +1394,7 @@ export class Api<
    * @request DELETE:/api/v1/management/organization-invites/{organization-invite}
    * @secure
    */
-  organizationInviteDelete = (
+  organizationInviteDelete = Object.assign((
     organizationInvite: string,
     params: RequestParams = {},
   ) =>
@@ -1344,7 +1403,8 @@ export class Api<
       method: "DELETE",
       secure: true,
       ...params,
-    });
+      xResources: ["organization", "organization-invite"],
+    }), { resources: new Set<string>(["organization", "organization-invite"]) });
   /**
    * @description List all audit logs for an organization
    *
@@ -1354,7 +1414,7 @@ export class Api<
    * @request GET:/api/v1/management/organizations/{organization}/audit-logs
    * @secure
    */
-  organizationListAuditLogs = (
+  organizationListAuditLogs = Object.assign((
     organization: string,
     query?: {
       /**
@@ -1399,5 +1459,6 @@ export class Api<
       secure: true,
       format: "json",
       ...params,
-    });
+      xResources: ["organization"],
+    }), { resources: new Set<string>(["organization"]) });
 }

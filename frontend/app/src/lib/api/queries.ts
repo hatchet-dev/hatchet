@@ -6,6 +6,7 @@ import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
+type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
@@ -20,9 +21,6 @@ type CronWorkflowsQuery = Parameters<typeof api.cronWorkflowList>[1];
 type V2ListWorkflowRunsQuery = Parameters<typeof api.v1WorkflowRunList>[1];
 type V1EventListQuery = Parameters<typeof api.v1EventList>[1];
 export type V1LogLineListQuery = Parameters<typeof api.v1LogLineList>[1];
-export type V1TenantLogLineListQuery = Parameters<
-  typeof api.v1TenantLogLineList
->[1];
 type V2TaskGetPointMetricsQuery = Parameters<
   typeof api.v1TaskGetPointMetrics
 >[1];
@@ -42,7 +40,12 @@ export const queries = createQueryKeyStore({
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
       queryFn: async () =>
-        (await cloudApi.subscriptionPlansList({ secure: true })).data,
+        (
+          await cloudApi.subscriptionPlansList({
+            secure: true,
+            useExchangeToken: true,
+          })
+        ).data,
     }),
 
     paymentMethods: (tenant: string) => ({
@@ -318,6 +321,12 @@ export const queries = createQueryKeyStore({
       queryFn: async () => (await api.v1LogLineList(task, query)).data,
     }),
   },
+  v1DurableTasks: {
+    eventLog: (task: string) => ({
+      queryKey: ['v1-durable-task:event-log', task],
+      queryFn: async () => (await api.v1DurableTaskEventLogList(task)).data,
+    }),
+  },
   v1TaskEvents: {
     list: (
       tenant: string,
@@ -413,9 +422,9 @@ export const queries = createQueryKeyStore({
     }),
   },
   workers: {
-    list: (tenant: string) => ({
-      queryKey: ['worker:list', tenant],
-      queryFn: async () => (await api.workerList(tenant)).data,
+    list: (tenant: string, query?: ListWorkersQuery) => ({
+      queryKey: ['worker:list', tenant, query],
+      queryFn: async () => (await api.workerList(tenant, query)).data,
     }),
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],

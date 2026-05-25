@@ -158,6 +158,7 @@ class WebhooksClient(BaseRestClient):
         auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
+        return_event_as_response_payload: bool = True,
     ) -> V1Webhook:
         """
         Create a new webhook.
@@ -168,6 +169,7 @@ class WebhooksClient(BaseRestClient):
         :param auth: The authentication configuration for the webhook (basic auth, API key, or HMAC).
         :param scope_expression: An optional CEL expression used to extract the scope from the incoming payload.
         :param static_payload: An optional static payload to merge into every triggered event.
+        :param return_event_as_response_payload: Whether to return the triggered event as the response payload of the webhook request.
 
         :return: The created webhook.
         """
@@ -178,6 +180,7 @@ class WebhooksClient(BaseRestClient):
             scopeExpression=scope_expression,
             staticPayload=static_payload,
             auth=auth,
+            returnEventAsResponsePayload=return_event_as_response_payload,
         )
         with self.client() as client:
             return self._wa(client).v1_webhook_create(
@@ -193,6 +196,7 @@ class WebhooksClient(BaseRestClient):
         auth: V1WebhookBasicAuth | V1WebhookAPIKeyAuth | V1WebhookHMACAuth,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
+        return_event_as_response_payload: bool = True,
     ) -> V1Webhook:
         """
         Create a new webhook.
@@ -203,6 +207,7 @@ class WebhooksClient(BaseRestClient):
         :param auth: The authentication configuration for the webhook (basic auth, API key, or HMAC).
         :param scope_expression: An optional CEL expression used to extract the scope from the incoming payload.
         :param static_payload: An optional static payload to merge into every triggered event.
+        :param return_event_as_response_payload: Whether to return the triggered event as the response payload of the webhook request.
 
         :return: The created webhook.
         """
@@ -214,6 +219,7 @@ class WebhooksClient(BaseRestClient):
             auth,
             scope_expression,
             static_payload,
+            return_event_as_response_payload,
         )
 
     def update(
@@ -222,6 +228,7 @@ class WebhooksClient(BaseRestClient):
         event_key_expression: str | None = None,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
+        return_event_as_response_payload: bool | None = None,
     ) -> V1Webhook:
         """
         Update a webhook by its name.
@@ -230,6 +237,7 @@ class WebhooksClient(BaseRestClient):
         :param event_key_expression: An updated CEL expression used to extract the event key from the incoming payload.
         :param scope_expression: An updated CEL expression used to extract the scope from the incoming payload.
         :param static_payload: An updated static payload to merge into every triggered event.
+        :param return_event_as_response_payload: Whether to return the triggered event as the response payload of the webhook request.
 
         :return: The updated webhook.
         """
@@ -241,6 +249,7 @@ class WebhooksClient(BaseRestClient):
                     eventKeyExpression=event_key_expression,
                     scopeExpression=scope_expression,
                     staticPayload=static_payload,
+                    returnEventAsResponsePayload=return_event_as_response_payload,
                 ),
             )
 
@@ -250,6 +259,7 @@ class WebhooksClient(BaseRestClient):
         event_key_expression: str | None = None,
         scope_expression: str | None = None,
         static_payload: dict[str, Any] | None = None,
+        return_event_as_response_payload: bool | None = None,
     ) -> V1Webhook:
         """
         Update a webhook by its name.
@@ -258,6 +268,7 @@ class WebhooksClient(BaseRestClient):
         :param event_key_expression: An updated CEL expression used to extract the event key from the incoming payload.
         :param scope_expression: An updated CEL expression used to extract the scope from the incoming payload.
         :param static_payload: An updated static payload to merge into every triggered event.
+        :param return_event_as_response_payload: Whether to return the triggered event as the response payload of the webhook request.
 
         :return: The updated webhook.
         """
@@ -267,6 +278,7 @@ class WebhooksClient(BaseRestClient):
             event_key_expression,
             scope_expression,
             static_payload,
+            return_event_as_response_payload,
         )
 
     def delete(self, webhook_name: str) -> V1Webhook:

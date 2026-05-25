@@ -450,7 +450,7 @@ export default function UpdateWorkerForm({
           <AlertDescription>
             Please make sure your linked{' '}
             <a
-              href={`/tenants/${tenantId}/tenant-settings/github`}
+              href={`/tenants/${tenantId}/settings/github`}
               className="text-indigo-400"
             >
               Github account

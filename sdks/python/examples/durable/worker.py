@@ -325,12 +325,14 @@ async def wait_for_two_events_second_pushed_first(
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
+        label="waiting for event 1",
     )
     event2 = await ctx.aio_wait_for_event(
         "key2",
         scope=input.scope,
         lookback_window=timedelta(minutes=1),
         payload_validator=LookbackEventPayload,
+        label="waiting for event 2",
     )
     return TwoEventsResult(event1=event1, event2=event2, elapsed=time.time() - start)
 
@@ -394,6 +396,40 @@ async def durable_replay_reset(
     )
 
 
+class ChildKeyDedupResult(BaseModel):
+    runtime: float
+    child_1_output: dict[str, str]
+    child_2_output: dict[str, str]
+    child_3_output: dict[str, str]
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=30))
+async def durable_child_key_dedup_replay(
+    input: EmptyModel, ctx: DurableContext
+) -> ChildKeyDedupResult:
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    child_1_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=1), child_key="child-a"
+    )
+    child_2_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=2), child_key="child-b"
+    )
+    child_3_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=3), child_key="child-a"
+    )
+
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    return ChildKeyDedupResult(
+        child_1_output=child_1_output,
+        child_2_output=child_2_output,
+        child_3_output=child_3_output,
+        runtime=time.time() - start,
+    )
+
+
 class SleepResult(BaseModel):
     message: str
     duration: float
@@ -434,6 +470,7 @@ def main() -> None:
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,
+            durable_child_key_dedup_replay,
             wait_for_event_lookback,
             wait_for_or_event_lookback,
             wait_for_two_events_second_pushed_first,

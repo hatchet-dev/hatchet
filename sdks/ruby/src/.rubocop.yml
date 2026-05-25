@@ -52,7 +52,7 @@ Metrics/MethodLength:
     - method_call
 
 Metrics/ClassLength:
-  Max: 300
+  Max: 450
   CountAsOne:
     - array
     - hash

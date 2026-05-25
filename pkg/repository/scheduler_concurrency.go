@@ -46,6 +46,10 @@ type ConcurrencyRepository interface {
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
 	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
+
+	DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error
+
+	ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error)
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -786,4 +790,12 @@ func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Conte
 	}
 
 	return nil
+}
+
+func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error {
+	return c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId)
+}
+
+func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error) {
+	return c.queries.ListTenantsWithManyStepConcurrencies(ctx, c.pool, threshold)
 }

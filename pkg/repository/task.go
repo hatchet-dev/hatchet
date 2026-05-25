@@ -78,6 +78,12 @@ type CreateTaskOpts struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
+
+	// (optional) the external id of the event that triggered the workflow run, if there was one
+	TriggeringEventExternalId *uuid.UUID
+
+	// (optional) the key of the event that triggered the workflow run, if there was one
+	TriggeringEventKey *string
 }
 
 type ReplayTasksResult struct {
@@ -109,6 +115,15 @@ type ReplayTaskOpts struct {
 
 	// (optional) the additional metadata for the task
 	AdditionalMetadata []byte
+
+	// (optional) the desired worker label for the task
+	DesiredWorkerLabel []byte
+
+	// (optional) the external id of the event that triggered this workflow run
+	TriggeringEventExternalId *uuid.UUID
+
+	// (optional) the key of the event that triggered this workflow run
+	TriggeringEventKey *string
 }
 
 type TaskIdInsertedAtRetryCount struct {
@@ -1145,6 +1160,7 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 
 		retrieveOpts[i] = opt
@@ -1771,7 +1787,21 @@ func (r *sharedRepository) createTasks(
 		stepIdsToConfig[step.ID] = step
 	}
 
-	return r.insertTasks(ctx, tx, tenantId, tasks, stepIdsToConfig)
+	filteredTasks := make([]CreateTaskOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		if _, ok := stepIdsToConfig[task.StepId]; !ok {
+			r.l.Warn().Ctx(ctx).Str("step_id", task.StepId.String()).Str("external_id", task.ExternalId.String()).Msg("skipping task: step not found (may have been deleted)")
+			continue
+		}
+		filteredTasks = append(filteredTasks, task)
+	}
+
+	if len(filteredTasks) == 0 {
+		return []*V1TaskWithPayload{}, nil
+	}
+
+	return r.insertTasks(ctx, tx, tenantId, filteredTasks, stepIdsToConfig)
 }
 
 // insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
@@ -2154,6 +2184,8 @@ func (r *sharedRepository) insertTasks(
 				Inputs:                       make([][]byte, 0),
 				IsDurables:                   make([]bool, 0),
 				DesiredWorkerLabels:          make([][]byte, 0),
+				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
+				TriggeringEventKeys:          make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2191,6 +2223,18 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowVersionIds = append(params.WorkflowVersionIds, workflowVersionIds[i])
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
+		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+
+		triggeringEventKey := pgtype.Text{}
+
+		if task.TriggeringEventKey != nil {
+			triggeringEventKey = pgtype.Text{
+				String: *task.TriggeringEventKey,
+				Valid:  true,
+			}
+		}
+
+		params.TriggeringEventKeys = append(params.TriggeringEventKeys, triggeringEventKey)
 
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
@@ -2340,10 +2384,28 @@ func (r *sharedRepository) replayTasks(
 		stepIdsToConfig[step.ID] = step
 	}
 
+	filteredTasks := make([]ReplayTaskOpts, 0, len(tasks))
+
+	for _, task := range tasks {
+		if _, ok := stepIdsToConfig[task.StepId]; !ok {
+			r.l.Warn().Ctx(ctx).Str("step_id", task.StepId.String()).Str("external_id", task.ExternalId.String()).Msg("skipping replay task: step not found (may have been deleted)")
+			continue
+		}
+		filteredTasks = append(filteredTasks, task)
+	}
+
+	res := make([]*V1TaskWithPayload, 0)
+
+	if len(filteredTasks) == 0 {
+		return res, nil
+	}
+
+	tasks = filteredTasks
+
 	concurrencyStrats, err := r.getConcurrencyExpressions(ctx, tx, tenantId, stepIdsToConfig)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to get step expressions: %w", err)
+		return nil, fmt.Errorf("failed to get concurrency expressions: %w", err)
 	}
 
 	taskIds := make([]int64, len(tasks))
@@ -2478,12 +2540,15 @@ func (r *sharedRepository) replayTasks(
 
 		if !ok {
 			params = sqlcv1.ReplayTasksParams{
-				Taskids:             make([]int64, 0),
-				Taskinsertedats:     make([]pgtype.Timestamptz, 0),
-				Inputs:              make([][]byte, 0),
-				InitialStates:       make([]string, 0),
-				InitialStateReasons: make([]pgtype.Text, 0),
-				Concurrencykeys:     make([][]string, 0),
+				Taskids:                    make([]int64, 0),
+				Taskinsertedats:            make([]pgtype.Timestamptz, 0),
+				Inputs:                     make([][]byte, 0),
+				InitialStates:              make([]string, 0),
+				InitialStateReasons:        make([]pgtype.Text, 0),
+				Concurrencykeys:            make([][]string, 0),
+				DesiredWorkerLabels:        make([][]byte, 0),
+				TriggeringEventExternalIds: make([]*uuid.UUID, 0),
+				TriggeringEventKeys:        make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2495,6 +2560,13 @@ func (r *sharedRepository) replayTasks(
 		params.InitialStates = append(params.InitialStates, initialStates[i])
 		params.InitialStateReasons = append(params.InitialStateReasons, initialStateReasons[i])
 		params.Concurrencykeys = append(params.Concurrencykeys, concurrencyKeys[i])
+		params.DesiredWorkerLabels = append(params.DesiredWorkerLabels, task.DesiredWorkerLabel)
+		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+		if task.TriggeringEventKey != nil {
+			params.TriggeringEventKeys = append(params.TriggeringEventKeys, pgtype.Text{String: *task.TriggeringEventKey, Valid: true})
+		} else {
+			params.TriggeringEventKeys = append(params.TriggeringEventKeys, pgtype.Text{})
+		}
 
 		stepIdsToParams[task.StepId] = params
 
@@ -2509,8 +2581,6 @@ func (r *sharedRepository) replayTasks(
 
 		stepIdsToStorePayloadOpts[task.StepId] = append(stepIdsToStorePayloadOpts[task.StepId], storePayloadOpts)
 	}
-
-	res := make([]*V1TaskWithPayload, 0)
 
 	// for any initial states which are not queued, create a finalizing task event
 	eventTaskIdRetryCounts := make([]TaskIdInsertedAtRetryCount, 0)
@@ -2866,17 +2936,12 @@ func (r *sharedRepository) createTaskEvents(
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
 
 	for i, taskEvent := range taskEvents {
-		taskEventExternalId := uuid.Nil
-		if taskEvent.ExternalID != nil {
-			taskEventExternalId = *taskEvent.ExternalID
-		}
-
-		data := externalIdToData[taskEventExternalId]
+		data := externalIdToData[taskEvent.ExternalID]
 
 		storePayloadOpts[i] = StorePayloadOpts{
 			Id:         taskEvent.ID,
 			InsertedAt: taskEvent.InsertedAt,
-			ExternalId: taskEventExternalId,
+			ExternalId: taskEvent.ExternalID,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			Payload:    data,
 			TenantId:   tenantId,
@@ -3057,6 +3122,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   tenantId,
+			ExternalId: task.ExternalID,
 		}
 	}
 
@@ -3142,6 +3208,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   tenantId,
+			ExternalId: task.ExternalID,
 		}
 
 		input, ok := payloads[retrieveOpt]
@@ -3153,13 +3220,21 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 			input = task.Input
 		}
 
+		var triggeringEventKey *string
+		if task.TriggeringEventKey.Valid {
+			triggeringEventKey = &task.TriggeringEventKey.String
+		}
+
 		replayOpts = append(replayOpts, ReplayTaskOpts{
-			TaskId:             task.ID,
-			InsertedAt:         task.InsertedAt,
-			StepId:             task.StepID,
-			ExternalId:         task.ExternalID,
-			InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
-			AdditionalMetadata: task.AdditionalMetadata,
+			TaskId:                    task.ID,
+			InsertedAt:                task.InsertedAt,
+			StepId:                    task.StepID,
+			ExternalId:                task.ExternalID,
+			InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+			AdditionalMetadata:        task.AdditionalMetadata,
+			DesiredWorkerLabel:        task.DesiredWorkerLabel,
+			TriggeringEventExternalId: task.TriggeringEventExternalID,
+			TriggeringEventKey:        triggeringEventKey,
 			// NOTE: we require the input to be passed in to the replay method so we can re-evaluate the concurrency keys
 			// Ideally we could preserve the same concurrency keys, but the replay tasks method is currently unaware of existing concurrency
 			// keys because they may change between retries.
@@ -3326,8 +3401,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 						Int64: task.StepIndex,
 						Valid: true,
 					},
-					TriggerDAGId:         &task.DagID.Int64,
-					TriggerDAGInsertedAt: task.DagInsertedAt,
+					TriggerDAGId:               &task.DagID.Int64,
+					TriggerDAGInsertedAt:       task.DagInsertedAt,
+					TriggerDesiredWorkerLabels: task.DesiredWorkerLabel,
+					TriggerEventExternalId:     task.TriggeringEventExternalID,
+					TriggerEventKey:            task.TriggeringEventKey,
 					// NOTE: we don't need to set parent task id/child index/child key because
 					// the task already exists
 					TriggerExistingTaskId:         &task.ID,
@@ -3385,8 +3463,11 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 						Int64: task.StepIndex,
 						Valid: true,
 					},
-					TriggerDAGId:         &task.DagID.Int64,
-					TriggerDAGInsertedAt: task.DagInsertedAt,
+					TriggerDAGId:               &task.DagID.Int64,
+					TriggerDAGInsertedAt:       task.DagInsertedAt,
+					TriggerDesiredWorkerLabels: task.DesiredWorkerLabel,
+					TriggerEventExternalId:     task.TriggeringEventExternalID,
+					TriggerEventKey:            task.TriggeringEventKey,
 					// NOTE: we don't need to set parent task id/child index/child key because
 					// the task already exists
 					TriggerExistingTaskId:         &task.ID,
@@ -3494,7 +3575,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 	foundMatchKeys := make(map[string]*sqlcv1.ListMatchingTaskEventsRow)
 
 	for _, eventMatch := range matchedEvents {
-		key := fmt.Sprintf("%s:%s", eventMatch.ExternalID.String(), string(eventMatch.EventType))
+		key := fmt.Sprintf("%s:%s", eventMatch.TaskExternalID.String(), string(eventMatch.EventType))
 
 		foundMatchKeys[key] = eventMatch
 	}
@@ -3521,7 +3602,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 				if match, ok := foundMatchKeys[key]; ok {
 					cond.Data = match.Data
 
-					taskExternalId := match.ExternalID.String()
+					taskExternalId := match.TaskExternalID.String()
 
 					resCandidateEvents = append(resCandidateEvents, CandidateEventMatch{
 						ID:             uuid.New(),
@@ -3675,6 +3756,7 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 			InsertedAt: outputTask.TaskEventInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: outputTask.OutputEventExternalID,
 		}
 
 		retrieveOpts = append(retrieveOpts, opt)
@@ -3752,6 +3834,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 
 		retrieveOpts[i] = retrieveOpt
@@ -3771,6 +3854,7 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 
 		payload, ok := payloads[retrieveOpt]
@@ -4166,6 +4250,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			InsertedAt: firstTask.DagInsertedAt,
 			Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 			TenantId:   tenantId,
+			ExternalId: firstTask.WorkflowRunExternalID,
 		}
 	} else {
 		inputRetrieveOpt = RetrievePayloadOpts{
@@ -4173,6 +4258,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			InsertedAt: firstTask.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   tenantId,
+			ExternalId: firstTask.ExternalID,
 		}
 	}
 

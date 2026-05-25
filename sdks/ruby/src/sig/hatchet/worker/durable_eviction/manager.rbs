@@ -1,0 +1,37 @@
+module Hatchet
+  module WorkerRuntime
+    module DurableEviction
+      class DurableEvictionConfig
+        attr_reader check_interval: Float
+        attr_reader reserve_slots: Integer
+        attr_reader min_wait_for_capacity_eviction: Float
+
+        def initialize: (?check_interval: Float, ?reserve_slots: Integer, ?min_wait_for_capacity_eviction: Float) -> void
+      end
+
+      DEFAULT_DURABLE_EVICTION_CONFIG: DurableEvictionConfig
+
+      class DurableEvictionManager
+        attr_reader cache: DurableEvictionCache
+
+        def initialize: (
+          durable_slots: Integer,
+          cancel_local: Proc,
+          request_eviction_with_ack: Proc,
+          ?config: DurableEvictionConfig,
+          ?cache: DurableEvictionCache?,
+          ?logger: Logger?
+        ) -> void
+
+        def start: () -> void
+        def stop: () -> void
+        def register_run: (String key, step_run_id: String, invocation_count: Integer, eviction_policy: EvictionPolicy?) -> void
+        def unregister_run: (String key) -> void
+        def mark_waiting: (String key, wait_kind: String, resource_id: String) -> void
+        def mark_active: (String key) -> void
+        def handle_server_eviction: (String step_run_id, Integer invocation_count) -> void
+        def evict_all_waiting: () -> Integer
+      end
+    end
+  end
+end

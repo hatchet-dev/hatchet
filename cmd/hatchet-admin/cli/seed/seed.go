@@ -10,6 +10,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
 func SeedDatabase(dc *database.Layer) error {
@@ -17,6 +18,16 @@ func SeedDatabase(dc *database.Layer) error {
 	var userID uuid.UUID
 
 	if shouldSeedUser {
+		// validate the password meets complexity requirements before hashing
+		v := validator.NewDefaultValidator()
+		opts := struct {
+			Password string `validate:"password"`
+		}{dc.Seed.AdminPassword}
+
+		if err := v.Validate(opts); err != nil {
+			return fmt.Errorf("ADMIN_PASSWORD does not meet requirements: must be between 8 and 64 characters and contain at least one uppercase letter, one lowercase letter, and one number")
+		}
+
 		// seed an example user
 		hashedPw, err := v1.HashPassword(dc.Seed.AdminPassword)
 

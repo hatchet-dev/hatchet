@@ -1,6 +1,7 @@
 import { LimitIndicator } from '../../tenant-settings/resource-limits/components/resource-limit-columns';
 import { RateLimitWithMetadata } from '../hooks/use-rate-limits';
 import { DataTableColumnHeader } from '@/components/v1/molecules/data-table/data-table-column-header';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { capitalize } from '@/lib/utils';
 import { ColumnDef } from '@tanstack/react-table';
@@ -11,6 +12,7 @@ export const RateLimitColumn = {
   limit: 'Limit',
   lastRefill: 'Last Refill',
   window: 'Window',
+  actions: 'Actions',
 };
 
 type RateLimitColumnKeys = keyof typeof RateLimitColumn;
@@ -20,8 +22,13 @@ const valueKey: RateLimitColumnKeys = 'value';
 const limitKey: RateLimitColumnKeys = 'limit';
 const lastRefillKey: RateLimitColumnKeys = 'lastRefill';
 const windowKey: RateLimitColumnKeys = 'window';
+const actionsKey: RateLimitColumnKeys = 'actions';
 
-export const columns: ColumnDef<RateLimitWithMetadata>[] = [
+export const columns = ({
+  onDeleteClick,
+}: {
+  onDeleteClick: (row: RateLimitWithMetadata) => void;
+}): ColumnDef<RateLimitWithMetadata>[] => [
   {
     accessorKey: keyKey,
     header: ({ column }) => (
@@ -86,5 +93,26 @@ export const columns: ColumnDef<RateLimitWithMetadata>[] = [
       return <div>{capitalize(row.original.window)}</div>;
     },
     enableSorting: false,
+  },
+  {
+    accessorKey: actionsKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title={RateLimitColumn.actions} />
+    ),
+    cell: ({ row }) => (
+      <div className="flex flex-row justify-center">
+        <TableRowActions
+          row={row.original}
+          actions={[
+            {
+              label: 'Delete',
+              onClick: () => onDeleteClick(row.original),
+            },
+          ]}
+        />
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
   },
 ];

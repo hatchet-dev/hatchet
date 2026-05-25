@@ -1205,7 +1205,7 @@ export function getRepoName(repoOwnerName?: string) {
 // URL for the billing portal to upgrade
 const getBillingPortalUrl = () => {
   // Replace with your actual billing portal URL or API call
-  return '/tenant-settings/billing-and-limits';
+  return '/settings/billing-and-limits';
 };
 
 export const UpgradeMessage = ({ feature }: { feature: string }) => (

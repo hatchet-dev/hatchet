@@ -411,6 +411,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
 		cookie.WithCookieSecrets(getStrArr(cf.Auth.Cookie.Secrets)...),
+		cookie.WithLogger(&l),
 	)
 
 	if err != nil {
@@ -776,6 +777,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
 	}
 
+	if cf.Runtime.FrontendURL == "" {
+		cf.Runtime.FrontendURL = cf.Runtime.ServerURL
+	}
+
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
@@ -798,7 +803,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Prometheus:             cf.Prometheus,
 		Observability:          cf.Observability,
 		Email:                  emailSvc,
-		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
+		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.FrontendURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
@@ -809,6 +814,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
+		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
 }
 
