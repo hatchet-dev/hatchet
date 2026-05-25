@@ -80,6 +80,14 @@ export function useOrganizationApi() {
         queryFn: async () =>
           (await controlPlaneApi.ssoConfigGet(organization)).data,
       }),
+
+      organizationEntitlementsGetQuery: (organization: string) => ({
+        queryKey: ['organization:entitlements:get', organization] as const,
+        queryFn: async () =>
+          (await controlPlaneApi.organizationEntitlementsGet(organization))
+            .data,
+      }),
+
       managementTokenListQuery: (organization: string) => ({
         queryKey: ['management-tokens:list', organization] as const,
         queryFn: async () =>

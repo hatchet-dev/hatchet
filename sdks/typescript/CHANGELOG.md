@@ -5,6 +5,23 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Adds `grpc_max_recv_message_length` and `grpc_max_send_message_length` to client config, also configurable via env vars. Defaults to 4MB.
+
+### Fixed
+
+- `EventClient.BulkPush` call uses `options` argument as fallback when no `input` is present.
+
+## [1.22.4] - 2026-05-22
+
+### Fixed
+
+- Bumped `@anthropic-ai/claude-agent-sdk` to `^0.3.148` so Claude agent SDK integrations resolve the correct Linux native binary on glibc systems.
+- Updated the TypeScript Claude agent example to load the ESM-only Claude Agent SDK dynamically.
+
 ## [1.22.3] - 2026-05-18
 
 ### Fixed

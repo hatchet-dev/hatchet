@@ -113,8 +113,8 @@ export class EventClient {
         payload: JSON.stringify(input.payload),
         eventTimestamp: new Date(),
         additionalMetadata: Object.keys(enhanced).length > 0 ? JSON.stringify(enhanced) : undefined,
-        priority: input.priority,
-        scope: input.scope,
+        priority: input.priority ?? options.priority,
+        scope: input.scope ?? options.scope,
       };
     });
 

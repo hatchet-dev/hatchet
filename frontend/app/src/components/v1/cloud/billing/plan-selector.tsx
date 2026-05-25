@@ -12,7 +12,7 @@ import {
   Coupon,
   SubscriptionPlan,
   SubscriptionPlanFeatureGroup,
-} from '@/lib/api/generated/control-plane/data-contracts';
+} from '@/lib/api/generated/cloud/data-contracts';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
@@ -70,7 +70,7 @@ export function PlanSelector({
 }: PlanSelectorProps) {
   const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
-    ...queries.controlPlane.subscriptionPlans(),
+    ...queries.cloud.subscriptionPlans(),
   });
 
   const plans = plansQuery.data?.plans;

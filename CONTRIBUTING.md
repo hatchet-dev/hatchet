@@ -10,7 +10,7 @@ The following requirements apply to all contributions.
 - First-time contributors may have at most one open pull request at a time.
 - Issues labeled [![good first issue](https://img.shields.io/github/labels/hatchet-dev/hatchet/good%20first%20issue)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22) are reserved for first-time contributors.
 - Pull requests must reference a corresponding issue labeled [![accepted](https://img.shields.io/github/labels/hatchet-dev/hatchet/accepted)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3Aaccepted).
-- Your GitHub account's [Activity Overview](https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/showing-an-overview-of-your-activity-on-your-profile) must be public.
+- Your GitHub account's [Activity Overview](https://docs.github.com/en/account-and-profile/how-tos/contribution-settings/showing-an-overview-of-your-activity-on-your-profile) must be public.
 - AI usage must be disclosed and comply with [AI_POLICY.md](./AI_POLICY.md) (see [AI Usage](#ai-usage)).
 
 ### AI Usage
