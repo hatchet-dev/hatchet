@@ -7,6 +7,7 @@ import { SsoRedirectUriField } from './SsoRedirectUriField';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -22,11 +23,19 @@ import {
 } from '@/hooks/sso/SsoSetupHooks';
 import { PROVIDER_CONFIG } from '@/lib/sso/sso-constants';
 import { SsoSetupProps, SsoSetupStep } from '@/lib/sso/sso-types';
-import { Loader2, ShieldCheck } from 'lucide-react';
+import { Loader2, ShieldCheck, X } from 'lucide-react';
 
-export default function SsoSetup({ redirectUrl, api }: SsoSetupProps) {
+export default function SsoSetup({
+  redirectUrl,
+  api,
+  onConfigLoaded,
+}: SsoSetupProps & { onConfigLoaded?: (hasExistingConfig: boolean) => void }) {
   return (
-    <SsoSetupProvider redirectUrl={redirectUrl} api={api}>
+    <SsoSetupProvider
+      redirectUrl={redirectUrl}
+      api={api}
+      onConfigLoaded={onConfigLoaded}
+    >
       <SsoSetupDialogWrapper />
     </SsoSetupProvider>
   );
@@ -75,17 +84,11 @@ function SsoSetupDialogWrapper() {
               : 'Set up SSO'}
         </Button>
       </DialogTrigger>
-      <DialogContent
-        className="!max-w-[80vw] max-h-[90vh] overflow-y-auto sm:!max-w-[600px]"
-        onPointerDownOutside={(e) => {
-          // Prevent closing on outside click
-          e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          // Prevent closing on Escape key
-          e.preventDefault();
-        }}
-      >
+      <DialogContent className="!max-w-[80vw] max-h-[90vh] overflow-y-auto sm:!max-w-[600px]">
+        <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </DialogClose>
         <SsoSetupForm />
       </DialogContent>
     </Dialog>

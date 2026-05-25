@@ -7,8 +7,8 @@ RSpec.describe "DurableWorkflow" do
   it "completes a durable sleep then waits for event" do
     ref = DURABLE_WORKFLOW.run_no_wait
 
-    # Wait for the sleep to complete
-    sleep(DURABLE_SLEEP_TIME + 2)
+    wait_for_running_status(HATCHET, ref.workflow_run_id)
+    sleep(DURABLE_SLEEP_TIME + 3)
 
     # Push the event to unblock the durable task
     HATCHET.events.create(key: DURABLE_EVENT_KEY, data: { "test" => true })

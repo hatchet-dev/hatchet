@@ -67,7 +67,7 @@ export default function CreateTenant() {
 
             if (result.type === 'cloud') {
               void queryClient
-                .prefetchQuery(queries.controlPlane.subscriptionPlans())
+                .prefetchQuery(queries.cloud.subscriptionPlans())
                 .catch(() => {
                   // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
                 });

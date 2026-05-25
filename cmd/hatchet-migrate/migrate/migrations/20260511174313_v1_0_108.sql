@@ -1,7 +1,6 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 -- +goose StatementBegin
-ALTER TABLE v1_payload ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 ALTER TABLE v1_payload
   ADD CONSTRAINT v1_payload_external_id_not_null CHECK (external_id IS NOT NULL) NOT VALID;
 
@@ -28,6 +27,7 @@ END $$;
 ALTER TABLE v1_payload VALIDATE CONSTRAINT v1_payload_external_id_not_null;
 ALTER TABLE v1_payload ALTER COLUMN external_id SET NOT NULL;
 ALTER TABLE v1_payload DROP CONSTRAINT v1_payload_external_id_not_null;
+ALTER TABLE v1_payload ALTER COLUMN external_id SET DEFAULT gen_random_uuid();
 -- +goose StatementEnd
 
 -- +goose StatementBegin

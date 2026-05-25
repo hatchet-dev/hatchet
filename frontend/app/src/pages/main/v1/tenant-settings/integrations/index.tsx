@@ -53,12 +53,13 @@ import { ReactNode, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Integrations() {
-  const { cloud } = useCloud();
+  const { cloud, featureFlags } = useCloud();
   const integrations = useApiMetaIntegrations();
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
   const hasGithubIntegration = cloud?.canLinkGithub;
+  const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
 
   return (
     <div className="h-full w-full flex-grow">
@@ -76,7 +77,7 @@ export default function Integrations() {
             <TabsTrigger value="ingestors" variant="underlined">
               Ingestors
             </TabsTrigger>
-            {hasGithubIntegration && (
+            {hasGithubIntegration && managedWorkerEnabled && (
               <TabsTrigger value="github" variant="underlined">
                 GitHub
               </TabsTrigger>
