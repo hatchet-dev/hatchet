@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds `grpc_max_recv_message_length` and `grpc_max_send_message_length` to client config, also configurable via env vars. Defaults to 4MB.
 
+### Fixed
+
+- `EventClient.BulkPush` call uses `options` argument as fallback when no `input` is present.
+
 ## [1.22.4] - 2026-05-22
 
 ### Fixed
