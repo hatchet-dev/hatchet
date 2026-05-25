@@ -7,8 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## Fixed
+### Fixed
 
+- SDK import deprecation warnings to route via `process.emitWarning` with code `HATCHET_V0_REMOVED`.
 - `EventClient.BulkPush` call uses `options` argument as fallback when no `input` is present.
 
 ## [1.22.4] - 2026-05-22
