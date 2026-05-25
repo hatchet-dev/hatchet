@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Adds `grpc_max_recv_message_length` and `grpc_max_send_message_length` to client config, also configurable via env vars. Defaults to 4MB.
+
 ### Fixed
 
 - SDK import deprecation warnings to route via `process.emitWarning` with code `HATCHET_V0_REMOVED`.
