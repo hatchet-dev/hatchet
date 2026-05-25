@@ -20,4 +20,5 @@ export default {
     type: "separator",
   },
   "hatchet-and-mcp": "Hatchet Agent Tools",
+  "hatchet-claude-agent-sdk-trusted-env": "Claude Agent SDK",
 };
