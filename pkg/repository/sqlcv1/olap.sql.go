@@ -386,7 +386,7 @@ INSERT INTO v1_payloads_olap_offloaded_block_index (
 )
 VALUES (
     $1::DATE,
-    uuidrange($2::UUID, $3::UUID),
+    uuidrange($2::UUID, $3::UUID, '(]'),
     $4::TEXT
 )
 ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING

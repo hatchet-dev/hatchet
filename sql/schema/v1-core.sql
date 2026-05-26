@@ -1777,7 +1777,7 @@ CREATE TABLE v1_payload_cutover_job_offset (
     final_row_count_diff BIGINT
 );
 
-CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION btree_gist;
 
 CREATE TYPE uuidrange AS RANGE (
     SUBTYPE = UUID

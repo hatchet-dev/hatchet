@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION btree_gist;
 
 CREATE TYPE uuidrange AS RANGE (
     SUBTYPE = UUID
@@ -28,4 +28,5 @@ CREATE TABLE v1_payloads_olap_offloaded_block_index (
 DROP TABLE v1_payload_offloaded_block_index;
 DROP TABLE v1_payloads_olap_offloaded_block_index;
 DROP TYPE uuidrange;
+DROP EXTENSION btree_gist;
 -- +goose StatementEnd
