@@ -3520,17 +3520,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
-	if blockIndexKey != nil {
-		if err := p.createOLAPIndexBlock(ctx, CreateIndexBlockOpts{
-			PartitionDate:             partitionDate,
-			BlockLowerExternalIdBound: lastExternalId,
-			BlockUpperExternalIdBound: maxExternalId,
-			IndexFileKey:              string(*blockIndexKey),
-		}); err != nil {
-			return nil, fmt.Errorf("failed to create index block: %w", err)
-		}
-	}
-
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
 	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
@@ -3549,6 +3538,17 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	if !extendedLease.ShouldRun {
 		return nil, fmt.Errorf("lease for partition %s was taken by another process during batch processing", partitionDate.String())
+	}
+
+	if blockIndexKey != nil {
+		if err := p.createOLAPIndexBlock(ctx, leaseTx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
+		}
 	}
 
 	if err := leaseCommit(ctx); err != nil {
@@ -3725,14 +3725,13 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	return nil
 }
 
-func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error {
-	_, err := p.queries.CreateOLAPOffloadedPayloadIndexBlock(ctx, p.pool, sqlcv1.CreateOLAPOffloadedPayloadIndexBlockParams{
+func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error {
+	return p.queries.CreateOLAPOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.CreateOLAPOffloadedPayloadIndexBlockParams{
 		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
 		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
 		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
 		Indexfilekey:              opts.IndexFileKey,
 	})
-	return err
 }
 
 func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {

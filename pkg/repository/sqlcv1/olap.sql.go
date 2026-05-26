@@ -387,7 +387,7 @@ func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date p
 	return err
 }
 
-const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :one
+const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date,
     block_lower_external_id_bound,
@@ -400,7 +400,7 @@ VALUES (
     $3::UUID,
     $4::TEXT
 )
-RETURNING payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound, index_file_key
+ON CONFLICT (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound) DO NOTHING
 `
 
 type CreateOLAPOffloadedPayloadIndexBlockParams struct {
@@ -410,21 +410,14 @@ type CreateOLAPOffloadedPayloadIndexBlockParams struct {
 	Indexfilekey              string      `json:"indexfilekey"`
 }
 
-func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOLAPOffloadedPayloadIndexBlockParams) (*V1PayloadsOlapOffloadedBlockIndex, error) {
-	row := db.QueryRow(ctx, createOLAPOffloadedPayloadIndexBlock,
+func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOLAPOffloadedPayloadIndexBlockParams) error {
+	_, err := db.Exec(ctx, createOLAPOffloadedPayloadIndexBlock,
 		arg.Payloadinsertedatdate,
 		arg.Blocklowerexternalidbound,
 		arg.Blockupperexternalidbound,
 		arg.Indexfilekey,
 	)
-	var i V1PayloadsOlapOffloadedBlockIndex
-	err := row.Scan(
-		&i.PayloadInsertedAtDate,
-		&i.BlockLowerExternalIDBound,
-		&i.BlockUpperExternalIDBound,
-		&i.IndexFileKey,
-	)
-	return &i, err
+	return err
 }
 
 const createOLAPOtelPartitions = `-- name: CreateOLAPOtelPartitions :exec

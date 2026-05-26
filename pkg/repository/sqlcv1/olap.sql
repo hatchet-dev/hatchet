@@ -2323,7 +2323,7 @@ WHERE payload_inserted_at_date = @insertedAtDate::DATE
 LIMIT 1
 ;
 
--- name: CreateOLAPOffloadedPayloadIndexBlock :one
+-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date,
     block_lower_external_id_bound,
@@ -2336,7 +2336,7 @@ VALUES (
     @blockUpperExternalIdBound::UUID,
     @indexFileKey::TEXT
 )
-RETURNING *
+ON CONFLICT (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound) DO NOTHING
 ;
 
 -- name: ReconcileTaskStatusesFromEvents :many

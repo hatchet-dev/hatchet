@@ -107,7 +107,7 @@ type PayloadStoreRepository interface {
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
-	CreateIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error
+	CreateIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -663,17 +663,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
-	if blockIndexKey != nil {
-		if err := p.CreateIndexBlock(ctx, CreateIndexBlockOpts{
-			PartitionDate:             partitionDate,
-			BlockLowerExternalIdBound: lastExternalId,
-			BlockUpperExternalIdBound: maxExternalId,
-			IndexFileKey:              string(*blockIndexKey),
-		}); err != nil {
-			return nil, fmt.Errorf("failed to create index block: %w", err)
-		}
-	}
-
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
 
 	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
@@ -692,6 +681,17 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	if !extendedLease.ShouldRun {
 		return nil, fmt.Errorf("lease for partition %s was taken by another process during batch processing", partitionDate.String())
+	}
+
+	if blockIndexKey != nil {
+		if err := p.CreateIndexBlock(ctx, leaseTx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
+		}
 	}
 
 	if err := leaseCommit(ctx); err != nil {
@@ -912,15 +912,13 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	return nil
 }
 
-func (p *payloadStoreRepositoryImpl) CreateIndexBlock(ctx context.Context, opts CreateIndexBlockOpts) error {
-	_, err := p.queries.CreateOffloadedPayloadIndexBlock(ctx, p.pool, sqlcv1.CreateOffloadedPayloadIndexBlockParams{
+func (p *payloadStoreRepositoryImpl) CreateIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error {
+	return p.queries.CreateOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.CreateOffloadedPayloadIndexBlockParams{
 		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
 		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
 		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
 		Indexfilekey:              opts.IndexFileKey,
 	})
-
-	return err
 }
 
 type NoOpExternalStore struct{}
