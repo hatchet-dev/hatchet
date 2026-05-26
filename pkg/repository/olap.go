@@ -3466,7 +3466,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	eg := errgroup.Group{}
 
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
-	maxExternalId := lastExternalId
+	maxExternalId := payloadRanges[len(payloadRanges)-1].UpperExternalID
 
 	numPayloads := 0
 
@@ -3502,11 +3502,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			mu.Lock()
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
-
-			if pr.UpperExternalID.String() > maxExternalId.String() {
-				maxExternalId = pr.UpperExternalID
-			}
-
 			mu.Unlock()
 
 			return nil
