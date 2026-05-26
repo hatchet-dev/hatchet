@@ -590,7 +590,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
 	}
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || len(payloadRanges) == 0 {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
 			NextExternalId: lastExternalId,
