@@ -362,7 +362,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 				continue
 			}
 
-			indexFileKey, err := p.queries.GetOffloadedPayloadIndexBlock(ctx, p.pool, sqlcv1.GetOffloadedPayloadIndexBlockParams{
+			indexFileKey, err := p.queries.GetOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.GetOffloadedPayloadIndexBlockParams{
 				Insertedatdate: pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true},
 				Externalid:     opt.ExternalId,
 			})

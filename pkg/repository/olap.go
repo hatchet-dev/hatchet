@@ -3099,7 +3099,7 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 				continue
 			}
 
-			indexFileKey, err := r.queries.GetOLAPOffloadedPayloadIndexBlock(ctx, r.pool, sqlcv1.GetOLAPOffloadedPayloadIndexBlockParams{
+			indexFileKey, err := r.queries.GetOLAPOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.GetOLAPOffloadedPayloadIndexBlockParams{
 				Insertedatdate: pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true},
 				Externalid:     opt.ExternalId,
 			})
