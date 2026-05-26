@@ -19,7 +19,6 @@ module.exports = {
       ],
     ],
     'subject-case': [0], // Level 0 ignores the rule
-    'scope-empty': [2, 'never'],
     'header-max-length': [2, 'always', 120],
   },
 };
