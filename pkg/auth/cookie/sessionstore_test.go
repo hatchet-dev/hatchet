@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/cookie"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/random"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func TestSessionStoreSave(t *testing.T) {
@@ -34,6 +35,46 @@ func TestSessionStoreSave(t *testing.T) {
 		assert.Equal(t, "/", httpCookie.Path, "path is index")
 		assert.Equal(t, true, httpCookie.Secure, "cookie is secure")
 		assert.Equal(t, "hatchet.run", httpCookie.Domain, "domain is hatchet.run")
+
+		return nil
+	})
+}
+
+func TestSessionStoreSkipsNewSessionForBearerRequest(t *testing.T) {
+	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+
+	time.Sleep(10 * time.Second) // TODO temp hack for tenant non-upsert issue
+	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
+		const cookieName = "hatchet"
+
+		var createdSessions int
+		conf.V1.UserSession().RegisterCreateCallback(func(_ *sqlcv1.UserSession) {
+			createdSessions++
+		})
+
+		ss := newSessionStore(t, conf, cookieName)
+
+		req, err := http.NewRequest("GET", "https://hatchet.run", nil)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer test-token")
+
+		session, err := ss.Get(req, cookieName)
+		if err != nil {
+			return err
+		}
+
+		session.Values["custom_data"] = "bearer-request"
+
+		rr := httptest.NewRecorder()
+		if err := ss.Save(req, rr, session); err != nil {
+			return err
+		}
+
+		assert.Empty(t, session.ID)
+		assert.Empty(t, rr.Result().Header.Values("Set-Cookie"))
+		assert.Equal(t, 0, createdSessions)
 
 		return nil
 	})

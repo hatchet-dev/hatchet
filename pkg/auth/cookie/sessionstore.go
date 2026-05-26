@@ -215,6 +215,10 @@ func (store *UserSessionStore) Get(r *http.Request, name string) (*sessions.Sess
 func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, session *sessions.Session) error {
 	repo := store.repo
 
+	if isBearerAuthenticatedRequest(r) && session.IsNew && session.ID == "" {
+		return nil
+	}
+
 	if session.Options.MaxAge < 0 {
 		if session.ID != "" {
 			sessionID, parseErr := uuid.Parse(session.ID)
@@ -250,6 +254,10 @@ func (store *UserSessionStore) Save(r *http.Request, w http.ResponseWriter, sess
 
 	http.SetCookie(w, sessions.NewCookie(session.Name(), encoded, session.Options))
 	return nil
+}
+
+func isBearerAuthenticatedRequest(r *http.Request) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Authorization"))), "bearer ")
 }
 
 // save writes encoded session.Values to a database record.
