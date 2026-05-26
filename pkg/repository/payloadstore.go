@@ -367,8 +367,12 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 				Externalid:     opt.ExternalId,
 			})
 
-			if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				continue
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to get offloaded payload index block: %w", err)
 			}
 
 			retrieveFromExternalOpt := RetrieveFromExternalOpts{
@@ -601,7 +605,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	eg := errgroup.Group{}
 
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
-	maxExternalId := lastExternalId
+	maxExternalId := payloadRanges[len(payloadRanges)-1].UpperExternalID
 
 	numPayloads := 0
 
@@ -616,7 +620,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to list paginated payloads for offload")
+				return fmt.Errorf("failed to list paginated payloads for offload: %w", err)
 			}
 
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
@@ -641,11 +645,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			mu.Lock()
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
-
-			if pr.UpperExternalID.String() > maxExternalId.String() {
-				maxExternalId = pr.UpperExternalID
-			}
-
 			mu.Unlock()
 
 			return nil
