@@ -141,6 +141,11 @@ func newTaskEventFromBytes(b []byte) (*TaskOutputEvent, error) {
 }
 
 func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
+	// note: this is kind of an unfortunate method we need for durable execution in order to return
+	// the result payload of the child that was spawned from a durable task to the parent.
+	// it's confusing because in other places we use the task events on the SDK itself to aggregate
+	// the outputs of each child into a map, but here we do it on the engine. it'd be a good fixme for the future
+	// to consolidate the different ways we handle this kind of thing in different places to be more consistent.
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal match data: %w", err)
