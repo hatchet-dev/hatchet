@@ -1,0 +1,41 @@
+sdk-go:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/go/**"
+
+sdk-py:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/python/**"
+
+sdk-ts:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/typescript/**"
+
+sdk-ruby:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/ruby/**"
+
+vscode-ext:
+  - changed-files:
+      - any-glob-to-any-file: "frontend/vscode-extension/**"
+
+engine:
+  - changed-files:
+      # TODO: Disambiguating between components is non-trivial,
+      # For now, we rely on a mixture of files changed + title scoping.
+      - any-glob-to-any-file:
+          - "cmd/**"
+          - "pkg/**"
+          - "internal/**"
+          - "api/**"
+          - "frontend/app/src/**"
+          - "sql/**"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "AI_POLICY.md"
+          - "CONTRIBUTING.md"
+          - "SECURITY.md"
+          - "frontend/docs/**"
+          - "examples/**"
