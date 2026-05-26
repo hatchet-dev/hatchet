@@ -14,7 +14,7 @@ from tests.child_spawn_cache_on_retry.worker import (
 
 @pytest.mark.parametrize(
     "on_demand_worker",
-    [(["poetry", "run", "python", "tests/worker.py", "--slots", "5"], 8005)],
+    [["poetry", "run", "python", "tests/worker.py", "--slots", "5"]],
     indirect=True,
 )
 @pytest.mark.asyncio(loop_scope="session")
@@ -24,9 +24,7 @@ async def test_spawn_caching_on_retry(
     test_run_id = str(uuid4())
     try:
         await spawn_cache_on_retry_parent.aio_run(
-            options=TriggerWorkflowOptions(
-                additional_metadata={"test_run_id": test_run_id}
-            )
+            additional_metadata={"test_run_id": test_run_id}
         )
     except Exception as e:
         assert "Task exceeded timeout of" in str(e)

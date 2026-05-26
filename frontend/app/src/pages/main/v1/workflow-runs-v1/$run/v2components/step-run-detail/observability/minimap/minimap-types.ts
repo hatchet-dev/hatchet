@@ -29,6 +29,7 @@ export interface TraceMinimapProps {
   spanTrees: OtelSpanTree[];
   minMs: number;
   maxMs: number;
+  isRunning?: boolean;
   visibleRange: TimeRange;
   onRangeChange: (range: TimeRange) => void;
   expandedSpanIds?: Set<string>;

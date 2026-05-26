@@ -7,7 +7,7 @@ from typing import TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
 from hatchet_sdk.clients.listeners.workflow_listener import PooledWorkflowRunListener
@@ -21,9 +21,7 @@ from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
 from hatchet_sdk.exceptions import DedupeViolationError
-from hatchet_sdk.labels import DesiredWorkerLabel
-from hatchet_sdk.metadata import get_metadata
-from hatchet_sdk.rate_limit import RateLimitDuration
+from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
@@ -33,6 +31,22 @@ from hatchet_sdk.runnables.contextvars import (
     spawn_index_lock,
     workflow_spawn_indices,
 )
+from hatchet_sdk.types.labels import (
+    DesiredWorkerLabel,
+    _warn_if_dict_desired_worker_labels,
+)
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.rate_limit import RateLimitDuration
+from hatchet_sdk.types.trigger import (
+    ScheduleTriggerWorkflowOptions as ScheduleTriggerWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    TriggerWorkflowOptions,
+)
+from hatchet_sdk.types.trigger import (
+    WorkflowRunTriggerConfig as WorkflowRunTriggerConfig,
+)
+from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 from hatchet_sdk.workflow_run import WorkflowRunRef
@@ -95,30 +109,6 @@ class RunStatus(str, Enum):
         raise ValueError(f"Unknown RunStatus: {self}")
 
 
-class ScheduleTriggerWorkflowOptions(BaseModel):
-    parent_id: str | None = None
-    parent_step_run_id: str | None = None
-    child_index: int | None = None
-    child_key: str | None = None
-    namespace: str | None = None
-    additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
-    priority: int | None = None
-
-
-class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
-    desired_worker_id: str | None = None
-    sticky: bool = False
-    key: str | None = None
-    desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
-
-
-class WorkflowRunTriggerConfig(BaseModel):
-    workflow_name: str
-    input: str | None
-    options: TriggerWorkflowOptions
-    key: str | None = None
-
-
 class TaskRunDetail(BaseModel):
     external_id: str
     readable_id: str
@@ -170,8 +160,10 @@ class AdminClient:
         child_key: str | None = None
         additional_metadata: str | None = None
         desired_worker_id: str | None = None
-        priority: int | None = None
-        desired_worker_label: dict[str, DesiredWorkerLabel] | None = None
+        priority: int | Priority | None = None
+        desired_worker_label: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -196,6 +188,15 @@ class AdminClient:
 
         desired_worker_labels = None
         if _options.desired_worker_label:
+            _warn_if_dict_desired_worker_labels(
+                _options.desired_worker_label, stacklevel=6
+            )
+            if isinstance(_options.desired_worker_label, list):
+                labels_dict = {
+                    d.key: d for d in _options.desired_worker_label if d.key is not None
+                }
+            else:
+                labels_dict = _options.desired_worker_label
             desired_worker_labels = {
                 key: trigger_protos.DesiredWorkerLabels(
                     str_value=d.value if not isinstance(d.value, int) else None,
@@ -204,7 +205,7 @@ class AdminClient:
                     weight=d.weight,
                     comparator=d.comparator,  # type: ignore[arg-type]
                 )
-                for key, d in _options.desired_worker_label.items()
+                for key, d in labels_dict.items()
             }
 
         return trigger_protos.TriggerWorkflowRequest(
@@ -220,10 +221,16 @@ class AdminClient:
             desired_worker_labels=desired_worker_labels,
         )
 
-    def _parse_schedule(
-        self, schedule: datetime | timestamp_pb2.Timestamp
-    ) -> timestamp_pb2.Timestamp:
+    def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
         if isinstance(schedule, datetime):
+            if not schedule.tzinfo:
+                logger.warning(
+                    "Timezone-naive datetime provided for schedule. Assuming UTC timezone."
+                )
+            elif schedule.tzinfo.fromutc(schedule) != schedule:
+                logger.warning(
+                    "Non-UTC datetime provided for schedule. Assuming UTC timezone. Note: This is a bug which will be fixed in v2.0.0 of the SDK to support non-UTC datetimes. For now, convert your datetime to UTC to avoid this warning and ensure correct scheduling."
+                )
             t = schedule.timestamp()
             seconds = int(t)
             nanos = int(t % 1 * 1e9)
@@ -237,7 +244,7 @@ class AdminClient:
     def _prepare_schedule_workflow_request(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        schedules: list[datetime],
         input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
@@ -270,9 +277,9 @@ class AdminClient:
     async def aio_schedule_workflow(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        schedules: list[datetime],
         input: str | None = None,
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> v0_workflow_protos.WorkflowVersion:
         return await asyncio.to_thread(
             self.schedule_workflow, name, schedules, input, options
@@ -291,7 +298,7 @@ class AdminClient:
             workflow_protos.CreateWorkflowVersionResponse,
             put_workflow(
                 workflow,
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 
@@ -314,17 +321,18 @@ class AdminClient:
                 limit=limit,
                 duration=duration_proto,  # type: ignore[arg-type]
             ),
-            metadata=get_metadata(self.token),
+            metadata=create_authorization_header(self.token),
         )
 
     def schedule_workflow(
         self,
         name: str,
-        schedules: list[datetime | timestamp_pb2.Timestamp],
+        schedules: list[datetime],
         input: str | None = None,
-        options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
+        options: ScheduleTriggerWorkflowOptions | None = None,
     ) -> v0_workflow_protos.WorkflowVersion:
         try:
+            options = options or ScheduleTriggerWorkflowOptions()
             namespace = options.namespace or self.namespace
 
             name = self.config.apply_namespace(name, namespace)
@@ -342,7 +350,7 @@ class AdminClient:
                 v0_workflow_protos.WorkflowVersion,
                 schedule_workflow(
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -395,7 +403,6 @@ class AdminClient:
 
         return self._prepare_workflow_request(workflow_name, input, trigger_options)
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     def run_workflow(
         self,
         workflow_name: str,
@@ -411,7 +418,7 @@ class AdminClient:
                 v0_workflow_protos.TriggerWorkflowResponse,
                 trigger_workflow(
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -426,7 +433,6 @@ class AdminClient:
             admin_client=self,
         )
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     async def aio_run_workflow(
         self,
         workflow_name: str,
@@ -444,7 +450,7 @@ class AdminClient:
                 await asyncio.to_thread(
                     trigger_workflow,
                     request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
@@ -464,7 +470,6 @@ class AdminClient:
         for i in range(0, len(xs), n):
             yield xs[i : i + n]
 
-    ## IMPORTANT: Keep this method's signature in sync with the wrapper in the OTel instrumentor
     def run_workflows(
         self,
         workflows: list[WorkflowRunTriggerConfig],
@@ -491,7 +496,7 @@ class AdminClient:
                 v0_workflow_protos.BulkTriggerWorkflowResponse,
                 bulk_trigger_workflow(
                     bulk_request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
 
@@ -538,7 +543,7 @@ class AdminClient:
                 await asyncio.to_thread(
                     bulk_trigger_workflow,
                     bulk_request,
-                    metadata=get_metadata(self.token),
+                    metadata=create_authorization_header(self.token),
                 ),
             )
 
@@ -577,7 +582,7 @@ class AdminClient:
             workflow_protos.GetRunDetailsResponse,
             get_run_payloads(
                 workflow_protos.GetRunDetailsRequest(external_id=external_id),
-                metadata=get_metadata(self.token),
+                metadata=create_authorization_header(self.token),
             ),
         )
 

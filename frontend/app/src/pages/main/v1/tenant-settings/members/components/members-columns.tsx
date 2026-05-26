@@ -1,12 +1,12 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
-import api, { TenantMember, queries } from '@/lib/api';
+import useCloud from '@/hooks/use-cloud';
+import { TenantMember } from '@/lib/api';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { UserContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import queryClient from '@/query-client';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -16,29 +16,38 @@ export function MemberActions({
   member,
   onChangePasswordClick,
   onEditRoleClick,
+  tenantId,
+  onDeleteSuccess,
 }: {
   member: TenantMember;
   onChangePasswordClick: (member: TenantMember) => void;
   onEditRoleClick: (member: TenantMember) => void;
+  tenantId: string;
+  onDeleteSuccess?: () => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
-  const { tenantId } = useCurrentTenantId();
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
 
+  const { tenantMemberDeleteMutation } = useTenantApi();
   const deleteMemberMutation = useMutation({
     mutationKey: ['tenant-member:delete', tenantId],
     mutationFn: async (data: { memberId: string }) => {
-      await api.tenantMemberDelete(tenantId, data.memberId);
+      await tenantMemberDeleteMutation(tenantId, data.memberId).mutationFn();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: queries.members.list(tenantId).queryKey,
+        queryKey: ['tenant-member:list', tenantId],
       });
+      onDeleteSuccess?.();
+      setShowDeleteDialog(false);
     },
-    onError: handleApiError,
+    onError: (error: unknown) => {
+      handleApiError(error as Parameters<typeof handleApiError>[0]);
+      setShowDeleteDialog(false);
+    },
   });
 
   const isOwnerRole = member.role === 'OWNER';

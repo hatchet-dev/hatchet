@@ -52,7 +52,7 @@ SELECT
     relname AS tablename,
     heap_blks_read,
     heap_blks_hit,
-    heap_blks_hit + heap_blks_read AS total_reads,
+    (heap_blks_hit + heap_blks_read)::BIGINT AS total_reads,
     ROUND(
         100.0 * heap_blks_hit / NULLIF(heap_blks_hit + heap_blks_read, 0),
         2

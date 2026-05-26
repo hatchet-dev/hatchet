@@ -1,6 +1,8 @@
+import { z } from 'zod/v4';
 import { Or, SleepCondition, UserEventCondition } from '@hatchet-dev/typescript-sdk/v1/conditions';
 import { NonDeterminismError } from '@hatchet-dev/typescript-sdk/util/errors/non-determinism-error';
 import sleep from '@hatchet-dev/typescript-sdk/util/sleep';
+import { durationToMs } from '@hatchet-dev/typescript-sdk/v1/client/duration';
 import { hatchet } from '../hatchet-client';
 
 export const EVENT_KEY = 'durable-example:event';
@@ -14,8 +16,8 @@ export const durableWorkflow = hatchet.workflow({
 
 durableWorkflow.task({
   name: 'ephemeral_task',
-  fn: async () => {
-    console.log('Running non-durable task');
+  fn: async (_, ctx) => {
+    ctx.logger.info('Running non-durable task');
   },
 });
 
@@ -23,13 +25,13 @@ durableWorkflow.durableTask({
   name: 'durable_task',
   executionTimeout: '10m',
   fn: async (_input, ctx) => {
-    console.log('Waiting for sleep');
-    const sleepResult = await ctx.sleepFor(SLEEP_TIME);
-    console.log('Sleep finished');
+    ctx.logger.info('Waiting for sleep');
+    const sleepResult = await ctx.sleepFor(SLEEP_TIME, { label: 'waiting for sleep' });
+    ctx.logger.info('Sleep finished');
 
-    console.log('Waiting for event');
+    ctx.logger.info('Waiting for event');
     const event = await ctx.waitForEvent(EVENT_KEY, 'true');
-    console.log('Event received');
+    ctx.logger.info('Event received');
 
     return {
       status: 'success',
@@ -241,6 +243,94 @@ export const durableReplayReset = hatchet.durableTask({
       sleep_1_duration: sleep1Duration,
       sleep_2_duration: sleep2Duration,
       sleep_3_duration: sleep3Duration,
+    };
+  },
+});
+
+export const LOOKBACK_WINDOW = '1m' as const;
+
+const lookbackEventPayloadSchema = z.object({
+  order: z.string(),
+  user_id: z.number(),
+});
+
+const twoEventsPayloadSchema = z.object({
+  order: z.string(),
+});
+
+export const waitForEventLookback = hatchet.durableTask({
+  name: 'wait-for-event-lookback',
+  executionTimeout: '10m',
+  fn: async (input: { userId: number }, ctx) => {
+    const start = Date.now();
+
+    // > Wait for event with lookback
+    const event = await ctx.waitForEvent(
+      'user:create',
+      `input.user_id == ${input.userId}`,
+      lookbackEventPayloadSchema,
+      `user_id:${input.userId}`,
+      '1m'
+    );
+
+    return {
+      elapsed: (Date.now() - start) / 1000,
+      event,
+    };
+  },
+});
+
+export const waitForOrEventLookback = hatchet.durableTask({
+  name: 'wait-for-or-event-lookback',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const now = await ctx.now();
+    const considerEventsSince = new Date(
+      now.getTime() - durationToMs(LOOKBACK_WINDOW)
+    ).toISOString();
+    await ctx.waitFor(
+      Or(
+        new SleepCondition(SLEEP_TIME),
+        new UserEventCondition(
+          EVENT_KEY,
+          '',
+          undefined,
+          undefined,
+          input.scope,
+          considerEventsSince
+        )
+      )
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+    };
+  },
+});
+
+export const waitForTwoEventsSecondPushedFirst = hatchet.durableTask({
+  name: 'wait-for-two-events-second-pushed-first',
+  executionTimeout: '10m',
+  fn: async (input: { scope: string }, ctx) => {
+    const start = Date.now();
+    const event1 = await ctx.waitForEvent(
+      'key1',
+      undefined,
+      twoEventsPayloadSchema,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    const event2 = await ctx.waitForEvent(
+      'key2',
+      undefined,
+      twoEventsPayloadSchema,
+      input.scope,
+      LOOKBACK_WINDOW
+    );
+    return {
+      elapsed: (Date.now() - start) / 1000,
+      event1,
+      event2,
     };
   },
 });

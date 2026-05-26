@@ -4,13 +4,14 @@ import { TimelineBars } from './trace-timeline-bars';
 import { TimelineLabels } from './trace-timeline-labels';
 import {
   flattenTree,
+  collectDescendantIds,
   computeTimeTicks,
   ROW_HEIGHT,
   type SpanGroupInfo,
   type VisibleRange,
 } from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useRef, useState } from 'react';
 
 export const LABEL_WIDTH = 320;
 
@@ -113,32 +114,27 @@ export function TraceTimeline({
       const visStartMs = minStart + totalDurationMs * visibleRange.startPct;
       const visEndMs = minStart + totalDurationMs * visibleRange.endPct;
       const visDurationMs = visEndMs - visStartMs;
-      const { ticks, maxTick } = computeTimeTicks(visDurationMs);
+      const { ticks } = computeTimeTicks(visDurationMs);
       return {
         visMinStart: visStartMs,
         visOffsetMs: visStartMs - minStart,
         ticks,
-        timelineMaxMs: hasLiveProgress
-          ? visDurationMs
-          : Math.max(maxTick, visDurationMs),
+        timelineMaxMs: visDurationMs,
         traceMinStart: minStart,
         traceTotalMs: totalDurationMs,
       };
     }
 
-    const { ticks, maxTick } = computeTimeTicks(totalDurationMs);
-    const timelineMaxMs = hasLiveProgress
-      ? totalDurationMs
-      : Math.max(maxTick, totalDurationMs);
+    const { ticks } = computeTimeTicks(totalDurationMs);
     return {
       visMinStart: minStart,
       visOffsetMs: 0,
       ticks,
-      timelineMaxMs,
+      timelineMaxMs: totalDurationMs,
       traceMinStart: minStart,
       traceTotalMs: totalDurationMs,
     };
-  }, [spanTrees, visibleRange, now, hasLiveProgress, isRunning]);
+  }, [spanTrees, visibleRange, now, isRunning]);
 
   const toggleExpand = useCallback(
     (id: string) => {
@@ -166,16 +162,27 @@ export function TraceTimeline({
 
   const gridHeight = flatRows.length * ROW_HEIGHT;
 
+  const [hoveredRowKey, setHoveredRowKey] = useState<string | null>(null);
+
+  const selectedDescendantIds = useMemo(
+    () =>
+      selectedSpan ? collectDescendantIds(selectedSpan) : new Set<string>(),
+    [selectedSpan],
+  );
+
   return (
     <div className="relative flex min-w-0 overflow-hidden" ref={containerRef}>
       <div
-        className="flex shrink-0 flex-col overflow-hidden pt-6"
+        className="flex shrink-0 flex-col overflow-hidden"
         style={{ width: LABEL_WIDTH }}
       >
         <TimelineLabels
           flatRows={flatRows}
           selectedSpan={selectedSpan}
           selectedGroupId={selectedGroupId}
+          selectedDescendantIds={selectedDescendantIds}
+          hoveredRowKey={hoveredRowKey}
+          onRowHover={setHoveredRowKey}
           onSpanSelect={onSpanSelect}
           onGroupSelect={onGroupSelect}
           onShowMore={onShowMore}
@@ -199,6 +206,9 @@ export function TraceTimeline({
         hasAnyLiveQueued={hasAnyLiveQueued}
         selectedSpan={selectedSpan}
         selectedGroupId={selectedGroupId}
+        selectedDescendantIds={selectedDescendantIds}
+        hoveredRowKey={hoveredRowKey}
+        onRowHover={setHoveredRowKey}
         onSpanSelect={onSpanSelect}
         onGroupSelect={onGroupSelect}
         expandOnly={expandOnly}

@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -73,8 +74,11 @@ class Action(BaseModel):
     child_workflow_key: str | None = None
     parent_workflow_run_id: str | None = None
 
-    priority: int | None = None
+    priority: int | Priority | None = None
     durable_task_invocation_count: int | None = None
+
+    triggering_event_external_id: str | None = None
+    triggering_event_key: str | None = None
 
     def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
         try:
@@ -98,6 +102,8 @@ class Action(BaseModel):
             OTelAttribute.STEP_NAME: self.step_name,
             OTelAttribute.WORKFLOW_ID: self.workflow_id,
             OTelAttribute.WORKFLOW_VERSION_ID: self.workflow_version_id,
+            OTelAttribute.TRIGGERING_EVENT_EXTERNAL_ID: self.triggering_event_external_id,
+            OTelAttribute.TRIGGERING_EVENT_KEY: self.triggering_event_key,
         }
 
         result = {

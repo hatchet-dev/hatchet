@@ -57,7 +57,7 @@ func (s *OLAPSignaler) SignalDAGsCreated(ctx context.Context, tenantId uuid.UUID
 	// TODO: make this transactionally safe?
 	for _, dag := range dags {
 		dagCp := dag
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, dagCp)
+		msg, err := tasktypes.CreatedDAGMessage(tenantId, tasktypes.CreatedDAGPayload{DAGWithData: dagCp})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -99,7 +99,7 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 			skippedTasks = append(skippedTasks, task)
 		}
 
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, task)
+		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: task})
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not create message for olap queue")
@@ -684,9 +684,11 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 			})
 		} else {
 			for _, run := range runs {
+				runExtID := run.WorkflowRunExternalID
 				eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
 					MaybeRunId:              &run.Id,
 					MaybeRunInsertedAt:      &run.InsertedAt,
+					MaybeRunExternalId:      &runExtID,
 					EventSeenAt:             eventSeenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,

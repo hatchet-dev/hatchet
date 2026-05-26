@@ -189,6 +189,12 @@ message AssignedAction {
 
     // (optional) the invocation count for durable task events (required for durable events, otherwise null)
     optional int32 durable_task_invocation_count = 21;
+
+    // (optional) the external id of the event that triggered this workflow run (if any)
+    optional string triggering_event_external_id = 22;
+
+    // (optional) the key of the event that triggered this workflow run (if any)
+    optional string triggering_event_key = 23;
 }
 
 message WorkerListenRequest {

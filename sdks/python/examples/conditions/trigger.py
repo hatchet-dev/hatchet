@@ -2,7 +2,7 @@ import time
 
 from examples.conditions.worker import hatchet, task_condition_workflow
 
-task_condition_workflow.run_no_wait()
+task_condition_workflow.run(wait_for_result=False)
 
 time.sleep(5)
 

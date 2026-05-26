@@ -11,7 +11,7 @@ export class NonDeterminismError extends HatchetError {
       : `Non-determinism detected in task ${taskExternalId} on invocation ${invocationCount} at node ${nodeId}`;
     super(
       `${detail}\n` +
-        `Check out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns/mixing-patterns`
+        `Check out our documentation for more details on expectations of durable tasks: https://docs.hatchet.run/v1/patterns`
     );
     this.name = 'NonDeterminismError';
     this.taskExternalId = taskExternalId;

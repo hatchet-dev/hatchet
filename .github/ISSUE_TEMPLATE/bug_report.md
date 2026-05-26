@@ -22,3 +22,18 @@ Include a minimal code snippet that reproduces the issue, error logs around the 
 
 **Additional context**
 Anything else that might help us understand or reproduce the problem — e.g. specific page URL, logged-in vs logged-out, related docs or workflows.
+
+---
+
+<details id="ai-disclosure">
+<summary><b>🤖 AI Disclosure</b></summary>
+
+<!-- In accordance with Hatchet's AI_POLICY.md, LLM usage must be explicitly disclosed. -->
+
+- [ ] _I acknowledge that an LLM was used in the creation of this Issue, in accordance with Hatchet's [AI_POLICY.md](./AI_POLICY.md)._
+
+<!-- Please specify the tooling/model and the extent to which it was used. -->
+
+- **Details**: [e.g. re-creation steps, initial diagnosis]
+
+</details>

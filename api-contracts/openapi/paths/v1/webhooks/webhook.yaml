@@ -119,12 +119,13 @@ V1WebhookGetDeleteReceiveUpdate:
           type: string
     responses:
       '200':
-        description: 'Success'
-        required: false
+        description: 'Success with response payload'
         content:
           application/json:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/V1WebhookResponse"
+      '204':
+        description: 'Success with no response payload'
       "400":
         content:
           application/json:

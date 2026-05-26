@@ -1,4 +1,8 @@
-import { getDisplayName, hasErrorInTree } from '../utils/span-tree-utils';
+import {
+  hasErrorInTree,
+  isQueuedOnly,
+  isQueuedOnlyRoot,
+} from '../utils/span-tree-utils';
 import type { SpanMarker } from './minimap-types';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 
@@ -15,6 +19,9 @@ export function collectSpanMarkers(
     parentVisible: boolean,
     ancestors: string[],
   ) => {
+    if (isQueuedOnlyRoot(node) || isQueuedOnly(node)) {
+      return;
+    }
     const startMs = new Date(node.createdAt).getTime();
     const pct = totalMs > 0 ? (startMs - minMs) / totalMs : 0;
     markers.push({
@@ -22,7 +29,7 @@ export function collectSpanMarkers(
       statusCode: node.statusCode,
       hasErrorInTree: hasErrorInTree(node),
       inProgress: !!node.inProgress,
-      spanName: getDisplayName(node),
+      spanName: node.spanName,
       durationMs: node.durationNs / 1_000_000,
       visible: parentVisible,
       span: node,

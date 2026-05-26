@@ -20,6 +20,7 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -56,11 +57,12 @@ export default function Events() {
     key: 'table',
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    [idKey]: false,
-    [EventColumn.payload]: false,
-    [scopeKey]: false,
-  });
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:events', {
+      [idKey]: false,
+      [EventColumn.payload]: false,
+      [scopeKey]: false,
+    });
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {
@@ -141,7 +143,7 @@ export default function Events() {
             <p className="text-lg font-semibold">No events found</p>
             <div className="w-fit">
               <DocsButton
-                doc={docsPages.v1['external-events']['run-on-event']}
+                doc={docsPages.v1.events}
                 label="Learn about pushing events to Hatchet"
               />
             </div>
@@ -292,7 +294,11 @@ function FiltersSection({
     <div className="w-full overflow-x-auto">
       <div className="min-w-[500px] [&_td:last-child]:w-[60px] [&_td:last-child]:min-w-[60px] [&_td:last-child]:max-w-[60px] [&_th:last-child]:w-[60px] [&_th:last-child]:min-w-[60px] [&_th:last-child]:max-w-[60px]">
         {filters.length > 0 ? (
-          <SimpleTable columns={filterColumns} data={filters} />
+          <SimpleTable
+            columns={filterColumns}
+            data={filters}
+            rowKey={(row) => row.metadata.id}
+          />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
             No filters found for this event.

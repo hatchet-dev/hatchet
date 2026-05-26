@@ -26,8 +26,6 @@ IGNORED_FILE_PATTERNS = [
     r"README\.md$",
 ]
 
-GUIDES_BASE = "sdks/guides"
-
 
 @dataclass
 class ParsingContext:
@@ -188,78 +186,6 @@ def process_examples() -> list[ProcessedExample]:
     return examples
 
 
-GUIDES_LANG_TO_CTX: dict[str, SDKParsingContext] = {
-    "python": SDKParsingContext.PYTHON,
-    "typescript": SDKParsingContext.TYPESCRIPT,
-    "go": SDKParsingContext.GO,
-    "ruby": SDKParsingContext.RUBY,
-}
-
-
-def process_guides() -> list[ProcessedExample]:
-    """Process guide examples from sdks/guides/{lang}/ into examples/{lang}/guides/."""
-    examples: list[ProcessedExample] = []
-
-    for lang_dir, ctx in GUIDES_LANG_TO_CTX.items():
-        guides_base = os.path.join(ROOT, GUIDES_BASE, lang_dir)
-        if not os.path.isdir(guides_base):
-            continue
-
-        pattern = guides_base + "/**/*" + ctx.value.extension
-
-        for filename in glob.iglob(pattern, recursive=True):
-            if any(re.search(p, filename) for p in IGNORED_FILE_PATTERNS):
-                continue
-
-            with open(filename) as f:
-                content = f.read()
-
-            rel_path = filename.replace(guides_base, "")
-            output_path = f"examples/{ctx.name.lower()}/guides{rel_path}"
-            code_path = output_path
-
-            github_url = f"https://github.com/{OUTPUT_GITHUB_ORG}/{OUTPUT_GITHUB_REPO}/tree/main/{code_path}"
-
-            comment_prefix = re.escape(ctx.value.comment_prefix)
-            snippet_pattern = rf"{comment_prefix} >\s+(.+?)\n(.*?){comment_prefix} !!"
-            matches = list(re.finditer(snippet_pattern, content, re.DOTALL))
-
-            if not matches:
-                snippets = [
-                    Snippet(
-                        title="all",
-                        content=content,
-                        githubUrl=github_url,
-                        language=ctx.name.lower(),
-                        codePath=code_path,
-                    )
-                ]
-            else:
-                snippets = [
-                    Snippet(
-                        title=x[0],
-                        content=x[1],
-                        githubUrl=github_url,
-                        language=ctx.name.lower(),
-                        codePath=code_path,
-                    )
-                    for match in matches
-                    if (x := parse_snippet_from_block(match))
-                ]
-
-            examples.append(
-                ProcessedExample(
-                    context=ctx,
-                    filepath=filename,
-                    output_path=output_path,
-                    snippets=snippets,
-                    raw_content=content,
-                )
-            )
-
-    return examples
-
-
 def create_snippet_tree(examples: list[ProcessedExample]) -> dict[str, dict[str, Any]]:
     tree: dict[str, Any] = {}
 
@@ -306,10 +232,6 @@ def clean_example_content(content: str, comment_prefix: str) -> str:
     )
 
 
-GUIDES_SOURCE = "sdks/guides"
-GUIDES_OUTPUT = "examples"
-
-
 def _read_sdk_version(lang: str) -> str:
     """Read the published SDK version from the source package file."""
     if lang == "python":
@@ -331,43 +253,6 @@ def _read_sdk_version(lang: str) -> str:
     return "0.0.0"
 
 
-def copy_guide_dep_file(
-    lang: str,
-    filename: str,
-    use_published: bool = True,
-) -> None:
-    """Copy a dep file from sdks/guides/{lang}/ to examples/{lang}/guides/.
-    If use_published, replace local path refs with published package versions."""
-    src = os.path.join(ROOT, GUIDES_SOURCE, lang, filename)
-    out_dir = os.path.join(ROOT, GUIDES_OUTPUT, lang, "guides")
-    if not os.path.isfile(src) or not os.path.isdir(out_dir):
-        return
-    content = open(src).read()
-
-    if use_published:
-        ver = _read_sdk_version(lang)
-        if lang == "go":
-            content = content.replace("module github.com/hatchet-dev/hatchet/sdks/guides/go", "module github.com/hatchet-dev/hatchet/examples/go/guides")
-            go_ver = f"v{ver}" if not ver.startswith("v") else ver
-            content = content.replace("github.com/hatchet-dev/hatchet v0.0.0", f"github.com/hatchet-dev/hatchet {go_ver}")
-            content = re.sub(r"\nreplace github\.com/hatchet-dev/hatchet => \.\./\.\./\.\.\s*\n?", "\n", content)
-        elif lang == "python":
-            content = content.replace('hatchet-sdk = { path = "../../python", develop = true }', f'hatchet-sdk = "^{ver}"')
-        elif lang == "ruby":
-            content = content.replace(
-                'gem "hatchet-sdk", path: "../../ruby/src"',
-                f'gem "hatchet-sdk", "~> {ver}"',
-            )
-        elif lang == "typescript":
-            content = content.replace(
-                '"@hatchet-dev/typescript-sdk": "file:../../typescript"',
-                f'"@hatchet-dev/typescript-sdk": "^{ver}"',
-            )
-
-    with open(os.path.join(out_dir, filename), "w") as f:
-        f.write(content)
-
-
 def write_examples(examples: list[ProcessedExample]) -> None:
     for example in examples:
         out_path = os.path.join(ROOT, example.output_path)
@@ -380,12 +265,6 @@ def write_examples(examples: list[ProcessedExample]) -> None:
                     example.raw_content, example.context.value.comment_prefix
                 )
             )
-
-    # Copy dep files from sdks/guides/ to examples/*/guides/ with published SDK refs
-    copy_guide_dep_file("go", "go.mod")
-    copy_guide_dep_file("python", "pyproject.toml")
-    copy_guide_dep_file("ruby", "Gemfile")
-    copy_guide_dep_file("typescript", "package.json")
 
 
 class JavaScriptObjectDecoder(json.JSONDecoder):
@@ -498,7 +377,7 @@ def write_doc_index_to_app() -> None:
 
 
 if __name__ == "__main__":
-    processed_examples = process_examples() + process_guides()
+    processed_examples = process_examples()
 
     tree = create_snippet_tree(processed_examples)
 
@@ -510,7 +389,7 @@ if __name__ == "__main__":
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
 
-    language_union = ' | '.join([f"'{v.name.lower()}'" for v in SDKParsingContext])
+    language_union = " | ".join([f"'{v.name.lower()}'" for v in SDKParsingContext])
     snippet_type = (
         "export type Snippet = {\n"
         "    title: string;\n"

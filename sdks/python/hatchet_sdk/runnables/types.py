@@ -14,8 +14,12 @@ from typing import (
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
-from hatchet_sdk.contracts.v1.workflows_pb2 import Concurrency
 from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilterProto
+from hatchet_sdk.types.concurrency import (
+    ConcurrencyExpression,
+)
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
@@ -37,56 +41,6 @@ class EmptyModel(BaseModel):
     model_config = ConfigDict(extra="allow", frozen=True)
 
 
-class StickyStrategy(str, Enum):
-    SOFT = "SOFT"
-    HARD = "HARD"
-
-
-class ConcurrencyLimitStrategy(str, Enum):
-    CANCEL_IN_PROGRESS = "CANCEL_IN_PROGRESS"
-    GROUP_ROUND_ROBIN = "GROUP_ROUND_ROBIN"
-    CANCEL_NEWEST = "CANCEL_NEWEST"
-
-
-class ConcurrencyExpression(BaseModel):
-    """
-    Defines concurrency limits for a workflow using a CEL expression.
-
-    :ivar expression: CEL expression to determine concurrency grouping. (i.e. "input.user_id")
-    :ivar max_runs: Maximum number of concurrent workflow runs.
-    :ivar limit_strategy: Strategy for handling limit violations.
-
-
-    **Example**
-    ```python
-    ConcurrencyExpression(
-        "input.user_id",
-        5,
-        ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS
-    )
-    ```
-    """
-
-    expression: str
-    max_runs: int
-    limit_strategy: ConcurrencyLimitStrategy
-
-    def to_proto(self) -> Concurrency:
-        return Concurrency(
-            expression=self.expression,
-            max_runs=self.max_runs,
-            limit_strategy=self.limit_strategy,
-        )
-
-    @staticmethod
-    def from_int(max_runs: int) -> "ConcurrencyExpression":
-        return ConcurrencyExpression(
-            expression="'constant'",
-            max_runs=max_runs,
-            limit_strategy=ConcurrencyLimitStrategy.GROUP_ROUND_ROBIN,
-        )
-
-
 _TWorkflowInputBound: TypeAlias = BaseModel | DataclassInstance | dict[str, Any]
 TWorkflowInput = TypeVar("TWorkflowInput", bound=_TWorkflowInputBound)
 
@@ -98,7 +52,7 @@ TWorkflowInput_contra = TypeVar(
 class TaskDefaults(BaseModel):
     schedule_timeout: Duration | None = None
     execution_timeout: Duration | None = None
-    priority: int | None = Field(gt=0, lt=4, default=None)
+    priority: int | Priority | None = Field(gt=0, lt=4, default=None)
     retries: int | None = None
     backoff_factor: float | None = None
     backoff_max_seconds: int | None = None
@@ -145,7 +99,7 @@ class WorkflowConfig(BaseModel):
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
-    default_priority: int | None = None
+    default_priority: int | Priority | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)

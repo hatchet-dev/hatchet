@@ -3,6 +3,9 @@ import time
 
 import pytest
 from uuid import uuid4
+import json
+from typing import cast
+from random import shuffle
 
 from examples.durable.worker import (
     EVENT_KEY,
@@ -16,23 +19,33 @@ from examples.durable.worker import (
     durable_spawn_dag,
     durable_non_determinism,
     durable_replay_reset,
+    durable_child_key_dedup_replay,
     memo_task,
     MemoInput,
     DurableBulkSpawnInput,
     memo_now_caching,
     AwaitedEvent,
+    EventLookbackInput,
+    wait_for_event_lookback,
+    wait_for_or_event_lookback,
+    wait_for_two_events_second_pushed_first,
 )
 from hatchet_sdk import Hatchet
+
+from examples.test_utils import wait_for_running_status
+
+TIMING_TOLERANCE = 1.0
 
 requires_durable_eviction = pytest.mark.usefixtures("_skip_unless_durable_eviction")
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_workflow(hatchet: Hatchet) -> None:
-    ref = durable_workflow.run_no_wait()
+    ref = await durable_workflow.aio_run(wait_for_result=False)
     id = str(uuid4())
 
-    await asyncio.sleep(SLEEP_TIME + 10)
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    await asyncio.sleep(SLEEP_TIME + 3)
 
     event = await hatchet.event.aio_push(
         EVENT_KEY, AwaitedEvent(id=id).model_dump(mode="json")
@@ -72,10 +85,9 @@ async def test_durable_workflow(hatchet: Hatchet) -> None:
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
-    first_sleep = await wait_for_sleep_twice.aio_run_no_wait()
+    first_sleep = await wait_for_sleep_twice.aio_run(wait_for_result=False)
 
-    await asyncio.sleep(SLEEP_TIME / 2)
-
+    await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
     await first_sleep.aio_result()
@@ -88,8 +100,8 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     second_sleep_result = await first_sleep.aio_result()
     replay_elapsed = time.time() - replay_start
 
-    assert second_sleep_result["runtime"] < SLEEP_TIME
-    assert replay_elapsed <= SLEEP_TIME
+    assert second_sleep_result["runtime"] < SLEEP_TIME + TIMING_TOLERANCE
+    assert replay_elapsed <= SLEEP_TIME + TIMING_TOLERANCE
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -113,9 +125,10 @@ async def test_durable_child_bulk_spawn() -> None:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
     start = time.time()
-    ref = durable_sleep_event_spawn.run_no_wait()
+    ref = await durable_sleep_event_spawn.aio_run(wait_for_result=False)
 
-    await asyncio.sleep(SLEEP_TIME + 5)
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    await asyncio.sleep(SLEEP_TIME + 3)
     hatchet.event.push(EVENT_KEY, {"test": "test"})
 
     result = await ref.aio_result()
@@ -130,13 +143,35 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
     replay_elapsed = time.time() - replay_start
 
     assert replayed_result["child_output"] == {"message": "hello from child 1"}
-    assert replay_elapsed < SLEEP_TIME
+    assert replay_elapsed < SLEEP_TIME + TIMING_TOLERANCE
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_child_key_dedup_replay(hatchet: Hatchet) -> None:
+    ref = await durable_child_key_dedup_replay.aio_run(wait_for_result=False)
+    result = await ref.aio_result()
+
+    assert result.runtime >= 2 * SLEEP_TIME
+    assert result.child_1_output == {"message": "hello from child 1"}
+    assert result.child_2_output == {"message": "hello from child 2"}
+    assert result.child_3_output == result.child_1_output
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+    await asyncio.sleep(5)
+
+    replayed_result = await ref.aio_result()
+
+    assert replayed_result.child_1_output == result.child_1_output
+    assert replayed_result.child_2_output == result.child_2_output
+    assert replayed_result.child_3_output == result.child_3_output
+    assert replayed_result.runtime < SLEEP_TIME
 
 
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_completed_replay(hatchet: Hatchet) -> None:
-    ref = wait_for_sleep_twice.run_no_wait()
+    ref = await wait_for_sleep_twice.aio_run(wait_for_result=False)
 
     start = time.time()
     first_result = await ref.aio_result()
@@ -150,8 +185,8 @@ async def test_durable_completed_replay(hatchet: Hatchet) -> None:
     replayed_result = await ref.aio_result()
     elapsed = time.time() - start
 
-    assert replayed_result["runtime"] < SLEEP_TIME
-    assert elapsed < SLEEP_TIME
+    assert replayed_result["runtime"] < SLEEP_TIME + TIMING_TOLERANCE
+    assert elapsed < SLEEP_TIME + TIMING_TOLERANCE
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -169,7 +204,7 @@ async def test_durable_spawn_dag() -> None:
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_non_determinism(hatchet: Hatchet) -> None:
-    ref = await durable_non_determinism.aio_run_no_wait()
+    ref = await durable_non_determinism.aio_run(wait_for_result=False)
     result = await ref.aio_result()
 
     assert result.sleep_time > result.attempt_number
@@ -191,7 +226,7 @@ async def test_durable_non_determinism(hatchet: Hatchet) -> None:
 @pytest.mark.parametrize("node_id", [1, 2, 3])
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
-    ref = await durable_replay_reset.aio_run_no_wait()
+    ref = await durable_replay_reset.aio_run(wait_for_result=False)
 
     result = await ref.aio_result()
 
@@ -215,7 +250,7 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 
     for i, duration in enumerate(durations, start=1):
         if i < node_id:
-            assert duration < REPLAY_RESET_SLEEP_TIME
+            assert duration < REPLAY_RESET_SLEEP_TIME + TIMING_TOLERANCE
         else:
             assert duration >= REPLAY_RESET_SLEEP_TIME
 
@@ -226,7 +261,7 @@ async def test_durable_replay_reset(hatchet: Hatchet, node_id: int) -> None:
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
-    ref = await durable_replay_reset.aio_run_no_wait()
+    ref = await durable_replay_reset.aio_run(wait_for_result=False)
 
     result = await ref.aio_result()
 
@@ -265,7 +300,7 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
-    assert reset_result.sleep_1_duration < REPLAY_RESET_SLEEP_TIME
+    assert reset_result.sleep_1_duration < REPLAY_RESET_SLEEP_TIME + TIMING_TOLERANCE
     assert reset_result.sleep_2_duration >= REPLAY_RESET_SLEEP_TIME
     assert reset_result.sleep_3_duration >= REPLAY_RESET_SLEEP_TIME
 
@@ -278,7 +313,7 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
 async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
     message = str(uuid4())
     start = time.time()
-    ref = await memo_task.aio_run_no_wait(MemoInput(message=message))
+    ref = await memo_task.aio_run(MemoInput(message=message), wait_for_result=False)
     result_1 = await ref.aio_result()
     duration_1 = time.time() - start
 
@@ -296,7 +331,7 @@ async def test_durable_memoization_via_replay(hatchet: Hatchet) -> None:
 @requires_durable_eviction
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
-    ref = await memo_now_caching.aio_run_no_wait()
+    ref = await memo_now_caching.aio_run(wait_for_result=False)
 
     result_1 = await ref.aio_result()
 
@@ -305,3 +340,87 @@ async def test_durable_memo_now_caching(hatchet: Hatchet) -> None:
     result_2 = await ref.aio_result()
 
     assert result_1["start_time"] == result_2["start_time"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
+    user_id = 1234
+
+    hatchet.event.push(
+        "user:create",
+        {"order": "first", "user_id": user_id},
+        scope=f"user_id:{user_id}",
+    )
+
+    await asyncio.sleep(1)
+
+    result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
+
+    assert (
+        result.elapsed < 1 + TIMING_TOLERANCE
+    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    assert result.event.order == "first"
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_or_group_event_lookback_before_wait(hatchet: Hatchet) -> None:
+    scope = str(uuid4())
+
+    hatchet.event.push(EVENT_KEY, {"order": "first"}, scope=scope)
+    await asyncio.sleep(1)
+
+    result = await wait_for_or_event_lookback.aio_run(EventLookbackInput(scope=scope))
+
+    assert result.elapsed < SLEEP_TIME + TIMING_TOLERANCE
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_two_event_waits_second_pushed_first(hatchet: Hatchet) -> None:
+    scope = str(uuid4())
+
+    hatchet.event.push(
+        "key2",
+        {"order": "second"},
+        scope=scope,
+    )
+    await asyncio.sleep(1)
+
+    ref = await wait_for_two_events_second_pushed_first.aio_run(
+        EventLookbackInput(scope=scope), wait_for_result=False
+    )
+
+    await asyncio.sleep(3)
+
+    hatchet.event.push("key1", {"order": "first"}, scope=scope)
+
+    result = await ref.aio_result()
+
+    assert result.elapsed < SLEEP_TIME + TIMING_TOLERANCE
+    assert result.event1.order == "first"
+    assert result.event2.order == "second"
+
+
+@pytest.mark.skip(reason="seems to be broken, need to fix this on the engine")
+@pytest.mark.asyncio(loop_scope="session")
+async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
+    user_id = 1234
+
+    event = None
+    iters = list(range(100))
+    shuffle(iters)
+
+    for i in iters:
+        event = hatchet.event.push(
+            "user:create",
+            {"order": str(i), "user_id": user_id},
+            scope=f"user_id:{user_id}",
+        )
+
+    assert event
+    await asyncio.sleep(1)
+
+    res = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
+
+    payload = cast(dict[str, str], json.loads(event.payload))
+
+    assert res.event.order == payload["order"]

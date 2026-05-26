@@ -9,6 +9,7 @@ export function parseLogQuery(query: string): ParsedLogQuery {
   const textParts: string[] = [];
   let level: LogLevel | undefined;
   let attempt: number | undefined;
+  let workflow: string | undefined;
 
   for (const token of tokenizeFilterQuery(query)) {
     if (isFilterToken(token)) {
@@ -27,6 +28,8 @@ export function parseLogQuery(query: string): ParsedLogQuery {
         } else {
           errors.push(`Invalid attempt number: "${value}"`);
         }
+      } else if (key.toLowerCase() === 'workflow') {
+        workflow = value;
       } else {
         textParts.push(`${key}:${value}`);
       }
@@ -39,6 +42,7 @@ export function parseLogQuery(query: string): ParsedLogQuery {
     search: textParts.length > 0 ? textParts.join(' ') : undefined,
     level,
     attempt,
+    workflow,
     raw: query,
     isValid: errors.length === 0,
     errors,

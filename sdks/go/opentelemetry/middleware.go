@@ -5,6 +5,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // SA1019: needed for cross-workflow trace propagation via WithSourceInfo
 	"github.com/hatchet-dev/hatchet/pkg/worker"
 )
 
@@ -15,15 +16,17 @@ import (
 //   - Stores attributes in context so HatchetAttributeSpanProcessor can inject
 //     them into all child spans
 //
+// The hatchetExporter re-parents step_run spans under the engine's deterministic
+// workflow_run span before forwarding to the Hatchet collector, so external OTel
+// backends see the original traceparent parent-child chain.
+//
 //nolint:staticcheck // SA1019: worker.MiddlewareFunc is deprecated but still used internally
 func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
 	propagator := propagation.TraceContext{}
 
 	return func(ctx worker.HatchetContext, next func(worker.HatchetContext) error) error {
-		// Build hatchet attributes from context
 		attrs := hatchetAttributes(ctx)
 
-		// Extract traceparent from additional metadata if present
 		parentCtx := ctx.GetContext()
 		if meta := ctx.AdditionalMetadata(); meta != nil {
 			if tp, ok := meta["traceparent"]; ok && tp != "" {
@@ -36,6 +39,12 @@ func NewMiddleware(tracer trace.Tracer) worker.MiddlewareFunc {
 
 		// Store hatchet attributes in context for the SpanProcessor
 		parentCtx = withHatchetAttributes(parentCtx, attrs)
+
+		// Store source info so event Push/BulkPush can inject it into metadata
+		parentCtx = client.WithSourceInfo(parentCtx, client.SourceInfo{
+			WorkflowRunID: ctx.WorkflowRunId(),
+			StepRunID:     ctx.StepRunId(),
+		})
 
 		// Start span
 		spanCtx, span := tracer.Start(parentCtx, SpanStartStepRun,

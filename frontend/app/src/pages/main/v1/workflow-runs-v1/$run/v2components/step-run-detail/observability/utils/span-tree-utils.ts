@@ -1,3 +1,4 @@
+import { isStartStepRunSpan } from '@/components/v1/agent-prism/convert-otel-spans-to-agent-prism-span-tree';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { OtelStatusCode } from '@/lib/api/generated/data-contracts';
 
@@ -15,13 +16,30 @@ export function isEngineSpan(span: OtelSpanTree): boolean {
   return span.spanAttributes?.['hatchet.span_source'] === 'engine';
 }
 
-export function isEngineSurrogateParent(span: OtelSpanTree): boolean {
-  return (
-    isEngineSpan(span) &&
-    span.spanName === 'hatchet.start_step_run' &&
-    span.children.length > 0 &&
-    span.children.some((c) => !isEngineSpan(c))
-  );
+export function hasOnlyEngineSpans(trees: OtelSpanTree[]): boolean {
+  const stack = [...trees];
+  let realSpanCount = 0;
+  let hasOkSpan = false;
+
+  while (stack.length > 0) {
+    const span = stack.pop()!;
+    stack.push(...span.children);
+
+    if (span.spanId.startsWith('__synthetic_')) {
+      continue;
+    }
+
+    realSpanCount++;
+
+    if (!isEngineSpan(span)) {
+      return false;
+    }
+    if (span.statusCode === OtelStatusCode.OK) {
+      hasOkSpan = true;
+    }
+  }
+
+  return realSpanCount > 0 && hasOkSpan;
 }
 
 export function isQueuedOnlyRoot(span: OtelSpanTree): boolean {
@@ -36,39 +54,15 @@ export function isQueuedOnly(span: OtelSpanTree): boolean {
   return !!span.queuedPhase && span.durationNs <= 0 && !span.inProgress;
 }
 
-const ENGINE_SPAN_DISPLAY_NAMES: Record<string, string> = {
-  'hatchet.engine.queued': 'Queued',
-  'hatchet.engine.scheduling': 'Scheduling',
-  'hatchet.engine.retry_backoff': 'Retry Backoff',
-  'hatchet.engine.workflow_run': 'Workflow Run',
-};
-
-// O11Y-FIXME: there is a naming consistency issue on the SDKs
-export function getDisplayName(span: OtelSpanTree): string {
-  if (ENGINE_SPAN_DISPLAY_NAMES[span.spanName]) {
-    return ENGINE_SPAN_DISPLAY_NAMES[span.spanName];
-  }
-  if (!span.spanName.startsWith('hatchet.')) {
-    return span.spanName;
-  }
-  if (span.spanAttributes?.['hatchet.task_name']) {
-    return span.spanAttributes['hatchet.task_name'];
-  }
-  if (span.spanAttributes?.['hatchet.step_name']) {
-    return span.spanAttributes['hatchet.step_name'];
-  }
-  if (span.spanAttributes?.['hatchet.workflow_name']) {
-    return span.spanAttributes['hatchet.workflow_name'];
-  }
-  const actionId = span.spanAttributes?.['hatchet.action_id'];
-  if (actionId?.includes(':')) {
-    return actionId.split(':')[0];
-  }
-  return span.spanName;
+export function getSpanAttributeLabel(span: OtelSpanTree): string | undefined {
+  return (
+    span.spanAttributes?.['hatchet.task_name'] ??
+    span.spanAttributes?.['hatchet.step_name']
+  );
 }
 
 export function getStableKey(span: OtelSpanTree): string {
-  return span.spanName === 'hatchet.start_step_run' &&
+  return isStartStepRunSpan(span) &&
     span.spanAttributes?.['hatchet.step_run_id']
     ? span.spanAttributes['hatchet.step_run_id']
     : span.spanId;
@@ -76,6 +70,9 @@ export function getStableKey(span: OtelSpanTree): string {
 
 export function getSpanColor(span: OtelSpanTree): string {
   if (span.inProgress) {
+    return 'bg-yellow-500';
+  }
+  if (isQueuedOnlyRoot(span) || isQueuedOnly(span)) {
     return 'bg-yellow-500';
   }
   if (hasErrorInTree(span)) {
@@ -117,6 +114,9 @@ export function effectiveStatusLabel(
 
 export function getBarColor(span: OtelSpanTree): string {
   if (span.inProgress) {
+    return 'bg-yellow-500';
+  }
+  if (isQueuedOnlyRoot(span) || isQueuedOnly(span)) {
     return 'bg-yellow-500';
   }
   if (isEngineSpan(span)) {

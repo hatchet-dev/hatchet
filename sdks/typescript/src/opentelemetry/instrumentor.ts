@@ -26,7 +26,7 @@ import type { ClientConfig } from '@hatchet/clients/hatchet-client/client-config
 import { OTelAttribute, type ActionOTelAttributeValue } from '../util/opentelemetry';
 import { parseJSON } from '../util/parse';
 import { OpenTelemetryConfig, DEFAULT_CONFIG } from './types';
-import { setHatchetSpanAttributes } from './hatchet-span-context';
+import { setHatchetSpanAttributes, hatchetSpanAttributes } from './hatchet-span-context';
 import type { HatchetBspConfig } from './hatchet-exporter';
 import { ScheduledWorkflows } from '../clients/rest/generated/data-contracts';
 import { ScheduleClient, CreateScheduledRunInput } from '../v1/client/features/schedules';
@@ -90,6 +90,19 @@ function extractContext(carrier: Carrier | undefined | null): OtelContext {
 
 function injectContext(carrier: Carrier): void {
   propagation.inject(context.active(), carrier);
+}
+
+function injectSourceInfo(carrier: Carrier): void {
+  const store = hatchetSpanAttributes.getStore();
+  if (!store) return;
+
+  const wfRunId = store['hatchet.workflow_run_id'];
+  const stepRunId = store['hatchet.step_run_id'];
+
+  if (typeof wfRunId === 'string' && typeof stepRunId === 'string') {
+    carrier['hatchet__source_workflow_run_id'] = wfRunId;
+    carrier['hatchet__source_step_run_id'] = stepRunId;
+  }
 }
 
 function getActionOtelAttributes(
@@ -177,33 +190,32 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
   private _setupHatchetCollector(clientConfig?: ClientConfig, bspConfig?: HatchetBspConfig): void {
     try {
       /* eslint-disable @typescript-eslint/no-require-imports */
-      const { addHatchetExporter } =
+      const { createHatchetSpanProcessor } =
         require('./hatchet-exporter') as typeof import('./hatchet-exporter');
 
       let config = clientConfig;
       if (!config) {
-        // Load config from environment (same as HatchetClient would)
         const { ConfigLoader } =
           require('@hatchet/util/config-loader/config-loader') as typeof import('@hatchet/util/config-loader/config-loader');
         config = ConfigLoader.loadClientConfig() as ClientConfig;
       }
 
-      // Get the SDK TracerProvider - either from the global provider or create one
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let sdkTracerProvider: any;
+      const processor = createHatchetSpanProcessor(config, bspConfig);
+
       try {
         const sdkTrace =
           require('@opentelemetry/sdk-trace-base') as typeof import('@opentelemetry/sdk-trace-base');
         /* eslint-enable @typescript-eslint/no-require-imports */
 
-        // Check if the global tracer provider is an SDK TracerProvider
         const globalProvider = otelApi.trace.getTracerProvider();
-        if (globalProvider instanceof sdkTrace.BasicTracerProvider) {
-          sdkTracerProvider = globalProvider;
+        if (!(globalProvider instanceof sdkTrace.BasicTracerProvider)) {
+          const sdkTracerProvider = new sdkTrace.BasicTracerProvider({
+            spanProcessors: [processor],
+          });
+          otelApi.trace.setGlobalTracerProvider(sdkTracerProvider);
         } else {
-          // Create a new SDK TracerProvider and set it as global
-          sdkTracerProvider = new sdkTrace.BasicTracerProvider();
-          sdkTracerProvider.register();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (globalProvider as any).addSpanProcessor(processor);
         }
       } catch {
         diag.warn(
@@ -211,8 +223,6 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
         );
         return;
       }
-
-      addHatchetExporter(sdkTracerProvider, config, bspConfig);
       diag.info('hatchet instrumentation: Hatchet OTLP collector enabled');
     } catch (e) {
       diag.warn(`hatchet instrumentation: Failed to set up Hatchet collector: ${e}`);
@@ -341,6 +351,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           (span: Span) => {
             const enhancedMetadata: Carrier = { ...(options.additionalMetadata ?? {}) };
             injectContext(enhancedMetadata);
+            injectSourceInfo(enhancedMetadata);
 
             const enhancedOptions: PushEventOptions = {
               ...options,
@@ -395,6 +406,7 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
                 ...((input.additionalMetadata as Carrier) ?? {}),
               };
               injectContext(enhancedMetadata);
+              injectSourceInfo(enhancedMetadata);
               return {
                 ...input,
                 additionalMetadata: enhancedMetadata,

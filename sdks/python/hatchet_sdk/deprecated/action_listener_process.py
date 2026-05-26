@@ -24,7 +24,6 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     ActionEventResponse,
     StepActionEvent,
 )
-from hatchet_sdk.deprecated.action_listener import LegacyGetActionListenerRequest
 from hatchet_sdk.deprecated.dispatcher import legacy_get_action_listener
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
@@ -35,6 +34,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
 )
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
@@ -60,7 +60,7 @@ class LegacyWorkerActionListenerProcess:
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
         debug: bool,
-        labels: dict[str, str | int],
+        labels: list[WorkerLabel],
     ) -> None:
         self.name = name
         self.actions = actions
@@ -175,17 +175,14 @@ class LegacyWorkerActionListenerProcess:
                 return HealthStatus.UNHEALTHY
             return HealthStatus.STARTING
 
-        if listener.listen_strategy == "v2":
-            now = time.time()
-            time_last_hb = listener.time_last_hb_succeeded or 0.0
-            has_hb_success = 0.0 < time_last_hb <= now
-            ok = bool(
-                listener.heartbeat_task is not None
-                and listener.last_heartbeat_succeeded
-                and has_hb_success
-            )
-        else:
-            ok = bool(listener.retries == 0)
+        now = time.time()
+        time_last_hb = listener.time_last_hb_succeeded or 0.0
+        has_hb_success = 0.0 < time_last_hb <= now
+        ok = bool(
+            listener.heartbeat_task is not None
+            and listener.last_heartbeat_succeeded
+            and has_hb_success
+        )
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
@@ -285,14 +282,12 @@ class LegacyWorkerActionListenerProcess:
             self.dispatcher_client = DispatcherClient(self.config)
 
             self.listener = await legacy_get_action_listener(
-                self.config,
-                LegacyGetActionListenerRequest(
-                    worker_name=self.name,
-                    services=["default"],
-                    actions=self.actions,
-                    slots=self.slots,
-                    raw_labels=self.labels,
-                ),
+                config=self.config,
+                worker_name=self.name,
+                services=["default"],
+                actions=self.actions,
+                slots=self.slots,
+                labels=self.labels,
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")
@@ -488,7 +483,7 @@ def legacy_worker_action_listener_process(
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
     debug: bool,
-    labels: dict[str, str | int],
+    labels: list[WorkerLabel],
 ) -> None:
     async def run() -> None:
         process = LegacyWorkerActionListenerProcess(

@@ -1,16 +1,17 @@
 import { Button } from '@/components/v1/ui/button';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { getCloudMetadataQuery } from '@/hooks/use-cloud';
 import { useOrganizations } from '@/hooks/use-organizations';
 import {
   pendingInvitesQuery,
   usePendingInvites,
 } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import api, { Tenant, TenantInvite } from '@/lib/api';
-import { cloudApi } from '@/lib/api/api';
+import { Tenant, TenantInvite } from '@/lib/api';
+import { fetchControlPlaneStatus } from '@/lib/api/api';
 import type { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
-import { metadataIndicatesCloudEnabled } from '@/pages/auth/hooks/use-cloud';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';
 import { appRoutes } from '@/router';
@@ -21,19 +22,15 @@ import invariant from 'tiny-invariant';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
-  // Avoid calling cloud-only endpoints (like /management/invites) unless cloud is enabled.
-  // In OSS environments, cloud endpoints can return a 403 and create noisy console logs.
-  let isCloudEnabled = false;
-
-  try {
-    const { data: meta } = await cloudApi.metadataGet();
-    isCloudEnabled = metadataIndicatesCloudEnabled(meta);
-  } catch {
-    isCloudEnabled = false;
-  }
+  const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
+    queryClient.fetchQuery(getCloudMetadataQuery),
+    fetchControlPlaneStatus(),
+  ]);
 
   const { tenantInvites, organizationInvites, inviteCount } =
-    await queryClient.fetchQuery(pendingInvitesQuery(isCloudEnabled));
+    await queryClient.fetchQuery(
+      pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+    );
 
   // Doesn't work right now because you don't have any access to organizations you're not a member of
   // const organizationInvitesWithOrganizations = await Promise.all(
@@ -64,8 +61,7 @@ const OrganizationInviteList = ({
   const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
     useOrganizations();
   const { capture } = useAnalytics();
-  const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
-    useUserUniverse();
+  const { invalidate: invalidateUserUniverse } = useUserUniverse();
 
   return (
     <>
@@ -75,14 +71,15 @@ const OrganizationInviteList = ({
             key={invite.metadata.id}
             className="flex flex-col space-y-2 text-center"
           >
-            <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+            <p className="mb-4 break-words text-sm text-gray-700 dark:text-gray-300">
               You have been invited to join an organization by{' '}
-              <strong>{invite.inviterEmail}</strong> on Hatchet.
+              <strong className="break-all">{invite.inviterEmail}</strong> on
+              Hatchet.
             </p>
-            <div className="flex flex-row justify-center gap-2">
+            <div className="flex flex-col justify-center gap-2 sm:flex-row">
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full sm:flex-1"
                 onClick={() => {
                   rejectOrgInviteMutation.mutate(
                     {
@@ -102,7 +99,7 @@ const OrganizationInviteList = ({
                 Decline
               </Button>
               <Button
-                className="w-full"
+                className="w-full sm:flex-1"
                 onClick={() => {
                   acceptOrgInviteMutation.mutate(
                     {
@@ -113,10 +110,8 @@ const OrganizationInviteList = ({
                         capture('onboarding_org_invite_accepted', {
                           invite_id: invite.metadata.id,
                         });
-                        invalidateUserUniverse();
-                        const refetchingUserUniversePromise = getUserUniverse();
+                        await invalidateUserUniverse();
                         onDealtWithInvite(invite.organizationId, true);
-                        return refetchingUserUniversePromise;
                       },
                     },
                   );
@@ -144,17 +139,22 @@ const TenantInviteList = ({
   const { invalidate: invalidateUserUniverse, get: getUserUniverse } =
     useUserUniverse();
 
+  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } =
+    useTenantApi();
+  const { mutationFn: acceptInviteFn } = tenantInviteAcceptMutation();
+  const { mutationFn: rejectInviteFn } = tenantInviteRejectMutation();
+
   const acceptMutation = useMutation({
     mutationKey: ['tenant-invite:accept'],
     mutationFn: async (data: {
       tenantId: string;
       inner: { invite: string };
     }) => {
-      await api.tenantInviteAccept(data.inner);
+      await acceptInviteFn(data.inner);
       return data.tenantId;
     },
     onSuccess: async (tenantId: string) => {
-      invalidateUserUniverse();
+      await invalidateUserUniverse();
 
       const { tenantMemberships } = await getUserUniverse();
 
@@ -177,7 +177,7 @@ const TenantInviteList = ({
   const rejectMutation = useMutation({
     mutationKey: ['tenant-invite:reject'],
     mutationFn: async (data: { invite: string; tenantId: string }) => {
-      await api.tenantInviteReject(data);
+      await rejectInviteFn({ invite: data.invite });
       return { inviteId: data.invite, tenantId: data.tenantId };
     },
     onSuccess: async ({
@@ -203,15 +203,16 @@ const TenantInviteList = ({
             key={invite.metadata.id}
             className="flex flex-col space-y-2 text-center"
           >
-            <p className="mb-4 text-sm text-gray-700 dark:text-gray-300">
+            <p className="mb-4 break-words text-sm text-gray-700 dark:text-gray-300">
               You have been invited to join the{' '}
-              <strong>{invite.tenantName}</strong> tenant by{' '}
-              <strong>{invite.email}</strong> on Hatchet.
+              <strong className="break-all">{invite.tenantName}</strong> tenant
+              by <strong className="break-all">{invite.email}</strong> on
+              Hatchet.
             </p>
-            <div className="flex flex-row justify-center gap-2">
+            <div className="flex flex-col justify-center gap-2 sm:flex-row">
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full sm:flex-1"
                 onClick={() => {
                   rejectMutation.mutate({
                     invite: invite.metadata.id,
@@ -222,7 +223,7 @@ const TenantInviteList = ({
                 Decline
               </Button>
               <Button
-                className="w-full"
+                className="w-full sm:flex-1"
                 onClick={() => {
                   acceptMutation.mutate({
                     tenantId: invite.tenantId,
@@ -361,47 +362,45 @@ export default function Invites() {
         : 'Join ' + orgInvites[0].inviterEmail + "'s organization";
 
   return (
-    <div className="flex h-full w-full flex-1 flex-row">
-      <div className="container relative hidden flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-        <div className="mx-auto w-screen lg:p-8">
-          <div className="mx-auto flex w-40 flex-col justify-center space-y-6 sm:w-[350px]">
-            <div className="flex flex-col space-y-2 text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {header}
-              </h1>
-            </div>
-            <OrganizationInviteList
-              orgInvites={orgInvites}
-              onDealtWithInvite={(organizationId, accepted) => {
-                if (accepted) {
-                  setLastAcceptedInvite({
-                    type: 'organization',
-                    organizationId,
-                  });
-                }
-
-                setOrgInvites((prevOrgInvites) =>
-                  prevOrgInvites.filter(
-                    (invite) => invite.organizationId !== organizationId,
-                  ),
-                );
-              }}
-            />
-            <TenantInviteList
-              tenantInvites={tenantInvites}
-              onDealtWithInvite={(tenantId, accepted) => {
-                if (accepted) {
-                  setLastAcceptedInvite({ type: 'tenant', tenantId });
-                }
-
-                setTenantInvites((prevTenantInvites) =>
-                  prevTenantInvites.filter(
-                    (invite) => invite.tenantId !== tenantId,
-                  ),
-                );
-              }}
-            />
+    <div className="flex min-h-full w-full flex-1 items-start justify-center px-4 py-8 sm:items-center">
+      <div className="min-w-0 w-full max-w-full sm:max-w-[350px]">
+        <div className="mx-auto flex w-full flex-col justify-center space-y-6">
+          <div className="flex flex-col space-y-2 text-center">
+            <h1 className="break-words text-2xl font-semibold tracking-tight">
+              {header}
+            </h1>
           </div>
+          <OrganizationInviteList
+            orgInvites={orgInvites}
+            onDealtWithInvite={(organizationId, accepted) => {
+              if (accepted) {
+                setLastAcceptedInvite({
+                  type: 'organization',
+                  organizationId,
+                });
+              }
+
+              setOrgInvites((prevOrgInvites) =>
+                prevOrgInvites.filter(
+                  (invite) => invite.organizationId !== organizationId,
+                ),
+              );
+            }}
+          />
+          <TenantInviteList
+            tenantInvites={tenantInvites}
+            onDealtWithInvite={(tenantId, accepted) => {
+              if (accepted) {
+                setLastAcceptedInvite({ type: 'tenant', tenantId });
+              }
+
+              setTenantInvites((prevTenantInvites: TenantInvite[]) =>
+                prevTenantInvites.filter(
+                  (invite: TenantInvite) => invite.tenantId !== tenantId,
+                ),
+              );
+            }}
+          />
         </div>
       </div>
     </div>

@@ -1,3 +1,7 @@
+import { TimeTickLabels } from '../timeline/time-tick-labels';
+import { computeTimeTicks } from '../timeline/trace-timeline-utils';
+import { isQueuedOnlyRoot } from '../utils/span-tree-utils';
+import { useLiveClock } from '../utils/use-live-clock';
 import { CursorOverlay } from './cursor-overlay';
 import { DragAnnotation } from './drag-annotation';
 import { MinimapTooltip } from './minimap-tooltip';
@@ -6,14 +10,22 @@ import { collectSpanMarkers, pctFromEvent } from './minimap-utils';
 import { RangeHandles } from './range-handles';
 import { SpanMarkers } from './span-markers';
 import { useMinimapDrag } from './use-minimap-drag';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { useMemo, useRef, useState } from 'react';
 
 export type { TimeRange } from './minimap-types';
+
+function hasLiveProgress(nodes: OtelSpanTree[]): boolean {
+  return nodes.some(
+    (n) => n.inProgress || isQueuedOnlyRoot(n) || hasLiveProgress(n.children),
+  );
+}
 
 export function TraceMinimap({
   spanTrees,
   minMs,
   maxMs,
+  isRunning,
   visibleRange,
   onRangeChange,
   expandedSpanIds,
@@ -30,11 +42,16 @@ export function TraceMinimap({
   } | null>(null);
   const [hoverPct, setHoverPct] = useState<number | null>(null);
 
-  const totalMs = maxMs - minMs;
+  const hasLive = useMemo(() => hasLiveProgress(spanTrees), [spanTrees]);
+  const now = useLiveClock(!!isRunning && hasLive);
+  const effectiveMaxMs = hasLive ? Math.max(maxMs, now) : maxMs;
+  const totalMs = effectiveMaxMs - minMs;
   const markers = useMemo(
     () => collectSpanMarkers(spanTrees, minMs, totalMs, expandedSpanIds),
     [spanTrees, minMs, totalMs, expandedSpanIds],
   );
+
+  const ticks = useMemo(() => computeTimeTicks(totalMs).ticks, [totalMs]);
 
   const { dragging, startDrag, handleTrackDown, handleDoubleClick } =
     useMinimapDrag(trackRef, visibleRange, onRangeChange);
@@ -47,52 +64,56 @@ export function TraceMinimap({
   const activePct = hoverPct ?? externalHoverPct ?? null;
 
   return (
-    <div
-      ref={trackRef}
-      className="group relative h-[43px] overflow-hidden rounded-lg border border-border/50 bg-muted/30"
-      style={{ cursor: cursorStyle }}
-      onPointerDown={handleTrackDown}
-      onDoubleClick={handleDoubleClick}
-      onMouseMove={(e) => {
-        if (!trackRef.current) {
-          return;
-        }
-        const pct = pctFromEvent(e, trackRef.current);
-        setHoverPct(pct);
-        onHoverPctChange?.(pct);
-      }}
-      onMouseLeave={() => {
-        setHoverPct(null);
-        onHoverPctChange?.(null);
-      }}
-    >
-      <SpanMarkers
-        markers={markers}
-        hoveredIdx={hoveredIdx}
-        onHoveredIdxChange={setHoveredIdx}
-        onTooltipPosChange={setTooltipPos}
-        onSpanSelect={onSpanSelect}
-      />
+    <div>
+      <TimeTickLabels ticks={ticks} totalMs={totalMs} />
 
-      <RangeHandles
-        visibleRange={visibleRange}
-        dragging={dragging}
-        startDrag={startDrag}
-      />
+      <div
+        ref={trackRef}
+        className="group relative h-[43px] overflow-hidden rounded-lg border border-border/50 bg-muted/30"
+        style={{ cursor: cursorStyle }}
+        onPointerDown={handleTrackDown}
+        onDoubleClick={handleDoubleClick}
+        onMouseMove={(e) => {
+          if (!trackRef.current) {
+            return;
+          }
+          const pct = pctFromEvent(e, trackRef.current);
+          setHoverPct(pct);
+          onHoverPctChange?.(pct);
+        }}
+        onMouseLeave={() => {
+          setHoverPct(null);
+          onHoverPctChange?.(null);
+        }}
+      >
+        <SpanMarkers
+          markers={markers}
+          hoveredIdx={hoveredIdx}
+          onHoveredIdxChange={setHoveredIdx}
+          onTooltipPosChange={setTooltipPos}
+          onSpanSelect={onSpanSelect}
+        />
 
-      {activePct !== null && !dragging && (
-        <CursorOverlay activePct={activePct} totalMs={totalMs} />
-      )}
+        <RangeHandles
+          visibleRange={visibleRange}
+          dragging={dragging}
+          startDrag={startDrag}
+        />
 
-      {dragging && (
-        <DragAnnotation visibleRange={visibleRange} totalMs={totalMs} />
-      )}
+        {activePct !== null && !dragging && (
+          <CursorOverlay activePct={activePct} totalMs={totalMs} />
+        )}
 
-      <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />
+        {dragging && (
+          <DragAnnotation visibleRange={visibleRange} totalMs={totalMs} />
+        )}
 
-      {hoveredMarker && tooltipPos && !dragging && (
-        <MinimapTooltip marker={hoveredMarker} position={tooltipPos} />
-      )}
+        <div className="pointer-events-none absolute inset-0 z-[4] rounded-[inherit] shadow-[inset_0px_7px_10px_0px_rgba(0,0,0,0.01),inset_0px_1px_3px_0px_rgba(0,0,0,0.01)]" />
+
+        {hoveredMarker && tooltipPos && !dragging && (
+          <MinimapTooltip marker={hoveredMarker} position={tooltipPos} />
+        )}
+      </div>
     </div>
   );
 }

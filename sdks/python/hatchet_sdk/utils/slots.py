@@ -1,7 +1,7 @@
 from typing import Any
 
 from hatchet_sdk.runnables.workflow import BaseWorkflow
-from hatchet_sdk.worker.slot_types import SlotType
+from hatchet_sdk.types.slot_types import SlotType
 
 
 def normalize_slot_config(
@@ -36,9 +36,9 @@ def required_slot_types_from_workflows(
 
     for workflow in workflows:
         for task in workflow.tasks:
-            if task.is_durable:
+            if task._is_durable:
                 required.add(SlotType.DURABLE.value)
-            for key in task.slot_requests:
+            for key in task._slot_requests:
                 required.add(key.value if isinstance(key, SlotType) else key)
 
     return required

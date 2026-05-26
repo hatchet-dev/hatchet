@@ -5,6 +5,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 import { useDebounce } from 'use-debounce';
 import { z } from 'zod';
 
@@ -37,6 +38,13 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
 
   const [debouncedSearch] = useDebounce(search, 300);
 
+  const setSearch = useCallback(
+    (value: string) => {
+      setColumnFilters(() => (value ? [{ id: nameKey, value }] : []));
+    },
+    [setColumnFilters],
+  );
+
   const listWorkflowQuery = useQuery({
     ...queries.workflows.list(tenantId, {
       limit,
@@ -47,8 +55,23 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     placeholderData: (data) => data,
   });
 
-  const workflows = listWorkflowQuery.data?.rows || [];
+  const workflows = useMemo(
+    () => listWorkflowQuery.data?.rows || [],
+    [listWorkflowQuery.data?.rows],
+  );
   const numWorkflows = listWorkflowQuery.data?.pagination?.num_pages || 0;
+
+  const workflowNameToId = useMemo(
+    () =>
+      workflows.reduce(
+        (acc, wf) => {
+          acc[wf.name] = wf.metadata.id;
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
+    [workflows],
+  );
 
   return {
     workflows,
@@ -63,5 +86,8 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     columnFilters,
     setColumnFilters,
     resetFilters,
+    workflowNameToId,
+    search: search ?? '',
+    setSearch,
   };
 };

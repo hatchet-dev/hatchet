@@ -1,7 +1,6 @@
 from opentelemetry.trace import get_tracer
 
 from examples.opentelemetry_instrumentation.worker import otel_workflow
-from hatchet_sdk.clients.admin import TriggerWorkflowOptions
 from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 
 HatchetInstrumentor().instrument()
@@ -15,12 +14,10 @@ def main() -> None:
     # so the worker-side spans become children of this trigger span.
     with tracer.start_as_current_span("trigger_otel_data_pipeline"):
         result = otel_workflow.run(
-            options=TriggerWorkflowOptions(
-                additional_metadata={
-                    "source": "otel-example",
-                    "pipeline": "data-ingest",
-                },
-            ),
+            additional_metadata={
+                "source": "otel-example",
+                "pipeline": "data-ingest",
+            },
         )
         print(f"Workflow result: {result}")
 

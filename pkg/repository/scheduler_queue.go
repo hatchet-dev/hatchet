@@ -38,6 +38,8 @@ type AssignedItem struct {
 	// IsAssignedLocally refers to whether the item has been assigned to a worker registered in the same
 	// process as the scheduler process.
 	IsAssignedLocally bool
+
+	IsDurable bool
 }
 
 type AssignResults struct {
@@ -195,6 +197,10 @@ func (d *queueRepository) MarkQueueItemsProcessed(ctx context.Context, r *Assign
 
 	succeeded, failed, err = d.markQueueItemsProcessed(ctx, d.tenantId, r, tx, false)
 
+	if err != nil {
+		return nil, nil, err
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -339,6 +345,10 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	for _, row := range updatedTasks {
 		if assignedItem, ok := taskIdToAssignedItem[row.TaskID]; ok {
+			if row.IsDurable.Valid {
+				assignedItem.IsDurable = row.IsDurable.Bool
+			}
+
 			succeeded = append(succeeded, assignedItem)
 			delete(taskIdToAssignedItem, row.TaskID)
 		}

@@ -206,14 +206,16 @@ get_version() {
         log_info "Using requested version: $VERSION"
     else
         log_info "Fetching latest version..."
+        # Use /releases and select the first stable core tag (vX.Y.Z).
+        # This avoids non-CLI/scoped tags (e.g. vscode/v0.1.2) and prereleases.
         if [ "$DOWNLOADER" = "curl" ]; then
-            VERSION=$(curl -fsSL "${GITHUB_API}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+            VERSION=$(curl -fsSL "${GITHUB_API}/releases" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
         else
-            VERSION=$(wget -qO- "${GITHUB_API}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+            VERSION=$(wget -qO- "${GITHUB_API}/releases" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
         fi
 
         if [ -z "$VERSION" ]; then
-            log_error "Failed to fetch latest version"
+            log_error "Failed to fetch latest stable version"
             exit 1
         fi
 

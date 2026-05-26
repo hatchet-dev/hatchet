@@ -1,14 +1,21 @@
-import { getDisplayName, isEngineSpan } from '../utils/span-tree-utils';
+import { getSpanAttributeLabel, isEngineSpan } from '../utils/span-tree-utils';
 import {
   ROW_HEIGHT,
   CONNECTOR_WIDTH,
   CONNECTOR_GAP,
   SHOW_MORE_BATCH,
+  rowHighlightClass,
   type FlatRow,
   type SpanGroupInfo,
 } from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { ChevronRight, ChevronDown, AlertCircle } from 'lucide-react';
 import { memo, type ReactNode } from 'react';
@@ -81,25 +88,40 @@ function ExpandToggle({
 
 function LabelRow({
   selected,
+  childOfSelected,
+  hovered,
   dimmed,
+  contextOnly,
   onClick,
+  onMouseEnter,
+  onMouseLeave,
   children,
+  'data-row-key': dataRowKey,
 }: {
   selected?: boolean;
+  childOfSelected?: boolean;
+  hovered?: boolean;
   dimmed?: boolean;
+  contextOnly?: boolean;
   onClick?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
   children: ReactNode;
+  'data-row-key'?: string;
 }) {
   return (
     <div
       className={cn(
         'flex shrink-0 items-center px-2',
-        onClick && 'cursor-pointer rounded-l transition-colors',
-        selected ? 'bg-primary/8' : onClick && 'hover:bg-muted/50',
-        dimmed && 'opacity-40',
+        onClick && 'cursor-pointer transition-colors',
+        rowHighlightClass({ hovered, selected, childOfSelected }),
+        dimmed ? 'opacity-40' : contextOnly && 'opacity-50',
       )}
       style={{ height: ROW_HEIGHT }}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      data-row-key={dataRowKey}
     >
       {children}
     </div>
@@ -110,6 +132,9 @@ interface TimelineLabelsProps {
   flatRows: FlatRow[];
   selectedSpan?: OtelSpanTree;
   selectedGroupId?: string;
+  selectedDescendantIds: Set<string>;
+  hoveredRowKey: string | null;
+  onRowHover: (key: string | null) => void;
   onSpanSelect?: (span: OtelSpanTree) => void;
   onGroupSelect?: (group: SpanGroupInfo) => void;
   onShowMore: (groupId: string, newVisibleCount: number) => void;
@@ -121,6 +146,9 @@ export const TimelineLabels = memo(function TimelineLabels({
   flatRows,
   selectedSpan,
   selectedGroupId,
+  selectedDescendantIds,
+  hoveredRowKey,
+  onRowHover,
   onSpanSelect,
   onGroupSelect,
   onShowMore,
@@ -163,10 +191,14 @@ export const TimelineLabels = memo(function TimelineLabels({
             <LabelRow
               key={row.rowKey}
               selected={isSelected}
+              hovered={hoveredRowKey === row.rowKey}
+              data-row-key={row.rowKey}
               onClick={() => {
                 expandOnly(row.group.groupId);
                 onGroupSelect?.(row.group);
               }}
+              onMouseEnter={() => onRowHover(row.rowKey)}
+              onMouseLeave={() => onRowHover(null)}
             >
               <ConnectorLines
                 depth={row.depth}
@@ -202,19 +234,26 @@ export const TimelineLabels = memo(function TimelineLabels({
         }
 
         const isSelected = selectedSpan?.spanId === row.span.spanId;
-        const displayName = getDisplayName(row.span);
+        const displayName = row.span.spanName;
+        const attributeLabel = getSpanAttributeLabel(row.span);
 
         return (
           <LabelRow
             key={row.rowKey}
             selected={isSelected}
+            childOfSelected={selectedDescendantIds.has(row.span.spanId)}
+            hovered={hoveredRowKey === row.rowKey}
             dimmed={!row.matchesFilter}
+            contextOnly={row.isContextOnly}
+            data-row-key={row.rowKey}
             onClick={() => {
               if (row.hasChildren) {
                 expandOnly(row.rowKey);
               }
               onSpanSelect?.(row.span);
             }}
+            onMouseEnter={() => onRowHover(row.rowKey)}
+            onMouseLeave={() => onRowHover(null)}
           >
             <ConnectorLines
               depth={row.depth}
@@ -226,19 +265,37 @@ export const TimelineLabels = memo(function TimelineLabels({
               hasChildren={row.hasChildren}
               onToggle={() => toggleExpand(row.rowKey)}
             />
-            <span
-              className={cn(
-                'truncate text-sm leading-tight',
-                isSelected
-                  ? 'font-medium text-foreground'
-                  : row.depth === 0
-                    ? 'text-foreground'
-                    : 'text-muted-foreground',
-              )}
-              title={displayName}
-            >
-              {displayName}
-            </span>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={cn(
+                      'min-w-[4ch] shrink truncate text-sm leading-tight',
+                      isSelected
+                        ? 'font-medium text-foreground'
+                        : row.depth === 0
+                          ? 'text-foreground'
+                          : 'text-muted-foreground',
+                    )}
+                  >
+                    {displayName}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{displayName}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            {attributeLabel && (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="ml-1.5 truncate rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {attributeLabel}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{attributeLabel}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {isEngineSpan(row.span) && (
               <span className="ml-1.5 shrink-0 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
                 engine

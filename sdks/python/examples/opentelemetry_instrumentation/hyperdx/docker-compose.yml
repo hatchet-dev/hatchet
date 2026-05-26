@@ -1,0 +1,13 @@
+version: "3.8"
+services:
+  hyperdx:
+    image: docker.hyperdx.io/hyperdx/hyperdx-local:2-beta
+    ports:
+      - "8088:8080"   # HyperDX UI
+      - "4317:4317"   # OpenTelemetry gRPC
+      - "4318:4318"   # OpenTelemetry HTTP
+      - "18123:8123"  # ClickHouse (remapped to avoid conflicts)
+    deploy:
+      resources:
+        limits:
+          memory: 2g

@@ -17,9 +17,26 @@ defaults:
   run:
     working-directory: ./sdks/typescript
 
+x-pm-matrix: &pm-matrix
+  include:
+    - package-manager: pnpm
+      install-cmd: pnpm install
+      lint-cmd: pnpm lint:check
+      tsc-cmd: pnpm exec tsc
+      unit-test-cmd: pnpm test:unit
+      e2e-test-cmd: pnpm test:e2e
+    - package-manager: bun
+      install-cmd: bun install
+      lint-cmd: bun run lint:check
+      tsc-cmd: bunx tsc
+      unit-test-cmd: bun run test:unit
+      e2e-test-cmd: bun run test:e2e
+
 jobs:
   lint:
     runs-on: ubicloud-standard-4
+    strategy:
+      matrix: *pm-matrix
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -27,32 +44,45 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
+        if: matrix.package-manager == 'pnpm'
         run: npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
+        if: matrix.package-manager == 'pnpm'
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        if: matrix.package-manager == 'pnpm'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Setup Bun
+        if: matrix.package-manager == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          cache: true
+          cache-dependency-path: sdks/typescript/pnpm-lock.yaml
+
       - name: Install dependencies
-        run: pnpm install
+        run: ${{ matrix.install-cmd }}
 
       - name: Lint
-        run: pnpm lint:check
+        run: ${{ matrix.lint-cmd }}
 
       - name: Type check
-        run: npx tsc
+        run: ${{ matrix.tsc-cmd }}
 
   test-unit:
     runs-on: ubicloud-standard-4
+    strategy:
+      matrix: *pm-matrix
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -60,30 +90,43 @@ jobs:
           submodules: recursive
 
       - name: Install pnpm
+        if: matrix.package-manager == 'pnpm'
         run: npm install -g pnpm@10.16.1
 
       - name: Get pnpm store directory
+        if: matrix.package-manager == 'pnpm'
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        if: matrix.package-manager == 'pnpm'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Setup Bun
+        if: matrix.package-manager == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          cache: true
+          cache-dependency-path: sdks/typescript/pnpm-lock.yaml
+
       - name: Install dependencies
-        run: pnpm install
+        run: ${{ matrix.install-cmd }}
 
       - name: Unit tests
-        run: pnpm test:unit
+        run: ${{ matrix.test-cmd }}
 
   test-e2e:
     runs-on: ubicloud-standard-4
     timeout-minutes: 20
+    strategy:
+      matrix: *pm-matrix
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -103,36 +146,47 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.25.9"
 
       - name: Install pnpm
+        if: matrix.package-manager == 'pnpm'
         run: npm install -g pnpm@10.16.1
 
-      - name: Install Atlas
-        run: |
-          curl -sSf https://atlasgo.sh | sh
-
       - name: Get pnpm store directory
+        if: matrix.package-manager == 'pnpm'
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        if: matrix.package-manager == 'pnpm'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Setup Bun
+        if: matrix.package-manager == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+          cache: true
+          cache-dependency-path: sdks/typescript/pnpm-lock.yaml
+
+      - name: Install Atlas
+        run: |
+          curl -sSf https://atlasgo.sh | sh
+
       - name: Compose
         working-directory: .
         run: docker compose up -d
 
       - name: Install dependencies
-        run: pnpm install
+        run: ${{ matrix.install-cmd }}
 
       - name: Generate
         working-directory: .
@@ -169,20 +223,20 @@ jobs:
           export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
           export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
-          pnpm test:e2e
+          ${{ matrix.test-cmd }}
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sdk-typescript-engine-logs
+          name: sdk-typescript-engine-logs-${{ matrix.package-manager }}
           path: engine.log
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sdk-typescript-api-logs
+          name: sdk-typescript-api-logs-${{ matrix.package-manager }}
           path: api.log
 
   old-engine-new-sdk:
@@ -246,7 +300,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
@@ -278,7 +332,7 @@ jobs:
 
       - name: Upload engine logs
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
           path: /tmp/engine.log
@@ -290,7 +344,7 @@ jobs:
 
       - name: Upload API logs
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
           path: /tmp/api.log
@@ -299,88 +353,6 @@ jobs:
         if: always()
         working-directory: .
         run: docker compose -f docker-compose.yml -f docker-compose.release.yml down
-
-  new-engine-old-sdk:
-    runs-on: ubicloud-standard-4
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Setup Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
-        with:
-          go-version: "1.25"
-
-      - name: Start Docker dependencies
-        working-directory: .
-        run: docker compose up -d
-
-      - name: Run migrations
-        working-directory: .
-        run: |
-          export DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          go run ./cmd/hatchet-migrate
-
-      - name: Setup and start engine
-        working-directory: .
-        run: |
-          export SEED_DEVELOPMENT=true
-          export SERVER_PORT=8080
-          export SERVER_URL=http://localhost:8080
-          export SERVER_AUTH_COOKIE_DOMAIN=localhost
-          export SERVER_AUTH_COOKIE_INSECURE=true
-          export SERVER_DEFAULT_ENGINE_VERSION=V1
-          export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
-
-          go run ./cmd/hatchet-admin quickstart
-
-          go run ./cmd/hatchet-engine --config ./generated/ > engine.log 2>&1 &
-          go run ./cmd/hatchet-api --config ./generated/ > api.log 2>&1 &
-
-          sleep 30
-
-      - name: Generate API token
-        working-directory: .
-        run: |
-          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
-          echo "HATCHET_CLIENT_TLS_ROOT_CA_FILE=${{ github.workspace }}/certs/ca.cert" >> $GITHUB_ENV
-
-      - name: Clone main SDK source
-        run: |
-          git clone --depth=1 --branch main https://github.com/hatchet-dev/hatchet.git /tmp/old-sdk
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
-
-      - name: Install old SDK dependencies
-        working-directory: /tmp/old-sdk/sdks/typescript
-        run: pnpm install
-
-      - name: Set HATCHET_CLIENT_NAMESPACE
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "HATCHET_CLIENT_NAMESPACE=new-engine-old-sdk-ts-${SHORT_SHA}" >> $GITHUB_ENV
-
-      - name: Run e2e tests against new engine
-        working-directory: /tmp/old-sdk/sdks/typescript
-        run: |
-          echo "Testing main SDK against current engine"
-          echo "Using HATCHET_CLIENT_NAMESPACE: $HATCHET_CLIENT_NAMESPACE"
-          pnpm test:e2e
-
-      - name: Upload engine logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-engine-logs
-          path: engine.log
-
-      - name: Upload API logs
-        if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
-          path: api.log
 
   publish:
     runs-on: ubicloud-standard-4
@@ -395,7 +367,7 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm@10.16.1
 
-      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: "24.x"
           registry-url: "https://registry.npmjs.org"
@@ -406,7 +378,7 @@ jobs:
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}

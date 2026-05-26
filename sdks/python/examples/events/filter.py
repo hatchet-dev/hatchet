@@ -1,5 +1,5 @@
 from examples.events.worker import EVENT_KEY, event_workflow
-from hatchet_sdk import Hatchet, PushEventOptions
+from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
 
@@ -22,9 +22,7 @@ hatchet.event.push(
     payload={
         "should_skip": True,
     },
-    options=PushEventOptions(
-        scope="foobarbaz",
-    ),
+    scope="foobarbaz",
 )
 # !!
 
@@ -34,8 +32,6 @@ hatchet.event.push(
     payload={
         "should_skip": False,
     },
-    options=PushEventOptions(
-        scope="foobarbaz",
-    ),
+    scope="foobarbaz",
 )
 # !!

@@ -1,3 +1,4 @@
+import useCloud from '@/hooks/use-cloud';
 import api, {
   UpdateTenantRequest,
   Tenant,
@@ -6,7 +7,6 @@ import api, {
 } from '@/lib/api';
 import { BillingContext, lastTenantAtom } from '@/lib/atoms';
 import { Evaluate } from '@/lib/can/shared/permission.base';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
 import { useCallback, useMemo, useState } from 'react';
+import invariant from 'tiny-invariant';
 
 type Plan = 'free' | 'starter' | 'growth';
 
@@ -21,11 +22,13 @@ type Plan = 'free' | 'starter' | 'growth';
  * Hook to get current tenant ID from route params
  *
  * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.to })`
- * This hook is maintained for backward compatibility during migration.
+ * on tenant-routed pages, or `useAppContext()` when the active tenant may be
+ * derived from other route state such as organizations.
  */
 export function useCurrentTenantId() {
-  const params = useParams({ from: appRoutes.tenantRoute.to });
-  const tenantId = params.tenant;
+  const { tenantId } = useAppContext();
+
+  invariant(tenantId, 'Could not resolve an active tenant');
 
   return { tenantId };
 }
@@ -51,8 +54,12 @@ export function useTenantDetails() {
   const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
-    (tenant: Tenant) => {
+    (tenant: Tenant, options?: { navigate?: boolean }) => {
       setLastTenant(tenant);
+
+      if (options?.navigate === false) {
+        return;
+      }
 
       const isOnTenantRoute = Boolean(
         matchRoute({
@@ -98,7 +105,7 @@ export function useTenantDetails() {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      invalidateUserUniverse();
+      await invalidateUserUniverse();
       if (data.metadata.id) {
         setTenant(data);
       }

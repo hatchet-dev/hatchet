@@ -4,6 +4,7 @@ from enum import Enum
 from queue import Empty, Queue
 from threading import Thread
 from typing import Any, Literal, TypeVar, cast
+from warnings import warn
 
 import grpc
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
     WorkflowEvent,
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
-from hatchet_sdk.metadata import get_metadata
+from hatchet_sdk.utils.api_auth import create_authorization_header
 
 DEFAULT_ACTION_LISTENER_RETRY_INTERVAL = 5  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 5
@@ -84,6 +85,11 @@ class RunEventListener:
         self.client: DispatcherStub | None = None
 
     def abort(self) -> None:
+        warn(
+            "The abort method is deprecated and will be removed in v2.0.0. Use the `stop_signal` attribute instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.stop_signal = True
 
     def __aiter__(self) -> AsyncGenerator[StepRunEvent, None]:
@@ -95,6 +101,7 @@ class RunEventListener:
     def async_to_sync_thread(
         self, async_iter: AsyncGenerator[T, None]
     ) -> Generator[T, None, None]:
+        ## todo-v2.0.0: Remove this when we remove __iter__
         q = Queue[T | Literal["DONE"]]()
         done_sentinel: Literal["DONE"] = "DONE"
 
@@ -130,6 +137,12 @@ class RunEventListener:
         thread.join()
 
     def __iter__(self) -> Generator[StepRunEvent, None, None]:
+        warn(
+            "Iterating over streams in sync tasks is deprecated and support will be removed in v2.0.0. Make your task async and use `hatchet.runs.subscribe_to_stream` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         yield from self.async_to_sync_thread(self.__aiter__())
 
     async def _generator(self) -> AsyncGenerator[StepRunEvent, None]:
@@ -213,7 +226,7 @@ class RunEventListener:
                             SubscribeToWorkflowEventsRequest(
                                 workflow_run_id=self.workflow_run_id,
                             ),
-                            metadata=get_metadata(self.config.token),
+                            metadata=create_authorization_header(self.config.token),
                         ),
                     )
                 if self.additional_meta_kv is not None:
@@ -224,7 +237,7 @@ class RunEventListener:
                                 additional_meta_key=self.additional_meta_kv[0],
                                 additional_meta_value=self.additional_meta_kv[1],
                             ),
-                            metadata=get_metadata(self.config.token),
+                            metadata=create_authorization_header(self.config.token),
                         ),
                     )
                 raise Exception("no listener method provided")
@@ -243,17 +256,34 @@ class RunEventListenerClient:
         self.config = config
 
     def stream_by_run_id(self, workflow_run_id: str) -> RunEventListener:
+        warn(
+            "The `stream_by_run_id` method is deprecated and will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.stream(workflow_run_id)
 
     def stream(self, workflow_run_id: str) -> RunEventListener:
         return RunEventListener(config=self.config, workflow_run_id=workflow_run_id)
 
     def stream_by_additional_metadata(self, key: str, value: str) -> RunEventListener:
+        warn(
+            "Streaming by additional metadata is currently not supported on the V1 engine, and thus not supported on the V1 SDK (for now). This method will be removed in v2.0.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         return RunEventListener(config=self.config, additional_meta_kv=(key, value))
 
     async def on(
         self, workflow_run_id: str, handler: Callable[[StepRunEvent], Any] | None = None
     ) -> None:
+        warn(
+            "The `on` method is deprecated and will be removed in v2.0.0. Use `hatchet.runs.subscribe_to_stream` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         async for event in self.stream(workflow_run_id):
             # call the handler if provided
             if handler:

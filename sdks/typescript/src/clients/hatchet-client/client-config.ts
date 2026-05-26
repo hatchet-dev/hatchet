@@ -1,5 +1,5 @@
 import { ChannelCredentials } from 'nice-grpc';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Context } from '@hatchet/v1/client/worker/context';
 import { Logger, LogLevel } from '@util/logger';
 
@@ -54,6 +54,18 @@ export const ClientConfigSchema = z.object({
   middleware: TaskMiddlewareSchema,
   cancellation_grace_period: DurationMsSchema.optional().default(1000),
   cancellation_warning_threshold: DurationMsSchema.optional().default(300),
+  grpc_max_recv_message_length: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(4 * 1024 * 1024),
+  grpc_max_send_message_length: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(4 * 1024 * 1024),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
@@ -127,10 +139,15 @@ type ClientConfigInferred = z.infer<typeof ClientConfigSchema>;
 
 export type ClientConfig = Omit<
   ClientConfigInferred,
-  'cancellation_grace_period' | 'cancellation_warning_threshold'
+  | 'cancellation_grace_period'
+  | 'cancellation_warning_threshold'
+  | 'grpc_max_recv_message_length'
+  | 'grpc_max_send_message_length'
 > & {
   cancellation_grace_period?: number;
   cancellation_warning_threshold?: number;
+  grpc_max_recv_message_length?: number;
+  grpc_max_send_message_length?: number;
 } & {
   credentials?: ChannelCredentials;
 } & {

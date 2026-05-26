@@ -3,7 +3,11 @@ import {
   hasErrorInTree,
   isQueuedOnlyRoot,
 } from '../utils/span-tree-utils';
-import { ROW_HEIGHT, type FlatSpanRow } from './trace-timeline-utils';
+import {
+  ROW_HEIGHT,
+  rowHighlightClass,
+  type FlatSpanRow,
+} from './trace-timeline-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { cn } from '@/lib/utils';
 import { memo, type MouseEvent } from 'react';
@@ -17,6 +21,7 @@ interface SpanBarProps {
   hasAnyInProgress: boolean;
   hasAnyLiveQueued: boolean;
   isSelected: boolean;
+  isChildOfSelected: boolean;
   isHovered: boolean;
   onHover: (rowKey: string | null, event?: MouseEvent) => void;
   onMouseMove: (e: MouseEvent) => void;
@@ -33,6 +38,7 @@ export const SpanBar = memo(function SpanBar({
   hasAnyInProgress,
   hasAnyLiveQueued,
   isSelected,
+  isChildOfSelected,
   isHovered,
   onHover,
   onMouseMove,
@@ -48,6 +54,7 @@ export const SpanBar = memo(function SpanBar({
     timelineMaxMs > 0 ? ((startMs - visMinStart) / timelineMaxMs) * 100 : 0;
   const widthPct = timelineMaxMs > 0 ? (durationMs / timelineMaxMs) * 100 : 0;
   const isBarDimmed = !row.matchesFilter;
+  const isBarContextOnly = row.isContextOnly;
   const noTransition = hasAnyInProgress || hasAnyLiveQueued;
 
   const q = row.span.queuedPhase;
@@ -76,8 +83,12 @@ export const SpanBar = memo(function SpanBar({
     <div
       className={cn(
         'relative shrink-0 transition-colors',
-        isSelected && 'bg-primary/8',
-        isBarDimmed && 'opacity-40',
+        rowHighlightClass({
+          hovered: isHovered,
+          selected: isSelected,
+          childOfSelected: isChildOfSelected,
+        }),
+        isBarDimmed ? 'opacity-40' : isBarContextOnly && 'opacity-50',
       )}
       style={{ height: ROW_HEIGHT }}
     >
@@ -88,7 +99,7 @@ export const SpanBar = memo(function SpanBar({
             !noTransition && 'transition-all',
             (row.span.inProgress || isQueuedOnlyRoot(row.span)) &&
               'animate-pulse',
-            row.span.inProgress
+            row.span.inProgress || isQueuedOnlyRoot(row.span)
               ? 'border-yellow-500 bg-yellow-500/10'
               : hasErrorInTree(row.span)
                 ? 'border-red-500 bg-red-500/10'
@@ -119,9 +130,9 @@ export const SpanBar = memo(function SpanBar({
                 : '',
           )}
           style={{
-            left: `${leftPct}%`,
+            left: `min(${leftPct}%, calc(100% - 4px))`,
             width: `${Math.max(widthPct, 0.3)}%`,
-            minWidth: 2,
+            minWidth: 4,
           }}
           onMouseEnter={(e) => onHover(row.rowKey, e)}
           onMouseMove={onMouseMove}

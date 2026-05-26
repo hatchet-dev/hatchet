@@ -15,6 +15,7 @@ tasks:
       - |
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+        DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet'
         EOF
   set-env-all:
     cmds:
@@ -23,6 +24,7 @@ tasks:
 
         cat > .env <<EOF
         DATABASE_URL='postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet'
+        DATABASE_PGBOUNCER_URL='postgresql://hatchet:hatchet@127.0.0.1:6431/hatchet'
 
         SERVER_ENCRYPTION_MASTER_KEYSET_FILE=./hack/dev/encryption-keys/master.key
         SERVER_ENCRYPTION_JWT_PRIVATE_KEYSET_FILE=./hack/dev/encryption-keys/private_ec256.key
@@ -290,7 +292,7 @@ tasks:
       RETRIES: '{{.RETRIES | default "3"}}'
       EXTRA_ARGS: '{{.EXTRA_ARGS | default ""}}'
     cmds:
-      - poetry run pytest -n auto --retries 3 --retry-delay 5
+      - poetry run pytest -n 32 --retries 3 --retry-delay 5
   start-telemetry:
     cmds:
       - docker compose -f docker-compose.infra.yml up -d
@@ -306,3 +308,43 @@ tasks:
       - defer:
           task: stop-db
       - go test -count=1 -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
+
+  patch:
+    desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
+    cmds:
+      - |
+        current=$(git describe --tags --abbrev=0)
+        IFS='.' read -r major minor patch <<< "${current#v}"
+        patch=$((patch + 1))
+        next="v${major}.${minor}.${patch}"
+        echo "Bumping ${current} → ${next}"
+        git tag -a "${next}" -m "${next}"
+        git push origin "${next}"
+
+  minor:
+    desc: Bump minor version (e.g. v0.83.16 → v0.84.0) and push the tag
+    cmds:
+      - |
+        current=$(git describe --tags --abbrev=0)
+        IFS='.' read -r major minor patch <<< "${current#v}"
+        minor=$((minor + 1))
+        next="v${major}.${minor}.0"
+        echo "Bumping ${current} → ${next}"
+        git tag -a "${next}" -m "${next}"
+        git push origin "${next}"
+
+  alpha:
+    desc: Bump to next alpha pre-release (e.g. v0.83.16 → v0.83.16-alpha.0, or v0.83.16-alpha.0 → v0.83.16-alpha.1)
+    cmds:
+      - |
+        current=$(git describe --tags --abbrev=0)
+        base="${current%%-alpha.*}"
+        if [[ "${current}" == *-alpha.* ]]; then
+          alpha_num="${current##*-alpha.}"
+          next="${base}-alpha.$((alpha_num + 1))"
+        else
+          next="${base}-alpha.0"
+        fi
+        echo "Bumping ${current} → ${next}"
+        git tag -a "${next}" -m "${next}"
+        git push origin "${next}"

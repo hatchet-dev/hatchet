@@ -84,8 +84,9 @@ async def post__create_user__hatchet() -> User:
     async with Session() as db:
         user = await create_user(db)
 
-        await send_welcome_email_task_hatchet.aio_run_no_wait(
-            WelcomeEmailInput(user_id=user.id)
+        await send_welcome_email_task_hatchet.aio_run(
+            WelcomeEmailInput(user_id=user.id),
+            wait_for_result=False,
         )
 
         return user

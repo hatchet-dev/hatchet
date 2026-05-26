@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from hatchet_sdk import DurableContext, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Durable Sleep

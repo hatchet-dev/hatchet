@@ -140,7 +140,7 @@ export function SidePanel() {
           <div
             data-cy="side-panel-content"
             className={cn(
-              'side-panel-content flex-1 overflow-auto p-4',
+              'side-panel-content flex-1 overflow-hidden flex flex-col p-4',
               isResizing && 'pointer-events-none',
             )}
           >

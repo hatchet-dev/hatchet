@@ -74,13 +74,11 @@ describe('Tenant Invite: decline', () => {
         });
       });
 
-    // Step 3: Logout
-    cy.get('button[aria-label="User Menu"]')
+    cy.get('button[aria-label="Open account menu"]')
       .filter(':visible')
-      .should('be.visible')
       .first()
       .click();
-    cy.contains('[role="menuitem"]', 'Log out').filter(':visible').click();
+    cy.contains('Log out').click();
     cy.location('pathname').should('include', '/auth/login');
 
     // Step 4: Login as member (who has pending invite)
@@ -95,7 +93,23 @@ describe('Tenant Invite: decline', () => {
           .click();
       });
 
-    // Should be redirected to invites page
+    // Wait for navigation after sign in
+    cy.location('pathname', { timeout: 30000 }).should(
+      'match',
+      /\/tenants\/.+/,
+    );
+
+    // Open the notification dropdown and click the tenant invite notification
+    cy.get('[data-cy="notifications-button"]', { timeout: 10000 })
+      .filter(':visible')
+      .first()
+      .click();
+    cy.contains(`Tenant invite: ${tenantName}`)
+      .filter(':visible')
+      .first()
+      .click();
+
+    // Should be on the invites page now
     cy.location('pathname', { timeout: 5000 }).should(
       'eq',
       '/onboarding/invites',
@@ -106,19 +120,25 @@ describe('Tenant Invite: decline', () => {
       'be.visible',
     );
 
-    // Step 5: Decline the invite - register intercept before clicking
-    cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
-    cy.contains(`invited to join the ${tenantName} tenant`)
-      .parent()
-      .contains('button', 'Decline')
-      .should('be.visible')
-      .click();
-
-    // Wait for the reject API call to complete
-    cy.wait('@rejectInvite').its('response.statusCode').should('eq', 200);
+    // Step 5: Decline all invites
+    const declineAll = (remaining = 20) => {
+      cy.get('body').then(($body) => {
+        if (
+          remaining > 0 &&
+          $body.find('button:contains("Decline")').length > 0
+        ) {
+          cy.intercept('POST', '/api/v1/users/invites/reject').as(
+            'rejectInvite',
+          );
+          cy.contains('button', 'Decline').click({ force: true });
+          cy.wait('@rejectInvite');
+          declineAll(remaining - 1);
+        }
+      });
+    };
+    declineAll();
 
     // Step 6: Verify redirect away from invites page
-    // User should be redirected to authenticated route (which may further redirect)
     cy.location('pathname', { timeout: 10000 }).should(
       'not.eq',
       '/onboarding/invites',

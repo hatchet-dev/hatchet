@@ -26,6 +26,9 @@ import {
   durableReplayReset,
   dagChildWorkflow,
   durableSpawnDag,
+  waitForEventLookback,
+  waitForOrEventLookback,
+  waitForTwoEventsSecondPushedFirst,
 } from './durable/workflow';
 import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
 import {
@@ -49,6 +52,20 @@ import { helloWorld, helloWorldDurable } from './simple/e2e-workflows';
 import { streamingTask } from './streaming/workflow';
 import { timeoutTask, refreshTimeoutTask } from './timeout/workflow';
 import { webhookWorkflow } from './webhooks/workflow';
+import {
+  childIndexChild,
+  childIndexParent,
+  scenarioTask,
+  orchestratorTask,
+} from './child_index/workflow';
+import {
+  supportAgent,
+  triageTicket,
+  generateReply,
+  escalateTicket,
+} from './support_agent/workflow';
+import { welcomeEmail } from './welcome_email/workflow';
+import { pdfPipeline } from './pdf_pipeline/workflow';
 
 const workflows = [
   bulkChild,
@@ -74,6 +91,9 @@ const workflows = [
   durableReplayReset,
   dagChildWorkflow,
   durableSpawnDag,
+  waitForEventLookback,
+  waitForOrEventLookback,
+  waitForTwoEventsSecondPushedFirst,
   durableEvent,
   durableEventWithFilter,
   durableSleep,
@@ -97,6 +117,16 @@ const workflows = [
   timeoutTask,
   refreshTimeoutTask,
   webhookWorkflow,
+  childIndexChild,
+  childIndexParent,
+  scenarioTask,
+  orchestratorTask,
+  supportAgent,
+  triageTicket,
+  generateReply,
+  escalateTicket,
+  welcomeEmail,
+  pdfPipeline,
 ];
 
 async function main() {

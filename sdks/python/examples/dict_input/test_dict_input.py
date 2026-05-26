@@ -19,33 +19,35 @@ async def test_dict_input() -> None:
         )
     )[0]
 
-    x5 = say_hello_unsafely.run_no_wait(input).result()
-    x6 = (await say_hello_unsafely.aio_run_no_wait(input)).result()
+    x5 = say_hello_unsafely.run(input, wait_for_result=False).result()
+    x6 = (await say_hello_unsafely.aio_run(input, wait_for_result=False)).result()
     x7 = [
         x.result()
-        for x in say_hello_unsafely.run_many_no_wait(
-            [say_hello_unsafely.create_bulk_run_item(input)]
+        for x in say_hello_unsafely.run_many(
+            [say_hello_unsafely.create_bulk_run_item(input)], wait_for_result=False
         )
     ][0]
     x8 = [
         x.result()
-        for x in await say_hello_unsafely.aio_run_many_no_wait(
-            [say_hello_unsafely.create_bulk_run_item(input)]
+        for x in await say_hello_unsafely.aio_run_many(
+            [say_hello_unsafely.create_bulk_run_item(input)], wait_for_result=False
         )
     ][0]
 
-    x9 = await say_hello_unsafely.run_no_wait(input).aio_result()
-    x10 = await (await say_hello_unsafely.aio_run_no_wait(input)).aio_result()
+    x9 = await say_hello_unsafely.run(input, wait_for_result=False).aio_result()
+    x10 = await (
+        await say_hello_unsafely.aio_run(input, wait_for_result=False)
+    ).aio_result()
     x11 = [
         await x.aio_result()
-        for x in say_hello_unsafely.run_many_no_wait(
-            [say_hello_unsafely.create_bulk_run_item(input)]
+        for x in say_hello_unsafely.run_many(
+            [say_hello_unsafely.create_bulk_run_item(input)], wait_for_result=False
         )
     ][0]
     x12 = [
         await x.aio_result()
-        for x in await say_hello_unsafely.aio_run_many_no_wait(
-            [say_hello_unsafely.create_bulk_run_item(input)]
+        for x in await say_hello_unsafely.aio_run_many(
+            [say_hello_unsafely.create_bulk_run_item(input)], wait_for_result=False
         )
     ][0]
 

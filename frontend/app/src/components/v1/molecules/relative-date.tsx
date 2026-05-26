@@ -1,9 +1,9 @@
 import {
-  PortalTooltip,
-  PortalTooltipTrigger,
-  PortalTooltipContent,
-  PortalTooltipProvider,
-} from '@/components/v1/ui/portal-tooltip';
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/v1/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import React, { useEffect, useMemo, useState } from 'react';
 import TimeAgo from 'timeago-react';
@@ -71,9 +71,9 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
   }
 
   return (
-    <PortalTooltipProvider>
-      <PortalTooltip>
-        <PortalTooltipTrigger
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
           asChild
           onFocusCapture={(e) => {
             e.stopPropagation();
@@ -86,12 +86,12 @@ const RelativeDate: React.FC<RelativeDateProps> = ({
               <TimeAgo datetime={formattedDate} />
             )}
           </span>
-        </PortalTooltipTrigger>
-        <PortalTooltipContent side="top">
+        </TooltipTrigger>
+        <TooltipContent side="top">
           {format(formattedDate, 'yyyy-MM-dd HH:mm:ss.SSS zzz')}
-        </PortalTooltipContent>
-      </PortalTooltip>
-    </PortalTooltipProvider>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 

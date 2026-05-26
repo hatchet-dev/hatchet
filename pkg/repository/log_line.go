@@ -38,6 +38,12 @@ type ListLogsOpts struct {
 
 	// (optional) a list of task external ids to filter by
 	TaskExternalIds []uuid.UUID
+
+	// (optional) a list of workflow ids to filter by
+	WorkflowIds []uuid.UUID
+
+	// (optional) a list of step ids to filter by
+	StepIds []uuid.UUID
 }
 
 type CreateLogLineOpts struct {
@@ -61,6 +67,12 @@ type CreateLogLineOpts struct {
 
 	// The retry count of the log line.
 	RetryCount int
+
+	// the workflow id associated with the log line, used for partitioning logs
+	WorkflowId uuid.UUID
+
+	// the step id associated with the log line, used for partitioning logs
+	StepId uuid.UUID
 }
 
 type ListLogLineRow struct {
@@ -75,6 +87,8 @@ type GetLogLinePointMetricsOpts struct {
 	Search          *string
 	Levels          []string `validate:"omitnil,dive,oneof=INFO ERROR WARN DEBUG"`
 	TaskExternalIds []uuid.UUID
+	StepIds         []uuid.UUID
+	WorkflowIds     []uuid.UUID
 	BucketInterval  time.Duration `validate:"required"`
 }
 
@@ -104,6 +118,8 @@ func (r *logLineRepositoryImpl) ListLogLines(ctx context.Context, tenantId uuid.
 	queryParams := sqlcv1.ListLogLinesParams{
 		Tenantid:         tenantId,
 		Orderbydirection: "ASC",
+		WorkflowIds:      opts.WorkflowIds,
+		StepIds:          opts.StepIds,
 	}
 
 	if opts.Search != nil {
@@ -240,6 +256,8 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 				RetryCount:     int32(opts.RetryCount),
 				Level:          level,
 				Metadata:       opts.Metadata,
+				WorkflowID:     &opts.WorkflowId,
+				StepID:         &opts.StepId,
 			},
 		},
 	)
@@ -257,6 +275,8 @@ func (r *logLineRepositoryImpl) GetLogLinePointMetrics(ctx context.Context, tena
 		Tenantid:      tenantId,
 		Createdafter:  sqlchelpers.TimestamptzFromTime(opts.StartTimestamp),
 		Createdbefore: sqlchelpers.TimestamptzFromTime(opts.EndTimestamp),
+		WorkflowIds:   opts.WorkflowIds,
+		StepIds:       opts.StepIds,
 	}
 
 	if opts.Search != nil {

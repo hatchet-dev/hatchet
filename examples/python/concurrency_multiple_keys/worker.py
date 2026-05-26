@@ -9,7 +9,7 @@ from hatchet_sdk import (
     Hatchet,
 )
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 SLEEP_TIME = 2
 DIGIT_MAX_RUNS = 8

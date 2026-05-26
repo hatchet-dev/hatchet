@@ -1,5 +1,6 @@
-import { makeE2EClient } from '../__e2e__/harness';
+import { makeE2EClient, poll } from '../__e2e__/harness';
 import { helloWorld, helloWorldDurable } from './e2e-workflows';
+import { V1TaskStatus } from '../../../clients/rest/generated/data-contracts';
 
 describe('simple-run-modes-e2e', () => {
   const hatchet = makeE2EClient();
@@ -20,4 +21,46 @@ describe('simple-run-modes-e2e', () => {
       expect([x1, x2, x3, x4, x5]).toEqual([expected, expected, expected, expected, expected]);
     }
   }, 90_000);
+
+  it('supports runMany variants with per-item options', async () => {
+    const expected = { result: 'Hello, world!' };
+
+    for (const task of [helloWorld, helloWorldDurable]) {
+      const runs = [
+        { input: {}, opts: { additionalMetadata: { test_case: 'run-many-a' } } },
+        {
+          input: {},
+          opts: { additionalMetadata: { test_case: 'run-many-b' }, priority: 3 },
+        },
+      ];
+
+      const waited = await task.runMany(runs);
+      expect(waited).toEqual([expected, expected]);
+
+      const refs = await task.runManyNoWait(runs);
+      const outputs = await Promise.all(refs.map((r) => r.output));
+      expect(outputs).toEqual([expected, expected]);
+
+      const [detailsA, detailsB] = await Promise.all(
+        refs.map((ref) =>
+          poll(async () => hatchet.runs.get(ref), {
+            timeoutMs: 30_000,
+            intervalMs: 100,
+            label: 'run details available',
+            shouldStop: (d) =>
+              [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING, V1TaskStatus.COMPLETED].includes(
+                d.run.status as any
+              ),
+          })
+        )
+      );
+
+      expect((detailsA.run as any).additionalMetadata || {}).toMatchObject({
+        test_case: 'run-many-a',
+      });
+      expect((detailsB.run as any).additionalMetadata || {}).toMatchObject({
+        test_case: 'run-many-b',
+      });
+    }
+  }, 120_000);
 });

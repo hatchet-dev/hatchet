@@ -1,3 +1,4 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import {
   limitDurationMap,
   limitedResources,
@@ -9,13 +10,15 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
+import useCloud from '@/hooks/use-cloud';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { queries, TenantMemberRole, TenantResourceLimit } from '@/lib/api';
-import useCloud from '@/pages/auth/hooks/use-cloud';
 import { useAppContext } from '@/providers/app-context';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+
+const BILLING_SYNC_REFETCH_INTERVAL_MS = 5000;
 
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
@@ -24,16 +27,21 @@ export default function ResourceLimits() {
 
   const { cloud, isCloudEnabled } = useCloud();
 
+  const billingEnabled = isCloudEnabled && !!cloud?.canBill;
+  const billingSyncRefetchInterval = billingEnabled
+    ? BILLING_SYNC_REFETCH_INTERVAL_MS
+    : false;
+
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
+    refetchInterval: billingSyncRefetchInterval,
   });
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenantId),
-    enabled: isCloudEnabled && !!cloud?.canBill,
+    enabled: billingEnabled,
+    refetchInterval: billingSyncRefetchInterval,
   });
-
-  const billingEnabled = isCloudEnabled && cloud?.canBill;
 
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
 
@@ -101,10 +109,10 @@ export default function ResourceLimits() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold leading-tight text-foreground">
-          Billing & Limits
-        </h2>
-        <Separator className="my-4" />
+        <SettingsPageHeader
+          title="Resource limit settings"
+          description="Review billing details and the resource limits currently applied to this tenant."
+        />
 
         {billingEnabled && (
           <>
@@ -129,28 +137,22 @@ export default function ResourceLimits() {
           </>
         )}
 
-        <h3 className="text-xl font-semibold leading-tight text-foreground">
-          Resource Limits
-        </h3>
-        <Separator className="my-4" />
-        <p className="text-sm text-muted-foreground mb-4">
-          Resource limits control usage within your tenant. When a limit is
-          reached, the system will take action based on the limit type. Upgrade
-          your plan or{' '}
-          <a
-            href="https://hatchet.run/office-hours"
-            className="text-primary/70 hover:text-primary hover:underline"
-          >
-            contact us
-          </a>{' '}
-          to adjust your limits.
-        </p>
-
         {resourceLimits.length > 0 ? (
-          <SimpleTable columns={resourceLimitColumns} data={resourceLimits} />
+          <SimpleTable
+            columns={resourceLimitColumns}
+            data={resourceLimits}
+            rowKey={(row) => row.metadata.id}
+          />
         ) : (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            No resource limits configured.
+            No resource limits configured. Upgrade your plan or{' '}
+            <a
+              href="https://hatchet.run/office-hours"
+              className="text-primary/70 hover:text-primary hover:underline"
+            >
+              contact us
+            </a>{' '}
+            to adjust your limits.
           </div>
         )}
       </div>

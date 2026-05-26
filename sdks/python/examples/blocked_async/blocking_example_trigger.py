@@ -7,15 +7,15 @@ from examples.blocked_async.blocking_example_worker import (
     non_blocking_sync,
 )
 
-non_blocking_sync.run_no_wait()
-non_blocking_async.run_no_wait()
+non_blocking_sync.run(wait_for_result=False)
+non_blocking_async.run(wait_for_result=False)
 
 time.sleep(1)
 
-blocking.run_no_wait()
+blocking.run(wait_for_result=False)
 
 time.sleep(1)
 
-non_blocking_sync.run_no_wait()
+non_blocking_sync.run(wait_for_result=False)
 
 # !!

@@ -24,7 +24,7 @@ export function SpanMarkers({
         <div
           key={i}
           className={cn(
-            'absolute inset-y-[6px] flex cursor-pointer flex-col justify-center transition-[transform,opacity]',
+            'absolute inset-y-[6px] flex -translate-x-1/2 cursor-pointer flex-col justify-center transition-[transform,opacity]',
             m.hasErrorInTree ? 'z-[3]' : 'z-[2]',
             hoveredIdx === i && 'z-[5] scale-x-150',
             !m.visible && 'opacity-[0.01]',

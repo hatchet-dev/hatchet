@@ -1,6 +1,6 @@
 from hatchet_sdk import DurableContext, EmptyModel, Hatchet, UserEventCondition
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 EVENT_KEY = "user:update"
 

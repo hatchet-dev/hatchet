@@ -63,7 +63,7 @@ Gem::Specification.new do |spec|
   # Development dependencies
   spec.add_development_dependency "gem-release", "~> 2.2"
   spec.add_development_dependency "grpc-tools", "~> 1.60"
-  spec.add_development_dependency "rspec", "~> 3.0"
+  spec.add_development_dependency "rspec", "~> 3.13"
 
   # For more information and examples about making a new gem, check out our
   # guide at: https://bundler.io/guides/creating_gem.html

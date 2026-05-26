@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -15,13 +16,14 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32) error {
+func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) error {
 	if additionalMetadata == nil {
 		additionalMetadata = make(map[string]interface{})
 	}
 
 	metadata := map[string]any{
-		constants.CronExpressionKey.String(): cron,
+		constants.CronExpressionKey.String():  cron,
+		constants.CronScheduledAtKey.String(): scheduledAt.Format(time.RFC3339),
 	}
 
 	if cronName != nil {

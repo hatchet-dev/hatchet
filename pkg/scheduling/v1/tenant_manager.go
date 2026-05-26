@@ -9,6 +9,8 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/services/shared/timeout_lock"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -43,7 +45,9 @@ type tenantManager struct {
 	strategyIdsToParentIds *lru.Cache[int64, int64]
 	parentIdsToStrategyIds *lru.Cache[int64, []int64]
 
-	concurrencyMu sync.RWMutex
+	concurrencyMu                 sync.RWMutex
+	concurrencyAdvisoryLock       *timeout_lock.KeyedTimeoutLock[int64]
+	concurrencyParentAdvisoryLock *timeout_lock.KeyedTimeoutLock[int64]
 
 	leaseManager *LeaseManager
 
@@ -69,19 +73,21 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 	parentIdsToStrategyIds, _ := lru.New[int64, []int64](1000)
 
 	t := &tenantManager{
-		scheduler:              s,
-		leaseManager:           leaseManager,
-		cf:                     cf,
-		l:                      cf.l.With().Str("tenant_id", tenantIdUUID.String()).Logger(),
-		tenantId:               tenantIdUUID,
-		workersCh:              workersCh,
-		queuesCh:               queuesCh,
-		concurrencyCh:          concurrencyCh,
-		resultsCh:              resultsCh,
-		rl:                     rl,
-		concurrencyResultsCh:   concurrencyResultsCh,
-		strategyIdsToParentIds: strategyIdsToParentIds,
-		parentIdsToStrategyIds: parentIdsToStrategyIds,
+		scheduler:                     s,
+		leaseManager:                  leaseManager,
+		cf:                            cf,
+		l:                             cf.l.With().Str("tenant_id", tenantIdUUID.String()).Logger(),
+		tenantId:                      tenantIdUUID,
+		workersCh:                     workersCh,
+		queuesCh:                      queuesCh,
+		concurrencyCh:                 concurrencyCh,
+		resultsCh:                     resultsCh,
+		rl:                            rl,
+		concurrencyResultsCh:          concurrencyResultsCh,
+		strategyIdsToParentIds:        strategyIdsToParentIds,
+		parentIdsToStrategyIds:        parentIdsToStrategyIds,
+		concurrencyAdvisoryLock:       timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
+		concurrencyParentAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -257,7 +263,7 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	for _, strategy := range strategiesSet {
-		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh))
+		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
 	}
 
 	t.concurrencyStrategies = newArr
@@ -273,7 +279,7 @@ func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrenc
 		}
 	}
 
-	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh))
+	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
@@ -360,7 +366,7 @@ func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID)
 }
 
 func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
-	t.l.Debug().Msgf("notifying new queue %s for tenant %s", queueName, t.tenantId)
+	t.l.Debug().Str("queue_name", queueName).Msg("notifying new queue")
 
 	err := t.leaseManager.notifyNewQueue(ctx, queueName)
 
@@ -380,21 +386,25 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 }
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
-	queueNamesMap := make(map[string]struct{}, len(queueNames))
-
-	for _, name := range queueNames {
-		queueNamesMap[name] = struct{}{}
-	}
-
 	t.queuersMu.RLock()
-
+	requested := make(map[string]struct{}, len(queueNames))
+	for _, name := range queueNames {
+		requested[name] = struct{}{}
+	}
+	// iterate t.queuers (not queueNames) to keep queueMu acquisition order consistent
+	// across goroutines, avoiding lock-ordering warnings from go-deadlock
 	for _, q := range t.queuers {
-		if _, ok := queueNamesMap[q.queueName]; ok {
+		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)
+			delete(requested, q.queueName)
 		}
 	}
-
 	t.queuersMu.RUnlock()
+
+	// this function sends to a channel that acquires the queuersMu, so needs to be outside lock.
+	for name := range requested {
+		t.notifyNewQueue(ctx, name)
+	}
 }
 
 type AssignedItemWithTask struct {

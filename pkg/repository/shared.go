@@ -26,11 +26,11 @@ type taskExternalIdTenantIdTuple struct {
 }
 
 type sharedRepository struct {
-	pool       *pgxpool.Pool
-	directPool *pgxpool.Pool // bypasses pgbouncer for DDL operations; may be nil
-	v          validator.Validator
-	l          *zerolog.Logger
-	queries    *sqlcv1.Queries
+	pool    *pgxpool.Pool
+	ddlPool *pgxpool.Pool // bypasses pgbouncer for DDL operations
+	v       validator.Validator
+	l       *zerolog.Logger
+	queries *sqlcv1.Queries
 
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
@@ -43,23 +43,20 @@ type sharedRepository struct {
 
 	celParser       *cel.CELParser
 	env             *celgo.Env
+	celProgramCache *lru.Cache[uint64, celgo.Program]
 	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
 	payloadStore    PayloadStoreRepository
 	m               TenantLimitRepository
-
-	enableDurableUserEventLog bool
 }
 
 func newSharedRepository(
-	pool *pgxpool.Pool,
-	directPool *pgxpool.Pool,
+	pool, ddlPool *pgxpool.Pool,
 	v validator.Validator,
 	l *zerolog.Logger,
 	payloadStoreOpts PayloadStoreRepositoryOpts,
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
-	enableDurableUserEventLog bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -90,9 +87,15 @@ func newSharedRepository(
 		log.Fatalf("failed to create LRU cache: %v", err)
 	}
 
+	celProgramCache, err := lru.New[uint64, celgo.Program](50000)
+
+	if err != nil {
+		log.Fatalf("failed to create CEL program cache: %v", err)
+	}
+
 	s := &sharedRepository{
 		pool:                        pool,
-		directPool:                  directPool,
+		ddlPool:                     ddlPool,
 		v:                           v,
 		l:                           l,
 		queries:                     queries,
@@ -105,9 +108,9 @@ func newSharedRepository(
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		celParser:                   celParser,
 		env:                         env,
+		celProgramCache:             celProgramCache,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
-		enableDurableUserEventLog:   enableDurableUserEventLog,
 	}
 
 	tenantLimitRepository := newTenantLimitRepository(s, c, shouldEnforceLimits, cacheDuration)
@@ -115,15 +118,6 @@ func newSharedRepository(
 	s.m = tenantLimitRepository
 
 	return s, s.cleanup
-}
-
-// DDLPool returns the direct pool for DDL operations that cannot go through pgbouncer
-// (e.g. DETACH PARTITION CONCURRENTLY). Falls back to the main pool if no direct pool is configured.
-func (s *sharedRepository) DDLPool() *pgxpool.Pool {
-	if s.directPool != nil {
-		return s.directPool
-	}
-	return s.pool
 }
 
 func (s *sharedRepository) cleanup() error {

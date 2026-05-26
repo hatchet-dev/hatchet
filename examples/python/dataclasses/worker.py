@@ -17,7 +17,7 @@ class Output:
 
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 # > Task using dataclasses

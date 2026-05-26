@@ -4,19 +4,28 @@ import {
   RateLimitColumn,
 } from './components/rate-limit-columns';
 import { useRateLimits } from './hooks/use-rate-limits';
+import { RateLimitWithMetadata } from './hooks/use-rate-limits';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
+import api from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { useApiError } from '@/lib/hooks';
+import { useMutation } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMemo } from 'react';
 
 export default function RateLimits() {
   return <RateLimitsTable />;
 }
 
 function RateLimitsTable() {
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:rate-limits', {});
+  const { tenantId } = useCurrentTenantId();
+  const { handleApiError } = useApiError({});
 
   const {
     data,
@@ -33,11 +42,25 @@ function RateLimitsTable() {
     resetFilters,
   } = useRateLimits({ key: 'rate-limits-table' });
 
+  const deleteMutation = useMutation({
+    mutationKey: ['rate-limit:delete', tenantId],
+    mutationFn: async (row: RateLimitWithMetadata) => {
+      await api.rateLimitDelete(tenantId, { key: row.key });
+    },
+    onSuccess: () => refetch(),
+    onError: handleApiError,
+  });
+
+  const tableColumns = useMemo(
+    () => columns({ onDeleteClick: (row) => deleteMutation.mutate(row) }),
+    [deleteMutation],
+  );
+
   return (
     <DataTable
       error={error}
       isLoading={isLoading}
-      columns={columns}
+      columns={tableColumns}
       data={data}
       filters={[
         {

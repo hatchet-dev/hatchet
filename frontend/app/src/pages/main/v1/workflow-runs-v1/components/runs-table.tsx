@@ -129,7 +129,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         type: 'task-run-details',
         content: {
           taskRunId,
-          defaultOpenTab: TabOption.Output,
+          defaultOpenTab: TabOption.Activity,
           showViewTaskRunButton: true,
         },
       });

@@ -173,7 +173,7 @@ func (worker *subscribedWorker) CancelTask(
 				WorkerId:       &worker.workerId,
 				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
 				EventTimestamp: time.Now().UTC(),
-				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.timeout),
+				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.Timeout),
 			},
 		)
 		if err != nil {
@@ -247,6 +247,16 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 	if task.ChildKey.Valid {
 		key := task.ChildKey.String
 		action.ChildWorkflowKey = &key
+	}
+
+	if task.TriggeringEventExternalID != nil {
+		triggeringEventExternalId := task.TriggeringEventExternalID.String()
+		action.TriggeringEventExternalId = &triggeringEventExternalId
+	}
+
+	if task.TriggeringEventKey.Valid {
+		triggeringEventKey := task.TriggeringEventKey.String
+		action.TriggeringEventKey = &triggeringEventKey
 	}
 
 	return action

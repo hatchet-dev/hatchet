@@ -8,15 +8,15 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
-import { cloudApi } from '@/lib/api/api';
 import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -25,7 +25,7 @@ const schema = z.object({
   email: z.string().email('Invalid email address'),
 });
 
-export type OrganizationInviteMemberModalProps = {
+type OrganizationInviteMemberModalProps = {
   organizationId: string;
   organizationName: string;
   onClose: () => void;
@@ -56,16 +56,24 @@ export const OrganizationInviteMemberModal = ({
     },
   });
 
+  const queryClient = useQueryClient();
+  const orgApi = useOrganizationApi();
+  const orgInviteCreate =
+    orgApi.organizationInviteCreateMutation(organizationId);
   const inviteMemberMutation = useMutation({
+    ...orgInviteCreate,
     mutationFn: async (data: { email: string }) => {
       const request: CreateOrganizationInviteRequest = {
         inviteeEmail: data.email,
         role: OrganizationMemberRoleType.OWNER,
       };
-      await cloudApi.organizationInviteCreate(organizationId, request);
+      await orgInviteCreate.mutationFn(request);
       return request;
     },
     onSuccess: (request) => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization-invites:list', organizationId],
+      });
       reset();
       onCreated(request);
       onClose();

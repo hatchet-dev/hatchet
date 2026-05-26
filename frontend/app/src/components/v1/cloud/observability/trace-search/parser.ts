@@ -9,17 +9,21 @@ export function parseTraceQuery(query: string): ParsedTraceQuery {
   const textParts: string[] = [];
   const attributes: [string, string][] = [];
   let status: SpanStatus | undefined;
+  let spanName: string | undefined;
 
   for (const token of tokenizeFilterQuery(query)) {
     if (isFilterToken(token)) {
       const { key, value } = token;
-      if (key.toLowerCase() === 'status') {
+      const keyLower = key.toLowerCase();
+      if (keyLower === 'status') {
         const normalized = value.toLowerCase();
         if (SPAN_STATUSES.includes(normalized as SpanStatus)) {
           status = normalized as SpanStatus;
         } else {
           errors.push(`Invalid status: "${value}"`);
         }
+      } else if (keyLower === 'name') {
+        spanName = value;
       } else {
         attributes.push([key, value]);
       }
@@ -31,6 +35,7 @@ export function parseTraceQuery(query: string): ParsedTraceQuery {
   return {
     search: textParts.length > 0 ? textParts.join(' ') : undefined,
     status,
+    spanName,
     attributes,
     raw: query,
     isValid: errors.length === 0,

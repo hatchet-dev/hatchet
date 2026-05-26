@@ -182,7 +182,9 @@ WITH lookup_rows AS (
         t.child_index,
         t.child_key,
         t.step_readable_id,
-        l.external_id AS workflow_run_external_id
+        l.external_id AS workflow_run_external_id,
+        t.workflow_id,
+        t.step_id
     FROM
         lookup_rows l
     JOIN
@@ -206,7 +208,9 @@ SELECT
     t.child_index,
     t.child_key,
     t.step_readable_id,
-    t.external_id AS workflow_run_external_id
+    t.external_id AS workflow_run_external_id,
+    t.workflow_id,
+    t.step_id
 FROM
     lookup_rows l
 JOIN
@@ -421,6 +425,7 @@ WITH tasks_on_inactive_workers AS (
         v1_task_runtime runtime ON w."id" = runtime.worker_id
     WHERE
         w."tenantId" = @tenantId::uuid
+        AND w."tenantId" = runtime.tenant_id
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
@@ -472,7 +477,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    t.external_id,
+    t.external_id as task_external_id,
     e.*
 FROM
     v1_lookup_table l
@@ -507,7 +512,8 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.inserted_at
+        e.inserted_at,
+        e.external_id
     FROM
         v1_task_event e
     JOIN
@@ -522,7 +528,8 @@ SELECT
 	e.id,
     e.inserted_at,
 	e.event_key,
-	e.data
+	e.data,
+    e.external_id
 FROM
 	events_to_lock e
 WHERE
@@ -642,7 +649,10 @@ WITH RECURSIVE augmented_tasks AS (
         t.parent_task_inserted_at,
         t.step_index,
         t.child_index,
-        t.child_key
+        t.child_key,
+        t.desired_worker_label,
+        t.triggering_event_external_id,
+        t.triggering_event_key
     FROM
         v1_task t
     WHERE
@@ -688,6 +698,9 @@ SELECT
     t.step_index,
     t.child_index,
     t.child_key,
+    t.desired_worker_label,
+    t.triggering_event_external_id,
+    t.triggering_event_key,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -720,7 +733,8 @@ WITH input AS (
         t.workflow_id,
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
-        e.data AS output
+        e.data AS output,
+        e.external_id AS output_event_external_id
     FROM
         v1_task t1
     JOIN
@@ -754,7 +768,8 @@ SELECT
     task_outputs.task_event_id,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
-    task_outputs.output
+    task_outputs.output,
+    task_outputs.output_event_external_id
 FROM
     task_outputs
 JOIN
@@ -768,14 +783,21 @@ ORDER BY
 
 -- name: LockDAGsForReplay :many
 -- Locks a list of DAGs for replay. Returns successfully locked DAGs which can be replayed.
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+)
 SELECT
-    id
+    d.id,
+    d.inserted_at
 FROM
-    v1_dag
+    v1_dag d
+JOIN
+    input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
 WHERE
-    id = ANY(@dagIds::bigint[])
-    AND tenant_id = @tenantId::uuid
-ORDER BY id
+    d.tenant_id = @tenantId::uuid
+ORDER BY d.id
 -- We skip locked tasks because replays are the only thing that can lock a DAG for updates
 FOR UPDATE SKIP LOCKED;
 
@@ -784,7 +806,11 @@ FOR UPDATE SKIP LOCKED;
 -- match the length of steps in the DAG. This assumes that we have a lock on DAGs so concurrent replays
 -- don't interfere with each other. It also does not check for whether the tasks are running, as that's
 -- checked in a different query. It returns DAGs which cannot be replayed.
-WITH dags_to_step_counts AS (
+WITH input AS (
+    SELECT
+        UNNEST(@dagIds::bigint[]) AS dag_id,
+        UNNEST(@dagInsertedAts::timestamptz[]) AS dag_inserted_at
+), dags_to_step_counts AS (
     SELECT
         d.id,
         d.external_id,
@@ -794,7 +820,9 @@ WITH dags_to_step_counts AS (
     FROM
         v1_dag d
     JOIN
-        v1_dag_to_task dt ON dt.dag_id = d.id
+        input i ON i.dag_id = d.id AND i.dag_inserted_at = d.inserted_at
+    JOIN
+        v1_dag_to_task dt ON dt.dag_id = d.id AND dt.dag_inserted_at = d.inserted_at
     JOIN
         "WorkflowVersion" wv ON wv."id" = d.workflow_version_id
     LEFT JOIN
@@ -802,8 +830,7 @@ WITH dags_to_step_counts AS (
     LEFT JOIN
         "Step" s ON s."jobId" = j."id"
     WHERE
-        d.id = ANY(@dagIds::bigint[])
-        AND d.tenant_id = @tenantId::uuid
+        d.tenant_id = @tenantId::uuid
     GROUP BY
         d.id,
         d.inserted_at
@@ -1084,12 +1111,19 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
 WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE cs.task_id = vt.id
-            AND cs.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE cs.task_id = vt.id
+                AND cs.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = cs.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED

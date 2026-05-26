@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from hatchet_sdk import Context, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 # WARNING: this is an example of what NOT to do
 # This workflow is intentionally blocking the main thread

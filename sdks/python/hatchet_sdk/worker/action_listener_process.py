@@ -18,10 +18,7 @@ from grpc.aio import UnaryUnaryCall
 from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client
-from hatchet_sdk.clients.dispatcher.action_listener import (
-    ActionListener,
-    GetActionListenerRequest,
-)
+from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
@@ -39,6 +36,7 @@ from hatchet_sdk.runnables.contextvars import (
     ctx_worker_id,
     ctx_workflow_run_id,
 )
+from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 
@@ -74,7 +72,7 @@ class WorkerActionListenerProcess:
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
         debug: bool,
-        labels: dict[str, str | int],
+        labels: list[WorkerLabel],
     ) -> None:
         self.name = name
         self.actions = actions
@@ -219,23 +217,19 @@ class WorkerActionListenerProcess:
                 return HealthStatus.UNHEALTHY
             return HealthStatus.STARTING
 
-        if listener.listen_strategy == "v2":
-            # Require at least one successful heartbeat.
-            #
-            # Note: the listener initializes `time_last_hb_succeeded` to a sentinel
-            # value; only treat it as "real" after it's been updated to a timestamp
-            # <= now.
-            now = time.time()
-            time_last_hb = listener.time_last_hb_succeeded or 0.0
-            has_hb_success = 0.0 < time_last_hb <= now
-            ok = bool(
-                listener.heartbeat_task is not None
-                and listener.last_heartbeat_succeeded
-                and has_hb_success
-            )
-        else:
-            # For v1 listen strategy (no heartbeater), treat "no retries" as healthy.
-            ok = bool(listener.retries == 0)
+        # Require at least one successful heartbeat.
+        #
+        # Note: the listener initializes `time_last_hb_succeeded` to a sentinel
+        # value; only treat it as "real" after it's been updated to a timestamp
+        # <= now.
+        now = time.time()
+        time_last_hb = listener.time_last_hb_succeeded or 0.0
+        has_hb_success = 0.0 < time_last_hb <= now
+        ok = bool(
+            listener.heartbeat_task is not None
+            and listener.last_heartbeat_succeeded
+            and has_hb_success
+        )
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
@@ -337,13 +331,11 @@ class WorkerActionListenerProcess:
             self.dispatcher_client = DispatcherClient(self.config)
 
             self.listener = await self.dispatcher_client.get_action_listener(
-                GetActionListenerRequest(
-                    worker_name=self.name,
-                    services=["default"],
-                    actions=self.actions,
-                    slot_config=self.slot_config,
-                    raw_labels=self.labels,
-                )
+                worker_name=self.name,
+                services=["default"],
+                actions=self.actions,
+                slot_config=self.slot_config,
+                labels=self.labels,
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")
@@ -545,7 +537,7 @@ def worker_action_listener_process(
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
     debug: bool,
-    labels: dict[str, str | int],
+    labels: list[WorkerLabel],
 ) -> None:
     async def run() -> None:
         process = WorkerActionListenerProcess(

@@ -15,7 +15,7 @@ from hatchet_sdk import (
     or_,
 )
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 
 class StepOutput(BaseModel):

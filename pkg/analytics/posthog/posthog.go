@@ -205,6 +205,29 @@ func (p *PosthogAnalytics) Group(groupType string, groupKey string, data analyti
 	}
 }
 
+func (p *PosthogAnalytics) IsFeatureEnabled(_ context.Context, flagKey string, tenantID uuid.UUID, isEnabledIfNoPosthog bool) (bool, error) {
+	result, err := (*p.client).IsFeatureEnabled(
+		posthog.FeatureFlagPayload{
+			Key:        flagKey,
+			DistinctId: analytics.DistinctID(nil, nil, &tenantID),
+			Groups:     posthog.NewGroups().Set("tenant", tenantID.String()),
+		},
+	)
+
+	if err != nil {
+		p.l.Error().Err(err).Str("flag_key", flagKey).Str("tenant_id", tenantID.String()).Msg("error evaluating feature flag, returning default value")
+		return isEnabledIfNoPosthog, nil
+	}
+
+	enabled, ok := result.(bool)
+	if !ok {
+		p.l.Err(err).Msg("unexpected type for feature flag result, expected bool")
+		return isEnabledIfNoPosthog, nil
+	}
+
+	return enabled, nil
+}
+
 func (p *PosthogAnalytics) Close() error {
 	p.aggregator.Shutdown()
 	return (*p.client).Close()

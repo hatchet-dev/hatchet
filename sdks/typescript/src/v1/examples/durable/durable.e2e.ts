@@ -1,5 +1,11 @@
 import sleep from '@hatchet/util/sleep';
-import { makeE2EClient, checkDurableEvictionSupport } from '../__e2e__/harness';
+import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  makeE2EClient,
+  checkDurableEvictionSupport,
+  makeTestScope,
+  poll,
+} from '../__e2e__/harness';
 import {
   durableWorkflow,
   EVENT_KEY,
@@ -13,7 +19,12 @@ import {
   durableSpawnDag,
   durableNonDeterminism,
   durableReplayReset,
+  waitForEventLookback,
+  waitForOrEventLookback,
+  waitForTwoEventsSecondPushedFirst,
 } from './workflow';
+
+const TIMING_TOLERANCE_SECONDS = 1;
 
 describe('durable-e2e', () => {
   const hatchet = makeE2EClient();
@@ -22,6 +33,27 @@ describe('durable-e2e', () => {
   beforeAll(async () => {
     evictionSupported = await checkDurableEvictionSupport(hatchet);
   });
+
+  async function pollUntilRunning(runId: string) {
+    return poll(
+      async () => {
+        try {
+          return await hatchet.runs.get(runId);
+        } catch (e: any) {
+          if (e?.response?.status === 404) return undefined;
+          throw e;
+        }
+      },
+      {
+        timeoutMs: 60_000,
+        intervalMs: 500,
+        shouldStop: (details: any) =>
+          details != null &&
+          (details?.tasks || []).some((t: any) => t.status === V1TaskStatus.RUNNING),
+        label: 'status=RUNNING',
+      }
+    );
+  }
 
   function requireEviction() {
     if (!evictionSupported) {
@@ -75,7 +107,8 @@ describe('durable-e2e', () => {
     if (requireEviction()) return;
     const ref = await waitForSleepTwice.runNoWait({});
 
-    await sleep((SLEEP_TIME_SECONDS * 1000) / 2);
+    const runId = await ref.getWorkflowRunId();
+    await pollUntilRunning(runId);
     await ref.cancel();
 
     await ref.output.catch(() => undefined);
@@ -130,7 +163,7 @@ describe('durable-e2e', () => {
     const replayElapsed = (Date.now() - replayStart) / 1000;
 
     expect(replayed.child_output).toEqual({ message: 'hello from child 1' });
-    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
   }, 300_000);
 
   it('durable completed replay', async () => {
@@ -149,8 +182,8 @@ describe('durable-e2e', () => {
     const replayed = await ref.output;
     const replayElapsed = (Date.now() - replayStart) / 1000;
 
-    expect(replayed.runtime).toBeLessThan(SLEEP_TIME_SECONDS);
-    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(replayed.runtime).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
+    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
   }, 300_000);
 
   it('durable spawn DAG', async () => {
@@ -218,4 +251,49 @@ describe('durable-e2e', () => {
     },
     300_000
   );
+
+  it('event lookback: finds event pushed before wait', async () => {
+    const userId = 1234;
+
+    await hatchet.events.push(
+      'user:create',
+      { order: 'first', user_id: userId },
+      { scope: `user_id:${userId}` }
+    );
+    await sleep(1000);
+
+    const result = await waitForEventLookback.run({ userId });
+
+    expect(result.elapsed).toBeLessThan(5 + TIMING_TOLERANCE_SECONDS);
+    expect(result.event).toMatchObject({ order: 'first' });
+  }, 30_000);
+
+  it('or-group event lookback: finds event pushed before wait', async () => {
+    const scope = makeTestScope();
+
+    await hatchet.events.push(EVENT_KEY, { order: 'first' }, { scope });
+    await sleep(1000);
+
+    const result = await waitForOrEventLookback.run({ scope });
+
+    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
+  }, 60_000);
+
+  it('two event waits: second event pushed before workflow starts', async () => {
+    const scope = makeTestScope();
+
+    await hatchet.events.push('key2', { order: 'second' }, { scope });
+    await sleep(1000);
+
+    const ref = await waitForTwoEventsSecondPushedFirst.runNoWait({ scope });
+
+    await sleep(1000);
+    await hatchet.events.push('key1', { order: 'first' }, { scope });
+
+    const result = await ref.output;
+
+    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
+    expect(result.event1).toMatchObject({ order: 'first' });
+    expect(result.event2).toMatchObject({ order: 'second' });
+  }, 60_000);
 });

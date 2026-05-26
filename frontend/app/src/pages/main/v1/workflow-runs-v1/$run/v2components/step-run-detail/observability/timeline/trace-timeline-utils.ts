@@ -1,8 +1,4 @@
-import {
-  getDisplayName,
-  getStableKey,
-  hasErrorInTree,
-} from '../utils/span-tree-utils';
+import { getStableKey, hasErrorInTree } from '../utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 
 const GROUP_THRESHOLD = 5;
@@ -20,6 +16,10 @@ function byCreatedAtAsc(a: OtelSpanTree, b: OtelSpanTree): number {
 
 function getMatchesFilter(span: OtelSpanTree): boolean {
   return (span as { matchesFilter?: boolean }).matchesFilter ?? true;
+}
+
+function getIsContextOnly(span: OtelSpanTree): boolean {
+  return (span as { isContextOnly?: boolean }).isContextOnly ?? false;
 }
 
 export const ROW_HEIGHT = 40;
@@ -47,6 +47,7 @@ export type FlatSpanRow = {
   hasChildren: boolean;
   isExpanded: boolean;
   matchesFilter: boolean;
+  isContextOnly: boolean;
 };
 
 export type FlatGroupRow = {
@@ -83,7 +84,7 @@ export function groupSiblings(
 
   const byName = new Map<string, OtelSpanTree[]>();
   for (const child of children) {
-    const name = getDisplayName(child);
+    const name = child.spanName;
     if (!byName.has(name)) {
       byName.set(name, []);
     }
@@ -97,7 +98,7 @@ export function groupSiblings(
   const emittedGroups = new Set<string>();
 
   for (const child of children) {
-    const name = getDisplayName(child);
+    const name = child.spanName;
     const siblings = byName.get(name)!;
 
     if (siblings.length <= GROUP_THRESHOLD) {
@@ -168,6 +169,7 @@ export function flattenTree(
       hasChildren,
       isExpanded,
       matchesFilter: getMatchesFilter(span),
+      isContextOnly: getIsContextOnly(span),
     });
 
     if (isExpanded) {
@@ -235,6 +237,38 @@ export function flattenTree(
   return rows;
 }
 
+export function collectDescendantIds(span: OtelSpanTree): Set<string> {
+  const ids = new Set<string>();
+  (function collect(nodes: OtelSpanTree[]) {
+    for (const n of nodes) {
+      ids.add(n.spanId);
+      collect(n.children);
+    }
+  })(span.children);
+  return ids;
+}
+
+export function rowHighlightClass({
+  hovered,
+  selected,
+  childOfSelected,
+}: {
+  hovered?: boolean;
+  selected?: boolean;
+  childOfSelected?: boolean;
+}): string {
+  if (selected) {
+    return 'bg-primary/10';
+  }
+  if (hovered) {
+    return 'bg-muted/40';
+  }
+  if (childOfSelected) {
+    return 'bg-primary/5';
+  }
+  return '';
+}
+
 export function computeTimeTicks(totalDurationMs: number): {
   ticks: number[];
   maxTick: number;
@@ -259,11 +293,16 @@ export function computeTimeTicks(totalDurationMs: number): {
   }
 
   const ticks: number[] = [];
-  for (let t = 0; t <= totalDurationMs + interval * 0.5; t += interval) {
+  for (let t = 0; t < totalDurationMs; t += interval) {
     ticks.push(t);
     if (ticks.length > 20) {
       break;
     }
+  }
+
+  const lastTick = ticks[ticks.length - 1] || 0;
+  if (totalDurationMs - lastTick > interval * 0.3) {
+    ticks.push(totalDurationMs);
   }
 
   return { ticks, maxTick: ticks[ticks.length - 1] || totalDurationMs };

@@ -252,6 +252,8 @@ WorkerRuntimeInfo:
   $ref: "./worker.yaml#/WorkerRuntimeInfo"
 WorkerRuntimeSDKs:
   $ref: "./worker.yaml#/WorkerRuntimeSDKs"
+WorkerStatus:
+  $ref: "./worker.yaml#/WorkerStatus"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 SemaphoreSlots:
@@ -384,6 +386,12 @@ V1BranchDurableTaskRequest:
   $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskRequest"
 V1BranchDurableTaskResponse:
   $ref: "./v1/workflow_run.yaml#/V1BranchDurableTaskResponse"
+V1DurableEventLogKind:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogKind"
+V1DurableEventLogEntry:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogEntry"
+V1DurableEventLogList:
+  $ref: "./v1/workflow_run.yaml#/V1DurableEventLogList"
 V1LogLine:
   $ref: "./v1/logs.yaml#/V1LogLine"
 V1LogLineLevel:
@@ -422,3 +430,7 @@ OtelStatusCode:
   $ref: "./v1/otel.yaml#/OtelStatusCode"
 OtelSpanList:
   $ref: "./v1/otel.yaml#/OtelSpanList"
+FeatureFlagEvaluationResult:
+  $ref: "./v1/feature_flags.yaml#/FeatureFlagEvaluationResult"
+FeatureFlagId:
+  $ref: "./v1/feature_flags.yaml#/FeatureFlagId"

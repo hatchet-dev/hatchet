@@ -12,6 +12,7 @@ export const SPAN_STATUS_COLORS: Record<SpanStatus, string> = {
 export interface ParsedTraceQuery {
   search?: string;
   status?: SpanStatus;
+  spanName?: string;
   attributes: [string, string][];
   raw: string;
   isValid: boolean;
@@ -21,4 +22,5 @@ export interface ParsedTraceQuery {
 export interface TraceAutocompleteContext {
   attributeKeys: string[];
   attributeValues: Map<string, string[]>;
+  spanNames: string[];
 }

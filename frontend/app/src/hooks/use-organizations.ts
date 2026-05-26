@@ -1,4 +1,3 @@
-import { cloudApi } from '@/lib/api/api';
 import {
   CreateManagementTokenResponse,
   ManagementTokenDuration,
@@ -6,6 +5,7 @@ import {
   OrganizationMember,
   TenantStatusType,
 } from '@/lib/api/generated/cloud/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -25,14 +25,11 @@ export function useOrganizations() {
     isCloudEnabled,
   } = useUserUniverse();
   const { handleApiError } = useApiError({});
+  const orgApi = useOrganizationApi();
 
   // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
-    queryKey: ['organization:list'],
-    queryFn: async () => {
-      const result = await cloudApi.organizationList();
-      return result.data;
-    },
+    ...orgApi.organizationListQuery(),
     enabled: isCloudEnabled,
   });
 
@@ -81,22 +78,20 @@ export function useOrganizations() {
     return (organizationListQuery.data?.rows?.length || 0) > 0;
   }, [organizationListQuery.data?.rows]);
 
+  const orgInviteAccept = orgApi.organizationInviteAcceptMutation();
   const acceptOrgInviteMutation = useMutation({
-    mutationKey: ['organization-invite:accept'],
+    mutationKey: orgInviteAccept.mutationKey,
     mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteAccept({
-        id: data.inviteId,
-      });
+      await orgInviteAccept.mutationFn({ id: data.inviteId });
     },
     onError: handleApiError,
   });
 
+  const orgInviteReject = orgApi.organizationInviteRejectMutation();
   const rejectOrgInviteMutation = useMutation({
-    mutationKey: ['organization-invite:reject'],
+    mutationKey: orgInviteReject.mutationKey,
     mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteReject({
-        id: data.inviteId,
-      });
+      await orgInviteReject.mutationFn({ id: data.inviteId });
     },
     onError: handleApiError,
   });
@@ -107,14 +102,9 @@ export function useOrganizations() {
       name: string;
       slug: string;
     }) => {
-      const result = await cloudApi.organizationCreateTenant(
-        data.organizationId,
-        {
-          name: data.name,
-          slug: data.slug,
-        },
-      );
-      return result.data;
+      return orgApi
+        .organizationCreateTenantMutation(data.organizationId)
+        .mutationFn({ name: data.name, slug: data.slug });
     },
     onSuccess: () => {
       localStorage.setItem('hatchet:show-welcome', '1');
@@ -124,7 +114,7 @@ export function useOrganizations() {
 
   const cancelInviteMutation = useMutation({
     mutationFn: async (data: { inviteId: string }) => {
-      await cloudApi.organizationInviteDelete(data.inviteId);
+      await orgApi.organizationInviteDeleteMutation(data.inviteId).mutationFn();
     },
     onError: handleApiError,
   });
@@ -163,59 +153,75 @@ export function useOrganizations() {
       if (data.duration != null) {
         body.duration = data.duration;
       }
-      const result = await cloudApi.managementTokenCreate(
-        data.organizationId,
-        body,
-      );
-      return result.data;
+      return orgApi
+        .managementTokenCreateMutation(data.organizationId)
+        .mutationFn(body);
     },
     onError: handleApiError,
   });
 
   const deleteMemberMutation = useMutation({
     mutationFn: async (data: { memberId: string; email: string }) => {
-      await cloudApi.organizationMemberDelete(data.memberId, {
-        emails: [data.email],
-      });
+      await orgApi
+        .organizationMemberDeleteMutation(data.memberId)
+        .mutationFn({ emails: [data.email] });
     },
     onError: handleApiError,
   });
 
   const deleteTokenMutation = useMutation({
     mutationFn: async (data: { tokenId: string }) => {
-      await cloudApi.managementTokenDelete(data.tokenId);
+      await orgApi.managementTokenDeleteMutation(data.tokenId).mutationFn();
     },
     onError: handleApiError,
   });
 
   const deleteTenantMutation = useMutation({
     mutationFn: async (data: { tenantId: string }) => {
-      await cloudApi.organizationTenantDelete(data.tenantId);
+      await orgApi.organizationTenantDeleteMutation(data.tenantId).mutationFn();
     },
     onError: handleApiError,
   });
 
   const updateOrganizationMutation = useMutation({
-    mutationFn: async (data: { organizationId: string; name: string }) => {
-      const result = await cloudApi.organizationUpdate(data.organizationId, {
+    mutationFn: async (data: {
+      organizationId: string;
+      name?: string;
+      inactivity_timeout?: string;
+    }) => {
+      return orgApi.organizationUpdateMutation(data.organizationId).mutationFn({
         name: data.name,
+        inactivity_timeout: data.inactivity_timeout,
       });
-      return result.data;
     },
     onError: handleApiError,
   });
 
+  const orgCreate = orgApi.organizationCreateMutation();
   const createOrganizationMutation = useMutation({
-    mutationFn: async (data: { name: string }) => {
-      const result = await cloudApi.organizationCreate({
-        name: data.name,
-      });
-      return result.data;
-    },
+    ...orgCreate,
     onError: handleApiError,
     onSuccess: () => {
       organizationListQuery.refetch();
     },
+  });
+
+  const createOrganizationSsoDomainMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
+      return orgApi
+        .organizationSsoDomainCreateMutation(data.organizationId)
+        .mutationFn(data.ssoDomain);
+    },
+    onError: handleApiError,
+  });
+
+  const deleteOrganizationSsoDomainMutation = useMutation({
+    mutationFn: async (data: { organizationId: string; ssoDomain: string }) => {
+      return orgApi
+        .organizationSsoDomainDeleteMutation(data.organizationId)
+        .mutationFn(data.ssoDomain);
+    },
+    onError: handleApiError,
   });
 
   const handleCreateToken = useCallback(
@@ -325,6 +331,22 @@ export function useOrganizations() {
     [updateOrganizationMutation],
   );
 
+  const handleUpdateOrganizationTimeout = (
+    organizationId: string,
+    inactivityTimeoutMs: number,
+    onSuccess: () => void,
+  ) => {
+    updateOrganizationMutation.mutate(
+      { organizationId, inactivity_timeout: `${inactivityTimeoutMs}ms` },
+      {
+        onSuccess: () => {
+          onSuccess();
+        },
+        onError: () => {},
+      },
+    );
+  };
+
   const handleCreateOrganization = useCallback(
     (name: string, onSuccess: (organizationId: string) => void) => {
       createOrganizationMutation.mutate(
@@ -340,6 +362,49 @@ export function useOrganizations() {
       );
     },
     [createOrganizationMutation],
+  );
+
+  const handleCreateOrganizationSsoDomain = useCallback(
+    (
+      organizationId: string,
+      ssoDomain: string,
+      onSuccess: (organizationId: string) => void,
+      onError?: () => void,
+    ) => {
+      createOrganizationSsoDomainMutation.mutate(
+        { organizationId, ssoDomain },
+        {
+          onSuccess: () => {
+            onSuccess(organizationId);
+          },
+          onError: () => {
+            onError?.();
+          },
+        },
+      );
+    },
+    [createOrganizationSsoDomainMutation],
+  );
+
+  const handleDeleteOrganizationSsoDomain = useCallback(
+    (
+      organizationId: string,
+      ssoDomain: string,
+      onSuccess: (organizationId: string) => void,
+    ) => {
+      deleteOrganizationSsoDomainMutation.mutate(
+        { organizationId, ssoDomain },
+        {
+          onSuccess: () => {
+            onSuccess(organizationId);
+          },
+          onError: () => {
+            // Error handling is done by the mutation itself via handleApiError
+          },
+        },
+      );
+    },
+    [deleteOrganizationSsoDomainMutation],
   );
 
   return {
@@ -359,7 +424,10 @@ export function useOrganizations() {
     handleDeleteToken,
     handleDeleteTenant,
     handleUpdateOrganization,
+    handleUpdateOrganizationTimeout,
     handleCreateOrganization,
+    handleCreateOrganizationSsoDomain,
+    handleDeleteOrganizationSsoDomain,
     // Loading states for mutations
     cancelInviteLoading: cancelInviteMutation.isPending,
     createTokenLoading: createTokenMutation.isPending,

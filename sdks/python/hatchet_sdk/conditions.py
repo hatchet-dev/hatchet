@@ -16,7 +16,11 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import (
     UserEventMatchCondition,
 )
 from hatchet_sdk.utils.proto_enums import convert_python_enum_to_proto
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import (
+    Duration,
+    _warn_if_str_duration,
+    timedelta_to_expr,
+)
 
 if TYPE_CHECKING:
     from hatchet_sdk.runnables.task import Task
@@ -64,6 +68,7 @@ class SleepCondition(Condition):
     def __init__(
         self, duration: Duration, readable_data_key: str | None = None
     ) -> None:
+        _warn_if_str_duration(duration, stacklevel=2)
         super().__init__(
             BaseCondition(
                 readable_data_key=readable_data_key
@@ -86,6 +91,8 @@ class UserEventCondition(Condition):
         event_key: str,
         expression: str | None = None,
         readable_data_key: str | None = None,
+        scope: str | None = None,
+        consider_events_since: datetime | None = None,
     ) -> None:
         super().__init__(
             BaseCondition(
@@ -96,11 +103,15 @@ class UserEventCondition(Condition):
 
         self.event_key = event_key
         self.expression = expression
+        self.scope = scope
+        self.consider_events_since = consider_events_since
 
     def to_proto(self, config: ClientConfig) -> UserEventMatchCondition:
         return UserEventMatchCondition(
             base=self.base.to_proto(),
             user_event_key=config.apply_namespace(self.event_key),
+            event_scope=self.scope,
+            consider_events_since=self.consider_events_since,
         )
 
 

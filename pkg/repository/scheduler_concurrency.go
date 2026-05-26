@@ -37,6 +37,8 @@ type RunConcurrencyResult struct {
 
 	// If the step has multiple concurrency strategies, these are the next ones to notify
 	NextConcurrencyStrategies []int64
+
+	FailedAdvisoryLock bool
 }
 
 type ConcurrencyRepository interface {
@@ -44,6 +46,10 @@ type ConcurrencyRepository interface {
 	UpdateConcurrencyStrategyIsActive(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) error
 
 	RunConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategy *sqlcv1.V1StepConcurrency) (*RunConcurrencyResult, error)
+
+	DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error
+
+	ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error)
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -273,6 +279,7 @@ func (c *ConcurrencyRepositoryImpl) runGroupRoundRobin(
 		Queued:                    queued,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
 	}, nil
 }
 
@@ -303,6 +310,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 			Queued:                    []TaskWithQueue{},
 			Cancelled:                 []TaskWithCancelledReason{},
 			NextConcurrencyStrategies: []int64{},
+			FailedAdvisoryLock:        true,
 		}, nil
 	}
 
@@ -320,6 +328,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelInProgress(
 				Queued:                    []TaskWithQueue{},
 				Cancelled:                 []TaskWithCancelledReason{},
 				NextConcurrencyStrategies: []int64{},
+				FailedAdvisoryLock:        true,
 			}, nil
 		}
 
@@ -498,6 +507,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		Queued:                    queued,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
 	}, nil
 }
 
@@ -529,6 +539,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 			Queued:                    []TaskWithQueue{},
 			Cancelled:                 []TaskWithCancelledReason{},
 			NextConcurrencyStrategies: []int64{},
+			FailedAdvisoryLock:        true,
 		}, nil
 	}
 
@@ -552,6 +563,7 @@ func (c *ConcurrencyRepositoryImpl) runCancelNewest(
 				Queued:                    []TaskWithQueue{},
 				Cancelled:                 []TaskWithCancelledReason{},
 				NextConcurrencyStrategies: []int64{},
+				FailedAdvisoryLock:        true,
 			}, nil
 		}
 
@@ -757,6 +769,7 @@ WHERE tenant_id = $1::uuid AND strategy_id = $2::bigint;`,
 		Queued:                    queued,
 		Cancelled:                 cancelled,
 		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
 	}, nil
 }
 
@@ -777,4 +790,12 @@ func (c *ConcurrencyRepositoryImpl) upsertQueuesForQueuedTasks(ctx context.Conte
 	}
 
 	return nil
+}
+
+func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error {
+	return c.queries.DeactivateStaleStepConcurrency(ctx, c.pool, tenantId)
+}
+
+func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error) {
+	return c.queries.ListTenantsWithManyStepConcurrencies(ctx, c.pool, threshold)
 }

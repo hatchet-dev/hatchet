@@ -20,7 +20,7 @@ type SidebarButtonPrimaryLinkProps = {
 export type SidebarButtonPrimaryActionProps = Omit<ButtonProps, 'children'> & {
   name: string;
   icon: React.ReactNode;
-  selected?: boolean;
+  muted?: boolean;
 };
 
 // Use this when a primary sidebar button needs to behave like a true `<button>`
@@ -29,7 +29,7 @@ export type SidebarButtonPrimaryActionProps = Omit<ButtonProps, 'children'> & {
 export const SidebarButtonPrimaryAction = React.forwardRef<
   HTMLButtonElement,
   SidebarButtonPrimaryActionProps
->(({ name, icon, selected, className, ...props }, ref) => {
+>(({ name, icon, muted = false, className, ...props }, ref) => {
   return (
     <Button
       {...props}
@@ -38,7 +38,7 @@ export const SidebarButtonPrimaryAction = React.forwardRef<
       variant="ghost"
       className={cn(
         'w-full justify-start pl-2 min-w-0 overflow-hidden',
-        selected && 'bg-slate-200 dark:bg-slate-800',
+        muted && '[&_svg]:text-muted-foreground/50',
         className,
       )}
     >
@@ -58,15 +58,8 @@ export function SidebarButtonPrimary(
   if (!('to' in props)) {
     // Keep backwards compatibility: this component is still used in a few places.
     // Prefer `SidebarButtonPrimaryAction` when the caller needs `asChild` behavior.
-    const { name, icon, selected, ...rest } = props;
-    return (
-      <SidebarButtonPrimaryAction
-        {...rest}
-        name={name}
-        icon={icon}
-        selected={selected}
-      />
-    );
+    const { name, icon, ...rest } = props;
+    return <SidebarButtonPrimaryAction {...rest} name={name} icon={icon} />;
   }
 
   const {

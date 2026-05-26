@@ -1,9 +1,6 @@
 from hatchet_sdk.clients.admin import (
     RunStatus,
-    ScheduleTriggerWorkflowOptions,
-    TriggerWorkflowOptions,
 )
-from hatchet_sdk.clients.events import PushEventOptions
 from hatchet_sdk.clients.listeners.run_event_listener import (
     RunEventListener,
     StepRunEventType,
@@ -132,11 +129,7 @@ from hatchet_sdk.conditions import (
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
-from hatchet_sdk.contracts.workflows_pb2 import (
-    CreateWorkflowVersionOpts,
-    RateLimitDuration,
-    WorkerLabelComparator,
-)
+from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
     EvictionNotSupportedError,
@@ -150,19 +143,36 @@ from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunFilter
 from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
-    ConcurrencyExpression,
-    ConcurrencyLimitStrategy,
     DefaultFilter,
     EmptyModel,
-    StickyStrategy,
     TaskDefaults,
     WorkflowConfig,
 )
 from hatchet_sdk.runnables.workflow import TaskRunRef
 from hatchet_sdk.serde import is_in_hatchet_serialization_context
+from hatchet_sdk.types.concurrency import (
+    ConcurrencyExpression,
+    ConcurrencyLimitStrategy,
+)
+from hatchet_sdk.types.labels import (
+    DesiredWorkerLabel,
+    WorkerLabel,
+    WorkerLabelComparator,
+)
+from hatchet_sdk.types.priority import Priority
+from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
+from hatchet_sdk.types.slot_types import SlotType
+from hatchet_sdk.types.sticky import StickyStrategy
+from hatchet_sdk.types.trigger import (
+    BulkPushEventOptions,
+    BulkPushEventWithMetadata,
+    PushEventOptions,
+    ScheduleTriggerWorkflowOptions,
+    TriggerWorkflowOptions,
+    WorkflowRunTriggerConfig,
+)
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.serde import remove_null_unicode_character
-from hatchet_sdk.worker.slot_types import SlotType
 from hatchet_sdk.worker.worker import Worker, WorkerStartOptions, WorkerStatus
 from hatchet_sdk.workflow_run import WorkflowRunRef
 
@@ -176,6 +186,8 @@ __all__ = [
     "APIToken",
     "AcceptInviteRequest",
     "BulkCancelReplayOpts",
+    "BulkPushEventOptions",
+    "BulkPushEventWithMetadata",
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
@@ -194,6 +206,7 @@ __all__ = [
     "DedupeViolationError",
     "DefaultFilter",
     "Depends",
+    "DesiredWorkerLabel",
     "DurableContext",
     "EmptyModel",
     "Event",
@@ -229,9 +242,11 @@ __all__ = [
     "OrGroup",
     "PaginationResponse",
     "ParentCondition",
+    "Priority",
     "PullRequest",
     "PullRequestState",
     "PushEventOptions",
+    "RateLimit",
     "RateLimitDuration",
     "RegisterDurableEventRequest",
     "RejectInviteRequest",
@@ -240,6 +255,7 @@ __all__ = [
     "RunEventListener",
     "RunFilter",
     "RunStatus",
+    "ScheduleTriggerWorkflowOptions",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
     "SlotType",
@@ -260,6 +276,7 @@ __all__ = [
     "TenantMemberList",
     "TenantMemberRole",
     "TriggerWorkflowOptions",
+    "TriggerWorkflowOptions",
     "TriggerWorkflowRunRequest",
     "UpdateTenantInviteRequest",
     "User",
@@ -275,6 +292,7 @@ __all__ = [
     "Worker",
     "Worker",
     "WorkerContext",
+    "WorkerLabel",
     "WorkerLabelComparator",
     "WorkerList",
     "WorkerStartOptions",
@@ -289,6 +307,7 @@ __all__ = [
     "WorkflowRunList",
     "WorkflowRunRef",
     "WorkflowRunStatus",
+    "WorkflowRunTriggerConfig",
     "WorkflowRunTriggeredBy",
     "WorkflowTag",
     "WorkflowTriggerCronRef",

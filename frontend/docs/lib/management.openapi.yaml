@@ -259,6 +259,68 @@ components:
       required:
         - inviteeEmail
         - role
+    AuditLogActorType:
+      type: string
+      enum:
+        - user
+        - api_key
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The unique ID of the audit log entry
+        insertedAt:
+          type: string
+          format: date-time
+          description: The timestamp when the audit log was recorded
+        tenantId:
+          type: string
+          format: uuid
+          description: The ID of the tenant where the action occurred
+        actorType:
+          $ref: '#/components/schemas/AuditLogActorType'
+        actorId:
+          type: string
+          format: uuid
+          description: The ID of the user or API key that performed the action
+        action:
+          type: string
+          description: 'The action performed (e.g. create, update, delete)'
+        correlationId:
+          type: string
+          description: An optional correlation ID for grouping related actions
+        resourceId:
+          type: string
+          description: The ID of the resource that was acted upon
+        resourceType:
+          type: string
+          description: 'The type of resource (e.g. workflow, worker, tenant, api_key)'
+        ipAddress:
+          type: string
+          description: The IP address of the actor
+        userAgent:
+          type: string
+          description: The user agent string of the actor
+      required:
+        - id
+        - insertedAt
+        - tenantId
+        - actorType
+        - actorId
+        - action
+        - resourceId
+        - resourceType
+    AuditLogList:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditLog'
+      required:
+        - rows
 paths:
   '/api/v1/management/organizations/{organization}':
     get:
@@ -670,5 +732,87 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Forbidden
       summary: Delete Organization Invite for Organization
+      tags:
+        - Management
+  '/api/v1/management/organizations/{organization}/audit-logs':
+    get:
+      description: List all audit logs for an organization. Optionally filter by tenant.
+      operationId: 'organization:list:audit-logs'
+      x-resources:
+        - organization
+      security:
+        - customAuth: []
+      parameters:
+        - description: The organization ID
+          in: path
+          name: organization
+          required: true
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+        - description: Filter to a specific tenant ID belonging to the organization
+          in: query
+          name: tenant
+          required: false
+          schema:
+            type: string
+            format: uuid
+            minLength: 36
+            maxLength: 36
+        - description: The maximum number of audit logs to return
+          in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 1000
+            default: 1000
+        - description: The number of audit logs to skip
+          in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+        - description: The start of the time range to filter audit logs (defaults to 24 hours ago)
+          in: query
+          name: since
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - description: The end of the time range to filter audit logs (defaults to now)
+          in: query
+          name: until
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogList'
+          description: Successfully retrieved the audit logs
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: A malformed or bad request
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+      summary: List Audit Logs for Organization
       tags:
         - Management

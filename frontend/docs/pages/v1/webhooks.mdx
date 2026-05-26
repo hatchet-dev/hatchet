@@ -3,11 +3,6 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 # Webhooks
 
-<Callout type="info" emoji="🪓">
-  This feature is currently in development and might change. Reach out for
-  feedback or if you encounter any problems registering any external webhooks.
-</Callout>
-
 Webhooks allow external systems to trigger Hatchet workflows by sending HTTP requests to dedicated endpoints. This enables real-time integration with third-party services like GitHub, Stripe, Slack, or any system that can send webhook events.
 
 ## Guides
@@ -94,4 +89,4 @@ While you're creating your webhook (and also after you've created it), you can c
 
 Once you've done that, the last thing to do is register the event keys you want your workers to listen for so that they can be triggered by incoming webhooks.
 
-For examples on how to do this, see the [documentation on event triggers](/v1/external-events/run-on-event).
+For examples on how to do this, see the [documentation on event triggers](/v1/events#declaring-event-triggers).

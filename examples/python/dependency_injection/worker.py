@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from hatchet_sdk import Context, Depends, DurableContext, EmptyModel, Hatchet
 
-hatchet = Hatchet(debug=False)
+hatchet = Hatchet()
 
 SYNC_DEPENDENCY_VALUE = "sync_dependency_value"
 ASYNC_DEPENDENCY_VALUE = "async_dependency_value"

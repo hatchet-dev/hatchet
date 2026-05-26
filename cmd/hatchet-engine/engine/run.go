@@ -84,9 +84,14 @@ func init() {
 	}
 }
 
-func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
+func Run(
+	ctx context.Context,
+	cf *loader.ConfigLoader,
+	version string,
+	overrides ...loader.ServerConfigFileOverride,
+) error {
 
-	serverCleanup, server, err := cf.CreateServerFromConfig(version)
+	serverCleanup, server, err := cf.CreateServerFromConfig(version, overrides...)
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
@@ -126,7 +131,7 @@ func RunWithConfig(ctx context.Context, sc *server.ServerConfig, cleanup *cleanu
 func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
-	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
 		CollectorURL:  sc.OpenTelemetry.CollectorURL,
 		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
@@ -285,6 +290,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithOperationsConfig(sc.Operations),
 			olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 			olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+			olap.WithMQQos(sc.Operations.OLAPMQQos),
+			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 		)
 
 		if err != nil {
@@ -435,6 +442,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithRepository(sc.V1),
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
+				otelcol.WithAnalytics(sc.Analytics),
 			)
 
 			if err != nil {
@@ -509,9 +517,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	cleanup.Add(
-		func() error {
-			return shutdown(ctx)
-		},
+		telemetryShutdown,
 		"telemetry",
 	)
 
@@ -529,7 +535,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.Cleanup) error {
 	var l = sc.Logger
 
-	shutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
+	telemetryShutdown, err := telemetry.InitTracer(&telemetry.TracerOpts{
 		ServiceName:   sc.OpenTelemetry.ServiceName,
 		CollectorURL:  sc.OpenTelemetry.CollectorURL,
 		TraceIdRatio:  sc.OpenTelemetry.TraceIdRatio,
@@ -665,6 +671,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+				olap.WithMQQos(sc.Operations.OLAPMQQos),
+				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
 			)
 
 			if err != nil {
@@ -868,6 +876,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				otelcol.WithRepository(sc.V1),
 				otelcol.WithLogger(sc.Logger),
 				otelcol.WithMaxBatchSize(sc.Observability.MaxBatchSize),
+				otelcol.WithAnalytics(sc.Analytics),
 			)
 
 			if err != nil {
@@ -941,9 +950,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	}
 
 	cleanup.Add(
-		func() error {
-			return shutdown(ctx)
-		},
+		telemetryShutdown,
 		"telemetry",
 	)
 

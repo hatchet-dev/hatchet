@@ -38,9 +38,14 @@ func init() {
 	}
 }
 
-func Start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
+func Start(
+	cf *loader.ConfigLoader,
+	interruptCh <-chan interface{},
+	version string,
+	overrides ...loader.ServerConfigFileOverride,
+) error {
 	// init the repository
-	configCleanup, server, err := cf.CreateServerFromConfig(version)
+	configCleanup, server, err := cf.CreateServerFromConfig(version, overrides...)
 	if err != nil {
 		return fmt.Errorf("error loading server config: %w", err)
 	}

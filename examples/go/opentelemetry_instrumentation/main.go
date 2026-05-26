@@ -51,6 +51,15 @@ type NotifyOutput struct {
 	Channel   string `json:"channel"`
 }
 
+type AuditEvent struct {
+	OrderID string `json:"orderId"`
+	Action  string `json:"action"`
+}
+
+type AuditOutput struct {
+	Logged bool `json:"logged"`
+}
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -106,6 +115,22 @@ func main() {
 		},
 	)
 
+	auditWorkflow := client.NewWorkflow(
+		"otel-audit-log",
+		hatchet.WithWorkflowEvents("order:payment_charged"),
+	)
+
+	auditWorkflow.NewTask(
+		"write-audit-entry",
+		func(ctx hatchet.Context, input AuditEvent) (AuditOutput, error) {
+			_, span := tracer.Start(ctx, "audit.persist")
+			time.Sleep(100 * time.Millisecond)
+			span.End()
+
+			return AuditOutput{Logged: true}, nil
+		},
+	)
+
 	workflow := client.NewWorkflow("otel-order-processing")
 
 	validateOrder := workflow.NewTask(
@@ -145,7 +170,13 @@ func main() {
 			chargeSpan.End()
 
 			paySpan.End()
-			return ChargePaymentOutput{}, fmt.Errorf("test error")
+
+			if err := client.Events().Push(ctx, "order:payment_charged", AuditEvent{
+				OrderID: validated.OrderID,
+				Action:  "payment_charged",
+			}); err != nil {
+				log.Printf("failed to push audit event: %v", err)
+			}
 
 			return ChargePaymentOutput{
 				TransactionID: fmt.Sprintf("txn-%s", validated.OrderID),
@@ -245,7 +276,7 @@ func main() {
 
 	worker, err := client.NewWorker(
 		"otel-instrumentation-worker",
-		hatchet.WithWorkflows(workflow, notifyTask, otherTask),
+		hatchet.WithWorkflows(workflow, notifyTask, otherTask, auditWorkflow),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)

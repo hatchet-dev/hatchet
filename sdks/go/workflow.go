@@ -292,6 +292,7 @@ type taskConfig struct {
 	waitFor                condition.Condition
 	skipIf                 condition.Condition
 	description            string
+	evictionPolicy         *EvictionPolicy
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -511,7 +512,21 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		SkipIf:                 config.skipIf,
 	}
 
-	w.declaration.Task(taskOpts, wrapper)
+	if config.isDurable {
+		durableWrapper := func(ctx worker.DurableHatchetContext, input any) (any, error) {
+			return wrapper(ctx, input)
+		}
+		durableDecl := w.declaration.DurableTask(taskOpts, durableWrapper)
+		if config.evictionPolicy != nil {
+			durableDecl.EvictionPolicy = &internal.EvictionPolicyOpts{
+				TTL:                   config.evictionPolicy.TTL,
+				AllowCapacityEviction: config.evictionPolicy.AllowCapacityEviction,
+				Priority:              config.evictionPolicy.Priority,
+			}
+		}
+	} else {
+		w.declaration.Task(taskOpts, wrapper)
+	}
 
 	return &Task{name: name}
 }
@@ -610,7 +625,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
-			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.String(hatchetotel.AttrWorkflowName, w.declaration.Name()),
 		),
 	)
 	defer span.End()
@@ -650,7 +665,7 @@ func (w *Workflow) RunNoWait(ctx context.Context, input any, opts ...RunOptFunc)
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
-			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.String(hatchetotel.AttrWorkflowName, w.declaration.Name()),
 		),
 	)
 	defer span.End()
@@ -723,7 +738,7 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
-			attribute.String(hatchetotel.AttrStepName, w.declaration.Name()),
+			attribute.String(hatchetotel.AttrWorkflowName, w.declaration.Name()),
 			attribute.Int(hatchetotel.AttrNumWorkflows, len(inputs)),
 		),
 	)
@@ -734,7 +749,7 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	var wg sync.WaitGroup
 	var errs []error
 	var errsMutex sync.Mutex
-
+	var workflowRefsMutex sync.Mutex
 	wg.Add(len(inputs))
 
 	for _, input := range inputs {
@@ -748,8 +763,9 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 				errsMutex.Unlock()
 				return
 			}
-
+			workflowRefsMutex.Lock()
 			workflowRefs = append(workflowRefs, *workflowRef)
+			workflowRefsMutex.Unlock()
 		}()
 	}
 
