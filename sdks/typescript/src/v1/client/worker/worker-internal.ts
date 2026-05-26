@@ -34,7 +34,7 @@ import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
 import { Duration, durationToString } from '../duration';
-import { durationToMilliseconds } from '@hatchet/v1/client/duration';
+import { durationToMs } from '@hatchet/v1/client/duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -695,7 +695,7 @@ export class InternalWorker {
               ? {
                   batchMaxSize: batchedTask.batch.batchMaxSize,
                   batchMaxInterval: batchedTask.batch.batchMaxInterval
-                    ? durationToMilliseconds(batchedTask.batch.batchMaxInterval)
+                    ? durationToMs(batchedTask.batch.batchMaxInterval)
                     : undefined,
                   batchGroupKey: batchedTask.batch.batchGroupKey,
                   batchGroupMaxRuns:

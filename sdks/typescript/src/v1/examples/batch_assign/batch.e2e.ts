@@ -6,7 +6,7 @@ import type { Duration } from '../../client/duration';
 import type { Context } from '../../client/worker/context';
 import type { JsonObject } from '../../types';
 
-xdescribe('batch-task e2e', () => {
+describe('batch-task e2e', () => {
   jest.setTimeout(60000);
 
   let worker: Worker;
@@ -52,7 +52,7 @@ xdescribe('batch-task e2e', () => {
       fn,
     });
 
-    await worker.registerWorkflow(workflow);
+    await worker.registerWorkflows([workflow]);
     await sleep(200);
 
     return workflow;
@@ -64,8 +64,9 @@ xdescribe('batch-task e2e', () => {
       slots: 25,
     });
 
-    await worker.registerWorkflow(batchWorkflow);
+    await worker.registerWorkflows([batchWorkflow]);
     void worker.start();
+    console.info('registered workflow');
     await sleep(2000);
   });
 
@@ -176,6 +177,36 @@ xdescribe('batch-task e2e', () => {
     expect(results[3].batchSize).toBe(1);
     expect(results.every((result) => result.uniqueKeys === 1)).toBe(true);
     expect(results[3].payload).toBe('hotel');
+  });
+
+  it('completes all tasks when batch contains 100+ items with 100kb+ payloads', async () => {
+    jest.setTimeout(120_000);
+
+    const largePayloadWorkflow = await createAndRegisterBatchWorkflow<
+      { data: string },
+      { received: boolean; batchSize: number; dataLength: number }
+    >({
+      batchMaxSize: 100,
+      batchMaxInterval: '10s',
+      fn: (tasks) =>
+        tasks.map(([input]) => ({
+          received: true,
+          batchSize: tasks.length,
+          dataLength: input.data.length,
+        })),
+    });
+
+    const payload = 'x'.repeat(100_000); // ~100kb per task
+    const taskCount = 100;
+
+    const results = await Promise.all(
+      Array.from({ length: taskCount }, () => largePayloadWorkflow.run({ data: payload }))
+    );
+
+    expect(results).toHaveLength(taskCount);
+    expect(results.every((r) => r.received)).toBe(true);
+    expect(results.every((r) => r.dataLength === 100_000)).toBe(true);
+    expect(results.every((r) => r.batchSize === taskCount)).toBe(true);
   });
 
   it('handles batch size of one without keys', async () => {
