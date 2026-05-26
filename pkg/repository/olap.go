@@ -3227,12 +3227,6 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_payloads_olap: %v", err)
 	}
 
-	err = r.queries.AnalyzeV1PayloadOffloadedBlockIndexOLAP(ctx, tx)
-
-	if err != nil {
-		return fmt.Errorf("error analyzing v1_payloads_olap_offloaded_block_index: %v", err)
-	}
-
 	err = r.queries.AnalyzeV1LookupTableOLAP(ctx, tx)
 
 	if err != nil {

@@ -107,15 +107,6 @@ func (q *Queries) AnalyzeV1LookupTableOLAP(ctx context.Context, db DBTX) error {
 	return err
 }
 
-const analyzeV1PayloadOffloadedBlockIndexOLAP = `-- name: AnalyzeV1PayloadOffloadedBlockIndexOLAP :exec
-ANALYZE v1_payloads_olap_offloaded_block_index
-`
-
-func (q *Queries) AnalyzeV1PayloadOffloadedBlockIndexOLAP(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, analyzeV1PayloadOffloadedBlockIndexOLAP)
-	return err
-}
-
 const analyzeV1PayloadsOLAP = `-- name: AnalyzeV1PayloadsOLAP :exec
 ANALYZE v1_payloads_olap
 `

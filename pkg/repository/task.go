@@ -3924,12 +3924,6 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 		return fmt.Errorf("error analyzing v1_payload: %v", err)
 	}
 
-	err = r.queries.AnalyzeV1PayloadBlockIndex(ctx, tx)
-
-	if err != nil {
-		return fmt.Errorf("error analyzing v1_payload_offloaded_block_index: %v", err)
-	}
-
 	if err := commit(ctx); err != nil {
 		return fmt.Errorf("error committing transaction: %v", err)
 	}

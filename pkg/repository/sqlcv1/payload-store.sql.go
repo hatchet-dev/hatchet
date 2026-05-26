@@ -91,15 +91,6 @@ func (q *Queries) AnalyzeV1Payload(ctx context.Context, db DBTX) error {
 	return err
 }
 
-const analyzeV1PayloadBlockIndex = `-- name: AnalyzeV1PayloadBlockIndex :exec
-ANALYZE v1_payload_offloaded_block_index
-`
-
-func (q *Queries) AnalyzeV1PayloadBlockIndex(ctx context.Context, db DBTX) error {
-	_, err := db.Exec(ctx, analyzeV1PayloadBlockIndex)
-	return err
-}
-
 const cleanUpCutoverJobOffsets = `-- name: CleanUpCutoverJobOffsets :exec
 DELETE FROM v1_payload_cutover_job_offset
 WHERE NOT key = ANY($1::DATE[])
