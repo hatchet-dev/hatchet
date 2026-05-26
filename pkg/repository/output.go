@@ -159,6 +159,10 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 		}
 
 		if len(keyMap) == 1 {
+			// this is a special case: if the child is a DAG, we want to return the output
+			// of each task in the DAG keyed by the task name (below), but if it's a standalone task,
+			// we want to return the task's output directly without the extra nesting, so we have to handle this
+			// situation separately
 			if entries, ok := keyMap["output"]; ok && len(entries) > 0 {
 				var event TaskOutputEvent
 				if err := json.Unmarshal(entries[0], &event); err != nil {
