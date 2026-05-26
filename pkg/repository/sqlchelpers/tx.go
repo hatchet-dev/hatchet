@@ -69,28 +69,18 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 		).Caller(1).Msg("long transaction start")
 	}
 
-	commit := func(ctx context.Context) error {
-		// reset statement timeout
-		_, err = tx.Exec(ctx, "SET statement_timeout=30000")
-
-		if err != nil {
-			return err
-		}
-
-		return tx.Commit(ctx)
-	}
-
 	rollback := func() {
 		DeferRollback(ctx, l, tx.Rollback)
 	}
 
-	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout=%d", timeoutMs))
 
 	if err != nil {
+		rollback()
 		return nil, nil, nil, err
 	}
 
-	return tx, commit, rollback, nil
+	return tx, tx.Commit, rollback, nil
 }
 
 // AcquireConnectionWithStatementTimeout acquires a connection from the pool and overwrites the default statement timeout on it.
