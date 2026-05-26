@@ -94,15 +94,13 @@ async def durable_spawn_many_dags(
         ]
     )
 
-    print(results[0])
-
     return DurableSpawnManyDagsResult(
         results=[
             DurableSpawnManyDagsResultSingleton(
                 has_both_child_outputs=(
                     "dag_child_1" in result and "dag_child_2" in result
                 ),
-                child_index=result["dag_child_1"]["result"]["child_index"],
+                child_index=result["dag_child_1"]["child_index"],
             )
             for result in results
         ]
