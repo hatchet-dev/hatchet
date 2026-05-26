@@ -147,7 +147,22 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	}
 
 	for _, keyMap := range outer {
-		for _, entries := range keyMap {
+		if len(keyMap) == 0 {
+			continue
+		}
+
+		if len(keyMap) == 1 {
+			if entries, ok := keyMap["output"]; ok && len(entries) > 0 {
+				var event TaskOutputEvent
+				if err := json.Unmarshal(entries[0], &event); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
+				}
+				return event.Output, nil
+			}
+		}
+
+		aggregated := make(map[string]json.RawMessage, len(keyMap))
+		for key, entries := range keyMap {
 			if len(entries) == 0 {
 				continue
 			}
@@ -157,8 +172,17 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 				return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 			}
 
-			return event.Output, nil
+			if len(event.Output) > 0 {
+				aggregated[key] = json.RawMessage(event.Output)
+			}
 		}
+
+		result, err := json.Marshal(aggregated)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal aggregated DAG output: %w", err)
+		}
+
+		return result, nil
 	}
 
 	return nil, fmt.Errorf("no entries found in match data")
