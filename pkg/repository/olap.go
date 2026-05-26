@@ -3097,8 +3097,12 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 				Externalid:     opt.ExternalId,
 			})
 
-			if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				continue
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("error getting offloaded payload index block: %v", err)
 			}
 
 			retrieveFromExternalOpt := RetrieveFromExternalOpts{
