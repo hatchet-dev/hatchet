@@ -19,6 +19,8 @@ export const channelFactory = (config: ClientConfig, credentials: ChannelCredent
     'grpc.keepalive_permit_without_calls': 1,
     // Enable gzip compression for all calls on this channel
     'grpc.default_compression_algorithm': 2, // 2 = Gzip compression
+    'grpc.max_send_message_length': config.grpc_max_send_message_length ?? 4 * 1024 * 1024,
+    'grpc.max_receive_message_length': config.grpc_max_recv_message_length ?? 4 * 1024 * 1024,
   });
 
 export const addTokenMiddleware = (token: string) =>
