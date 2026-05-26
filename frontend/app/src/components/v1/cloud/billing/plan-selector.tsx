@@ -12,7 +12,7 @@ import {
   Coupon,
   SubscriptionPlan,
   SubscriptionPlanFeatureGroup,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
