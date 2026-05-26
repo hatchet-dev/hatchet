@@ -146,6 +146,8 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	// it's confusing because in other places we use the task events on the SDK itself to aggregate
 	// the outputs of each child into a map, but here we do it on the engine. it'd be a good fixme for the future
 	// to consolidate the different ways we handle this kind of thing in different places to be more consistent.
+	// I (Matt) opted to do it this way in https://github.com/hatchet-dev/hatchet/pull/4008 to maintain
+	// backwards compatibility, and because it was the simplest bug fix for the issue we saw at the time.
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal match data: %w", err)
