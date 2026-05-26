@@ -23,7 +23,7 @@ export function ManagedWorkersGate({ children }: PropsWithChildren) {
     return (
       <ErrorPageLayout
         icon={<Cloud className="h-5 w-5" />}
-        title="Managed Workers is not available"
+        title="Managed Workers are not available"
         description="Managed Workers are only available in Hatchet Cloud."
         actions={
           <Button
