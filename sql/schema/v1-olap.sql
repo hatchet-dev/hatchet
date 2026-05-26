@@ -376,12 +376,11 @@ CREATE INDEX v1_payloads_olap_external_id_idx ON v1_payloads_olap (external_id A
 
 CREATE TABLE v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date DATE NOT NULL,
-    block_lower_external_id_bound UUID NOT NULL,
-    block_upper_external_id_bound UUID NOT NULL,
+    block_external_id_range uuidrange NOT NULL,
     index_file_key TEXT NOT NULL,
-    -- todo: should we add source db here?
-    PRIMARY KEY (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound)
-) PARTITION BY RANGE (payload_inserted_at_date);
+    CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl
+        EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
+);
 
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.

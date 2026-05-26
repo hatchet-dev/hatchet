@@ -390,17 +390,15 @@ func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date p
 const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date,
-    block_lower_external_id_bound,
-    block_upper_external_id_bound,
+    block_external_id_range,
     index_file_key
 )
 VALUES (
     $1::DATE,
-    $2::UUID,
-    $3::UUID,
+    uuidrange($2::UUID, $3::UUID),
     $4::TEXT
 )
-ON CONFLICT (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound) DO NOTHING
+ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING
 `
 
 type CreateOLAPOffloadedPayloadIndexBlockParams struct {
@@ -438,8 +436,7 @@ SELECT
     create_v1_range_partition('v1_tasks_olap'::text, $2::date),
     create_v1_range_partition('v1_runs_olap'::text, $2::date),
     create_v1_range_partition('v1_dags_olap'::text, $2::date),
-    create_v1_range_partition('v1_payloads_olap'::text, $2::date),
-    create_v1_range_partition('v1_payloads_olap_offloaded_block_index'::text, $2::date)
+    create_v1_range_partition('v1_payloads_olap'::text, $2::date)
 `
 
 type CreateOLAPPartitionsParams struct {
@@ -531,6 +528,16 @@ SELECT copy_v1_payloads_olap_partition_structure($1::DATE)
 
 func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, db DBTX, date pgtype.Date) error {
 	_, err := db.Exec(ctx, createV1PayloadOLAPCutoverTemporaryTable, date)
+	return err
+}
+
+const deleteOldOLAPPayloadOffloadedBlockIndexRows = `-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date < $1::DATE
+`
+
+func (q *Queries) DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx context.Context, db DBTX, before pgtype.Date) error {
+	_, err := db.Exec(ctx, deleteOldOLAPPayloadOffloadedBlockIndexRows, before)
 	return err
 }
 
@@ -797,8 +804,7 @@ const getOLAPOffloadedPayloadIndexBlock = `-- name: GetOLAPOffloadedPayloadIndex
 SELECT index_file_key
 FROM v1_payloads_olap_offloaded_block_index
 WHERE payload_inserted_at_date = $1::DATE
-  AND block_lower_external_id_bound <= $2::UUID
-  AND block_upper_external_id_bound >= $2::UUID
+  AND block_external_id_range @> $2::UUID
 LIMIT 1
 `
 
@@ -1429,8 +1435,6 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', $3::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', $3::date) AS p
-), payload_block_index_partitions AS (
-    SELECT 'v1_payloads_olap_offloaded_block_index' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap_offloaded_block_index', $3::date) AS p
 ), candidates AS (
     SELECT
         parent_table, partition_name
@@ -1507,12 +1511,6 @@ WITH task_partitions AS (
     FROM
         otel_trace_lookup_partitions
 
-    UNION ALL
-
-    SELECT
-         parent_table, partition_name
-    FROM
-        payload_block_index_partitions
 )
 
 SELECT parent_table, partition_name

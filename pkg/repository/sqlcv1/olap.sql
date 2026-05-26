@@ -5,8 +5,7 @@ SELECT
     create_v1_range_partition('v1_tasks_olap'::text, @date::date),
     create_v1_range_partition('v1_runs_olap'::text, @date::date),
     create_v1_range_partition('v1_dags_olap'::text, @date::date),
-    create_v1_range_partition('v1_payloads_olap'::text, @date::date),
-    create_v1_range_partition('v1_payloads_olap_offloaded_block_index'::text, @date::date)
+    create_v1_range_partition('v1_payloads_olap'::text, @date::date)
 ;
 
 -- name: CreateOLAPEventPartitions :exec
@@ -68,8 +67,6 @@ WITH task_partitions AS (
     SELECT 'v1_otel_trace_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_olap', @date::date) AS p
 ), otel_trace_lookup_partitions AS (
     SELECT 'v1_otel_trace_lookup_olap' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_otel_trace_lookup_olap', @date::date) AS p
-), payload_block_index_partitions AS (
-    SELECT 'v1_payloads_olap_offloaded_block_index' AS parent_table, p::TEXT AS partition_name FROM get_v1_partitions_before_date('v1_payloads_olap_offloaded_block_index', @date::date) AS p
 ), candidates AS (
     SELECT
         *
@@ -146,12 +143,6 @@ WITH task_partitions AS (
     FROM
         otel_trace_lookup_partitions
 
-    UNION ALL
-
-    SELECT
-         *
-    FROM
-        payload_block_index_partitions
 )
 
 SELECT *
@@ -2318,25 +2309,27 @@ SELECT compute_olap_payload_batch_size(
 SELECT index_file_key
 FROM v1_payloads_olap_offloaded_block_index
 WHERE payload_inserted_at_date = @insertedAtDate::DATE
-  AND block_lower_external_id_bound <= @externalId::UUID
-  AND block_upper_external_id_bound >= @externalId::UUID
+  AND block_external_id_range @> @externalId::UUID
 LIMIT 1
 ;
 
 -- name: CreateOLAPOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date,
-    block_lower_external_id_bound,
-    block_upper_external_id_bound,
+    block_external_id_range,
     index_file_key
 )
 VALUES (
     @payloadInsertedAtDate::DATE,
-    @blockLowerExternalIdBound::UUID,
-    @blockUpperExternalIdBound::UUID,
+    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID),
     @indexFileKey::TEXT
 )
-ON CONFLICT (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound) DO NOTHING
+ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING
+;
+
+-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date < @before::DATE
 ;
 
 -- name: ReconcileTaskStatusesFromEvents :many

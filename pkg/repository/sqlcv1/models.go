@@ -3447,10 +3447,9 @@ type V1PayloadCutoverJobOffset struct {
 }
 
 type V1PayloadOffloadedBlockIndex struct {
-	PayloadInsertedAtDate     pgtype.Date `json:"payload_inserted_at_date"`
-	BlockLowerExternalIDBound uuid.UUID   `json:"block_lower_external_id_bound"`
-	BlockUpperExternalIDBound uuid.UUID   `json:"block_upper_external_id_bound"`
-	IndexFileKey              string      `json:"index_file_key"`
+	PayloadInsertedAtDate pgtype.Date `json:"payload_inserted_at_date"`
+	BlockExternalIDRange  UUIDRange   `json:"block_external_id_range"`
+	IndexFileKey          string      `json:"index_file_key"`
 }
 
 type V1PayloadsOlap struct {
@@ -3477,10 +3476,9 @@ type V1PayloadsOlapCutoverJobOffset struct {
 }
 
 type V1PayloadsOlapOffloadedBlockIndex struct {
-	PayloadInsertedAtDate     pgtype.Date `json:"payload_inserted_at_date"`
-	BlockLowerExternalIDBound uuid.UUID   `json:"block_lower_external_id_bound"`
-	BlockUpperExternalIDBound uuid.UUID   `json:"block_upper_external_id_bound"`
-	IndexFileKey              string      `json:"index_file_key"`
+	PayloadInsertedAtDate pgtype.Date `json:"payload_inserted_at_date"`
+	BlockExternalIDRange  UUIDRange   `json:"block_external_id_range"`
+	IndexFileKey          string      `json:"index_file_key"`
 }
 
 type V1Queue struct {

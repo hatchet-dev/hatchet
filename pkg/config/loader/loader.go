@@ -15,6 +15,7 @@ import (
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -161,6 +162,22 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		conn.TypeMap().RegisterType(t)
+
+		uuidType, ok := conn.TypeMap().TypeForName("uuid")
+		if !ok {
+			return fmt.Errorf("uuid type not found in type map")
+		}
+
+		var uuidrangeOID uint32
+		if err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID); err != nil {
+			return fmt.Errorf("loading uuidrange oid: %w", err)
+		}
+
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "uuidrange",
+			OID:   uuidrangeOID,
+			Codec: &pgtype.RangeCodec{ElementType: uuidType},
+		})
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
 

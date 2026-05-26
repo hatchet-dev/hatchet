@@ -1777,14 +1777,19 @@ CREATE TABLE v1_payload_cutover_job_offset (
     final_row_count_diff BIGINT
 );
 
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TYPE uuidrange AS RANGE (
+    SUBTYPE = UUID
+);
+
 CREATE TABLE v1_payload_offloaded_block_index (
     payload_inserted_at_date DATE NOT NULL,
-    block_lower_external_id_bound UUID NOT NULL,
-    block_upper_external_id_bound UUID NOT NULL,
+    block_external_id_range uuidrange NOT NULL,
     index_file_key TEXT NOT NULL,
-    -- todo: add source db here?
-    PRIMARY KEY (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound)
-) PARTITION BY RANGE (payload_inserted_at_date);
+    CONSTRAINT v1_payload_offloaded_block_index_date_range_excl
+        EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
+);
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date

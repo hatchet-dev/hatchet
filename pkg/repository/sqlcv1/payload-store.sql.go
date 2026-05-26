@@ -134,17 +134,15 @@ func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, arg Comp
 const createOffloadedPayloadIndexBlock = `-- name: CreateOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payload_offloaded_block_index (
     payload_inserted_at_date,
-    block_lower_external_id_bound,
-    block_upper_external_id_bound,
+    block_external_id_range,
     index_file_key
 )
 VALUES (
     $1::DATE,
-    $2::UUID,
-    $3::UUID,
+    uuidrange($2::UUID, $3::UUID),
     $4::TEXT
 )
-ON CONFLICT (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound) DO NOTHING
+ON CONFLICT ON CONSTRAINT v1_payload_offloaded_block_index_date_range_excl DO NOTHING
 `
 
 type CreateOffloadedPayloadIndexBlockParams struct {
@@ -228,12 +226,21 @@ func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db D
 	return err
 }
 
+const deleteOldPayloadOffloadedBlockIndexRows = `-- name: DeleteOldPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payload_offloaded_block_index
+WHERE payload_inserted_at_date < $1::DATE
+`
+
+func (q *Queries) DeleteOldPayloadOffloadedBlockIndexRows(ctx context.Context, db DBTX, before pgtype.Date) error {
+	_, err := db.Exec(ctx, deleteOldPayloadOffloadedBlockIndexRows, before)
+	return err
+}
+
 const getOffloadedPayloadIndexBlock = `-- name: GetOffloadedPayloadIndexBlock :one
 SELECT index_file_key
 FROM v1_payload_offloaded_block_index
 WHERE payload_inserted_at_date = $1::DATE
-  AND block_lower_external_id_bound <= $2::UUID
-  AND block_upper_external_id_bound >= $2::UUID
+  AND block_external_id_range @> $2::UUID
 LIMIT 1
 `
 

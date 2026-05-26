@@ -171,23 +171,25 @@ SELECT compute_payload_batch_size(
 SELECT index_file_key
 FROM v1_payload_offloaded_block_index
 WHERE payload_inserted_at_date = @insertedAtDate::DATE
-  AND block_lower_external_id_bound <= @externalId::UUID
-  AND block_upper_external_id_bound >= @externalId::UUID
+  AND block_external_id_range @> @externalId::UUID
 LIMIT 1
 ;
 
 -- name: CreateOffloadedPayloadIndexBlock :exec
 INSERT INTO v1_payload_offloaded_block_index (
     payload_inserted_at_date,
-    block_lower_external_id_bound,
-    block_upper_external_id_bound,
+    block_external_id_range,
     index_file_key
 )
 VALUES (
     @payloadInsertedAtDate::DATE,
-    @blockLowerExternalIdBound::UUID,
-    @blockUpperExternalIdBound::UUID,
+    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID),
     @indexFileKey::TEXT
 )
-ON CONFLICT (payload_inserted_at_date, block_lower_external_id_bound, block_upper_external_id_bound) DO NOTHING
+ON CONFLICT ON CONSTRAINT v1_payload_offloaded_block_index_date_range_excl DO NOTHING
+;
+
+-- name: DeleteOldPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payload_offloaded_block_index
+WHERE payload_inserted_at_date < @before::DATE
 ;
