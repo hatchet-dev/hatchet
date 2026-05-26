@@ -64,6 +64,7 @@ export async function loader(_args: { request: Request }) {
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
+    isCloudEnabled,
     isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
@@ -128,13 +129,17 @@ function AuthenticatedInner() {
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
-    onSuccess: () => {
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
 
-  const { pendingInvitesQuery } = usePendingInvites();
+  const { pendingInvitesQuery } = usePendingInvites({
+    isCloudEnabled: loaderData.isCloudEnabled,
+    isControlPlaneEnabled: loaderData.isControlPlaneEnabled,
+  });
 
   const {
     isCloudEnabled,
@@ -229,6 +234,7 @@ function AuthenticatedInner() {
       pendingInvites.organizationInvites.length > 0;
 
     const mustAcceptTenantInviteNow =
+      okayToMakeOnboardingRedirectDecisions &&
       tenantMemberships &&
       tenantMemberships.length === 0 &&
       pendingInvites &&

@@ -55,6 +55,7 @@ func (w *WorkersClient) List(ctx context.Context) (*rest.WorkerList, error) {
 	resp, err := w.api.WorkerListWithResponse(
 		ctx,
 		w.tenantId,
+		nil,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list workers")

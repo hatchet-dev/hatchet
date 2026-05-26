@@ -399,3 +399,8 @@ export interface SsoConfig {
   /** @example false */
   forceSSO: boolean;
 }
+
+export interface OrganizationEntitlements {
+  /** @example false */
+  canSSO: boolean;
+}

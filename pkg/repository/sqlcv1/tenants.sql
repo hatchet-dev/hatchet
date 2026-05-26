@@ -81,10 +81,8 @@ WHERE
     AND "slug" = 'internal';
 
 -- name: ListTenantsByControllerPartitionId :many
-SELECT
-    *
-FROM
-    "Tenant" as tenants
+SELECT "id"
+FROM "Tenant"
 WHERE
     "controllerPartitionId" = sqlc.arg('controllerPartitionId')::text
     AND "version" = 'V1'::"TenantMajorEngineVersion"

@@ -176,24 +176,28 @@ func (l *DurableEventsListener) AddSignal(
 }
 
 func (l *DurableEventsListener) retrySend(t listenTuple) error {
-	l.clientMu.RLock()
-	defer l.clientMu.RUnlock()
+	for i := range DefaultActionListenerRetryCount {
+		if i > 0 {
+			time.Sleep(DefaultActionListenerRetryInterval)
+		}
 
-	if l.client == nil {
-		return fmt.Errorf("client is not connected")
-	}
+		err := func() error {
+			l.clientMu.RLock()
+			defer l.clientMu.RUnlock()
 
-	for i := 0; i < DefaultActionListenerRetryCount; i++ {
-		err := l.client.Send(&contracts.ListenForDurableEventRequest{
-			TaskId:    t.taskId,
-			SignalKey: t.signalKey,
-		})
+			if l.client == nil {
+				return fmt.Errorf("client is not connected")
+			}
+
+			return l.client.Send(&contracts.ListenForDurableEventRequest{
+				TaskId:    t.taskId,
+				SignalKey: t.signalKey,
+			})
+		}()
 
 		if err == nil {
 			return nil
 		}
-
-		time.Sleep(DefaultActionListenerRetryInterval)
 	}
 
 	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)

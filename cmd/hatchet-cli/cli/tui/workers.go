@@ -428,6 +428,7 @@ func (v *WorkersView) fetchWorkers() tea.Cmd {
 		response, err := v.Ctx.Client.API().WorkerListWithResponse(
 			ctx,
 			tenantUUID,
+			nil,
 		)
 
 		if err != nil {

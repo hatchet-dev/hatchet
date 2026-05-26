@@ -137,7 +137,7 @@ type TenantRepository interface {
 	GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*sqlcv1.Tenant, error)
 
 	// ListTenantsByPartition lists all tenants in the given partition
-	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*sqlcv1.Tenant, error)
+	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]uuid.UUID, error)
 
 	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*sqlcv1.Tenant, error)
 
@@ -743,7 +743,7 @@ func (r *tenantRepository) GetInternalTenantForController(ctx context.Context, c
 	return tenant, nil
 }
 
-func (r *tenantRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]*sqlcv1.Tenant, error) {
+func (r *tenantRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]uuid.UUID, error) {
 	if controllerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}

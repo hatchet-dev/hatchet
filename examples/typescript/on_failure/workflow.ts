@@ -20,8 +20,8 @@ failureWorkflow.task({
 failureWorkflow.onFailure({
   name: 'on_failure',
   fn: async (_input, ctx) => {
-    console.log('onFailure for run:', ctx.workflowRunId());
-    console.log('upstream errors:', ctx.errors());
+    ctx.logger.info(`onFailure for run: ${ctx.workflowRunId()}`);
+    ctx.logger.info('upstream errors', { errors: ctx.errors() });
 
     return {
       status: 'success',

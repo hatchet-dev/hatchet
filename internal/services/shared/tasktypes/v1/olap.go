@@ -30,33 +30,31 @@ func CELEvaluationFailureMessage(tenantId uuid.UUID, failures []v1.CELEvaluation
 
 type CreatedTaskPayload struct {
 	*v1.V1TaskWithPayload
+	RequeueCount int `json:"requeue_count"`
 }
 
-func CreatedTaskMessage(tenantId uuid.UUID, task *v1.V1TaskWithPayload) (*msgqueue.Message, error) {
+func CreatedTaskMessage(tenantId uuid.UUID, payload CreatedTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedTask,
 		false,
 		true,
-		CreatedTaskPayload{
-			V1TaskWithPayload: task,
-		},
+		payload,
 	)
 }
 
 type CreatedDAGPayload struct {
 	*v1.DAGWithData
+	RequeueCount int `json:"requeue_count"`
 }
 
-func CreatedDAGMessage(tenantId uuid.UUID, dag *v1.DAGWithData) (*msgqueue.Message, error) {
+func CreatedDAGMessage(tenantId uuid.UUID, payload CreatedDAGPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDCreatedDAG,
 		false,
 		true,
-		CreatedDAGPayload{
-			DAGWithData: dag,
-		},
+		payload,
 	)
 }
 
@@ -90,6 +88,8 @@ func CreatedEventTriggerMessage(tenantId uuid.UUID, eventTriggers CreatedEventTr
 
 type CreateMonitoringEventPayload struct {
 	TaskId int64 `json:"task_id"`
+
+	RequeueCount int `json:"requeue_count"`
 
 	RetryCount             int32 `json:"retry_count"`
 	DurableInvocationCount int32 `json:"durable_invocation_count"`

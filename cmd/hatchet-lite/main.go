@@ -17,6 +17,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
+	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
 
 var printVersion bool
@@ -117,9 +118,13 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		return fmt.Errorf("error parsing API URL: %w", err)
 	}
 
+	disableSecurityCheck := func(scf *server.ServerConfigFile) {
+		scf.SecurityCheck.Enabled = false
+	}
+
 	// api process
 	go func() {
-		api.Start(cf, interruptCh, version) // nolint:errcheck
+		api.Start(cf, interruptCh, version, disableSecurityCheck) // nolint:errcheck
 	}()
 
 	// static file server
@@ -142,7 +147,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	defer cancel()
 
 	go func() {
-		if err := engine.Run(ctx, cf, version); err != nil {
+		if err := engine.Run(ctx, cf, version, disableSecurityCheck); err != nil {
 			log.Printf("engine failure: %s", err.Error())
 			os.Exit(1)
 		}

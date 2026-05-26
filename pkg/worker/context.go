@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
@@ -1061,6 +1062,8 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
 func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+	namespace := d.c.Namespace()
+	eventKey = clientconfig.ApplyNamespace(eventKey, &namespace)
 	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
 
 	if err != nil {
