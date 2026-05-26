@@ -2302,12 +2302,19 @@ SELECT compute_olap_payload_batch_size(
     @batchSize::INTEGER
 ) AS total_size_bytes;
 
--- name: GetOLAPOffloadedPayloadIndexBlock :one
-SELECT index_file_key
-FROM v1_payloads_olap_offloaded_block_index
-WHERE payload_inserted_at_date = @insertedAtDate::DATE
-  AND block_external_id_range @> @externalId::UUID
-LIMIT 1
+-- name: GetOLAPOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        UNNEST(@externalIds::UUID[]) AS external_id
+)
+
+SELECT i.external_id::UUID AS external_id, p.index_file_key
+FROM v1_payloads_olap_offloaded_block_index p
+-- todo: make sure this join uses the index correctly
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
 ;
 
 -- name: CreateOLAPOffloadedPayloadIndexBlock :exec

@@ -791,24 +791,49 @@ func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX
 	return &i, err
 }
 
-const getOLAPOffloadedPayloadIndexBlock = `-- name: GetOLAPOffloadedPayloadIndexBlock :one
-SELECT index_file_key
-FROM v1_payloads_olap_offloaded_block_index
-WHERE payload_inserted_at_date = $1::DATE
-  AND block_external_id_range @> $2::UUID
-LIMIT 1
+const getOLAPOffloadedPayloadIndexBlocks = `-- name: GetOLAPOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::DATE[]) AS inserted_at_date,
+        UNNEST($2::UUID[]) AS external_id
+)
+
+SELECT i.external_id::UUID AS external_id, p.index_file_key
+FROM v1_payloads_olap_offloaded_block_index p
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
 `
 
-type GetOLAPOffloadedPayloadIndexBlockParams struct {
-	Insertedatdate pgtype.Date `json:"insertedatdate"`
-	Externalid     uuid.UUID   `json:"externalid"`
+type GetOLAPOffloadedPayloadIndexBlocksParams struct {
+	Insertedats []pgtype.Date `json:"insertedats"`
+	Externalids []uuid.UUID   `json:"externalids"`
 }
 
-func (q *Queries) GetOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg GetOLAPOffloadedPayloadIndexBlockParams) (string, error) {
-	row := db.QueryRow(ctx, getOLAPOffloadedPayloadIndexBlock, arg.Insertedatdate, arg.Externalid)
-	var index_file_key string
-	err := row.Scan(&index_file_key)
-	return index_file_key, err
+type GetOLAPOffloadedPayloadIndexBlocksRow struct {
+	ExternalID   uuid.UUID `json:"external_id"`
+	IndexFileKey string    `json:"index_file_key"`
+}
+
+// todo: make sure this join uses the index correctly
+func (q *Queries) GetOLAPOffloadedPayloadIndexBlocks(ctx context.Context, db DBTX, arg GetOLAPOffloadedPayloadIndexBlocksParams) ([]*GetOLAPOffloadedPayloadIndexBlocksRow, error) {
+	rows, err := db.Query(ctx, getOLAPOffloadedPayloadIndexBlocks, arg.Insertedats, arg.Externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetOLAPOffloadedPayloadIndexBlocksRow
+	for rows.Next() {
+		var i GetOLAPOffloadedPayloadIndexBlocksRow
+		if err := rows.Scan(&i.ExternalID, &i.IndexFileKey); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRunsListRecursive = `-- name: GetRunsListRecursive :many

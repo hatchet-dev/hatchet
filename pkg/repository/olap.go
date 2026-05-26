@@ -3091,6 +3091,9 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	if r.payloadStore.ExternalStoreEnabled() {
+		retrieveIndexBlockExternalIds := make([]uuid.UUID, 0)
+		retrieveIndexBlockInsertedAtDates := make([]pgtype.Date, 0)
+
 		for _, opt := range opts {
 			if _, found := externalIdToPayload[opt.ExternalId]; found {
 				continue
@@ -3099,29 +3102,32 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 				continue
 			}
 
-			indexFileKey, err := r.queries.GetOLAPOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.GetOLAPOffloadedPayloadIndexBlockParams{
-				Insertedatdate: pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true},
-				Externalid:     opt.ExternalId,
+			retrieveIndexBlockExternalIds = append(retrieveIndexBlockExternalIds, opt.ExternalId)
+			retrieveIndexBlockInsertedAtDates = append(retrieveIndexBlockInsertedAtDates, pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true})
+		}
+
+		if len(retrieveIndexBlockExternalIds) > 0 {
+			indexFileKeys, err := r.queries.GetOLAPOffloadedPayloadIndexBlocks(ctx, tx, sqlcv1.GetOLAPOffloadedPayloadIndexBlocksParams{
+				Insertedats: retrieveIndexBlockInsertedAtDates,
+				Externalids: retrieveIndexBlockExternalIds,
 			})
 
-			if errors.Is(err, pgx.ErrNoRows) {
-				continue
-			}
-
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return nil, fmt.Errorf("error getting offloaded payload index block: %v", err)
 			}
 
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByIndexFile,
-				ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-					IndexFileKey: ExternalIndexFileLocationKey(indexFileKey),
-					ExternalId:   opt.ExternalId,
-				},
-			}
+			for _, k := range indexFileKeys {
+				retrieveFromExternalOpt := RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+						ExternalId:   k.ExternalID,
+					},
+				}
 
-			externalIdToRetrieveFromExternalOpt[opt.ExternalId] = retrieveFromExternalOpt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+				externalIdToRetrieveFromExternalOpt[k.ExternalID] = retrieveFromExternalOpt
+				retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+			}
 		}
 	}
 

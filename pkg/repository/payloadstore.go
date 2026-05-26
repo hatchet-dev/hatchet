@@ -346,6 +346,10 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	if p.externalStoreEnabled {
+		retrieveIndexBlockExternalIds := make([]uuid.UUID, 0)
+		retrieveIndexBlockInsertedAtDates := make([]pgtype.Date, 0)
+		externalIdToOpt := make(map[uuid.UUID]RetrievePayloadOpts)
+
 		for _, opt := range opts {
 			if opt.ExternalId == uuid.Nil {
 				continue
@@ -361,30 +365,39 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			if _, found := foundKeys[key]; found {
 				continue
 			}
+			retrieveIndexBlockExternalIds = append(retrieveIndexBlockExternalIds, opt.ExternalId)
+			retrieveIndexBlockInsertedAtDates = append(retrieveIndexBlockInsertedAtDates, pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true})
+			externalIdToOpt[opt.ExternalId] = opt
+		}
 
-			indexFileKey, err := p.queries.GetOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.GetOffloadedPayloadIndexBlockParams{
-				Insertedatdate: pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true},
-				Externalid:     opt.ExternalId,
+		if len(retrieveIndexBlockExternalIds) > 0 {
+			indexFileKeys, err := p.queries.GetOffloadedPayloadIndexBlocks(ctx, tx, sqlcv1.GetOffloadedPayloadIndexBlocksParams{
+				Insertedats: retrieveIndexBlockInsertedAtDates,
+				Externalids: retrieveIndexBlockExternalIds,
 			})
 
-			if errors.Is(err, pgx.ErrNoRows) {
-				continue
-			}
-
-			if err != nil {
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 				return nil, fmt.Errorf("failed to get offloaded payload index block: %w", err)
 			}
 
-			retrieveFromExternalOpt := RetrieveFromExternalOpts{
-				Method: RetrieveFromExternalByIndexFile,
-				ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-					IndexFileKey: ExternalIndexFileLocationKey(indexFileKey),
-					ExternalId:   opt.ExternalId,
-				},
-			}
+			for _, k := range indexFileKeys {
+				retrieveFromExternalOpt := RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+						ExternalId:   k.ExternalID,
+					},
+				}
+				opt, ok := externalIdToOpt[k.ExternalID]
 
-			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
-			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+				if !ok {
+					p.l.Error().Msg("got index file key for external id that was not requested")
+					continue
+				}
+
+				retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
+				retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+			}
 		}
 	}
 
