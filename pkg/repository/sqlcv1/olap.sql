@@ -2318,7 +2318,7 @@ INSERT INTO v1_payloads_olap_offloaded_block_index (
 )
 VALUES (
     @payloadInsertedAtDate::DATE,
-    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID),
+    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID, '(]'),
     @indexFileKey::TEXT
 )
 ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING

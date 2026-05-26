@@ -163,21 +163,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		conn.TypeMap().RegisterType(t)
 
-		uuidType, ok := conn.TypeMap().TypeForName("uuid")
-		if !ok {
-			return fmt.Errorf("uuid type not found in type map")
+		if uuidType, ok := conn.TypeMap().TypeForName("uuid"); ok {
+			var uuidrangeOID uint32
+			err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID)
+			if err != nil && err != pgx.ErrNoRows {
+				return fmt.Errorf("loading uuidrange oid: %w", err)
+			}
+			if err == nil {
+				conn.TypeMap().RegisterType(&pgtype.Type{
+					Name:  "uuidrange",
+					OID:   uuidrangeOID,
+					Codec: &pgtype.RangeCodec{ElementType: uuidType},
+				})
+			}
 		}
-
-		var uuidrangeOID uint32
-		if err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID); err != nil {
-			return fmt.Errorf("loading uuidrange oid: %w", err)
-		}
-
-		conn.TypeMap().RegisterType(&pgtype.Type{
-			Name:  "uuidrange",
-			OID:   uuidrangeOID,
-			Codec: &pgtype.RangeCodec{ElementType: uuidType},
-		})
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
 
