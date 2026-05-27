@@ -19,6 +19,7 @@ from examples.durable.worker import (
     durable_spawn_dag,
     durable_non_determinism,
     durable_replay_reset,
+    durable_child_key_dedup_replay,
     memo_task,
     MemoInput,
     DurableBulkSpawnInput,
@@ -28,6 +29,7 @@ from examples.durable.worker import (
     wait_for_event_lookback,
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
+    durable_spawn_many_dags,
 )
 from hatchet_sdk import Hatchet
 
@@ -143,6 +145,28 @@ async def test_durable_sleep_event_spawn_replay(hatchet: Hatchet) -> None:
 
     assert replayed_result["child_output"] == {"message": "hello from child 1"}
     assert replay_elapsed < SLEEP_TIME + TIMING_TOLERANCE
+
+
+@requires_durable_eviction
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_child_key_dedup_replay(hatchet: Hatchet) -> None:
+    ref = await durable_child_key_dedup_replay.aio_run(wait_for_result=False)
+    result = await ref.aio_result()
+
+    assert result.runtime >= 2 * SLEEP_TIME
+    assert result.child_1_output == {"message": "hello from child 1"}
+    assert result.child_2_output == {"message": "hello from child 2"}
+    assert result.child_3_output == result.child_1_output
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+    await asyncio.sleep(5)
+
+    replayed_result = await ref.aio_result()
+
+    assert replayed_result.child_1_output == result.child_1_output
+    assert replayed_result.child_2_output == result.child_2_output
+    assert replayed_result.child_3_output == result.child_3_output
+    assert replayed_result.runtime < SLEEP_TIME
 
 
 @requires_durable_eviction
@@ -401,3 +425,25 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     payload = cast(dict[str, str], json.loads(event.payload))
 
     assert res.event.order == payload["order"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
+    ref = await durable_spawn_many_dags.aio_run(wait_for_result=False)
+    result = await ref.aio_result()
+
+    assert {singleton.child_index for singleton in result.results} == set(range(20))
+    assert all(singleton.has_both_child_outputs for singleton in result.results)
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    await asyncio.sleep(5)
+
+    replayed_result = await ref.aio_result()
+
+    assert {singleton.child_index for singleton in replayed_result.results} == set(
+        range(20)
+    )
+    assert all(
+        singleton.has_both_child_outputs for singleton in replayed_result.results
+    )

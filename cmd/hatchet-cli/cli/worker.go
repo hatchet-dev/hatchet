@@ -314,7 +314,7 @@ func handleNoProfiles(cmd *cobra.Command) string {
 func startLocalServerAndCreateProfile(cmd *cobra.Command) string {
 	fmt.Println(styles.InfoMessage("Starting local Hatchet server..."))
 
-	result, err := startLocalServer(cmd, "local", 0, 0, "")
+	result, err := startLocalServer(cmd, "local")
 	if err != nil {
 		cli.Logger.Errorf("%v", err)
 		fmt.Println()

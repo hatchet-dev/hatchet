@@ -129,6 +129,38 @@ describe('EventClient', () => {
     });
   });
 
+  it('should apply options.priority and options.scope as defaults in bulkPush', async () => {
+    const clientSpy = jest.spyOn(client.client, 'bulkPush').mockResolvedValue({
+      events: [],
+    });
+
+    const events = [
+      { payload: { foo: 'bar1' } },
+      { payload: { foo: 'bar2' }, priority: 7, scope: 'per-event-scope' },
+    ];
+
+    await client.bulkPush('type', events, { priority: 3, scope: 'shared-scope' });
+
+    expect(clientSpy).toHaveBeenCalledWith({
+      events: [
+        {
+          key: 'type',
+          payload: '{"foo":"bar1"}',
+          eventTimestamp: expect.any(Date),
+          priority: 3,
+          scope: 'shared-scope',
+        },
+        {
+          key: 'type',
+          payload: '{"foo":"bar2"}',
+          eventTimestamp: expect.any(Date),
+          priority: 7,
+          scope: 'per-event-scope',
+        },
+      ],
+    });
+  });
+
   it('should throw an error when bulkPush fails', async () => {
     // Mock the bulkPush method to throw an error
     const clientSpy = jest.spyOn(client.client, 'bulkPush');

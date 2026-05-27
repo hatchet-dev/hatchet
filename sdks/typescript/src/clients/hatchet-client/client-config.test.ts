@@ -54,3 +54,48 @@ describe('ClientConfigSchema cancellation timing', () => {
     ).toThrow();
   });
 });
+
+describe('ClientConfigSchema gRPC max message length', () => {
+  it('applies 4MB defaults for both recv and send', () => {
+    const cfg = ClientConfigSchema.parse(baseConfig());
+    expect(cfg.grpc_max_recv_message_length).toBe(4 * 1024 * 1024);
+    expect(cfg.grpc_max_send_message_length).toBe(4 * 1024 * 1024);
+  });
+
+  it('accepts custom positive integer values', () => {
+    const cfg = ClientConfigSchema.parse({
+      ...baseConfig(),
+      grpc_max_recv_message_length: 8 * 1024 * 1024,
+      grpc_max_send_message_length: 16 * 1024 * 1024,
+    });
+    expect(cfg.grpc_max_recv_message_length).toBe(8 * 1024 * 1024);
+    expect(cfg.grpc_max_send_message_length).toBe(16 * 1024 * 1024);
+  });
+
+  it('rejects invalid values', () => {
+    expect(() =>
+      ClientConfigSchema.parse({
+        ...baseConfig(),
+        grpc_max_recv_message_length: 0,
+      })
+    ).toThrow();
+    expect(() =>
+      ClientConfigSchema.parse({
+        ...baseConfig(),
+        grpc_max_send_message_length: -1,
+      })
+    ).toThrow();
+    expect(() =>
+      ClientConfigSchema.parse({
+        ...baseConfig(),
+        grpc_max_recv_message_length: 1.5,
+      })
+    ).toThrow();
+    expect(() =>
+      ClientConfigSchema.parse({
+        ...baseConfig(),
+        grpc_max_send_message_length: '4mb' as any,
+      })
+    ).toThrow();
+  });
+});
