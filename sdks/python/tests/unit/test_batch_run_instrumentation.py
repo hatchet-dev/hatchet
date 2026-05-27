@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,11 +19,9 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
 )
 from opentelemetry.trace import StatusCode, get_tracer
 
-from hatchet_sdk.opentelemetry.instrumentor import (
-    HatchetInstrumentor,
-    _create_traceparent_from_span,
-)
+from hatchet_sdk.opentelemetry.instrumentor import HatchetInstrumentor
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions, WorkflowRunTriggerConfig
+from hatchet_sdk.workflow_run import WorkflowRunRef
 
 BATCH_SPAN_NAME = "hatchet.run_workflows"
 ITEM_SPAN_NAME = "hatchet.run_workflow"
@@ -56,7 +55,7 @@ def instrumentor(exporter: InMemorySpanExporter) -> HatchetInstrumentor:
     inst = object.__new__(HatchetInstrumentor)
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
-    inst._tracer = get_tracer(__name__, "test", provider)  # type: ignore[attr-defined]
+    inst._tracer = get_tracer(__name__, "test", provider)
     inst.config = MagicMock()
     inst.config.otel.excluded_attributes = []
     return inst
@@ -67,9 +66,9 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
 ) -> None:
     captured: list[WorkflowRunTriggerConfig] = []
 
-    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[None]:
+    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         captured.extend(configs)
-        return [None for _ in configs]
+        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
     instrumentor._wrap_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -100,8 +99,10 @@ def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(
 async def test_async_run_workflows_creates_one_item_span_per_config(
     instrumentor: HatchetInstrumentor, exporter: InMemorySpanExporter
 ) -> None:
-    async def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[None]:
-        return [None for _ in configs]
+    async def wrapped(
+        configs: list[WorkflowRunTriggerConfig],
+    ) -> list[WorkflowRunRef]:
+        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(2)]
     await instrumentor._wrap_async_run_workflows(wrapped, MagicMock(), (configs,), {})
@@ -119,19 +120,19 @@ def test_run_workflows_ends_spans_with_error_when_attribute_build_raises(
 
     def build_with_failure(
         config: WorkflowRunTriggerConfig,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         call_count["n"] += 1
         if call_count["n"] == 2:
             raise boom
         return original_build(config)
 
-    instrumentor._build_run_workflow_attributes = build_with_failure  # type: ignore[assignment]
+    instrumentor._build_run_workflow_attributes = build_with_failure  # type: ignore[method-assign]
 
     wrapped_calls: list[list[WorkflowRunTriggerConfig]] = []
 
-    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[None]:
+    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         wrapped_calls.append(configs)
-        return [None for _ in configs]
+        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
 
     configs = [_make_config(f"wf-{i}") for i in range(3)]
 
@@ -151,7 +152,7 @@ def test_run_workflows_ends_spans_with_error_when_wrapped_raises_synchronously(
 ) -> None:
     boom = RuntimeError("sync wrapped boom")
 
-    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[None]:
+    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
         raise boom
 
     configs = [_make_config(f"wf-{i}") for i in range(2)]
@@ -170,7 +171,9 @@ async def test_async_run_workflows_ends_spans_with_error_when_wrapped_raises(
 ) -> None:
     boom = RuntimeError("async wrapped boom")
 
-    async def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[None]:
+    async def wrapped(
+        configs: list[WorkflowRunTriggerConfig],
+    ) -> list[WorkflowRunRef]:
         raise boom
 
     configs = [_make_config(f"wf-{i}") for i in range(2)]
