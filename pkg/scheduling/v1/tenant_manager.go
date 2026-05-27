@@ -220,6 +220,7 @@ func (t *tenantManager) listenForBatchLeases(ctx context.Context) {
 			if !ok {
 				return
 			}
+			t.replenish(ctx)
 
 			t.setBatchSchedulers(ctx, batches)
 		}
