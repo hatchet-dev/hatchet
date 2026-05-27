@@ -5,6 +5,7 @@ on:
 
 jobs:
   labeler:
+    if: ${{ github.actor != 'dependabot[bot]' }}
     permissions:
       contents: read
       pull-requests: write
