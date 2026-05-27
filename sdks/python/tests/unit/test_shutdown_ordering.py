@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.utils.typing import STOP_LOOP
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -20,40 +21,23 @@ from hatchet_sdk.worker.action_listener_process import (
 )
 
 _LISTENER_MODULE = "hatchet_sdk.worker.action_listener_process"
+_ACTION_LISTENER_MODULE = "hatchet_sdk.clients.dispatcher.action_listener"
 
 _CTX = multiprocessing.get_context("spawn")
 
 
 @dataclass
 class _FakeAction:
-    """Picklable stand-in for an Action used in event-queue drain tests."""
-
     action_type: Any = None
     action_id: str = "test-action-id"
 
 
-class _StubActionListener:
-    """Minimal stand-in for an ActionListener gRPC stream.
-
-    Blocks in __aiter__ until stop_signal is set, so tests control exactly
-    when the action loop exits.
-    """
-
-    def __init__(self) -> None:
-        self.stop_signal: bool = False
-        self.worker_id: str = "test-worker-id"
-        self.cleanup_called: bool = False
-
-    def cleanup(self) -> None:
-        self.cleanup_called = True
-
-    def __aiter__(self) -> "_StubActionListener":
-        return self
-
-    async def __anext__(self) -> None:
-        while not self.stop_signal:
-            await asyncio.sleep(0.01)
-        raise StopAsyncIteration
+def _make_listener(worker_id: str = "test-worker-id") -> ActionListener:
+    with patch(f"{_ACTION_LISTENER_MODULE}.new_conn"):
+        listener = ActionListener(config=MagicMock(), worker_id=worker_id)
+    listener.cleanup = MagicMock()
+    listener.get_listen_client = AsyncMock(side_effect=Exception("no gRPC server in tests"))
+    return listener
 
 
 def _make_process(
@@ -61,7 +45,6 @@ def _make_process(
     worker_id_queue: Any,
     event_queue: Any = None,
 ) -> WorkerActionListenerProcess:
-    """Create a WorkerActionListenerProcess with minimal mocking."""
     config = MagicMock()
     config.healthcheck.enabled = False
 
@@ -86,7 +69,6 @@ def _make_process(
 
 
 async def _cancel_tasks(*tasks: asyncio.Task[Any] | None) -> None:
-    """Cancel asyncio tasks and wait for them to finish."""
     for task in tasks:
         if task is not None and not task.done():
             task.cancel()
@@ -94,18 +76,13 @@ async def _cancel_tasks(*tasks: asyncio.Task[Any] | None) -> None:
                 await task
 
 
-# ---------------------------------------------------------------------------
-# Test 1: stop_event fires _stop_action_loop() without any os.kill
-# ---------------------------------------------------------------------------
-
-
 async def test_stop_event_stops_action_loop_without_kill() -> None:
-    """Setting the stop_event triggers _stop_action_loop — no os.kill needed."""
     stop_event = _CTX.Event()
     worker_id_queue: Any = _CTX.Queue()
 
     process = _make_process(stop_event, worker_id_queue)
-    process.listener = _StubActionListener()  # type: ignore[assignment]
+    listener = _make_listener()
+    process.listener = listener  # type: ignore[assignment]
 
     task = asyncio.create_task(process._wait_for_stop_event())
 
@@ -118,12 +95,7 @@ async def test_stop_event_stops_action_loop_without_kill() -> None:
     await asyncio.wait_for(task, timeout=5.0)
 
     assert process.killing, "_stop_action_loop should have set killing=True"
-    assert process.listener.cleanup_called, "listener.cleanup() should have been called"
-
-
-# ---------------------------------------------------------------------------
-# Test 2: _stop_action_loop is idempotent (safe to call twice)
-# ---------------------------------------------------------------------------
+    listener.cleanup.assert_called_once()
 
 
 async def test_stop_action_loop_is_idempotent() -> None:
@@ -132,8 +104,8 @@ async def test_stop_action_loop_is_idempotent() -> None:
     worker_id_queue: Any = _CTX.Queue()
 
     process = _make_process(stop_event, worker_id_queue)
-    stub = _StubActionListener()
-    process.listener = stub  # type: ignore[assignment]
+    listener = _make_listener()
+    process.listener = listener  # type: ignore[assignment]
 
     await process._stop_action_loop()
     assert process.killing
@@ -141,24 +113,18 @@ async def test_stop_action_loop_is_idempotent() -> None:
     # Second call must succeed silently.
     await process._stop_action_loop()
     # cleanup() is called exactly once (the second call short-circuits).
-    assert stub.cleanup_called
-
-
-# ---------------------------------------------------------------------------
-# Test 3: worker_id is published to worker_id_queue during start()
-# ---------------------------------------------------------------------------
+    listener.cleanup.assert_called_once()
 
 
 async def test_worker_id_published_to_queue_on_start() -> None:
-    """The listener must put its worker_id in worker_id_queue at startup."""
     stop_event = _CTX.Event()
     worker_id_queue: Any = _CTX.Queue()
     event_queue: Any = _CTX.Queue()
 
-    stub = _StubActionListener()
+    listener = _make_listener()
 
     mock_dispatcher = AsyncMock()
-    mock_dispatcher.get_action_listener = AsyncMock(return_value=stub)
+    mock_dispatcher.get_action_listener = AsyncMock(return_value=listener)
 
     process = _make_process(stop_event, worker_id_queue, event_queue)
 
@@ -179,12 +145,9 @@ async def test_worker_id_published_to_queue_on_start() -> None:
             pytest.fail("worker_id was not enqueued within 1s of start()")
         assert published_id == "test-worker-id"
     finally:
-        # Clean up background tasks — always, even on assertion failure.
-        stub.stop_signal = True  # exits action_loop
         event_queue.put(STOP_LOOP)  # exits event_send_loop
         stop_event.set()  # exits _wait_for_stop_event
 
-        # Give tasks a moment to observe the signals, then cancel survivors.
         await asyncio.sleep(0.1)
         all_tasks = [
             process.action_loop_task,
@@ -197,11 +160,6 @@ async def test_worker_id_published_to_queue_on_start() -> None:
             for t in remaining:
                 t.cancel()
             await asyncio.gather(*remaining, return_exceptions=True)
-
-
-# ---------------------------------------------------------------------------
-# Test 4: event_queue drains before subprocess function exits
-# ---------------------------------------------------------------------------
 
 
 def test_event_queue_drains_before_process_exits() -> None:
@@ -220,7 +178,7 @@ def test_event_queue_drains_before_process_exits() -> None:
     config.healthcheck.enabled = False
 
     consumed_events: list[str] = []
-    stub_listener = _StubActionListener()
+    stub_listener = _make_listener()
 
     async def fake_send(
         action: Any, ev_type: Any, payload: Any, should_not_retry: Any
@@ -273,9 +231,7 @@ def test_event_queue_drains_before_process_exits() -> None:
     # Allow the event_send_loop a moment to pick up the event.
     time.sleep(0.1)
 
-    # Trigger graceful shutdown: stop action loop, then signal end of events.
-    stop_event.set()  # stops action loop via _wait_for_stop_event
-    stub_listener.stop_signal = True  # also stops action_loop iteration
+    stop_event.set()
     time.sleep(0.05)
     event_queue.put(STOP_LOOP)  # stops event_send_loop
 
