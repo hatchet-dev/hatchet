@@ -65,7 +65,7 @@ jobs:
         if: env.VERSION_TAG != ''
         working-directory: ${{ github.workspace }}
         run: |
-          gh release create "sdk-ts/${VERSION_TAG}" \
+          gh release create "ts/${VERSION_TAG}" \
             --target "$GITHUB_SHA" \
             --title "Typescript SDK ${VERSION_TAG}" \
             --notes-file ./release_notes.md \
