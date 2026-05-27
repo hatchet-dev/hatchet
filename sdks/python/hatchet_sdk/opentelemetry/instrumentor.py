@@ -905,29 +905,29 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             item_spans: list[ApiSpan] = []
             workflow_run_configs_with_meta: list[WorkflowRunTriggerConfig] = []
-            for config in workflow_run_configs:
-                item_span = self._tracer.start_span(
-                    "hatchet.run_workflow",
-                    attributes=self._build_run_workflow_attributes(config),
-                    kind=SpanKind.PRODUCER,
-                )
-                item_spans.append(item_span)
-                workflow_run_configs_with_meta.append(
-                    WorkflowRunTriggerConfig(
-                        **config.model_dump(exclude={"options"}),
-                        options=TriggerWorkflowOptions(
-                            **config.options.model_dump(
-                                exclude={"additional_metadata"}
-                            ),
-                            additional_metadata=_inject_traceparent_into_metadata(
-                                config.options.additional_metadata,
-                                _create_traceparent_from_span(item_span),
-                            ),
-                        ),
-                    )
-                )
-
             try:
+                for config in workflow_run_configs:
+                    item_span = self._tracer.start_span(
+                        "hatchet.run_workflow",
+                        attributes=self._build_run_workflow_attributes(config),
+                        kind=SpanKind.PRODUCER,
+                    )
+                    item_spans.append(item_span)
+                    workflow_run_configs_with_meta.append(
+                        WorkflowRunTriggerConfig(
+                            **config.model_dump(exclude={"options"}),
+                            options=TriggerWorkflowOptions(
+                                **config.options.model_dump(
+                                    exclude={"additional_metadata"}
+                                ),
+                                additional_metadata=_inject_traceparent_into_metadata(
+                                    config.options.additional_metadata,
+                                    _create_traceparent_from_span(item_span),
+                                ),
+                            ),
+                        )
+                    )
+
                 return wrapped(workflow_run_configs_with_meta)
             except Exception as e:
                 for s in item_spans:
@@ -968,29 +968,29 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         ):
             item_spans: list[ApiSpan] = []
             workflow_run_configs_with_meta: list[WorkflowRunTriggerConfig] = []
-            for config in workflow_run_configs:
-                item_span = self._tracer.start_span(
-                    "hatchet.run_workflow",
-                    attributes=self._build_run_workflow_attributes(config),
-                    kind=SpanKind.PRODUCER,
-                )
-                item_spans.append(item_span)
-                workflow_run_configs_with_meta.append(
-                    WorkflowRunTriggerConfig(
-                        **config.model_dump(exclude={"options"}),
-                        options=TriggerWorkflowOptions(
-                            **config.options.model_dump(
-                                exclude={"additional_metadata"}
-                            ),
-                            additional_metadata=_inject_traceparent_into_metadata(
-                                config.options.additional_metadata,
-                                _create_traceparent_from_span(item_span),
-                            ),
-                        ),
-                    )
-                )
-
             try:
+                for config in workflow_run_configs:
+                    item_span = self._tracer.start_span(
+                        "hatchet.run_workflow",
+                        attributes=self._build_run_workflow_attributes(config),
+                        kind=SpanKind.PRODUCER,
+                    )
+                    item_spans.append(item_span)
+                    workflow_run_configs_with_meta.append(
+                        WorkflowRunTriggerConfig(
+                            **config.model_dump(exclude={"options"}),
+                            options=TriggerWorkflowOptions(
+                                **config.options.model_dump(
+                                    exclude={"additional_metadata"}
+                                ),
+                                additional_metadata=_inject_traceparent_into_metadata(
+                                    config.options.additional_metadata,
+                                    _create_traceparent_from_span(item_span),
+                                ),
+                            ),
+                        )
+                    )
+
                 return await wrapped(workflow_run_configs_with_meta)
             except Exception as e:
                 for s in item_spans:
