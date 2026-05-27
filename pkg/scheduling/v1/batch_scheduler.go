@@ -550,8 +550,7 @@ func (b *BatchScheduler) assignQueueItems(
 			if replenishErr := b.scheduler.replenish(ctx, true); replenishErr != nil {
 				b.l.Error().Err(replenishErr).Msg("failed to replenish slots after worker refresh for batch action")
 			}
-		}
-		if err == nil {
+		} else {
 			fmt.Printf("[batch] assignQueueItems: no active workers found for tenant %s\n", b.tenantId)
 		}
 	}
