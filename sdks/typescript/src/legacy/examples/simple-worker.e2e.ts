@@ -1,8 +1,7 @@
 import { Workflow, Worker } from '../..';
 import sleep from '../../util/sleep';
 import Hatchet from '../../sdk';
-import {poll} from "@hatchet/v1/examples/__e2e__/harness";
-import {V1TaskEventType, V1TaskStatus} from "@clients/rest/generated/data-contracts";
+import { poll } from '@hatchet/v1/examples/__e2e__/harness';
 
 describe('e2e', () => {
   let hatchet: Hatchet;
