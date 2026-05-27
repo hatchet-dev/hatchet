@@ -171,7 +171,7 @@ WITH inputs AS (
         UNNEST(@externalIds::UUID[]) AS external_id
 )
 
-SELECT p.external_id::UUID AS external_id, index_file_key
+SELECT i.external_id::UUID AS external_id, index_file_key
 FROM v1_payload_offloaded_block_index p
 JOIN inputs i ON
     p.payload_inserted_at_date = i.inserted_at_date
