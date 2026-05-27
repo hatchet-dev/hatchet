@@ -168,6 +168,34 @@ type PayloadUniqueKey struct {
 	Type       sqlcv1.V1PayloadType
 }
 
+func normalizePayloadInsertedAt(insertedAt pgtype.Timestamptz) pgtype.Timestamptz {
+	if !insertedAt.Valid {
+		return insertedAt
+	}
+
+	insertedAt.Time = insertedAt.Time.UTC()
+
+	return insertedAt
+}
+
+func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
+	return PayloadUniqueKey{
+		ID:         opt.Id,
+		InsertedAt: normalizePayloadInsertedAt(opt.InsertedAt),
+		TenantId:   opt.TenantId,
+		Type:       opt.Type,
+	}
+}
+
+func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
+	return PayloadUniqueKey{
+		ID:         payload.ID,
+		InsertedAt: normalizePayloadInsertedAt(payload.InsertedAt),
+		TenantId:   payload.TenantID,
+		Type:       payload.Type,
+	}
+}
+
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
 	taskIds := make([]int64, 0, len(payloads))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
@@ -267,17 +295,15 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
 
-	externalIds := make([]uuid.UUID, len(opts))
 	ids := make([]int64, len(opts))
 	insertedAts := make([]pgtype.Timestamptz, len(opts))
 	types := make([]string, len(opts))
 	tenantIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
-		externalIds[i] = opt.ExternalId
-		types[i] = string(opt.Type)
 		ids[i] = opt.Id
 		insertedAts[i] = opt.InsertedAt
+		types[i] = string(opt.Type)
 		tenantIds[i] = opt.TenantId
 	}
 
@@ -293,6 +319,10 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
+	originalOptsByKey := make(map[PayloadUniqueKey]RetrievePayloadOpts, len(opts))
+	for _, opt := range opts {
+		originalOptsByKey[payloadUniqueKeyFromRetrieveOpt(opt)] = opt
+	}
 
 	retrieveFromExternalOptsToOpts := make(map[RetrieveFromExternalOpts]RetrievePayloadOpts)
 	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
@@ -304,19 +334,18 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			continue
 		}
 
-		foundKeys[PayloadUniqueKey{
-			ID:         payload.ID,
-			InsertedAt: payload.InsertedAt,
-			TenantId:   payload.TenantID,
-			Type:       payload.Type,
-		}] = struct{}{}
+		payloadKey := payloadUniqueKeyFromRow(payload)
+		foundKeys[payloadKey] = struct{}{}
 
-		opt := RetrievePayloadOpts{
-			Id:         payload.ID,
-			InsertedAt: payload.InsertedAt,
-			Type:       payload.Type,
-			TenantId:   payload.TenantID,
-			ExternalId: payload.ExternalID,
+		opt, ok := originalOptsByKey[payloadKey]
+		if !ok {
+			opt = RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+				ExternalId: payload.ExternalID,
+			}
 		}
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
@@ -355,12 +384,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 				continue
 			}
 
-			key := PayloadUniqueKey{
-				ID:         opt.Id,
-				InsertedAt: opt.InsertedAt,
-				TenantId:   opt.TenantId,
-				Type:       opt.Type,
-			}
+			key := payloadUniqueKeyFromRetrieveOpt(opt)
 
 			if _, found := foundKeys[key]; found {
 				continue
