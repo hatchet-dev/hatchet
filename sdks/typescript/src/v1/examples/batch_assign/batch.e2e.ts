@@ -5,7 +5,7 @@ import { Worker } from '../../client/worker/worker';
 import type { Context } from '../../client/worker/context';
 
 describe('batch-task e2e', () => {
-  jest.setTimeout(60000);
+  jest.setTimeout(1200000);
 
   let worker: Worker;
   const runId = randomUUID();
@@ -67,14 +67,16 @@ describe('batch-task e2e', () => {
   >({
     name: `batch-e2e-large-${runId}`,
     retries: 0,
-    batchMaxSize: 100,
-    batchMaxInterval: '10s',
-    fn: (tasks) =>
-      tasks.map(([input]) => ({
+    batchMaxSize: 1000,
+    batchMaxInterval: '1000s',
+    fn: (tasks) => {
+      console.info('task length', tasks.length);
+      return tasks.map(([input]) => ({
         received: true,
         batchSize: tasks.length,
         dataLength: input.data.length,
-      })),
+      }));
+    },
   });
 
   // Test 6: batch size of one
@@ -189,8 +191,8 @@ describe('batch-task e2e', () => {
   it('completes all tasks when batch contains 100+ items with 100kb+ payloads', async () => {
     jest.setTimeout(120_000);
 
-    const payload = 'x'.repeat(100_000); // ~100kb per task
-    const taskCount = 100;
+    const payload = 'x'.repeat(400_000); // ~400kb per task
+    const taskCount = 1000;
 
     const results = await Promise.all(
       Array.from({ length: taskCount }, () => largePayloadWorkflow.run({ data: payload }))
