@@ -226,6 +226,19 @@ test('durableTask should propagate generics', () => {
   expectType<TaskWorkflowDeclaration<In, Out>>(task);
 });
 
+test('durableTask context should expose checkpointed steps', () => {
+  hatchet.durableTask({
+    name: '',
+    fn: async (_input, ctx) => {
+      expectType<Promise<{ out: string }>>(ctx.step('load-user', () => ({ out: 'string' })));
+      expectType<Promise<'high'>>(ctx.step('score', () => 'high'));
+      expectType<Promise<{ out: string }>>(
+        ctx.checkpoint('load-user', async () => ({ out: 'string' }))
+      );
+    },
+  });
+});
+
 // Test onSuccess handler type inference
 test('workflow onSuccess should inherit workflow input type', () => {
   type In = { in: string };

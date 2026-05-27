@@ -22,7 +22,7 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { Conditions, Render } from '@hatchet/v1/conditions';
 import { conditionsToPb } from '@hatchet/v1/conditions/transformer';
 import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/v1/task';
-import { JsonObject, OutputType } from '@hatchet/v1/types';
+import { JsonObject, JsonValue, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -44,6 +44,7 @@ import { waitForPreEviction } from './deprecated/pre-eviction';
 type TriggerData = Record<string, Record<string, any>>;
 
 type ChildRunOpts = RunOpts & { key?: string; sticky?: boolean };
+type StepResult = Exclude<JsonValue, undefined>;
 
 export interface SleepResult {
   /** The sleep duration in milliseconds. */
@@ -1115,6 +1116,29 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       return { ts: new Date().toISOString() };
     }, ['now']);
     return new Date(result.ts);
+  }
+
+  /**
+   * Runs a dynamic side effect once and checkpoints its result in the durable event log.
+   * On replay, the stored result is returned without running `fn` again.
+   *
+   * @param name - Stable step name used as the checkpoint key.
+   * @param fn - Function that performs the side effect and returns a JSON-serializable result.
+   * @returns The checkpointed result.
+   */
+  async step<R extends StepResult>(name: string, fn: () => R | Promise<R>): Promise<R> {
+    if (!name) {
+      throw new HatchetError('ctx.step requires a non-empty name');
+    }
+
+    return this.memo(async () => fn(), ['step', name]);
+  }
+
+  /**
+   * Alias for `step`.
+   */
+  async checkpoint<R extends StepResult>(name: string, fn: () => R | Promise<R>): Promise<R> {
+    return this.step(name, fn);
   }
 
   private async _waitForPreEviction(
