@@ -19,8 +19,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
-// internalTenantId is the "internal" tenant seeded by migration 20240216133745_v0_11_0.sql.
-// It always exists after RunMigrations and is the standard tenant used in repository-layer tests.
 var internalTenantId = uuid.MustParse("8d420720-ef03-41dc-9c73-1c93f276db97")
 
 func newWorkflowTestRepository(pool *pgxpool.Pool) *workflowRepository {
@@ -69,11 +67,6 @@ func minimalWorkflowOpts(name, description string, cronTriggers []string) *Creat
 	}
 }
 
-// TestDefaultCronTriggersCleanedUpOnReregistration is the core regression test.
-// Before the fix, each call to PutWorkflowVersion with a new version left the old
-// DEFAULT WorkflowTriggerCronRef rows in the database. These accumulated over time
-// and were still scanned and locked by PollCronSchedules every 15 seconds, causing
-// the performance degradation observed at 8pm each day.
 func TestDefaultCronTriggersCleanedUpOnReregistration(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -99,8 +92,6 @@ func TestDefaultCronTriggersCleanedUpOnReregistration(t *testing.T) {
 	assert.Equal(t, 2, count, "should still have 2 cron refs after re-registration — old DEFAULT rows must be deleted")
 }
 
-// TestDefaultCronsDontAccumulateAcrossMultipleVersions ensures the fix holds up
-// across many re-registrations (the scenario of daily deployments over weeks).
 func TestDefaultCronsDontAccumulateAcrossMultipleVersions(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
@@ -121,9 +112,6 @@ func TestDefaultCronsDontAccumulateAcrossMultipleVersions(t *testing.T) {
 	assert.Equal(t, 1, count, "should have exactly 1 cron ref regardless of how many versions were registered")
 }
 
-// TestOnlyDefaultCronsAreDeleted verifies that the cleanup targets only DEFAULT-method crons.
-// API-method crons (created via the API after workflow registration) must not be deleted —
-// the existing MoveCronTriggerToNewWorkflowTriggers call migrates them to the new version instead.
 func TestOnlyDefaultCronsAreDeleted(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
