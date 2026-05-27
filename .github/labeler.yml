@@ -18,6 +18,13 @@ vscode-ext:
   - changed-files:
       - any-glob-to-any-file: "frontend/vscode-extension/**"
 
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+        - ".github/workflows/**"
+        - ".github/dependabot.yml"
+        - ".github/labeler.yml"
+
 engine:
   - changed-files:
       # TODO: Disambiguating between components is non-trivial,
