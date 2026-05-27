@@ -765,6 +765,31 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			}
 		}
 
+		if stepOpts.BatchConfig != nil {
+			createStepParams.BatchMaxSize = pgtype.Int4{
+				Int32: stepOpts.BatchConfig.BatchMaxSize,
+				Valid: true,
+			}
+			if stepOpts.BatchConfig.BatchMaxInterval != nil {
+				createStepParams.BatchMaxInterval = pgtype.Int4{
+					Int32: *stepOpts.BatchConfig.BatchMaxInterval,
+					Valid: true,
+				}
+			}
+			if stepOpts.BatchConfig.BatchGroupKey != nil {
+				createStepParams.BatchGroupKey = pgtype.Text{
+					String: *stepOpts.BatchConfig.BatchGroupKey,
+					Valid:  true,
+				}
+			}
+			if stepOpts.BatchConfig.BatchGroupMaxRuns != nil {
+				createStepParams.BatchGroupMaxRuns = pgtype.Int4{
+					Int32: *stepOpts.BatchConfig.BatchGroupMaxRuns,
+					Valid: true,
+				}
+			}
+		}
+
 		_, err = r.queries.CreateStep(
 			ctx,
 			tx,

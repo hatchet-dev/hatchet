@@ -766,9 +766,16 @@ func (s *Scheduler) tryAssignChunk(
 	if !ok || action == nil {
 		s.l.Debug().Ctx(ctx).Msgf("no action %s", actionId)
 
-		// Treat missing action as "no slots" for any non-rate-limited queue item.
+		// Treat missing action as "no slots" for non-rate-limited, non-batch queue items.
+		// Batch-eligible items (toBatch=true) do NOT need a worker slot here — they are
+		// moved to v1_batched_queue_item and the batch scheduler handles worker assignment.
+		// Clearing toBatch here would strand them in v1_queue_item indefinitely if the
+		// action isn't yet present in s.actions (e.g. replenish hasn't fired yet).
 		for i := range res {
 			if res[i].rateLimitResult != nil {
+				continue
+			}
+			if res[i].toBatch {
 				continue
 			}
 			res[i].noSlots = true
@@ -934,7 +941,11 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 		return res, nil
 	}
 
-	singleRes, err := s.tryAssignSingleton(ctx, qi, action, candidateSlots, 0, labels, nil, noop, noop)
+	// Default to 1 standard slot — same fallback as tryAssignChunk — since batch flush
+	// scheduling skips the regular slot-request lookup path.
+	requests := map[string]int32{v1.SlotTypeDefault: 1}
+
+	singleRes, err := s.tryAssignSingleton(ctx, qi, action, candidateSlots, 0, labels, requests, noop, noop)
 	if err != nil {
 		return singleRes, err
 	}

@@ -466,10 +466,22 @@ export class InternalWorker {
   }
   private registerActions(workflow: WorkflowDefinition) {
     const newActions = workflow._tasks
-      .filter((task) => !!task.fn)
+      .filter((task) => {
+        const batchedTask = task as CreateWorkflowTaskOpts<any, any> & {
+          batch?: BatchTaskConfig<any, any>;
+        };
+        return !!task.fn || !!batchedTask.batch?.fn;
+      })
       .reduce<ActionRegistry>((acc, task) => {
-        acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-          task.fn!(ctx.input, ctx);
+        const actionId = `${workflow.name}:${task.name.toLowerCase()}`;
+        const batchedTask = task as CreateWorkflowTaskOpts<any, any> & {
+          batch?: BatchTaskConfig<any, any>;
+        };
+        if (batchedTask.batch?.fn) {
+          acc[actionId] = this.createBatchActionHandler(actionId, workflow, task);
+        } else {
+          acc[actionId] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx);
+        }
         return acc;
       }, {});
 

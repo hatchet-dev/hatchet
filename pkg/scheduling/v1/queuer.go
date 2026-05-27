@@ -778,7 +778,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
 
-	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 {
+	if len(r.assigned) == 0 && len(r.unassigned) == 0 && len(r.schedulingTimedOut) == 0 && len(r.rateLimited) == 0 && len(r.rateLimitedToMove) == 0 && len(r.batched) == 0 {
 		return nil, nil, nil
 	}
 
@@ -788,6 +788,7 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		SchedulingTimedOut: r.schedulingTimedOut,
 		RateLimited:        make([]*v1.RateLimitResult, 0, len(r.rateLimited)),
 		RateLimitedToMove:  make([]*v1.RateLimitResult, 0, len(r.rateLimitedToMove)),
+		Batched:            make([]*sqlcv1.V1QueueItem, 0, len(r.batched)),
 	}
 
 	stepRunIdsToAcks := make(map[int64]int, len(r.assigned))
@@ -827,6 +828,12 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		})
 	}
 
+	for _, batchedItem := range r.batched {
+		if batchedItem == nil || batchedItem.qi == nil {
+			continue
+		}
+		opts.Batched = append(opts.Batched, batchedItem.qi)
+	}
 	var succeeded []*v1.AssignedItem
 	var failed []*v1.AssignedItem
 	var err error

@@ -532,6 +532,30 @@ func (b *BatchScheduler) assignQueueItems(
 	stepKey := schedulingItem.StepID.String()
 	stepLabels := labels[stepKey]
 
+	// If the scheduler's in-memory worker state is stale (e.g. acquireWorkerLeases ran
+	// with an empty result and cleared s.workers), the batch action won't be in s.actions.
+	// Refresh workers from the DB and force a replenish so s.actions gets populated.
+	b.scheduler.actionsMu.RLock()
+	_, actionFound := b.scheduler.actions[schedulingItem.ActionID]
+	b.scheduler.actionsMu.RUnlock()
+	if !actionFound {
+		fmt.Printf("[batch] assignQueueItems: action %s not in scheduler, refreshing workers from DB\n", schedulingItem.ActionID)
+		activeWorkers, err := b.cf.repo.Lease().ListActiveWorkers(ctx, b.tenantId)
+		if err != nil {
+			b.l.Error().Err(err).Msg("failed to list active workers for batch action refresh")
+		} else if len(activeWorkers) > 0 {
+			fmt.Printf("[batch] assignQueueItems: found %d active workers, updating scheduler\n", len(activeWorkers))
+			b.scheduler.setWorkers(activeWorkers)
+			// setWorkers only updates s.workers; we need replenish to translate that into s.actions
+			if replenishErr := b.scheduler.replenish(ctx, true); replenishErr != nil {
+				b.l.Error().Err(replenishErr).Msg("failed to replenish slots after worker refresh for batch action")
+			}
+		}
+		if err == nil {
+			fmt.Printf("[batch] assignQueueItems: no active workers found for tenant %s\n", b.tenantId)
+		}
+	}
+
 	res, err := b.scheduler.tryAssignBatchQueueItem(ctx, schedulingItem, stepLabels)
 	if err != nil {
 		return nil, nil, err
