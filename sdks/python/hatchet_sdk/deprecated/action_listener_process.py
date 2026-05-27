@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import logging
 import multiprocessing.synchronize
-import signal
 import time
 from datetime import timedelta
 from multiprocessing import Queue

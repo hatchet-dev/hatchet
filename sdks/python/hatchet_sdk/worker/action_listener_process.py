@@ -1,13 +1,12 @@
 import asyncio
 import contextlib
 import logging
-import signal
+import multiprocessing.synchronize
 import time
 import warnings
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-import multiprocessing.synchronize
 from multiprocessing import Queue
 from typing import Any
 

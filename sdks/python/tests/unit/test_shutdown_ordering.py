@@ -180,9 +180,9 @@ async def test_worker_id_published_to_queue_on_start() -> None:
         assert published_id == "test-worker-id"
     finally:
         # Clean up background tasks — always, even on assertion failure.
-        stub.stop_signal = True          # exits action_loop
-        event_queue.put(STOP_LOOP)       # exits event_send_loop
-        stop_event.set()                 # exits _wait_for_stop_event
+        stub.stop_signal = True  # exits action_loop
+        event_queue.put(STOP_LOOP)  # exits event_send_loop
+        stop_event.set()  # exits _wait_for_stop_event
 
         # Give tasks a moment to observe the signals, then cancel survivors.
         await asyncio.sleep(0.1)
@@ -222,7 +222,9 @@ def test_event_queue_drains_before_process_exits() -> None:
     consumed_events: list[str] = []
     stub_listener = _StubActionListener()
 
-    async def fake_send(action: Any, ev_type: Any, payload: Any, should_not_retry: Any) -> None:
+    async def fake_send(
+        action: Any, ev_type: Any, payload: Any, should_not_retry: Any
+    ) -> None:
         consumed_events.append(str(ev_type))
 
     mock_dispatcher = AsyncMock()
@@ -261,7 +263,7 @@ def test_event_queue_drains_before_process_exits() -> None:
     # _FakeAction is a module-level dataclass so it can be pickled across the
     # multiprocessing.Queue feeder thread.
     fake_event = ActionEvent(
-        action=_FakeAction(),
+        action=_FakeAction(),  # type: ignore
         type="STEP_EVENT_TYPE_COMPLETED",
         payload=None,
         should_not_retry=False,
@@ -272,7 +274,7 @@ def test_event_queue_drains_before_process_exits() -> None:
     time.sleep(0.1)
 
     # Trigger graceful shutdown: stop action loop, then signal end of events.
-    stop_event.set()           # stops action loop via _wait_for_stop_event
+    stop_event.set()  # stops action loop via _wait_for_stop_event
     stub_listener.stop_signal = True  # also stops action_loop iteration
     time.sleep(0.05)
     event_queue.put(STOP_LOOP)  # stops event_send_loop
@@ -281,4 +283,6 @@ def test_event_queue_drains_before_process_exits() -> None:
     assert not thread.is_alive(), "subprocess thread should have exited after STOP_LOOP"
 
     # The event_queue must be fully drained before the subprocess exited.
-    assert event_queue.empty(), "event_queue must be fully drained before subprocess exits"
+    assert (
+        event_queue.empty()
+    ), "event_queue must be fully drained before subprocess exits"
