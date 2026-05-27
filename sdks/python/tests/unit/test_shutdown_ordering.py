@@ -35,8 +35,10 @@ class _FakeAction:
 def _make_listener(worker_id: str = "test-worker-id") -> ActionListener:
     with patch(f"{_ACTION_LISTENER_MODULE}.new_conn"):
         listener = ActionListener(config=MagicMock(), worker_id=worker_id)
-    listener.cleanup = MagicMock()
-    listener.get_listen_client = AsyncMock(side_effect=Exception("no gRPC server in tests"))
+    listener.cleanup = MagicMock()  # type: ignore[method-assign]
+    listener.get_listen_client = AsyncMock(  # type: ignore[method-assign]
+        side_effect=Exception("no gRPC server in tests")
+    )
     return listener
 
 
@@ -82,7 +84,7 @@ async def test_stop_event_stops_action_loop_without_kill() -> None:
 
     process = _make_process(stop_event, worker_id_queue)
     listener = _make_listener()
-    process.listener = listener  # type: ignore[assignment]
+    process.listener = listener
 
     task = asyncio.create_task(process._wait_for_stop_event())
 
@@ -105,7 +107,7 @@ async def test_stop_action_loop_is_idempotent() -> None:
 
     process = _make_process(stop_event, worker_id_queue)
     listener = _make_listener()
-    process.listener = listener  # type: ignore[assignment]
+    process.listener = listener
 
     await process._stop_action_loop()
     assert process.killing
@@ -113,7 +115,7 @@ async def test_stop_action_loop_is_idempotent() -> None:
     # Second call must succeed silently.
     await process._stop_action_loop()
     # cleanup() is called exactly once (the second call short-circuits).
-    listener.cleanup.assert_called_once()
+    listener.cleanup.assert_called_once()  # type: ignore[attr-defined]
 
 
 async def test_worker_id_published_to_queue_on_start() -> None:
