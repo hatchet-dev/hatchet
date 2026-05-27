@@ -68,7 +68,7 @@ generate_release_notes() {
     ruby)
       file="sdks/ruby/src/lib/hatchet/version.rb"
       pattern='VERSION ='
-      sdk_dir="sdks/ruby/"
+      sdk_dir="sdks/ruby/src"
       ;;
     *)
       echo "Unknown SDK: $sdk" >&2
@@ -76,8 +76,8 @@ generate_release_notes() {
       ;;
   esac
 
-  get_latest_entry "$(dirname $file)"
-  get_instructions "$(dirname $file)"
+  get_latest_entry "$sdk_dir"
+  get_instructions "$sdk_dir"
 
   local line
   line=$(grep -n "$pattern" "$file" | head -1 | cut -d: -f1)
@@ -92,7 +92,7 @@ generate_release_notes() {
   echo "## What's Changed?"
   echo
 
-  get_pr_history "$sdk_dir" "$since_hash" "$until_hash"
+  get_pr_history "$since_hash" "$until_hash" "$sdk_dir"
 }
 
 
