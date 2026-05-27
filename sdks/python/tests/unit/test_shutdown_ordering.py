@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
+from hatchet_sdk.runnables.action import ActionType
 from hatchet_sdk.utils.typing import STOP_LOOP
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -28,7 +29,7 @@ _CTX = multiprocessing.get_context("spawn")
 
 @dataclass
 class _FakeAction:
-    action_type: Any = None
+    action_type: Any = ActionType.START_STEP_RUN
     action_id: str = "test-action-id"
 
 
@@ -224,7 +225,7 @@ def test_event_queue_drains_before_process_exits() -> None:
     # multiprocessing.Queue feeder thread.
     fake_event = ActionEvent(
         action=_FakeAction(),  # type: ignore
-        type="STEP_EVENT_TYPE_COMPLETED",
+        type=ActionType.START_STEP_RUN,
         payload=None,
         should_not_retry=False,
     )
