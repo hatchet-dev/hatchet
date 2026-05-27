@@ -87,7 +87,7 @@ build-backend = "hatchling.build"
 packages = ["hatchet_sdk"]
 
 [tool.hatch.build]
-include = ["hatchet_sdk/py.typed"]
+include = ["hatchet_sdk"]
 
 
 [tool.pytest.ini_options]
