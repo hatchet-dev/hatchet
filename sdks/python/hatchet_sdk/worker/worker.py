@@ -744,9 +744,7 @@ class Worker:
         stops routing new work here while in-flight tasks finish.
         """
         try:
-            worker_id = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: self._worker_id_queue.get(timeout=10)
-            )
+            worker_id = await asyncio.to_thread(self._worker_id_queue.get, timeout=10)
         except Exception:
             logger.warning("could not read worker_id; skipping pause")
             return
