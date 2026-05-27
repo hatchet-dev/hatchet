@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.33.6] - 2026-06-06
 
+### Changed
+
 ### Fixed
 
 - Fixed a bug where synchronous log calls via `asyncio.to_thread` (or other threads) could block workers.
