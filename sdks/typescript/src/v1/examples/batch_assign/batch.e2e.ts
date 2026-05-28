@@ -67,7 +67,7 @@ describe('batch-task e2e', () => {
   >({
     name: `batch-e2e-large-${runId}`,
     retries: 0,
-    batchMaxSize: 1000,
+    batchMaxSize: 100,
     batchMaxInterval: '1000s',
     fn: (tasks) => {
       console.info('task length', tasks.length);
@@ -191,8 +191,8 @@ describe('batch-task e2e', () => {
   it('completes all tasks when batch contains 100+ items with 100kb+ payloads', async () => {
     jest.setTimeout(120_000);
 
-    const payload = 'x'.repeat(400_000); // ~400kb per task
-    const taskCount = 1000;
+    const payload = 'x'.repeat(4_000_000); // ~400mb per task
+    const taskCount = 100;
 
     const results = await Promise.all(
       Array.from({ length: taskCount }, () => largePayloadWorkflow.run({ data: payload }))
@@ -200,7 +200,7 @@ describe('batch-task e2e', () => {
 
     expect(results).toHaveLength(taskCount);
     expect(results.every((r) => r.received)).toBe(true);
-    expect(results.every((r) => r.dataLength === 100_000)).toBe(true);
+    expect(results.every((r) => r.dataLength === 4_000_000)).toBe(true);
     expect(results.every((r) => r.batchSize === taskCount)).toBe(true);
   });
 

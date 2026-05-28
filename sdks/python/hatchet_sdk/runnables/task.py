@@ -44,6 +44,7 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
+    TaskBatchConfig as TaskBatchConfigProto,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.logger import logger
@@ -500,7 +501,7 @@ class Task(Generic[TWorkflowInput, R]):
             d.key: d.to_proto() for d in self.desired_worker_labels if d.key is not None
         }
 
-        return CreateTaskOpts(
+        proto = CreateTaskOpts(
             readable_id=self.name,
             action=service_name + ":" + self.name,
             timeout=timedelta_to_expr(self.execution_timeout),
@@ -518,26 +519,26 @@ class Task(Generic[TWorkflowInput, R]):
             slot_requests=self._slot_requests,
         )
 
-        # if self.batch is not None:
-        #     batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
-        #
-        #     if self.batch.batch_max_interval is not None:
-        #         interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
-        #         if interval_ms <= 0:
-        #             raise ValueError(
-        #                 "batch_max_interval must be positive when provided"
-        #             )
-        #         batch_proto.batch_max_interval = interval_ms
-        #
-        #     if self.batch.batch_group_key is not None:
-        #         batch_proto.batch_group_key = self.batch.batch_group_key
-        #
-        #     if self.batch.batch_group_max_runs is not None:
-        #         batch_proto.batch_group_max_runs = self.batch.batch_group_max_runs
-        #
-        #     proto.batch.CopyFrom(batch_proto)
-        #
-        # return proto
+        if self.batch is not None:
+            batch_proto = TaskBatchConfigProto(batch_max_size=self.batch.batch_max_size)
+
+            if self.batch.batch_max_interval is not None:
+                interval_ms = int(self.batch.batch_max_interval.total_seconds() * 1000)
+                if interval_ms <= 0:
+                    raise ValueError(
+                        "batch_max_interval must be positive when provided"
+                    )
+                batch_proto.batch_max_interval = interval_ms
+
+            if self.batch.batch_group_key is not None:
+                batch_proto.batch_group_key = self.batch.batch_group_key
+
+            if self.batch.batch_group_max_runs is not None:
+                batch_proto.batch_group_max_runs = self.batch.batch_group_max_runs
+
+            proto.batch.CopyFrom(batch_proto)
+
+        return proto
 
     def _assign_action(self, condition: Condition, action: Action) -> Condition:
         condition.base.action = action
