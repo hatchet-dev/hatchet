@@ -162,39 +162,27 @@ func NewPayloadStoreRepository(
 }
 
 type PayloadUniqueKey struct {
-	ID         int64
-	InsertedAt pgtype.Timestamptz
-	TenantId   uuid.UUID
-	Type       sqlcv1.V1PayloadType
-}
-
-func normalizePayloadInsertedAt(insertedAt pgtype.Timestamptz) pgtype.Timestamptz {
-	if !insertedAt.Valid {
-		return insertedAt
-	}
-
-	// UTC() normalizes the location; Truncate strips the monotonic clock reading
-	// and rounds to microsecond precision to match PostgreSQL TIMESTAMPTZ storage.
-	insertedAt.Time = insertedAt.Time.UTC().Truncate(time.Microsecond)
-
-	return insertedAt
+	ID              int64
+	InsertedAtMicro int64 // Unix microseconds — avoids time.Time map-key pitfalls (mono clock, location, sub-μs precision)
+	TenantId        uuid.UUID
+	Type            sqlcv1.V1PayloadType
 }
 
 func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
 	return PayloadUniqueKey{
-		ID:         opt.Id,
-		InsertedAt: normalizePayloadInsertedAt(opt.InsertedAt),
-		TenantId:   opt.TenantId,
-		Type:       opt.Type,
+		ID:              opt.Id,
+		InsertedAtMicro: opt.InsertedAt.Time.UnixMicro(),
+		TenantId:        opt.TenantId,
+		Type:            opt.Type,
 	}
 }
 
 func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
 	return PayloadUniqueKey{
-		ID:         payload.ID,
-		InsertedAt: normalizePayloadInsertedAt(payload.InsertedAt),
-		TenantId:   payload.TenantID,
-		Type:       payload.Type,
+		ID:              payload.ID,
+		InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
+		TenantId:        payload.TenantID,
+		Type:            payload.Type,
 	}
 }
 
@@ -218,10 +206,10 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	for _, payload := range payloads {
 		tenantId := payload.TenantId
 		uniqueKey := PayloadUniqueKey{
-			ID:         payload.Id,
-			InsertedAt: payload.InsertedAt,
-			TenantId:   tenantId,
-			Type:       payload.Type,
+			ID:              payload.Id,
+			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
+			TenantId:        tenantId,
+			Type:            payload.Type,
 		}
 
 		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
