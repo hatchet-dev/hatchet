@@ -482,7 +482,6 @@ def legacy_worker_action_listener_process(
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
 ) -> None:
-
     async def run() -> None:
         process = LegacyWorkerActionListenerProcess(
             name=name,

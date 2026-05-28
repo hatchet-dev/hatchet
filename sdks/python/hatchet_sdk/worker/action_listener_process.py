@@ -114,6 +114,8 @@ class WorkerActionListenerProcess:
 
         self.client = Client(config=self.config, debug=self.debug)
 
+        # explicit no-op on SIGINT and SIGTERM because shutdown is completely controlled
+        # by the parent worker process
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(signal.SIGINT, lambda: None)
         loop.add_signal_handler(signal.SIGTERM, lambda: None)
@@ -531,7 +533,6 @@ def worker_action_listener_process(
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
 ) -> None:
-
     async def run() -> None:
         process = WorkerActionListenerProcess(
             name=name,
