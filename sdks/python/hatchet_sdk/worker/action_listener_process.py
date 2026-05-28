@@ -3,7 +3,6 @@ import contextlib
 import logging
 import multiprocessing.synchronize
 import signal
-import threading
 import time
 import warnings
 from dataclasses import dataclass
@@ -114,6 +113,10 @@ class WorkerActionListenerProcess:
             logger.setLevel(logging.DEBUG)
 
         self.client = Client(config=self.config, debug=self.debug)
+
+        loop = asyncio.get_event_loop()
+        loop.add_signal_handler(signal.SIGINT, lambda: None)
+        loop.add_signal_handler(signal.SIGTERM, lambda: None)
 
         if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(
@@ -528,13 +531,6 @@ def worker_action_listener_process(
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
 ) -> None:
-    # The parent controls this subprocess via stop_event + STOP_LOOP; OS signals
-    # must not kill the process before in-flight completion events are drained.
-    # Guard is needed because signal.signal() only works from the main thread
-    # (unit tests may invoke this from a non-main thread).
-    if threading.current_thread() is threading.main_thread():
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
 
     async def run() -> None:
         process = WorkerActionListenerProcess(
