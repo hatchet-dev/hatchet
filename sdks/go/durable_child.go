@@ -39,7 +39,12 @@ func runDurableChildWorkflow(
 		return nil, false, nil
 	}
 
-	trigger, err := buildDurableChildTrigger(hCtx, workflowName, input, runOpts)
+	childOpts, err := durableChildWorkflowOpts(hCtx, workflowName, runOpts)
+	if err != nil {
+		return nil, true, err
+	}
+
+	trigger, err := v0Client.NewChildWorkflowTriggerRequest(workflowName, input, childOpts, nil)
 	if err != nil {
 		return nil, true, err
 	}
@@ -111,7 +116,12 @@ func runManyDurableChildWorkflows(
 		}
 		runOpts.AdditionalMetadata = injectTraceparentToMap(otelCtx, runOpts.AdditionalMetadata)
 
-		trigger, err := buildDurableChildTrigger(hCtx, workflowName, input.Input, runOpts)
+		childOpts, err := durableChildWorkflowOpts(hCtx, workflowName, runOpts)
+		if err != nil {
+			return nil, true, err
+		}
+
+		trigger, err := v0Client.NewChildWorkflowTriggerRequest(workflowName, input.Input, childOpts, nil)
 		if err != nil {
 			return nil, true, err
 		}
@@ -154,24 +164,17 @@ func runManyDurableChildWorkflows(
 	return refs, true, nil
 }
 
-func buildDurableChildTrigger(
+func durableChildWorkflowOpts(
 	hCtx Context,
 	workflowName string,
-	input any,
 	runOpts *runOpts,
-) (*v1.TriggerWorkflowRequest, error) {
-	inputBytes, err := json.Marshal(input)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal input: %w", err)
-	}
-
+) (*v0Client.ChildWorkflowOpts, error) {
 	childIndexValue := hCtx.CurChildIndex()
 	if next, ok := hCtx.(childIndexProvider); ok {
 		childIndexValue = next.NextChildIndex()
 	} else {
 		hCtx.IncChildIndex()
 	}
-	childIndex := int32(childIndexValue) // nolint:gosec
 
 	var desiredWorkerID *string
 	if runOpts.Sticky != nil && *runOpts.Sticky {
@@ -182,26 +185,21 @@ func buildDurableChildTrigger(
 		desiredWorkerID = &workerID
 	}
 
-	additionalMetadata, err := marshalAdditionalMetadata(runOpts.AdditionalMetadata)
-	if err != nil {
-		return nil, err
-	}
 	var priority *int32
 	if runOpts.Priority != nil {
-		priority = &[]int32{int32(*runOpts.Priority)}[0]
+		priorityValue := int32(*runOpts.Priority)
+		priority = &priorityValue
 	}
 
-	return &v1.TriggerWorkflowRequest{
-		Name:                    workflowName,
-		Input:                   string(inputBytes),
-		ParentId:                strPtr(hCtx.WorkflowRunId()),
-		ParentTaskRunExternalId: strPtr(hCtx.StepRunId()),
-		ChildIndex:              &childIndex,
-		ChildKey:                runOpts.Key,
-		AdditionalMetadata:      additionalMetadata,
-		DesiredWorkerId:         desiredWorkerID,
-		Priority:                priority,
-		DesiredWorkerLabels:     desiredWorkerLabelsToProto(runOpts.DesiredWorkerLabels),
+	return &v0Client.ChildWorkflowOpts{
+		ParentId:            hCtx.WorkflowRunId(),
+		ParentTaskRunId:     hCtx.StepRunId(),
+		ChildIndex:          childIndexValue,
+		ChildKey:            runOpts.Key,
+		DesiredWorkerId:     desiredWorkerID,
+		AdditionalMetadata:  runOpts.AdditionalMetadata,
+		Priority:            priority,
+		DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
 	}, nil
 }
 
@@ -235,61 +233,10 @@ func waitForDurableChildResult(
 		return map[string]any{}, nil
 	}
 
-	var payload any
+	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return nil, fmt.Errorf("failed to decode durable child workflow result: %w", err)
 	}
 
 	return payload, nil
-}
-
-func marshalAdditionalMetadata(metadata *map[string]string) (*string, error) {
-	if metadata == nil {
-		return nil, nil
-	}
-
-	metadataBytes, err := json.Marshal(metadata)
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
-	}
-
-	metadataString := string(metadataBytes)
-	return &metadataString, nil
-}
-
-func desiredWorkerLabelsToProto(labels map[string]*DesiredWorkerLabel) map[string]*v1.DesiredWorkerLabels {
-	if labels == nil {
-		return nil
-	}
-
-	result := make(map[string]*v1.DesiredWorkerLabels, len(labels))
-	for key, label := range labels {
-		protoLabel := &v1.DesiredWorkerLabels{
-			Required: &label.Required,
-			Weight:   &label.Weight,
-		}
-
-		if label.Comparator != nil {
-			comparator := v1.WorkerLabelComparator(*label.Comparator)
-			protoLabel.Comparator = &comparator
-		}
-
-		switch v := label.Value.(type) {
-		case string:
-			protoLabel.StrValue = &v
-		case int:
-			intVal := int32(v) // nolint:gosec
-			protoLabel.IntValue = &intVal
-		case int32:
-			protoLabel.IntValue = &v
-		}
-
-		result[key] = protoLabel
-	}
-
-	return result
-}
-
-func strPtr(s string) *string {
-	return &s
 }
