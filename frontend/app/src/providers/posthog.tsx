@@ -4,7 +4,7 @@ import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
-import { useEffect, useRef, useMemo, createContext } from 'react';
+import { useEffect, useMemo, useState, createContext } from 'react';
 
 const CROSS_DOMAIN_SESSION_ID_KEY = 'session_id';
 const CROSS_DOMAIN_DISTINCT_ID_KEY = 'distinct_id';
@@ -33,7 +33,7 @@ interface PostHogProviderProps {
 export function PostHogProvider({ children, user }: PostHogProviderProps) {
   const { meta } = useApiMeta();
   const { tenant } = useAppContext();
-  const initializedRef = useRef(false);
+  const [initialized, setInitialized] = useState(false);
 
   const config = useMemo(() => {
     if (import.meta.env.DEV) {
@@ -62,7 +62,7 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
   }, []);
 
   useEffect(() => {
-    if (initializedRef.current) {
+    if (initialized) {
       return;
     }
 
@@ -89,15 +89,16 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
         maskTextSelector: '*',
       },
       persistence: 'localStorage+cookie',
+      cross_subdomain_cookie: true,
       bootstrap: bootstrapIds || undefined,
     });
 
-    initializedRef.current = true;
-  }, [config, tenant, bootstrapIds]);
+    setInitialized(true);
+  }, [config, tenant, bootstrapIds, initialized]);
 
   // Handle user identification
   useEffect(() => {
-    if (!initializedRef.current || !user) {
+    if (!initialized || !user) {
       return;
     }
 
@@ -110,11 +111,11 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
       email: user.email,
       name: user.name,
     });
-  }, [user]);
+  }, [user, initialized]);
 
   // Handle opt-out changes
   useEffect(() => {
-    if (!initializedRef.current) {
+    if (!initialized) {
       return;
     }
 
@@ -124,10 +125,10 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
     } else {
       posthog.opt_in_capturing();
     }
-  }, [tenant?.analyticsOptOut]);
+  }, [tenant?.analyticsOptOut, initialized]);
 
   const contextValue: PostHogContextValue = {
-    isReady: initializedRef.current,
+    isReady: initialized,
   };
 
   return (
