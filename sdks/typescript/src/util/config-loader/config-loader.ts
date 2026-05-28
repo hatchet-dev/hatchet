@@ -1,7 +1,7 @@
 import { parse } from 'yaml';
 import { readFileSync } from 'fs';
 import * as p from 'path';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { ClientConfig, ClientConfigSchema } from '@clients/hatchet-client';
 import { ChannelCredentials } from 'nice-grpc';
 import { LogLevel } from '@util/logger';
@@ -21,7 +21,9 @@ type EnvVars =
   | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED'
   | 'HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT'
   | 'HATCHET_CLIENT_OPENTELEMETRY_EXCLUDED_ATTRIBUTES'
-  | 'HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME';
+  | 'HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME'
+  | 'HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH'
+  | 'HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH';
 
 type TLSStrategy = 'tls' | 'mtls';
 
@@ -105,6 +107,18 @@ export class ConfigLoader {
           this.env('HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME') === 'true',
       };
 
+    const grpcMaxRecvMessageLength =
+      override?.grpc_max_recv_message_length ??
+      yaml?.grpc_max_recv_message_length ??
+      this.parseIntEnv('HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH') ??
+      4 * 1024 * 1024;
+
+    const grpcMaxSendMessageLength =
+      override?.grpc_max_send_message_length ??
+      yaml?.grpc_max_send_message_length ??
+      this.parseIntEnv('HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH') ??
+      4 * 1024 * 1024;
+
     return {
       token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
       host_port: grpcBroadcastAddress,
@@ -119,7 +133,22 @@ export class ConfigLoader {
       tenant_id: tenantId,
       namespace: namespace ? `${namespace}`.toLowerCase() : '',
       otel: otelConfig,
+      grpc_max_recv_message_length: grpcMaxRecvMessageLength,
+      grpc_max_send_message_length: grpcMaxSendMessageLength,
+      cancellation_grace_period:
+        override?.cancellation_grace_period ?? yaml?.cancellation_grace_period,
+      cancellation_warning_threshold:
+        override?.cancellation_warning_threshold ?? yaml?.cancellation_warning_threshold,
     };
+  }
+
+  private static parseIntEnv(envName: EnvVars): number | undefined {
+    const value = this.env(envName);
+    if (value === undefined || value === '') return undefined;
+    if (!/^\d+$/.test(value.trim())) {
+      throw new Error(`Invalid value for ${envName}: "${value}". Expected a positive integer.`);
+    }
+    return parseInt(value, 10);
   }
 
   private static parseJsonArray(value: string): string[] {

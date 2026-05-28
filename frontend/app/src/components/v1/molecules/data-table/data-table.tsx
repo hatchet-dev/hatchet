@@ -54,6 +54,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   filters?: ToolbarFilters;
   leftActions?: JSX.Element[];
   rightActions?: JSX.Element[];
+  searchBar?: JSX.Element;
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
   setSearch?: (search: string) => void;
@@ -105,6 +106,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   filters = [],
   leftActions = [],
   rightActions = [],
+  searchBar,
   sorting,
   setSorting,
   columnFilters,
@@ -237,7 +239,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 h-10 flex flex-col size-full items-center pt-2 mb-2">
+      <div className="shrink-0 min-h-10 flex flex-col w-full items-center pt-2 mb-2">
         <div className="w-full">
           {tableActions?.selectedActionType && (
             <ConfirmActionModal
@@ -250,13 +252,14 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
               showColumnVisibility={false}
             />
           )}
-          {(leftActions || rightActions || filters.length > 0) && (
+          {(leftActions || rightActions || searchBar || filters.length > 0) && (
             <DataTableToolbar
               table={table}
               filters={filters}
               isLoading={isLoading}
               leftActions={leftActions}
               rightActions={rightActions}
+              searchBar={searchBar}
               showColumnToggle={showColumnToggle}
               hiddenFilters={hiddenFilters}
               columnKeyToName={columnKeyToName}

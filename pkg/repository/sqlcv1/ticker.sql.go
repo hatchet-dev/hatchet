@@ -224,17 +224,7 @@ func (q *Queries) ListTickers(ctx context.Context, db DBTX, arg ListTickersParam
 }
 
 const pollCronSchedules = `-- name: PollCronSchedules :many
-WITH latest_workflow_versions AS (
-    SELECT
-        "workflowId",
-        MAX("order") as max_order
-    FROM
-        "WorkflowVersion"
-    WHERE
-        "deletedAt" IS NULL
-    GROUP BY "workflowId"
-),
-eligible_cron_with_versions AS (
+WITH eligible_cron_with_versions AS MATERIALIZED (
     SELECT
         cronSchedule."parentId",
         cronSchedule."cron",
@@ -263,6 +253,17 @@ eligible_cron_with_versions AS (
         )
     FOR UPDATE OF cronSchedule SKIP LOCKED
 ),
+latest_workflow_versions AS (
+    SELECT
+        DISTINCT ON ("workflowId")
+        "workflowId",
+        "id"
+    FROM
+        "WorkflowVersion"
+    WHERE
+        "deletedAt" IS NULL
+    ORDER BY "workflowId", "order" DESC
+),
 eligible_cron_schedules AS (
     SELECT
         ecv."parentId",
@@ -273,7 +274,7 @@ eligible_cron_schedules AS (
     FROM
         eligible_cron_with_versions as ecv
     JOIN
-        latest_workflow_versions as l ON ecv."workflowId" = l."workflowId" AND ecv."order" = l.max_order
+        latest_workflow_versions as l ON ecv."workflowId" = l."workflowId" AND ecv."workflowVersionId" = l."id"
 )
 UPDATE
     "WorkflowTriggerCronRef" as cronSchedules

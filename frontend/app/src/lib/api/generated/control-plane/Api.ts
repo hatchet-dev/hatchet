@@ -16,32 +16,44 @@ import {
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
+  APIMetaAuth,
   APITokenList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
   CreateOrganizationInviteRequest,
   CreateOrganizationRequest,
+  CreateOrganizationSsoDomainRequest,
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
   CreateTenantInviteRequest,
   ListAPIMetaIntegration,
   ManagementTokenList,
   Organization,
+  OrganizationAvailableShardList,
+  OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
   OrganizationTenant,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
+  SsoConfig,
+  SsoDomainArray,
+  SubscriptionPlanList,
+  TenantBillingState,
+  TenantCreditBalance,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
   TenantMember,
   TenantMemberList,
+  TenantPaymentMethodList,
   UpdateOrganizationRequest,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
+  UpdateTenantSubscriptionRequest,
+  UpdateTenantSubscriptionResponse,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -295,6 +307,23 @@ export class Api<
       ...params,
     });
   /**
+   * @description List Hatchet deployment shards in the SHARED pool (available to any organization without dedicated shards).
+   *
+   * @tags Management
+   * @name ShardsListShared
+   * @summary List SHARED deployment shards
+   * @request GET:/api/v1/control-plane/shared-shards
+   * @secure
+   */
+  shardsListShared = (params: RequestParams = {}) =>
+    this.request<OrganizationAvailableShardList, APIError>({
+      path: `/api/v1/control-plane/shared-shards`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
    * @description List all organizations the authenticated user is a member of
    *
    * @name OrganizationList
@@ -390,6 +419,26 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List Hatchet deployment shards available for new tenants in this organization
+   *
+   * @tags Management
+   * @name OrganizationListAvailableShards
+   * @summary List available deployment shards for organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/available-shards
+   * @secure
+   */
+  organizationListAvailableShards = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationAvailableShardList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
+      method: "GET",
+      secure: true,
       format: "json",
       ...params,
     });
@@ -667,6 +716,201 @@ export class Api<
       ...params,
     });
   /**
+   * @description List all SSO configurations the organization has created
+   *
+   * @name SsoList
+   * @summary List Organization's SSO Configs
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso
+   * @secure
+   */
+  ssoList = (organization: string, params: RequestParams = {}) =>
+    this.request<APIMetaAuth, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new organization SSO config
+   *
+   * @name SsoUpdate
+   * @summary Upsert organization SSO config
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso
+   * @secure
+   */
+  ssoUpdate = (
+    organization: string,
+    data: {
+      idpInfoFromCustomer: object;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete organization SSO config
+   *
+   * @name SsoDelete
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/sso
+   * @secure
+   */
+  ssoDelete = (organization: string, params: RequestParams = {}) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description List all SSO domains for organization
+   *
+   * @name SsoDomainList
+   * @summary List Organization's SSO Domains
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso-domain
+   * @secure
+   */
+  ssoDomainList = (organization: string, params: RequestParams = {}) =>
+    this.request<SsoDomainArray, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-domain`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Add a new SSO Domain for an organization
+   *
+   * @name SsoDomainCreate
+   * @summary Create Organization SSO Domain
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso-domain
+   * @secure
+   */
+  ssoDomainCreate = (
+    organization: string,
+    data: CreateOrganizationSsoDomainRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-domain`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Delete SSO Domain for organization
+   *
+   * @name SsoDomainDelete
+   * @request DELETE:/api/v1/control-plane/organizations/sso-domain/{sso-domain}
+   * @secure
+   */
+  ssoDomainDelete = (ssoDomain: string, params: RequestParams = {}) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/sso-domain/${ssoDomain}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description Get SSO config for organization
+   *
+   * @name SsoConfigGet
+   * @summary List Organization's SSO Domains
+   * @request GET:/api/v1/control-plane/organizations/{organization}/sso-config
+   * @secure
+   */
+  ssoConfigGet = (organization: string, params: RequestParams = {}) =>
+    this.request<SsoConfig, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-config`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update SSO config for organization
+   *
+   * @name SsoConfigUpdate
+   * @summary Update organization SSO config
+   * @request POST:/api/v1/control-plane/organizations/{organization}/sso-config
+   * @secure
+   */
+  ssoConfigUpdate = (
+    organization: string,
+    data: SsoConfig,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/sso-config`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Get entitlements for an organization
+   *
+   * @name OrganizationEntitlementsGet
+   * @summary Get organization entitlements
+   * @request GET:/api/v1/control-plane/organizations/{organization}/entitlements
+   * @secure
+   */
+  organizationEntitlementsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationEntitlements, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/entitlements`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSsoOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/control-plane/users/sso/start
+   */
+  cloudUserUpdateSsoOauthStart = (
+    query: {
+      /** The user email */
+      email: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/sso/start`,
+      method: "GET",
+      query: query,
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateSsoOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/control-plane/users/sso/callback
+   */
+  cloudUserUpdateSsoOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/sso/callback`,
+      method: "GET",
+      ...params,
+    });
+  /**
    * @description Lists all tenant memberships for the current user
    *
    * @tags User
@@ -902,6 +1146,118 @@ export class Api<
       path: `/api/v1/control-plane/tenants/${tenant}/invites/${tenantInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all available subscription plans and their features
+   *
+   * @tags Billing
+   * @name SubscriptionPlansList
+   * @summary List subscription plans
+   * @request GET:/api/v1/control-plane/billing/plans
+   */
+  subscriptionPlansList = (params: RequestParams = {}) =>
+    this.request<SubscriptionPlanList, APIErrors>({
+      path: `/api/v1/control-plane/billing/plans`,
+      method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the billing state for a tenant
+   *
+   * @tags Tenant
+   * @name TenantBillingStateGet
+   * @summary Get the billing state for a tenant
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}
+   * @secure
+   */
+  tenantBillingStateGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantBillingState, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a subscription
+   *
+   * @tags Billing
+   * @name TenantSubscriptionUpdate
+   * @summary Update subscription
+   * @request PATCH:/api/v1/control-plane/billing/tenants/{tenant}/subscription
+   * @secure
+   */
+  tenantSubscriptionUpdate = (
+    tenant: string,
+    data: UpdateTenantSubscriptionRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UpdateTenantSubscriptionResponse, APIErrors>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/subscription`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the billing portal link
+   *
+   * @tags Billing
+   * @name BillingPortalLinkGet
+   * @summary Create a link to the billing portal
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/billing-portal-link
+   * @secure
+   */
+  billingPortalLinkGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<
+      {
+        /** The url to the billing portal */
+        url?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the payment methods for a tenant
+   *
+   * @tags Billing
+   * @name TenantPaymentMethodsGet
+   * @summary Get the payment methods for a tenant
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/payment-methods
+   * @secure
+   */
+  tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantPaymentMethodList, APIErrors>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/payment-methods`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the Stripe credit balance for a tenant
+   *
+   * @tags Billing
+   * @name TenantCreditBalanceGet
+   * @summary Get the Stripe credit balance for a tenant
+   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/credit-balance
+   * @secure
+   */
+  tenantCreditBalanceGet = (tenant: string, params: RequestParams = {}) =>
+    this.request<TenantCreditBalance, APIErrors>({
+      path: `/api/v1/control-plane/billing/tenants/${tenant}/credit-balance`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
 }

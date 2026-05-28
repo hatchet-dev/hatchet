@@ -563,6 +563,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 				TenantId:   tenantId,
+				ExternalId: dagData.ExternalID,
 			}
 		}
 
@@ -582,6 +583,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 				TenantId:   tenantId,
+				ExternalId: dagData.ExternalID,
 			}
 
 			payload, ok := payloads[retrieveOpts]
@@ -840,7 +842,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				InsertedAt: cb.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 				Payload:    initialEntry.Data,
-				ExternalId: cb.ExternalID,
+				ExternalId: cb.ResultPayloadExternalID,
 				TenantId:   tenantId,
 			})
 		}

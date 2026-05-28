@@ -1,7 +1,8 @@
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import api, { queries } from '@/lib/api';
+import { queries } from '@/lib/api';
+import { useUserApi } from '@/lib/api/user-wrapper';
 import { useRedirectOrNavigate } from '@/lib/redirect';
 import { AuthLayout } from '@/pages/auth/components/auth-layout';
 import queryClient from '@/query-client';
@@ -12,16 +13,14 @@ import { useLoaderData, useNavigate } from '@tanstack/react-router';
 export default function CreateTenant() {
   const redirectOrNavigate = useRedirectOrNavigate();
   const navigate = useNavigate();
+  const { userUpdateLogoutMutation } = useUserApi();
   const { organizations } = useLoaderData({
     from: '/onboarding/create-tenant',
   });
 
   const logoutMutation = useMutation({
-    mutationKey: ['user:update:logout'],
-    mutationFn: async () => {
-      await api.userUpdateLogout();
-    },
-    onSuccess: () => {
+    ...userUpdateLogoutMutation(),
+    onSettled: () => {
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },

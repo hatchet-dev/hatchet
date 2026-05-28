@@ -157,7 +157,7 @@ CREATE TABLE v1_tasks_olap (
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
 
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
@@ -178,7 +178,7 @@ CREATE TABLE v1_dags_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
-    PRIMARY KEY (inserted_at, id, readable_status)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_id);
@@ -312,7 +312,7 @@ CREATE TABLE v1_task_events_olap (
     tenant_id UUID NOT NULL,
     id bigint GENERATED ALWAYS AS IDENTITY,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    external_id UUID,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     event_type v1_event_type_olap NOT NULL,
@@ -371,6 +371,8 @@ CREATE TABLE v1_payloads_olap (
         (location = 'EXTERNAL' AND inline_content IS NULL AND external_location_key IS NOT NULL)
     )
 ) PARTITION BY RANGE(inserted_at);
+
+CREATE INDEX v1_payloads_olap_external_id_idx ON v1_payloads_olap (external_id ASC);
 
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
@@ -628,19 +630,6 @@ BEGIN
         AND r.inserted_at = n.inserted_at
         AND r.kind = 'TASK';
 
-    -- insert tmp events into task status updates table if we have a dag_id
-    INSERT INTO v1_task_status_updates_tmp (
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    )
-    SELECT
-        tenant_id,
-        dag_id,
-        dag_inserted_at
-    FROM new_rows
-    WHERE dag_id IS NOT NULL;
-
     RETURN NULL;
 END;
 $$
@@ -849,7 +838,10 @@ CREATE TABLE v1_payloads_olap_cutover_job_offset (
 
     last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
     last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00'
+    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
+    final_source_table_row_count BIGINT,
+    final_target_table_row_count BIGINT,
+    final_row_count_diff BIGINT
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payloads_olap_partition_structure(
@@ -962,12 +954,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION list_paginated_olap_payloads_for_offload(
     partition_date date,
-    last_tenant_id uuid,
     last_external_id uuid,
-    last_inserted_at timestamptz,
-    next_tenant_id uuid,
     next_external_id uuid,
-    next_inserted_at timestamptz,
     batch_size integer
 ) RETURNS TABLE (
     tenant_id UUID,
@@ -1000,27 +988,26 @@ BEGIN
         WITH candidates AS MATERIALIZED (
             SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
             FROM %I
-            WHERE
-                (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
-            ORDER BY tenant_id, external_id, inserted_at
+            WHERE external_id >= $1::UUID
+            ORDER BY external_id
 
             -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
             -- when a different row is inserted before it, in between us creating the chunks and selecting
             -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
             -- rows in this way, since if a row is inserted before one of our last rows, we will still have
             -- the next row after it in the candidate set.
-            LIMIT $7 * 2
+            LIMIT $3 * 2
         )
 
         SELECT tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at
         FROM candidates
         WHERE
-            (tenant_id, external_id, inserted_at) >= ($1, $2, $3)
-            AND (tenant_id, external_id, inserted_at) <= ($4, $5, $6)
-        ORDER BY tenant_id, external_id, inserted_at
+            external_id >= $1
+            AND external_id <= $2
+        ORDER BY external_id
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, next_tenant_id, next_external_id, next_inserted_at, batch_size;
+    RETURN QUERY EXECUTE query USING last_external_id, next_external_id, batch_size;
 END;
 $$;
 
@@ -1028,16 +1015,10 @@ CREATE OR REPLACE FUNCTION create_olap_payload_offload_range_chunks(
     partition_date date,
     window_size int,
     chunk_size int,
-    last_tenant_id uuid,
-    last_external_id uuid,
-    last_inserted_at timestamptz
+    last_external_id uuid
 ) RETURNS TABLE (
-    lower_tenant_id UUID,
     lower_external_id UUID,
-    lower_inserted_at TIMESTAMPTZ,
-    upper_tenant_id UUID,
-    upper_external_id UUID,
-    upper_inserted_at TIMESTAMPTZ
+    upper_external_id UUID
 )
     LANGUAGE plpgsql AS
 $$
@@ -1059,15 +1040,15 @@ BEGIN
 
     query := format('
         WITH paginated AS (
-            SELECT tenant_id, external_id, inserted_at, ROW_NUMBER() OVER (ORDER BY tenant_id, external_id, inserted_at) AS rn
+            SELECT external_id, ROW_NUMBER() OVER (ORDER BY external_id) AS rn
             FROM %I
-            WHERE (tenant_id, external_id, inserted_at) > ($1, $2, $3)
-            ORDER BY tenant_id, external_id, inserted_at
-            LIMIT $4
+            WHERE external_id > $1::UUID
+            ORDER BY external_id
+            LIMIT $2::INTEGER
         ), lower_bounds AS (
-            SELECT rn::INTEGER / $5::INTEGER AS batch_ix, tenant_id::UUID, external_id::UUID, inserted_at::TIMESTAMPTZ
+            SELECT rn::INTEGER / $3::INTEGER AS batch_ix, external_id::UUID
             FROM paginated
-            WHERE MOD(rn, $5::INTEGER) = 1
+            WHERE MOD(rn, $3::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
                 -- Using `CEIL` and subtracting 1 here to make the `batch_ix` zero indexed like the `lower_bounds` one is.
@@ -1075,28 +1056,22 @@ BEGIN
                 -- because without CEIL if e.g. there were 5 rows in the window and a batch size of two and we did integer division, we would end
                 -- up with batches of index 0, 1, and 1 after dividing and subtracting. With float division and `CEIL`, we get 0, 1, and 2 as expected.
                 -- Then we need to subtract one because we compute the batch index by using integer division on the lower bounds, which are all zero indexed.
-                CEIL(rn::FLOAT / $5::FLOAT) - 1 AS batch_ix,
-                tenant_id::UUID,
-                external_id::UUID,
-                inserted_at::TIMESTAMPTZ
+                CEIL(rn::FLOAT / $3::FLOAT) - 1 AS batch_ix,
+                external_id::UUID
             FROM paginated
             -- We want to include either the last row of each batch, or the last row of the entire paginated set, which may not line up with a batch end.
-            WHERE MOD(rn, $5::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
+            WHERE MOD(rn, $3::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
         )
 
         SELECT
-            lb.tenant_id AS lower_tenant_id,
             lb.external_id AS lower_external_id,
-            lb.inserted_at AS lower_inserted_at,
-            ub.tenant_id AS upper_tenant_id,
-            ub.external_id AS upper_external_id,
-            ub.inserted_at AS upper_inserted_at
+            ub.external_id AS upper_external_id
         FROM lower_bounds lb
         JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
-        ORDER BY lb.tenant_id, lb.external_id, lb.inserted_at
+        ORDER BY lb.external_id
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_external_id, last_inserted_at, window_size, chunk_size;
+    RETURN QUERY EXECUTE query USING last_external_id, window_size, chunk_size;
 END;
 $$;
 
@@ -1150,9 +1125,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION compute_olap_payload_batch_size(
     partition_date DATE,
-    last_tenant_id UUID,
     last_external_id UUID,
-    last_inserted_at TIMESTAMPTZ,
     batch_size INTEGER
 ) RETURNS BIGINT
     LANGUAGE plpgsql AS
@@ -1178,16 +1151,16 @@ BEGIN
         WITH candidates AS (
             SELECT *
             FROM %I
-            WHERE (tenant_id, external_id, inserted_at) >= ($1::UUID, $2::UUID, $3::TIMESTAMPTZ)
-            ORDER BY tenant_id, external_id, inserted_at
-            LIMIT $4::INT
+            WHERE external_id >= $1::UUID
+            ORDER BY external_id
+            LIMIT $2::INTEGER
         )
 
         SELECT COALESCE(SUM(pg_column_size(inline_content)), 0) AS total_size_bytes
         FROM candidates
     ', source_partition_name);
 
-    EXECUTE query INTO result_size USING last_tenant_id, last_external_id, last_inserted_at, batch_size;
+    EXECUTE query INTO result_size USING last_external_id, batch_size;
 
     RETURN result_size;
 END;
@@ -1204,6 +1177,8 @@ DECLARE
     temp_table_name varchar;
     old_pk_name varchar;
     new_pk_name varchar;
+    old_ext_id_idx_name varchar;
+    new_ext_id_idx_name varchar;
     partition_start date;
     partition_end date;
     trigger_function_name varchar;
@@ -1218,6 +1193,8 @@ BEGIN
     SELECT format('v1_payloads_olap_offload_tmp_%s', partition_date_str) INTO temp_table_name;
     SELECT format('v1_payloads_olap_offload_tmp_%s_pkey', partition_date_str) INTO old_pk_name;
     SELECT format('v1_payloads_olap_%s_pkey', partition_date_str) INTO new_pk_name;
+    SELECT format('v1_payloads_olap_offload_tmp_%s_external_id_idx', partition_date_str) INTO old_ext_id_idx_name;
+    SELECT format('v1_payloads_olap_%s_external_id_idx', partition_date_str) INTO new_ext_id_idx_name;
     SELECT format('sync_to_%s', temp_table_name) INTO trigger_function_name;
     SELECT format('trigger_sync_to_%s', temp_table_name) INTO trigger_name;
 
@@ -1257,6 +1234,9 @@ BEGIN
 
     RAISE NOTICE 'Renaming primary key % to %', old_pk_name, new_pk_name;
     EXECUTE format('ALTER INDEX %I RENAME TO %I', old_pk_name, new_pk_name);
+
+    RAISE NOTICE 'Renaming external_id index % to %', old_ext_id_idx_name, new_ext_id_idx_name;
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', old_ext_id_idx_name, new_ext_id_idx_name);
 
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);

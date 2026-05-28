@@ -13,11 +13,11 @@ import {
   DialogHeader,
 } from '@/components/v1/ui/dialog';
 import {
-  PortalTooltip,
-  PortalTooltipContent,
-  PortalTooltipProvider,
-  PortalTooltipTrigger,
-} from '@/components/v1/ui/portal-tooltip';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, {
   queries,
@@ -334,9 +334,9 @@ const BaseActionButton = ({
   } = useRunsContext();
 
   return (
-    <PortalTooltipProvider>
-      <PortalTooltip>
-        <PortalTooltipTrigger asChild>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
           <Button
             size={'sm'}
             className={cn('text-sm gap-2', className)}
@@ -356,10 +356,10 @@ const BaseActionButton = ({
             {icon}
             {showLabel && label}
           </Button>
-        </PortalTooltipTrigger>
-        <PortalTooltipContent>{label}</PortalTooltipContent>
-      </PortalTooltip>
-    </PortalTooltipProvider>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 

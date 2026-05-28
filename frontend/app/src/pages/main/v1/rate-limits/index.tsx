@@ -8,20 +8,22 @@ import { RateLimitWithMetadata } from './hooks/use-rate-limits';
 import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';
 import { VisibilityState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 export default function RateLimits() {
   return <RateLimitsTable />;
 }
 
 function RateLimitsTable() {
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:rate-limits', {});
   const { tenantId } = useCurrentTenantId();
   const { handleApiError } = useApiError({});
 

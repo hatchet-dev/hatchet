@@ -27,6 +27,7 @@ dump.rdb
 .venv
 
 node_modules
+.pnpm-store
 
 # Jetbrains IDEs
 *.iml
@@ -103,3 +104,6 @@ frontend/docs/lib/generated/
 # Scripts
 hack/dev/psql-connect.sh
 CLAUDE.md
+
+.cache
+.rspec_status

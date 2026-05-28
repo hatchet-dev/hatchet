@@ -393,7 +393,7 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		s.l.Debug().Ctx(ctx).Msgf("partition: checking step run requeue")
 
 		// list all tenants
-		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId(), sqlcv1.TenantMajorEngineVersionV1)
+		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
 
 		if err != nil {
 			s.l.Err(err).Ctx(ctx).Msg("could not list tenants")

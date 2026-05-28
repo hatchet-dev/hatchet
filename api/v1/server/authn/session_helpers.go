@@ -2,6 +2,7 @@ package authn
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
@@ -39,7 +40,9 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
-		return err
+		clearCookie := s.ss.ClearingCookie(s.ss.GetName())
+		http.SetCookie(c.Response(), &clearCookie)
+		return nil
 	}
 
 	// unset all values

@@ -24,7 +24,7 @@ type CreateUserOpts struct {
 }
 
 type OAuthOpts struct {
-	Provider       string     `validate:"required,oneof=google github"`
+	Provider       string     `validate:"required,oneof=google github sso"`
 	ProviderUserId string     `validate:"required,min=1"`
 	AccessToken    []byte     `validate:"required,min=1"`
 	RefreshToken   []byte     // optional

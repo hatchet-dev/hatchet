@@ -20,19 +20,31 @@ from hatchet_sdk.exceptions import NonDeterminismError
 hatchet = Hatchet()
 
 
-dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
+class DagChildWorkflowInput(BaseModel):
+    child_index: int = 0
+    sleep_1_duration: int = 1
+    sleep_2_duration: int = 5
+
+
+dag_child_workflow = hatchet.workflow(
+    name="dag-child-workflow", input_validator=DagChildWorkflowInput
+)
 
 
 @dag_child_workflow.task()
-async def dag_child_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    await asyncio.sleep(1)
-    return {"result": "child1"}
+async def dag_child_1(
+    input: DagChildWorkflowInput, ctx: Context
+) -> dict[str, str | int]:
+    await asyncio.sleep(input.sleep_1_duration)
+    return {"result": "child1", "child_index": input.child_index}
 
 
 @dag_child_workflow.task(parents=[dag_child_1])
-async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    await asyncio.sleep(5)
-    return {"result": "child2"}
+async def dag_child_2(
+    input: DagChildWorkflowInput, ctx: Context
+) -> dict[str, str | int]:
+    await asyncio.sleep(input.sleep_2_duration)
+    return {"result": "child2", "child_index": input.child_index}
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
@@ -54,6 +66,45 @@ async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str,
         "spawn_duration": spawn_duration,
         "spawn_result": spawn_result,
     }
+
+
+class DurableSpawnManyDagsResultSingleton(BaseModel):
+    has_both_child_outputs: bool
+    child_index: int
+
+
+class DurableSpawnManyDagsResult(BaseModel):
+    results: list[DurableSpawnManyDagsResultSingleton]
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
+async def durable_spawn_many_dags(
+    input: EmptyModel, ctx: DurableContext
+) -> DurableSpawnManyDagsResult:
+    results = await dag_child_workflow.aio_run_many(
+        [
+            dag_child_workflow.create_bulk_run_item(
+                input=DagChildWorkflowInput(
+                    sleep_1_duration=0,
+                    sleep_2_duration=0,
+                    child_index=i,
+                )
+            )
+            for i in range(20)
+        ]
+    )
+
+    return DurableSpawnManyDagsResult(
+        results=[
+            DurableSpawnManyDagsResultSingleton(
+                has_both_child_outputs=(
+                    "dag_child_1" in result and "dag_child_2" in result
+                ),
+                child_index=result["dag_child_1"]["child_index"],
+            )
+            for result in results
+        ]
+    )
 
 
 # > Create a durable workflow
@@ -392,6 +443,40 @@ async def durable_replay_reset(
     )
 
 
+class ChildKeyDedupResult(BaseModel):
+    runtime: float
+    child_1_output: dict[str, str]
+    child_2_output: dict[str, str]
+    child_3_output: dict[str, str]
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=30))
+async def durable_child_key_dedup_replay(
+    input: EmptyModel, ctx: DurableContext
+) -> ChildKeyDedupResult:
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    child_1_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=1), child_key="child-a"
+    )
+    child_2_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=2), child_key="child-b"
+    )
+    child_3_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=3), child_key="child-a"
+    )
+
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    return ChildKeyDedupResult(
+        child_1_output=child_1_output,
+        child_2_output=child_2_output,
+        child_3_output=child_3_output,
+        runtime=time.time() - start,
+    )
+
+
 class SleepResult(BaseModel):
     message: str
     duration: float
@@ -432,9 +517,11 @@ def main() -> None:
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,
+            durable_child_key_dedup_replay,
             wait_for_event_lookback,
             wait_for_or_event_lookback,
             wait_for_two_events_second_pushed_first,
+            durable_spawn_many_dags,
         ],
     )
     worker.start()

@@ -1,6 +1,6 @@
 module github.com/hatchet-dev/hatchet
 
-go 1.25.0
+go 1.25.9
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0
@@ -22,7 +22,7 @@ require (
 	github.com/emersion/go-smtp v0.24.0
 	github.com/fatih/color v1.19.0
 	github.com/getkin/kin-openapi v0.135.0
-	github.com/go-co-op/gocron/v2 v2.21.0
+	github.com/go-co-op/gocron/v2 v2.21.1
 	github.com/google/go-github/v57 v57.0.0
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.4.0
@@ -137,7 +137,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
-	github.com/go-openapi/jsonreference v0.20.2 // indirect
+	github.com/go-openapi/jsonreference v0.20.4 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
@@ -165,7 +165,7 @@ require (
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20250317134145-8bc96cf8fc35 // indirect
+	github.com/lufia/plan9stats v0.0.0-20250827001030-24949be3fa54 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
@@ -252,8 +252,8 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/rs/zerolog v1.35.0
-	github.com/slack-go/slack v0.22.0
+	github.com/rs/zerolog v1.35.1
+	github.com/slack-go/slack v0.23.1
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect

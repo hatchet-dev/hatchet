@@ -5,7 +5,7 @@ import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useDebounce } from 'use-debounce';
 import { z } from 'zod';
 
@@ -37,6 +37,13 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   } = useZodColumnFilters(workflowQuerySchema, paramKey, { s: nameKey });
 
   const [debouncedSearch] = useDebounce(search, 300);
+
+  const setSearch = useCallback(
+    (value: string) => {
+      setColumnFilters(() => (value ? [{ id: nameKey, value }] : []));
+    },
+    [setColumnFilters],
+  );
 
   const listWorkflowQuery = useQuery({
     ...queries.workflows.list(tenantId, {
@@ -80,5 +87,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
     setColumnFilters,
     resetFilters,
     workflowNameToId,
+    search: search ?? '',
+    setSearch,
   };
 };

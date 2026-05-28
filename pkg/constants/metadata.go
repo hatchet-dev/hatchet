@@ -3,14 +3,15 @@ package constants
 type MetadataKey string
 
 const (
-	CorrelationIdKey  MetadataKey = "correlationId"
-	ResourceIdKey     MetadataKey = "resourceId"
-	ResourceTypeKey   MetadataKey = "resourceType"
-	GRPCMethodKey     MetadataKey = "grpc_method"
-	EventIDKey        MetadataKey = "hatchet__event_id"
-	EventKeyKey       MetadataKey = "hatchet__event_key"
-	CronExpressionKey MetadataKey = "hatchet__cron_expression"
-	CronNameKey       MetadataKey = "hatchet__cron_name"
+	CorrelationIdKey   MetadataKey = "correlationId"
+	ResourceIdKey      MetadataKey = "resourceId"
+	ResourceTypeKey    MetadataKey = "resourceType"
+	GRPCMethodKey      MetadataKey = "grpc_method"
+	EventIDKey         MetadataKey = "hatchet__event_id"
+	EventKeyKey        MetadataKey = "hatchet__event_key"
+	CronExpressionKey  MetadataKey = "hatchet__cron_expression"
+	CronNameKey        MetadataKey = "hatchet__cron_name"
+	CronScheduledAtKey MetadataKey = "hatchet__cron_scheduled_at"
 )
 
 func (k MetadataKey) String() string {

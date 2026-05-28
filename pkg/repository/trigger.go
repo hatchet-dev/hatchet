@@ -619,13 +619,13 @@ func (r *sharedRepository) triggerWorkflows(
 		workflowVersionIds = append(workflowVersionIds, id)
 	}
 
-	var listStepsTx sqlcv1.DBTX = r.pool
+	var preflightTx sqlcv1.DBTX = r.pool
 
 	if existingTx != nil {
-		listStepsTx = existingTx.tx
+		preflightTx = existingTx.tx
 	}
 
-	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, listStepsTx, tenantId, workflowVersionIds)
+	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
@@ -669,7 +669,7 @@ func (r *sharedRepository) triggerWorkflows(
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepsWithAdditionalMatchConditions) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, preflightTx, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  stepsWithAdditionalMatchConditions,
 			Tenantid: tenantId,
 		})
@@ -1595,6 +1595,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 	}
 
@@ -1614,6 +1615,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}]
 
 		if !ok {
@@ -2447,13 +2449,16 @@ func (r *sharedRepository) NewTriggerTaskData(
 
 	if parentTask != nil {
 		parentExternalId := parentTask.ExternalID
-		childIndex := int64(*req.ChildIndex)
 
 		t.ParentExternalId = &parentExternalId
 		t.ParentTaskId = &parentTask.ID
 		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
-		t.ChildIndex = &childIndex
 		t.ChildKey = req.ChildKey
+
+		if req.ChildIndex != nil {
+			childIndex := int64(*req.ChildIndex)
+			t.ChildIndex = &childIndex
+		}
 
 		t.AdditionalMetadata = injectParentIDs(
 			t.AdditionalMetadata,

@@ -6,6 +6,7 @@ export const EVICTION_TTL_SECONDS = 5;
 export const LONG_SLEEP_SECONDS = 15;
 export const EVENT_KEY = 'durable-eviction:event';
 
+// > Eviction Policy
 const EVICTION_POLICY: EvictionPolicy = {
   ttl: `${EVICTION_TTL_SECONDS}s`,
   allowCapacityEviction: true,
@@ -20,6 +21,7 @@ export const childTask = hatchet.task({
   },
 });
 
+// > Evictable Sleep
 export const evictableSleep = hatchet.durableTask({
   name: 'evictable-sleep',
   executionTimeout: '5m',
@@ -113,6 +115,7 @@ export const capacityEvictableSleep = hatchet.durableTask({
   },
 });
 
+// > Non Evictable Sleep
 export const nonEvictableSleep = hatchet.durableTask({
   name: 'non-evictable-sleep',
   executionTimeout: '5m',

@@ -1,4 +1,5 @@
 import { AnsiLine } from './ansi-line';
+import { formatLogMetadata, hasLogMetadata } from './log-metadata';
 import {
   LogLine,
   V1LogLineLevelIncludingEvictionNotice,
@@ -10,16 +11,16 @@ import {
   PopoverTrigger,
 } from '@/components/v1/ui/popover';
 import {
-  PortalTooltip,
-  PortalTooltipContent,
-  PortalTooltipProvider,
-  PortalTooltipTrigger,
-} from '@/components/v1/ui/portal-tooltip';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { V1LogLineLevel, V1TaskStatus } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
 import { ExternalLink, XCircle } from 'lucide-react';
-import { useMemo, useCallback, useRef, useState } from 'react';
+import { createElement, useCallback, useMemo, useRef, useState } from 'react';
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric',
@@ -177,6 +178,45 @@ function ErrorPopover({ error }: { error: string }) {
                 </pre>
               </div>
             </div>
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function FieldsPopover({ metadata }: { metadata: Record<string, unknown> }) {
+  const formattedMetadata = formatLogMetadata(metadata);
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        onClick={(e) => e.stopPropagation()}
+        className="ml-2 shrink-0 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:border-foreground/40 hover:bg-muted hover:text-foreground"
+      >
+        <span aria-hidden="true">{'{}'}</span>
+        Fields
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[320px] max-w-[90vw] border-border bg-popover p-0 text-left shadow-lg sm:w-[460px] md:w-[560px] lg:w-[680px]"
+        align="start"
+      >
+        <div className="space-y-3 p-4">
+          <div className="flex items-center gap-2 border-b border-border pb-2">
+            <span className="font-mono text-xs text-muted-foreground">
+              {'{}'}
+            </span>
+            <h3 className="font-medium text-foreground">Log Fields</h3>
+          </div>
+          <div className="max-h-[420px] overflow-auto rounded-md border border-border bg-muted/50">
+            {createElement(
+              'pre',
+              {
+                className:
+                  'm-0 whitespace-pre-wrap break-words p-4 text-left font-mono text-xs leading-relaxed text-foreground',
+              },
+              formattedMetadata,
+            )}
           </div>
         </div>
       </PopoverContent>
@@ -459,11 +499,14 @@ export function LogViewer({
                   {/* fixme: figure out how to use the type guard properly here */}
                   <AnsiLine text={log.line as string} />
                 </span>
+                {hasLogMetadata(log.metadata) && (
+                  <FieldsPopover metadata={log.metadata} />
+                )}
                 {log.error && <ErrorPopover error={log.error} />}
                 {log.linkTo && (
-                  <PortalTooltipProvider>
-                    <PortalTooltip>
-                      <PortalTooltipTrigger asChild>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                         <Link
                           to={log.linkTo.destination}
                           params={log.linkTo.params as Record<string, string>}
@@ -474,12 +517,10 @@ export function LogViewer({
                         >
                           <ExternalLink className="size-3" />
                         </Link>
-                      </PortalTooltipTrigger>
-                      <PortalTooltipContent>
-                        {log.linkTo.hoverText}
-                      </PortalTooltipContent>
-                    </PortalTooltip>
-                  </PortalTooltipProvider>
+                      </TooltipTrigger>
+                      <TooltipContent>{log.linkTo.hoverText}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             </div>

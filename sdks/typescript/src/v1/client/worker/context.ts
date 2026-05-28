@@ -32,7 +32,7 @@ import { parentRunContextManager } from '@hatchet/v1/parent-run-context-vars';
 import { NextStep } from '@hatchet-dev/typescript-sdk/legacy/step';
 import { DurableListenerClient } from '@hatchet/clients/listeners/durable-listener/durable-listener-client';
 import { createHash } from 'crypto';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { InternalWorker } from './worker-internal';
 import { Duration, durationToMs, durationToString } from '../duration';
 import { DurableEvictionManager } from './eviction/eviction-manager';
@@ -1032,14 +1032,6 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param payloadSchema - An optional Zod schema to validate and parse the event payload.
    * @returns The event payload, validated against the schema if provided.
    */
-  async waitForEvent<T extends z.ZodTypeAny>(
-    key: string,
-    expression?: string,
-    payloadSchema?: T,
-    scope?: string,
-    lookbackWindow?: Duration,
-    label?: string
-  ): Promise<z.infer<T>>;
   async waitForEvent(
     key: string,
     expression?: string,
@@ -1048,6 +1040,14 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     lookbackWindow?: Duration,
     label?: string
   ): Promise<Record<string, any>>;
+  async waitForEvent<T extends z.ZodTypeAny>(
+    key: string,
+    expression?: string,
+    payloadSchema?: T,
+    scope?: string,
+    lookbackWindow?: Duration,
+    label?: string
+  ): Promise<z.infer<T>>;
   async waitForEvent(
     key: string,
     expression?: string,

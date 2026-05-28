@@ -1,5 +1,4 @@
 import {
-  getDisplayName,
   hasErrorInTree,
   isQueuedOnly,
   isQueuedOnlyRoot,
@@ -30,7 +29,7 @@ export function collectSpanMarkers(
       statusCode: node.statusCode,
       hasErrorInTree: hasErrorInTree(node),
       inProgress: !!node.inProgress,
-      spanName: getDisplayName(node),
+      spanName: node.spanName,
       durationMs: node.durationNs / 1_000_000,
       visible: parentVisible,
       span: node,

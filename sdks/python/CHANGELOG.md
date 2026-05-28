@@ -5,6 +5,31 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.6] - 2026-05-27
+
+### Changed
+
+- Refactored worker graceful shutdown to prevent in-flight tasks from being killed.
+
+
+## [1.33.5] - 2026-05-12
+
+### Security
+
+- Bump urllib to `2.7.0` to address CVE-2026-44432
+
+## [1.33.4] - 2026-05-08
+
+### Changed
+
+- Fixes a bug where TLS credentials are not passed to the OTLP span exporter.
+
+## [1.33.3] - 2026-04-29
+
+### Changed
+
+- Fixes a bug where passing `wait_for_result=False` when spawning children out of a durable task would not be respected, causing unexpected errors and broken functionality.
+
 ## [1.33.2] - 2026-04-22
 
 ### Added
