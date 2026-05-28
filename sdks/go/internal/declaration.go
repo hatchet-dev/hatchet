@@ -605,7 +605,6 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	for _, filter := range w.DefaultFilters {
 		data, err := json.Marshal(filter.Payload)
 		if err != nil {
-			//return nil,nil,err
 			continue
 		}
 
