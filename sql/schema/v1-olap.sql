@@ -382,6 +382,8 @@ CREATE TABLE v1_payloads_olap_offloaded_block_index (
         EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
 );
 
+CREATE UNIQUE INDEX v1_payloads_olap_offloaded_block_index_uq_index_key ON v1_payloads_olap_offloaded_block_index (index_file_key);
+
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
 CREATE TABLE v1_task_status_updates_tmp (

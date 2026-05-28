@@ -14,6 +14,8 @@ CREATE TABLE v1_payload_offloaded_block_index (
         EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
 );
 
+CREATE UNIQUE INDEX v1_payload_offloaded_block_index_uq_index_key ON v1_payload_offloaded_block_index (index_file_key);
+
 CREATE TABLE v1_payloads_olap_offloaded_block_index (
     payload_inserted_at_date DATE NOT NULL,
     block_external_id_range uuidrange NOT NULL,
@@ -21,6 +23,8 @@ CREATE TABLE v1_payloads_olap_offloaded_block_index (
     CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl
         EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
 );
+
+CREATE UNIQUE INDEX v1_payloads_olap_offloaded_block_index_uq_index_key ON v1_payloads_olap_offloaded_block_index (index_file_key);
 -- +goose StatementEnd
 
 -- +goose Down

@@ -1791,6 +1791,8 @@ CREATE TABLE v1_payload_offloaded_block_index (
         EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
 );
 
+CREATE UNIQUE INDEX v1_payload_offloaded_block_index_uq_index_key ON v1_payload_offloaded_block_index (index_file_key);
+
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
 ) RETURNS text
