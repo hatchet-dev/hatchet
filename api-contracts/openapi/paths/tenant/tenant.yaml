@@ -118,6 +118,38 @@ updateTenants:
     summary: Get tenant
     tags:
       - Tenant
+  delete:
+    x-resources: ["tenant"]
+    description: Soft deletes a tenant and renames its slug
+    operationId: tenant:delete
+    parameters:
+      - description: The tenant id to delete
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "204":
+        description: Successfully deleted the tenant
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+    summary: Delete tenant
+    tags:
+      - Tenant
 
 tenantAlertingSettings:
   get:

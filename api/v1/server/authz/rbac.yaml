@@ -1,6 +1,8 @@
 roles:
   OWNER:
     inherits: [ADMIN]
+    permissions:
+      - TenantDelete
   ADMIN:
     inherits: [MEMBER]
     permissions:
