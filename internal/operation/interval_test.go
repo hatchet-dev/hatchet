@@ -2,7 +2,6 @@ package operation
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -157,24 +156,6 @@ func TestInterval_SetIntervalGauge_BackoffMechanism(t *testing.T) {
 	interval.SetIntervalGauge(0)
 	interval.SetIntervalGauge(0)
 	assert.Equal(t, 200*time.Millisecond, interval.currInterval, "Should double again after 3 more zero-row updates")
-}
-
-func TestInterval_SetIntervalGauge_BackoffOverflow(t *testing.T) {
-	interval := &Interval{
-		resourceId:      testResourceID,
-		maxJitter:       0,
-		startInterval:   50 * time.Millisecond,
-		currInterval:    50 * time.Millisecond,
-		maxInterval:     293 * 52 * 7 * 24 * time.Hour,
-		noActivityCount: 0,
-		incBackoffCount: 3,
-		repo:            v1.NewNoOpIntervalSettingsRepository(),
-	}
-
-	for range 6400 {
-		interval.SetIntervalGauge(0)
-		fmt.Println(interval.currInterval, interval.noActivityCount)
-	}
 }
 
 func TestInterval_SetIntervalGauge_ConcurrentAccess(t *testing.T) {

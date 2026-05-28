@@ -64,6 +64,7 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
+from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
@@ -276,7 +277,7 @@ class _BatchController:
 class Runner:
     def __init__(
         self,
-        event_queue: "Queue[ActionEvent]",
+        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         config: ClientConfig,
         slots: int,
         durable_slots: int,

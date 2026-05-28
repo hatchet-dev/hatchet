@@ -92,6 +92,11 @@ export default {
   "region-availability": "Region Availability",
   uptime: "Uptime",
   "developer-experience": "Developer Experience",
+  "--migration-guides": {
+    title: "Migration Guides",
+    type: "separator",
+  },
+  "from-celery-to-hatchet": "From Celery to Hatchet",
   "--troubleshooting": {
     title: "Troubleshooting",
     type: "separator",

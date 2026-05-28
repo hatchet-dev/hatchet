@@ -50,5 +50,25 @@ jobs:
           else
               pnpm publish:ci
           fi
+          echo "VERSION_TAG=$NEW_VERSION" >> $GITHUB_ENV
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: "Generate release notes"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: ./hack/ci/release-notes.sh typescript > ./release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Release"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: |
+          gh release create "ts/${VERSION_TAG}" \
+            --target "$GITHUB_SHA" \
+            --title "Typescript SDK ${VERSION_TAG}" \
+            --notes-file ./release_notes.md \
+            --latest=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
