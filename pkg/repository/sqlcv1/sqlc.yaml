@@ -71,3 +71,6 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
               pointer: true
+          - db_type: "uuidrange"
+            go_type:
+              type: "UUIDRange"
