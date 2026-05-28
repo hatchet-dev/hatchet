@@ -1,0 +1,10 @@
+changelog:
+  exclude:
+    authors:
+      - dependabot
+      - dependabot[bot]
+  categories:
+    - title: What's Changed?
+      labels:
+        - engine
+        - sdk-go
