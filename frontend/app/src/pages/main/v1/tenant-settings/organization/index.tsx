@@ -39,7 +39,10 @@ import {
 } from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+  MAX_INACTIVITY_TIMEOUT_MS,
+  useOrganizations,
+} from '@/hooks/use-organizations';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
@@ -309,8 +312,12 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     [editedTimeout],
   );
 
+  const editedTimeoutExceedsMax =
+    parsedEditedTimeout !== null &&
+    parsedEditedTimeout > MAX_INACTIVITY_TIMEOUT_MS;
+
   const handleSaveTimeout = () => {
-    if (!orgId || parsedEditedTimeout === null) {
+    if (!orgId || parsedEditedTimeout === null || editedTimeoutExceedsMax) {
       return;
     }
     if (parsedEditedTimeout === currentInactivityTimeoutMs) {
@@ -717,7 +724,8 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                           onClick={handleSaveTimeout}
                           disabled={
                             updateOrganizationLoading ||
-                            parsedEditedTimeout === null
+                            parsedEditedTimeout === null ||
+                            editedTimeoutExceedsMax
                           }
                           hoverText="Save inactivity timeout"
                           className="shrink-0 bg-background/60 hover:bg-muted/50"
@@ -732,11 +740,18 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                     </div>
                     {editedTimeout.trim() !== '' && (
                       <p
-                        className={`text-xs ${parsedEditedTimeout === null ? 'text-destructive' : 'text-muted-foreground'}`}
+                        className={`text-xs ${
+                          parsedEditedTimeout === null ||
+                          editedTimeoutExceedsMax
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
                       >
                         {parsedEditedTimeout === null
                           ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
-                          : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                          : editedTimeoutExceedsMax
+                            ? 'Inactivity timeout cannot exceed 14 days'
+                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
                       </p>
                     )}
                   </div>
