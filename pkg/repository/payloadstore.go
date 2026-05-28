@@ -915,7 +915,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().UTC().Add(-1 * *p.inlineStoreTTL),
+		Time:  time.Now().Add(-1 * (*p.inlineStoreTTL + 2*time.Hour)), // 2 hour offset to limit race conditions and hot-path i/o
 		Valid: true,
 	}
 
