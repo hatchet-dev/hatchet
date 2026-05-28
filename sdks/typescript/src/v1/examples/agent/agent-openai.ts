@@ -1,4 +1,3 @@
-// eslint-disable-next-line
 import { createTemperatureWorkflowToolOpenai } from './workflow';
 
 async function main() {
