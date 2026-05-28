@@ -83,7 +83,7 @@ type ServerEvictCallback func(taskExternalID string, invocationCount int32, reas
 type DurableTaskListener struct {
 	onServerEvict         ServerEvictCallback
 	pendingEvictionAcks   map[PendingAckKey]chan error
-	l                     *zerolog.Logger
+	l                     zerolog.Logger
 	connectFn             func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
 	cancel                context.CancelFunc
 	requestQueue          chan *v1.DurableTaskRequest
@@ -128,9 +128,14 @@ func NewDurableTaskListener(
 	l *zerolog.Logger,
 	opts ...DurableTaskListenerOpt,
 ) *DurableTaskListener {
+	logger := zerolog.Nop()
+	if l != nil {
+		logger = *l
+	}
+
 	dtl := &DurableTaskListener{
 		workerID:            workerID,
-		l:                   l,
+		l:                   logger,
 		reconnectInterval:   defaultReconnectInterval,
 		evictionAckTTL:      evictionAckTimeout,
 		connectFn:           connectFn,
@@ -331,9 +336,7 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 			if isCancelled(ctx) {
 				return
 			}
-			if l.l != nil {
-				l.l.Error().Err(err).Msg("DurableTaskListener: connection failed, retrying")
-			}
+			l.l.Error().Err(err).Msg("DurableTaskListener: connection failed, retrying")
 			time.Sleep(l.reconnectInterval)
 			continue
 		}
@@ -348,9 +351,7 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 				return
 			}
 			l.failPendingAcks(fmt.Errorf("connection reset: %w", err))
-			if l.l != nil {
-				l.l.Warn().Err(err).Msg("DurableTaskListener: stream ended, reconnecting")
-			}
+			l.l.Warn().Err(err).Msg("DurableTaskListener: stream ended, reconnecting")
 			time.Sleep(l.reconnectInterval)
 			continue
 		}
@@ -378,9 +379,7 @@ func (l *DurableTaskListener) handleStream(ctx context.Context, stream v1.V1Disp
 		return fmt.Errorf("failed to register worker on durable task stream: %w", err)
 	}
 
-	if l.l != nil {
-		l.l.Debug().Str("worker_id", l.workerID).Msg("DurableTaskListener: registered worker on stream")
-	}
+	l.l.Debug().Str("worker_id", l.workerID).Msg("DurableTaskListener: registered worker on stream")
 
 	streamCtx, cancelStream := context.WithCancel(ctx)
 	defer cancelStream()
@@ -481,13 +480,11 @@ func (l *DurableTaskListener) SendTriggerRunsRequest(
 	ackKey := PendingAckKey{TaskID: taskExternalID, SignalKey: int64(invocationCount)}
 	ackCh := l.AddPendingEventAck(ackKey)
 
-	if l.l != nil {
-		l.l.Debug().
-			Str("step_run_id", taskExternalID).
-			Int32("invocation_count", invocationCount).
-			Int("children", len(triggerOpts)).
-			Msg("DurableTaskListener: sending trigger_runs request")
-	}
+	l.l.Debug().
+		Str("step_run_id", taskExternalID).
+		Int32("invocation_count", invocationCount).
+		Int("children", len(triggerOpts)).
+		Msg("DurableTaskListener: sending trigger_runs request")
 
 	l.SendRequest(&v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_TriggerRuns{
@@ -581,12 +578,10 @@ func (l *DurableTaskListener) SendWaitForRequest(
 		labelPtr = &label
 	}
 
-	if l.l != nil {
-		l.l.Debug().
-			Str("step_run_id", taskExternalID).
-			Int32("invocation_count", invocationCount).
-			Msg("DurableTaskListener: sending wait_for request")
-	}
+	l.l.Debug().
+		Str("step_run_id", taskExternalID).
+		Int32("invocation_count", invocationCount).
+		Msg("DurableTaskListener: sending wait_for request")
 
 	l.SendRequest(&v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_WaitFor{
@@ -764,13 +759,11 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 		invCount := evict.GetInvocationCount()
 		reason := evict.GetReason()
 
-		if l.l != nil {
-			l.l.Info().
-				Str("task_id", taskID).
-				Int32("invocation_count", invCount).
-				Str("reason", reason).
-				Msg("DurableTaskListener: received server eviction notice")
-		}
+		l.l.Info().
+			Str("task_id", taskID).
+			Int32("invocation_count", invCount).
+			Str("reason", reason).
+			Msg("DurableTaskListener: received server eviction notice")
 
 		l.CleanupTaskState(taskID, invCount)
 
@@ -781,9 +774,7 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 			cb(taskID, invCount, reason)
 		}
 	default:
-		if l.l != nil {
-			l.l.Warn().Msg("DurableTaskListener: unknown response type")
-		}
+		l.l.Warn().Msg("DurableTaskListener: unknown response type")
 	}
 }
 
