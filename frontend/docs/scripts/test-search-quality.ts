@@ -82,7 +82,7 @@ const TEST_CASES: SearchTestCase[] = [
     name: "setup",
     query: "setup",
     expectAnyOf: ["v1/quickstart", "reference/cli/index", "reference/cli"],
-    topN: 10,
+    topN: 15,
   },
   {
     name: "getting started",

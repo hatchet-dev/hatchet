@@ -18,6 +18,8 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+const BILLING_SYNC_REFETCH_INTERVAL_MS = 5000;
+
 export default function ResourceLimits() {
   const { tenantId } = useCurrentTenantId();
   const { membership } = useAppContext();
@@ -25,16 +27,21 @@ export default function ResourceLimits() {
 
   const { cloud, isCloudEnabled } = useCloud();
 
+  const billingEnabled = isCloudEnabled && !!cloud?.canBill;
+  const billingSyncRefetchInterval = billingEnabled
+    ? BILLING_SYNC_REFETCH_INTERVAL_MS
+    : false;
+
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
+    refetchInterval: billingSyncRefetchInterval,
   });
 
   const billingState = useQuery({
     ...queries.cloud.billing(tenantId),
-    enabled: isCloudEnabled && !!cloud?.canBill,
+    enabled: billingEnabled,
+    refetchInterval: billingSyncRefetchInterval,
   });
-
-  const billingEnabled = isCloudEnabled && cloud?.canBill;
 
   const resourceLimits = resourcePolicyQuery.data?.limits || [];
 

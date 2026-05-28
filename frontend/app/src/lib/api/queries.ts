@@ -1,11 +1,12 @@
 import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi } from './api';
+import api, { cloudApi, controlPlaneApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import invariant from 'tiny-invariant';
 
 type ListEventQuery = Parameters<typeof api.eventList>[1];
 type ListRateLimitsQuery = Parameters<typeof api.rateLimitList>[1];
+type ListWorkersQuery = Parameters<typeof api.workerList>[1];
 type ListLogLineQuery = Parameters<typeof api.v1LogLineList>[1];
 type ListWorkflowRunsQuery = Parameters<typeof api.workflowRunList>[1];
 type ListWorkflowsQuery = Parameters<typeof api.workflowList>[1];
@@ -30,27 +31,23 @@ export const queries = createQueryKeyStore({
   cloud: {
     billing: (tenant: string) => ({
       queryKey: ['billing-state:get', tenant],
-      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+      queryFn: async () =>
+        (await controlPlaneApi.tenantBillingStateGet(tenant)).data,
     }),
     creditBalance: (tenant: string) => ({
       queryKey: ['credit-balance:get', tenant],
-      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
+      queryFn: async () =>
+        (await controlPlaneApi.tenantCreditBalanceGet(tenant)).data,
     }),
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
-      queryFn: async () =>
-        (
-          await cloudApi.subscriptionPlansList({
-            secure: true,
-            useExchangeToken: true,
-          })
-        ).data,
+      queryFn: async () => (await controlPlaneApi.subscriptionPlansList()).data,
     }),
 
     paymentMethods: (tenant: string) => ({
       queryKey: ['payment-methods:get', tenant],
       queryFn: async () =>
-        (await cloudApi.tenantPaymentMethodsGet(tenant)).data,
+        (await controlPlaneApi.tenantPaymentMethodsGet(tenant)).data,
     }),
 
     getComputeCost: (tenant: string) => ({
@@ -421,9 +418,9 @@ export const queries = createQueryKeyStore({
     }),
   },
   workers: {
-    list: (tenant: string) => ({
-      queryKey: ['worker:list', tenant],
-      queryFn: async () => (await api.workerList(tenant)).data,
+    list: (tenant: string, query?: ListWorkersQuery) => ({
+      queryKey: ['worker:list', tenant, query],
+      queryFn: async () => (await api.workerList(tenant, query)).data,
     }),
     get: (worker: string) => ({
       queryKey: ['worker:get', worker],

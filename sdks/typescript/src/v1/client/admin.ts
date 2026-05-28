@@ -248,9 +248,11 @@ export class AdminClient {
       };
     });
 
-    const limit = 4 * 1024 * 1024; // FIXME configurable GRPC limit
-
-    const batches = batch(workflowRequests, batchSize, limit);
+    const batches = batch(
+      workflowRequests,
+      batchSize,
+      this.config.grpc_max_send_message_length ?? 4 * 1024 * 1024
+    );
 
     this.logger.debug(`batching ${batches.length} batches`);
 

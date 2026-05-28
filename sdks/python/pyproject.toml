@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.33.5"
+version = "1.33.6"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -17,12 +17,12 @@ dependencies = [
     "grpcio>=1.76.0,<2",
     "grpcio-tools>=1.76.0,<2",
     "protobuf>=6.33.5,<7",
-    "pydantic>=2.13.3,<3",
+    "pydantic>=2.13.4,<3",
     "python-dateutil>=2.9.0.post0,<3",
     "aiohttp>=3.13.5,<4",
     "tenacity>=8.4.1",
     "prometheus-client>=0.25.0",
-    "pydantic-settings>=2.14.0,<3",
+    "pydantic-settings>=2.14.1,<3",
     "typing-inspection>=0.1.0",
     "urllib3>=2.7.0,<3",
 ]

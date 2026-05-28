@@ -64,6 +64,7 @@ export async function loader(_args: { request: Request }) {
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
+    isCloudEnabled,
     isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
@@ -135,7 +136,10 @@ function AuthenticatedInner() {
     },
   });
 
-  const { pendingInvitesQuery } = usePendingInvites();
+  const { pendingInvitesQuery } = usePendingInvites({
+    isCloudEnabled: loaderData.isCloudEnabled,
+    isControlPlaneEnabled: loaderData.isControlPlaneEnabled,
+  });
 
   const {
     isCloudEnabled,
@@ -230,6 +234,7 @@ function AuthenticatedInner() {
       pendingInvites.organizationInvites.length > 0;
 
     const mustAcceptTenantInviteNow =
+      okayToMakeOnboardingRedirectDecisions &&
       tenantMemberships &&
       tenantMemberships.length === 0 &&
       pendingInvites &&

@@ -44,7 +44,9 @@ RETURNING v1_durable_event_log_file.*
 -- name: UpdateLogFile :one
 UPDATE v1_durable_event_log_file
 SET
-    latest_node_id = COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id),
+    -- important: need `GREATEST` here to avoid moving the `latest_node_id` backwards in the case of child spawning with
+    -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
+    latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id)),
     latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::INTEGER, v1_durable_event_log_file.latest_invocation_count),
     latest_branch_id = COALESCE(sqlc.narg('branchId')::BIGINT, v1_durable_event_log_file.latest_branch_id)
 WHERE durable_task_id = @durableTaskId::BIGINT
@@ -157,11 +159,22 @@ JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_insert
 WHERE e.durable_task_id = @durableTaskId::BIGINT
   AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ;
 
+-- name: GetDurableEventLogEntriesByChildTaskExternalIds :many
+SELECT e.*, lf.latest_invocation_count AS invocation_count
+FROM v1_durable_event_log_entry e
+JOIN v1_durable_event_log_file lf ON (lf.durable_task_id, lf.durable_task_inserted_at) = (e.durable_task_id, e.durable_task_inserted_at)
+WHERE
+    e.durable_task_id = @durableTaskId::BIGINT
+    AND e.durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+    AND e.child_task_external_id = ANY(@childTaskExternalIds::UUID[])
+ORDER BY e.child_task_external_id, e.node_id ASC;
+
 -- name: BulkCreateDurableEventLogEntries :many
 WITH inputs AS (
     SELECT
         UNNEST(@tenantIds::UUID[]) AS tenant_id,
         UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@childTaskExternalIds::UUID[]) AS child_task_external_id,
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@kinds::text[]) AS kind,
@@ -175,6 +188,7 @@ WITH inputs AS (
     INSERT INTO v1_durable_event_log_entry (
         tenant_id,
         external_id,
+        child_task_external_id,
         durable_task_id,
         durable_task_inserted_at,
         inserted_at,
@@ -189,6 +203,7 @@ WITH inputs AS (
     SELECT
         i.tenant_id,
         i.external_id,
+        NULLIF(i.child_task_external_id, '00000000-0000-0000-0000-000000000000'::UUID),
         i.durable_task_id,
         i.durable_task_inserted_at,
         NOW(),

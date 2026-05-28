@@ -1032,14 +1032,6 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
    * @param payloadSchema - An optional Zod schema to validate and parse the event payload.
    * @returns The event payload, validated against the schema if provided.
    */
-  async waitForEvent<T extends z.ZodTypeAny>(
-    key: string,
-    expression?: string,
-    payloadSchema?: T,
-    scope?: string,
-    lookbackWindow?: Duration,
-    label?: string
-  ): Promise<z.infer<T>>;
   async waitForEvent(
     key: string,
     expression?: string,
@@ -1048,6 +1040,14 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
     lookbackWindow?: Duration,
     label?: string
   ): Promise<Record<string, any>>;
+  async waitForEvent<T extends z.ZodTypeAny>(
+    key: string,
+    expression?: string,
+    payloadSchema?: T,
+    scope?: string,
+    lookbackWindow?: Duration,
+    label?: string
+  ): Promise<z.infer<T>>;
   async waitForEvent(
     key: string,
     expression?: string,

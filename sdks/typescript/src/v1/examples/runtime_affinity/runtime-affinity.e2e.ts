@@ -1,9 +1,9 @@
-import sleep from '@hatchet/util/sleep';
 import { WorkerList } from '@hatchet/clients/rest/generated/data-contracts';
-import { checkDurableEvictionSupport, stopWorker } from '../__e2e__/harness';
+import { checkDurableEvictionSupport, poll, stopWorker } from '../__e2e__/harness';
 import { Worker } from '../../client/worker/worker';
 import { hatchet } from '../hatchet-client';
 import { affinityExampleTask } from './workflow';
+import { applyNamespace } from '@util/apply-namespace';
 
 const labels = ['foo', 'bar'] as const;
 
@@ -39,14 +39,22 @@ describe('runtime-affinity-e2e', () => {
     });
     workerB.start().catch((err) => console.error('[affinity-test] workerB start error:', err));
     await workerB.waitUntilReady(10_000);
-
-    await sleep(5_000);
-
-    const allWorkers: WorkerList = await hatchet.workers.list();
-    const activeWorkers = (allWorkers.rows || []).filter(
-      (w) => w.status === 'ACTIVE' && `${w.name}`.includes('runtime-affinity-worker')
+    const runtimeAffinityWorkerName = applyNamespace(
+      'runtime-affinity-worker',
+      hatchet.config.namespace
     );
-
+    const workerResult = await poll(() => hatchet.workers.list(), {
+      timeoutMs: 120_000,
+      intervalMs: 500,
+      label: 'active runtime-affinity workers',
+      shouldStop: (result: WorkerList) =>
+        (result.rows || []).filter(
+          (w) => w.status === 'ACTIVE' && `${w.name}`.includes(runtimeAffinityWorkerName)
+        ).length === 2,
+    });
+    const activeWorkers = (workerResult.rows || []).filter(
+      (w) => w.status === 'ACTIVE' && `${w.name}`.includes(runtimeAffinityWorkerName)
+    );
     expect(activeWorkers.length).toBe(2);
 
     const workerLabelToId: Record<string, string> = {};
@@ -77,5 +85,5 @@ describe('runtime-affinity-e2e', () => {
       expect(res.affinity_t1.worker_id).toBe(workerLabelToId[targetWorker]);
       expect(res.affinity_t2.worker_id).toBe(workerLabelToId[targetWorker]);
     }
-  }, 120_000);
+  }, 180_000);
 });

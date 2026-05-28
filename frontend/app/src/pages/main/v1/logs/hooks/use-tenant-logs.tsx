@@ -44,6 +44,7 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
     timestamp: row.createdAt,
     line: row.message,
     level: row.level,
+    metadata: row.metadata as Record<string, unknown> | undefined,
     attempt: row.attempt,
     taskExternalId: row.taskExternalId,
     taskDisplayName: row.taskDisplayName,

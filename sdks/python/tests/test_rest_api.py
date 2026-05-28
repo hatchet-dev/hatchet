@@ -1,6 +1,8 @@
 import asyncio
 
 import pytest
+import tenacity
+from tenacity import stop_after_attempt, wait_exponential
 
 from examples.dag.worker import dag_workflow
 from hatchet_sdk import Hatchet
@@ -10,15 +12,23 @@ from hatchet_sdk import Hatchet
 async def test_list_runs(hatchet: Hatchet) -> None:
     dag_result = await dag_workflow.aio_run()
 
-    runs = await hatchet.runs.aio_list(
-        only_tasks=True,
-        workflow_ids=[dag_workflow.id],
-        include_payloads=True,
-        limit=100,
+    @tenacity.retry(
+        stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
+    async def validate_runs() -> bool:
+        runs = await hatchet.runs.aio_list(
+            only_tasks=True,
+            workflow_ids=[dag_workflow.id],
+            include_payloads=True,
+            limit=100,
+        )
 
-    for v in dag_result.values():
-        assert v in [r.output for r in runs.rows]
+        for v in dag_result.values():
+            if v not in [r.output for r in runs.rows]:
+                raise Exception()
+        return True
+
+    assert await validate_runs() == True
 
 
 @pytest.mark.asyncio(loop_scope="session")
