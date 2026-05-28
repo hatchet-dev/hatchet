@@ -936,7 +936,7 @@ func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Contex
 			durableWorkflowName = fmt.Sprintf("%s%s", ns, durableWorkflowName)
 		}
 
-		durableRef, handled, durableErr := runDurableChildWorkflow(ctx, durableWorkflowName, input, runOpts)
+		durableRef, handled, durableErr := runDurableChildWorkflowIfSupported(ctx, durableWorkflowName, input, runOpts)
 		if handled {
 			if durableErr != nil {
 				span.SetStatus(codes.Error, durableErr.Error())

@@ -23,7 +23,7 @@ type childIndexProvider interface {
 	NextChildIndex() int
 }
 
-func runDurableChildWorkflow(
+func runDurableChildWorkflowIfSupported(
 	ctx context.Context,
 	workflowName string,
 	input any,

@@ -702,7 +702,7 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 
 	hCtx, ok := ctx.(Context)
 	if ok {
-		durableRef, handled, durableErr := runDurableChildWorkflow(ctx, w.declaration.Name(), input, runOpts)
+		durableRef, handled, durableErr := runDurableChildWorkflowIfSupported(ctx, w.declaration.Name(), input, runOpts)
 		if handled {
 			if durableErr != nil {
 				span.SetStatus(codes.Error, durableErr.Error())
