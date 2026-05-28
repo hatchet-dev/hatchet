@@ -173,7 +173,9 @@ func normalizePayloadInsertedAt(insertedAt pgtype.Timestamptz) pgtype.Timestampt
 		return insertedAt
 	}
 
-	insertedAt.Time = insertedAt.Time.UTC()
+	// UTC() normalizes the location; Truncate strips the monotonic clock reading
+	// and rounds to microsecond precision to match PostgreSQL TIMESTAMPTZ storage.
+	insertedAt.Time = insertedAt.Time.UTC().Truncate(time.Microsecond)
 
 	return insertedAt
 }
