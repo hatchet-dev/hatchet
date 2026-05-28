@@ -318,15 +318,9 @@ export default function Search({ className }: { className?: string }) {
   try {
     const expanded = expandSynonyms(query);
     const raw = idx.search(expanded, SEARCH_OPTIONS);
+     // Rerank against the original query so title matching is accurate
     const reranked = rerankResults(raw, query).slice(0, 20);
     const visibleResults = reranked.filter(result => !result.hidden);
-
-    console.log("SEARCH DEBUG:", {
-      query,
-      raw: raw.map(r => ({ id: r.id, hidden: r.hidden })),
-      reranked: reranked.map(r => ({ id: r.id, hidden: r.hidden })),
-      visible: visibleResults.map(r => ({ id: r.id, hidden: r.hidden })),
-    });
 
     setResults(visibleResults);
     searchSessionRef.current.resultCount = reranked.length;
