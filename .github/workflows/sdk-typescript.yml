@@ -17,26 +17,24 @@ defaults:
   run:
     working-directory: ./sdks/typescript
 
-x-pm-matrix: &pm-matrix
-  include:
-    - package-manager: pnpm
-      install-cmd: pnpm install
-      lint-cmd: pnpm lint:check
-      tsc-cmd: pnpm exec tsc
-      unit-test-cmd: pnpm test:unit
-      e2e-test-cmd: pnpm test:e2e
-    - package-manager: bun
-      install-cmd: bun install
-      lint-cmd: bun run lint:check
-      tsc-cmd: bunx tsc
-      unit-test-cmd: bun run test:unit
-      e2e-test-cmd: bun run test:e2e
-
 jobs:
   lint:
     runs-on: ubicloud-standard-4
     strategy:
-      matrix: *pm-matrix
+      matrix:
+        include:
+          - package-manager: pnpm
+            install-cmd: pnpm install
+            lint-cmd: pnpm lint:check
+            tsc-cmd: pnpm exec tsc
+            unit-test-cmd: pnpm test:unit
+            e2e-test-cmd: pnpm test:e2e
+          - package-manager: bun
+            install-cmd: bun install
+            lint-cmd: bun run lint:check
+            tsc-cmd: bunx tsc
+            unit-test-cmd: bun run test:unit
+            e2e-test-cmd: bun run test:e2e
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -82,7 +80,20 @@ jobs:
   test-unit:
     runs-on: ubicloud-standard-4
     strategy:
-      matrix: *pm-matrix
+      matrix:
+        include:
+          - package-manager: pnpm
+            install-cmd: pnpm install
+            lint-cmd: pnpm lint:check
+            tsc-cmd: pnpm exec tsc
+            unit-test-cmd: pnpm test:unit
+            e2e-test-cmd: pnpm test:e2e
+          - package-manager: bun
+            install-cmd: bun install
+            lint-cmd: bun run lint:check
+            tsc-cmd: bunx tsc
+            unit-test-cmd: bun run test:unit
+            e2e-test-cmd: bun run test:e2e
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -126,7 +137,20 @@ jobs:
     runs-on: ubicloud-standard-4
     timeout-minutes: 20
     strategy:
-      matrix: *pm-matrix
+      matrix:
+        include:
+          - package-manager: pnpm
+            install-cmd: pnpm install
+            lint-cmd: pnpm lint:check
+            tsc-cmd: pnpm exec tsc
+            unit-test-cmd: pnpm test:unit
+            e2e-test-cmd: pnpm test:e2e
+          - package-manager: bun
+            install-cmd: bun install
+            lint-cmd: bun run lint:check
+            tsc-cmd: bunx tsc
+            unit-test-cmd: bun run test:unit
+            e2e-test-cmd: bun run test:e2e
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -405,5 +429,25 @@ jobs:
           else
               pnpm publish:ci
           fi
+          echo "VERSION_TAG=$NEW_VERSION" >> $GITHUB_ENV
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: "Generate release notes"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: ./hack/ci/release-notes.sh typescript > ./release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Release"
+        if: env.VERSION_TAG != ''
+        working-directory: ${{ github.workspace }}
+        run: |
+          gh release create "ts/${VERSION_TAG}" \
+            --target "$GITHUB_SHA" \
+            --title "Typescript SDK ${VERSION_TAG}" \
+            --notes-file ./release_notes.md \
+            --latest=false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

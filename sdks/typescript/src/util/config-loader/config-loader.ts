@@ -135,6 +135,10 @@ export class ConfigLoader {
       otel: otelConfig,
       grpc_max_recv_message_length: grpcMaxRecvMessageLength,
       grpc_max_send_message_length: grpcMaxSendMessageLength,
+      cancellation_grace_period:
+        override?.cancellation_grace_period ?? yaml?.cancellation_grace_period,
+      cancellation_warning_threshold:
+        override?.cancellation_warning_threshold ?? yaml?.cancellation_warning_threshold,
     };
   }
 
@@ -142,9 +146,7 @@ export class ConfigLoader {
     const value = this.env(envName);
     if (value === undefined || value === '') return undefined;
     if (!/^\d+$/.test(value.trim())) {
-      throw new Error(
-        `Invalid value for ${envName}: "${value}". Expected a positive integer.`
-      );
+      throw new Error(`Invalid value for ${envName}: "${value}". Expected a positive integer.`);
     }
     return parseInt(value, 10);
   }
