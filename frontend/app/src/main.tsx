@@ -1,4 +1,5 @@
 import './index.css';
+import { REFERRAL_CODE_KEY, sanitizeReferralCode } from './lib/referral';
 import queryClient from './query-client.tsx';
 import Router from './router.tsx';
 import * as Sentry from '@sentry/react';
@@ -28,9 +29,9 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 // Store referral code from URL if present
 // See AnalyticsProvider for more details
 const urlParams = new URLSearchParams(window.location.search);
-const ref = urlParams.get('ref');
-if (ref) {
-  localStorage.setItem('ref', ref);
+const referralCode = sanitizeReferralCode(urlParams.get(REFERRAL_CODE_KEY));
+if (referralCode) {
+  localStorage.setItem(REFERRAL_CODE_KEY, referralCode);
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
