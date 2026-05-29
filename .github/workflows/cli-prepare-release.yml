@@ -67,13 +67,14 @@ jobs:
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
         with:
           config: cliff.toml
-          args: ${{ steps.check.outputs.prev }}..${{ github.ref_name }} --prepend /tmp/CHANGELOG.released.md
+          args: ${{ steps.check.outputs.prev }}..${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTPUT: /tmp/CHANGES.md
 
-      - name: Check if has [Unreleased]
+      - name: Assemble CHANGELOG.md
         run: |
-          cat /tmp/CHANGELOG.unreleased.md /tmp/CHANGELOG.released.md > CHANGELOG.md
+          cat /tmp/CHANGELOG.unreleased.md /tmp/CHANGES.md /tmp/CHANGELOG.released.md > CHANGELOG.md
 
       - name: Open / update release pull-request
         if: steps.check.outputs.already != 'true'
