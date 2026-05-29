@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 ALTER TABLE "WorkflowVersion"
     ADD COLUMN "idempotencyKeyExpression" TEXT,
-    ADD COLUMN "idempotencyKeyTtl" BIGINT
+    ADD COLUMN "idempotencyKeyTtlMs" BIGINT
     ;
 -- +goose StatementEnd
 
@@ -10,6 +10,6 @@ ALTER TABLE "WorkflowVersion"
 -- +goose StatementBegin
 ALTER TABLE "WorkflowVersion"
     DROP COLUMN "idempotencyKeyExpression",
-    DROP COLUMN "idempotencyKeyTtl"
+    DROP COLUMN "idempotencyKeyTtlMs"
 ;
 -- +goose StatementEnd

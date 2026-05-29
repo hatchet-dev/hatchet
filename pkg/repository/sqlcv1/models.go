@@ -4001,4 +4001,5 @@ type WorkflowVersion struct {
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
 	IdempotencyKeyExpression  pgtype.Text        `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs       pgtype.Int8        `json:"idempotencyKeyTtlMs"`
 }
