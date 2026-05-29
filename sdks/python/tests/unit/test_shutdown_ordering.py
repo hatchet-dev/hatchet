@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing
-import threading
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -13,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
+from hatchet_sdk.config import ClientConfig, HealthcheckConfig
 from hatchet_sdk.runnables.action import ActionType
 from hatchet_sdk.utils.typing import STOP_LOOP
 from hatchet_sdk.worker.action_listener_process import (
@@ -25,6 +25,61 @@ _LISTENER_MODULE = "hatchet_sdk.worker.action_listener_process"
 _ACTION_LISTENER_MODULE = "hatchet_sdk.clients.dispatcher.action_listener"
 
 _CTX = multiprocessing.get_context("spawn")
+
+
+def _subprocess_target(
+    name: str,
+    actions: list[str],
+    slot_config: dict[str, int],
+    config: Any,
+    action_queue: Any,
+    event_queue: Any,
+    handle_kill: bool,
+    debug: bool,
+    labels: list[Any],
+    worker_id_queue: Any,
+    stop_event: Any,
+) -> None:
+    """Module-level spawn target: sets up mocks then runs the listener process.
+
+    Must be defined at module level (not as a closure) so it can be pickled
+    by the spawn context, matching how _start_action_listener works in production.
+    """
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
+
+    with patch("hatchet_sdk.clients.dispatcher.action_listener.new_conn"):
+        listener = ActionListener(config=MagicMock(), worker_id="test-worker-id")
+    listener.cleanup = MagicMock()  # type: ignore[method-assign]
+    listener.get_listen_client = AsyncMock(  # type: ignore[method-assign]
+        side_effect=Exception("no gRPC server in tests")
+    )
+
+    mock_dispatcher = MagicMock()
+    mock_dispatcher.get_action_listener = AsyncMock(return_value=listener)
+    mock_dispatcher.send_step_action_event = AsyncMock()
+
+    with (
+        patch(
+            "hatchet_sdk.worker.action_listener_process.DispatcherClient",
+            return_value=mock_dispatcher,
+        ),
+        patch("hatchet_sdk.worker.action_listener_process.Client"),
+    ):
+        worker_action_listener_process(
+            name=name,
+            actions=actions,
+            slot_config=slot_config,
+            config=config,
+            action_queue=action_queue,
+            event_queue=event_queue,
+            handle_kill=handle_kill,
+            debug=debug,
+            labels=labels,
+            worker_id_queue=worker_id_queue,
+            stop_event=stop_event,
+        )
 
 
 @dataclass
@@ -168,51 +223,40 @@ async def test_worker_id_published_to_queue_on_start() -> None:
 def test_event_queue_drains_before_process_exits() -> None:
     """All events put into event_queue must be consumed before the subprocess exits.
 
-    Runs worker_action_listener_process in a thread (it calls asyncio.run()
-    internally) so we can exercise the full function with real queues without
-    a costly multiprocessing spawn.
+    Spawns worker_action_listener_process as a real separate process using the
+    same _CTX.Process / args pattern as _start_action_listener in production,
+    so the test covers signal handling and the full shutdown path.
     """
     action_queue: Any = _CTX.Queue()
     event_queue: Any = _CTX.Queue()
     worker_id_queue: Any = _CTX.Queue()
     stop_event = _CTX.Event()
 
-    config = MagicMock()
-    config.healthcheck.enabled = False
+    # ClientConfig must be picklable for spawn; model_construct skips JWT
+    # validation that would reject a dummy token.
+    config = ClientConfig.model_construct(
+        healthcheck=HealthcheckConfig(),
+        debug=False,
+        disable_log_capture=True,
+    )
 
-    consumed_events: list[str] = []
-    stub_listener = _make_listener()
-
-    async def fake_send(
-        action: Any, ev_type: Any, payload: Any, should_not_retry: Any
-    ) -> None:
-        consumed_events.append(str(ev_type))
-
-    mock_dispatcher = AsyncMock()
-    mock_dispatcher.get_action_listener = AsyncMock(return_value=stub_listener)
-    mock_dispatcher.send_step_action_event = AsyncMock(side_effect=fake_send)
-
-    def run_subprocess() -> None:
-        with (
-            patch(f"{_LISTENER_MODULE}.DispatcherClient", return_value=mock_dispatcher),
-            patch(f"{_LISTENER_MODULE}.Client"),
-        ):
-            worker_action_listener_process(
-                name="test-worker",
-                actions=["test_action"],
-                slot_config={"default": 1, "durable": 0},
-                config=config,
-                action_queue=action_queue,
-                event_queue=event_queue,
-                handle_kill=False,
-                debug=False,
-                labels=[],
-                worker_id_queue=worker_id_queue,
-                stop_event=stop_event,
-            )
-
-    thread = threading.Thread(target=run_subprocess, daemon=True)
-    thread.start()
+    proc = _CTX.Process(
+        target=_subprocess_target,
+        args=(
+            "test-worker",
+            ["test_action"],
+            {"default": 1, "durable": 0},
+            config,
+            action_queue,
+            event_queue,
+            False,
+            False,
+            [],
+            worker_id_queue,
+            stop_event,
+        ),
+    )
+    proc.start()
 
     # Wait for the subprocess to publish its worker_id (ready signal).
     deadline = time.monotonic() + 10.0
@@ -221,8 +265,8 @@ def test_event_queue_drains_before_process_exits() -> None:
         time.sleep(0.05)
 
     # Simulate the runner finishing a task: put a completion event in the queue.
-    # _FakeAction is a module-level dataclass so it can be pickled across the
-    # multiprocessing.Queue feeder thread.
+    # _FakeAction is a module-level dataclass so it is picklable across the
+    # spawn boundary.
     fake_event = ActionEvent(
         action=_FakeAction(),  # type: ignore
         type=ActionType.START_STEP_RUN,
@@ -238,8 +282,8 @@ def test_event_queue_drains_before_process_exits() -> None:
     time.sleep(0.05)
     event_queue.put(STOP_LOOP)  # stops event_send_loop
 
-    thread.join(timeout=15.0)
-    assert not thread.is_alive(), "subprocess thread should have exited after STOP_LOOP"
+    proc.join(timeout=15.0)
+    assert proc.exitcode is not None, "subprocess should have exited after STOP_LOOP"
 
     # The event_queue must be fully drained before the subprocess exited.
     assert (

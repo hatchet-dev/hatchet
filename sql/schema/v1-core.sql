@@ -1777,6 +1777,22 @@ CREATE TABLE v1_payload_cutover_job_offset (
     final_row_count_diff BIGINT
 );
 
+CREATE EXTENSION btree_gist;
+
+CREATE TYPE uuidrange AS RANGE (
+    SUBTYPE = UUID
+);
+
+CREATE TABLE v1_payload_offloaded_block_index (
+    payload_inserted_at_date DATE NOT NULL,
+    block_external_id_range uuidrange NOT NULL,
+    index_file_key TEXT NOT NULL,
+    CONSTRAINT v1_payload_offloaded_block_index_date_range_excl
+        EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
+);
+
+CREATE UNIQUE INDEX v1_payload_offloaded_block_index_uq_index_key ON v1_payload_offloaded_block_index (index_file_key);
+
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
 ) RETURNS text

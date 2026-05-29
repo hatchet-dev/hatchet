@@ -420,6 +420,13 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		release()
 	}
 
+	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
+		Time:  removeBefore,
+		Valid: true,
+	}); err != nil {
+		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
+	}
+
 	err = commit(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
