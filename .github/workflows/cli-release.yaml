@@ -14,7 +14,7 @@ jobs:
     if: >
       github.event.pull_request.merged == true &&
       contains(github.event.pull_request.labels.*.name, 'release') &&
-      startsWith(github.event.pull_request.head.ref, 'release-cli')
+      startsWith(github.event.pull_request.head.ref, 'release-')
     name: Release CLI with GoReleaser
     runs-on: ubuntu-latest
     steps:
@@ -55,15 +55,7 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
       - name: Generate release notes
-        run: ./hack/ci/release-notes-cli.sh > release_notes.md
-
-      - name: Resolve latest release
-        id: last
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PREV="$(gh release view --json tagName --jq '.tagName' 2>/dev/null || echo "")"
-          echo "tag=${PREV}" >> "$GITHUB_OUTPUT"
+        run: ./hack/ci/release-notes-cli.sh --latest > release_notes.md
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8 # v7.2.1
