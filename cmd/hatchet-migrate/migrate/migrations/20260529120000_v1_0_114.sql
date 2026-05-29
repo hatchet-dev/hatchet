@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-ALTER TYPE "LeaseKind" ADD VALUE 'PARTITION';
+ALTER TYPE "LeaseKind" ADD VALUE 'TABLE_PARTITION_MAINTENANCE';
 -- +goose StatementEnd
 
 -- +goose Down

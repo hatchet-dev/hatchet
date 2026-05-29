@@ -15,7 +15,7 @@ func (r *sharedRepository) acquirePartitionLease(ctx context.Context, db sqlcv1.
 	leases, err := r.queries.AcquireOrExtendLeases(ctx, db, sqlcv1.AcquireOrExtendLeasesParams{
 		// 15-minute window
 		LeaseDuration:    pgtype.Interval{Microseconds: 15 * 60 * 1_000_000, Valid: true},
-		Kind:             sqlcv1.LeaseKindPARTITION,
+		Kind:             sqlcv1.LeaseKindTABLEPARTITIONMAINTENANCE,
 		Resourceids:      []string{leaseKey},
 		Tenantid:         uuid.Nil,
 		Existingleaseids: []int64{},

@@ -352,6 +352,9 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
+	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
+	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
+	// so they cannot go through pgbouncer when it's configured.
 	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
 		Time:  today,
 		Valid: true,
