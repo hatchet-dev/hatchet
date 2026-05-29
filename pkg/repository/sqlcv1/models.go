@@ -240,6 +240,7 @@ const (
 	LeaseKindWORKER              LeaseKind = "WORKER"
 	LeaseKindQUEUE               LeaseKind = "QUEUE"
 	LeaseKindCONCURRENCYSTRATEGY LeaseKind = "CONCURRENCY_STRATEGY"
+	LeaseKindPARTITION           LeaseKind = "PARTITION"
 )
 
 func (e *LeaseKind) Scan(src interface{}) error {
