@@ -246,6 +246,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             except Exception:
                 json_schema = None
 
+        # print("idempotency key expression:", self._config.idempotency_key_expression)
+
         return CreateWorkflowVersionRequest(
             name=name,
             description=self._config.description,
@@ -264,6 +266,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
+            idempotency_key_expr=self._config.idempotency_key_expression,
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:

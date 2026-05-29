@@ -294,6 +294,10 @@ class AdminClient:
             self.client = AdminServiceStub(conn)
 
         put_workflow = tenacity_retry(self.client.PutWorkflow, self.config.tenacity)
+        # print(
+        #     "Putting workflow with idempotency key expression:",
+        #     workflow.idempotency_key_expr,
+        # )
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
             put_workflow(
