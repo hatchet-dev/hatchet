@@ -1,14 +1,9 @@
-import asyncio
-
 import pytest
 
 from examples.idempotency.worker import idempotent_task, IdempotencyInput
 
 
 from hatchet_sdk import Hatchet
-from hatchet_sdk.clients.rest.models.v1_task_event_type import V1TaskEventType
-from hatchet_sdk.clients.rest.models.v1_workflow_run_details import V1WorkflowRunDetails
-from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
 
 
 @pytest.mark.asyncio(loop_scope="session")
