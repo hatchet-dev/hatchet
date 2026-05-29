@@ -2,7 +2,6 @@ package sqlcv1
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -453,83 +452,6 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 		return nil, err
 	}
 	return items, nil
-}
-
-type CutoverOLAPPayloadToInsert struct {
-	TenantID            uuid.UUID
-	InsertedAt          pgtype.Timestamptz
-	ExternalID          uuid.UUID
-	ExternalLocationKey string
-	InlineContent       []byte
-	Location            V1PayloadLocationOlap
-}
-
-func InsertCutOverOLAPPayloadsIntoTempTable(ctx context.Context, tx DBTX, tableName string, payloads []CutoverOLAPPayloadToInsert) (*uuid.UUID, error) {
-	tenantIds := make([]uuid.UUID, 0, len(payloads))
-	insertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
-	externalIds := make([]uuid.UUID, 0, len(payloads))
-	locations := make([]string, 0, len(payloads))
-	externalLocationKeys := make([]string, 0, len(payloads))
-	inlineContents := make([][]byte, 0, len(payloads))
-
-	for _, payload := range payloads {
-		externalIds = append(externalIds, payload.ExternalID)
-		tenantIds = append(tenantIds, payload.TenantID)
-		insertedAts = append(insertedAts, payload.InsertedAt)
-		locations = append(locations, string(payload.Location))
-		externalLocationKeys = append(externalLocationKeys, string(payload.ExternalLocationKey))
-		inlineContents = append(inlineContents, payload.InlineContent)
-	}
-
-	row := tx.QueryRow(
-		ctx,
-		fmt.Sprintf(
-			// we unfortunately need to use `INSERT INTO` instead of `COPY` here
-			// because we can't have conflict resolution with `COPY`.
-			`
-				WITH inputs AS (
-					SELECT
-						UNNEST($1::UUID[]) AS tenant_id,
-						UNNEST($2::TIMESTAMPTZ[]) AS inserted_at,
-						UNNEST($3::UUID[]) AS external_id,
-						UNNEST($4::TEXT[]) AS location,
-						UNNEST($5::TEXT[]) AS external_location_key,
-						UNNEST($6::JSONB[]) AS inline_content
-				), inserts AS (
-					INSERT INTO %s (tenant_id, external_id, location, external_location_key, inline_content, inserted_at, updated_at)
-					SELECT
-						tenant_id,
-						external_id,
-						location::v1_payload_location_olap,
-						external_location_key,
-						inline_content,
-						inserted_at,
-						NOW()
-					FROM inputs
-					ORDER BY tenant_id, external_id, inserted_at
-					ON CONFLICT(tenant_id, external_id, inserted_at) DO NOTHING
-				)
-
-				SELECT external_id
-				FROM inputs
-				ORDER BY external_id DESC
-				LIMIT 1
-				`,
-			tableName,
-		),
-		tenantIds,
-		insertedAts,
-		externalIds,
-		locations,
-		externalLocationKeys,
-		inlineContents,
-	)
-
-	var lastExternalId uuid.UUID
-
-	err := row.Scan(&lastExternalId)
-
-	return &lastExternalId, err
 }
 
 const findV1OLAPPayloadPartitionsBeforeDate = `-- name: findV1OLAPPayloadPartitionsBeforeDate :many

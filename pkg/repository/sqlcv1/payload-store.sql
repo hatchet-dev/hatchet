@@ -157,26 +157,6 @@ DELETE FROM v1_payload_cutover_job_offset
 WHERE NOT key = ANY(@keysToKeep::DATE[])
 ;
 
--- name: DiffPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_payload_source_and_target_partitions(@partitionDate::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    id::BIGINT,
-    inserted_at::TIMESTAMPTZ,
-    external_id::UUID,
-    type::v1_payload_type,
-    location::v1_payload_location,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-;
-
 -- name: ComputePayloadBatchSize :one
 SELECT compute_payload_batch_size(
     @partitionDate::DATE,
@@ -184,12 +164,35 @@ SELECT compute_payload_batch_size(
     @batchSize::INTEGER
 ) AS total_size_bytes;
 
+-- name: GetOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        UNNEST(@externalIds::UUID[]) AS external_id
+)
 
--- name: SetFinalPayloadCutoverRowCounts :exec
-UPDATE v1_payload_cutover_job_offset
-SET
-    final_source_table_row_count = @finalSourceTableRowCount::BIGINT,
-    final_target_table_row_count = @finalTargetTableRowCount::BIGINT,
-    final_row_count_diff = @finalRowCountDiff::BIGINT
-WHERE key = @key::DATE
+SELECT i.external_id::UUID AS external_id, index_file_key
+FROM v1_payload_offloaded_block_index p
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
+;
+
+-- name: CreateOffloadedPayloadIndexBlock :exec
+INSERT INTO v1_payload_offloaded_block_index (
+    payload_inserted_at_date,
+    block_external_id_range,
+    index_file_key
+)
+VALUES (
+    @payloadInsertedAtDate::DATE,
+    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID, '(]'),
+    @indexFileKey::TEXT
+)
+ON CONFLICT ON CONSTRAINT v1_payload_offloaded_block_index_date_range_excl DO NOTHING
+;
+
+-- name: DeleteOldPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payload_offloaded_block_index
+WHERE payload_inserted_at_date < @before::DATE
 ;

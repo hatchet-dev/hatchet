@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/rs/zerolog"
@@ -725,10 +726,15 @@ func (st *StandaloneTask) OnFailure(fn any) {
 type WorkflowRunRef struct {
 	RunId      string
 	v0Workflow *v0Client.Workflow
+	resultFn   func() (*WorkflowResult, error)
 }
 
 // V0Workflow returns the underlying v0Client.Workflow.
 func (wr *WorkflowRunRef) Result() (*WorkflowResult, error) {
+	if wr.resultFn != nil {
+		return wr.resultFn()
+	}
+
 	result, err := wr.v0Workflow.Result()
 	if err != nil {
 		return nil, err
@@ -907,6 +913,7 @@ func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Contex
 	// Inject traceparent for cross-workflow trace propagation.
 	// Use otelCtx (not ctx) so the span's trace context is propagated.
 	additionalMetadata = injectTraceparentToMap(otelCtx, additionalMetadata)
+	runOpts.AdditionalMetadata = additionalMetadata
 
 	var v0Opts []v0Client.RunOptFunc
 	if additionalMetadata != nil {
@@ -915,17 +922,37 @@ func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Contex
 	if priority != nil {
 		v0Opts = append(v0Opts, v0Client.WithPriority(*priority))
 	}
+	if runOpts.DesiredWorkerLabels != nil {
+		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
+	}
 
 	var v0Workflow *v0Client.Workflow
 	var err error
 
 	hCtx, ok := ctx.(Context)
 	if ok {
+		durableWorkflowName := workflowName
+		if ns := c.legacyClient.Namespace(); ns != "" && !strings.HasPrefix(durableWorkflowName, ns) {
+			durableWorkflowName = fmt.Sprintf("%s%s", ns, durableWorkflowName)
+		}
+
+		durableRef, handled, durableErr := runDurableChildWorkflowIfSupported(ctx, durableWorkflowName, input, runOpts)
+		if handled {
+			if durableErr != nil {
+				span.SetStatus(codes.Error, durableErr.Error())
+				span.RecordError(durableErr)
+				return nil, durableErr
+			}
+			span.SetAttributes(attribute.String(hatchetotel.AttrChildWorkflowRunID, durableRef.RunId))
+			return durableRef, nil
+		}
+
 		v0Workflow, err = hCtx.SpawnWorkflow(workflowName, input, &worker.SpawnWorkflowOpts{
-			Key:                runOpts.Key,
-			Sticky:             runOpts.Sticky,
-			Priority:           priority,
-			AdditionalMetadata: additionalMetadata,
+			Key:                 runOpts.Key,
+			Sticky:              runOpts.Sticky,
+			Priority:            priority,
+			AdditionalMetadata:  additionalMetadata,
+			DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
 		})
 	} else {
 		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(workflowName, input, v0Opts...)
@@ -952,7 +979,12 @@ type RunManyOpt struct {
 // Returns workflow run IDs that can be used to track the run statuses.
 func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
-	ctx, span := tracer.Start(ctx, hatchetotel.SpanRunWorkflows,
+	originalCtx := ctx
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflows,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
@@ -962,11 +994,29 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 	)
 	defer span.End()
 
+	if _, ok := originalCtx.(Context); ok {
+		durableWorkflowName := workflowName
+		if ns := c.legacyClient.Namespace(); ns != "" && !strings.HasPrefix(durableWorkflowName, ns) {
+			durableWorkflowName = fmt.Sprintf("%s%s", ns, durableWorkflowName)
+		}
+
+		if durableRefs, handled, err := runManyDurableChildWorkflows(originalCtx, otelCtx, durableWorkflowName, inputs); handled {
+			if err != nil {
+				span.SetStatus(codes.Error, err.Error())
+				return durableRefs, err
+			}
+
+			span.SetStatus(codes.Ok, "")
+			return durableRefs, nil
+		}
+	}
+
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
 	var errs []error
 	var errsMutex sync.Mutex
+	var workflowRefsMutex sync.Mutex
 
 	wg.Add(len(inputs))
 
@@ -974,7 +1024,7 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 		go func() {
 			defer wg.Done()
 
-			workflowRef, err := c.RunNoWait(ctx, workflowName, input.Input, input.Opts...)
+			workflowRef, err := c.RunNoWait(originalCtx, workflowName, input.Input, input.Opts...)
 			if err != nil {
 				errsMutex.Lock()
 				errs = append(errs, err)
@@ -982,7 +1032,9 @@ func (c *Client) RunMany(ctx context.Context, workflowName string, inputs []RunM
 				return
 			}
 
+			workflowRefsMutex.Lock()
 			workflowRefs = append(workflowRefs, *workflowRef)
+			workflowRefsMutex.Unlock()
 		}()
 	}
 
