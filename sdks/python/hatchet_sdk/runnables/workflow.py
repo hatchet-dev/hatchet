@@ -266,7 +266,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
-            idempotency_key_expr=self._config.idempotency_key_expression,
+            idempotency=(
+                self._config.idempotency.to_proto()
+                if self._config.idempotency
+                else None
+            ),
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:

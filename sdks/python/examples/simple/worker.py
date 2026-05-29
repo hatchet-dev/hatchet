@@ -1,10 +1,10 @@
 # > Simple
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
+from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, IdempotencyConfig
 
 hatchet = Hatchet()
 
 
-@hatchet.task(idempotency_key_expression="input.some_id")
+@hatchet.task(idempotency=IdempotencyConfig(key_expression="input.some_id", ttl=None))
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 

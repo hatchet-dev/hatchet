@@ -41,6 +41,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.idempotency import IdempotencyConfig
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
@@ -278,7 +279,7 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -299,7 +300,7 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -319,7 +320,7 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -348,6 +349,8 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this workflow by default.
 
+        :param idempotency: An optional idempotency configuration for the workflow, controlling how Hatchet should determine if two runs of this workflow are "the same" for the purposes of deduplication and idempotent execution.
+
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
@@ -367,7 +370,7 @@ class Hatchet:
                 default_priority=default_priority,
                 default_filters=default_filters or [],
                 default_additional_metadata=default_additional_metadata or {},
-                idempotency_key_expression=idempotency_key_expression,
+                idempotency=idempotency,
             ),
             self,
         )
@@ -398,7 +401,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -430,7 +433,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -461,7 +464,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> (
         Callable[
             [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
@@ -511,6 +514,8 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
+        :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -535,7 +540,7 @@ class Hatchet:
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
-                    idempotency_key_expression=idempotency_key_expression,
+                    idempotency=idempotency,
                 ),
                 self,
             )
@@ -598,7 +603,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -631,7 +636,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> Callable[
         [
             Callable[
@@ -667,7 +672,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
-        idempotency_key_expression: str | None = None,
+        idempotency: IdempotencyConfig | None = None,
     ) -> (
         Callable[
             [
@@ -727,6 +732,8 @@ class Hatchet:
 
         :param eviction_policy: An optional eviction policy controlling when idle durable tasks are evicted from workers.
 
+        :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -748,7 +755,7 @@ class Hatchet:
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
-                    idempotency_key_expression=idempotency_key_expression,
+                    idempotency=idempotency,
                 ),
                 self,
             )
