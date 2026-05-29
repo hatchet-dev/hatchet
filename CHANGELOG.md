@@ -1,9 +1,13 @@
-# Changelog
+# [Unreleased]
 
-This changelog documents notable changes to Hatchet's Engine, SDK, and CLI.
+<!-- Optional: High-level summary of the release in plain language — what changed and why it matters to users. -->
+<!-- ## 📝 Summary -->
 
-For the full history of past releases, see
-https://github.com/hatchet-dev/hatchet/releases.
+<!-- Optional: New features and improvements. Describe what each one does for the user. -->
+<!-- ## ✨ Enhancements -->
 
-Entries follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
-conventions for grouping and formatting.
+<!-- Optional: Features or APIs being phased out. Note the replacement and any migration steps. -->
+<!-- ## ⚠️ Deprecations -->
+
+<!-- Optional: Notable bug fixes and how they benefit the user. -->
+<!-- ## 🐛 Bug Fixes -->
