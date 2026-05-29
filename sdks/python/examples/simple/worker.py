@@ -1,10 +1,15 @@
 # > Simple
 from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, IdempotencyConfig
+from datetime import timedelta
 
 hatchet = Hatchet()
 
 
-@hatchet.task(idempotency=IdempotencyConfig(key_expression="input.some_id", ttl=None))
+@hatchet.task(
+    idempotency=IdempotencyConfig(
+        key_expression="input.some_id", ttl=timedelta(minutes=1)
+    )
+)
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 
