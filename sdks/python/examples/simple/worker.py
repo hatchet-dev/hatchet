@@ -1,15 +1,10 @@
 # > Simple
-from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet, IdempotencyConfig
-from datetime import timedelta
+from hatchet_sdk import Context, DurableContext, EmptyModel, Hatchet
 
 hatchet = Hatchet()
 
 
-@hatchet.task(
-    idempotency=IdempotencyConfig(
-        key_expression="input.some_id", ttl=timedelta(minutes=1)
-    )
-)
+@hatchet.task()
 def simple(input: EmptyModel, ctx: Context) -> dict[str, str]:
     return {"result": "Hello, world!"}
 
@@ -23,7 +18,7 @@ async def simple_durable(input: EmptyModel, ctx: DurableContext) -> dict[str, st
 def main() -> None:
     worker = hatchet.worker(
         "test-worker",
-        workflows=[simple],
+        workflows=[simple, simple_durable],
     )
     worker.start()
 
