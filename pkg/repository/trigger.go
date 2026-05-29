@@ -586,6 +586,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
+	idempotency               *IdempotencyConfig
 }
 
 type createCoreUserEventOpts struct {
@@ -2238,6 +2239,15 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 				additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
 				externalId := uuid.New()
 
+				var idempotency *IdempotencyConfig
+
+				if workflow.IdempotencyKeyExpression.Valid && workflow.IdempotencyKeyTtlMs.Valid {
+					idempotency = &IdempotencyConfig{
+						Expression: workflow.IdempotencyKeyExpression.String,
+						TTLMs:      workflow.IdempotencyKeyTtlMs.Int64,
+					}
+				}
+
 				triggerOpts = append(triggerOpts, triggerTuple{
 					workflowVersionId:         workflow.WorkflowVersionId,
 					workflowId:                workflow.WorkflowId,
@@ -2249,6 +2259,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					filterPayload:             decision.FilterPayload,
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
+					idempotency:               idempotency,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
@@ -2283,13 +2294,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
-	idempotencyKeyToExternalIds := make(map[IdempotencyKey]uuid.UUID)
 
 	for _, opt := range opts {
-		if opt.IdempotencyKey != nil {
-			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = opt.ExternalId
-		}
-
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
 
 		if _, ok := uniqueNames[opt.WorkflowName]; ok {
@@ -2298,21 +2304,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 
 		uniqueNames[opt.WorkflowName] = struct{}{}
 		workflowNames = append(workflowNames, opt.WorkflowName)
-	}
-
-	keyClaimantPairs := make([]KeyClaimantPair, 0, len(idempotencyKeyToExternalIds))
-
-	for idempotencyKey, runExternalId := range idempotencyKeyToExternalIds {
-		keyClaimantPairs = append(keyClaimantPairs, KeyClaimantPair{
-			IdempotencyKey:      idempotencyKey,
-			ClaimedByExternalId: runExternalId,
-		})
-	}
-
-	keyClaimantPairToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, tx, tenantId, keyClaimantPairs)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 	}
 
 	workflowVersionsByNames, err := r.listWorkflowsByNames(ctx, tx, tenantId, workflowNames)
@@ -2332,17 +2323,11 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		}
 
 		for _, opt := range opts {
-			if opt.IdempotencyKey != nil {
-				keyClaimantPair := KeyClaimantPair{
-					IdempotencyKey:      *opt.IdempotencyKey,
-					ClaimedByExternalId: opt.ExternalId,
-				}
-
-				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
-
-				// if we did not successfully claim the idempotency key, we should not trigger the workflow
-				if !wasSuccessfullyClaimed {
-					continue
+			var idempotency *IdempotencyConfig
+			if workflowVersion.IdempotencyKeyExpression.Valid && workflowVersion.IdempotencyKeyTtlMs.Valid {
+				idempotency = &IdempotencyConfig{
+					Expression: workflowVersion.IdempotencyKeyExpression.String,
+					TTLMs:      workflowVersion.IdempotencyKeyTtlMs.Int64,
 				}
 			}
 
@@ -2361,6 +2346,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				idempotency:          idempotency,
 			})
 		}
 	}
