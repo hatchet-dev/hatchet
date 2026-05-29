@@ -58,6 +58,10 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
+import {
+  formatShardDeploymentKey,
+  shardDeploymentKey,
+} from '@/lib/shard-deployment-key';
 import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
@@ -502,7 +506,9 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     {
       columnLabel: 'Region',
       cellRenderer: (row: OrganizationAvailableShard) => (
-        <span className="font-mono text-sm">{row.region}</span>
+        <span className="font-mono text-sm">
+          {formatShardDeploymentKey(shardDeploymentKey(row)) ?? row.region}
+        </span>
       ),
     },
     {
@@ -903,7 +909,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                       data={organizationAvailableShardsQuery.data.rows}
                       columns={availableShardColumns}
                       rowKey={(row) =>
-                        `${row.shardClass}:${row.provider}:${row.region}`
+                        `${row.shardClass}:${row.provider}:${row.region}:${row.shardName ?? ''}`
                       }
                     />
                   ) : (
