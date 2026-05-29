@@ -133,6 +133,7 @@ tasks:
       - task: goose-migrate
       - task: start-db
       - task: start-dashboard
+      - task: start-frontend
   start-dev-tmux:
     cmds:
       - bash ./hack/dev/start-dev-tmux.sh

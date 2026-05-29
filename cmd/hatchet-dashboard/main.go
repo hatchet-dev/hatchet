@@ -5,8 +5,6 @@ import (
 	"log"
 
 	"os"
-	"os/exec"
-	"runtime"
 
 	"github.com/spf13/cobra"
 
@@ -22,7 +20,7 @@ var configDirectory string
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "hatchet-dashboard",
-	Short: "hatchet-dashboard runs a Hatchet instance with hot-reload frontend, API and engine all served on the same instance.",
+	Short: "hatchet-dashboard runs a Hatchet instance with  API and engine served on the same instance.",
 	Run: func(cmd *cobra.Command, args []string) {
 		if printVersion {
 			fmt.Println(Version)
@@ -62,7 +60,7 @@ func main() {
 	}
 }
 
-// runs a vite server, api and engine in the same process.
+// runs api and engine in the same process.
 func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version string) error {
 
 	_, msgQueueKindSet := os.LookupEnv("SERVER_MSGQUEUE_KIND")
@@ -84,23 +82,6 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		if err := api.Start(cf, interruptCh, version); err != nil {
 			log.Printf("api failure: %s", err.Error())
 			os.Exit(1)
-		}
-	}()
-
-	// vite server
-	go func() {
-		var cmd *exec.Cmd
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("cmd", "/c", "npm", "run", "dev")
-		} else {
-			cmd = exec.Command("npm", "run", "dev")
-		}
-
-		cmd.Dir = "./frontend/app"
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			log.Fatalf("vite server failed: %v", err)
 		}
 	}()
 
