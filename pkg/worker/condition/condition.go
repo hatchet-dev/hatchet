@@ -3,6 +3,7 @@
 package condition
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,7 +71,7 @@ func (s *sleepCondition) Key() string {
 func (s *sleepCondition) ToPB(action contracts.Action) *ConditionMulti {
 	sleep := &contracts.SleepMatchCondition{
 		Base:     s.baseCondition.baseCondition(action),
-		SleepFor: s.duration.String(),
+		SleepFor: fmt.Sprintf("%dms", s.duration.Milliseconds()),
 	}
 
 	return &ConditionMulti{
