@@ -14,123 +14,59 @@ jobs:
   prepare-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          ref: main
 
-      - name: Fetch all tags
-        run: git fetch --force --tags
-
-      - name: Resolve previous tag
-        id: tags
-        run: |
-          LATEST="${{ github.ref_name }}"
-          PREVIOUS=$(git tag --sort=-v:refname \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            | grep -v "^${LATEST}$" \
-            | head -n1)
-          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
-          echo "previous=$PREVIOUS" >> "$GITHUB_OUTPUT"
-
-      - name: Check for existing release PR
-        id: existing-pr
+      - name: Get release PR branch
+        id: pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER="$(gh pr list \
+          BRANCH="$(gh pr list \
             --base main \
             --state open \
             --label release \
             --limit 1 \
-            --json number \
-            --jq '.[0].number // empty')"
+            --json headRefName \
+            --jq '.[0].headRefName // empty')"
+          echo "branch=${BRANCH:-release-$(date -u +%Y%m%d)}" >> "$GITHUB_OUTPUT"
 
-          if [[ -n "$PR_NUMBER" ]]; then
-            echo "Found existing open release PR #$PR_NUMBER"
-          else
-            echo "No open release PR found."
-          fi
-          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve release branch
-        id: branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.existing-pr.outputs.pr_number }}
+      - name: Switch to that branch if it exists
         run: |
-          git config user.email "action@github.com"
-          git config user.name "GitHub Action"
-
-          if [[ -n "$PR_NUMBER" ]]; then
-            gh pr checkout "$PR_NUMBER"
-            BRANCH_NAME=$(git branch --show-current)
-          else
-            BRANCH_NAME="release-cli"
-            git checkout -b "$BRANCH_NAME"
+          BRANCH="${{ steps.pr.outputs.branch }}"
+          if git ls-remote --exit-code --heads origin "$BRANCH"; then
+            git fetch origin "$BRANCH"
+            git checkout "$BRANCH"
+            git rebase origin/main
           fi
 
-          git fetch origin main
-          git rebase origin/main
-
-          echo "name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
-
-      - name: Update changelog heading
+      - name: Skip if tag already in changelog
+        id: check
         run: |
-          VERSION="${{ github.ref_name }}"
-          DATE="$(date -u +%Y-%m-%d)"
-          awk -v ver="$VERSION" -v date="$DATE" '
-            /^## \[Unreleased\]$/ {
-              print "## [" ver "] - " date
-              next
-            }
-            { print }
-          ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
-
-      - name: Append path-scoped PR history
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PREV_TAG: ${{ steps.tags.outputs.previous }}
-        run: |
-          notes=$(gh api repos/hatchet-dev/hatchet/releases/generate-notes \
-            -f tag_name="${GITHUB_REF_NAME}" \
-            -f previous_tag_name="${PREV_TAG}" \
-            -f configuration_file_path=".github/release-cli.yml" \
-            --jq .body)
-
-          {
-            echo "### ${GITHUB_REF_NAME}"
-            echo
-            echo "$notes" | grep -vE '^## |^\*\*Full Changelog\*\*' | awk 'NF'
-          } >> CHANGELOG.md
-
-      - name: Commit and push
-        run: |
-          git add CHANGELOG.md
-          if git diff --staged --quiet; then
-            echo "No changes to release notes."
-            exit 0
+          if grep -q "^## \[${GITHUB_REF_NAME#v}\]" CHANGELOG.md; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
           fi
-          git commit -m "chore: release notes for ${{ steps.tags.outputs.latest }}"
-          git push --force-with-lease -u origin "${{ steps.branch.outputs.name }}"
 
-      - name: Create release PR if needed
-        if: steps.existing-pr.outputs.pr_number == ''
+      - name: Prepend release section
+        if: steps.check.outputs.already != 'true'
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
+        with:
+          config: cliff.toml
+          args: --tag ${{ github.ref_name }} --strip header --prepend CHANGELOG.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr create \
-            --title "chore: Release ${{ steps.tags.outputs.latest }}" \
-            --body "Automated release PR. The release notes file is regenerated on every new tag push and describes only the changes belonging to the most recent tag." \
-            --head "${{ steps.branch.outputs.name }}" \
-            --base main \
-            --label "release" \
-            --draft
 
-      - name: Update existing PR title
-        if: steps.existing-pr.outputs.pr_number != ''
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh pr edit "${{ steps.existing-pr.outputs.pr_number }}" \
-            --title "chore: Release ${{ steps.tags.outputs.latest }}"
+      - name: Open / update release pull-request
+        if: steps.check.outputs.already != 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1
+        with:
+          branch: ${{ steps.pr.outputs.branch }}
+          base: main
+          title: "chore: Release ${{ github.ref_name }}"
+          commit-message: "docs: changelog for ${{ github.ref_name }}"
+          body: "Automated release PR. The changelog is regenerated on every new tag push and accumulates each tagged release until merged."
+          labels: release
+          draft: true
+          delete-branch: true

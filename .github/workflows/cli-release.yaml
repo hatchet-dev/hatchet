@@ -52,12 +52,23 @@ jobs:
       - name: Install syft (for SBOM generation)
         run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
+      - name: Generate release notes
+        run: ./hack/ci/release-notes-cli.sh > release_notes.md
+
+      - name: Resolve latest release
+        id: last
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PREV="$(gh release view --json tagName --jq '.tagName' 2>/dev/null || echo "")"
+          echo "tag=${PREV}" >> "$GITHUB_OUTPUT"
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8 # v7.2.1
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --release-notes=${{ github.workspace }}/CHANGELOG.md --clean
+          args: release --release-notes=${{ github.workspace }}/release_notes.md --clean
           workdir: cmd/hatchet-cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
