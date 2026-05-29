@@ -186,13 +186,13 @@ func TestUpdateTablePartitions_LeaseBehavior(t *testing.T) {
 	repo := createTaskRepository(pool)
 
 	// Acquire the lease directly to verify the mechanism.
-	leases, err := repo.tryAcquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
+	leases, err := repo.acquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
 	require.NoError(t, err)
 	assert.Len(t, leases, 1, "First caller should acquire the lease")
 
 	// A second caller with the same key should get nothing while the lease is held.
 	repo2 := createTaskRepository(pool)
-	leases2, err := repo2.tryAcquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
+	leases2, err := repo2.acquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
 	require.NoError(t, err)
 	assert.Len(t, leases2, 0, "Second caller should not acquire while the lease is held")
 
@@ -200,7 +200,7 @@ func TestUpdateTablePartitions_LeaseBehavior(t *testing.T) {
 	err = repo.releasePartitionLease(ctx, repo.ddlPool, leases)
 	require.NoError(t, err)
 
-	leases3, err := repo2.tryAcquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
+	leases3, err := repo2.acquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
 	require.NoError(t, err)
 	assert.Len(t, leases3, 1, "Third caller should acquire after release")
 

@@ -330,7 +330,7 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_task_partitions"
 
-	leases, err := r.tryAcquirePartitionLease(ctx, r.ddlPool, leaseKey)
+	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
 	if err != nil {
 		return fmt.Errorf("failed to acquire partition lease: %w", err)
 	}

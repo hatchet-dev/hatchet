@@ -9,9 +9,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// tryAcquirePartitionLease tries to acquire a system-wide partition lease using the existing
+// acquirePartitionLease tries to acquire a system-wide partition lease using the existing
 // Lease table.
-func (r *sharedRepository) tryAcquirePartitionLease(ctx context.Context, db sqlcv1.DBTX, leaseKey string) ([]*sqlcv1.Lease, error) {
+func (r *sharedRepository) acquirePartitionLease(ctx context.Context, db sqlcv1.DBTX, leaseKey string) ([]*sqlcv1.Lease, error) {
 	leases, err := r.queries.AcquireOrExtendLeases(ctx, db, sqlcv1.AcquireOrExtendLeasesParams{
 		// 15-minute window
 		LeaseDuration:    pgtype.Interval{Microseconds: 15 * 60 * 1_000_000, Valid: true},

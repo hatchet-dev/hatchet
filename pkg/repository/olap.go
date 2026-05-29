@@ -353,7 +353,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_olap_partitions"
 
-	leases, err := r.tryAcquirePartitionLease(ctx, r.ddlPool, leaseKey)
+	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
 	if err != nil {
 		return fmt.Errorf("failed to acquire partition lease: %w", err)
 	}
