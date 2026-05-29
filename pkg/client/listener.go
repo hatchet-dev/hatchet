@@ -102,6 +102,10 @@ func newWorkflowRunsListener(
 		reconnectingListener: &reconnectingListener[string, *dispatchercontracts.SubscribeToWorkflowRunsRequest, *dispatchercontracts.WorkflowRunEvent, dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient]{
 			constructor: constructor,
 			l:           l,
+			retryPolicy: reconnectingListenerRetryPolicy{
+				maxConsecutiveReconnectErrors: 10,
+				unavailableDelay:              1 * time.Second,
+			},
 			requestForKey: func(workflowRunId string) *dispatchercontracts.SubscribeToWorkflowRunsRequest {
 				return &dispatchercontracts.SubscribeToWorkflowRunsRequest{
 					WorkflowRunId: workflowRunId,

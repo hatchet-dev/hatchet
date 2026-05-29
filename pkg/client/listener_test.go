@@ -14,6 +14,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
@@ -21,19 +23,34 @@ import (
 
 type mockCoreStream struct {
 	sendErr     error
+	sendFn      func(*dispatchercontracts.SubscribeToWorkflowRunsRequest) error
 	recvFn      func() (*dispatchercontracts.WorkflowRunEvent, error)
+	recvCh      chan *dispatchercontracts.WorkflowRunEvent
 	closeSendFn func() error
 	sendCount   atomic.Int32
 }
 
 func (m *mockCoreStream) Send(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
 	m.sendCount.Add(1)
+	if m.sendFn != nil {
+		return m.sendFn(req)
+	}
+
 	return m.sendErr
 }
 
 func (m *mockCoreStream) Recv() (*dispatchercontracts.WorkflowRunEvent, error) {
 	if m.recvFn != nil {
 		return m.recvFn()
+	}
+
+	if m.recvCh != nil {
+		event, ok := <-m.recvCh
+		if !ok {
+			return nil, io.EOF
+		}
+
+		return event, nil
 	}
 
 	return nil, io.EOF
@@ -99,16 +116,177 @@ func TestReconnectingListener_GenerationIncrements(t *testing.T) {
 		return client, nil
 	})
 
-	_, gen0 := listener.getClientSnapshot()
+	_, gen0, _ := listener.getClientSnapshot()
 	assert.Equal(t, uint64(0), gen0)
 
 	require.NoError(t, listener.retrySubscribe(context.Background()))
-	_, gen1 := listener.getClientSnapshot()
+	_, gen1, _ := listener.getClientSnapshot()
 	assert.Equal(t, uint64(1), gen1)
 
 	require.NoError(t, listener.retrySubscribe(context.Background()))
-	_, gen2 := listener.getClientSnapshot()
+	_, gen2, _ := listener.getClientSnapshot()
 	assert.Equal(t, uint64(2), gen2)
+}
+
+func TestReconnectingListener_RetrySubscribeClosesPreviousClient(t *testing.T) {
+	previousClosed := make(chan struct{})
+	var closePrevious sync.Once
+
+	previous := &mockCoreStream{
+		closeSendFn: func() error {
+			closePrevious.Do(func() {
+				close(previousClosed)
+			})
+			return nil
+		},
+	}
+	next := &mockCoreStream{}
+	listener := newTestReconnectingListener(previous, func(ctx context.Context) (*mockCoreStream, error) {
+		return next, nil
+	})
+
+	require.NoError(t, listener.retrySubscribe(context.Background()))
+	assert.Equal(t, next, listener.client)
+
+	select {
+	case <-previousClosed:
+	case <-time.After(time.Second):
+		t.Fatal("expected replaced stream to be closed")
+	}
+}
+
+func TestReconnectingListener_RetrySubscribeClosesFailedReplayClient(t *testing.T) {
+	failedReplayClosed := make(chan struct{})
+	var closeFailedReplay sync.Once
+
+	failedReplay := &mockCoreStream{
+		sendErr: status.Error(codes.Unavailable, "replay failed"),
+		closeSendFn: func() error {
+			closeFailedReplay.Do(func() {
+				close(failedReplayClosed)
+			})
+			return nil
+		},
+	}
+
+	listener := newTestReconnectingListener(nil, func(ctx context.Context) (*mockCoreStream, error) {
+		return failedReplay, nil
+	})
+	listener.retryPolicy.subscribeRetryCount = 1
+	listener.handlers.Store("run-1", &handlerSet[*dispatchercontracts.WorkflowRunEvent]{
+		handlers: map[string]func(*dispatchercontracts.WorkflowRunEvent) error{
+			"session-1": func(event *dispatchercontracts.WorkflowRunEvent) error {
+				return nil
+			},
+		},
+	})
+
+	require.Error(t, listener.retrySubscribe(context.Background()))
+
+	select {
+	case <-failedReplayClosed:
+	case <-time.After(time.Second):
+		t.Fatal("expected failed replay stream to be closed")
+	}
+}
+
+func TestReconnectingListener_ListenFollowsReplacedClient(t *testing.T) {
+	oldClosed := make(chan struct{})
+	var closeOld sync.Once
+
+	oldClient := &mockCoreStream{
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			<-oldClosed
+			return nil, status.Error(codes.Canceled, "old stream canceled")
+		},
+		closeSendFn: func() error {
+			closeOld.Do(func() {
+				close(oldClosed)
+			})
+			return nil
+		},
+	}
+	newEvents := make(chan *dispatchercontracts.WorkflowRunEvent, 1)
+	newClient := &mockCoreStream{
+		recvCh: newEvents,
+	}
+
+	listener := newTestReconnectingListener(oldClient, func(ctx context.Context) (*mockCoreStream, error) {
+		return newClient, nil
+	})
+
+	received := make(chan *dispatchercontracts.WorkflowRunEvent, 1)
+	listener.handlers.Store("run-1", &handlerSet[*dispatchercontracts.WorkflowRunEvent]{
+		handlers: map[string]func(*dispatchercontracts.WorkflowRunEvent) error{
+			"session-1": func(event *dispatchercontracts.WorkflowRunEvent) error {
+				received <- event
+				return nil
+			},
+		},
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	require.NoError(t, listener.retrySubscribe(context.Background()))
+
+	newEvents <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+	close(newEvents)
+
+	require.Equal(t, "run-1", waitForTestValue(t, received).WorkflowRunId)
+	require.NoError(t, waitForTestValue(t, listenErr))
+}
+
+func TestReconnectingListener_ClosePreventsListenReconnect(t *testing.T) {
+	recvStarted := make(chan struct{})
+	unblockRecv := make(chan struct{})
+	var closeRecvStarted sync.Once
+
+	client := &mockCoreStream{
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			closeRecvStarted.Do(func() {
+				close(recvStarted)
+			})
+			<-unblockRecv
+			return nil, status.Error(codes.Internal, "stream closed")
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+	listener := newTestReconnectingListener(client, func(ctx context.Context) (*mockCoreStream, error) {
+		constructorCalls.Add(1)
+		return &mockCoreStream{}, nil
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	waitForTestValue(t, recvStarted)
+	require.NoError(t, listener.Close())
+	close(unblockRecv)
+
+	require.NoError(t, waitForTestValue(t, listenErr))
+	assert.Equal(t, int32(0), constructorCalls.Load())
+}
+
+func TestReconnectingListener_ClosePreventsRetrySendReconnect(t *testing.T) {
+	constructorCalls := atomic.Int32{}
+	listener := newTestReconnectingListener(&mockCoreStream{}, func(ctx context.Context) (*mockCoreStream, error) {
+		constructorCalls.Add(1)
+		return &mockCoreStream{}, nil
+	})
+
+	require.NoError(t, listener.Close())
+
+	err := listener.retrySend("run-1")
+	require.ErrorIs(t, err, errListenerClosed)
+	assert.Equal(t, int32(0), constructorCalls.Load())
 }
 
 func TestReconnectingListener_RetrySendHandlesNilClient(t *testing.T) {

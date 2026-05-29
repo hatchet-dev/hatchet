@@ -35,6 +35,10 @@ func newDurableEventsListener(
 		reconnectingListener: &reconnectingListener[listenTuple, *contracts.ListenForDurableEventRequest, *contracts.DurableEvent, contracts.V1Dispatcher_ListenForDurableEventClient]{
 			constructor: constructor,
 			l:           l,
+			retryPolicy: reconnectingListenerRetryPolicy{
+				maxConsecutiveReconnectErrors: 1,
+				disableUnavailableDelay:       true,
+			},
 			requestForKey: func(t listenTuple) *contracts.ListenForDurableEventRequest {
 				return &contracts.ListenForDurableEventRequest{
 					TaskId:    t.taskId,
