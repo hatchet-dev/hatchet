@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,25 +45,67 @@ type OffloadToExternalStoreOpts struct {
 }
 
 type RetrievePayloadOpts struct {
+	TenantId   uuid.UUID
 	Id         int64
 	InsertedAt pgtype.Timestamptz
 	Type       sqlcv1.V1PayloadType
-	TenantId   uuid.UUID
+	ExternalId uuid.UUID
+}
+
+type RetrieveFromExternalByKeyOpt struct {
+	Key ExternalPayloadLocationKey
+}
+
+type RetrieveFromExternalByIndexFileOpt struct {
+	IndexFileKey ExternalIndexFileLocationKey
+	ExternalId   uuid.UUID
+}
+
+type RetrieveFromExternalMethod int
+
+const (
+	RetrieveFromExternalByKey RetrieveFromExternalMethod = iota
+	RetrieveFromExternalByIndexFile
+)
+
+func (m RetrieveFromExternalMethod) String() string {
+	switch m {
+	case RetrieveFromExternalByKey:
+		return "key"
+	case RetrieveFromExternalByIndexFile:
+		return "index_file"
+	default:
+		return "unknown"
+	}
+}
+
+type RetrieveFromExternalOpts struct {
+	Method      RetrieveFromExternalMethod
+	ByKey       *RetrieveFromExternalByKeyOpt
+	ByIndexFile *RetrieveFromExternalByIndexFileOpt
 }
 
 type PayloadLocation string
 type ExternalPayloadLocationKey string
+type ExternalIndexFileLocationKey string
+
+type CreateIndexBlockOpts struct {
+	PartitionDate             PartitionDate
+	BlockLowerExternalIdBound uuid.UUID
+	BlockUpperExternalIdBound uuid.UUID
+	IndexFileKey              string
+}
 
 type ExternalStore interface {
-	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error)
-	Retrieve(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
+	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (*ExternalIndexFileLocationKey, error)
+	Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 }
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
 	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
 	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
-	RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error)
+	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
 	DualWritesEnabled() bool
 	TaskEventDualWritesEnabled() bool
@@ -75,8 +117,8 @@ type PayloadStoreRepository interface {
 	ExternalCutoverNumConcurrentOffloads() int32
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
-	ImmediateOffloadsEnabled() bool
 	ProcessPayloadCutovers(ctx context.Context) error
+	CreateIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error
 }
 
 type payloadStoreRepositoryImpl struct {
@@ -93,7 +135,6 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverProcessInterval       time.Duration
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
-	enableImmediateOffloads              bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -105,7 +146,6 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverBatchSize             int32
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
-	EnableImmediateOffloads              bool
 }
 
 func NewPayloadStoreRepository(
@@ -129,15 +169,32 @@ func NewPayloadStoreRepository(
 		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
-		enableImmediateOffloads:              opts.EnableImmediateOffloads,
 	}
 }
 
 type PayloadUniqueKey struct {
-	ID         int64
-	InsertedAt pgtype.Timestamptz
-	TenantId   uuid.UUID
-	Type       sqlcv1.V1PayloadType
+	ID              int64
+	InsertedAtMicro int64 // Unix microseconds — avoids time.Time map-key pitfalls (mono clock, location, sub-μs precision)
+	TenantId        uuid.UUID
+	Type            sqlcv1.V1PayloadType
+}
+
+func payloadUniqueKeyFromRetrieveOpt(opt RetrievePayloadOpts) PayloadUniqueKey {
+	return PayloadUniqueKey{
+		ID:              opt.Id,
+		InsertedAtMicro: opt.InsertedAt.Time.UnixMicro(),
+		TenantId:        opt.TenantId,
+		Type:            opt.Type,
+	}
+}
+
+func payloadUniqueKeyFromRow(payload *sqlcv1.V1Payload) PayloadUniqueKey {
+	return PayloadUniqueKey{
+		ID:              payload.ID,
+		InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
+		TenantId:        payload.TenantID,
+		Type:            payload.Type,
+	}
 }
 
 func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error {
@@ -145,7 +202,6 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	payloadTypes := make([]string, 0, len(payloads))
 	inlineContents := make([][]byte, 0, len(payloads))
-	offloadAts := make([]pgtype.Timestamptz, 0, len(payloads))
 	tenantIds := make([]uuid.UUID, 0, len(payloads))
 	locations := make([]string, 0, len(payloads))
 	externalIds := make([]uuid.UUID, 0, len(payloads))
@@ -158,103 +214,29 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 		return payloads[i].InsertedAt.Time.After(payloads[j].InsertedAt.Time)
 	})
 
-	if p.enableImmediateOffloads && p.externalStoreEnabled {
-		externalOpts := make([]OffloadToExternalStoreOpts, 0, len(payloads))
-		payloadIndexMap := make(map[PayloadUniqueKey]int)
-
-		for i, payload := range payloads {
-			tenantId := payload.TenantId
-			uniqueKey := PayloadUniqueKey{
-				ID:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				TenantId:   tenantId,
-				Type:       payload.Type,
-			}
-
-			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
-				continue
-			}
-
-			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
-			payloadIndexMap[uniqueKey] = i
-
-			externalOpts = append(externalOpts, OffloadToExternalStoreOpts{
-				TenantId:   payload.TenantId,
-				ExternalID: payload.ExternalId,
-				InsertedAt: payload.InsertedAt,
-				Payload:    payload.Payload,
-			})
+	for _, payload := range payloads {
+		tenantId := payload.TenantId
+		uniqueKey := PayloadUniqueKey{
+			ID:              payload.Id,
+			InsertedAtMicro: payload.InsertedAt.Time.UnixMicro(),
+			TenantId:        tenantId,
+			Type:            payload.Type,
 		}
 
-		retrieveOptsToExternalKey, err := p.externalStore.Store(ctx, externalOpts...)
-		if err != nil {
-			return fmt.Errorf("failed to store in external store: %w", err)
+		if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
+			continue
 		}
 
-		for _, payload := range payloads {
-			tenantId := payload.TenantId
-			uniqueKey := PayloadUniqueKey{
-				ID:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				TenantId:   tenantId,
-				Type:       payload.Type,
-			}
+		seenPayloadUniqueKeys[uniqueKey] = struct{}{}
 
-			if _, exists := seenPayloadUniqueKeys[uniqueKey]; !exists {
-				continue // Skip if already processed
-			}
-
-			externalKey, exists := retrieveOptsToExternalKey[payload.ExternalId]
-			if !exists {
-				return fmt.Errorf("external key not found for payload %d", payload.Id)
-			}
-
-			taskIds = append(taskIds, payload.Id)
-			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-			payloadTypes = append(payloadTypes, string(payload.Type))
-			tenantIds = append(tenantIds, tenantId)
-			locations = append(locations, string(sqlcv1.V1PayloadLocationEXTERNAL))
-			inlineContents = append(inlineContents, nil)
-			externalIds = append(externalIds, payload.ExternalId)
-			externalLocationKeys = append(externalLocationKeys, string(externalKey))
-			offloadAts = append(offloadAts, pgtype.Timestamptz{Time: time.Now(), Valid: true})
-		}
-	} else {
-		if p.enableImmediateOffloads {
-			p.l.Warn().Ctx(ctx).Msg("immediate offloads enabled but external store is not enabled, skipping immediate offloads")
-		}
-
-		for _, payload := range payloads {
-			tenantId := payload.TenantId
-			uniqueKey := PayloadUniqueKey{
-				ID:         payload.Id,
-				InsertedAt: payload.InsertedAt,
-				TenantId:   tenantId,
-				Type:       payload.Type,
-			}
-
-			if _, exists := seenPayloadUniqueKeys[uniqueKey]; exists {
-				continue
-			}
-
-			seenPayloadUniqueKeys[uniqueKey] = struct{}{}
-
-			taskIds = append(taskIds, payload.Id)
-			taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
-			payloadTypes = append(payloadTypes, string(payload.Type))
-			tenantIds = append(tenantIds, tenantId)
-			locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
-			inlineContents = append(inlineContents, payload.Payload)
-			externalIds = append(externalIds, payload.ExternalId)
-			externalLocationKeys = append(externalLocationKeys, "")
-
-			offloadAt := pgtype.Timestamptz{Time: time.Now(), Valid: true}
-			if p.inlineStoreTTL != nil {
-				offloadAt = pgtype.Timestamptz{Time: time.Now().Add(*p.inlineStoreTTL), Valid: true}
-			}
-
-			offloadAts = append(offloadAts, offloadAt)
-		}
+		taskIds = append(taskIds, payload.Id)
+		taskInsertedAts = append(taskInsertedAts, payload.InsertedAt)
+		payloadTypes = append(payloadTypes, string(payload.Type))
+		tenantIds = append(tenantIds, tenantId)
+		locations = append(locations, string(sqlcv1.V1PayloadLocationINLINE))
+		inlineContents = append(inlineContents, payload.Payload)
+		externalIds = append(externalIds, payload.ExternalId)
+		externalLocationKeys = append(externalLocationKeys, "")
 	}
 
 	err := p.queries.WritePayloads(ctx, tx, sqlcv1.WritePayloadsParams{
@@ -290,23 +272,23 @@ func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlc
 
 	optsToPayload, err := p.retrieve(ctx, tx, opt)
 
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
 
-	if len(optsToPayload) == 0 {
-		return nil, pgx.ErrNoRows
+	if len(optsToPayload) == 0 || err == pgx.ErrNoRows {
+		return nil, nil
 	}
 
 	return optsToPayload[opt], nil
 }
 
-func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {
+func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {
 	if !p.externalStoreEnabled {
 		return nil, fmt.Errorf("external store not enabled")
 	}
 
-	return p.externalStore.Retrieve(ctx, keys...)
+	return p.externalStore.Retrieve(ctx, opts...)
 }
 
 func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
@@ -314,23 +296,23 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		return make(map[RetrievePayloadOpts][]byte), nil
 	}
 
-	taskIds := make([]int64, len(opts))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
-	payloadTypes := make([]string, len(opts))
+	ids := make([]int64, len(opts))
+	insertedAts := make([]pgtype.Timestamptz, len(opts))
+	types := make([]string, len(opts))
 	tenantIds := make([]uuid.UUID, len(opts))
 
 	for i, opt := range opts {
-		taskIds[i] = opt.Id
-		taskInsertedAts[i] = opt.InsertedAt
-		payloadTypes[i] = string(opt.Type)
+		ids[i] = opt.Id
+		insertedAts[i] = opt.InsertedAt
+		types[i] = string(opt.Type)
 		tenantIds[i] = opt.TenantId
 	}
 
 	payloads, err := p.queries.ReadPayloads(ctx, tx, sqlcv1.ReadPayloadsParams{
+		Ids:         ids,
+		Insertedats: insertedAts,
 		Tenantids:   tenantIds,
-		Ids:         taskIds,
-		Insertedats: taskInsertedAts,
-		Types:       payloadTypes,
+		Types:       types,
 	})
 
 	if err != nil {
@@ -338,39 +320,120 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	}
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
+	originalOptsByKey := make(map[PayloadUniqueKey]RetrievePayloadOpts, len(opts))
+	for _, opt := range opts {
+		originalOptsByKey[payloadUniqueKeyFromRetrieveOpt(opt)] = opt
+	}
 
-	externalKeysToOpts := make(map[ExternalPayloadLocationKey]RetrievePayloadOpts)
-	externalKeys := make([]ExternalPayloadLocationKey, 0)
+	retrieveFromExternalOptsToOpts := make(map[RetrieveFromExternalOpts]RetrievePayloadOpts)
+	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
+
+	foundKeys := make(map[PayloadUniqueKey]struct{})
 
 	for _, payload := range payloads {
 		if payload == nil {
 			continue
 		}
 
-		opts := RetrievePayloadOpts{
-			Id:         payload.ID,
-			InsertedAt: payload.InsertedAt,
-			Type:       payload.Type,
-			TenantId:   payload.TenantID,
+		payloadKey := payloadUniqueKeyFromRow(payload)
+		foundKeys[payloadKey] = struct{}{}
+
+		opt, ok := originalOptsByKey[payloadKey]
+		if !ok {
+			opt = RetrievePayloadOpts{
+				Id:         payload.ID,
+				InsertedAt: payload.InsertedAt,
+				Type:       payload.Type,
+				TenantId:   payload.TenantID,
+				ExternalId: payload.ExternalID,
+			}
 		}
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			externalKeysToOpts[key] = opts
-			externalKeys = append(externalKeys, key)
+			var retrieveFromExternalOpt RetrieveFromExternalOpts
+
+			if strings.HasSuffix(string(key), ".index") {
+				retrieveFromExternalOpt = RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(key),
+						ExternalId:   payload.ExternalID,
+					},
+				}
+			} else {
+				retrieveFromExternalOpt = RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByKey,
+					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
+				}
+			}
+
+			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
+			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
 		} else {
-			optsToPayload[opts] = payload.InlineContent
+			optsToPayload[opt] = payload.InlineContent
 		}
 	}
 
-	if len(externalKeys) > 0 {
-		externalData, err := p.RetrieveFromExternal(ctx, externalKeys...)
+	if p.externalStoreEnabled {
+		retrieveIndexBlockExternalIds := make([]uuid.UUID, 0)
+		retrieveIndexBlockInsertedAtDates := make([]pgtype.Date, 0)
+		externalIdToOpt := make(map[uuid.UUID]RetrievePayloadOpts)
+
+		for _, opt := range opts {
+			if opt.ExternalId == uuid.Nil {
+				continue
+			}
+
+			key := payloadUniqueKeyFromRetrieveOpt(opt)
+
+			if _, found := foundKeys[key]; found {
+				continue
+			}
+			retrieveIndexBlockExternalIds = append(retrieveIndexBlockExternalIds, opt.ExternalId)
+			retrieveIndexBlockInsertedAtDates = append(retrieveIndexBlockInsertedAtDates, pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true})
+			externalIdToOpt[opt.ExternalId] = opt
+		}
+
+		if len(retrieveIndexBlockExternalIds) > 0 {
+			indexFileKeys, err := p.queries.GetOffloadedPayloadIndexBlocks(ctx, tx, sqlcv1.GetOffloadedPayloadIndexBlocksParams{
+				Insertedats: retrieveIndexBlockInsertedAtDates,
+				Externalids: retrieveIndexBlockExternalIds,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("failed to get offloaded payload index block: %w", err)
+			}
+
+			for _, k := range indexFileKeys {
+				retrieveFromExternalOpt := RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+						ExternalId:   k.ExternalID,
+					},
+				}
+				opt, ok := externalIdToOpt[k.ExternalID]
+
+				if !ok {
+					p.l.Error().Msg("got index file key for external id that was not requested")
+					continue
+				}
+
+				retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
+				retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+			}
+		}
+	}
+
+	if len(retrieveFromExternalOpts) > 0 {
+		externalData, err := p.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
 
-		for externalKey, data := range externalData {
-			if opt, exists := externalKeysToOpts[externalKey]; exists {
+		for retrieveFromExternalOpt, data := range externalData {
+			if opt, exists := retrieveFromExternalOptsToOpts[retrieveFromExternalOpt]; exists {
 				optsToPayload[opt] = data
 			}
 		}
@@ -420,10 +483,6 @@ func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
 }
 
-func (p *payloadStoreRepositoryImpl) ImmediateOffloadsEnabled() bool {
-	return p.enableImmediateOffloads
-}
-
 func (p *payloadStoreRepositoryImpl) ExternalStore() ExternalStore {
 	return p.externalStore
 }
@@ -437,16 +496,9 @@ type BulkCutOverPayload struct {
 	ExternalLocationKey ExternalPayloadLocationKey
 }
 
-type PaginationParams struct {
-	LastTenantID   uuid.UUID
-	LastInsertedAt pgtype.Timestamptz
-	LastID         int64
-	LastType       sqlcv1.V1PayloadType
-}
-
 type CutoverBatchOutcome struct {
 	ShouldContinue bool
-	NextPagination PaginationParams
+	NextExternalId uuid.UUID
 }
 
 type PartitionDate pgtype.Date
@@ -465,7 +517,7 @@ func (d PartitionDate) String() string {
 const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
 const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
 
-func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, pagination PaginationParams) (*int32, error) {
+func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, lastExternalId uuid.UUID) (*int32, error) {
 	if candidateBatchNumRows <= 0 {
 		// trivial case that we'll never hit, but to prevent infinite recursion
 		zero := int32(0)
@@ -474,10 +526,7 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 
 	proposedBatchSizeBytes, err := p.queries.ComputePayloadBatchSize(ctx, tx, sqlcv1.ComputePayloadBatchSizeParams{
 		Partitiondate:  pgtype.Date(partitionDate),
-		Lasttenantid:   pagination.LastTenantID,
-		Lastinsertedat: pagination.LastInsertedAt,
-		Lastid:         pagination.LastID,
-		Lasttype:       pagination.LastType,
+		Lastexternalid: lastExternalId,
 		Batchsize:      candidateBatchNumRows,
 	})
 
@@ -496,11 +545,53 @@ func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Conte
 		tx,
 		partitionDate,
 		candidateBatchNumRows/2,
-		pagination,
+		lastExternalId,
 	)
 }
 
-func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverBatchOutcome, error) {
+type DuplicatedExternalIdRow struct {
+	ExternalId uuid.UUID
+	Count      int64
+}
+
+func (p *payloadStoreRepositoryImpl) ValidateNoDuplicateExternalIds(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate) ([]*DuplicatedExternalIdRow, error) {
+	tableName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			`
+			SELECT external_id, COUNT(*)
+			FROM %s
+			GROUP BY external_id
+			HAVING COUNT(*) > 1
+			LIMIT 100
+			`,
+			tableName,
+		),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*DuplicatedExternalIdRow
+	for rows.Next() {
+		var i DuplicatedExternalIdRow
+		if err := rows.Scan(
+			&i.ExternalId,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*CutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "PayloadStoreRepository.ProcessPayloadCutoverBatch")
 	defer span.End()
 
@@ -512,13 +603,12 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	defer rollback()
 
-	tableName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
 	windowSizePtr, err := p.OptimizePayloadWindowSize(
 		ctx,
 		tx,
 		partitionDate,
 		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
-		pagination,
+		lastExternalId,
 	)
 
 	if err != nil {
@@ -531,20 +621,17 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		Chunksize:      p.externalCutoverBatchSize,
 		Partitiondate:  pgtype.Date(partitionDate),
 		Windowsize:     windowSize,
-		Lasttenantid:   pagination.LastTenantID,
-		Lastinsertedat: pagination.LastInsertedAt,
-		Lastid:         pagination.LastID,
-		Lasttype:       pagination.LastType,
+		Lastexternalid: lastExternalId,
 	})
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
 	}
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || len(payloadRanges) == 0 {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
-			NextPagination: pagination,
+			NextExternalId: lastExternalId,
 		}, nil
 	}
 
@@ -555,9 +642,8 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayloadMetadata := make(map[uuid.UUID]PayloadMetadata)
-	alreadyExternalPayloads := make(map[uuid.UUID]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
+	maxExternalId := payloadRanges[len(payloadRanges)-1].UpperExternalID
 
 	numPayloads := 0
 
@@ -566,23 +652,15 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		eg.Go(func() error {
 			payloads, err := p.queries.ListPaginatedPayloadsForOffload(ctx, p.pool, sqlcv1.ListPaginatedPayloadsForOffloadParams{
 				Partitiondate:  pgtype.Date(partitionDate),
-				Lasttenantid:   pr.LowerTenantID,
-				Lastinsertedat: pr.LowerInsertedAt,
-				Lastid:         pr.LowerID,
-				Lasttype:       pr.LowerType,
-				Nexttenantid:   pr.UpperTenantID,
-				Nextinsertedat: pr.UpperInsertedAt,
-				Nextid:         pr.UpperID,
-				Nexttype:       pr.UpperType,
+				Lastexternalid: pr.LowerExternalID,
+				Nextexternalid: pr.UpperExternalID,
 				Batchsize:      p.externalCutoverBatchSize,
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to list paginated payloads for offload")
+				return fmt.Errorf("failed to list paginated payloads for offload: %w", err)
 			}
 
-			alreadyExternalPayloadsInner := make(map[uuid.UUID]ExternalPayloadLocationKey)
-			externalIdToPayloadMetadataInner := make(map[uuid.UUID]PayloadMetadata)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
@@ -592,16 +670,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 					externalId = uuid.New()
 				}
 
-				externalIdToPayloadMetadataInner[externalId] = PayloadMetadata{
-					TenantID:   payload.TenantID,
-					ID:         payload.ID,
-					InsertedAt: payload.InsertedAt,
-					Type:       payload.Type,
-				}
-
-				if payload.Location != sqlcv1.V1PayloadLocationINLINE {
-					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-				} else {
+				if payload.Location == sqlcv1.V1PayloadLocationINLINE {
 					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
 						TenantId:   payload.TenantID,
 						ExternalID: externalId,
@@ -612,8 +681,6 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 			}
 
 			mu.Lock()
-			maps.Copy(externalIdToPayloadMetadata, externalIdToPayloadMetadataInner)
-			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
 			mu.Unlock()
@@ -628,87 +695,68 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 		return nil, err
 	}
 
-	externalIdToKey, err := p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
+	blockIndexKey, err := p.ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
-	maps.Copy(externalIdToKey, alreadyExternalPayloads)
-
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
-	payloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, numPayloads)
 
-	for externalId, key := range externalIdToKey {
-		meta := externalIdToPayloadMetadata[externalId]
-		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverPayloadToInsert{
-			TenantID:            meta.TenantID,
-			ID:                  meta.ID,
-			InsertedAt:          meta.InsertedAt,
-			ExternalID:          externalId,
-			Type:                meta.Type,
-			ExternalLocationKey: string(key),
-			Location:            sqlcv1.V1PayloadLocationEXTERNAL,
-		})
-	}
-
-	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
+		return nil, fmt.Errorf("failed to prepare transaction for extending cutover job lease: %w", err)
 	}
 
-	defer rollback()
+	defer leaseRollback()
 
-	inserted, err := sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
-	}
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		return &CutoverBatchOutcome{
-			ShouldContinue: false,
-			NextPagination: pagination,
-		}, nil
-	}
-
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
-		LastTenantID:   inserted.TenantId,
-		LastInsertedAt: inserted.InsertedAt,
-		LastID:         inserted.ID,
-		LastType:       inserted.Type,
-	})
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, maxExternalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
 	}
 
-	if err := commit(ctx); err != nil {
+	if !extendedLease.ShouldRun {
+		return nil, fmt.Errorf("lease for partition %s was taken by another process during batch processing", partitionDate.String())
+	}
+
+	if blockIndexKey != nil {
+		if err := p.CreateIndexBlock(ctx, leaseTx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
+		}
+	}
+
+	if err := leaseCommit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
 	if numPayloads < int(windowSize) {
 		return &CutoverBatchOutcome{
 			ShouldContinue: false,
-			NextPagination: extendedLease.Pagination,
+			NextExternalId: extendedLease.LastExternalId,
 		}, nil
 	}
 
 	return &CutoverBatchOutcome{
 		ShouldContinue: true,
-		NextPagination: extendedLease.Pagination,
+		NextExternalId: extendedLease.LastExternalId,
 	}, nil
 }
 
 type CutoverJobRunMetadata struct {
 	ShouldRun      bool
-	Pagination     PaginationParams
+	LastExternalId uuid.UUID
 	PartitionDate  PartitionDate
 	LeaseProcessId uuid.UUID
 }
 
-func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, pagination PaginationParams) (*CutoverJobRunMetadata, error) {
+func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx.Tx, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID) (*CutoverJobRunMetadata, error) {
 	leaseInterval := 2 * time.Minute
 	leaseExpiresAt := sqlchelpers.TimestamptzFromTime(time.Now().Add(leaseInterval))
 
@@ -716,10 +764,7 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 		Key:            pgtype.Date(partitionDate),
 		Leaseprocessid: processId,
 		Leaseexpiresat: leaseExpiresAt,
-		Lasttenantid:   pagination.LastTenantID,
-		Lastinsertedat: pagination.LastInsertedAt,
-		Lastid:         pagination.LastID,
-		Lasttype:       pagination.LastType,
+		Lastexternalid: lastExternalId,
 	})
 
 	if err != nil {
@@ -737,26 +782,16 @@ func (p *payloadStoreRepositoryImpl) acquireOrExtendJobLease(ctx context.Context
 
 	if lease.LeaseProcessID != processId || lease.IsCompleted {
 		return &CutoverJobRunMetadata{
-			ShouldRun: false,
-			Pagination: PaginationParams{
-				LastTenantID:   lease.LastTenantID,
-				LastInsertedAt: lease.LastInsertedAt,
-				LastID:         lease.LastID,
-				LastType:       lease.LastType,
-			},
+			ShouldRun:      false,
+			LastExternalId: lease.LastExternalID,
 			PartitionDate:  partitionDate,
 			LeaseProcessId: lease.LeaseProcessID,
 		}, nil
 	}
 
 	return &CutoverJobRunMetadata{
-		ShouldRun: true,
-		Pagination: PaginationParams{
-			LastTenantID:   lease.LastTenantID,
-			LastInsertedAt: lease.LastInsertedAt,
-			LastID:         lease.LastID,
-			LastType:       lease.LastType,
-		},
+		ShouldRun:      true,
+		LastExternalId: lease.LastExternalID,
 		PartitionDate:  partitionDate,
 		LeaseProcessId: processId,
 	}, nil
@@ -777,13 +812,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	var zeroUuid uuid.UUID
 
-	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, PaginationParams{
-		// placeholder initial type
-		LastType:       sqlcv1.V1PayloadTypeDAGINPUT,
-		LastTenantID:   zeroUuid,
-		LastInsertedAt: sqlchelpers.TimestamptzFromTime(time.Unix(0, 0)),
-		LastID:         0,
-	})
+	lease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, zeroUuid)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to acquire or extend cutover job lease: %w", err)
@@ -805,7 +834,7 @@ func (p *payloadStoreRepositoryImpl) prepareCutoverTableJob(ctx context.Context,
 
 	return &CutoverJobRunMetadata{
 		ShouldRun:      true,
-		Pagination:     lease.Pagination,
+		LastExternalId: lease.LastExternalId,
 		PartitionDate:  partitionDate,
 		LeaseProcessId: processId,
 	}, nil
@@ -825,10 +854,26 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		return nil
 	}
 
-	pagination := jobMeta.Pagination
+	duplicatedExternalIds, err := p.ValidateNoDuplicateExternalIds(ctx, p.pool, partitionDate)
+
+	if err != nil {
+		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+	}
+
+	if len(duplicatedExternalIds) > 0 {
+		var duplicatedIds []string
+
+		for _, row := range duplicatedExternalIds {
+			duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+		}
+
+		return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+	}
+
+	lastExternalId := jobMeta.LastExternalId
 
 	for {
-		outcome, err := p.ProcessPayloadCutoverBatch(ctx, processId, partitionDate, pagination)
+		outcome, err := p.ProcessPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -838,125 +883,8 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 			break
 		}
 
-		pagination = outcome.NextPagination
+		lastExternalId = outcome.NextExternalId
 	}
-
-	tempPartitionName := fmt.Sprintf("v1_payload_offload_tmp_%s", partitionDate.String())
-	sourcePartitionName := fmt.Sprintf("v1_payload_%s", partitionDate.String())
-
-	reconciliationDoneChan := make(chan struct{})
-	reconciliationCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-reconciliationCtx.Done():
-				return
-			case <-reconciliationDoneChan:
-				return
-			case <-ticker.C:
-				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l)
-
-				if err != nil {
-					p.l.Error().Ctx(ctx).Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
-					return
-				}
-
-				defer rollback()
-
-				lease, err := p.acquireOrExtendJobLease(reconciliationCtx, tx, processId, partitionDate, pagination)
-
-				if err != nil {
-					return
-				}
-
-				if err := commit(reconciliationCtx); err != nil {
-					p.l.Error().Ctx(ctx).Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
-					return
-				}
-
-				if !lease.ShouldRun {
-					return
-				}
-			}
-		}
-	}()
-
-	connStatementTimeout := 30 * 60 * 1000 // 30 minutes
-
-	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
-
-	if err != nil {
-		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
-	}
-
-	defer release()
-
-	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
-
-	if err != nil {
-		return fmt.Errorf("failed to compare partition row counts: %w", err)
-	}
-
-	const maxCountDiff = 5000
-
-	err = p.queries.SetFinalPayloadCutoverRowCounts(ctx, conn, sqlcv1.SetFinalPayloadCutoverRowCountsParams{
-		Finalsourcetablerowcount: rowCounts.SourcePartitionCount,
-		Finaltargettablerowcount: rowCounts.TempPartitionCount,
-		Finalrowcountdiff:        rowCounts.SourcePartitionCount - rowCounts.TempPartitionCount,
-		Key:                      pgtype.Date(partitionDate),
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to set final payload cutover row counts: %w", err)
-	}
-
-	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
-		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
-	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
-		missingRows, err := p.queries.DiffPayloadSourceAndTargetPartitions(ctx, conn, pgtype.Date(partitionDate))
-
-		if err != nil {
-			return fmt.Errorf("failed to diff source and target partitions: %w", err)
-		}
-
-		missingPayloadsToInsert := make([]sqlcv1.CutoverPayloadToInsert, 0, len(missingRows))
-
-		for _, p := range missingRows {
-			missingPayloadsToInsert = append(missingPayloadsToInsert, sqlcv1.CutoverPayloadToInsert{
-				TenantID:            p.TenantID,
-				ID:                  p.ID,
-				InsertedAt:          p.InsertedAt,
-				ExternalID:          p.ExternalID,
-				Type:                p.Type,
-				ExternalLocationKey: p.ExternalLocationKey,
-				InlineContent:       p.InlineContent,
-				Location:            p.Location,
-			})
-		}
-
-		_, err = sqlcv1.InsertCutOverPayloadsIntoTempTable(ctx, conn, tempPartitionName, missingPayloadsToInsert)
-
-		if err != nil {
-			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
-		}
-
-		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
-
-		if err != nil {
-			return fmt.Errorf("failed to compare partition row counts: %w", err)
-		}
-
-		if rowCounts.SourcePartitionCount != rowCounts.TempPartitionCount {
-			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
-		}
-	}
-
-	close(reconciliationDoneChan)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
@@ -998,7 +926,7 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * (*p.inlineStoreTTL + 12*time.Hour)),
+		Time:  time.Now().Add(-1 * (*p.inlineStoreTTL + 2*time.Hour)), // 2 hour offset to limit race conditions and hot-path i/o
 		Valid: true,
 	}
 
@@ -1022,12 +950,21 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutovers(ctx context.Context)
 	return nil
 }
 
+func (p *payloadStoreRepositoryImpl) CreateIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error {
+	return p.queries.CreateOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.CreateOffloadedPayloadIndexBlockParams{
+		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
+		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
+		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
+		Indexfilekey:              opts.IndexFileKey,
+	})
+}
+
 type NoOpExternalStore struct{}
 
-func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error) {
+func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (*ExternalIndexFileLocationKey, error) {
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) Retrieve(ctx context.Context, keys ...ExternalPayloadLocationKey) (map[ExternalPayloadLocationKey][]byte, error) {
+func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {
 	return nil, fmt.Errorf("external store disabled")
 }

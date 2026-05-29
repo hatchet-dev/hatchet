@@ -139,6 +139,7 @@ WITH task_partitions AS (
         *
     FROM
         otel_trace_lookup_partitions
+
 )
 
 SELECT *
@@ -413,7 +414,8 @@ WITH selected_retry_count AS (
 ), task_output AS (
     SELECT
         external_id,
-        output
+        output,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -462,6 +464,7 @@ SELECT
     s.started_at::timestamptz as started_at,
     q.queued_at::timestamptz as queued_at,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     o.output as output,
     e.error_message as error_message,
     sc.spawned_children,
@@ -605,7 +608,8 @@ WITH input AS (
         DISTINCT ON (task_id)
         task_id,
         output,
-        external_id AS output_event_external_id
+        external_id AS output_event_external_id,
+        inserted_at AS output_event_inserted_at
     FROM
         relevant_events
     WHERE
@@ -648,6 +652,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
+    o.output_event_inserted_at AS output_event_inserted_at,
     COALESCE(t.is_durable, FALSE) AS is_durable
 FROM
     tasks t
@@ -1400,7 +1405,8 @@ WITH input AS (
     SELECT
         run_id,
         output,
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -1418,6 +1424,7 @@ SELECT
         ELSE '{}'::JSONB
     END::JSONB AS output,
     o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at,
     COALESCE(mrc.max_retry_count, 0)::int as retry_count
 FROM runs r
 LEFT JOIN metadata m ON r.run_id = m.run_id
@@ -1600,7 +1607,8 @@ WITH runs AS (
     LIMIT 1
 ), output_event_external_id AS (
     SELECT
-        external_id
+        external_id,
+        inserted_at
     FROM
         relevant_events
     WHERE
@@ -1617,7 +1625,8 @@ SELECT
     m.finished_at,
     e.error_message,
     m.task_metadata,
-    o.external_id AS output_event_external_id
+    o.external_id AS output_event_external_id,
+    o.inserted_at AS output_event_inserted_at
 FROM runs r
 LEFT JOIN metadata m ON true
 LEFT JOIN error_message e ON true
@@ -2198,12 +2207,8 @@ WITH payloads AS (
         (p).*
     FROM list_paginated_olap_payloads_for_offload(
         @partitionDate::DATE,
-        @lastTenantId::UUID,
         @lastExternalId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ,
-        @nextTenantId::UUID,
         @nextExternalId::UUID,
-        @nextInsertedAt::TIMESTAMPTZ,
         @batchSize::INTEGER
     ) p
 )
@@ -2225,19 +2230,13 @@ WITH chunks AS (
         @partitionDate::DATE,
         @windowSize::INTEGER,
         @chunkSize::INTEGER,
-        @lastTenantId::UUID,
-        @lastExternalId::UUID,
-        @lastInsertedAt::TIMESTAMPTZ
+        @lastExternalId::UUID
     ) p
 )
 
 SELECT
-    lower_tenant_id::UUID,
     lower_external_id::UUID,
-    lower_inserted_at::TIMESTAMPTZ,
-    upper_tenant_id::UUID,
-    upper_external_id::UUID,
-    upper_inserted_at::TIMESTAMPTZ
+    upper_external_id::UUID
 FROM chunks
 ;
 
@@ -2253,9 +2252,7 @@ WITH inputs AS (
         @key::DATE AS key,
         @leaseProcessId::UUID AS lease_process_id,
         @leaseExpiresAt::TIMESTAMPTZ AS lease_expires_at,
-        @lastTenantId::UUID AS last_tenant_id,
-        @lastExternalId::UUID AS last_external_id,
-        @lastInsertedAt::TIMESTAMPTZ AS last_inserted_at
+        @lastExternalId::UUID AS last_external_id
 ), any_lease_held_by_other_process AS (
     -- need coalesce here in case there are no rows that don't belong to this process
     SELECT COALESCE(BOOL_OR(lease_expires_at > NOW()), FALSE) AS lease_exists
@@ -2269,30 +2266,16 @@ WITH inputs AS (
     WHERE NOT (SELECT lease_exists FROM any_lease_held_by_other_process)
 )
 
-INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at)
-SELECT
-    ti.key,
-    ti.lease_process_id,
-    ti.lease_expires_at,
-    ti.last_tenant_id,
-    ti.last_external_id,
-    ti.last_inserted_at
+INSERT INTO v1_payloads_olap_cutover_job_offset (key, lease_process_id, lease_expires_at, last_external_id)
+SELECT ti.key, ti.lease_process_id, ti.lease_expires_at, ti.last_external_id
 FROM to_insert ti
 ON CONFLICT (key)
 DO UPDATE SET
     -- if the lease is held by this process, then we extend the offset to the new value
     -- otherwise it's a new process acquiring the lease, so we should keep the offset where it was before
-    last_tenant_id = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_tenant_id
-        ELSE v1_payloads_olap_cutover_job_offset.last_tenant_id
-    END,
     last_external_id = CASE
         WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_external_id
         ELSE v1_payloads_olap_cutover_job_offset.last_external_id
-    END,
-    last_inserted_at = CASE
-        WHEN EXCLUDED.lease_process_id = v1_payloads_olap_cutover_job_offset.lease_process_id THEN EXCLUDED.last_inserted_at
-        ELSE v1_payloads_olap_cutover_job_offset.last_inserted_at
     END,
 
     lease_process_id = EXCLUDED.lease_process_id,
@@ -2312,33 +2295,46 @@ DELETE FROM v1_payloads_olap_cutover_job_offset
 WHERE NOT key = ANY(@keysToKeep::DATE[])
 ;
 
-
--- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_olap_payload_source_and_target_partitions(@partitionDate::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    external_id::UUID,
-    inserted_at::TIMESTAMPTZ,
-    location::v1_payload_location_olap,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-;
-
 -- name: ComputeOLAPPayloadBatchSize :one
 SELECT compute_olap_payload_batch_size(
     @partitionDate::DATE,
-    @lastTenantId::UUID,
     @lastExternalId::UUID,
-    @lastInsertedAt::TIMESTAMPTZ,
     @batchSize::INTEGER
 ) AS total_size_bytes;
+
+-- name: GetOLAPOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        UNNEST(@externalIds::UUID[]) AS external_id
+)
+
+SELECT i.external_id::UUID AS external_id, p.index_file_key
+FROM v1_payloads_olap_offloaded_block_index p
+-- todo: make sure this join uses the index correctly
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
+;
+
+-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
+INSERT INTO v1_payloads_olap_offloaded_block_index (
+    payload_inserted_at_date,
+    block_external_id_range,
+    index_file_key
+)
+VALUES (
+    @payloadInsertedAtDate::DATE,
+    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID, '(]'),
+    @indexFileKey::TEXT
+)
+ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING
+;
+
+-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date < @before::DATE
+;
 
 -- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
@@ -2392,13 +2388,3 @@ WHERE
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
-
-
--- name: SetFinalOLAPPayloadCutoverRowCounts :exec
-UPDATE v1_payloads_olap_cutover_job_offset
-SET
-    final_source_table_row_count = @finalSourceTableRowCount::BIGINT,
-    final_target_table_row_count = @finalTargetTableRowCount::BIGINT,
-    final_row_count_diff = @finalRowCountDiff::BIGINT
-WHERE key = @key::DATE
-;

@@ -1,5 +1,6 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
 import { usePylon } from '@/components/support-chat';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
@@ -38,8 +39,10 @@ import {
 } from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { FeatureFlagId, useIsFeatureEnabled } from '@/hooks/use-feature-flags';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+  MAX_INACTIVITY_TIMEOUT_MS,
+  useOrganizations,
+} from '@/hooks/use-organizations';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
@@ -58,6 +61,10 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
+import {
+  formatShardDeploymentKey,
+  shardDeploymentKey,
+} from '@/lib/shard-deployment-key';
 import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
@@ -72,10 +79,10 @@ import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
   PlusIcon,
-  KeyIcon,
   ArrowRightIcon,
   CheckIcon,
   EllipsisVerticalIcon,
+  ExclamationTriangleIcon,
   PencilSquareIcon,
   TrashIcon,
   XMarkIcon,
@@ -138,12 +145,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const { currentUser } = useCurrentUser();
   const { meta } = useApiMeta();
   const schemes = meta?.auth?.schemes || [];
-  const { isEnabled: organizationSsoEnabled } = useIsFeatureEnabled(
-    FeatureFlagId.OrganizationSsoEnabled,
-    false,
-  );
-  const canManageSso =
-    isOrganizationOwner && schemes.includes('sso') && organizationSsoEnabled;
+  const canManageSso = isOrganizationOwner && schemes.includes('sso');
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -162,15 +164,22 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const [isEditingTimeout, setIsEditingTimeout] = useState(false);
   const [newSsoDomain, setNewSsoDomain] = useState('');
   const [isAddingSsoDomain, setIsAddingSsoDomain] = useState(false);
+  const [ssoIsConfigured, setSsoIsConfigured] = useState(false);
+
+  const organizationEntitlementsQuery = useQuery({
+    ...orgApi.organizationEntitlementsGetQuery(orgId!),
+    enabled: !!orgId && canManageSso,
+  });
+  const canUseSso = organizationEntitlementsQuery.data?.canSSO === true;
 
   const organizationSsoDomainGetQuery = useQuery({
     ...orgApi.organizationSsoDomainGetQuery(orgId),
-    enabled: !!orgId && canManageSso,
+    enabled: !!orgId && canUseSso,
   });
 
   const organizationSsoConfigGetQuery = useQuery({
     ...orgApi.organizationSsoConfigGetQuery(orgId),
-    enabled: !!orgId && canManageSso,
+    enabled: !!orgId && canUseSso,
   });
 
   const ssoConfigUpdateMutation = useMutation({
@@ -307,8 +316,12 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     [editedTimeout],
   );
 
+  const editedTimeoutExceedsMax =
+    parsedEditedTimeout !== null &&
+    parsedEditedTimeout > MAX_INACTIVITY_TIMEOUT_MS;
+
   const handleSaveTimeout = () => {
-    if (!orgId || parsedEditedTimeout === null) {
+    if (!orgId || parsedEditedTimeout === null || editedTimeoutExceedsMax) {
       return;
     }
     if (parsedEditedTimeout === currentInactivityTimeoutMs) {
@@ -500,7 +513,9 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     {
       columnLabel: 'Region',
       cellRenderer: (row: OrganizationAvailableShard) => (
-        <span className="font-mono text-sm">{row.region}</span>
+        <span className="font-mono text-sm">
+          {formatShardDeploymentKey(shardDeploymentKey(row)) ?? row.region}
+        </span>
       ),
     },
     {
@@ -591,78 +606,173 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
               ? 'Update the organization name and manage tenants, members, and management tokens.'
               : 'Review the tenants associated with this organization.'
           }
-        >
-          {isOrganizationOwner && (
-            <div className="flex flex-col gap-3">
+        />
+
+        {isOrganizationOwner && (
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:flex-wrap">
+            <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
+              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Organization name
+              </div>
+
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSaveName();
+                      }
+
+                      if (e.key === 'Escape') {
+                        handleCancelEditingName();
+                      }
+                    }}
+                    className="h-10 flex-1 bg-background/60"
+                    disabled={updateOrganizationLoading}
+                    aria-label="Organization name"
+                    autoFocus
+                  />
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleCancelEditingName}
+                      disabled={updateOrganizationLoading}
+                      hoverText="Cancel editing"
+                      className="shrink-0 hover:bg-muted/50"
+                    >
+                      <XMarkIcon className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSaveName}
+                      disabled={
+                        updateOrganizationLoading ||
+                        !editedName.trim() ||
+                        editedName.trim() === organizationName
+                      }
+                      hoverText="Save organization name"
+                      className="shrink-0 bg-background/60 hover:bg-muted/50"
+                    >
+                      {updateOrganizationLoading ? (
+                        <Spinner />
+                      ) : (
+                        <CheckIcon className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {organizationName}
+                    </p>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleStartEditingName}
+                    hoverText="Edit organization name"
+                    className="shrink-0 bg-background/60 hover:bg-muted/50"
+                  >
+                    <PencilSquareIcon className="size-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {isControlPlaneEnabled && (
               <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
                 <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Organization name
+                  Inactivity timeout
                 </div>
 
-                {isEditingName ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={editedName}
-                      onChange={(e) => setEditedName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleSaveName();
-                        }
-
-                        if (e.key === 'Escape') {
-                          handleCancelEditingName();
-                        }
-                      }}
-                      className="h-10 flex-1 bg-background/60"
-                      disabled={updateOrganizationLoading}
-                      aria-label="Organization name"
-                      autoFocus
-                    />
-
+                {isEditingTimeout ? (
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleCancelEditingName}
+                      <Input
+                        type="text"
+                        value={editedTimeout}
+                        onChange={(e) => setEditedTimeout(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleSaveTimeout();
+                          }
+                          if (e.key === 'Escape') {
+                            handleCancelEditingTimeout();
+                          }
+                        }}
+                        className="h-10 flex-1 bg-background/60"
+                        placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
                         disabled={updateOrganizationLoading}
-                        hoverText="Cancel editing"
-                        className="shrink-0 hover:bg-muted/50"
-                      >
-                        <XMarkIcon className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleSaveName}
-                        disabled={
-                          updateOrganizationLoading ||
-                          !editedName.trim() ||
-                          editedName.trim() === organizationName
-                        }
-                        hoverText="Save organization name"
-                        className="shrink-0 bg-background/60 hover:bg-muted/50"
-                      >
-                        {updateOrganizationLoading ? (
-                          <Spinner />
-                        ) : (
-                          <CheckIcon className="size-4" />
-                        )}
-                      </Button>
+                        autoFocus
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleCancelEditingTimeout}
+                          disabled={updateOrganizationLoading}
+                          hoverText="Cancel editing"
+                          className="shrink-0 hover:bg-muted/50"
+                        >
+                          <XMarkIcon className="size-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleSaveTimeout}
+                          disabled={
+                            updateOrganizationLoading ||
+                            parsedEditedTimeout === null ||
+                            editedTimeoutExceedsMax
+                          }
+                          hoverText="Save inactivity timeout"
+                          className="shrink-0 bg-background/60 hover:bg-muted/50"
+                        >
+                          {updateOrganizationLoading ? (
+                            <Spinner />
+                          ) : (
+                            <CheckIcon className="size-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
+                    {editedTimeout.trim() !== '' && (
+                      <p
+                        className={`text-xs ${
+                          parsedEditedTimeout === null ||
+                          editedTimeoutExceedsMax
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {parsedEditedTimeout === null
+                          ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
+                          : editedTimeoutExceedsMax
+                            ? 'Inactivity timeout cannot exceed 14 days'
+                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
                       <p className="truncate text-sm font-medium text-foreground">
-                        {organizationName}
+                        {formatTimeoutMs(currentInactivityTimeoutMs)}
                       </p>
                     </div>
-
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={handleStartEditingName}
-                      hoverText="Edit organization name"
+                      onClick={handleStartEditingTimeout}
+                      hoverText="Edit inactivity timeout"
                       className="shrink-0 bg-background/60 hover:bg-muted/50"
                     >
                       <PencilSquareIcon className="size-4" />
@@ -670,96 +780,9 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                   </div>
                 )}
               </div>
-
-              {isControlPlaneEnabled && (
-                <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
-                  <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Inactivity timeout
-                  </div>
-
-                  {isEditingTimeout ? (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="text"
-                          value={editedTimeout}
-                          onChange={(e) => setEditedTimeout(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleSaveTimeout();
-                            }
-                            if (e.key === 'Escape') {
-                              handleCancelEditingTimeout();
-                            }
-                          }}
-                          className="h-10 flex-1 bg-background/60"
-                          placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
-                          disabled={updateOrganizationLoading}
-                          autoFocus
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={handleCancelEditingTimeout}
-                            disabled={updateOrganizationLoading}
-                            hoverText="Cancel editing"
-                            className="shrink-0 hover:bg-muted/50"
-                          >
-                            <XMarkIcon className="size-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={handleSaveTimeout}
-                            disabled={
-                              updateOrganizationLoading ||
-                              parsedEditedTimeout === null
-                            }
-                            hoverText="Save inactivity timeout"
-                            className="shrink-0 bg-background/60 hover:bg-muted/50"
-                          >
-                            {updateOrganizationLoading ? (
-                              <Spinner />
-                            ) : (
-                              <CheckIcon className="size-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      {editedTimeout.trim() !== '' && (
-                        <p
-                          className={`text-xs ${parsedEditedTimeout === null ? 'text-destructive' : 'text-muted-foreground'}`}
-                        >
-                          {parsedEditedTimeout === null
-                            ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
-                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {formatTimeoutMs(currentInactivityTimeoutMs)}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleStartEditingTimeout}
-                        hoverText="Edit inactivity timeout"
-                        className="shrink-0 bg-background/60 hover:bg-muted/50"
-                      >
-                        <PencilSquareIcon className="size-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </SettingsPageHeader>
+            )}
+          </div>
+        )}
 
         <Tabs defaultValue="tenants" className="mt-2">
           <TabsList layout="underlined" className="mb-6">
@@ -901,7 +924,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                       data={organizationAvailableShardsQuery.data.rows}
                       columns={availableShardColumns}
                       rowKey={(row) =>
-                        `${row.shardClass}:${row.provider}:${row.region}`
+                        `${row.shardClass}:${row.provider}:${row.region}:${row.shardName ?? ''}`
                       }
                     />
                   ) : (
@@ -946,101 +969,145 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
           </TabsContent>
           {canManageSso && (
             <TabsContent value="sso">
-              <div className="space-y-8">
-                <CreateSSOPage orgId={orgId} />
-                {/* Force SSO toggle */}
-                {isOrganizationOwner && (
-                  <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium">Force SSO</p>
-                      <p className="text-sm text-muted-foreground">
-                        Require all organization members to sign in with SSO.
-                        All other login methods will be disabled.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={
-                        organizationSsoConfigGetQuery.data?.forceSSO ?? false
-                      }
-                      onCheckedChange={(checked) =>
-                        ssoConfigUpdateMutation.mutate(checked)
-                      }
-                      disabled={
-                        organizationSsoConfigGetQuery.isLoading ||
-                        ssoConfigUpdateMutation.isPending
-                      }
-                    />
-                  </div>
-                )}
-                {/* SSO Domains Table */}
-                {organizationSsoDomainGetQuery.isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loading />
-                  </div>
-                ) : organizationSsoDomainGetQuery.data &&
-                  organizationSsoDomainGetQuery.data.length > 0 ? (
-                  <SimpleTable
-                    data={organizationSsoDomainGetQuery.data.map((v) => ({
-                      domain: v.ssoDomain,
-                      verified: v.verified,
-                      verification_token: v.verificationToken,
-                    }))}
-                    columns={ssoDomainColumns}
-                    rowKey={(row) => row.domain}
-                  />
-                ) : (
-                  <div className="py-16 text-center">
-                    <KeyIcon className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                    <h3 className="mb-2 text-lg font-medium">No SSO Domains</h3>
-                    <p className="mb-4 text-muted-foreground">
-                      Add a domain below to enable SSO for your organization.
-                    </p>
-                  </div>
-                )}
-
-                {/* Add New SSO Domain */}
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="example.com"
-                      value={newSsoDomain}
-                      onChange={(e) => setNewSsoDomain(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleAddSsoDomain();
-                        }
-                      }}
-                      className="max-w-sm"
-                      disabled={isAddingSsoDomain}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddSsoDomain}
-                      disabled={isAddingSsoDomain || !newSsoDomain.trim()}
-                      leftIcon={<PlusIcon className="size-4" />}
-                    >
-                      Add Domain
-                    </Button>
-                  </div>
+              {organizationEntitlementsQuery.isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loading />
                 </div>
-                {organizationSsoDomainGetQuery.data &&
-                  organizationSsoDomainGetQuery.data.length > 0 && (
-                    <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                      <p>
-                        To verify your domain, add a DNS TXT record with the
-                        value:
-                      </p>
-                      <p className="mt-1 font-mono">
-                        hatchet-sso-verify=&#123;verification_token&#125;
-                      </p>
-                      <p className="mt-2">
-                        It may take a few minutes for DNS changes to propagate
-                        and for the verified status to update.
-                      </p>
+              ) : canUseSso ? (
+                <div className="space-y-6">
+                  <CreateSSOPage
+                    orgId={orgId}
+                    onConfigLoaded={setSsoIsConfigured}
+                  />
+                  {/* Force SSO toggle */}
+                  {isOrganizationOwner && (
+                    <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium">Force SSO</p>
+                        <p className="text-sm text-muted-foreground">
+                          Require all organization members to sign in with SSO.
+                          All other login methods will be disabled.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={
+                          organizationSsoConfigGetQuery.data?.forceSSO ?? false
+                        }
+                        onCheckedChange={(checked) =>
+                          ssoConfigUpdateMutation.mutate(checked)
+                        }
+                        disabled={
+                          organizationSsoConfigGetQuery.isLoading ||
+                          ssoConfigUpdateMutation.isPending
+                        }
+                      />
                     </div>
                   )}
-              </div>
+                  {/* SSO Domains */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold">SSO Domains</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Domains associated with your organization for SSO login.
+                        Members signing in with a verified domain will be
+                        automatically directed to your identity provider.
+                      </p>
+                    </div>
+                    {ssoIsConfigured &&
+                      !organizationSsoDomainGetQuery.isLoading &&
+                      (!organizationSsoDomainGetQuery.data ||
+                        organizationSsoDomainGetQuery.data.length === 0) && (
+                        <div className="flex items-start gap-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm">
+                          <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+                          <div>
+                            <p className="font-medium text-yellow-600 dark:text-yellow-400">
+                              SSO is configured but no domains are set up.
+                            </p>
+                            <p className="mt-0.5 text-muted-foreground">
+                              Without a verified domain, members will not be
+                              automatically redirected to your identity
+                              provider. Add a domain below to complete your SSO
+                              setup.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    {/* Add New SSO Domain */}
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="example.com"
+                          value={newSsoDomain}
+                          onChange={(e) => setNewSsoDomain(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleAddSsoDomain();
+                            }
+                          }}
+                          className="max-w-sm"
+                          disabled={isAddingSsoDomain}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddSsoDomain}
+                          disabled={isAddingSsoDomain || !newSsoDomain.trim()}
+                          leftIcon={<PlusIcon className="size-4" />}
+                        >
+                          Add Domain
+                        </Button>
+                      </div>
+                    </div>
+                    {organizationSsoDomainGetQuery.isLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loading />
+                      </div>
+                    ) : organizationSsoDomainGetQuery.data &&
+                      organizationSsoDomainGetQuery.data.length > 0 ? (
+                      <SimpleTable
+                        data={organizationSsoDomainGetQuery.data.map((v) => ({
+                          domain: v.ssoDomain,
+                          verified: v.verified,
+                          verification_token: v.verificationToken,
+                        }))}
+                        columns={ssoDomainColumns}
+                        rowKey={(row) => row.domain}
+                      />
+                    ) : (
+                      <div className="py-8 text-center"></div>
+                    )}
+                    {organizationSsoDomainGetQuery.data &&
+                      organizationSsoDomainGetQuery.data.length > 0 && (
+                        <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                          <p>
+                            To verify your domain, add a DNS TXT record with the
+                            value:
+                          </p>
+                          <p className="mt-1 font-mono">
+                            hatchet-sso-verify=&#123;verification_token&#125;
+                          </p>
+                          <p className="mt-2">
+                            It may take a few minutes for DNS changes to
+                            propagate and for the verified status to update.
+                          </p>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-16 text-center text-sm text-muted-foreground">
+                  SSO is not enabled for this organization. Please{' '}
+                  <a
+                    href={OFFICE_HOURS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    contact us
+                  </a>{' '}
+                  to get access.
+                </div>
+              )}
             </TabsContent>
           )}
         </Tabs>
@@ -1475,33 +1542,39 @@ function TenantMemberUpdateDialog({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({
-    setFieldErrors,
-  });
+  const { toast } = useToast();
+  const { handleApiError } = useApiError();
   const { tenantMemberUpdateMutation } = useTenantApi();
   const memberUpdate = tenantMemberUpdateMutation(tenantId, member.metadata.id);
   const updateMutation = useMutation({
     ...memberUpdate,
-    mutationFn: async (data: { role: TenantMemberRole }) => {
-      if (data.role === TenantMemberRole.OWNER) {
-        throw new Error(
-          'OWNER role management must be done through organization membership',
-        );
-      }
-
-      await memberUpdate.mutationFn(data);
-    },
+    mutationFn: memberUpdate.mutationFn,
     onSuccess,
-    onError: handleApiError,
+    onError: (error: AxiosError) => {
+      handleApiError(error);
+      onClose();
+    },
   });
+
+  const handleSubmit = (data: { role: TenantMemberRole }) => {
+    if (member.role === TenantMemberRole.OWNER) {
+      toast({
+        title: 'Error',
+        description:
+          'Owner role management must be done through organization membership',
+        duration: 5000,
+      });
+      onClose();
+      return;
+    }
+    updateMutation.mutate(data);
+  };
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <UpdateMemberForm
         isLoading={updateMutation.isPending}
-        onSubmit={(data) => updateMutation.mutate(data)}
-        fieldErrors={fieldErrors}
+        onSubmit={handleSubmit}
         member={member}
         isCloudEnabled={true}
       />

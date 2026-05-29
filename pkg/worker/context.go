@@ -20,6 +20,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client"
 	"github.com/hatchet-dev/hatchet/pkg/client/create"
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
+	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/worker/condition"
 )
 
@@ -569,6 +570,17 @@ func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
+// Deprecated: NextChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+func (h *hatchetContext) NextChildIndex() int {
+	h.indexMu.Lock()
+	defer h.indexMu.Unlock()
+
+	childIndex := h.i
+	h.i++
+	return childIndex
+}
+
 // Deprecated: IncChildIndex is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) IncChildIndex() {
@@ -1061,6 +1073,8 @@ func (d *durableHatchetContext) SleepFor(duration time.Duration) (*SingleWaitRes
 
 // WaitForEvent implements the DurableHatchetContext.WaitForEvent method.
 func (d *durableHatchetContext) WaitForEvent(eventKey, expression string) (*SingleWaitResult, error) {
+	namespace := d.c.Namespace()
+	eventKey = clientconfig.ApplyNamespace(eventKey, &namespace)
 	wr, err := d.waitFor(condition.UserEventCondition(eventKey, expression), "wait_for_event", eventKey)
 
 	if err != nil {

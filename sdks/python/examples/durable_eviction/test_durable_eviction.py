@@ -94,7 +94,7 @@ async def test_non_evictable_task_not_evicted(hatchet: Hatchet) -> None:
     ref = await non_evictable_sleep.aio_run(wait_for_result=False)
 
     await _poll_until_status(hatchet, ref.workflow_run_id, V1TaskStatus.RUNNING)
-    await asyncio.sleep(7)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
+    await asyncio.sleep(20)  # Past EVICTION_TTL (5s), task still sleeping (10s total)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert not _has_evicted_task(
         details

@@ -16,7 +16,7 @@ export const pendingInvitesQuery = (
       isControlPlaneEnabled
         ? controlPlaneApi.userListTenantInvites()
         : api.userListTenantInvites(),
-      isCloudEnabled
+      isCloudEnabled || isControlPlaneEnabled
         ? isControlPlaneEnabled
           ? controlPlaneApi.userListOrganizationInvites()
           : cloudApi.userListOrganizationInvites()
@@ -44,13 +44,19 @@ export const pendingInvitesQuery = (
   refetchInterval: 60_000,
 });
 
-export const usePendingInvites = () => {
+export const usePendingInvites = (opts?: {
+  isCloudEnabled?: boolean;
+  isControlPlaneEnabled?: boolean;
+}) => {
   const { isCloudEnabled, isCloudLoading } = useCloud();
   const { isControlPlaneEnabled } = useControlPlane();
   const queryClient = useQueryClient();
+  const resolvedIsCloudEnabled = opts?.isCloudEnabled ?? isCloudEnabled;
+  const resolvedIsControlPlaneEnabled =
+    opts?.isControlPlaneEnabled ?? isControlPlaneEnabled;
 
   const query = useQuery(
-    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+    pendingInvitesQuery(resolvedIsCloudEnabled, resolvedIsControlPlaneEnabled),
   );
 
   const invalidate = useCallback(() => {

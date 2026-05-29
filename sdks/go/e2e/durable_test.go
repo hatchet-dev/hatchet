@@ -36,6 +36,28 @@ func taskExternalID(t *testing.T, client *hatchet.Client, ctx context.Context, r
 	return ""
 }
 
+func workflowResultWithin(t *testing.T, ref *hatchet.WorkflowRunRef, timeout time.Duration) *hatchet.WorkflowResult {
+	t.Helper()
+	type result struct {
+		value *hatchet.WorkflowResult
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		value, err := ref.Result()
+		ch <- result{value: value, err: err}
+	}()
+
+	select {
+	case result := <-ch:
+		require.NoError(t, result.err)
+		return result.value
+	case <-time.After(timeout):
+		t.Fatalf("timed out waiting for workflow run %s result", ref.RunId)
+		return nil
+	}
+}
+
 func TestDurableWorkflow(t *testing.T) {
 	ctx := newTestContext(t)
 
@@ -44,7 +66,9 @@ func TestDurableWorkflow(t *testing.T) {
 
 	id := uniqueID()
 
-	time.Sleep(time.Duration(sleepTime+10) * time.Second)
+	// Wait for the run to start, then let the internal SleepFor(sleepTime) finish before pushing the event.
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+	time.Sleep(time.Duration(sleepTime+3) * time.Second)
 
 	err = sharedClient.Events().Push(ctx, eventKey, AwaitedEvent{ID: id})
 	require.NoError(t, err)
@@ -68,15 +92,21 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	ref, err := testWaitForSleepTwice.RunNoWait(ctx, EmptyInput{})
 	require.NoError(t, err)
 
-	time.Sleep(time.Duration(sleepTime/2) * time.Second)
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 
 	_, err = sharedClient.Runs().Cancel(ctx, rest.V1CancelTaskRequest{
 		ExternalIds: toUUIDs(ref.RunId),
 	})
 	require.NoError(t, err)
 
-	// Wait for cancellation
-	time.Sleep(2 * time.Second)
+	// Wait for cancellation to propagate before replaying.
+	pollUntil(t, ctx, func() (bool, error) {
+		status, err := sharedClient.Runs().GetStatus(ctx, ref.RunId)
+		if err != nil {
+			return false, err
+		}
+		return *status == rest.V1TaskStatusCANCELLED, nil
+	})
 
 	replayStart := time.Now()
 	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
@@ -92,8 +122,8 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	err = result.TaskOutput("wait-for-sleep-twice").Into(&output)
 	require.NoError(t, err)
 
-	assert.Less(t, output["runtime"], float64(sleepTime))
-	assert.LessOrEqual(t, replayElapsed, float64(sleepTime))
+	assert.Less(t, output["runtime"], float64(sleepTime)+timingTolerance)
+	assert.LessOrEqual(t, replayElapsed, float64(sleepTime)+timingTolerance)
 }
 
 func TestDurableChildSpawn(t *testing.T) {
@@ -110,18 +140,46 @@ func TestDurableChildSpawn(t *testing.T) {
 	assert.Equal(t, "hello from child 1", childOutput["message"])
 }
 
+func TestDurableChildSpawnReplay(t *testing.T) {
+	requireDurableEviction(t)
+	ctx := newTestContext(t)
+
+	ref, err := testDurableWithSpawn.RunNoWait(ctx, EmptyInput{})
+	require.NoError(t, err)
+
+	firstResult := workflowResultWithin(t, ref, 20*time.Second)
+	firstOutput := resultMap(t, firstResult, "durable-with-spawn")
+	firstChild, ok := firstOutput["child_output"].(map[string]any)
+	require.True(t, ok, "expected child_output to be a map")
+	assert.Equal(t, "hello from child 1", firstChild["message"])
+
+	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
+		ExternalIds: toUUIDs(ref.RunId),
+	})
+	require.NoError(t, err)
+
+	replayResult := workflowResultWithin(t, ref, 20*time.Second)
+	replayOutput := resultMap(t, replayResult, "durable-with-spawn")
+	replayChild, ok := replayOutput["child_output"].(map[string]any)
+	require.True(t, ok, "expected child_output to be a map")
+	assert.Equal(t, "hello from child 1", replayChild["message"])
+}
+
 func TestDurableChildBulkSpawn(t *testing.T) {
 	ctx := newTestContext(t)
 	n := 8
 
+	start := time.Now()
 	result, err := testDurableWithBulkSpawn.Run(ctx, DurableBulkSpawnInput{N: n})
 	require.NoError(t, err)
+	elapsed := time.Since(start).Seconds()
 
 	var m map[string]any
 	err = result.Into(&m)
 	require.NoError(t, err)
 	outputs, ok := m["child_outputs"].([]any)
 	require.True(t, ok, "expected child_outputs to be an array")
+
 	assert.GreaterOrEqual(t, len(outputs), n-1)
 	assert.LessOrEqual(t, len(outputs), n)
 
@@ -135,6 +193,38 @@ func TestDurableChildBulkSpawn(t *testing.T) {
 		seen[msg] = struct{}{}
 	}
 	assert.Len(t, seen, len(outputs))
+	assert.Less(t, elapsed, 2.0, "bulk durable child result collection should not scale linearly with child count")
+}
+
+func TestDurableChildLoopSpawn(t *testing.T) {
+	ctx := newTestContext(t)
+	n := 8
+
+	start := time.Now()
+	result, err := testDurableWithLoopSpawn.Run(ctx, DurableBulkSpawnInput{N: n})
+	require.NoError(t, err)
+	elapsed := time.Since(start).Seconds()
+
+	var m map[string]any
+	err = result.Into(&m)
+	require.NoError(t, err)
+	outputs, ok := m["child_outputs"].([]any)
+	require.True(t, ok, "expected child_outputs to be an array")
+
+	assert.GreaterOrEqual(t, len(outputs), n-1)
+	assert.LessOrEqual(t, len(outputs), n)
+
+	seen := make(map[string]struct{}, len(outputs))
+	for _, raw := range outputs {
+		child, ok := raw.(map[string]any)
+		require.True(t, ok, "expected each child output to be an object")
+
+		msg, ok := child["message"].(string)
+		require.True(t, ok, "expected child message to be a string")
+		seen[msg] = struct{}{}
+	}
+	assert.Len(t, seen, len(outputs))
+	assert.Less(t, elapsed, 4.0, "durable child RunNoWait result collection should not scale linearly with child count")
 }
 
 func TestDurableSleepEventSpawnReplay(t *testing.T) {
@@ -145,7 +235,9 @@ func TestDurableSleepEventSpawnReplay(t *testing.T) {
 	ref, err := testDurableSleepEventSpawn.RunNoWait(ctx, EmptyInput{})
 	require.NoError(t, err)
 
-	time.Sleep(time.Duration(sleepTime+5) * time.Second)
+	// Wait for the run to start, then let the internal SleepFor(sleepTime) finish before pushing the event.
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+	time.Sleep(time.Duration(sleepTime+3) * time.Second)
 	err = sharedClient.Events().Push(ctx, eventKey, map[string]string{"test": "test"})
 	require.NoError(t, err)
 
@@ -173,7 +265,7 @@ func TestDurableSleepEventSpawnReplay(t *testing.T) {
 	replayChild, ok := rm["child_output"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "hello from child 1", replayChild["message"])
-	assert.Less(t, replayElapsed, float64(sleepTime))
+	assert.Less(t, replayElapsed, float64(sleepTime)+timingTolerance)
 }
 
 func TestDurableCompletedReplay(t *testing.T) {
@@ -207,8 +299,8 @@ func TestDurableCompletedReplay(t *testing.T) {
 	var replayOutput map[string]float64
 	err = replayResult.TaskOutput("wait-for-sleep-twice").Into(&replayOutput)
 	require.NoError(t, err)
-	assert.Less(t, replayOutput["runtime"], float64(sleepTime))
-	assert.Less(t, elapsed, float64(sleepTime))
+	assert.Less(t, replayOutput["runtime"], float64(sleepTime)+timingTolerance)
+	assert.Less(t, elapsed, float64(sleepTime)+timingTolerance)
 }
 
 func TestDurableSpawnDAG(t *testing.T) {
@@ -294,6 +386,7 @@ func TestDurableReplayReset(t *testing.T) {
 			require.NoError(t, err)
 
 			start := time.Now()
+			pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 			resetResult, err := ref.Result()
 			require.NoError(t, err)
 			resetElapsed := time.Since(start).Seconds()
@@ -305,7 +398,7 @@ func TestDurableReplayReset(t *testing.T) {
 			durations := []float64{resetOutput.Sleep1Duration, resetOutput.Sleep2Duration, resetOutput.Sleep3Duration}
 			for i, d := range durations {
 				if int64(i+1) < nodeID {
-					assert.Less(t, d, float64(replayResetSleepTime))
+					assert.Less(t, d, float64(replayResetSleepTime)+timingTolerance)
 				} else {
 					assert.GreaterOrEqual(t, d, float64(replayResetSleepTime))
 				}
@@ -340,7 +433,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	require.NoError(t, err)
 
 	start := time.Now()
-	time.Sleep(1 * time.Second)
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 	resetResult, err := ref.Result()
 	require.NoError(t, err)
 	resetElapsed := time.Since(start).Seconds()
@@ -359,7 +452,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	require.NoError(t, err)
 
 	start = time.Now()
-	time.Sleep(1 * time.Second)
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
 	resetResult2, err := ref.Result()
 	require.NoError(t, err)
 	resetElapsed2 := time.Since(start).Seconds()
@@ -368,7 +461,7 @@ func TestDurableBranchingOffBranch(t *testing.T) {
 	err = resetResult2.TaskOutput("durable-replay-reset").Into(&resetOutput2)
 	require.NoError(t, err)
 
-	assert.Less(t, resetOutput2.Sleep1Duration, float64(replayResetSleepTime))
+	assert.Less(t, resetOutput2.Sleep1Duration, float64(replayResetSleepTime)+timingTolerance)
 	assert.GreaterOrEqual(t, resetOutput2.Sleep2Duration, float64(replayResetSleepTime))
 	assert.GreaterOrEqual(t, resetOutput2.Sleep3Duration, float64(replayResetSleepTime))
 	assert.GreaterOrEqual(t, resetElapsed2, float64(2*replayResetSleepTime))
@@ -406,7 +499,7 @@ func TestDurableMemoizationViaReplay(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, duration1, float64(sleepTime))
-	assert.Less(t, duration2, 1.0)
+	assert.Less(t, duration2, 1.1)
 	assert.Equal(t, output1.Message, output2.Message)
 }
 

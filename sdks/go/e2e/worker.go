@@ -64,6 +64,7 @@ var (
 	testSpawnChildTask          *hatchet.StandaloneTask
 	testDurableWithSpawn        *hatchet.StandaloneTask
 	testDurableWithBulkSpawn    *hatchet.StandaloneTask
+	testDurableWithLoopSpawn    *hatchet.StandaloneTask
 	testDurableSleepEventSpawn  *hatchet.StandaloneTask
 	testDurableNonDeterminism   *hatchet.StandaloneTask
 	testDurableReplayReset      *hatchet.StandaloneTask
@@ -80,6 +81,10 @@ var (
 	testNonEvictableSleep       *hatchet.StandaloneTask
 	testEvictionChildTask       *hatchet.StandaloneTask
 	testEvictionBulkChildTask   *hatchet.StandaloneTask
+
+	// dag payload propagation test workflow
+	testDAGPayloadWorkflow *hatchet.Workflow
+	testDAGPayloadStepA    *hatchet.Task
 )
 
 func registerAllWorkflows(client *hatchet.Client) {
@@ -221,6 +226,33 @@ func registerAllWorkflows(client *hatchet.Client) {
 			if err != nil {
 				return nil, err
 			}
+			outputs := make([]map[string]string, len(refs))
+			for i, ref := range refs {
+				result, err := ref.Result()
+				if err != nil {
+					return nil, err
+				}
+				var m map[string]string
+				if err := result.TaskOutput("spawn-child-task").Into(&m); err != nil {
+					return nil, err
+				}
+				outputs[i] = m
+			}
+			return map[string]any{"child_outputs": outputs}, nil
+		},
+	)
+
+	testDurableWithLoopSpawn = client.NewStandaloneDurableTask("durable-with-loop-spawn",
+		func(ctx hatchet.DurableContext, input DurableBulkSpawnInput) (map[string]any, error) {
+			refs := make([]*hatchet.WorkflowRunRef, input.N)
+			for i := 0; i < input.N; i++ {
+				ref, err := testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: i})
+				if err != nil {
+					return nil, err
+				}
+				refs[i] = ref
+			}
+
 			outputs := make([]map[string]string, len(refs))
 			for i, ref := range refs {
 				result, err := ref.Result()
@@ -499,6 +531,57 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithExecutionTimeout(5*time.Minute),
 		hatchet.WithEvictionPolicy(nonEvictablePolicy),
 	)
+
+	// --- DAG payload propagation test workflow ---
+	// Reproduces the bug where downstream tasks don't receive the workflow input or
+	// parent outputs. Both steps fail immediately if their payload is null/empty,
+	// so any test that runs this workflow will fail if the bug is present.
+	testDAGPayloadWorkflow = client.NewWorkflow("dag-payload-test-workflow")
+
+	type DAGPayloadInput struct {
+		WorkflowKey string `json:"workflow_key"`
+		Iteration   int    `json:"iteration"`
+	}
+
+	type StepAOutput struct {
+		Message string `json:"message"`
+	}
+
+	testDAGPayloadStepA = testDAGPayloadWorkflow.NewTask("dag-payload-step-a",
+		func(ctx hatchet.Context, input DAGPayloadInput) (StepAOutput, error) {
+			return StepAOutput{Message: "hello-from-step-a"}, nil
+		},
+		hatchet.WithRetries(2),
+		hatchet.WithRetryBackoff(30, 130),
+	)
+
+	testDAGPayloadWorkflow.NewTask("dag-payload-step-b",
+		func(ctx hatchet.Context, input DAGPayloadInput) (map[string]any, error) {
+			// Fail on first attempt to reproduce the customer failure mode.
+			// The retry is where the bug manifests: if the payload isn't propagated
+			// to the retry, the checks below will catch it.
+			if ctx.RetryCount() == 0 {
+				return nil, fmt.Errorf("deliberate first-attempt failure")
+			}
+			if input.WorkflowKey == "" {
+				return nil, fmt.Errorf("step B received empty workflow input on retry")
+			}
+			var parentOut StepAOutput
+			if err := ctx.ParentOutput(testDAGPayloadStepA, &parentOut); err != nil {
+				return nil, fmt.Errorf("step B could not read step A parent output on retry: %w", err)
+			}
+			if parentOut.Message == "" {
+				return nil, fmt.Errorf("step B received empty parent output from step A on retry")
+			}
+			return map[string]any{"ok": true}, nil
+		},
+		hatchet.WithParents(testDAGPayloadStepA),
+		hatchet.WithRetries(2),
+		hatchet.WithRetryBackoff(4, 130),
+		// needed to replicate the match condition bug
+		hatchet.WithWaitFor(hatchet.SleepCondition(1*time.Second)),
+		hatchet.WithExecutionTimeout(2*time.Minute),
+	)
 }
 
 func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, error) {
@@ -508,10 +591,12 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 		hatchet.WithWorkflows(
 			testDurableWorkflow,
 			testDagChildWorkflow,
+			testDAGPayloadWorkflow,
 			testWaitForSleepTwice,
 			testSpawnChildTask,
 			testDurableWithSpawn,
 			testDurableWithBulkSpawn,
+			testDurableWithLoopSpawn,
 			testDurableSleepEventSpawn,
 			testDurableNonDeterminism,
 			testDurableReplayReset,
@@ -539,8 +624,8 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 		return nil, nil, fmt.Errorf("failed to start worker: %w", err)
 	}
 
-	// Give the worker a moment to register
-	time.Sleep(2 * time.Second)
+	// Give the worker a moment to register with the server
+	time.Sleep(5 * time.Second)
 
 	return worker, cleanup, nil
 }

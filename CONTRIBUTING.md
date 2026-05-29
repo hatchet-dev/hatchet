@@ -2,6 +2,35 @@
 
 This guide will help you understand how to contribute effectively to the Hatchet project.
 
+
+## Guidelines
+
+The following requirements apply to all contributions.
+
+- First-time contributors may have at most one open pull request at a time.
+- Issues labeled [![good first issue](https://img.shields.io/github/labels/hatchet-dev/hatchet/good%20first%20issue)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22) are reserved for first-time contributors.
+- Pull requests must reference a corresponding issue labeled [![accepted](https://img.shields.io/github/labels/hatchet-dev/hatchet/accepted)](https://github.com/hatchet-dev/hatchet/issues?q=is%3Aissue%20state%3Aopen%20label%3Aaccepted).
+- Your GitHub account's [Activity Overview](https://docs.github.com/en/account-and-profile/how-tos/contribution-settings/showing-an-overview-of-your-activity-on-your-profile) must be public.
+- AI usage must be disclosed and comply with [AI_POLICY.md](./AI_POLICY.md) (see [AI Usage](#ai-usage)).
+
+### AI Usage
+
+Pull requests, issues, and discussions that use AI require explicit disclosure. For example:
+
+> <details open id="ai-disclosure">
+> <summary><b>🤖 AI Disclosure</b></summary>
+>
+> <!-- In accordance with Hatchet's AI_POLICY.md, LLM usage must be explicitly disclosed. -->
+>
+> - [x] _I acknowledge that an LLM was used in the creation of this Pull Request, in accordance with Hatchet's [AI_POLICY.md](./AI_POLICY.md)._
+>
+> <!-- Please specify the tooling/model and the extent to which it was used. -->
+>
+> - **Details**: Claude Code was used to generate the TypeScript SDK tests.
+>
+> </details>
+
+
 ## Getting Started
 
 New to Hatchet? Start with our [Architecture](https://docs.hatchet.run/home/architecture) docs to familiarize yourself with Hatchet's core system design.
@@ -34,7 +63,7 @@ We recommend installing these tools individually using your preferred package ma
 
 ## Pull Requests
 
-Before opening a PR, check if there's a related issue in our [backlog](https://github.com/hatchet-dev/hatchet/issues).
+Before opening a PR, check if there's a related and accepted issue in our [backlog](https://github.com/hatchet-dev/hatchet/issues).
 
 For non-trivial changes (anything beyond typos or patch version bumps), please create an issue first so we can discuss the proposal and ensure it aligns with the project.
 
@@ -48,6 +77,43 @@ Next, ensure all changes are:
 If your changes require documentation updates, modify the relevant files in [`frontend/docs/pages/`](frontend/docs/pages/). You can spin up the documentation site locally by running `task docs`. By default, this will be available at [`http://localhost:3000`](http://localhost:3000).
 
 For configuration changes, see [Updating Configuration](contributing/developer-guides/updating-configuration.md).
+
+### Guidelines
+
+Pull request titles should be conform to the [conventional commit](https://www.conventionalcommits.org/) format i.e
+
+```
+<type>(<scope>): <short description>
+```
+
+#### Scope
+
+Pull request titles can be (optionally) scoped to specify the affected area of the codebase. If multiple scopes apply, they can be provided as a comma-delimited list, e.g. `feat(sdks/go,sdks/ts): ...`. An empty scope implies the change is cross-cutting or not changelog-relevant, e.g. `chore: fix typo in README`.
+
+Please use the following when scoping your changes:
+
+**Hatchet core:**
+- `engine`
+- `api`
+- `migrate`
+- `admin`
+- `cli`
+- `dashboard`
+- `lite`
+
+**Hatchet SDKs:**
+- `sdks/python`
+- `sdks/ruby`
+- `sdks/go`
+- `sdks/ts`
+
+**Other:**
+- `ci`
+- `docs`
+- `devex`
+
+> [!NOTE]
+> Future tooling will rely on scoping to disambiguate the surface area of changes, so please scope your PR where applicable. This list is subject to change.
 
 ## Testing
 
