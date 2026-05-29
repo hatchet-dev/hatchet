@@ -176,6 +176,55 @@ func (s *workflowRunStreamScript) handle(stream dispatchercontracts.Dispatcher_S
 	}
 }
 
+type durableEventStreamScript struct {
+	requests chan *v1contracts.ListenForDurableEventRequest
+	events   chan *v1contracts.DurableEvent
+}
+
+func newDurableEventStreamScript() *durableEventStreamScript {
+	return &durableEventStreamScript{
+		requests: make(chan *v1contracts.ListenForDurableEventRequest, 10),
+		events:   make(chan *v1contracts.DurableEvent, 10),
+	}
+}
+
+func (s *durableEventStreamScript) handle(stream v1contracts.V1Dispatcher_ListenForDurableEventServer) error {
+	recvErr := make(chan error, 1)
+
+	go func() {
+		for {
+			req, err := stream.Recv()
+			if err != nil {
+				recvErr <- err
+				return
+			}
+
+			s.requests <- req
+		}
+	}()
+
+	for {
+		select {
+		case event, ok := <-s.events:
+			if !ok {
+				return nil
+			}
+
+			if err := stream.Send(event); err != nil {
+				return err
+			}
+		case err := <-recvErr:
+			if err == io.EOF {
+				return nil
+			}
+
+			return err
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		}
+	}
+}
+
 func waitForTestValue[T any](t *testing.T, ch <-chan T) T {
 	t.Helper()
 
@@ -337,6 +386,151 @@ func TestWorkflowRunsListenerIntegrationStreamExitAllowsNewListener(t *testing.T
 	}
 
 	require.Equal(t, "run-after-eof", waitForTestValue(t, received).WorkflowRunId)
+}
+
+func TestDurableEventsListenerIntegrationDispatchesMultipleHandlers(t *testing.T) {
+	stream := newDurableEventStreamScript()
+	subscriber := newScriptedSubscribeClient(t, &scriptedSubscribeServer{
+		durableEventHandlers: []func(v1contracts.V1Dispatcher_ListenForDurableEventServer) error{
+			stream.handle,
+		},
+	})
+
+	listener, err := subscriber.ListenForDurableEvents(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, listener.Close())
+	})
+
+	first := make(chan DurableEvent, 1)
+	second := make(chan DurableEvent, 1)
+
+	require.NoError(t, listener.AddSignal("task-1", "signal-1", func(event DurableEvent) error {
+		first <- event
+		return nil
+	}))
+	req := waitForTestValue(t, stream.requests)
+	require.Equal(t, "task-1", req.TaskId)
+	require.Equal(t, "signal-1", req.SignalKey)
+
+	require.NoError(t, listener.AddSignal("task-1", "signal-1", func(event DurableEvent) error {
+		second <- event
+		return nil
+	}))
+	req = waitForTestValue(t, stream.requests)
+	require.Equal(t, "task-1", req.TaskId)
+	require.Equal(t, "signal-1", req.SignalKey)
+
+	stream.events <- &v1contracts.DurableEvent{
+		TaskId:    "task-1",
+		SignalKey: "signal-1",
+		Data:      []byte(`{"ok":true}`),
+	}
+
+	require.JSONEq(t, `{"ok":true}`, string(waitForTestValue(t, first).Data))
+	require.JSONEq(t, `{"ok":true}`, string(waitForTestValue(t, second).Data))
+}
+
+func TestDurableEventsListenerIntegrationReconnectsAfterRecvDrop(t *testing.T) {
+	firstRequest := make(chan *v1contracts.ListenForDurableEventRequest, 1)
+	secondRequest := make(chan *v1contracts.ListenForDurableEventRequest, 1)
+
+	subscriber := newScriptedSubscribeClient(t, &scriptedSubscribeServer{
+		durableEventHandlers: []func(v1contracts.V1Dispatcher_ListenForDurableEventServer) error{
+			func(stream v1contracts.V1Dispatcher_ListenForDurableEventServer) error {
+				req, err := stream.Recv()
+				if err != nil {
+					return err
+				}
+
+				firstRequest <- req
+				return status.Error(codes.Internal, "scripted durable stream drop")
+			},
+			func(stream v1contracts.V1Dispatcher_ListenForDurableEventServer) error {
+				req, err := stream.Recv()
+				if err != nil {
+					return err
+				}
+
+				secondRequest <- req
+				return stream.Send(&v1contracts.DurableEvent{
+					TaskId:    req.TaskId,
+					SignalKey: req.SignalKey,
+					Data:      []byte(`{"reconnected":true}`),
+				})
+			},
+		},
+	})
+
+	listener, err := subscriber.ListenForDurableEvents(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, listener.Close())
+	})
+
+	received := make(chan DurableEvent, 1)
+	require.NoError(t, listener.AddSignal("task-reconnect", "signal-1", func(event DurableEvent) error {
+		received <- event
+		return nil
+	}))
+
+	req := waitForTestValue(t, firstRequest)
+	require.Equal(t, "task-reconnect", req.TaskId)
+	require.Equal(t, "signal-1", req.SignalKey)
+
+	req = waitForTestValue(t, secondRequest)
+	require.Equal(t, "task-reconnect", req.TaskId)
+	require.Equal(t, "signal-1", req.SignalKey)
+	require.JSONEq(t, `{"reconnected":true}`, string(waitForTestValue(t, received).Data))
+}
+
+func TestDurableEventsListenerIntegrationRecoversAfterStreamDiesBeforeAddSignal(t *testing.T) {
+	closeInitialStream := make(chan struct{})
+	initialStreamClosed := make(chan struct{}, 1)
+	secondRequest := make(chan *v1contracts.ListenForDurableEventRequest, 1)
+
+	subscriber := newScriptedSubscribeClient(t, &scriptedSubscribeServer{
+		durableEventHandlers: []func(v1contracts.V1Dispatcher_ListenForDurableEventServer) error{
+			func(stream v1contracts.V1Dispatcher_ListenForDurableEventServer) error {
+				<-closeInitialStream
+				initialStreamClosed <- struct{}{}
+				return status.Error(codes.Internal, "scripted durable stream drop before add")
+			},
+			func(stream v1contracts.V1Dispatcher_ListenForDurableEventServer) error {
+				req, err := stream.Recv()
+				if err != nil {
+					return err
+				}
+
+				secondRequest <- req
+				return stream.Send(&v1contracts.DurableEvent{
+					TaskId:    req.TaskId,
+					SignalKey: req.SignalKey,
+					Data:      []byte(`{"after":"drop"}`),
+				})
+			},
+		},
+	})
+
+	listener, err := subscriber.ListenForDurableEvents(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, listener.Close())
+	})
+
+	close(closeInitialStream)
+	waitForTestValue(t, initialStreamClosed)
+
+	received := make(chan DurableEvent, 1)
+	require.NoError(t, listener.AddSignal("task-after-drop", "signal-1", func(event DurableEvent) error {
+		received <- event
+		return nil
+	}))
+
+	req := waitForTestValue(t, secondRequest)
+	require.Equal(t, "task-after-drop", req.TaskId)
+	require.Equal(t, "signal-1", req.SignalKey)
+	require.JSONEq(t, `{"after":"drop"}`, string(waitForTestValue(t, received).Data))
 }
 
 func TestSubscribeClientIntegrationOnFiltersStreamEvents(t *testing.T) {
