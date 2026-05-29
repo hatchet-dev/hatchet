@@ -12,6 +12,7 @@ class IdempotencyInput(BaseModel):
 @hatchet.task(
     idempotency=IdempotencyConfig(key_expression="input.id", ttl=timedelta(minutes=1)),
     input_validator=IdempotencyInput,
+    on_events=["idempotency:example"],
 )
 async def idempotent_task(input: IdempotencyInput, ctx: Context) -> dict[str, str]:
     return {"result": f"Hello, world from task {input.id}"}
