@@ -6,7 +6,7 @@ hatchet = Hatchet()
 
 
 class IdempotencyInput(BaseModel):
-    id: int
+    id: str
 
 
 @hatchet.task(

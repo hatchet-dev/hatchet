@@ -30,7 +30,7 @@ WITH inputs AS (
     FROM locked_existing_keys
     WHERE expires_at <= NOW()
 ), claims AS (
-    INSERT INTO v1_idempotency_key (tenant_id, key, expires_at, claimed_by_external_id)
+    INSERT INTO v1_idempotency_key (key, expires_at, tenant_id, claimed_by_external_id)
     SELECT key, expires_at, @tenantId::UUID, claimed_by_external_id
     FROM inputs
     ON CONFLICT (tenant_id, key) DO UPDATE
