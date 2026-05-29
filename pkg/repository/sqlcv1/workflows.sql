@@ -123,7 +123,7 @@ INSERT INTO "WorkflowVersion" (
     "createWorkflowVersionOpts",
     "inputJsonSchema",
     "idempotencyKeyExpression",
-    "idempotencyKeyTtl"
+    "idempotencyKeyTtlMs"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -140,7 +140,7 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('createWorkflowVersionOpts')::jsonb,
     sqlc.narg('inputJsonSchema')::jsonb,
     sqlc.narg('idempotencyKeyExpression')::text,
-    sqlc.narg('idempotencyKeyTtl')::bigint
+    sqlc.narg('idempotencyKeyTtlMs')::bigint
 ) RETURNING *;
 
 -- name: CreateJob :one

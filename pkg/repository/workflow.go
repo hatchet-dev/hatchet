@@ -440,7 +440,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			String: idempotency.Expression,
 			Valid:  true,
 		}
-		createParams.IdempotencyKeyTtl = sqlchelpers.ToBigInt(&idempotency.TTLMs)
+		createParams.IdempotencyKeyTtlMs = sqlchelpers.ToBigInt(&idempotency.TTLMs)
 	}
 
 	if opts.DefaultPriority != nil {

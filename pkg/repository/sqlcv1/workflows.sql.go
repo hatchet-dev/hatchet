@@ -915,7 +915,7 @@ INSERT INTO "WorkflowVersion" (
     "createWorkflowVersionOpts",
     "inputJsonSchema",
     "idempotencyKeyExpression",
-    "idempotencyKeyTtl"
+    "idempotencyKeyTtlMs"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -950,7 +950,7 @@ type CreateWorkflowVersionParams struct {
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
 	IdempotencyKeyExpression  pgtype.Text        `json:"idempotencyKeyExpression"`
-	IdempotencyKeyTtl         pgtype.Int8        `json:"idempotencyKeyTtl"`
+	IdempotencyKeyTtlMs       pgtype.Int8        `json:"idempotencyKeyTtlMs"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -968,7 +968,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.CreateWorkflowVersionOpts,
 		arg.InputJsonSchema,
 		arg.IdempotencyKeyExpression,
-		arg.IdempotencyKeyTtl,
+		arg.IdempotencyKeyTtlMs,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
