@@ -595,21 +595,108 @@ type createCoreUserEventOpts struct {
 	params                         sqlcv1.BulkCreateEventsParams
 }
 
+func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error) {
+	inputData := make(map[string]interface{})
+	if tuple.input != nil {
+		if err := json.Unmarshal(tuple.input, &inputData); err != nil {
+			return "", fmt.Errorf("failed to unmarshal input for idempotency key evaluation: %w", err)
+		}
+	}
+
+	additionalMetadata := make(map[string]interface{})
+	if tuple.additionalMetadata != nil {
+		if err := json.Unmarshal(tuple.additionalMetadata, &additionalMetadata); err != nil {
+			return "", fmt.Errorf("failed to unmarshal additional metadata for idempotency key evaluation: %w", err)
+		}
+	}
+
+	key, err := r.celParser.ParseAndEvalWorkflowString(
+		tuple.idempotency.Expression,
+		cel.NewInput(
+			cel.WithInput(inputData),
+			cel.WithAdditionalMetadata(additionalMetadata),
+		),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate idempotency key expression %q: %w", tuple.idempotency.Expression, err)
+	}
+
+	return key, nil
+}
+
 func (r *sharedRepository) triggerWorkflows(
 	ctx context.Context,
 	existingTx *OptimisticTx,
 	tenantId uuid.UUID,
-	tuples []triggerTuple,
+	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
 ) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	for i := range tuples {
-		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
+	var preflightTx sqlcv1.DBTX = r.pool
+
+	if existingTx != nil {
+		preflightTx = existingTx.tx
+	}
+
+	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
+
+	keys := make([]string, 0, len(triggerCandidateTuples))
+	expiresAts := make([]pgtype.Timestamptz, 0, len(triggerCandidateTuples))
+	claimedByExternalIds := make([]uuid.UUID, 0, len(triggerCandidateTuples))
+	externalIdToTuple := make(map[uuid.UUID]triggerTuple)
+
+	for _, tuple := range triggerCandidateTuples {
+		if tuple.idempotency == nil {
+			tuples = append(tuples, tuple)
+		} else {
+			externalIdToTuple[tuple.externalId] = tuple
+			key, err := r.evalIdempotencyKey(tuple)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			keys = append(keys, key)
+			expiresAts = append(expiresAts, pgtype.Timestamptz{
+				Time:  time.Now().Add(time.Duration(tuple.idempotency.TTLMs) * time.Millisecond),
+				Valid: true,
+			})
+			claimedByExternalIds = append(claimedByExternalIds, tuple.externalId)
+		}
+	}
+
+	if len(keys) > 0 {
+		// todo: need to use tx here, find the right one (this might be nil)
+		claims, err := r.queries.ClaimIdempotencyKeys(ctx, existingTx.tx, sqlcv1.ClaimIdempotencyKeysParams{
+			Keys:                 keys,
+			Expiresats:           expiresAts,
+			Claimedbyexternalids: claimedByExternalIds,
+			Tenantid:             tenantId,
+		})
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+		}
+
+		for _, claim := range claims {
+			if !claim.WasSuccessfullyClaimed || claim.ClaimedByExternalID == nil {
+				continue
+			}
+
+			// todo: this probably should not be a pointer
+			tuple, ok := externalIdToTuple[*claim.ClaimedByExternalID]
+
+			if !ok {
+				continue
+			}
+
+			tuples = append(tuples, tuple)
+		}
 	}
 
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
 
-	for _, tuple := range tuples {
+	for i, tuple := range tuples {
+		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
 		uniqueWorkflowVersionIds[tuple.workflowVersionId] = struct{}{}
 	}
 
@@ -618,12 +705,6 @@ func (r *sharedRepository) triggerWorkflows(
 
 	for id := range uniqueWorkflowVersionIds {
 		workflowVersionIds = append(workflowVersionIds, id)
-	}
-
-	var preflightTx sqlcv1.DBTX = r.pool
-
-	if existingTx != nil {
-		preflightTx = existingTx.tx
 	}
 
 	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)

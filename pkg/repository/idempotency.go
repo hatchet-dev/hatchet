@@ -12,8 +12,13 @@ import (
 type WasSuccessfullyClaimed bool
 type IdempotencyKey string
 
+type ClaimIdempotencyKeysOpt struct {
+	Key                 string
+	ClaimedByExternalId uuid.UUID
+	ExpiresAt           pgtype.Timestamptz
+}
+
 type IdempotencyRepository interface {
-	CreateIdempotencyKey(context context.Context, tenantId uuid.UUID, key string, expiresAt pgtype.Timestamptz) error
 	EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error
 }
 
@@ -25,14 +30,6 @@ func newIdempotencyRepository(shared *sharedRepository) IdempotencyRepository {
 	return &idempotencyRepository{
 		sharedRepository: shared,
 	}
-}
-
-func (r *idempotencyRepository) CreateIdempotencyKey(context context.Context, tenantId uuid.UUID, key string, expiresAt pgtype.Timestamptz) error {
-	return r.queries.CreateIdempotencyKey(context, r.pool, sqlcv1.CreateIdempotencyKeyParams{
-		Tenantid:  tenantId,
-		Key:       key,
-		Expiresat: expiresAt,
-	})
 }
 
 func (r *idempotencyRepository) EvictExpiredIdempotencyKeys(context context.Context, tenantId uuid.UUID) error {
