@@ -139,6 +139,7 @@ WITH task_partitions AS (
         *
     FROM
         otel_trace_lookup_partitions
+
 )
 
 SELECT *
@@ -2294,31 +2295,46 @@ DELETE FROM v1_payloads_olap_cutover_job_offset
 WHERE NOT key = ANY(@keysToKeep::DATE[])
 ;
 
-
--- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_olap_payload_source_and_target_partitions(@partitionDate::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    external_id::UUID,
-    inserted_at::TIMESTAMPTZ,
-    location::v1_payload_location_olap,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
-;
-
 -- name: ComputeOLAPPayloadBatchSize :one
 SELECT compute_olap_payload_batch_size(
     @partitionDate::DATE,
     @lastExternalId::UUID,
     @batchSize::INTEGER
 ) AS total_size_bytes;
+
+-- name: GetOLAPOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@insertedAts::DATE[]) AS inserted_at_date,
+        UNNEST(@externalIds::UUID[]) AS external_id
+)
+
+SELECT i.external_id::UUID AS external_id, p.index_file_key
+FROM v1_payloads_olap_offloaded_block_index p
+-- todo: make sure this join uses the index correctly
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
+;
+
+-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
+INSERT INTO v1_payloads_olap_offloaded_block_index (
+    payload_inserted_at_date,
+    block_external_id_range,
+    index_file_key
+)
+VALUES (
+    @payloadInsertedAtDate::DATE,
+    uuidrange(@blockLowerExternalIdBound::UUID, @blockUpperExternalIdBound::UUID, '(]'),
+    @indexFileKey::TEXT
+)
+ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING
+;
+
+-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date < @before::DATE
+;
 
 -- name: ReconcileTaskStatusesFromEvents :many
 WITH inputs AS (
@@ -2372,13 +2388,3 @@ WHERE
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
-
-
--- name: SetFinalOLAPPayloadCutoverRowCounts :exec
-UPDATE v1_payloads_olap_cutover_job_offset
-SET
-    final_source_table_row_count = @finalSourceTableRowCount::BIGINT,
-    final_target_table_row_count = @finalTargetTableRowCount::BIGINT,
-    final_row_count_diff = @finalRowCountDiff::BIGINT
-WHERE key = @key::DATE
-;
