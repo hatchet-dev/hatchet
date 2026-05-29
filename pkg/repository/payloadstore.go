@@ -514,8 +514,8 @@ func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
 }
 
-const MAX_PARTITIONS_TO_OFFLOAD = 14           // two weeks
-const MAX_BATCH_SIZE_BYTES = 512 * 1024 * 1024 // 512 MB
+const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
+const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
 
 func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, lastExternalId uuid.UUID) (*int32, error) {
 	if candidateBatchNumRows <= 0 {
