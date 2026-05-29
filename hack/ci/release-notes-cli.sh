@@ -49,8 +49,36 @@ case "$MODE" in
     ' "$FILE"
     ;;
 
+  --prose)
+    # returns human-written prose in the top release section (between # Release and <!-- GENERATED:START -->)
+    awk '
+      /^# Release \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
+        found++;
+        next;
+      }
+      found == 1 && /^## Changelog/ {
+        exit;
+      }
+      found == 1 {
+        print;
+      }
+    ' "$FILE"
+    ;;
+
+  --from-changelog)
+    # returns everything from ## Changelog onwards in the top release section
+    awk '
+      /^## Changelog/ {
+        found = 1;
+      }
+      found {
+        print;
+      }
+    ' "$FILE"
+    ;;
+
   *)
-    echo "Usage: $0 [--latest|--unreleased|--all] [CHANGELOG.md]" >&2
+    echo "Usage: $0 [--latest|--unreleased|--all|--prose|--from-changelog] [CHANGELOG.md]" >&2
     exit 1
     ;;
 esac

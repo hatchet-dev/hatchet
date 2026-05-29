@@ -14,14 +14,7 @@ header = """
 {%- set latest = releases | filter(attribute="version") | first -%}
 # Release [{{ latest.version | trim_start_matches(pat="v") }}] - {{ latest.timestamp | date(format="%Y-%m-%d") }}
 
-## Changelog
-{%- for release in releases -%}
-{%- if release.version %}
-- [v{{ release.version | trim_start_matches(pat="v") }}](#{{ release.version | trim_start_matches(pat="v") | replace(from=".", to="") }}---{{ release.timestamp | date(format="%Y-%m-%d") }})
-{%- endif %}
-{%- endfor %}
-
-<!-- Optional: High-level summary of the release in plain language — what changed and why it matters to users. -->
+<!-- Optional: High-level summary of the release in plain language -- what changed and why it matters to users. -->
 <!-- ## 📝 Summary -->
 
 <!-- Optional: New features and improvements. Describe what each one does for the user. -->
@@ -33,6 +26,12 @@ header = """
 <!-- Optional: Notable bug fixes and how they benefit the user. -->
 <!-- ## 🐛 Bug Fixes -->
 
+## Changelog
+{%- for release in releases %}
+{%- if release.version %}
+- [v{{ release.version | trim_start_matches(pat="v") }}](#{{ release.version | trim_start_matches(pat="v") | replace(from=".", to="") }}---{{ release.timestamp | date(format="%Y-%m-%d") }})
+{%- endif %}
+{% endfor %}
 """
 
 body = """
@@ -64,7 +63,6 @@ body = """
         {%- endif -%}
     {% endfor %}
 {% endfor %}
-
 """
 
 # The footer is basically just a section for new contributors

@@ -54,15 +54,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Skip if tag already in changelog
-        run: git checkout main CHANGELOG.md
-
-      - name: Check if has [Unreleased]
+      - name: Preserve prose from current release section
+        if: steps.check.outputs.already != 'true'
         run: |
-          ./hack/ci/release-notes-cli.sh --unreleased > /tmp/CHANGELOG.unreleased.md
+          ./hack/ci/release-notes-cli.sh --prose > /tmp/prose.md
+          git checkout main CHANGELOG.md
           ./hack/ci/release-notes-cli.sh --all > /tmp/CHANGELOG.released.md
 
-      - name: Prepend release section
+      - name: Generate release section
         if: steps.check.outputs.already != 'true'
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
         with:
@@ -73,8 +72,12 @@ jobs:
           OUTPUT: /tmp/CHANGES.md
 
       - name: Assemble CHANGELOG.md
+        if: steps.check.outputs.already != 'true'
         run: |
-          cat /tmp/CHANGELOG.unreleased.md /tmp/CHANGES.md /tmp/CHANGELOG.released.md > CHANGELOG.md
+          head -1 /tmp/CHANGES.md > CHANGELOG.md
+          cat /tmp/prose.md >> CHANGELOG.md
+          ./hack/ci/release-notes-cli.sh --from-changelog /tmp/CHANGES.md >> CHANGELOG.md
+          cat /tmp/CHANGELOG.released.md >> CHANGELOG.md
 
       - name: Open / update release pull-request
         if: steps.check.outputs.already != 'true'
