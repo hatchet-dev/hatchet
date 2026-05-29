@@ -68,6 +68,17 @@ const (
 	RetrieveFromExternalByIndexFile
 )
 
+func (m RetrieveFromExternalMethod) String() string {
+	switch m {
+	case RetrieveFromExternalByKey:
+		return "key"
+	case RetrieveFromExternalByIndexFile:
+		return "index_file"
+	default:
+		return "unknown"
+	}
+}
+
 type RetrieveFromExternalOpts struct {
 	Method      RetrieveFromExternalMethod
 	ByKey       *RetrieveFromExternalByKeyOpt
