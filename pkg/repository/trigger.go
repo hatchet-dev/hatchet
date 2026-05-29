@@ -597,14 +597,14 @@ type createCoreUserEventOpts struct {
 
 func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error) {
 	inputData := make(map[string]interface{})
-	if tuple.input != nil {
+	if len(tuple.input) > 0 {
 		if err := json.Unmarshal(tuple.input, &inputData); err != nil {
 			return "", fmt.Errorf("failed to unmarshal input for idempotency key evaluation: %w", err)
 		}
 	}
 
 	additionalMetadata := make(map[string]interface{})
-	if tuple.additionalMetadata != nil {
+	if len(tuple.additionalMetadata) > 0 {
 		if err := json.Unmarshal(tuple.additionalMetadata, &additionalMetadata); err != nil {
 			return "", fmt.Errorf("failed to unmarshal additional metadata for idempotency key evaluation: %w", err)
 		}
