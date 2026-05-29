@@ -2,8 +2,6 @@ import { Badge } from '@/components/v1/ui/badge';
 import { formatShardDeploymentKey } from '@/lib/shard-deployment-key';
 import { cn } from '@/lib/utils';
 
-export { formatShardDeploymentKey };
-
 export function TenantRegionBadge({
   region,
   className,

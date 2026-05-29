@@ -16,8 +16,6 @@ import {
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
-export { shardDeploymentKey };
-
 type RegionSelectProps = {
   shards: OrganizationAvailableShard[];
   value: string | undefined;
