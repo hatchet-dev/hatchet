@@ -210,8 +210,8 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
-  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
-  region?: string;
+  /** Control-plane deployment location for this tenant. */
+  region?: ShardRegionKey;
 }
 
 export interface OrganizationTenantList {
@@ -224,10 +224,10 @@ export interface CreateNewTenantForOrganizationRequest {
   /** The slug of the tenant. */
   slug: string;
   /**
-   * Optional shard region (e.g. aws:us-east-1). When omitted, the server picks one.
-   * @example "aws:us-east-1"
+   * Optional deployment target. When omitted, the server selects an eligible shard.
+   * @example "aws:us-west-2"
    */
-  region?: string;
+  region?: ShardRegionKey;
 }
 
 export interface CreateManagementTokenRequest {
@@ -391,8 +391,18 @@ export interface CreateTenantAPITokenResponse {
 export interface OrganizationAvailableShard {
   /** Cloud provider for this deployment target (e.g. aws). */
   provider: string;
-  /** Region within the provider (e.g. us-east-1). */
+  /**
+   * Cloud region within the provider (e.g. us-east-1).
+   * @pattern ^[a-z0-9-]+$
+   * @example "us-east-1"
+   */
   region: string;
+  /**
+   * Optional shard discriminator when multiple shards share the same provider and cloud region.
+   * @pattern ^[a-z0-9-]+$
+   * @example "shard-foo"
+   */
+  shardName?: string;
   /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
   shardClass: OrganizationAvailableShardClass;
 }
@@ -637,3 +647,10 @@ export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
 }
+
+/**
+ * Shard selector as `provider:cloud-region` or `provider:cloud-region:shard-name`. The shard name is optional.
+ * @pattern ^[a-z0-9-]+:[a-z0-9-]+(:[a-z0-9-]+)?$
+ * @example "aws:us-west-2"
+ */
+export type ShardRegionKey = string;
