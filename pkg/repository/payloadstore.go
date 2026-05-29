@@ -68,6 +68,17 @@ const (
 	RetrieveFromExternalByIndexFile
 )
 
+func (m RetrieveFromExternalMethod) String() string {
+	switch m {
+	case RetrieveFromExternalByKey:
+		return "key"
+	case RetrieveFromExternalByIndexFile:
+		return "index_file"
+	default:
+		return "unknown"
+	}
+}
+
 type RetrieveFromExternalOpts struct {
 	Method      RetrieveFromExternalMethod
 	ByKey       *RetrieveFromExternalByKeyOpt
@@ -503,8 +514,8 @@ func (d PartitionDate) String() string {
 	return d.Time.Format("20060102")
 }
 
-const MAX_PARTITIONS_TO_OFFLOAD = 14                  // two weeks
-const MAX_BATCH_SIZE_BYTES = 1.5 * 1024 * 1024 * 1024 // 1.5 GB
+const MAX_PARTITIONS_TO_OFFLOAD = 14           // two weeks
+const MAX_BATCH_SIZE_BYTES = 512 * 1024 * 1024 // 512 MB
 
 func (p *payloadStoreRepositoryImpl) OptimizePayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, lastExternalId uuid.UUID) (*int32, error) {
 	if candidateBatchNumRows <= 0 {
