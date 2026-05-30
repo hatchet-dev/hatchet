@@ -357,22 +357,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
 			var retrieveFromExternalOpt RetrieveFromExternalOpts
 
-			// todo: this doesn't actually make sense, since
-			// we'd never write the index file into the payload location directly
-			// so we can remove this if block
-			if strings.HasSuffix(string(key), ".index") {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(key),
-						ExternalId:   payload.ExternalID,
-					},
-				}
-			} else {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByKey,
-					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-				}
+			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByKey,
+				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}
 
 			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt

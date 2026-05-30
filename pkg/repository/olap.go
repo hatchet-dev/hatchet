@@ -3070,19 +3070,9 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
 			var retrieveFromExternalOpt RetrieveFromExternalOpts
 
-			if strings.HasSuffix(string(key), ".index") {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(key),
-						ExternalId:   payload.ExternalID,
-					},
-				}
-			} else {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByKey,
-					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-				}
+			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByKey,
+				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}
 
 			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
