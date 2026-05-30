@@ -351,26 +351,6 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	const leaseKey = "v1_olap_partitions"
-
-	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
-	if err != nil {
-		return fmt.Errorf("failed to acquire partition lease: %w", err)
-	}
-
-	if len(leases) == 0 {
-		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
-		return nil
-	}
-
-	defer func() {
-		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if releaseErr := r.releasePartitionLease(releaseCtx, r.ddlPool, leases); releaseErr != nil {
-			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
-		}
-	}()
-
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.olapRetentionPeriod)
@@ -378,7 +358,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err = r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
+	err := r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  today,
 			Valid: true,
@@ -3693,7 +3673,17 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
-	duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, p.pool, partitionDate)
+	connStatementTimeout := 5 * 60 * 1000 // 5 minutes
+
+	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+	}
+
+	defer release()
+
+	duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
 
 	if err != nil {
 		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
