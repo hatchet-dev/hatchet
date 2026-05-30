@@ -898,6 +898,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 					}
 
 					if txErr = leaseCommit(ctx); txErr != nil {
+						leaseRollback()
 						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
 					}
 				}

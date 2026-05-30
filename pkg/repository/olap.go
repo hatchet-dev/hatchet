@@ -3709,6 +3709,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 					}
 
 					if txErr = leaseCommit(ctx); txErr != nil {
+						leaseRollback()
 						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
 					}
 				}
