@@ -3673,31 +3673,31 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
-	connStatementTimeout := 5 * 60 * 1000 // 5 minutes
+	// connStatementTimeout := 5 * 60 * 1000 // 5 minutes
 
-	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+	// conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
 
-	if err != nil {
-		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+	// }
 
-	defer release()
+	// defer release()
 
-	duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
+	// duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
 
-	if err != nil {
-		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+	// }
 
-	if len(duplicatedExternalIds) > 0 {
-		var duplicatedIds []string
+	// if len(duplicatedExternalIds) > 0 {
+	// 	var duplicatedIds []string
 
-		for _, row := range duplicatedExternalIds {
-			duplicatedIds = append(duplicatedIds, row.ExternalId.String())
-		}
+	// 	for _, row := range duplicatedExternalIds {
+	// 		duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+	// 	}
 
-		return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
-	}
+	// 	return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+	// }
 
 	lastExternalId := jobMeta.LastExternalId
 
