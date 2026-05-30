@@ -3673,7 +3673,17 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
-	duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, p.pool, partitionDate)
+	connStatementTimeout := 5 * 60 * 1000 // 5 minutes
+
+	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+
+	if err != nil {
+		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+	}
+
+	defer release()
+
+	duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
 
 	if err != nil {
 		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
