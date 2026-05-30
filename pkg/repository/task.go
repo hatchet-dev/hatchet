@@ -328,33 +328,34 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	const leaseKey = "v1_task_partitions"
+	const PARTITION_LOCK_OFFSET = 9000000000000000000
+	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
 
-	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
+	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
+	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
+	// so they cannot go through pgbouncer when it's configured.
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.ddlPool, r.l, 600000) // 10 minutes
 	if err != nil {
-		return fmt.Errorf("failed to acquire partition lease: %w", err)
+		return fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+	defer rollback()
+
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, partitionLockKey)
+	if err != nil {
+		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
 	}
 
-	if len(leases) == 0 {
+	if !acquired {
 		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
 		return nil
 	}
 
-	defer func() {
-		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if releaseErr := r.releasePartitionLease(releaseCtx, r.ddlPool, leases); releaseErr != nil {
-			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
-		}
-	}()
+	r.l.Debug().Ctx(ctx).Msg("acquired advisory lock for partition operations")
 
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
-	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
-	// so they cannot go through pgbouncer when it's configured.
 	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
 		Time:  today,
 		Valid: true,
@@ -424,6 +425,11 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		Valid: true,
 	}); err != nil {
 		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
+	}
+
+	err = commit(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
