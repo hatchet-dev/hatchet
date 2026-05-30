@@ -3677,31 +3677,72 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
-	// connStatementTimeout := 5 * 60 * 1000 // 5 minutes
+	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
+	if jobMeta.LastExternalId == uuid.Nil {
+		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
 
-	// conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
 
-	// if err != nil {
-	// 	return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
-	// }
+		if err != nil {
+			return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+		}
 
-	// defer release()
+		defer release()
 
-	// duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
+		stopLeaseExtension := make(chan struct{})
+		leaseExtensionDone := make(chan struct{})
 
-	// if err != nil {
-	// 	return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
-	// }
+		go func() {
+			defer close(leaseExtensionDone)
 
-	// if len(duplicatedExternalIds) > 0 {
-	// 	var duplicatedIds []string
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
 
-	// 	for _, row := range duplicatedExternalIds {
-	// 		duplicatedIds = append(duplicatedIds, row.ExternalId.String())
-	// 	}
+			for {
+				select {
+				case <-stopLeaseExtension:
+					return
+				case <-ticker.C:
+					leaseTx, leaseCommit, leaseRollback, txErr := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
-	// 	return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
-	// }
+					if txErr != nil {
+						p.l.Error().Err(txErr).Msg("failed to prepare transaction for lease extension during duplicate check")
+						continue
+					}
+
+					_, txErr = p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, jobMeta.LastExternalId)
+
+					if txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to extend lease during duplicate check")
+						continue
+					}
+
+					if txErr = leaseCommit(ctx); txErr != nil {
+						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
+					}
+				}
+			}
+		}()
+
+		duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
+		close(stopLeaseExtension)
+		<-leaseExtensionDone
+
+		if err != nil {
+			return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+		}
+
+		if len(duplicatedExternalIds) > 0 {
+			var duplicatedIds []string
+
+			for _, row := range duplicatedExternalIds {
+				duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+			}
+
+			return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+		}
+	}
 
 	lastExternalId := jobMeta.LastExternalId
 
