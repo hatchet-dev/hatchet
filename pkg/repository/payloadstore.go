@@ -858,7 +858,7 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 
 	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
 	if jobMeta.LastExternalId == uuid.Nil {
-		connStatementTimeout := 5 * 60 * 1000 // 15 minutes
+		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
 
 		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
 
