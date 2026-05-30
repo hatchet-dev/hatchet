@@ -283,7 +283,7 @@ type OLAPRepository interface {
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error)
 
-	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error
+	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error
 
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
@@ -3421,7 +3421,7 @@ func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, 
 	)
 }
 
-func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
+func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
@@ -3433,19 +3433,23 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	defer rollback()
 
-	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
-		ctx,
-		tx,
-		partitionDate,
-		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
-		lastExternalId,
-	)
+	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+	if enableWindowSizeOptimization {
+		windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
+			ctx,
+			tx,
+			partitionDate,
+			windowSize,
+			lastExternalId,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+		}
+
+		windowSize = *windowSizePtr
 	}
-
-	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, tx, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
@@ -3659,7 +3663,7 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
+func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
 	defer span.End()
 
@@ -3702,7 +3706,7 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	lastExternalId := jobMeta.LastExternalId
 
 	for {
-		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
+		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -3751,7 +3755,7 @@ func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, tx pgx.Tx
 	})
 }
 
-func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
+func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
 	if !externalStoreEnabled {
 		return nil
 	}
@@ -3778,7 +3782,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 
 	for _, partition := range partitions {
 		p.l.Info().Ctx(ctx).Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
-		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
 
 		if err != nil {
 			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)

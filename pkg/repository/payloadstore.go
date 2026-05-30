@@ -115,6 +115,7 @@ type PayloadStoreRepository interface {
 	InlineStoreTTL() *time.Duration
 	ExternalCutoverBatchSize() int32
 	ExternalCutoverNumConcurrentOffloads() int32
+	EnableWindowSizeOptimization() bool
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
@@ -135,6 +136,7 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverProcessInterval       time.Duration
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
+	enableWindowSizeOptimization         bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -146,6 +148,7 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverBatchSize             int32
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
+	EnableWindowSizeOptimization         bool
 }
 
 func NewPayloadStoreRepository(
@@ -169,6 +172,7 @@ func NewPayloadStoreRepository(
 		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
+		enableWindowSizeOptimization:         opts.EnableWindowSizeOptimization,
 	}
 }
 
@@ -482,6 +486,10 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverNumConcurrentOffloads() int3
 	return p.externalCutoverNumConcurrentOffloads
 }
 
+func (p *payloadStoreRepositoryImpl) EnableWindowSizeOptimization() bool {
+	return p.enableWindowSizeOptimization
+}
+
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
 	return p.externalStoreEnabled
 }
@@ -606,19 +614,23 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	defer rollback()
 
-	windowSizePtr, err := p.OptimizePayloadWindowSize(
-		ctx,
-		tx,
-		partitionDate,
-		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
-		lastExternalId,
-	)
+	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+	if p.enableWindowSizeOptimization {
+		windowSizePtr, err := p.OptimizePayloadWindowSize(
+			ctx,
+			tx,
+			partitionDate,
+			windowSize,
+			lastExternalId,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+		}
+
+		windowSize = *windowSizePtr
 	}
-
-	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,
