@@ -107,7 +107,7 @@ WITH input AS (
         unnest($1::bigint[]) AS dag_id,
         unnest($2::timestamptz[]) AS dag_inserted_at
 )
-SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.desired_worker_labels, d.external_id
+SELECT dd.dag_id, dd.dag_inserted_at, dd.input, dd.additional_metadata, d.external_id
 FROM v1_dag d
 JOIN v1_dag_data dd ON (d.id, d.inserted_at) = (dd.dag_id, dd.dag_inserted_at)
 WHERE (d.id, d.inserted_at) IN (
@@ -122,12 +122,11 @@ type GetDAGDataParams struct {
 }
 
 type GetDAGDataRow struct {
-	DagID               int64              `json:"dag_id"`
-	DagInsertedAt       pgtype.Timestamptz `json:"dag_inserted_at"`
-	Input               []byte             `json:"input"`
-	AdditionalMetadata  []byte             `json:"additional_metadata"`
-	DesiredWorkerLabels []byte             `json:"desired_worker_labels"`
-	ExternalID          uuid.UUID          `json:"external_id"`
+	DagID              int64              `json:"dag_id"`
+	DagInsertedAt      pgtype.Timestamptz `json:"dag_inserted_at"`
+	Input              []byte             `json:"input"`
+	AdditionalMetadata []byte             `json:"additional_metadata"`
+	ExternalID         uuid.UUID          `json:"external_id"`
 }
 
 func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams) ([]*GetDAGDataRow, error) {
@@ -144,7 +143,6 @@ func (q *Queries) GetDAGData(ctx context.Context, db DBTX, arg GetDAGDataParams)
 			&i.DagInsertedAt,
 			&i.Input,
 			&i.AdditionalMetadata,
-			&i.DesiredWorkerLabels,
 			&i.ExternalID,
 		); err != nil {
 			return nil, err

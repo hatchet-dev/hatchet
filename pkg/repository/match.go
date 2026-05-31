@@ -575,7 +575,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
-		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
 
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := RetrievePayloadOpts{
@@ -594,7 +593,6 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
-			dagIdsToDesiredWorkerLabels[dagData.DagID] = dagData.DesiredWorkerLabels
 		}
 
 		// determine which tasks to create based on step ids
@@ -670,18 +668,9 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
 
-						// Prefer labels stored on the match; fall back to the DAG for rows
-						// created before the migration added trigger_desired_worker_labels.
-						// fixme: remove this later when we've upgraded everyone and are sure there are no
-						// more dags with desired worker labels only on the dag row
-						rawLabels := match.TriggerDesiredWorkerLabels
-						if len(rawLabels) == 0 {
-							rawLabels = dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]
-						}
-
-						if len(rawLabels) > 0 {
+						if len(match.TriggerDesiredWorkerLabels) > 0 {
 							var labels []*sqlcv1.GetDesiredLabelsRow
-							if err := json.Unmarshal(rawLabels, &labels); err != nil {
+							if err := json.Unmarshal(match.TriggerDesiredWorkerLabels, &labels); err != nil {
 								m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", *opt.DagId, opt.DagInsertedAt.Time)
 							}
 
