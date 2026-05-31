@@ -11,27 +11,11 @@ repo  = "hatchet"
 
 [changelog]
 header = """
-{%- set latest = releases | filter(attribute="version") | first -%}
-# Release [{{ latest.version | trim_start_matches(pat="v") }}] - {{ latest.timestamp | date(format="%Y-%m-%d") }}
+# Changelog\n
+All notable changes to this project will be documented in this file.
 
-<!-- Optional: High-level summary of the release in plain language -- what changed and why it matters to users. -->
-<!-- ## 📝 Summary -->
-
-<!-- Optional: New features and improvements. Describe what each one does for the user. -->
-<!-- ## ✨ Enhancements -->
-
-<!-- Optional: Features or APIs being phased out. Note the replacement and any migration steps. -->
-<!-- ## ⚠️ Deprecations -->
-
-<!-- Optional: Notable bug fixes and how they benefit the user. -->
-<!-- ## 🐛 Bug Fixes -->
-
-## Changelog
-{%- for release in releases %}
-{%- if release.version %}
-- [v{{ release.version | trim_start_matches(pat="v") }}](#{{ release.version | trim_start_matches(pat="v") | replace(from=".", to="") }}---{{ release.timestamp | date(format="%Y-%m-%d") }})
-{%- endif %}
-{% endfor %}
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n
 """
 
 body = """
@@ -39,23 +23,32 @@ body = """
   https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
 {%- endmacro -%}
 
+{# Pre-pass: count how many commits in this release pass the core/labeled filter #}
+{%- set ns_total = 0 -%}
+{%- for commit in commits -%}
+    {%- set core = commit.scope and commit.scope is matching("engine|api|migrate|admin|cli|dashboard|lite") -%}
+    {%- set labeled = commit.remote.pr_labels and (commit.remote.pr_labels is containing("engine") or commit.remote.pr_labels is containing("dashboard")) -%}
+    {%- if core or labeled -%}{%- set_global ns_total = ns_total + 1 -%}{%- endif -%}
+{%- endfor -%}
+
+{%- if ns_total > 0 -%}
 {% if version -%}
-    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
 {% else -%}
-    ## [Unreleased]
+## [Unreleased]
 {% endif -%}
 
 {% for group, commits in commits | group_by(attribute="group") %}
     {%- set_global shown = 0 -%}
     {%- for commit in commits %}
         {%- set core = commit.scope and commit.scope is matching("engine|api|migrate|admin|cli|dashboard|lite") -%}
-        {%- set labeled = commit.remote.pr_labels is containing("engine") -%}
+        {%- set labeled = commit.remote.pr_labels and (commit.remote.pr_labels is containing("engine") or commit.remote.pr_labels is containing("dashboard")) -%}
         {%- if core or labeled -%}
             {%- if shown == 0 %}
     ### {{ group | striptags | trim | upper_first }}
             {%- endif -%}
             {%- set_global shown = shown + 1 %}
-        - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first | trim }}\
+        - {% if commit.breaking %}**BREAKING:** {% endif %}{% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first | trim }}\
             {% if commit.remote.username %} by @{{ commit.remote.username }}{%- endif -%}
             {% if commit.remote.pr_number %} in \
             [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }})\
@@ -63,6 +56,7 @@ body = """
         {%- endif -%}
     {% endfor %}
 {% endfor %}
+{% endif %}
 """
 
 # The footer is basically just a section for new contributors
@@ -79,7 +73,7 @@ footer = """
   {%- endfor -%}
 {%- endfor -%}
 {%- if new_contributors | length != 0 %}
-### New Contributors
+## New Contributors
 {%- endif %}
 {%- for contributor in new_contributors %}
 * @{{ contributor.username }} made their first contribution
@@ -89,16 +83,9 @@ footer = """
 
 trim = true
 
-postprocessors = [
-  { pattern = '<!-- \\d+ -->', replace = "" },
-]
-
 [git]
 conventional_commits = true
-filter_unconventional = true
-filter_commits = true
-split_commits = false
-
+filter_unconventional = false
 commit_preprocessors = [
   { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
 ]
@@ -111,20 +98,19 @@ commit_parsers = [
   { message = "^docs",   skip = true },
   { message = "^build",  skip = true },
   { message = "^style",  skip = true },
+  { message = "^test",   skip = true },
 
   { message = "^.*!:",          group = "<!-- 1 -->Changed" },
-  { body = ".*BREAKING CHANGE", group = "<!-- 1 -->Changed" },
   { message = "^feat",          group = "<!-- 0 -->Added" },
   { message = "^perf",          group = "<!-- 1 -->Changed" },
   { message = "^refactor",      group = "<!-- 1 -->Changed" },
   { message = "^revert",        group = "<!-- 3 -->Removed" },
-  { message = "^fix",           group = "<!-- 4 -->Fixed" },
-  { message = "^test",          group = "<!-- 4 -->Fixed" },
-  { message = ".*",             group = "<!-- 1 -->Changed" },
+  { message = "^hotfix",        group = "<!-- 4 -->Fixed" },
+  { message = "^.*fix",         group = "<!-- 4 -->Fixed" },
+
+  { message = ".*", skip = true },
 ]
 
-# Only core release tags — excludes vpy/..., py/..., sdk tags, etc.
 tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+"
-
 topo_order = false
 sort_commits = "newest"
