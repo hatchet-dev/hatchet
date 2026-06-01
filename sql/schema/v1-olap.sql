@@ -374,6 +374,16 @@ CREATE TABLE v1_payloads_olap (
 
 CREATE INDEX v1_payloads_olap_external_id_idx ON v1_payloads_olap (external_id ASC);
 
+CREATE TABLE v1_payloads_olap_offloaded_block_index (
+    payload_inserted_at_date DATE NOT NULL,
+    block_external_id_range uuidrange NOT NULL,
+    index_file_key TEXT NOT NULL,
+    CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl
+        EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
+);
+
+CREATE UNIQUE INDEX v1_payloads_olap_offloaded_block_index_uq_index_key ON v1_payloads_olap_offloaded_block_index (index_file_key);
+
 -- this is a hash-partitioned table on the dag_id, so that we can process batches of events in parallel
 -- without needing to place conflicting locks on dags.
 CREATE TABLE v1_task_status_updates_tmp (
@@ -836,12 +846,7 @@ CREATE TABLE v1_payloads_olap_cutover_job_offset (
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
     lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
-    final_source_table_row_count BIGINT,
-    final_target_table_row_count BIGINT,
-    final_row_count_diff BIGINT
+    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID
 );
 
 CREATE OR REPLACE FUNCTION copy_v1_payloads_olap_partition_structure(

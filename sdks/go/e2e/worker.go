@@ -64,6 +64,7 @@ var (
 	testSpawnChildTask          *hatchet.StandaloneTask
 	testDurableWithSpawn        *hatchet.StandaloneTask
 	testDurableWithBulkSpawn    *hatchet.StandaloneTask
+	testDurableWithLoopSpawn    *hatchet.StandaloneTask
 	testDurableSleepEventSpawn  *hatchet.StandaloneTask
 	testDurableNonDeterminism   *hatchet.StandaloneTask
 	testDurableReplayReset      *hatchet.StandaloneTask
@@ -225,6 +226,33 @@ func registerAllWorkflows(client *hatchet.Client) {
 			if err != nil {
 				return nil, err
 			}
+			outputs := make([]map[string]string, len(refs))
+			for i, ref := range refs {
+				result, err := ref.Result()
+				if err != nil {
+					return nil, err
+				}
+				var m map[string]string
+				if err := result.TaskOutput("spawn-child-task").Into(&m); err != nil {
+					return nil, err
+				}
+				outputs[i] = m
+			}
+			return map[string]any{"child_outputs": outputs}, nil
+		},
+	)
+
+	testDurableWithLoopSpawn = client.NewStandaloneDurableTask("durable-with-loop-spawn",
+		func(ctx hatchet.DurableContext, input DurableBulkSpawnInput) (map[string]any, error) {
+			refs := make([]*hatchet.WorkflowRunRef, input.N)
+			for i := 0; i < input.N; i++ {
+				ref, err := testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: i})
+				if err != nil {
+					return nil, err
+				}
+				refs[i] = ref
+			}
+
 			outputs := make([]map[string]string, len(refs))
 			for i, ref := range refs {
 				result, err := ref.Result()
@@ -568,6 +596,7 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testSpawnChildTask,
 			testDurableWithSpawn,
 			testDurableWithBulkSpawn,
+			testDurableWithLoopSpawn,
 			testDurableSleepEventSpawn,
 			testDurableNonDeterminism,
 			testDurableReplayReset,
