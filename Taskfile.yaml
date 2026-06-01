@@ -309,17 +309,6 @@ tasks:
           task: stop-db
       - go test -count=1 -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
-  update-changelog:
-    env:
-      GITHUB_REPO: "hatchet-dev/hatchet"
-      GITHUB_TOKEN:
-        sh: gh auth token
-      PREV:
-        sh: gh release view --json tagName --jq .tagName
-    requires:
-      vars: [NEXT]
-    cmd: git cliff --strip header --output CHANGELOG.md --tag {{.NEXT}} ${PREV}..
-
   release:
     desc: Promote a tag to annotated and push (TAG defaults to latest)
     vars:

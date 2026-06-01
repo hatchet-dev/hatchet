@@ -11,36 +11,10 @@ permissions:
   packages: write
 
 jobs:
-  verify:
-    name: Verify Release Tag
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_TAG: ${{ github.ref_name }}
-    outputs:
-      # We should only be triggering a release when using an annotated tag type.
-      should_release: ${{ steps.tag_name.outputs.tag_type == 'tag' }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-
-      - name: Fetch the tag object
-        run: git fetch --force origin tag "$GITHUB_TAG"
-
-      - name: Check if tag is annotated
-        id: tag_name
-        run: |
-          tag_type=$(git cat-file -t "$GITHUB_TAG")
-          echo "Tag [$GITHUB_TAG] is of type [$tag_type]."
-          echo "tag_type=$tag_type" >> $GITHUB_OUTPUT
-
   release-cli:
     name: Release CLI with GoReleaser
     runs-on: ubuntu-latest
     needs: [verify]
-    env:
-      GITHUB_TAG: ${{ github.ref_name }}
     if: needs.verify.outputs.should_release == 'true'
     steps:
       - name: Checkout
@@ -117,3 +91,27 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  verify:
+    name: Verify Release Tag
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TAG: ${{ github.ref_name }}
+    outputs:
+      # We should only be triggering a release when using an annotated tag type.
+      should_release: ${{ steps.tag_name.outputs.tag_type == 'tag' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Fetch the tag object
+        run: git fetch --force origin tag "$GITHUB_TAG"
+
+      - name: Check if tag is annotated
+        id: tag_name
+        run: |
+          tag_type=$(git cat-file -t "$GITHUB_TAG")
+          echo "Tag [$GITHUB_TAG] is of type [$tag_type]."
+          echo "tag_type=$tag_type" >> $GITHUB_OUTPUT
