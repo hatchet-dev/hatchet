@@ -7,8 +7,10 @@ from typing import Any
 
 hatchet = Hatchet()
 
+
 class OrderedInput(BaseModel):
     index: int
+
 
 class SimpleInput(BaseModel):
     Message: str
