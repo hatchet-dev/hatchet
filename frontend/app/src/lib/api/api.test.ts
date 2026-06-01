@@ -46,6 +46,16 @@ test('readTenantIdFromRequestUrl parses tenant API paths', () => {
   );
 });
 
+test('readTenantIdFromRequestUrl parses relative paths with empty baseURL', () => {
+  assert.equal(
+    readTenantIdFromRequestUrl({
+      baseURL: '',
+      url: `/api/v1/tenants/${tenantA}/workflows`,
+    }),
+    tenantA,
+  );
+});
+
 test('readTenantIdFromRequestUrl parses stable tenant API paths', () => {
   assert.equal(
     readTenantIdFromRequestUrl({

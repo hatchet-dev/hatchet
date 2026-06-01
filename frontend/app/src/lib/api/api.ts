@@ -72,7 +72,7 @@ function readStoredTenantId(): string | null {
 
 function getURLPathname(url: string, baseURL?: string): string | null {
   try {
-    return new URL(url, baseURL ?? 'http://hatchet.local').pathname;
+    return new URL(url, baseURL || 'http://hatchet.local').pathname;
   } catch {
     return null;
   }
