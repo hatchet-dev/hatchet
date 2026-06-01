@@ -1,5 +1,11 @@
 # > Setup
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from agents import FunctionTool
+    from claude_agent_sdk import SdkMcpTool
 
 from pydantic import BaseModel
 
@@ -7,6 +13,7 @@ from hatchet_sdk import Context, Hatchet
 from hatchet_sdk.runnables.workflow import MCPProvider
 
 hatchet = Hatchet(debug=True)
+# !!
 
 
 # > Models
@@ -54,6 +61,7 @@ class TicketResult(BaseModel):
     summary: str
 
 
+# !!
 
 
 # > Fixture data
@@ -80,6 +88,7 @@ ORDERS = {
         tracking_number="FS-482910",
     ),
 }
+# !!
 
 
 # > Lookup customer
@@ -103,6 +112,7 @@ async def lookup_customer(input: CustomerLookupInput, ctx: Context) -> CustomerI
     return customer
 
 
+# !!
 
 
 # > Check order status
@@ -126,6 +136,7 @@ async def check_order_status(input: OrderStatusInput, ctx: Context) -> OrderStat
     return order
 
 
+# !!
 
 
 # > Create ticket
@@ -146,18 +157,36 @@ async def create_ticket(input: CreateTicketInput, ctx: Context) -> TicketResult:
     )
 
 
+# !!
 
 
-# > Create tools
-def create_lookup_customer_tool() -> Any:
+# > Create Claude tools
+def create_lookup_customer_tool_claude() -> SdkMcpTool[CustomerLookupInput]:
     return lookup_customer.mcp_tool(MCPProvider.CLAUDE)
 
 
-def create_check_order_status_tool() -> Any:
+def create_check_order_status_tool_claude() -> SdkMcpTool[OrderStatusInput]:
     return check_order_status.mcp_tool(MCPProvider.CLAUDE)
 
 
-def create_ticket_tool() -> Any:
+def create_ticket_tool_claude() -> SdkMcpTool[CreateTicketInput]:
     return create_ticket.mcp_tool(MCPProvider.CLAUDE)
 
 
+# !!
+
+
+# > Create openai tools
+def create_lookup_customer_tool_openai() -> FunctionTool:
+    return lookup_customer.mcp_tool(MCPProvider.OPENAI)
+
+
+def create_check_order_status_tool_openai() -> FunctionTool:
+    return check_order_status.mcp_tool(MCPProvider.OPENAI)
+
+
+def create_ticket_tool_openai() -> FunctionTool:
+    return create_ticket.mcp_tool(MCPProvider.OPENAI)
+
+
+# !!

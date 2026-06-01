@@ -145,16 +145,30 @@ export const createTicket = hatchet.task({
 });
 // !!
 
-// > Create tools
-export function createLookupCustomerTool() {
+// > Create Claude tools
+export function createLookupCustomerToolClaude() {
   return lookupCustomer.mcpTool('claude');
 }
 
-export function createCheckOrderStatusTool() {
+export function createCheckOrderStatusToolClaude() {
   return checkOrderStatus.mcpTool('claude');
 }
 
-export function createTicketTool() {
+export function createTicketToolClaude() {
   return createTicket.mcpTool('claude');
+}
+// !!
+
+// > Create openai tools
+export function createLookupCustomerToolOpenai() {
+  return lookupCustomer.mcpTool('openai');
+}
+
+export function createCheckOrderStatusToolOpenai() {
+  return checkOrderStatus.mcpTool('openai');
+}
+
+export function createTicketToolOpenai() {
+  return createTicket.mcpTool('openai');
 }
 // !!

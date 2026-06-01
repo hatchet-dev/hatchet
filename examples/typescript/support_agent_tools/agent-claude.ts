@@ -1,9 +1,13 @@
-import { createLookupCustomerTool, createCheckOrderStatusTool, createTicketTool } from './tools';
+import {
+  createLookupCustomerToolClaude,
+  createCheckOrderStatusToolClaude,
+  createTicketToolClaude,
+} from './tools';
 
 async function main() {
-  const lookupCustomerTool = createLookupCustomerTool();
-  const checkOrderStatusTool = createCheckOrderStatusTool();
-  const ticketTool = createTicketTool();
+  const lookupCustomerTool = createLookupCustomerToolClaude();
+  const checkOrderStatusTool = createCheckOrderStatusToolClaude();
+  const ticketTool = createTicketToolClaude();
 
   // The Claude Agent SDK is ESM-only, so avoid loading it at module import time.
   // Run this example with an ESM-compatible TypeScript runner.

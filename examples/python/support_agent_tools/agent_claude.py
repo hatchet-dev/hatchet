@@ -6,17 +6,17 @@ from claude_agent_sdk import (
     query,
     ResultMessage,
 )
-from examples.claude_agent.tools import (
-    create_lookup_customer_tool,
-    create_check_order_status_tool,
-    create_ticket_tool,
+from examples.support_agent_tools.tools import (
+    create_lookup_customer_tool_claude,
+    create_check_order_status_tool_claude,
+    create_ticket_tool_claude,
 )
 
 
 async def main() -> None:
-    lookup_customer_tool = create_lookup_customer_tool()
-    check_order_status_tool = create_check_order_status_tool()
-    ticket_tool = create_ticket_tool()
+    lookup_customer_tool = create_lookup_customer_tool_claude()
+    check_order_status_tool = create_check_order_status_tool_claude()
+    ticket_tool = create_ticket_tool_claude()
 
     support_server = create_sdk_mcp_server(
         name="support",

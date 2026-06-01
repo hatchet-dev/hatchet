@@ -22,4 +22,5 @@ export default {
   "hatchet-and-mcp": "Hatchet Agent Tools",
   "workflow-aws-s3": "S3 Processing Pipeline",
   "hatchet-claude-agent-sdk-trusted-env": "Claude Agent SDK",
+  "hatchet-openai-agents-sdk-trusted-env": "OpenAI Agents SDK",
 };
