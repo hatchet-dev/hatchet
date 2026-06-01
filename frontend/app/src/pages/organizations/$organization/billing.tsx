@@ -17,7 +17,7 @@ export default function OrganizationBillingPage() {
   const userUniverse = useUserUniverse();
 
   const billingState = useQuery({
-    ...queries.cloud.billing(organization),
+    ...queries.controlPlane.billing(organization),
     enabled: isCloudEnabled && !!cloud?.canBill,
   });
 

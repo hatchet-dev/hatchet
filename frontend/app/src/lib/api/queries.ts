@@ -28,7 +28,7 @@ type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
 type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
-  cloud: {
+  controlPlane: {
     billing: (organization: string) => ({
       queryKey: ['organization-billing-state:get', organization],
       queryFn: async () =>
@@ -50,7 +50,8 @@ export const queries = createQueryKeyStore({
         (await controlPlaneApi.organizationPaymentMethodsGet(organization))
           .data,
     }),
-
+  },
+  cloud: {
     getComputeCost: (tenant: string) => ({
       queryKey: ['compute-cost:get', tenant],
       queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,

@@ -72,7 +72,7 @@ export function PlanSelector({
   const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
   const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
-    ...queries.cloud.subscriptionPlans(),
+    ...queries.controlPlane.subscriptionPlans(),
     enabled: isControlPlaneEnabled && !!controlPlaneMeta?.canBill,
   });
 

@@ -67,7 +67,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
   const creditBalanceQuery = useQuery({
-    ...queries.cloud.creditBalance(organizationId || ''),
+    ...queries.controlPlane.creditBalance(organizationId || ''),
     enabled:
       isControlPlaneEnabled && !!controlPlaneMeta?.canBill && !!organizationId,
   });
@@ -150,7 +150,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
       const invalidations = [
         queryClient.invalidateQueries({
-          queryKey: queries.cloud.billing(organizationId).queryKey,
+          queryKey: queries.controlPlane.billing(organizationId).queryKey,
         }),
       ];
 
