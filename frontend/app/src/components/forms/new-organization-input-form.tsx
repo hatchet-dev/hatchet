@@ -1,11 +1,9 @@
-import {
-  RegionSelect,
-  shardDeploymentKey,
-} from '@/components/forms/region-select';
+import { RegionSelect } from '@/components/forms/region-select';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
+import { shardDeploymentKey } from '@/lib/shard-deployment-key';
 import { ArrowRightIcon } from '@radix-ui/react-icons';
 import { useCallback, useMemo, useState } from 'react';
 

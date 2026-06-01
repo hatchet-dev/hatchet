@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
-	"maps"
 	"math/rand"
 	"slices"
 	"sort"
@@ -273,7 +272,7 @@ type OLAPRepository interface {
 
 	CreateIncomingWebhookValidationFailureLogs(ctx context.Context, tenantId uuid.UUID, opts []CreateIncomingWebhookFailureLogOpts) error
 	StoreCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []CELEvaluationFailure) error
-	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error)
+	PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) error
 	ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error)
 
 	AnalyzeOLAPTables(ctx context.Context) error
@@ -284,7 +283,7 @@ type OLAPRepository interface {
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error)
 
-	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error
+	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error
 
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
@@ -352,6 +351,26 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	const leaseKey = "v1_olap_partitions"
+
+	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
+	if err != nil {
+		return fmt.Errorf("failed to acquire partition lease: %w", err)
+	}
+
+	if len(leases) == 0 {
+		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
+		return nil
+	}
+
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if releaseErr := r.releasePartitionLease(releaseCtx, r.ddlPool, leases); releaseErr != nil {
+			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
+		}
+	}()
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.olapRetentionPeriod)
@@ -359,7 +378,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err := r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
+	err = r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  today,
 			Valid: true,
@@ -477,6 +496,13 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 
 		release()
+	}
+
+	if err = r.queries.DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
+		Time:  removeBefore,
+		Valid: true,
+	}); err != nil {
+		return fmt.Errorf("failed to delete old OLAP payload offloaded block index rows: %w", err)
 	}
 
 	return nil
@@ -1887,7 +1913,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	}
 
 	if len(payloadsToWrite) > 0 {
-		_, err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
+		err = r.PutPayloads(ctx, tx, tenantId, payloadsToWrite...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -2252,7 +2278,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		}
 	}
 
-	_, err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
+	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2338,7 +2364,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
-	_, err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
+	err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2583,7 +2609,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 	}
 
 	for tenantId, putPayloadOpts := range tenantIdToPutPayloadOpts {
-		_, err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
+		err = r.PutPayloads(ctx, tx, tenantId, putPayloadOpts...)
 
 		if err != nil {
 			return fmt.Errorf("error putting event payloads: %v", err)
@@ -2954,7 +2980,7 @@ type OffloadPayloadOpts struct {
 	ExternalLocationKey string
 }
 
-func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) (map[uuid.UUID]ExternalPayloadLocationKey, error) {
+func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, putPayloadOpts ...StoreOLAPPayloadOpts) error {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.PutPayloads")
 	defer span.End()
 
@@ -2972,33 +2998,10 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 		if err != nil {
-			return nil, fmt.Errorf("error beginning transaction in `PutPayload`: %v", err)
+			return fmt.Errorf("error beginning transaction in `PutPayload`: %v", err)
 		}
 
 		defer rollback()
-	}
-
-	externalIdToKey := make(map[uuid.UUID]ExternalPayloadLocationKey)
-
-	if r.payloadStore.ExternalStoreEnabled() && r.payloadStore.ImmediateOffloadsEnabled() {
-		storeExternalPayloadOpts := make([]OffloadToExternalStoreOpts, len(putPayloadOpts))
-
-		for i, opt := range putPayloadOpts {
-			storeOpts := OffloadToExternalStoreOpts{
-				TenantId:   tenantId,
-				ExternalID: uuid.UUID(opt.ExternalId),
-				InsertedAt: opt.InsertedAt,
-				Payload:    opt.Payload,
-			}
-
-			storeExternalPayloadOpts[i] = storeOpts
-		}
-
-		externalIdToKey, err = r.payloadStore.ExternalStore().Store(ctx, storeExternalPayloadOpts...)
-
-		if err != nil {
-			return nil, fmt.Errorf("error offloading payloads to external store: %v", err)
-		}
 	}
 
 	insertedAts := make([]pgtype.Timestamptz, 0, len(putPayloadOpts))
@@ -3009,21 +3012,12 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	externalKeys := make([]string, 0, len(putPayloadOpts))
 
 	for _, opt := range putPayloadOpts {
-		key, ok := externalIdToKey[opt.ExternalId]
-
 		externalIds = append(externalIds, opt.ExternalId)
 		insertedAts = append(insertedAts, opt.InsertedAt)
 		tenantIds = append(tenantIds, tenantId)
-
-		if ok {
-			payloads = append(payloads, nil)
-			locations = append(locations, string(sqlcv1.V1PayloadLocationOlapEXTERNAL))
-			externalKeys = append(externalKeys, string(key))
-		} else {
-			payloads = append(payloads, opt.Payload)
-			locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
-			externalKeys = append(externalKeys, "")
-		}
+		payloads = append(payloads, opt.Payload)
+		locations = append(locations, string(sqlcv1.V1PayloadLocationOlapINLINE))
+		externalKeys = append(externalKeys, "")
 	}
 
 	err = r.queries.PutPayloads(ctx, tx, sqlcv1.PutPayloadsParams{
@@ -3036,16 +3030,16 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error putting payloads: %w", err)
+		return fmt.Errorf("error putting payloads: %w", err)
 	}
 
 	if localTx {
 		if err := commit(ctx); err != nil {
-			return nil, fmt.Errorf("error committing transaction in `PutPayload`: %v", err)
+			return fmt.Errorf("error committing transaction in `PutPayload`: %v", err)
 		}
 	}
 
-	return externalIdToKey, nil
+	return nil
 }
 
 type ReadOLAPPayloadOpts struct {
@@ -3086,29 +3080,74 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)
-	externalIdToExternalKey := make(map[uuid.UUID]ExternalPayloadLocationKey)
-	externalKeys := make([]ExternalPayloadLocationKey, 0)
+	externalIdToRetrieveFromExternalOpt := make(map[uuid.UUID]RetrieveFromExternalOpts)
+	retrieveFromExternalOpts := make([]RetrieveFromExternalOpts, 0)
 
 	for _, payload := range payloads {
 		if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
+			var retrieveFromExternalOpt RetrieveFromExternalOpts = RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByKey,
+				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
+			}
 
-			externalIdToExternalKey[payload.ExternalID] = key
-			externalKeys = append(externalKeys, key)
+			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
+			retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
 		}
 	}
 
-	if len(externalKeys) > 0 && r.payloadStore.ExternalStoreEnabled() {
-		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, externalKeys...)
+	if r.payloadStore.ExternalStoreEnabled() {
+		retrieveIndexBlockExternalIds := make([]uuid.UUID, 0)
+		retrieveIndexBlockInsertedAtDates := make([]pgtype.Date, 0)
+
+		for _, opt := range opts {
+			if _, found := externalIdToPayload[opt.ExternalId]; found {
+				continue
+			}
+			if _, found := externalIdToRetrieveFromExternalOpt[opt.ExternalId]; found {
+				continue
+			}
+
+			retrieveIndexBlockExternalIds = append(retrieveIndexBlockExternalIds, opt.ExternalId)
+			retrieveIndexBlockInsertedAtDates = append(retrieveIndexBlockInsertedAtDates, pgtype.Date{Time: opt.InsertedAt.Time.UTC(), Valid: true})
+		}
+
+		if len(retrieveIndexBlockExternalIds) > 0 {
+			indexFileKeys, err := r.queries.GetOLAPOffloadedPayloadIndexBlocks(ctx, tx, sqlcv1.GetOLAPOffloadedPayloadIndexBlocksParams{
+				Insertedats: retrieveIndexBlockInsertedAtDates,
+				Externalids: retrieveIndexBlockExternalIds,
+			})
+
+			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+				return nil, fmt.Errorf("error getting offloaded payload index block: %v", err)
+			}
+
+			for _, k := range indexFileKeys {
+				retrieveFromExternalOpt := RetrieveFromExternalOpts{
+					Method: RetrieveFromExternalByIndexFile,
+					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
+						IndexFileKey: ExternalIndexFileLocationKey(k.IndexFileKey),
+						ExternalId:   k.ExternalID,
+					},
+				}
+
+				externalIdToRetrieveFromExternalOpt[k.ExternalID] = retrieveFromExternalOpt
+				retrieveFromExternalOpts = append(retrieveFromExternalOpts, retrieveFromExternalOpt)
+			}
+		}
+	}
+
+	if len(retrieveFromExternalOpts) > 0 && r.payloadStore.ExternalStoreEnabled() {
+		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
 
 		if err != nil {
 			return nil, err
 		}
 
-		for externalId, externalKey := range externalIdToExternalKey {
-			externalIdToPayload[externalId] = keyToPayload[externalKey]
+		for externalId, opt := range externalIdToRetrieveFromExternalOpt {
+			externalIdToPayload[externalId] = keyToPayload[opt]
 		}
 	}
 
@@ -3321,6 +3360,43 @@ type OLAPCutoverBatchOutcome struct {
 	NextExternalId uuid.UUID
 }
 
+func (p *OLAPRepositoryImpl) ValidateNoDuplicateOLAPExternalIds(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate) ([]*DuplicatedExternalIdRow, error) {
+	tableName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
+	rows, err := tx.Query(
+		ctx,
+		fmt.Sprintf(
+			`
+			SELECT external_id, COUNT(*)
+			FROM %s
+			GROUP BY external_id
+			HAVING COUNT(*) > 1
+			LIMIT 100
+			`,
+			tableName,
+		),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*DuplicatedExternalIdRow
+	for rows.Next() {
+		var i DuplicatedExternalIdRow
+		if err := rows.Scan(
+			&i.ExternalId,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, tx sqlcv1.DBTX, partitionDate PartitionDate, candidateBatchNumRows int32, lastExternalId uuid.UUID) (*int32, error) {
 	if candidateBatchNumRows <= 0 {
 		// trivial case that we'll never hit, but to prevent infinite recursion
@@ -3353,7 +3429,7 @@ func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, 
 	)
 }
 
-func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
+func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
@@ -3365,21 +3441,23 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	defer rollback()
 
-	tableName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
+	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
 
-	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
-		ctx,
-		tx,
-		partitionDate,
-		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
-		lastExternalId,
-	)
+	if enableWindowSizeOptimization {
+		windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
+			ctx,
+			tx,
+			partitionDate,
+			windowSize,
+			lastExternalId,
+		)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+		if err != nil {
+			return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+		}
+
+		windowSize = *windowSizePtr
 	}
-
-	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, tx, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
@@ -3392,7 +3470,7 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		return nil, fmt.Errorf("failed to create payload range chunks: %w", err)
 	}
 
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || len(payloadRanges) == 0 {
 		return &OLAPCutoverBatchOutcome{
 			ShouldContinue: false,
 			NextExternalId: lastExternalId,
@@ -3406,9 +3484,8 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 	mu := sync.Mutex{}
 	eg := errgroup.Group{}
 
-	externalIdToPayload := make(map[uuid.UUID]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
-	alreadyExternalPayloads := make(map[uuid.UUID]ExternalPayloadLocationKey)
 	offloadToExternalStoreOpts := make([]OffloadToExternalStoreOpts, 0)
+	maxExternalId := payloadRanges[len(payloadRanges)-1].UpperExternalID
 
 	numPayloads := 0
 
@@ -3423,20 +3500,15 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			})
 
 			if err != nil {
-				return fmt.Errorf("failed to list paginated payloads for offload")
+				return fmt.Errorf("failed to list paginated payloads for offload: %w", err)
 			}
 
-			alreadyExternalPayloadsInner := make(map[uuid.UUID]ExternalPayloadLocationKey)
-			externalIdToPayloadInner := make(map[uuid.UUID]sqlcv1.ListPaginatedOLAPPayloadsForOffloadRow)
 			offloadToExternalStoreOptsInner := make([]OffloadToExternalStoreOpts, 0)
 
 			for _, payload := range payloads {
 				externalId := uuid.UUID(payload.ExternalID)
-				externalIdToPayloadInner[externalId] = *payload
 
-				if payload.Location != sqlcv1.V1PayloadLocationOlapINLINE {
-					alreadyExternalPayloadsInner[externalId] = ExternalPayloadLocationKey(payload.ExternalLocationKey)
-				} else {
+				if payload.Location == sqlcv1.V1PayloadLocationOlapINLINE {
 					offloadToExternalStoreOptsInner = append(offloadToExternalStoreOptsInner, OffloadToExternalStoreOpts{
 						TenantId:   payload.TenantID,
 						ExternalID: externalId,
@@ -3447,8 +3519,6 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 			}
 
 			mu.Lock()
-			maps.Copy(externalIdToPayload, externalIdToPayloadInner)
-			maps.Copy(alreadyExternalPayloads, alreadyExternalPayloadsInner)
 			offloadToExternalStoreOpts = append(offloadToExternalStoreOpts, offloadToExternalStoreOptsInner...)
 			numPayloads += len(payloads)
 			mu.Unlock()
@@ -3463,56 +3533,44 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 		return nil, err
 	}
 
-	externalIdToKey, err := p.PayloadStore().ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
+	blockIndexKey, err := p.PayloadStore().ExternalStore().Store(ctx, offloadToExternalStoreOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to offload payloads to external store: %w", err)
 	}
 
-	maps.Copy(externalIdToKey, alreadyExternalPayloads)
-
 	span.SetAttributes(attribute.Int("num_payloads_read", numPayloads))
-	payloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, numPayloads)
 
-	for externalId, key := range externalIdToKey {
-		payload := externalIdToPayload[externalId]
-		payloadsToInsert = append(payloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
-			TenantID:            payload.TenantID,
-			InsertedAt:          payload.InsertedAt,
-			ExternalID:          externalId,
-			ExternalLocationKey: string(key),
-			Location:            sqlcv1.V1PayloadLocationOlapEXTERNAL,
-		})
-	}
-
-	tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+	leaseTx, leaseCommit, leaseRollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare transaction for inserting cutover payloads: %w", err)
 	}
 
-	defer rollback()
+	defer leaseRollback()
 
-	lastInsertedExternalId, err := sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, tx, tableName, payloadsToInsert)
-
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to copy offloaded payloads into temp table: %w", err)
-	}
-
-	if errors.Is(err, pgx.ErrNoRows) {
-		return &OLAPCutoverBatchOutcome{
-			ShouldContinue: false,
-			NextExternalId: lastExternalId,
-		}, nil
-	}
-
-	extendedLease, err := p.acquireOrExtendJobLease(ctx, tx, processId, partitionDate, *lastInsertedExternalId)
+	extendedLease, err := p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, maxExternalId)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to extend cutover job lease: %w", err)
 	}
 
-	if err := commit(ctx); err != nil {
+	if !extendedLease.ShouldRun {
+		return nil, fmt.Errorf("lease for partition %s was taken by another process during batch processing", partitionDate.String())
+	}
+
+	if blockIndexKey != nil {
+		if err := p.createOLAPIndexBlock(ctx, leaseTx, CreateIndexBlockOpts{
+			PartitionDate:             partitionDate,
+			BlockLowerExternalIdBound: lastExternalId,
+			BlockUpperExternalIdBound: maxExternalId,
+			IndexFileKey:              string(*blockIndexKey),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to create index block: %w", err)
+		}
+	}
+
+	if err := leaseCommit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit copy offloaded payloads transaction: %w", err)
 	}
 
@@ -3570,7 +3628,7 @@ func (p *OLAPRepositoryImpl) acquireOrExtendJobLease(ctx context.Context, tx pgx
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize int32) (*OLAPCutoverJobRunMetadata, error) {
+func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration) (*OLAPCutoverJobRunMetadata, error) {
 	if inlineStoreTTL == nil {
 		return nil, fmt.Errorf("inline store TTL is not set")
 	}
@@ -3613,11 +3671,11 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
+func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
 	defer span.End()
 
-	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL, externalCutoverBatchSize)
+	jobMeta, err := p.prepareCutoverTableJob(ctx, processId, partitionDate, inlineStoreTTL)
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare cutover table job: %w", err)
@@ -3627,10 +3685,78 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
+	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
+	if jobMeta.LastExternalId == uuid.Nil {
+		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
+
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
+
+		if err != nil {
+			return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
+		}
+
+		defer release()
+
+		stopLeaseExtension := make(chan struct{})
+		leaseExtensionDone := make(chan struct{})
+
+		go func() {
+			defer close(leaseExtensionDone)
+
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-stopLeaseExtension:
+					return
+				case <-ticker.C:
+					leaseTx, leaseCommit, leaseRollback, txErr := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+					if txErr != nil {
+						p.l.Error().Err(txErr).Msg("failed to prepare transaction for lease extension during duplicate check")
+						continue
+					}
+
+					_, txErr = p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, jobMeta.LastExternalId)
+
+					if txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to extend lease during duplicate check")
+						continue
+					}
+
+					if txErr = leaseCommit(ctx); txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
+					}
+				}
+			}
+		}()
+
+		duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
+		close(stopLeaseExtension)
+		<-leaseExtensionDone
+
+		if err != nil {
+			return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+		}
+
+		if len(duplicatedExternalIds) > 0 {
+			var duplicatedIds []string
+
+			for _, row := range duplicatedExternalIds {
+				duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+			}
+
+			return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+		}
+	}
+
 	lastExternalId := jobMeta.LastExternalId
 
 	for {
-		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
+		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -3642,138 +3768,6 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 
 		lastExternalId = outcome.NextExternalId
 	}
-
-	tempPartitionName := fmt.Sprintf("v1_payloads_olap_offload_tmp_%s", partitionDate.String())
-	sourcePartitionName := fmt.Sprintf("v1_payloads_olap_%s", partitionDate.String())
-
-	reconciliationDoneChan := make(chan struct{})
-	reconciliationCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-reconciliationCtx.Done():
-				return
-			case <-reconciliationDoneChan:
-				return
-			case <-ticker.C:
-				tx, commit, rollback, err := sqlchelpers.PrepareTx(reconciliationCtx, p.pool, p.l)
-
-				if err != nil {
-					p.l.Error().Ctx(ctx).Err(err).Msg("failed to prepare transaction for extending cutover job lease during reconciliation")
-					return
-				}
-
-				defer rollback()
-
-				lease, err := p.acquireOrExtendJobLease(reconciliationCtx, tx, processId, partitionDate, lastExternalId)
-
-				if err != nil {
-					return
-				}
-
-				if err := commit(reconciliationCtx); err != nil {
-					p.l.Error().Ctx(ctx).Err(err).Msg("failed to commit extend cutover job lease transaction during reconciliation")
-					return
-				}
-
-				if !lease.ShouldRun {
-					return
-				}
-			}
-		}
-	}()
-
-	connStatementTimeout := 30 * 60 * 1000 // 30 minutes
-
-	conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
-
-	if err != nil {
-		return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
-	}
-
-	defer release()
-
-	rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
-
-	if err != nil {
-		return fmt.Errorf("failed to compare partition row counts: %w", err)
-	}
-
-	err = p.queries.SetFinalOLAPPayloadCutoverRowCounts(ctx, conn, sqlcv1.SetFinalOLAPPayloadCutoverRowCountsParams{
-		Finalsourcetablerowcount: rowCounts.SourcePartitionCount,
-		Finaltargettablerowcount: rowCounts.TempPartitionCount,
-		Finalrowcountdiff:        rowCounts.SourcePartitionCount - rowCounts.TempPartitionCount,
-		Key:                      pgtype.Date(partitionDate),
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to set final olap payload cutover row counts: %w", err)
-	}
-
-	const maxCountDiff = 5000
-
-	if rowCounts.SourcePartitionCount-rowCounts.TempPartitionCount > maxCountDiff {
-		return fmt.Errorf("row counts do not match between temp and source partitions for date %s. off by more than %d", partitionDate.String(), maxCountDiff)
-	} else if rowCounts.SourcePartitionCount > rowCounts.TempPartitionCount {
-		missingRows, err := p.queries.DiffOLAPPayloadSourceAndTargetPartitions(ctx, conn, pgtype.Date(partitionDate))
-
-		if err != nil {
-			return fmt.Errorf("failed to diff source and target partitions: %w", err)
-		}
-
-		numExternalIdsToSample := 20
-		exampleExternalIds := make([]string, 0, numExternalIdsToSample)
-		for i, r := range missingRows {
-			if i >= numExternalIdsToSample {
-				break
-			}
-
-			exampleExternalIds = append(exampleExternalIds, r.ExternalID.String())
-		}
-
-		p.l.Error().
-			Str("partition_date", partitionDate.String()).
-			Int64("source_partition_count", rowCounts.SourcePartitionCount).
-			Int64("temp_partition_count", rowCounts.TempPartitionCount).
-			Str("example_external_ids", strings.Join(exampleExternalIds, ", ")).
-			Msg("row counts do not match between temp and source partitions")
-
-		missingPayloadsToInsert := make([]sqlcv1.CutoverOLAPPayloadToInsert, 0, len(missingRows))
-
-		for _, p := range missingRows {
-			missingPayloadsToInsert = append(missingPayloadsToInsert, sqlcv1.CutoverOLAPPayloadToInsert{
-				TenantID:            p.TenantID,
-				InsertedAt:          p.InsertedAt,
-				ExternalID:          p.ExternalID,
-				ExternalLocationKey: p.ExternalLocationKey,
-				InlineContent:       p.InlineContent,
-				Location:            p.Location,
-			})
-		}
-
-		_, err = sqlcv1.InsertCutOverOLAPPayloadsIntoTempTable(ctx, conn, tempPartitionName, missingPayloadsToInsert)
-
-		if err != nil {
-			return fmt.Errorf("failed to insert missing payloads into temp partition: %w", err)
-		}
-
-		rowCounts, err := sqlcv1.ComparePartitionRowCounts(ctx, conn, tempPartitionName, sourcePartitionName)
-
-		if err != nil {
-			return fmt.Errorf("failed to compare partition row counts: %w", err)
-		}
-
-		if rowCounts.SourcePartitionCount != rowCounts.TempPartitionCount {
-			return fmt.Errorf("row counts still do not match between temp and source partitions for date %s after inserting missing rows", partitionDate.String())
-		}
-	}
-
-	close(reconciliationDoneChan)
 
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
 
@@ -3802,7 +3796,16 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 	return nil
 }
 
-func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
+func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, tx pgx.Tx, opts CreateIndexBlockOpts) error {
+	return p.queries.CreateOLAPOffloadedPayloadIndexBlock(ctx, tx, sqlcv1.CreateOLAPOffloadedPayloadIndexBlockParams{
+		Payloadinsertedatdate:     pgtype.Date(opts.PartitionDate),
+		Blocklowerexternalidbound: opts.BlockLowerExternalIdBound,
+		Blockupperexternalidbound: opts.BlockUpperExternalIdBound,
+		Indexfilekey:              opts.IndexFileKey,
+	})
+}
+
+func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
 	if !externalStoreEnabled {
 		return nil
 	}
@@ -3815,7 +3818,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 	}
 
 	mostRecentPartitionToOffload := pgtype.Date{
-		Time:  time.Now().Add(-1 * *inlineStoreTTL),
+		Time:  time.Now().Add(-1 * (*inlineStoreTTL + 2*time.Hour)), // 2 hour offset to limit race conditions and hot-path i/o
 		Valid: true,
 	}
 
@@ -3829,7 +3832,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 
 	for _, partition := range partitions {
 		p.l.Info().Ctx(ctx).Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
-		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
 
 		if err != nil {
 			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)

@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import multiprocessing.synchronize
+import signal
 import time
 import warnings
 from dataclasses import dataclass
@@ -112,6 +113,12 @@ class WorkerActionListenerProcess:
             logger.setLevel(logging.DEBUG)
 
         self.client = Client(config=self.config, debug=self.debug)
+
+        # explicit no-op on SIGINT and SIGTERM because shutdown is completely controlled
+        # by the parent worker process
+        loop = asyncio.get_event_loop()
+        loop.add_signal_handler(signal.SIGINT, lambda: None)
+        loop.add_signal_handler(signal.SIGTERM, lambda: None)
 
         if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(

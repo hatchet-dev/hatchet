@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import multiprocessing.synchronize
+import signal
 import time
 from datetime import timedelta
 from multiprocessing import Queue
@@ -98,6 +99,10 @@ class LegacyWorkerActionListenerProcess:
             logger.setLevel(logging.DEBUG)
 
         self.client = Client(config=self.config, debug=self.debug)
+
+        loop = asyncio.get_event_loop()
+        loop.add_signal_handler(signal.SIGINT, lambda: None)
+        loop.add_signal_handler(signal.SIGTERM, lambda: None)
 
         if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(
