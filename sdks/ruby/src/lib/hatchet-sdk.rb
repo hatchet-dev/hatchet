@@ -222,6 +222,36 @@ module Hatchet
       wf.task(name, **opts, &block)
     end
 
+    # Create a standalone batch task. Multiple runs are grouped and processed
+    # together by the worker when batchMaxSize is reached or batchMaxInterval elapses.
+    #
+    # @param name [String] Task name
+    # @param batch_max_size [Integer] Maximum items per batch before flush
+    # @param batch_max_interval [String, nil] Max time before flush (e.g. "200ms", "1s")
+    # @param batch_group_key [String, nil] CEL expression for partition key
+    # @param batch_group_max_runs [Integer, nil] Max concurrent runs per group
+    # @param opts [Hash] Additional task options (retries:, etc.)
+    # @yield [tasks] Block receives Array of [input, ctx] pairs; must return Array of outputs
+    # @return [Hatchet::Task]
+    #
+    # @example
+    #   my_batch = hatchet.batch_task(name: "my-batch", batch_max_size: 10) do |tasks|
+    #     tasks.map { |(input, _ctx)| { "result" => input["value"] * 2 } }
+    #   end
+    def batch_task(name:, batch_max_size:, batch_max_interval: nil, batch_group_key: nil,
+                   batch_group_max_runs: nil, **opts, &block)
+      wf = Workflow.new(name: name, client: self,
+                        on_events: opts.delete(:on_events) || [],
+                        default_filters: opts.delete(:default_filters) || [])
+      wf.task(name,
+              batch_max_size: batch_max_size,
+              batch_max_interval: batch_max_interval,
+              batch_group_key: batch_group_key,
+              batch_group_max_runs: batch_group_max_runs,
+              **opts,
+              &block)
+    end
+
     # Create a standalone durable task.
     #
     # @param name [String] Task name

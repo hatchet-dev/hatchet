@@ -68,8 +68,23 @@ module Hatchet
     # @return [Hatchet::EvictionPolicy, nil] Eviction policy for durable tasks
     attr_reader :eviction_policy
 
-    # @return [Proc, nil] The task execution block
+    # @return [Proc, nil] The task execution block (nil for batch tasks)
     attr_reader :fn
+
+    # @return [Proc, nil] The batch execution block (array of [input, ctx] → array of results)
+    attr_reader :batch_fn
+
+    # @return [Integer, nil] Maximum batch size before flush
+    attr_reader :batch_max_size
+
+    # @return [String, nil] Maximum interval before flush (e.g. "200ms", "1s")
+    attr_reader :batch_max_interval
+
+    # @return [String, nil] CEL expression for batch partition key
+    attr_reader :batch_group_key
+
+    # @return [Integer, nil] Maximum concurrent batch runs per group
+    attr_reader :batch_group_max_runs
 
     # @return [Workflow, nil] The owning workflow
     attr_reader :workflow
@@ -96,7 +111,11 @@ module Hatchet
     # @param workflow [Workflow, nil] The owning workflow
     # @param client [Hatchet::Client, nil] The client
     # @param deps [Hash, nil] Dependency providers
-    # @param block [Proc] The task execution block
+    # @param batch_max_size [Integer, nil] If set, task is a batch task
+    # @param batch_max_interval [String, nil] Max flush interval (e.g. "200ms")
+    # @param batch_group_key [String, nil] CEL partition key for batch grouping
+    # @param batch_group_max_runs [Integer, nil] Max concurrent batch runs per group
+    # @param block [Proc] The task execution block (batch tasks receive array of [input, ctx])
     def initialize(
       name:,
       parents: [],
@@ -115,6 +134,10 @@ module Hatchet
       workflow: nil,
       client: nil,
       deps: nil,
+      batch_max_size: nil,
+      batch_max_interval: nil,
+      batch_group_key: nil,
+      batch_group_max_runs: nil,
       &block
     )
       @name = name.to_sym
@@ -134,8 +157,23 @@ module Hatchet
       @workflow = workflow
       @client = client
       @deps = deps
-      # Convert Proc to lambda to avoid LocalJumpError on bare `return`
-      @fn = block
+      @batch_max_size = batch_max_size
+      @batch_max_interval = batch_max_interval
+      @batch_group_key = batch_group_key
+      @batch_group_max_runs = batch_group_max_runs
+
+      if @batch_max_size
+        @batch_fn = block
+        @fn = nil
+      else
+        @fn = block
+        @batch_fn = nil
+      end
+    end
+
+    # Returns true if this task uses batch execution.
+    def batch?
+      !@batch_max_size.nil?
     end
 
     # Execute the task with the given input and context
@@ -190,6 +228,14 @@ module Hatchet
       opts[:conditions] = conditions_proto if conditions_proto
 
       opts[:is_durable] = @durable
+
+      if @batch_max_size
+        batch_args = { batch_max_size: @batch_max_size }
+        batch_args[:batch_max_interval] = duration_to_ms(@batch_max_interval) if @batch_max_interval
+        batch_args[:batch_group_key] = @batch_group_key if @batch_group_key
+        batch_args[:batch_group_max_runs] = @batch_group_max_runs if @batch_group_max_runs
+        opts[:batch] = ::V1::TaskBatchConfig.new(**batch_args)
+      end
 
       ::V1::CreateTaskOpts.new(**opts)
     end
@@ -328,6 +374,20 @@ module Hatchet
       return value if value.is_a?(String)
 
       "#{value}s"
+    end
+
+    # Convert a duration string (e.g. "200ms", "1s", "1000s") to milliseconds (Integer).
+    # Returns nil if input is nil.
+    def duration_to_ms(str)
+      return nil if str.nil?
+
+      if str.end_with?("ms")
+        str.chomp("ms").to_i
+      elsif str.end_with?("s")
+        str.chomp("s").to_i * 1000
+      else
+        str.to_i
+      end
     end
 
     # Convert a RateLimit to a V1::CreateTaskRateLimit proto
