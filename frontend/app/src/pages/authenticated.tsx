@@ -54,11 +54,11 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] =
-    await Promise.all([
-      queryClient.fetchQuery(getCloudMetadataQuery),
-      fetchControlPlaneStatus(),
-    ]);
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+
+  const { isCloudEnabled, ...meta } = isControlPlaneEnabled
+    ? { isCloudEnabled: false as const }
+    : await queryClient.fetchQuery(getCloudMetadataQuery);
 
   await queryClient.fetchQuery(
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
@@ -72,7 +72,7 @@ export async function loader(_args: { request: Request }) {
 }
 
 function AuthenticatedInner() {
-  const { tenant, limit } = useTenantDetails();
+  const { tenant, organizationId } = useTenantDetails();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -390,12 +390,20 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (limit.isLoading || !limit.isFetched) {
+    if (!tenant?.metadata.id) {
       return;
     }
 
-    if (!limit.data?.length) {
+    if (!isUserUniverseLoaded) {
+      return;
+    }
+
+    if (!isCloudEnabled) {
       localStorage.removeItem(key);
+      return;
+    }
+
+    if (!organizationId) {
       return;
     }
 
@@ -406,10 +414,10 @@ function AuthenticatedInner() {
     });
   }, [
     tenant?.metadata.id,
+    organizationId,
     capture,
-    limit.isLoading,
-    limit.isFetched,
-    limit.data,
+    isCloudEnabled,
+    isUserUniverseLoaded,
   ]);
 
   if (!currentUser) {
@@ -457,7 +465,7 @@ function AuthenticatedInner() {
 
                   if (result.type === 'cloud') {
                     void queryClient.prefetchQuery(
-                      queries.cloud.subscriptionPlans(),
+                      queries.controlPlane.subscriptionPlans(),
                     );
                   }
 
@@ -497,6 +505,7 @@ function AuthenticatedInner() {
         )}
         <WelcomeModal
           tenantId={tenant?.metadata.id}
+          organizationId={organizationId}
           open={showWelcome}
           onClose={() => setShowWelcome(false)}
         />
