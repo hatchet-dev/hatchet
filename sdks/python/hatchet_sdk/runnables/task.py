@@ -44,6 +44,8 @@ from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
+)
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
     TaskBatchConfig as TaskBatchConfigProto,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError

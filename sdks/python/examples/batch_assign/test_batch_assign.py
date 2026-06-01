@@ -67,7 +67,9 @@ async def test_flushes_keyed_batches_independently_when_interval_elapses() -> No
         KeyedInput(Message="hotel", group="tenant-2"),
     ]
 
-    results = await asyncio.gather(*[batch_keyed_interval.aio_run(inp) for inp in inputs])
+    results = await asyncio.gather(
+        *[batch_keyed_interval.aio_run(inp) for inp in inputs]
+    )
 
     assert [r["batchKey"] for r in results] == [inp.group for inp in inputs]
     assert all(r["batchSize"] == 3 for r in results[:3])
@@ -82,7 +84,10 @@ async def test_completes_all_tasks_with_large_payloads() -> None:
     task_count = 100
 
     results = await asyncio.gather(
-        *[batch_large.aio_run(LargePayloadInput(data=payload)) for _ in range(task_count)]
+        *[
+            batch_large.aio_run(LargePayloadInput(data=payload))
+            for _ in range(task_count)
+        ]
     )
 
     assert len(results) == task_count

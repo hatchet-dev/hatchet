@@ -3,6 +3,7 @@ from datetime import timedelta
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
+from typing import Any
 
 hatchet = Hatchet()
 
@@ -27,7 +28,9 @@ class LargePayloadInput(BaseModel):
     batch_max_interval=timedelta(milliseconds=200),
     input_validator=SimpleInput,
 )
-async def batch_simple(tasks: list[tuple[SimpleInput, Context]]) -> list[dict]:
+async def batch_simple(
+    tasks: list[tuple[SimpleInput, Context]],
+) -> list[dict[str, Any]]:
     return [{"TransformedMessage": inp.Message.upper()} for inp, _ctx in tasks]
 
 
@@ -39,7 +42,7 @@ async def batch_simple(tasks: list[tuple[SimpleInput, Context]]) -> list[dict]:
     batch_group_key="input.group",
     input_validator=KeyedInput,
 )
-async def batch_keyed(tasks: list[tuple[KeyedInput, Context]]) -> list[dict]:
+async def batch_keyed(tasks: list[tuple[KeyedInput, Context]]) -> list[dict[str, Any]]:
     unique_keys = len({inp.group for inp, _ in tasks})
     return [
         {
@@ -60,7 +63,9 @@ async def batch_keyed(tasks: list[tuple[KeyedInput, Context]]) -> list[dict]:
     batch_group_key="input.group",
     input_validator=KeyedInput,
 )
-async def batch_keyed_interval(tasks: list[tuple[KeyedInput, Context]]) -> list[dict]:
+async def batch_keyed_interval(
+    tasks: list[tuple[KeyedInput, Context]],
+) -> list[dict[str, Any]]:
     unique_keys = len({inp.group for inp, _ in tasks})
     return [
         {
@@ -80,7 +85,9 @@ async def batch_keyed_interval(tasks: list[tuple[KeyedInput, Context]]) -> list[
     batch_max_interval=timedelta(seconds=1000),
     input_validator=LargePayloadInput,
 )
-async def batch_large(tasks: list[tuple[LargePayloadInput, Context]]) -> list[dict]:
+async def batch_large(
+    tasks: list[tuple[LargePayloadInput, Context]],
+) -> list[dict[str, Any]]:
     return [
         {
             "received": True,
@@ -98,7 +105,9 @@ async def batch_large(tasks: list[tuple[LargePayloadInput, Context]]) -> list[di
     batch_max_interval=timedelta(milliseconds=100),
     input_validator=SimpleInput,
 )
-async def batch_single(tasks: list[tuple[SimpleInput, Context]]) -> list[dict]:
+async def batch_single(
+    tasks: list[tuple[SimpleInput, Context]],
+) -> list[dict[str, Any]]:
     return [{"original": inp.Message, "batchSize": len(tasks)} for inp, _ctx in tasks]
 
 
@@ -113,14 +122,23 @@ class OrderedInput(BaseModel):
     batch_max_interval=timedelta(seconds=2),
     input_validator=OrderedInput,
 )
-async def batch_ordered(tasks: list[tuple[OrderedInput, Context]]) -> list[dict]:
+async def batch_ordered(
+    tasks: list[tuple[OrderedInput, Context]],
+) -> list[dict[str, Any]]:
     return [{"index": inp.index} for inp, _ctx in tasks]
 
 
 def main() -> None:
     worker = hatchet.worker(
         "batch-e2e-worker",
-        workflows=[batch_simple, batch_keyed, batch_keyed_interval, batch_large, batch_single, batch_ordered],
+        workflows=[
+            batch_simple,
+            batch_keyed,
+            batch_keyed_interval,
+            batch_large,
+            batch_single,
+            batch_ordered,
+        ],
         slots=25,
     )
     worker.start()
