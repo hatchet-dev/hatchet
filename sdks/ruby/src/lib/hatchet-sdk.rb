@@ -242,7 +242,7 @@ module Hatchet
                    batch_group_max_runs: nil, **opts, &block)
       wf = Workflow.new(name: name, client: self,
                         on_events: opts.delete(:on_events) || [],
-                        default_filters: opts.delete(:default_filters) || [])
+                        default_filters: opts.delete(:default_filters) || [],)
       wf.task(name,
               batch_max_size: batch_max_size,
               batch_max_interval: batch_max_interval,

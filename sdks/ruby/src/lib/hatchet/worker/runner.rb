@@ -237,9 +237,9 @@ module Hatchet
           state = (states[batch_id] ||= { expected_size: expected_size, items: {}, started: false })
 
           state[:started] = true
-          state[:expected_size] = expected_size if expected_size > 0
+          state[:expected_size] = expected_size if expected_size.positive?
 
-          if state[:expected_size] > 0 && state[:items].size >= state[:expected_size]
+          if state[:expected_size].positive? && state[:items].size >= state[:expected_size]
             flush_now = true
             flush_task = @batch_map[action_id]
             flush_state = states.delete(batch_id)
@@ -281,7 +281,7 @@ module Hatchet
           states = (@batch_states[task_key] ||= {})
           state = (states[batch_id] ||= { expected_size: expected_size, items: {}, started: false })
 
-          state[:expected_size] = expected_size if expected_size > 0 && state[:expected_size].zero?
+          state[:expected_size] = expected_size if expected_size.positive? && state[:expected_size].zero?
 
           if state[:items].key?(batch_index)
             @logger.error("Runner: duplicate batch index #{batch_index} for batch #{batch_id}")
@@ -289,7 +289,7 @@ module Hatchet
           else
             state[:items][batch_index] = { input: input, ctx: ctx, result_queue: result_queue }
 
-            if state[:started] && state[:expected_size] > 0 && state[:items].size >= state[:expected_size]
+            if state[:started] && state[:expected_size].positive? && state[:items].size >= state[:expected_size]
               flush_now = true
               flush_state = states.delete(batch_id)
             end
