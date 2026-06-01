@@ -6,6 +6,7 @@ import { Api as ControlPlaneApi } from './generated/control-plane/Api';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
+import { validate as validateUuid } from 'uuid';
 
 // Extend Axios config with custom fields injected by the API code generator.
 // https://www.typescriptlang.org/docs/handbook/declaration-merging.html
@@ -69,6 +70,50 @@ function readStoredTenantId(): string | null {
   }
 }
 
+function getURLPathname(url: string, baseURL?: string): string | null {
+  try {
+    return new URL(url, baseURL ?? 'http://hatchet.local').pathname;
+  } catch {
+    return null;
+  }
+}
+
+export function readTenantIdFromRequestUrl(
+  config: Pick<InternalAxiosRequestConfig, 'baseURL' | 'url'>,
+): string | null {
+  if (!config.url) {
+    return null;
+  }
+
+  const pathname = getURLPathname(config.url, config.baseURL);
+  if (!pathname) {
+    return null;
+  }
+
+  const segments = pathname.split('/').filter(Boolean);
+  const tenantSegmentIndex = segments.indexOf('tenants');
+  if (tenantSegmentIndex === -1) {
+    return null;
+  }
+
+  const tenantId = segments[tenantSegmentIndex + 1];
+  if (!tenantId || !validateUuid(tenantId)) {
+    return null;
+  }
+
+  return tenantId;
+}
+
+export function resolveExchangeTokenTenantId(
+  config: Pick<InternalAxiosRequestConfig, 'baseURL' | 'url' | 'xTenantId'>,
+): string | null {
+  return (
+    config.xTenantId ??
+    readTenantIdFromRequestUrl(config) ??
+    readStoredTenantId()
+  );
+}
+
 /**
  * Shared query config for control-plane metadata.
  * Exported so loaders and the hook can reuse the same key/fn/staleTime,
@@ -123,7 +168,7 @@ export async function exchangeTokenInterceptor(
   // xTenantId takes precedence — callers that know the tenant ID at request
   // time set it explicitly to avoid relying on the localStorage fallback. this prevents race
   // conditions where the interceptor checks localStorage before it's updated with the new tenant ID.
-  const tenantId = config.xTenantId ?? readStoredTenantId();
+  const tenantId = resolveExchangeTokenTenantId(config);
 
   if (!cpEnabled) {
     return config;
