@@ -80,6 +80,16 @@ BATCH_SINGLE_WF = HATCHET.batch_task(
   tasks.map { |(input, _ctx)| { "original" => input["Message"], "batchSize" => tasks.length } }
 end
 
+# > Ordered batch: echoes the input index so we can verify submission-order preservation
+BATCH_ORDERED_WF = HATCHET.batch_task(
+  name: "batch-e2e-ordered-#{BATCH_RUN_ID}",
+  retries: 0,
+  batch_max_size: 20,
+  batch_max_interval: "2000ms",
+) do |tasks|
+  tasks.map { |(input, _ctx)| { "index" => input["index"] } }
+end
+
 # !!
 
 def main
@@ -89,6 +99,7 @@ def main
     BATCH_KEYED_IV_WF,
     BATCH_LARGE_WF,
     BATCH_SINGLE_WF,
+    BATCH_ORDERED_WF,
   ]
 
   # Use 100 slots so batchMaxSize=100 tests don't deadlock (all items can wait simultaneously).

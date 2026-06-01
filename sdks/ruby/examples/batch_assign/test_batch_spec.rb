@@ -124,4 +124,16 @@ RSpec.describe "batch-task e2e" do
     expect(results.map { |r| r["batchSize"] }).to eq([1, 1])
     expect(results.map { |r| r["original"] }).to eq(inputs)
   end
+
+  it "returns results in submission order" do
+    count = 20
+
+    threads = count.times.map { |i| Thread.new { BATCH_ORDERED_WF.run({ "index" => i }) } }
+    results = threads.map(&:value)
+
+    expect(results).to have_attributes(length: count)
+    results.each_with_index do |result, i|
+      expect(result["index"]).to eq(i)
+    end
+  end
 end

@@ -95,6 +95,14 @@ describe('batch-task e2e', () => {
       })),
   });
 
+  const orderedWorkflow = hatchet.batchTask<{ index: number }, { index: number }>({
+    name: `batch-e2e-ordered-${runId}`,
+    retries: 0,
+    batchMaxSize: 20,
+    batchMaxInterval: '2000ms',
+    fn: (tasks) => tasks.map(([input]) => ({ index: input.index })),
+  });
+
   beforeAll(async () => {
     const allWorkflows = [
       batchWorkflow,
@@ -102,6 +110,7 @@ describe('batch-task e2e', () => {
       keyedIntervalWorkflow,
       largePayloadWorkflow,
       singleItemWorkflow,
+      orderedWorkflow,
     ];
 
     worker = await hatchet.worker(`batch-e2e-worker-${runId}`, {
@@ -217,5 +226,18 @@ describe('batch-task e2e', () => {
 
     expect(results.map((result) => result.batchSize)).toEqual([1, 1]);
     expect(results.map((result) => result.original)).toEqual(inputs);
+  });
+
+  it('returns results in submission order', async () => {
+    const count = 20;
+
+    const results = await Promise.all(
+      Array.from({ length: count }, (_, i) => orderedWorkflow.run({ index: i }))
+    );
+
+    expect(results).toHaveLength(count);
+    results.forEach((result, i) => {
+      expect(result.index).toBe(i);
+    });
   });
 });

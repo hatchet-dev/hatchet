@@ -102,10 +102,25 @@ async def batch_single(tasks: list[tuple[SimpleInput, Context]]) -> list[dict]:
     return [{"original": inp.Message, "batchSize": len(tasks)} for inp, _ctx in tasks]
 
 
+class OrderedInput(BaseModel):
+    index: int
+
+
+@hatchet.batch_task(
+    name="batch-e2e-ordered",
+    retries=0,
+    batch_max_size=20,
+    batch_max_interval=timedelta(seconds=2),
+    input_validator=OrderedInput,
+)
+async def batch_ordered(tasks: list[tuple[OrderedInput, Context]]) -> list[dict]:
+    return [{"index": inp.index} for inp, _ctx in tasks]
+
+
 def main() -> None:
     worker = hatchet.worker(
         "batch-e2e-worker",
-        workflows=[batch_simple, batch_keyed, batch_keyed_interval, batch_large, batch_single],
+        workflows=[batch_simple, batch_keyed, batch_keyed_interval, batch_large, batch_single, batch_ordered],
         slots=25,
     )
     worker.start()

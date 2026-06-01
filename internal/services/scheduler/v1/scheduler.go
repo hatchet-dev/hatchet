@@ -467,7 +467,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 		}
 
 		for _, bulkAssigned := range res.Assigned {
-			if bulkAssigned != nil && bulkAssigned.Batch != nil && bulkAssigned.QueueItem != nil && bulkAssigned.QueueItem.BatchKey.Valid && strings.TrimSpace(bulkAssigned.QueueItem.BatchKey.String) != "" {
+			if bulkAssigned != nil && bulkAssigned.Batch != nil && bulkAssigned.QueueItem != nil {
 				batchAssignments = append(batchAssignments, bulkAssigned)
 				continue
 			}

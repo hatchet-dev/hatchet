@@ -5,10 +5,12 @@ import pytest
 from examples.batch_assign.worker import (
     KeyedInput,
     LargePayloadInput,
+    OrderedInput,
     SimpleInput,
     batch_keyed,
     batch_keyed_interval,
     batch_large,
+    batch_ordered,
     batch_simple,
     batch_single,
 )
@@ -99,3 +101,16 @@ async def test_handles_batch_size_of_one_without_keys() -> None:
 
     assert [r["batchSize"] for r in results] == [1, 1]
     assert [r["original"] for r in results] == inputs
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_returns_results_in_submission_order() -> None:
+    count = 20
+
+    results = await asyncio.gather(
+        *[batch_ordered.aio_run(OrderedInput(index=i)) for i in range(count)]
+    )
+
+    assert len(results) == count
+    for i, result in enumerate(results):
+        assert result["index"] == i
