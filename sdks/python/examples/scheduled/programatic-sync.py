@@ -44,6 +44,7 @@ hatchet.scheduled.bulk_delete(scheduled_ids=[id])
 
 hatchet.scheduled.bulk_delete(
     workflow_id="workflow_id",
+    statuses=[ScheduledRunStatus.SCHEDULED],
     additional_metadata={"customer_id": "customer-a"},
 )
 # !!

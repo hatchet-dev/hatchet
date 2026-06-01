@@ -47,15 +47,6 @@ class Tenant(BaseModel):
     environment: Optional[TenantEnvironment] = Field(
         default=None, description="The environment type of the tenant."
     )
-    server_url: Optional[StrictStr] = Field(
-        default=None,
-        description="The server URL for the tenant (includes scheme)",
-        alias="serverUrl",
-    )
-    region: Optional[StrictStr] = Field(
-        default=None,
-        description="Control-plane shard region for the tenant (e.g. aws:us-west-2).",
-    )
     __properties: ClassVar[List[str]] = [
         "metadata",
         "name",
@@ -64,8 +55,6 @@ class Tenant(BaseModel):
         "alertMemberEmails",
         "version",
         "environment",
-        "serverUrl",
-        "region",
     ]
 
     model_config = ConfigDict(
@@ -132,8 +121,6 @@ class Tenant(BaseModel):
                 "alertMemberEmails": obj.get("alertMemberEmails"),
                 "version": obj.get("version"),
                 "environment": obj.get("environment"),
-                "serverUrl": obj.get("serverUrl"),
-                "region": obj.get("region"),
             }
         )
         return _obj

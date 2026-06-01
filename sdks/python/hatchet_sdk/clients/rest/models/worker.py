@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
@@ -27,7 +27,6 @@ from hatchet_sdk.clients.rest.models.semaphore_slots import SemaphoreSlots
 from hatchet_sdk.clients.rest.models.worker_label import WorkerLabel
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
 from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
-from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
 from hatchet_sdk.clients.rest.models.worker_type import WorkerType
 from typing import Optional, Set
 from typing_extensions import Self
@@ -67,7 +66,7 @@ class Worker(BaseModel):
         description="The recent step runs for the worker.",
         alias="recentStepRuns",
     )
-    status: Optional[WorkerStatus] = Field(
+    status: Optional[StrictStr] = Field(
         default=None, description="The status of the worker."
     )
     slot_config: Optional[Dict[str, WorkerSlotConfig]] = Field(
@@ -110,6 +109,18 @@ class Worker(BaseModel):
         "webhookId",
         "runtimeInfo",
     ]
+
+    @field_validator("status")
+    def status_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(["ACTIVE", "INACTIVE", "PAUSED"]):
+            raise ValueError(
+                "must be one of enum values ('ACTIVE', 'INACTIVE', 'PAUSED')"
+            )
+        return value
 
     model_config = ConfigDict(
         populate_by_name=True,
