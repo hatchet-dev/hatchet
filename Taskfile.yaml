@@ -324,9 +324,9 @@ tasks:
     cmds:
       - if: '{{ ne .CURRENT ""}}'
         # NOTE: needs cleanup=verbatim since the markdown header hashes are interpreted as comments.
-        cmd: ./hack/ci/extract-release-notes.sh {{.TAG}} CHANGELOG.md | git tag --cleanup=verbatim -a -f {{.TAG}} {{.TAG}}^0 -F -
+        cmd: ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a -f {{.TAG}} {{.TAG}}^0 -F -
       - if: '{{ eq .CURRENT ""}}'
-        cmd: ./hack/ci/extract-release-notes.sh {{.TAG}} CHANGELOG.md | git tag --cleanup=verbatim -a {{.TAG}} -F -
+        cmd: ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a {{.TAG}} -F -
       - git push --force origin {{.TAG}}
 
   patch:

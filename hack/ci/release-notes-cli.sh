@@ -1,15 +1,12 @@
 #!/bin/sh
 
-awk '
-  /^## \[Unreleased\]/ {
-      release++;
-      next;
+TAG="${1#v}"
+
+awk -v ver="$TAG" '
+  /^## \[/ {
+    if (seen++) exit
+    if ($0 !~ "^## \\[" ver "\\]") exit 1
+    next
   }
-  /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ {
-      release++;
-      next;
-  }
-  {
-      if (release == 1) print;
-      if (release > 1) exit;
-  }' "CHANGELOG.md"
+  seen { print }
+' "CHANGELOG.md"
