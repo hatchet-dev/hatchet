@@ -318,7 +318,7 @@ tasks:
     preconditions:
       - sh: '[ "$(git cat-file -t {{.TAG}})" != "tag" ]'
         msg: "{{.TAG}} is already an annotated tag — refusing to override"
-      - sh: ./hack/ci/extract-release-notes.sh {{.TAG}} CHANGELOG.md
+      - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
         msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
     prompt: Create new release for tag {{.TAG}}?
     cmds:
