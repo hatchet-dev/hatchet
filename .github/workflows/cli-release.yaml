@@ -26,6 +26,7 @@ jobs:
         run: git fetch --force --tags
 
       - name: Determine previous release tag
+        id: prev
         run: |
           PREV_TAG=$(gh release view --json tagName --jq .tagName)
           echo "Previous release tag: $PREV_TAG"
