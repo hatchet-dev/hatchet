@@ -120,6 +120,9 @@ message IdempotencyConfig {
     int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds
 }
 
+message IdempotencyCollisionError {
+    string existing_run_external_id = 1; // the external ID of the existing workflow run that caused the collision
+}
 
 message DefaultFilter {
     string expression = 1; // (required) the CEL expression for the filter

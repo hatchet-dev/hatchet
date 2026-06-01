@@ -432,9 +432,17 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	for _, collision := range idempotencyKeyCollisions {
 		if collision.RequestedExternalId == opt.ExternalId {
-			return &contracts.TriggerWorkflowRunResponse{
-				ExternalId: collision.ExistingExternalId.String(),
-			}, nil
+			st, err := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
+				&contracts.IdempotencyCollisionError{
+					ExistingRunExternalId: collision.ExistingExternalId.String(),
+				},
+			)
+
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", err)
+			}
+
+			return nil, st.Err()
 		}
 	}
 

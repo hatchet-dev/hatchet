@@ -3,10 +3,11 @@ import json
 from collections.abc import Generator
 from datetime import datetime
 from enum import Enum
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import grpc
 from google.protobuf import timestamp_pb2
+from grpc_status import rpc_status
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from hatchet_sdk.clients.listeners.run_event_listener import RunEventListenerClient
@@ -20,7 +21,7 @@ from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
-from hatchet_sdk.exceptions import DedupeViolationError
+from hatchet_sdk.exceptions import DedupeViolationError, IdempotencyCollisionError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
@@ -218,9 +219,11 @@ class AdminClient:
         return workflow_protos.TriggerWorkflowRunRequest(
             workflow_name=workflow_name,
             input=input.encode("utf-8") if input else None,
-            additional_metadata=_options.additional_metadata.encode("utf-8")
-            if _options.additional_metadata
-            else None,
+            additional_metadata=(
+                _options.additional_metadata.encode("utf-8")
+                if _options.additional_metadata
+                else None
+            ),
             priority=_options.priority,
             desired_worker_labels=desired_worker_labels,
         )
@@ -499,7 +502,21 @@ class AdminClient:
                 ),
             )
         except (grpc.RpcError, grpc.aio.AioRpcError) as e:
-            if e.code() == grpc.StatusCode.ALREADY_EXISTS:
+            if (
+                e.code() == grpc.StatusCode.ALREADY_EXISTS
+                and e.details() == "idempotency key collision"
+            ):
+                status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+
+                for detail in status.details:  # type: ignore[attr-defined]
+                    if detail.Is(workflow_protos.IdempotencyCollisionError.DESCRIPTOR):
+                        info = workflow_protos.IdempotencyCollisionError()
+                        detail.Unpack(info)
+
+                        raise IdempotencyCollisionError(
+                            existing_run_external_id=info.existing_run_external_id
+                        ) from e
+            elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
                 raise DedupeViolationError(e.details()) from e
 
             raise e

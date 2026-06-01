@@ -16,6 +16,7 @@ authors = [
 dependencies = [
     "grpcio>=1.76.0,<2",
     "grpcio-tools>=1.76.0,<2",
+    "grpcio-status>=1.76.0,<2",
     "protobuf>=6.33.5,<7",
     "pydantic>=2.13.4,<3",
     "python-dateutil>=2.9.0.post0,<3",

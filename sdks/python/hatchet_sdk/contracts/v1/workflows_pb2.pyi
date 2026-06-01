@@ -195,6 +195,12 @@ class IdempotencyConfig(_message.Message):
     ttl_ms: int
     def __init__(self, expression: _Optional[str] = ..., ttl_ms: _Optional[int] = ...) -> None: ...
 
+class IdempotencyCollisionError(_message.Message):
+    __slots__ = ("existing_run_external_id",)
+    EXISTING_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    existing_run_external_id: str
+    def __init__(self, existing_run_external_id: _Optional[str] = ...) -> None: ...
+
 class DefaultFilter(_message.Message):
     __slots__ = ("expression", "scope", "payload")
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]

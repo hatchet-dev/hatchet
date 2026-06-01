@@ -981,10 +981,10 @@ dev = ["flake8", "markdown", "twine", "wheel"]
 name = "googleapis-common-protos"
 version = "1.73.1"
 description = "Common protobufs used in Google APIs"
-optional = true
+optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "(python_version <= \"3.13\" or python_version >= \"3.14\") and extra == \"otel\""
+markers = "python_version <= \"3.13\" or python_version >= \"3.14\""
 files = [
     {file = "googleapis_common_protos-1.73.1-py3-none-any.whl", hash = "sha256:e51f09eb0a43a8602f5a915870972e6b4a394088415c79d79605a46d8e826ee8"},
     {file = "googleapis_common_protos-1.73.1.tar.gz", hash = "sha256:13114f0e9d2391756a0194c3a8131974ed7bffb06086569ba193364af59163b6"},
@@ -1089,6 +1089,24 @@ typing-extensions = ">=4.12,<5.0"
 
 [package.extras]
 protobuf = ["grpcio-tools (>=1.80.0)"]
+
+[[package]]
+name = "grpcio-status"
+version = "1.80.0"
+description = "Status proto mapping for gRPC"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "python_version <= \"3.13\" or python_version >= \"3.14\""
+files = [
+    {file = "grpcio_status-1.80.0-py3-none-any.whl", hash = "sha256:4b56990363af50dbf2c2ebb80f1967185c07d87aa25aa2bea45ddb75fc181dbe"},
+    {file = "grpcio_status-1.80.0.tar.gz", hash = "sha256:df73802a4c89a3ea88aa2aff971e886fccce162bc2e6511408b3d67a144381cd"},
+]
+
+[package.dependencies]
+googleapis-common-protos = ">=1.5.5"
+grpcio = ">=1.80.0"
+protobuf = ">=6.31.1,<7.0.0"
 
 [[package]]
 name = "grpcio-tools"
@@ -4186,4 +4204,4 @@ test = ["psycopg", "pytest", "pytest-asyncio", "pytest-env", "pytest-retry", "py
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "73f2ca460e9a535c8fdc75828b23a7abfc7bf2e5001c83496f874d7b78c79756"
+content-hash = "fef9e81d40adf96f67d0fb2a5dd55ceb03af16dfc40cca4b4f6d961c1386cb63"

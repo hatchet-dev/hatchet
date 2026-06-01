@@ -916,7 +916,7 @@ wheels = [
 
 [[package]]
 name = "hatchet-sdk"
-version = "1.33.5"
+version = "1.33.6"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
