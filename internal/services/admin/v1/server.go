@@ -15,7 +15,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
@@ -421,7 +420,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
 
-	err = a.ingest(
+	idempotencyKeyCollisions, err := a.ingest(
 		ctx,
 		tenantId,
 		opt,
@@ -429,6 +428,13 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, collision := range idempotencyKeyCollisions {
+		// todo: can make this return the original external id instead?
+		if collision.RequestedExternalId == opt.ExternalId {
+			return nil, status.Error(codes.AlreadyExists, collision.ExistingExternalId.String())
+		}
 	}
 
 	return &contracts.TriggerWorkflowRunResponse{
@@ -587,7 +593,7 @@ func (a *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uui
 	return a.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) ([]v1.IdempotencyCollision, error) {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -599,7 +605,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 	}
 
 	if len(optsToSend) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if a.localScheduler != nil {
@@ -609,9 +615,8 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			localWorkerIds = a.localDispatcher.GetLocalWorkerIds()
 		}
 
-		localAssigned, schedulingErr := a.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+		localAssigned, idempotencyKeyCollisions, schedulingErr := a.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
-		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
 				a.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
@@ -639,57 +644,69 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 				a.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
-			// we return nil because the failed assignments would have been requeued by the local dispatcher,
-			// and we have already written the tasks to the database
-			return nil
+			return idempotencyKeyCollisions, nil
 		}
 
-		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
 		if schedulingErr == nil {
-			return nil
-		}
-	} else if a.tw != nil {
-		triggerErr := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
-
-		// if we fail to trigger via gRPC, we fall back to normal ingestion
-		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			a.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
-		} else if triggerErr == nil {
-			return nil
+			return idempotencyKeyCollisions, nil
 		}
 	}
 
-	verifyErr := a.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
-
-	if verifyErr != nil {
+	if err := a.repo.Triggers().PopulateWorkflowIdempotencyPresence(ctx, tenantId, optsToSend); err != nil {
 		namesNotFound := &v1.ErrNamesNotFound{}
 
-		if errors.As(verifyErr, &namesNotFound) {
-			return status.Error(
-				codes.InvalidArgument,
-				verifyErr.Error(),
-			)
+		if errors.As(err, &namesNotFound) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+		return nil, fmt.Errorf("could not populate workflow info: %w", err)
 	}
 
-	msg, err := tasktypes.TriggerTaskMessage(
-		tenantId,
-		optsToSend...,
-	)
+	// important: if there's an idempotency key, we can't fall back to the MQ as we'd lose
+	// any tx-safety we get if we did, so we call `TriggerFromWorkflowNames` directly for those,
+	// and only fall back to the MQ for opts without idempotency keys
+	optsWithIdempotencyKeys := make([]*v1.WorkflowNameTriggerOpts, 0, len(optsToSend))
+	optsWithoutIdempotencyKeys := make([]*v1.WorkflowNameTriggerOpts, 0, len(optsToSend))
 
-	if err != nil {
-		return fmt.Errorf("could not create event task: %w", err)
+	for _, opt := range optsToSend {
+		if opt.HasIdempotencyKey {
+			optsWithIdempotencyKeys = append(optsWithIdempotencyKeys, opt)
+		} else {
+			optsWithoutIdempotencyKeys = append(optsWithoutIdempotencyKeys, opt)
+		}
 	}
 
-	err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	var allIdempotencyKeyCollisions []v1.IdempotencyCollision
 
-	if err != nil {
-		return fmt.Errorf("could not add event to task queue: %w", err)
+	if len(optsWithIdempotencyKeys) > 0 {
+		tasks, dags, idempotencyKeyCollisions, err := a.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, optsWithIdempotencyKeys)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not trigger workflows: %w", err)
+		}
+
+		if a.tw != nil {
+			if signalErr := a.tw.SignalCreated(ctx, tenantId, tasks, dags); signalErr != nil {
+				a.l.Error().Ctx(ctx).Err(signalErr).Msg("failed to signal created tasks and DAGs")
+			}
+		}
+
+		allIdempotencyKeyCollisions = append(allIdempotencyKeyCollisions, idempotencyKeyCollisions...)
 	}
 
-	return nil
+	if len(optsWithoutIdempotencyKeys) > 0 {
+		msg, err := tasktypes.TriggerTaskMessage(tenantId, optsWithoutIdempotencyKeys...)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not create trigger message: %w", err)
+		}
+
+		if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return nil, fmt.Errorf("could not send trigger message: %w", err)
+		}
+	}
+
+	return allIdempotencyKeyCollisions, nil
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {

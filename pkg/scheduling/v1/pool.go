@@ -236,9 +236,9 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
 var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 
-func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	if !p.optimisticSchedulingEnabled {
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	// attempt to acquire a slot in the semaphore
@@ -250,13 +250,13 @@ func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId u
 		}()
 	default:
 		// no slots available
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	tm := p.getTenantManager(tenantId, false)
 
 	if tm == nil {
-		return nil, nil, nil, ErrTenantNotFound
+		return nil, nil, nil, nil, ErrTenantNotFound
 	}
 
 	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)

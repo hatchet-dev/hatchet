@@ -29,6 +29,9 @@ type WorkflowNameTriggerOpts struct {
 
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
+
+	// Whether the workflow has an idempotency key expression configured.
+	HasIdempotencyKey bool
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {

@@ -254,7 +254,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			localWorkerIds = i.localDispatcher.GetLocalWorkerIds()
 		}
 
-		localAssigned, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+		localAssigned, _, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
@@ -294,7 +294,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			return nil
 		}
 	} else if i.tw != nil {
-		triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
+		_, triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 
 		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {

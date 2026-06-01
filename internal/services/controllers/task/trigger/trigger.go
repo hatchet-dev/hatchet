@@ -110,7 +110,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 	return nil
 }
 
-func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
+func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) ([]v1.IdempotencyCollision, error) {
 	// attempt to acquire a slot in the semaphore
 	if tw.semaphore != nil {
 		select {
@@ -121,20 +121,20 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 			}()
 		default:
 			// no slots available
-			return ErrNoTriggerSlots
+			return nil, ErrNoTriggerSlots
 		}
 	}
 
-	tasks, dags, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	tasks, dags, idempotencyKeyCollisions, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
 			tw.l.Warn().Ctx(ctx).Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromWorkflowNames. Not retrying")
 
-			return nil
+			return nil, nil
 		}
 
-		return fmt.Errorf("could not trigger workflows from names: %w", err)
+		return nil, fmt.Errorf("could not trigger workflows from names: %w", err)
 	}
 
 	// signaling errors do not result in a failure, since we have already written the tasks to the database, but
@@ -144,7 +144,7 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 		tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromWorkflowNames")
 	}
 
-	return nil
+	return idempotencyKeyCollisions, nil
 }
 
 func (tw *TriggerWriter) SignalCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload, dags []*v1.DAGWithData) error {
