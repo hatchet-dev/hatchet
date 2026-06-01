@@ -327,7 +327,7 @@ tasks:
     prompt: Create new release for tag {{.TAG}}?
     cmds:
       # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.
-      - ./hack/ci/release-notes-cli.sh {{.TAG}}| git tag --cleanup=verbatim -a -f {{.TAG}} HEAD -F -
+      - ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a -f {{.TAG}} HEAD -F -
       - git push --force origin {{.TAG}}
 
   patch:

@@ -135,7 +135,7 @@ jobs:
 
       - name: Generate release notes
         run: |
-          ./hack/ci/release-notes-cli.sh > release_notes.md
+          ./hack/ci/release-notes-cli.sh "${{ github.ref_name }}" > release_notes.md
           echo "" >> release_notes.md
           cat /tmp/CHANGES.md >> release_notes.md
 
