@@ -318,8 +318,27 @@ tasks:
         sh: gh release view --json tagName --jq .tagName
     requires:
       vars: [NEXT]
-    cmd: git cliff --strip header --prepend CHANGELOG.md --tag {{.NEXT}} ${PREV}..
+    cmd: git cliff --strip header --output CHANGELOG.md --tag {{.NEXT}} ${PREV}..
 
+  release:
+    desc: Promote a tag to annotated and push (TAG defaults to latest)
+    vars:
+      CURRENT:
+        sh: git tag --points-at HEAD
+      TAG: '{{.TAG | default .CURRENT}}'
+    preconditions:
+      - sh: '[ "$(git cat-file -t {{.TAG}})" != "tag" ]'
+        msg: "{{.TAG}} is already an annotated tag — refusing to override"
+      - sh: ./hack/ci/extract-release-notes.sh {{.TAG}} CHANGELOG.md
+        msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
+    prompt: Create new release for tag {{.TAG}}?
+    cmds:
+      - if: '{{ ne .CURRENT ""}}'
+        # NOTE: needs cleanup=verbatim since the markdown header hashes are interpreted as comments.
+        cmd: ./hack/ci/extract-release-notes.sh {{.TAG}} CHANGELOG.md | git tag --cleanup=verbatim -a -f {{.TAG}} {{.TAG}}^0 -F -
+      - if: '{{ eq .CURRENT ""}}'
+        cmd: ./hack/ci/extract-release-notes.sh {{.TAG}} CHANGELOG.md | git tag --cleanup=verbatim -a {{.TAG}} -F -
+      - git push --force origin {{.TAG}}
 
   patch:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
@@ -330,7 +349,7 @@ tasks:
         patch=$((patch + 1))
         next="v${major}.${minor}.${patch}"
         echo "Bumping ${current} → ${next}"
-        git tag -a "${next}" -m "${next}"
+        git tag "${next}"
         git push origin "${next}"
 
   minor:
@@ -342,7 +361,7 @@ tasks:
         minor=$((minor + 1))
         next="v${major}.${minor}.0"
         echo "Bumping ${current} → ${next}"
-        git tag -a "${next}" -m "${next}"
+        git tag "${next}"
         git push origin "${next}"
 
   alpha:
@@ -358,5 +377,5 @@ tasks:
           next="${base}-alpha.0"
         fi
         echo "Bumping ${current} → ${next}"
-        git tag -a "${next}" -m "${next}"
+        git tag "${next}"
         git push origin "${next}"
