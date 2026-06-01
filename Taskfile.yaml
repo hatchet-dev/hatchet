@@ -310,23 +310,24 @@ tasks:
       - go test -count=1 -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
   release:
-    desc: Promote a tag to annotated and push (TAG defaults to latest)
+    desc: Create and push annotated tag, triggering the release pipeline.
     vars:
       CURRENT:
-        sh: git tag --points-at HEAD
+        sh: git tag --points-at HEAD --sort=-v:refname | head -n1
       TAG: '{{.TAG | default .CURRENT}}'
     preconditions:
+      - sh: '[ -n "{{.TAG}}" ]'
+        msg: "No TAG value found"
+      - sh: '! gh release view {{.TAG}} >/dev/null 2>&1'
+        msg: "{{.TAG}} already has a GitHub Release."
       - sh: '[ "$(git cat-file -t {{.TAG}})" != "tag" ]'
-        msg: "{{.TAG}} is already an annotated tag — refusing to override"
+        msg: "{{.TAG}} is already an annotated tag."
       - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
         msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
     prompt: Create new release for tag {{.TAG}}?
     cmds:
-      - if: '{{ ne .CURRENT ""}}'
-        # NOTE: needs cleanup=verbatim since the markdown header hashes are interpreted as comments.
-        cmd: ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a -f {{.TAG}} {{.TAG}}^0 -F -
-      - if: '{{ eq .CURRENT ""}}'
-        cmd: ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a {{.TAG}} -F -
+      # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.
+      - ./hack/ci/release-notes-cli.sh {{.TAG}}| git tag --cleanup=verbatim -a -f {{.TAG}} HEAD -F -
       - git push --force origin {{.TAG}}
 
   patch:
