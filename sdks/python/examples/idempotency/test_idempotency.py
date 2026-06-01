@@ -11,12 +11,16 @@ async def test_idempotency_keys_prevent_duplicate_runs(hatchet: Hatchet) -> None
     ref1 = await idempotent_task.aio_run(
         input=IdempotencyInput(id="123"), wait_for_result=False
     )
+    ref2 = await idempotent_task.aio_run(
+        input=IdempotencyInput(id="123"), wait_for_result=False
+    )
 
     assert ref1 is not None
+    assert ref2 is not None
 
-    with pytest.raises(DedupeViolationError) as exc_info:
-        await idempotent_task.aio_run(
-            input=IdempotencyInput(id="123"), wait_for_result=False
-        )
+    assert ref1.workflow_run_id == ref2.workflow_run_id
 
-    assert str(exc_info.value) == ref1.workflow_run_id
+    result1 = await ref1.aio_result()
+    result2 = await ref2.aio_result()
+
+    assert result1 == result2

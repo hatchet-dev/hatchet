@@ -431,9 +431,10 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 	}
 
 	for _, collision := range idempotencyKeyCollisions {
-		// todo: can make this return the original external id instead?
 		if collision.RequestedExternalId == opt.ExternalId {
-			return nil, status.Error(codes.AlreadyExists, collision.ExistingExternalId.String())
+			return &contracts.TriggerWorkflowRunResponse{
+				ExternalId: collision.ExistingExternalId.String(),
+			}, nil
 		}
 	}
 
