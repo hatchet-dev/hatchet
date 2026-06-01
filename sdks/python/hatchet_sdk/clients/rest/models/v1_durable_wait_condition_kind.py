@@ -27,7 +27,6 @@ class V1DurableWaitConditionKind(str, Enum):
     """
     SLEEP = "SLEEP"
     USER_EVENT = "USER_EVENT"
-    CHILD_WORKFLOW = "CHILD_WORKFLOW"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

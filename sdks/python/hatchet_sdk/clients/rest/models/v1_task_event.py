@@ -34,11 +34,6 @@ class V1TaskEvent(BaseModel):
     timestamp: datetime
     event_type: V1TaskEventType = Field(alias="eventType")
     message: StrictStr
-    event_payload: Optional[StrictStr] = Field(
-        default=None,
-        description="Optional structured metadata for the event encoded as JSON.",
-        alias="eventPayload",
-    )
     error_message: Optional[StrictStr] = Field(default=None, alias="errorMessage")
     output: Optional[StrictStr] = None
     worker_id: Optional[StrictStr] = Field(default=None, alias="workerId")
@@ -59,7 +54,6 @@ class V1TaskEvent(BaseModel):
         "timestamp",
         "eventType",
         "message",
-        "eventPayload",
         "errorMessage",
         "output",
         "workerId",
@@ -123,7 +117,6 @@ class V1TaskEvent(BaseModel):
                 "timestamp": obj.get("timestamp"),
                 "eventType": obj.get("eventType"),
                 "message": obj.get("message"),
-                "eventPayload": obj.get("eventPayload"),
                 "errorMessage": obj.get("errorMessage"),
                 "output": obj.get("output"),
                 "workerId": obj.get("workerId"),
