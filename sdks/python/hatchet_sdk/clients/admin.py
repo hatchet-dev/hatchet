@@ -151,6 +151,13 @@ class AdminClient:
 
         return self.v0_client
 
+    def _get_or_create_v1_client(self) -> AdminServiceStub:
+        if self.client is None:
+            conn = new_conn(self.config, False)
+            self.client = AdminServiceStub(conn)
+
+        return self.client
+
     class TriggerWorkflowRequest(BaseModel):
         model_config = ConfigDict(extra="ignore")
 
@@ -183,7 +190,7 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
-    ) -> trigger_protos.TriggerWorkflowRequest:
+    ) -> workflow_protos.TriggerWorkflowRunRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
         desired_worker_labels = None
@@ -208,15 +215,12 @@ class AdminClient:
                 for key, d in labels_dict.items()
             }
 
-        return trigger_protos.TriggerWorkflowRequest(
-            name=workflow_name,
-            input=input,
-            parent_id=_options.parent_id,
-            parent_task_run_external_id=_options.parent_step_run_id,
-            child_index=_options.child_index,
-            child_key=_options.child_key,
-            additional_metadata=_options.additional_metadata,
-            desired_worker_id=_options.desired_worker_id,
+        return workflow_protos.TriggerWorkflowRunRequest(
+            workflow_name=workflow_name,
+            input=input.encode("utf-8") if input else None,
+            additional_metadata=_options.additional_metadata.encode("utf-8")
+            if _options.additional_metadata
+            else None,
             priority=_options.priority,
             desired_worker_labels=desired_worker_labels,
         )
@@ -289,15 +293,8 @@ class AdminClient:
         self,
         workflow: workflow_protos.CreateWorkflowVersionRequest,
     ) -> workflow_protos.CreateWorkflowVersionResponse:
-        if self.client is None:
-            conn = new_conn(self.config, False)
-            self.client = AdminServiceStub(conn)
-
-        put_workflow = tenacity_retry(self.client.PutWorkflow, self.config.tenacity)
-        # print(
-        #     "Putting workflow with idempotency key expression:",
-        #     workflow.idempotency_key_expr,
-        # )
+        client = self._get_or_create_v1_client()
+        put_workflow = tenacity_retry(client.PutWorkflow, self.config.tenacity)
         return cast(
             workflow_protos.CreateWorkflowVersionResponse,
             put_workflow(
@@ -405,7 +402,44 @@ class AdminClient:
 
         workflow_name = self.config.apply_namespace(workflow_name, namespace)
 
-        return self._prepare_workflow_request(workflow_name, input, trigger_options)
+        _options = self.TriggerWorkflowRequest.model_validate(
+            trigger_options.model_dump()
+        )
+
+        desired_worker_labels = None
+        if _options.desired_worker_label:
+            _warn_if_dict_desired_worker_labels(
+                _options.desired_worker_label, stacklevel=6
+            )
+            if isinstance(_options.desired_worker_label, list):
+                labels_dict = {
+                    d.key: d for d in _options.desired_worker_label if d.key is not None
+                }
+            else:
+                labels_dict = _options.desired_worker_label
+            desired_worker_labels = {
+                key: trigger_protos.DesiredWorkerLabels(
+                    str_value=d.value if not isinstance(d.value, int) else None,
+                    int_value=d.value if isinstance(d.value, int) else None,
+                    required=d.required,
+                    weight=d.weight,
+                    comparator=d.comparator,  # type: ignore[arg-type]
+                )
+                for key, d in labels_dict.items()
+            }
+
+        return trigger_protos.TriggerWorkflowRequest(
+            name=workflow_name,
+            input=input,
+            parent_id=_options.parent_id,
+            parent_task_run_external_id=_options.parent_step_run_id,
+            child_index=_options.child_index,
+            child_key=_options.child_key,
+            additional_metadata=_options.additional_metadata,
+            desired_worker_id=_options.desired_worker_id,
+            priority=_options.priority,
+            desired_worker_labels=desired_worker_labels,
+        )
 
     def run_workflow(
         self,
@@ -413,13 +447,17 @@ class AdminClient:
         input: str | None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
-        request = self._create_workflow_run_request(workflow_name, input, options)
-        client = self._get_or_create_v0_client()
-        trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
+        namespace = options.namespace or self.namespace
+        namespaced_name = self.config.apply_namespace(workflow_name, namespace)
+        request = self._prepare_workflow_request(namespaced_name, input, options)
+        client = self._get_or_create_v1_client()
+        trigger_workflow = tenacity_retry(
+            client.TriggerWorkflowRun, self.config.tenacity
+        )
 
         try:
             resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
+                workflow_protos.TriggerWorkflowRunResponse,
                 trigger_workflow(
                     request,
                     metadata=create_authorization_header(self.token),
@@ -431,7 +469,7 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            workflow_run_id=resp.workflow_run_id,
+            workflow_run_id=resp.external_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
             admin_client=self,
@@ -443,14 +481,17 @@ class AdminClient:
         input: str | None,
         options: TriggerWorkflowOptions = TriggerWorkflowOptions(),
     ) -> WorkflowRunRef:
-        client = self._get_or_create_v0_client()
-        trigger_workflow = tenacity_retry(client.TriggerWorkflow, self.config.tenacity)
-        async with spawn_index_lock:
-            request = self._create_workflow_run_request(workflow_name, input, options)
+        namespace = options.namespace or self.namespace
+        namespaced_name = self.config.apply_namespace(workflow_name, namespace)
+        client = self._get_or_create_v1_client()
+        trigger_workflow = tenacity_retry(
+            client.TriggerWorkflowRun, self.config.tenacity
+        )
+        request = self._prepare_workflow_request(namespaced_name, input, options)
 
         try:
             resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
+                workflow_protos.TriggerWorkflowRunResponse,
                 await asyncio.to_thread(
                     trigger_workflow,
                     request,
@@ -464,7 +505,7 @@ class AdminClient:
             raise e
 
         return WorkflowRunRef(
-            workflow_run_id=resp.workflow_run_id,
+            workflow_run_id=resp.external_id,
             workflow_run_event_listener=self.workflow_run_event_listener,
             workflow_run_listener=self.workflow_run_listener,
             admin_client=self,
@@ -574,13 +615,8 @@ class AdminClient:
         )
 
     def get_details(self, external_id: str) -> WorkflowRunDetail:
-        if self.client is None:
-            conn = new_conn(self.config, False)
-            self.client = AdminServiceStub(conn)
-
-        get_run_payloads = tenacity_retry(
-            self.client.GetRunDetails, self.config.tenacity
-        )
+        client = self._get_or_create_v1_client()
+        get_run_payloads = tenacity_retry(client.GetRunDetails, self.config.tenacity)
 
         response = cast(
             workflow_protos.GetRunDetailsResponse,
