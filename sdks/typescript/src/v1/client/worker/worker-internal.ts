@@ -423,7 +423,7 @@ export class InternalWorker {
     return (ctx: Context<any, any>) =>
       new Promise((resolve, reject) => {
         const { batchId, batchSize: expectedSize, batchIndex } = ctx.action;
-
+        console.info(ctx.action);
         if (!batchId || expectedSize === undefined || batchIndex === undefined) {
           reject(
             new HatchetError(

@@ -237,11 +237,11 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 type LeaseKind string
 
 const (
-	LeaseKindWORKER              LeaseKind = "WORKER"
-	LeaseKindQUEUE               LeaseKind = "QUEUE"
-	LeaseKindCONCURRENCYSTRATEGY LeaseKind = "CONCURRENCY_STRATEGY"
-	LeaseKindBATCH               LeaseKind = "BATCH"
+	LeaseKindWORKER                    LeaseKind = "WORKER"
+	LeaseKindQUEUE                     LeaseKind = "QUEUE"
+	LeaseKindCONCURRENCYSTRATEGY       LeaseKind = "CONCURRENCY_STRATEGY"
 	LeaseKindTABLEPARTITIONMAINTENANCE LeaseKind = "TABLE_PARTITION_MAINTENANCE"
+	LeaseKindBATCH                     LeaseKind = "BATCH"
 )
 
 func (e *LeaseKind) Scan(src interface{}) error {
