@@ -7,6 +7,8 @@ from typing import Any
 
 hatchet = Hatchet()
 
+class OrderedInput(BaseModel):
+    index: int
 
 class SimpleInput(BaseModel):
     Message: str
@@ -22,8 +24,6 @@ class LargePayloadInput(BaseModel):
 
 
 @hatchet.batch_task(
-    name="batch-e2e-simple",
-    retries=0,
     batch_max_size=3,
     batch_max_interval=timedelta(milliseconds=200),
     input_validator=SimpleInput,
@@ -35,8 +35,6 @@ async def batch_simple(
 
 
 @hatchet.batch_task(
-    name="batch-e2e-keyed",
-    retries=0,
     batch_max_size=2,
     batch_max_interval=timedelta(milliseconds=200),
     batch_group_key="input.group",
@@ -56,8 +54,6 @@ async def batch_keyed(tasks: list[tuple[KeyedInput, Context]]) -> list[dict[str,
 
 
 @hatchet.batch_task(
-    name="batch-e2e-keyed-interval",
-    retries=0,
     batch_max_size=3,
     batch_max_interval=timedelta(milliseconds=150),
     batch_group_key="input.group",
@@ -79,10 +75,8 @@ async def batch_keyed_interval(
 
 
 @hatchet.batch_task(
-    name="batch-e2e-large",
-    retries=0,
     batch_max_size=100,
-    batch_max_interval=timedelta(seconds=1000),
+    batch_max_interval=timedelta(seconds=10000),
     input_validator=LargePayloadInput,
 )
 async def batch_large(
@@ -99,8 +93,6 @@ async def batch_large(
 
 
 @hatchet.batch_task(
-    name="batch-e2e-single",
-    retries=0,
     batch_max_size=1,
     batch_max_interval=timedelta(milliseconds=100),
     input_validator=SimpleInput,
@@ -111,13 +103,7 @@ async def batch_single(
     return [{"original": inp.Message, "batchSize": len(tasks)} for inp, _ctx in tasks]
 
 
-class OrderedInput(BaseModel):
-    index: int
-
-
 @hatchet.batch_task(
-    name="batch-e2e-ordered",
-    retries=0,
     batch_max_size=20,
     batch_max_interval=timedelta(seconds=2),
     input_validator=OrderedInput,

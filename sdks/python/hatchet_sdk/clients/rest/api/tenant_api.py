@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
 from pydantic import Field, StrictStr
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.accept_invite_request import AcceptInviteRequest
 from hatchet_sdk.clients.rest.models.create_tenant_alert_email_group_request import (
@@ -2553,12 +2553,6 @@ class TenantApi:
                 min_length=36, strict=True, max_length=36, description="The tenant ID"
             ),
         ],
-        task_names: Annotated[
-            Optional[List[StrictStr]],
-            Field(
-                description="Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves."
-            ),
-        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2577,8 +2571,6 @@ class TenantApi:
 
         :param tenant: The tenant ID (required)
         :type tenant: str
-        :param task_names: Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
-        :type task_names: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2603,7 +2595,6 @@ class TenantApi:
 
         _param = self._tenant_get_task_stats_serialize(
             tenant=tenant,
-            task_names=task_names,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2634,12 +2625,6 @@ class TenantApi:
                 min_length=36, strict=True, max_length=36, description="The tenant ID"
             ),
         ],
-        task_names: Annotated[
-            Optional[List[StrictStr]],
-            Field(
-                description="Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves."
-            ),
-        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2658,8 +2643,6 @@ class TenantApi:
 
         :param tenant: The tenant ID (required)
         :type tenant: str
-        :param task_names: Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
-        :type task_names: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2684,7 +2667,6 @@ class TenantApi:
 
         _param = self._tenant_get_task_stats_serialize(
             tenant=tenant,
-            task_names=task_names,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2715,12 +2697,6 @@ class TenantApi:
                 min_length=36, strict=True, max_length=36, description="The tenant ID"
             ),
         ],
-        task_names: Annotated[
-            Optional[List[StrictStr]],
-            Field(
-                description="Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves."
-            ),
-        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2739,8 +2715,6 @@ class TenantApi:
 
         :param tenant: The tenant ID (required)
         :type tenant: str
-        :param task_names: Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
-        :type task_names: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2765,7 +2739,6 @@ class TenantApi:
 
         _param = self._tenant_get_task_stats_serialize(
             tenant=tenant,
-            task_names=task_names,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2786,7 +2759,6 @@ class TenantApi:
     def _tenant_get_task_stats_serialize(
         self,
         tenant,
-        task_names,
         _request_auth,
         _content_type,
         _headers,
@@ -2795,9 +2767,7 @@ class TenantApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {
-            "taskNames": "multi",
-        }
+        _collection_formats: Dict[str, str] = {}
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2812,10 +2782,6 @@ class TenantApi:
         if tenant is not None:
             _path_params["tenant"] = tenant
         # process the query parameters
-        if task_names is not None:
-
-            _query_params.append(("taskNames", task_names))
-
         # process the header parameters
         # process the form parameters
         # process the body parameter
