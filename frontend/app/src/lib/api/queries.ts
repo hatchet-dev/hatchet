@@ -29,25 +29,26 @@ type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
   cloud: {
-    billing: (tenant: string) => ({
-      queryKey: ['billing-state:get', tenant],
+    billing: (organization: string) => ({
+      queryKey: ['organization-billing-state:get', organization],
       queryFn: async () =>
-        (await controlPlaneApi.tenantBillingStateGet(tenant)).data,
+        (await controlPlaneApi.organizationBillingStateGet(organization)).data,
     }),
-    creditBalance: (tenant: string) => ({
-      queryKey: ['credit-balance:get', tenant],
+    creditBalance: (organization: string) => ({
+      queryKey: ['organization-credit-balance:get', organization],
       queryFn: async () =>
-        (await controlPlaneApi.tenantCreditBalanceGet(tenant)).data,
+        (await controlPlaneApi.organizationCreditBalanceGet(organization)).data,
     }),
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
       queryFn: async () => (await controlPlaneApi.subscriptionPlansList()).data,
     }),
 
-    paymentMethods: (tenant: string) => ({
-      queryKey: ['payment-methods:get', tenant],
+    paymentMethods: (organization: string) => ({
+      queryKey: ['organization-payment-methods:get', organization],
       queryFn: async () =>
-        (await controlPlaneApi.tenantPaymentMethodsGet(tenant)).data,
+        (await controlPlaneApi.organizationPaymentMethodsGet(organization))
+          .data,
     }),
 
     getComputeCost: (tenant: string) => ({

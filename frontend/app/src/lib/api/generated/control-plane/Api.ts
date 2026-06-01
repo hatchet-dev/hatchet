@@ -31,9 +31,12 @@ import {
   ManagementTokenList,
   Organization,
   OrganizationAvailableShardList,
+  OrganizationBillingState,
+  OrganizationCreditBalance,
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationPaymentMethodList,
   OrganizationTenant,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
@@ -41,19 +44,16 @@ import {
   SsoConfig,
   SsoDomainArray,
   SubscriptionPlanList,
-  TenantBillingState,
-  TenantCreditBalance,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
   TenantMember,
   TenantMemberList,
-  TenantPaymentMethodList,
   UpdateOrganizationRequest,
+  UpdateOrganizationSubscriptionRequest,
+  UpdateOrganizationSubscriptionResponse,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
-  UpdateTenantSubscriptionRequest,
-  UpdateTenantSubscriptionResponse,
   User,
   UserChangePasswordRequest,
   UserLoginRequest,
@@ -1164,38 +1164,41 @@ export class Api<
       ...params,
     });
   /**
-   * @description Gets the billing state for a tenant
+   * @description Gets the billing state for an organization
    *
-   * @tags Tenant
-   * @name TenantBillingStateGet
-   * @summary Get the billing state for a tenant
-   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}
+   * @tags Organization
+   * @name OrganizationBillingStateGet
+   * @summary Get the billing state for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}
    * @secure
    */
-  tenantBillingStateGet = (tenant: string, params: RequestParams = {}) =>
-    this.request<TenantBillingState, APIErrors | APIError>({
-      path: `/api/v1/control-plane/billing/tenants/${tenant}`,
+  organizationBillingStateGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationBillingState, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
     });
   /**
-   * @description Update a subscription
+   * @description Update an organization subscription
    *
    * @tags Billing
-   * @name TenantSubscriptionUpdate
-   * @summary Update subscription
-   * @request PATCH:/api/v1/control-plane/billing/tenants/{tenant}/subscription
+   * @name OrganizationSubscriptionUpdate
+   * @summary Update organization subscription
+   * @request PATCH:/api/v1/control-plane/billing/organizations/{organization}/subscription
    * @secure
    */
-  tenantSubscriptionUpdate = (
-    tenant: string,
-    data: UpdateTenantSubscriptionRequest,
+  organizationSubscriptionUpdate = (
+    organization: string,
+    data: UpdateOrganizationSubscriptionRequest,
     params: RequestParams = {},
   ) =>
-    this.request<UpdateTenantSubscriptionResponse, APIErrors>({
-      path: `/api/v1/control-plane/billing/tenants/${tenant}/subscription`,
+    this.request<UpdateOrganizationSubscriptionResponse, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/subscription`,
       method: "PATCH",
       body: data,
       secure: true,
@@ -1209,10 +1212,10 @@ export class Api<
    * @tags Billing
    * @name BillingPortalLinkGet
    * @summary Create a link to the billing portal
-   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/billing-portal-link
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/billing-portal-link
    * @secure
    */
-  billingPortalLinkGet = (tenant: string, params: RequestParams = {}) =>
+  billingPortalLinkGet = (organization: string, params: RequestParams = {}) =>
     this.request<
       {
         /** The url to the billing portal */
@@ -1220,41 +1223,47 @@ export class Api<
       },
       APIErrors
     >({
-      path: `/api/v1/control-plane/billing/tenants/${tenant}/billing-portal-link`,
+      path: `/api/v1/control-plane/billing/organizations/${organization}/billing-portal-link`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
     });
   /**
-   * @description Get the payment methods for a tenant
+   * @description Get the payment methods for an organization
    *
    * @tags Billing
-   * @name TenantPaymentMethodsGet
-   * @summary Get the payment methods for a tenant
-   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/payment-methods
+   * @name OrganizationPaymentMethodsGet
+   * @summary Get the payment methods for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/payment-methods
    * @secure
    */
-  tenantPaymentMethodsGet = (tenant: string, params: RequestParams = {}) =>
-    this.request<TenantPaymentMethodList, APIErrors>({
-      path: `/api/v1/control-plane/billing/tenants/${tenant}/payment-methods`,
+  organizationPaymentMethodsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationPaymentMethodList, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/payment-methods`,
       method: "GET",
       secure: true,
       format: "json",
       ...params,
     });
   /**
-   * @description Get the Stripe credit balance for a tenant
+   * @description Get the Stripe credit balance for an organization
    *
    * @tags Billing
-   * @name TenantCreditBalanceGet
-   * @summary Get the Stripe credit balance for a tenant
-   * @request GET:/api/v1/control-plane/billing/tenants/{tenant}/credit-balance
+   * @name OrganizationCreditBalanceGet
+   * @summary Get the Stripe credit balance for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/credit-balance
    * @secure
    */
-  tenantCreditBalanceGet = (tenant: string, params: RequestParams = {}) =>
-    this.request<TenantCreditBalance, APIErrors>({
-      path: `/api/v1/control-plane/billing/tenants/${tenant}/credit-balance`,
+  organizationCreditBalanceGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationCreditBalance, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/credit-balance`,
       method: "GET",
       secure: true,
       format: "json",

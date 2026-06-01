@@ -15,7 +15,7 @@ import { useState } from 'react';
 
 export default function CreateWorker() {
   const navigate = useNavigate();
-  const { tenant, billing, can } = useTenantDetails();
+  const { tenant, billing, can, organizationId } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -35,7 +35,10 @@ export default function CreateWorker() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await controlPlaneApi.billingPortalLinkGet(tenantId);
+      if (!organizationId) {
+        return;
+      }
+      const link = await controlPlaneApi.billingPortalLinkGet(organizationId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);

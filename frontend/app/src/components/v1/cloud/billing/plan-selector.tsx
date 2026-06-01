@@ -7,6 +7,7 @@ import {
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import {
   Coupon,
@@ -68,9 +69,11 @@ export function PlanSelector({
   selectLabel,
   coupons,
 }: PlanSelectorProps) {
+  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
   const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
     ...queries.cloud.subscriptionPlans(),
+    enabled: isControlPlaneEnabled && !!controlPlaneMeta?.canBill,
   });
 
   const plans = plansQuery.data?.plans;

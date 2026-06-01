@@ -19,11 +19,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/v1/ui/tooltip';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import useControlPlane from '@/hooks/use-control-plane';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import {
-  TenantBillingStateSubscription,
+  OrganizationBillingStateSubscription,
   SubscriptionPlan,
   SubscriptionPlanCode,
   SubscriptionPeriod,
@@ -35,8 +36,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useState } from 'react';
 
 interface SubscriptionProps {
-  active?: TenantBillingStateSubscription;
-  upcoming?: TenantBillingStateSubscription;
+  active?: OrganizationBillingStateSubscription;
+  upcoming?: OrganizationBillingStateSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
 }
@@ -61,12 +62,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     SubscriptionPlan | undefined
   >(undefined);
 
-  const { tenantId } = useCurrentTenantId();
-  const { tenant, billing } = useTenantDetails();
+  const { tenantId, tenant, billing, organizationId } = useTenantDetails();
+  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
   const { handleApiError } = useApiError({});
   const [portalLoading, setPortalLoading] = useState(false);
   const creditBalanceQuery = useQuery({
-    ...queries.cloud.creditBalance(tenantId),
+    ...queries.cloud.creditBalance(organizationId || ''),
+    enabled:
+      isControlPlaneEnabled && !!controlPlaneMeta?.canBill && !!organizationId,
   });
 
   const creditBalance = useMemo(() => {
@@ -110,7 +113,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
       setPortalLoading(true);
-      const link = await controlPlaneApi.billingPortalLinkGet(tenantId);
+      if (!organizationId) {
+        return;
+      }
+      const link = await controlPlaneApi.billingPortalLinkGet(organizationId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -124,8 +130,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split('_');
       setLoading(plan_code);
-      const response = await controlPlaneApi.tenantSubscriptionUpdate(
-        tenantId,
+      if (!organizationId) {
+        throw new Error('Organization not found for billing');
+      }
+      const response = await controlPlaneApi.organizationSubscriptionUpdate(
+        organizationId,
         {
           plan: plan as SubscriptionPlanCode,
           period: period as SubscriptionPeriod,
@@ -139,14 +148,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
         return;
       }
 
-      await Promise.all([
+      const invalidations = [
         queryClient.invalidateQueries({
-          queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
+          queryKey: queries.cloud.billing(organizationId).queryKey,
         }),
-        queryClient.invalidateQueries({
-          queryKey: queries.cloud.billing(tenantId).queryKey,
-        }),
-      ]);
+      ];
+
+      if (tenantId) {
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: queries.tenantResourcePolicy.get(tenantId).queryKey,
+          }),
+        );
+      }
+
+      await Promise.all(invalidations);
 
       setLoading(undefined);
     },
