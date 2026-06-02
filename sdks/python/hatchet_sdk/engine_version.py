@@ -7,4 +7,4 @@ class MinEngineVersion(str, Enum):
     SLOT_CONFIG = "v0.78.23"
     DURABLE_EVICTION = "v0.80.0"
     OBSERVABILITY = "v0.82.0"
-    BATCHING = "v0.87.15"
+    BATCHING = "v0.88.1"
