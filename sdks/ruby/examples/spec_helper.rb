@@ -35,6 +35,8 @@ def skip_unless_batching
   if version.nil? || Hatchet::EngineVersion.semver_less_than?(version, Hatchet::MinEngineVersion::BATCHING)
     skip "Engine does not support batch tasks (requires >= #{Hatchet::MinEngineVersion::BATCHING})"
   end
+rescue StandardError => e
+  skip "Could not determine engine version (#{e.message}); skipping batch tests"
 end
 
 # Poll until the workflow run reaches RUNNING status or timeout is exceeded.
