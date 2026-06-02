@@ -2,6 +2,7 @@ import { PlanSelector } from './plan-selector';
 import { resolveSubscriptionPlanCode } from './subscription-plan-code';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -51,6 +52,41 @@ function formatCurrency(cents: number, period?: string) {
   }).format(monthly);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function getPlanChangeErrorMessage(error: unknown) {
+  const fallback =
+    'We could not change your plan. Please try again or contact us if this keeps happening.';
+
+  if (isRecord(error)) {
+    const response = error.response;
+    if (isRecord(response)) {
+      const data = response.data;
+      if (isRecord(data)) {
+        if (data.code === 'plan_already_attached') {
+          return 'This plan is already attached to your organization. Refreshing billing details should show the current plan.';
+        }
+
+        if (typeof data.message === 'string') {
+          return data.message;
+        }
+
+        if (typeof data.description === 'string') {
+          return data.description;
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   upcoming,
@@ -62,6 +98,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const [isChangeConfirmOpen, setChangeConfirmOpen] = useState<
     SubscriptionPlan | undefined
   >(undefined);
+  const [planChangeError, setPlanChangeError] = useState<string>();
+  const [submittedPlanCode, setSubmittedPlanCode] = useState<string>();
 
   const { tenantId, tenant, billing, organizationId } = useTenantDetails();
   const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
@@ -127,10 +165,14 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   };
 
   const subscriptionMutation = useMutation({
-    mutationKey: ['user:update:logout'],
+    mutationKey: ['organization-subscription:update'],
+    onMutate: ({ plan_code }: { plan_code: string }) => {
+      setLoading(plan_code);
+      setPlanChangeError(undefined);
+      setSubmittedPlanCode(undefined);
+    },
     mutationFn: async ({ plan_code }: { plan_code: string }) => {
       const [plan, period] = plan_code.split('_');
-      setLoading(plan_code);
       if (!organizationId) {
         throw new Error('Organization not found for billing');
       }
@@ -143,11 +185,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       );
       return response.data;
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;
       }
+
+      setSubmittedPlanCode(variables.plan_code);
 
       const invalidations = [
         queryClient.invalidateQueries({
@@ -164,10 +208,22 @@ export const Subscription: React.FC<SubscriptionProps> = ({
       }
 
       await Promise.all(invalidations);
-
-      setLoading(undefined);
     },
-    onError: handleApiError,
+    onError: (error) => {
+      setPlanChangeError(getPlanChangeErrorMessage(error));
+      setSubmittedPlanCode(undefined);
+      setLoading(undefined);
+
+      if (!isChangeConfirmOpen) {
+        handleApiError(error as any);
+      }
+
+      if (organizationId) {
+        void queryClient.invalidateQueries({
+          queryKey: queries.controlPlane.billing(organizationId).queryKey,
+        });
+      }
+    },
   });
 
   const activePlanCode = useMemo(() => {
@@ -181,6 +237,24 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const upcomingPlanCode = useMemo(() => {
     return resolveSubscriptionPlanCode(upcoming, null);
   }, [upcoming]);
+
+  useEffect(() => {
+    if (!submittedPlanCode) {
+      return;
+    }
+
+    if (
+      activePlanCode !== submittedPlanCode &&
+      upcomingPlanCode !== submittedPlanCode
+    ) {
+      return;
+    }
+
+    setLoading(undefined);
+    setSubmittedPlanCode(undefined);
+    setPlanChangeError(undefined);
+    setChangeConfirmOpen(undefined);
+  }, [activePlanCode, submittedPlanCode, upcomingPlanCode]);
 
   const activePlanAmountCents = useMemo(
     () => plans?.find((p) => p.planCode === activePlanCode)?.amountCents,
@@ -219,6 +293,21 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
   const isDedicatedPlan = active?.plan === 'dedicated';
 
+  const openChangeConfirm = (plan: SubscriptionPlan) => {
+    setPlanChangeError(undefined);
+    setSubmittedPlanCode(undefined);
+    setChangeConfirmOpen(plan);
+  };
+
+  const closeChangeConfirm = () => {
+    if (loading || submittedPlanCode) {
+      return;
+    }
+
+    setPlanChangeError(undefined);
+    setChangeConfirmOpen(undefined);
+  };
+
   return (
     <>
       <ConfirmDialog
@@ -234,17 +323,26 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             <br />
             Upgrades will be prorated and downgrades will take effect at the end
             of the billing period.
+            {planChangeError && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertTitle>Plan change failed</AlertTitle>
+                <AlertDescription>{planChangeError}</AlertDescription>
+              </Alert>
+            )}
           </>
         }
         submitLabel={'Change Plan'}
-        onSubmit={async () => {
-          await subscriptionMutation.mutateAsync({
+        onSubmit={() => {
+          if (!isChangeConfirmOpen) {
+            return;
+          }
+
+          subscriptionMutation.mutate({
             plan_code: isChangeConfirmOpen!.planCode,
           });
-          setLoading(undefined);
-          setChangeConfirmOpen(undefined);
         }}
-        onCancel={() => setChangeConfirmOpen(undefined)}
+        onCancel={closeChangeConfirm}
+        cancelDisabled={!!loading || !!submittedPlanCode}
         isLoading={!!loading}
       />
 
@@ -455,7 +553,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 if (!billing?.hasPaymentMethods) {
                   subscriptionMutation.mutate({ plan_code: plan.planCode });
                 } else {
-                  setChangeConfirmOpen(plan);
+                  openChangeConfirm(plan);
                 }
               }}
               enterpriseContactUrl={enterpriseContactUrl}
