@@ -61,8 +61,6 @@ type TickerRepository interface {
 	PollExpiringTokens(ctx context.Context) ([]*sqlcv1.PollExpiringTokensRow, error)
 
 	PollTenantResourceLimitAlerts(ctx context.Context) ([]*sqlcv1.TenantResourceLimitAlert, error)
-
-	RunScheduledWorkflow(ctx context.Context, tenantId uuid.UUID, opts RunScheduledWorkflowV1Opts) error
 }
 
 type tickerRepository struct {
@@ -75,9 +73,6 @@ func newTickerRepository(shared *sharedRepository) TickerRepository {
 	}
 }
 
-func (t *tickerRepository) RunScheduledWorkflow(ctx context.Context, tenantId uuid.UUID, opts RunScheduledWorkflowV1Opts) error {
-	return nil
-}
 
 func (t *tickerRepository) IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error) {
 	res, err := t.queries.IsTenantAlertActive(ctx, t.pool, tenantId)

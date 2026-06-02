@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
@@ -17,14 +18,16 @@ import (
 )
 
 func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) error {
+	return RunScheduledWorkflow(ctx, t.l, t.mqv1, t.repov1, tenantId, opts)
+}
+
+func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) error {
 	expiresAt := opts.TriggerAt.Add(time.Second * 30)
-	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, opts.Id.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
+	err := repo.Idempotency().CreateIdempotencyKey(ctx, tenantId, opts.Id.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
 
 	var pgErr *pgconn.PgError
-	// if we get a unique violation, it means we tried to create a duplicate idempotency key, which means this
-	// run has already been processed, so we should just return
 	if err != nil && errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-		t.l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", opts.Id.String())
+		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", opts.Id.String())
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("could not create idempotency key: %w", err)
@@ -32,34 +35,28 @@ func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 
 	key := v1.IdempotencyKey(opts.Id.String())
 
-	// send workflow run to task controller
-	opt := &v1.WorkflowNameTriggerOpts{
-		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:       opts.WorkflowName,
-			Data:               opts.Input,
-			AdditionalMetadata: opts.AdditionalMetadata,
-			Priority:           opts.Priority,
-		},
-		IdempotencyKey: &key,
-		ExternalId:     uuid.New(),
-		ShouldSkip:     false,
-	}
-
 	msg, err := tasktypes.TriggerTaskMessage(
 		tenantId,
-		opt,
+		&v1.WorkflowNameTriggerOpts{
+			TriggerTaskData: &v1.TriggerTaskData{
+				WorkflowName:       opts.WorkflowName,
+				Data:               opts.Input,
+				AdditionalMetadata: opts.AdditionalMetadata,
+				Priority:           opts.Priority,
+			},
+			IdempotencyKey: &key,
+			ExternalId:     uuid.New(),
+			ShouldSkip:     false,
+		},
 	)
 
 	if err != nil {
 		return fmt.Errorf("could not create trigger task message: %w", err)
 	}
 
-	err = t.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
-	if err != nil {
+	if err := mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return fmt.Errorf("could not send message to task queue: %w", err)
 	}
 
-	// delete the scheduled workflow
-	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, opts.Id)
+	return repo.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, opts.Id)
 }
