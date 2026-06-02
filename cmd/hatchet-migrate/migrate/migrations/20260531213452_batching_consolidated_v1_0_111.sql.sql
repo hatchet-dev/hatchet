@@ -5,33 +5,33 @@ ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
 -- v0 "Step" batching configuration fields
 ALTER TABLE "Step"
-    ADD COLUMN IF NOT EXISTS batch_max_size INTEGER,
-    ADD COLUMN IF NOT EXISTS batch_max_interval INTEGER,
-    ADD COLUMN IF NOT EXISTS batch_group_key TEXT,
-    ADD COLUMN IF NOT EXISTS batch_group_max_runs INTEGER;
+    ADD COLUMN batch_max_size INTEGER,
+    ADD COLUMN batch_max_interval INTEGER,
+    ADD COLUMN batch_group_key TEXT,
+    ADD COLUMN batch_group_max_runs INTEGER;
 
 -- v1 batching propagation fields
 ALTER TABLE v1_task
-    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+    ADD COLUMN batch_key TEXT;
 
 ALTER TABLE v1_queue_item
-    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+    ADD COLUMN batch_key TEXT;
 
 ALTER TABLE v1_rate_limited_queue_items
-    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+    ADD COLUMN batch_key TEXT;
 
 ALTER TABLE v1_task_runtime
-    ADD COLUMN IF NOT EXISTS batch_id UUID,
-    ADD COLUMN IF NOT EXISTS batch_size INTEGER,
-    ADD COLUMN IF NOT EXISTS batch_index INTEGER,
-    ADD COLUMN IF NOT EXISTS batch_key TEXT;
+    ADD COLUMN batch_id UUID,
+    ADD COLUMN batch_size INTEGER,
+    ADD COLUMN batch_index INTEGER,
+    ADD COLUMN batch_key TEXT;
 
-CREATE INDEX IF NOT EXISTS v1_task_runtime_batch_id_idx
+CREATE INDEX v1_task_runtime_batch_id_idx
     ON v1_task_runtime USING BTREE (batch_id)
     WHERE batch_id IS NOT NULL;
 
 -- Batched queue items buffer table
-CREATE TABLE IF NOT EXISTS v1_batched_queue_item (
+CREATE TABLE v1_batched_queue_item (
     id BIGINT GENERATED ALWAYS AS IDENTITY,
     tenant_id UUID NOT NULL,
     queue TEXT NOT NULL,
@@ -63,22 +63,13 @@ ALTER TABLE v1_batched_queue_item SET (
     autovacuum_vacuum_cost_limit = '1000'
 );
 
-CREATE INDEX IF NOT EXISTS v1_batched_queue_item_lookup_idx
+CREATE INDEX v1_batched_queue_item_lookup_idx
     ON v1_batched_queue_item (tenant_id ASC, step_id ASC, batch_key ASC, inserted_at ASC);
 
-CREATE INDEX IF NOT EXISTS v1_batched_queue_item_step_batch_id_idx
+CREATE INDEX v1_batched_queue_item_step_batch_id_idx
     ON v1_batched_queue_item (tenant_id ASC, step_id ASC, batch_key ASC, id ASC);
 
--- v1_batch_runtime table (renamed from v1_task_batch_run in earlier iterations)
-DO $$
-BEGIN
-    IF to_regclass('v1_task_batch_run') IS NOT NULL AND to_regclass('v1_batch_runtime') IS NULL THEN
-        EXECUTE 'ALTER TABLE v1_task_batch_run RENAME TO v1_batch_runtime';
-    END IF;
-END
-$$;
-
-CREATE TABLE IF NOT EXISTS v1_batch_runtime (
+CREATE TABLE v1_batch_runtime (
     tenant_id UUID NOT NULL,
     step_id UUID NOT NULL,
     action_id TEXT NOT NULL,
@@ -88,25 +79,7 @@ CREATE TABLE IF NOT EXISTS v1_batch_runtime (
     CONSTRAINT v1_batch_runtime_pkey PRIMARY KEY (tenant_id, batch_id)
 );
 
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM pg_constraint c
-        JOIN pg_class t ON t.oid = c.conrelid
-        WHERE t.relname = 'v1_batch_runtime'
-          AND c.conname = 'v1_task_batch_run_pkey'
-    ) THEN
-        EXECUTE 'ALTER TABLE v1_batch_runtime RENAME CONSTRAINT v1_task_batch_run_pkey TO v1_batch_runtime_pkey';
-    END IF;
-END
-$$;
-
-ALTER TABLE IF EXISTS v1_batch_runtime DROP COLUMN IF EXISTS completed_at;
-
-DROP INDEX IF EXISTS v1_task_batch_run_active_key_idx;
-
-CREATE INDEX IF NOT EXISTS v1_batch_runtime_key_idx
+CREATE INDEX v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
 
 -- OLAP enum additions for batching lifecycle events
@@ -783,44 +756,42 @@ EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
-DROP FUNCTION IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
+DROP TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
+DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- Drop batch buffer table and indexes
-DROP INDEX IF EXISTS v1_batched_queue_item_step_batch_id_idx;
-DROP INDEX IF EXISTS v1_batched_queue_item_lookup_idx;
-DROP TABLE IF EXISTS v1_batched_queue_item;
+DROP INDEX v1_batched_queue_item_step_batch_id_idx;
+DROP INDEX v1_batched_queue_item_lookup_idx;
+DROP TABLE v1_batched_queue_item;
 
 -- Drop v1 batch runtime table
-DROP INDEX IF EXISTS v1_batch_runtime_key_idx;
-DROP TABLE IF EXISTS v1_batch_runtime;
+DROP INDEX v1_batch_runtime_key_idx;
+DROP TABLE v1_batch_runtime;
 
 -- Drop runtime batch metadata
-DROP INDEX IF EXISTS v1_task_runtime_batch_id_idx;
+DROP INDEX v1_task_runtime_batch_id_idx;
 
 ALTER TABLE v1_task_runtime
-    DROP COLUMN IF EXISTS batch_key,
-    DROP COLUMN IF EXISTS batch_index,
-    DROP COLUMN IF EXISTS batch_size,
-    DROP COLUMN IF EXISTS batch_id;
+    DROP COLUMN batch_key,
+    DROP COLUMN batch_index,
+    DROP COLUMN batch_size,
+    DROP COLUMN batch_id;
 
 ALTER TABLE v1_task
-    DROP COLUMN IF EXISTS batch_key;
+    DROP COLUMN batch_key;
 
 ALTER TABLE v1_queue_item
-    DROP COLUMN IF EXISTS batch_key;
+    DROP COLUMN batch_key;
 
 ALTER TABLE v1_rate_limited_queue_items
-    DROP COLUMN IF EXISTS batch_key;
+    DROP COLUMN batch_key;
 
 ALTER TABLE "Step"
-    DROP COLUMN IF EXISTS batch_group_max_runs,
-    DROP COLUMN IF EXISTS batch_group_key,
-    DROP COLUMN IF EXISTS batch_max_interval,
-    DROP COLUMN IF EXISTS batch_max_size;
+    DROP COLUMN batch_group_max_runs,
+    DROP COLUMN batch_group_key,
+    DROP COLUMN batch_max_interval,
+    DROP COLUMN batch_max_size;
 
-SELECT 'no-op: cannot remove enum values from v1_event_type_olap' AS notice;
-SELECT 'no-op: cannot remove value from "LeaseKind"' AS notice;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
