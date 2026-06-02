@@ -106,7 +106,7 @@ export const useScheduledRuns = ({
 
   const triggerNowMutation = useMutation({
     mutationFn: async (scheduledRunId: string) =>
-      api.workflowScheduledTrigger(tenantId, scheduledRunId),
+      await api.workflowScheduledTrigger(tenantId, scheduledRunId),
     onSuccess: (data) => {
       const runId = data?.data?.externalId;
       if (runId) {
@@ -121,7 +121,7 @@ export const useScheduledRuns = ({
   });
 
   const triggerNow = useCallback(
-    async (scheduledRunId: string) => triggerNowMutation.mutate(scheduledRunId),
+    (scheduledRunId: string) => triggerNowMutation.mutate(scheduledRunId),
     [triggerNowMutation],
   );
 

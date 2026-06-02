@@ -220,6 +220,9 @@ export const columns = ({
               {
                 label: 'Trigger Now',
                 onClick: () => onTriggerClick(row.original),
+                disabled: row.original.workflowRunId
+                  ? 'Cannot trigger a scheduled run that has already been triggered'
+                  : undefined,
               },
               {
                 label: 'Delete',

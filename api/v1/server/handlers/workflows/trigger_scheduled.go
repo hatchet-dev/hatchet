@@ -19,6 +19,12 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 		return gen.WorkflowScheduledTrigger404JSONResponse(apierrors.NewAPIErrors("Scheduled workflow not found.")), nil
 	}
 
+	if scheduled.WorkflowRunId != nil {
+		return gen.WorkflowScheduledTrigger400JSONResponse(
+			apierrors.NewAPIErrors("Scheduled run has already been triggered."),
+		), nil
+	}
+
 	externalId, err := ticker.RunScheduledWorkflow(
 		ctx.Request().Context(),
 		w.config.Logger,
