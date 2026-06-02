@@ -250,7 +250,7 @@ func (c *Client) NewStandaloneBatchTask(name string, fn any, opts ...BatchTaskOp
 	}
 
 	if config.batchMaxIntervalMs != nil {
-		taskOpts.Batch.BatchMaxInterval = config.batchMaxIntervalMs
+		taskOpts.Batch.BatchMaxIntervalMs = config.batchMaxIntervalMs
 	}
 	if config.batchGroupKey != nil {
 		taskOpts.Batch.BatchGroupKey = config.batchGroupKey

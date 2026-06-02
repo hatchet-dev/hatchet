@@ -1188,8 +1188,8 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				BatchGroupMaxRuns: &defaultBatchGroupMaxRuns,
 			}
 
-			if stepCp.Batch.BatchMaxInterval != nil {
-				steps[j].BatchConfig.BatchMaxInterval = stepCp.Batch.BatchMaxInterval
+			if stepCp.Batch.BatchMaxIntervalMs != nil {
+				steps[j].BatchConfig.BatchMaxInterval = stepCp.Batch.BatchMaxIntervalMs
 			}
 
 			if stepCp.Batch.BatchGroupKey != nil && *stepCp.Batch.BatchGroupKey != "" {

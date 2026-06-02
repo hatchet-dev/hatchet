@@ -567,10 +567,10 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, msgTenan
 	}
 
 	action := &contracts.AssignedAction{
-		TenantId:   tenantId,
-		ActionType: contracts.ActionType_START_BATCH,
-		ActionId:   payload.ActionId,
-		BatchStart: batchStart,
+		TenantId:          tenantId,
+		ActionType:        contracts.ActionType_START_BATCH,
+		ActionId:          payload.ActionId,
+		BatchStartPayload: batchStart,
 	}
 
 	action.BatchId = &batchID

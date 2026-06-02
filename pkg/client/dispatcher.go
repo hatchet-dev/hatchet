@@ -513,8 +513,8 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				BatchKey:                   assignedAction.BatchKey,
 			}
 
-			if assignedAction.BatchStart != nil {
-				bs := assignedAction.BatchStart
+			if assignedAction.BatchStartPayload != nil {
+				bs := assignedAction.BatchStartPayload
 				batchStart := &BatchStart{
 					ExpectedSize: bs.GetExpectedSize(),
 				}

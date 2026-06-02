@@ -137,7 +137,7 @@ message Concurrency {
 
 message TaskBatchConfig {
     int32 batch_max_size = 1; // (required) maximum items per batch
-    optional int32 batch_max_interval = 2; // (optional) time before batch flushes (milliseconds)
+    optional int32 batch_max_interval_ms = 2; // (optional) time before batch flushes (milliseconds)
     optional string batch_group_key = 3; // (optional) partition key for fairness (prevents mixing tenants)
     optional int32 batch_group_max_runs = 4; // (optional) concurrent batches per group
 }
