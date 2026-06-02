@@ -167,10 +167,12 @@ export const columns = ({
         return (
           <AdditionalMetadata
             metadata={row.original.input}
-            isOpen={selectedJobId === row.original.metadata.id}
+            // this is a hack so the keys don't collide and we can use the metadata popover
+            // for both the input and the metadata
+            isOpen={selectedJobId === `${row.original.metadata.id}:input`}
             onOpenChange={(open) => {
               if (open) {
-                setSelectedJobId(row.original.metadata.id);
+                setSelectedJobId(`${row.original.metadata.id}:input`);
               } else {
                 setSelectedJobId(null);
               }
