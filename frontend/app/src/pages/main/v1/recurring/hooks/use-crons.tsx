@@ -86,7 +86,7 @@ export const useCrons = ({ key }: UseCronsProps) => {
 
   const triggerNowMutation = useMutation({
     mutationFn: async (cronId: string) =>
-      await api.workflowCronTrigger(tenantId, cronId),
+      api.workflowCronTrigger(tenantId, cronId),
     onSuccess: (data) => {
       const runId = data?.data?.externalId;
       if (runId) {
