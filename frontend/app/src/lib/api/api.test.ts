@@ -1,6 +1,6 @@
 import {
   CONTROL_PLANE_TENANT_STORAGE_KEY,
-  readTenantIdFromRequestUrl,
+  readTenantIdFromLocation,
   resolveExchangeTokenTenantId,
 } from './api';
 import assert from 'node:assert/strict';
@@ -37,82 +37,87 @@ function withStoredTenant(tenantId: string, fn: () => void) {
   }
 }
 
-test('readTenantIdFromRequestUrl parses tenant API paths', () => {
-  assert.equal(
-    readTenantIdFromRequestUrl({
-      url: `/api/v1/tenants/${tenantA}/workflows`,
-    }),
-    tenantA,
-  );
-});
+function withLocation(pathname: string, fn: () => void) {
+  const previousWindow = globalThis.window;
 
-test('readTenantIdFromRequestUrl parses relative paths with empty baseURL', () => {
-  assert.equal(
-    readTenantIdFromRequestUrl({
-      baseURL: '',
-      url: `/api/v1/tenants/${tenantA}/workflows`,
-    }),
-    tenantA,
-  );
-});
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {
+      location: { pathname },
+    },
+  });
 
-test('readTenantIdFromRequestUrl parses stable tenant API paths', () => {
-  assert.equal(
-    readTenantIdFromRequestUrl({
-      url: `/api/v1/stable/tenants/${tenantA}/task-metrics`,
-    }),
-    tenantA,
-  );
-});
+  try {
+    fn();
+  } finally {
+    if (previousWindow) {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: previousWindow,
+      });
+    } else {
+      delete (globalThis as Partial<typeof globalThis>).window;
+    }
+  }
+}
 
-test('readTenantIdFromRequestUrl parses absolute URLs', () => {
-  assert.equal(
-    readTenantIdFromRequestUrl({
-      url: `https://cloud.onhatchet.run/api/v1/tenants/${tenantA}/workflows`,
-    }),
-    tenantA,
-  );
-});
-
-test('readTenantIdFromRequestUrl ignores non-UUID tenant segments', () => {
-  assert.equal(
-    readTenantIdFromRequestUrl({
-      url: '/api/v1/tenants/not-a-uuid/workflows',
-    }),
-    null,
-  );
-});
-
-test('resolveExchangeTokenTenantId prefers explicit tenant over URL and storage', () => {
-  withStoredTenant(tenantC, () => {
-    assert.equal(
-      resolveExchangeTokenTenantId({
-        url: `/api/v1/tenants/${tenantB}/workflows`,
-        xTenantId: tenantA,
-      }),
-      tenantA,
-    );
+test('readTenantIdFromLocation parses tenant page paths', () => {
+  withLocation(`/tenants/${tenantA}/runs`, () => {
+    assert.equal(readTenantIdFromLocation(), tenantA);
   });
 });
 
-test('resolveExchangeTokenTenantId prefers URL tenant over storage', () => {
-  withStoredTenant(tenantB, () => {
-    assert.equal(
-      resolveExchangeTokenTenantId({
-        url: `/api/v1/tenants/${tenantA}/workflows`,
-      }),
-      tenantA,
-    );
+test('readTenantIdFromLocation parses tenant settings paths', () => {
+  withLocation(`/tenants/${tenantA}/settings/members`, () => {
+    assert.equal(readTenantIdFromLocation(), tenantA);
   });
 });
 
-test('resolveExchangeTokenTenantId falls back to storage', () => {
-  withStoredTenant(tenantA, () => {
-    assert.equal(
-      resolveExchangeTokenTenantId({
-        url: '/api/v1/workflows/workflow-id',
-      }),
-      tenantA,
-    );
+test('readTenantIdFromLocation returns null on organization pages', () => {
+  withLocation('/organizations/5b9f0665-ad27-4b5c-bf46-cfad1a280b66', () => {
+    assert.equal(readTenantIdFromLocation(), null);
+  });
+});
+
+test('readTenantIdFromLocation ignores non-UUID tenant segments', () => {
+  withLocation('/tenants/not-a-uuid/runs', () => {
+    assert.equal(readTenantIdFromLocation(), null);
+  });
+});
+
+test('resolveExchangeTokenTenantId prefers explicit tenant over location and storage', () => {
+  withLocation(`/tenants/${tenantB}/runs`, () => {
+    withStoredTenant(tenantC, () => {
+      assert.equal(
+        resolveExchangeTokenTenantId({
+          xTenantId: tenantA,
+        }),
+        tenantA,
+      );
+    });
+  });
+});
+
+test('resolveExchangeTokenTenantId prefers location tenant over storage', () => {
+  withLocation(`/tenants/${tenantA}/runs`, () => {
+    withStoredTenant(tenantB, () => {
+      assert.equal(resolveExchangeTokenTenantId({}), tenantA);
+    });
+  });
+});
+
+test('resolveExchangeTokenTenantId falls back to storage on organization pages', () => {
+  withLocation('/organizations/5b9f0665-ad27-4b5c-bf46-cfad1a280b66', () => {
+    withStoredTenant(tenantA, () => {
+      assert.equal(resolveExchangeTokenTenantId({}), tenantA);
+    });
+  });
+});
+
+test('resolveExchangeTokenTenantId uses location tenant instead of stale storage', () => {
+  withLocation(`/tenants/${tenantA}/runs`, () => {
+    withStoredTenant(tenantC, () => {
+      assert.equal(resolveExchangeTokenTenantId({}), tenantA);
+    });
   });
 });

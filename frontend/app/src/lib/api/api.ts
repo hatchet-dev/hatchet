@@ -70,26 +70,7 @@ function readStoredTenantId(): string | null {
   }
 }
 
-function getURLPathname(url: string, baseURL?: string): string | null {
-  try {
-    return new URL(url, baseURL || 'http://hatchet.local').pathname;
-  } catch {
-    return null;
-  }
-}
-
-export function readTenantIdFromRequestUrl(
-  config: Pick<InternalAxiosRequestConfig, 'baseURL' | 'url'>,
-): string | null {
-  if (!config.url) {
-    return null;
-  }
-
-  const pathname = getURLPathname(config.url, config.baseURL);
-  if (!pathname) {
-    return null;
-  }
-
+function readTenantIdFromPathname(pathname: string): string | null {
   const segments = pathname.split('/').filter(Boolean);
   const tenantSegmentIndex = segments.indexOf('tenants');
   if (tenantSegmentIndex === -1) {
@@ -104,14 +85,18 @@ export function readTenantIdFromRequestUrl(
   return tenantId;
 }
 
+export function readTenantIdFromLocation(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return readTenantIdFromPathname(window.location.pathname);
+}
+
 export function resolveExchangeTokenTenantId(
-  config: Pick<InternalAxiosRequestConfig, 'baseURL' | 'url' | 'xTenantId'>,
+  config: Pick<InternalAxiosRequestConfig, 'xTenantId'>,
 ): string | null {
-  return (
-    config.xTenantId ??
-    readTenantIdFromRequestUrl(config) ??
-    readStoredTenantId()
-  );
+  return config.xTenantId ?? readTenantIdFromLocation() ?? readStoredTenantId();
 }
 
 /**
@@ -165,9 +150,9 @@ export async function exchangeTokenInterceptor(
 
   const cpEnabled = await resolveControlPlaneEnabled();
 
-  // xTenantId takes precedence — callers that know the tenant ID at request
-  // time set it explicitly to avoid relying on the localStorage fallback. this prevents race
-  // conditions where the interceptor checks localStorage before it's updated with the new tenant ID.
+  // xTenantId takes precedence — callers that intentionally target a tenant
+  // other than the current page tenant set it explicitly. Otherwise the
+  // interceptor uses the tenant encoded in window.location, then storage.
   const tenantId = resolveExchangeTokenTenantId(config);
 
   if (!cpEnabled) {
