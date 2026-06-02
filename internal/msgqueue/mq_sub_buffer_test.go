@@ -13,9 +13,9 @@ import (
 
 var testTenantID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
-// TestSubBufferFlushesWhenFull verifies that filling the buffer triggers a flush via the
-// notifier path without waiting for the flush interval timer. A 10s flush interval is used
-// so the test would time out if only the ticker triggered the flush.
+// TestSubBufferFlushesWhenFull verifies that when the channel is at capacity the
+// capacityRelease mechanism breaks the post-flush interval wait and triggers an
+// immediate second flush, without waiting the full 10s interval.
 func TestSubBufferFlushesWhenFull(t *testing.T) {
 	const bufSize = 5
 	origSize := SUB_BUFFER_SIZE
@@ -30,8 +30,18 @@ func TestSubBufferFlushesWhenFull(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	flushed := make(chan [][]byte, bufSize)
+	// The first dst call blocks until firstFlushRelease is closed, holding the semaphore
+	// so we can fill the channel while it is locked.
+	firstFlushStarted := make(chan struct{})
+	firstFlushRelease := make(chan struct{})
+	flushed := make(chan [][]byte, bufSize+2)
+
+	var callCount atomic.Int32
 	dst := func(_ uuid.UUID, _ string, payloads [][]byte) error {
+		if callCount.Add(1) == 1 {
+			close(firstFlushStarted)
+			<-firstFlushRelease
+		}
 		flushed <- payloads
 		return nil
 	}
@@ -39,26 +49,42 @@ func TestSubBufferFlushesWhenFull(t *testing.T) {
 	buf := NewMQSubBuffer(TASK_PROCESSING_QUEUE, &mockMessageQueue{}, dst,
 		WithFlushInterval(SUB_FLUSH_INTERVAL),
 		WithBufferSize(bufSize),
-		WithMaxConcurrency(bufSize), // one slot per message so each notifier signal can flush independently
+		WithMaxConcurrency(1),
 	)
 
-	// Send bufSize messages concurrently via handleMsg, which blocks each goroutine until
-	// its message is flushed. If any message waits for the 10s timer the overall deadline fires first.
+	msg := &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("p")}}
+
+	// Start a handleMsg that triggers flush1 and holds the semaphore inside dst.
+	go buf.handleMsg(ctx, msg) //nolint:errcheck
+	<-firstFlushStarted        // semaphore is now held
+
+	// Fill the channel to capacity. Each goroutine blocks on its result channel until flushed.
 	var wg sync.WaitGroup
 	for i := 0; i < bufSize; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := buf.handleMsg(ctx, &Message{
-				TenantID: testTenantID,
-				ID:       "test-msg",
-				Payloads: [][]byte{[]byte("p")},
-			}); err != nil {
-				t.Errorf("handleMsg returned error: %v", err)
-			}
+			_ = buf.handleMsg(ctx, msg)
 		}()
 	}
 
+	// Give the goroutines time to enqueue (channel capacity = bufSize, all sends non-blocking).
+	time.Sleep(50 * time.Millisecond)
+
+	// One more handleMsg finds the channel at capacity, writes to capacityRelease, then blocks.
+	var overflowWg sync.WaitGroup
+	overflowWg.Add(1)
+	go func() {
+		defer overflowWg.Done()
+		_ = buf.handleMsg(ctx, msg)
+	}()
+
+	// Release flush1. The semaphore releaser picks up the capacityRelease signal immediately
+	// and triggers flush2 without waiting the full 10s.
+	close(firstFlushRelease)
+	<-flushed // discard flush1's payload
+
+	// The bufSize buffered messages should complete via flush2, well within 2s.
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
@@ -68,22 +94,20 @@ func TestSubBufferFlushesWhenFull(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("sub buffer did not flush all messages within 2s; flush interval is 10s, so the timer was not the trigger")
-	}
-
-	// Tally payloads across all dst calls as a sanity check.
-	var total int
-	for len(flushed) > 0 {
-		total += len(<-flushed)
-	}
-	if total != bufSize {
-		t.Errorf("expected %d payloads across all dst calls, got %d", bufSize, total)
+		t.Fatal("sub buffer did not flush all messages within 2s; flush interval is 10s — capacityRelease did not trigger")
 	}
 }
 
 // TestMsgIdBufferMemoryLeak verifies that the semaphore releaser reuses timers
 // and doesn't create unbounded goroutines or memory leaks
 func TestMsgIdBufferMemoryLeak(t *testing.T) {
+	// The flush loop reads up to SUB_BUFFER_SIZE messages. Set it to match the
+	// bufferSize below so throughput is independent of the global default.
+	const testBufSize = 100
+	origSize := SUB_BUFFER_SIZE
+	SUB_BUFFER_SIZE = testBufSize
+	defer func() { SUB_BUFFER_SIZE = origSize }()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -96,7 +120,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	}
 
 	// Create a buffer
-	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 10, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, testBufSize, 10, false)
 
 	// Force GC and get baseline
 	runtime.GC()

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,53 +13,21 @@ import (
 // nolint: staticcheck
 var (
 	SUB_FLUSH_INTERVAL  = 10 * time.Millisecond
-	SUB_BUFFER_SIZE     = 100
+	SUB_BUFFER_SIZE     = 10
 	SUB_MAX_CONCURRENCY = 10
 )
-
-func init() {
-	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
-		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
-			SUB_FLUSH_INTERVAL = v
-		}
-	}
-
-	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
-		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
-
-		maxSize, err := strconv.Atoi(v)
-
-		if err == nil {
-			SUB_BUFFER_SIZE = maxSize
-		}
-	}
-
-	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
-		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
-
-		maxConcurrency, err := strconv.Atoi(v)
-
-		if err == nil {
-			SUB_MAX_CONCURRENCY = maxConcurrency
-		}
-	}
-}
 
 type DstFunc func(tenantId uuid.UUID, msgId string, payloads [][]byte) error
 
 func JSONConvert[T any](payloads [][]byte) []*T {
 	ret := make([]*T, 0)
-
 	for _, p := range payloads {
 		var t T
-
 		if err := json.Unmarshal(p, &t); err != nil {
 			return nil
 		}
-
 		ret = append(ret, &t)
 	}
-
 	return ret
 }
 
@@ -76,8 +42,7 @@ const (
 // to the task handler as necessary.
 type MQSubBuffer struct {
 	queue Queue
-
-	mq MessageQueue
+	mq    MessageQueue
 
 	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
 	buffers syncx.Map[string, *msgIdBuffer]
@@ -105,35 +70,25 @@ type mqSubBufferOpts struct {
 type mqSubBufferOptFunc func(*mqSubBufferOpts)
 
 func WithKind(kind SubBufferKind) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.kind = kind
-	}
+	return func(opts *mqSubBufferOpts) { opts.kind = kind }
 }
 
 func WithFlushInterval(flushInterval time.Duration) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.flushInterval = flushInterval
-	}
+	return func(opts *mqSubBufferOpts) { opts.flushInterval = flushInterval }
 }
 
 func WithBufferSize(bufferSize int) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.bufferSize = bufferSize
-	}
+	return func(opts *mqSubBufferOpts) { opts.bufferSize = bufferSize }
 }
 
 func WithMaxConcurrency(maxConcurrency int) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.maxConcurrency = maxConcurrency
-	}
+	return func(opts *mqSubBufferOpts) { opts.maxConcurrency = maxConcurrency }
 }
 
-// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
-// waiting on the flush interval timer.
+// WithDisableImmediateFlush disables the notifier-triggered flush path so the
+// only flush trigger is the interval ticker.
 func WithDisableImmediateFlush(disableImmediateFlush bool) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.disableImmediateFlush = disableImmediateFlush
-	}
+	return func(opts *mqSubBufferOpts) { opts.disableImmediateFlush = disableImmediateFlush }
 }
 
 func defaultMQSubBufferOpts() *mqSubBufferOpts {
@@ -147,11 +102,9 @@ func defaultMQSubBufferOpts() *mqSubBufferOpts {
 
 func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc, fs ...mqSubBufferOptFunc) *MQSubBuffer {
 	opts := defaultMQSubBufferOpts()
-
 	for _, f := range fs {
 		f(opts)
 	}
-
 	return &MQSubBuffer{
 		queue:                 queue,
 		mq:                    mq,
@@ -188,11 +141,9 @@ func (m *MQSubBuffer) Start() (func() error, error) {
 
 	cleanup := func() error {
 		defer cancel()
-
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup message queue listener: %w", err)
 		}
-
 		return nil
 	}
 
@@ -222,6 +173,14 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
+	// Signal early flush if the channel is already at capacity — the send below may block.
+	if len(msgBuf.msgIdBufferCh) >= msgBuf.bufferSize {
+		select {
+		case msgBuf.capacityRelease <- struct{}{}:
+		default:
+		}
+	}
+
 	// this places some backpressure on the consumer if buffers are full
 	msgBuf.msgIdBufferCh <- msgWithResult
 	msgBuf.notifier <- struct{}{}
@@ -242,81 +201,25 @@ func getKey(tenantId uuid.UUID, msgId string) string {
 }
 
 type msgIdBuffer struct {
-	tenantId uuid.UUID
-	msgId    string
+	bufferCore
 
+	tenantId      uuid.UUID
+	msgId         string
 	msgIdBufferCh chan *msgWithResultCh
-	notifier      chan struct{}
-
-	// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
-	// waiting on the timer.
-	disableImmediateFlush bool
-
-	semaphore        chan struct{}
-	semaphoreRelease chan time.Duration
-
-	dst DstFunc
-
-	flushInterval time.Duration
+	dst           DstFunc
 }
 
 func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
-		tenantId:              tenantID,
-		msgId:                 msgID,
-		msgIdBufferCh:         make(chan *msgWithResultCh, bufferSize),
-		notifier:              make(chan struct{}),
-		dst:                   dst,
-		disableImmediateFlush: disableImmediateFlush,
-		semaphore:             make(chan struct{}, maxConcurrency),
-		semaphoreRelease:      make(chan time.Duration, maxConcurrency),
-		flushInterval:         flushInterval,
+		bufferCore:    newBufferCore(flushInterval, bufferSize, maxConcurrency, disableImmediateFlush, false),
+		tenantId:      tenantID,
+		msgId:         msgID,
+		msgIdBufferCh: make(chan *msgWithResultCh, bufferSize),
+		dst:           dst,
 	}
-
-	b.startFlusher(ctx)
-	b.startSemaphoreReleaser(ctx)
-
+	b.startFlusher(ctx, b.flush)
+	b.startSemaphoreReleaser(ctx, func() int { return len(b.msgIdBufferCh) }, b.flush)
 	return b
-}
-
-func (m *msgIdBuffer) startFlusher(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(m.flushInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				go m.flush()
-			case <-m.notifier:
-				if !m.disableImmediateFlush {
-					go m.flush()
-				}
-			}
-		}
-	}()
-}
-
-func (m *msgIdBuffer) startSemaphoreReleaser(ctx context.Context) {
-	go func() {
-		timer := time.NewTimer(0)
-		defer timer.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case delay := <-m.semaphoreRelease:
-				if delay > 0 {
-					timer.Reset(delay)
-					<-timer.C
-				}
-				<-m.semaphore
-			}
-		}
-	}()
 }
 
 func (m *msgIdBuffer) flush() {
@@ -327,47 +230,37 @@ func (m *msgIdBuffer) flush() {
 	}
 
 	startedFlush := time.Now()
-
 	defer func() {
 		go func() {
-			delay := m.flushInterval - time.Since(startedFlush)
-			m.semaphoreRelease <- delay
+			m.semaphoreRelease <- m.flushInterval - time.Since(startedFlush)
 		}()
 	}()
 
-	msgsWithResultCh := make([]*msgWithResultCh, 0)
-	payloads := make([][]byte, 0)
+	// drainN uses the instance bufferSize, fixing the previous bug where the global
+	// SUB_BUFFER_SIZE was used regardless of how the buffer was configured.
+	drained := drainN(m.msgIdBufferCh, m.bufferSize)
 
-	// read all messages currently in the buffer
-	for i := 0; i < SUB_BUFFER_SIZE; i++ {
-		select {
-		case msg := <-m.msgIdBufferCh:
-			msgsWithResultCh = append(msgsWithResultCh, msg)
-
-			payloads = append(payloads, msg.msg.Payloads...)
-		default:
-			i = SUB_BUFFER_SIZE
-		}
+	payloads := make([][]byte, 0, len(drained))
+	for _, item := range drained {
+		payloads = append(payloads, item.msg.Payloads...)
 	}
 
 	if len(payloads) == 0 {
-		for _, msg := range msgsWithResultCh {
-			close(msg.result)
+		for _, item := range drained {
+			close(item.result)
 		}
-
 		return
 	}
 
 	err := m.dst(m.tenantId, m.msgId, payloads)
 
 	if err != nil {
-		// write err to all the message channels
-		for _, msg := range msgsWithResultCh {
-			msg.result <- err
+		for _, item := range drained {
+			item.result <- err
 		}
 	}
 
-	for _, msg := range msgsWithResultCh {
-		close(msg.result)
+	for _, item := range drained {
+		close(item.result)
 	}
 }

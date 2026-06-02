@@ -2,6 +2,7 @@ package msgqueue
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,9 +30,9 @@ func (m *mockMessageQueue) Subscribe(_ Queue, _ AckHook, _ AckHook) (func() erro
 func (m *mockMessageQueue) RegisterTenant(_ context.Context, _ uuid.UUID) error { return nil }
 func (m *mockMessageQueue) IsReady() bool                                       { return true }
 
-// TestPubBufferFlushesWhenFull verifies that filling the buffer triggers a flush via the
-// notifier path without waiting for the flush interval timer. A 10s flush interval is used
-// so the test would time out if only the ticker triggered the flush.
+// TestPubBufferFlushesWhenFull verifies that when the channel is at capacity the
+// capacityRelease mechanism breaks the post-flush interval wait and triggers an
+// immediate second flush, without waiting the full 10s interval.
 func TestPubBufferFlushesWhenFull(t *testing.T) {
 	const bufSize = 5
 	origSize := PUB_BUFFER_SIZE
@@ -39,17 +40,26 @@ func TestPubBufferFlushesWhenFull(t *testing.T) {
 	origConcurrency := PUB_MAX_CONCURRENCY
 	PUB_BUFFER_SIZE = bufSize
 	PUB_FLUSH_INTERVAL = 10 * time.Second
-	PUB_MAX_CONCURRENCY = bufSize // one slot per message so each notifier signal can flush independently
+	PUB_MAX_CONCURRENCY = 1
 	defer func() {
 		PUB_BUFFER_SIZE = origSize
 		PUB_FLUSH_INTERVAL = origInterval
 		PUB_MAX_CONCURRENCY = origConcurrency
 	}()
 
-	// Capacity bufSize so SendMessage never blocks regardless of batching.
-	received := make(chan *Message, bufSize)
+	// The first SendMessage call blocks until firstFlushRelease is closed, which holds the
+	// semaphore so we can fill the channel while it is locked.
+	firstFlushStarted := make(chan struct{})
+	firstFlushRelease := make(chan struct{})
+	received := make(chan *Message, bufSize+2)
+
+	var callCount atomic.Int32
 	mq := &mockMessageQueue{
 		sendMessageFn: func(_ context.Context, _ Queue, msg *Message) error {
+			if callCount.Add(1) == 1 {
+				close(firstFlushStarted)
+				<-firstFlushRelease
+			}
 			received <- msg
 			return nil
 		},
@@ -58,27 +68,48 @@ func TestPubBufferFlushesWhenFull(t *testing.T) {
 	buf := NewMQPubBuffer(mq)
 	defer buf.Stop()
 
-	// Enqueue bufSize messages concurrently (fire-and-forget).
+	ctx := context.Background()
+	msg := &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("p")}}
+
+	// Start a Pub that will trigger flush1 and hold the semaphore inside SendMessage.
+	go buf.Pub(ctx, TASK_PROCESSING_QUEUE, msg, false)
+	<-firstFlushStarted // semaphore is now held; interval wait hasn't started yet
+
+	// Fill the channel to capacity with sequential Pubs (non-blocking: channel is empty
+	// because flush1's read loop ran before these sends, and flush1 is blocked in SendMessage).
 	for i := 0; i < bufSize; i++ {
-		go func() {
-			_ = buf.Pub(context.Background(), TASK_PROCESSING_QUEUE, &Message{
-				TenantID: testTenantID,
-				ID:       "test-msg",
-				Payloads: [][]byte{[]byte("p")},
-			}, false)
-		}()
+		_ = buf.Pub(ctx, TASK_PROCESSING_QUEUE, msg, false)
 	}
 
-	// Collect all published payloads from SendMessage calls. The deadline fires if any
-	// message is still waiting after 2s — which only happens if it relies on the 10s timer.
-	deadline := time.After(2 * time.Second)
+	// One more Pub finds the channel at capacity, writes to capacityRelease, then blocks on
+	// the channel send until a flush drains it.
+	overflowDone := make(chan struct{})
+	go func() {
+		defer close(overflowDone)
+		_ = buf.Pub(ctx, TASK_PROCESSING_QUEUE, msg, false)
+	}()
+
+	// Release flush1. The semaphore releaser will immediately pick up the capacityRelease
+	// signal (already buffered) and trigger flush2 without waiting the full 10s.
+	close(firstFlushRelease)
+	<-received // discard flush1's single message
+
+	// The bufSize buffered messages should now appear via flush2, well within 2s.
 	var total int
+	deadline := time.After(2 * time.Second)
 	for total < bufSize {
 		select {
-		case msg := <-received:
-			total += len(msg.Payloads)
+		case m := <-received:
+			total += len(m.Payloads)
 		case <-deadline:
-			t.Fatalf("pub buffer flushed %d/%d payloads within 2s; flush interval is 10s, so the timer was not the trigger", total, bufSize)
+			t.Fatalf("pub buffer flushed %d/%d buffered payloads within 2s; flush interval is 10s — capacityRelease did not trigger", total, bufSize)
 		}
+	}
+
+	// Flush2 drained the channel, so the overflow goroutine should have unblocked.
+	select {
+	case <-overflowDone:
+	case <-time.After(2 * time.Second):
+		t.Error("overflow Pub did not unblock after buffer was drained")
 	}
 }
