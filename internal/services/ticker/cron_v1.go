@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uuid.UUID, cron string, workflowName string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) (uuid.UUID, error) {
+func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uuid.UUID, cron string, workflowName string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) (uuid.UUID, error) {
 	if additionalMetadata == nil {
 		additionalMetadata = make(map[string]interface{})
 	}
@@ -24,6 +24,10 @@ func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uui
 	metadata := map[string]any{
 		constants.CronExpressionKey.String():  cron,
 		constants.CronScheduledAtKey.String(): scheduledAt.Format(time.RFC3339),
+	}
+
+	if cronName != nil {
+		metadata[constants.CronNameKey.String()] = *cronName
 	}
 
 	maps.Copy(additionalMetadata, metadata)
@@ -59,53 +63,6 @@ func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uui
 }
 
 func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) error {
-	if additionalMetadata == nil {
-		additionalMetadata = make(map[string]interface{})
-	}
-
-	metadata := map[string]any{
-		constants.CronExpressionKey.String():  cron,
-		constants.CronScheduledAtKey.String(): scheduledAt.Format(time.RFC3339),
-	}
-
-	if cronName != nil {
-		metadata[constants.CronNameKey.String()] = *cronName
-	}
-
-	// copy metadata into additionalMetadata as to not override hatchet_* keys
-	maps.Copy(additionalMetadata, metadata)
-
-	additionalMetaBytes, err := json.Marshal(additionalMetadata)
-	if err != nil {
-		return fmt.Errorf("could not marshal additional metadata: %w", err)
-	}
-
-	// send workflow run to task controller
-	opt := &v1.WorkflowNameTriggerOpts{
-		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:       workflowVersion.WorkflowName,
-			Data:               input,
-			AdditionalMetadata: additionalMetaBytes,
-			Priority:           priority,
-		},
-		ExternalId: uuid.New(),
-		ShouldSkip: false,
-	}
-
-	msg, err := tasktypes.TriggerTaskMessage(
-		tenantId,
-		opt,
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create trigger task message: %w", err)
-	}
-
-	err = t.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
-	if err != nil {
-		return fmt.Errorf("could not send message to task queue: %w", err)
-	}
-
-	return nil
+	_, err := RunCronWorkflow(ctx, t.mqv1, tenantId, cron, workflowVersion.WorkflowName, cronName, input, additionalMetadata, priority, scheduledAt)
+	return err
 }

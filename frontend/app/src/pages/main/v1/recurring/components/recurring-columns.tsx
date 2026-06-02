@@ -39,6 +39,7 @@ export const columns = ({
   tenantId,
   onDeleteClick,
   onEnableClick,
+  onTriggerClick,
   selectedJobId,
   setSelectedJobId,
   isUpdatePending,
@@ -47,6 +48,7 @@ export const columns = ({
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
   onEnableClick: (row: CronWorkflows) => void;
+  onTriggerClick: (row: CronWorkflows) => void;
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
   isUpdatePending: boolean;
@@ -191,12 +193,8 @@ export const columns = ({
             row={row.original}
             actions={[
               {
-                label: 'Delete',
-                onClick: () => onDeleteClick(row.original),
-                disabled:
-                  row.original.method !== 'API'
-                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
-                    : undefined,
+                label: 'Run Now',
+                onClick: () => onTriggerClick(row.original),
               },
               {
                 label: row.original.enabled ? 'Disable' : 'Enable',
@@ -204,6 +202,14 @@ export const columns = ({
                 disabled:
                   isUpdatePending && updatingCronId === row.original.metadata.id
                     ? 'Update in progress'
+                    : undefined,
+              },
+              {
+                label: 'Delete',
+                onClick: () => onDeleteClick(row.original),
+                disabled:
+                  row.original.method !== 'API'
+                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
                     : undefined,
               },
             ]}

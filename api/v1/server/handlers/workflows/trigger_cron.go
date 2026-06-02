@@ -37,12 +37,18 @@ func (t *WorkflowService) WorkflowCronTrigger(ctx echo.Context, request gen.Work
 
 	priority := cron.Priority
 
+	var cronName *string
+	if cron.Name.Valid {
+		cronName = &cron.Name.String
+	}
+
 	externalId, err := ticker.RunCronWorkflow(
 		ctx.Request().Context(),
 		t.config.MessageQueueV1,
 		tenant.ID,
 		cron.Cron,
 		cron.WorkflowName,
+		cronName,
 		cron.Input,
 		additionalMetadata,
 		&priority,
