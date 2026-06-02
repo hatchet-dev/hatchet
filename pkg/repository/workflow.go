@@ -609,6 +609,14 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			return nil, fmt.Errorf("could not move existing cron triggers to new workflow triggers: %w", err)
 		}
 
+		// delete DEFAULT cron refs from the old version — they were re-created fresh above for the new version,
+		// and leaving them accumulates dead rows that the PollCronSchedules query locks every 15 seconds
+		err = r.queries.DeleteOldDefaultCronTriggersForWorkflowVersion(ctx, tx, oldWorkflowVersion.WorkflowVersion.ID)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not delete old DEFAULT cron triggers: %w", err)
+		}
+
 		// move existing scheduled triggers to the new workflow version
 		err = r.queries.MoveScheduledTriggerToNewWorkflowTriggers(ctx, tx, sqlcv1.MoveScheduledTriggerToNewWorkflowTriggersParams{
 			Oldworkflowversionid: oldWorkflowVersion.WorkflowVersion.ID,

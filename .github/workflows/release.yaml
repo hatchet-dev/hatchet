@@ -1,6 +1,8 @@
 on:
-  release:
-    types: [released]
+  push:
+    tags:
+      - "v*" # Trigger on version tags like v0.73.10
+      - "!v*-alpha*" # Do not trigger for alpha releases
   workflow_dispatch:
     inputs:
       tag:

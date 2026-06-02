@@ -1003,6 +1003,19 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 	return &i, err
 }
 
+const deleteOldDefaultCronTriggersForWorkflowVersion = `-- name: DeleteOldDefaultCronTriggersForWorkflowVersion :exec
+DELETE FROM "WorkflowTriggerCronRef"
+USING "WorkflowTriggers"
+WHERE "WorkflowTriggerCronRef"."parentId" = "WorkflowTriggers"."id"
+    AND "WorkflowTriggers"."workflowVersionId" = $1::uuid
+    AND "WorkflowTriggerCronRef"."method" = 'DEFAULT'
+`
+
+func (q *Queries) DeleteOldDefaultCronTriggersForWorkflowVersion(ctx context.Context, db DBTX, oldworkflowversionid uuid.UUID) error {
+	_, err := db.Exec(ctx, deleteOldDefaultCronTriggersForWorkflowVersion, oldworkflowversionid)
+	return err
+}
+
 const getLatestWorkflowVersionForWorkflows = `-- name: GetLatestWorkflowVersionForWorkflows :many
 SELECT DISTINCT ON (wv."workflowId")
     wv."id"
