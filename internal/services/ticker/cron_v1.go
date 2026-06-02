@@ -30,6 +30,7 @@ func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uui
 		metadata[constants.CronNameKey.String()] = *cronName
 	}
 
+	// copy metadata into additionalMetadata as to not override hatchet_* keys
 	maps.Copy(additionalMetadata, metadata)
 
 	additionalMetaBytes, err := json.Marshal(additionalMetadata)
