@@ -79,10 +79,7 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 		SeenAt:                &event.EventSeenAt.Time,
 		TriggeredRuns:         &triggeredRuns,
 		TriggeringWebhookName: event.TriggeringWebhookName,
-	}
-
-	if event.EventScope != "" {
-		transformedEvent.Scope = &event.EventScope
+		Scope:                 event.EventScope,
 	}
 
 	return transformedEvent
