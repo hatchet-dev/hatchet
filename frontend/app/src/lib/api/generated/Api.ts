@@ -287,6 +287,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -340,6 +341,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -384,6 +386,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -408,6 +411,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -535,6 +539,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -561,6 +566,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -603,6 +609,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -627,6 +634,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -651,6 +659,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -799,6 +808,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -880,6 +890,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -916,6 +927,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -972,6 +984,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -990,6 +1003,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-event"],
     }), { resources: new Set<string>(["tenant", "v1-event"]) });
@@ -1008,6 +1022,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1046,6 +1061,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1070,6 +1086,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1092,6 +1109,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-filter"],
     }), { resources: new Set<string>(["tenant", "v1-filter"]) });
@@ -1113,6 +1131,7 @@ export class Api<
       method: "DELETE",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-filter"],
     }), { resources: new Set<string>(["tenant", "v1-filter"]) });
@@ -1137,6 +1156,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-filter"],
     }), { resources: new Set<string>(["tenant", "v1-filter"]) });
@@ -1175,6 +1195,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1199,6 +1220,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1221,6 +1243,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-webhook"],
     }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
@@ -1242,6 +1265,7 @@ export class Api<
       method: "DELETE",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-webhook"],
     }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
@@ -1264,6 +1288,7 @@ export class Api<
       method: "POST",
       body: data,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-webhook"],
     }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
@@ -1289,6 +1314,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "v1-webhook"],
     }), { resources: new Set<string>(["tenant", "v1-webhook"]) });
@@ -1313,6 +1339,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1488,6 +1515,7 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/slack/start`,
       method: "GET",
       secure: true,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1520,6 +1548,7 @@ export class Api<
     this.request<void, APIErrors>({
       path: `/api/v1/sns/${tenant}/${event}`,
       method: "POST",
+      xTenantId: tenant,
       ...params,
       xResources: [],
     }), { resources: new Set<string>([]) });
@@ -1538,6 +1567,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1562,6 +1592,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1586,6 +1617,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1604,6 +1636,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1622,6 +1655,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1701,6 +1735,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1919,6 +1954,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1937,6 +1973,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1955,6 +1992,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1979,6 +2017,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -1997,6 +2036,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2021,6 +2061,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "tenant-invite"],
     }), { resources: new Set<string>(["tenant", "tenant-invite"]) });
@@ -2042,6 +2083,7 @@ export class Api<
       method: "DELETE",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "tenant-invite"],
     }), { resources: new Set<string>(["tenant", "tenant-invite"]) });
@@ -2066,6 +2108,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2084,6 +2127,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2132,6 +2176,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2150,6 +2195,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2203,6 +2249,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2227,6 +2274,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2251,6 +2299,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2275,6 +2324,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2304,6 +2354,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2344,6 +2395,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2369,6 +2421,7 @@ export class Api<
       method: "DELETE",
       query: query,
       secure: true,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2387,6 +2440,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2412,6 +2466,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "member"],
     }), { resources: new Set<string>(["tenant", "member"]) });
@@ -2434,6 +2489,7 @@ export class Api<
       method: "DELETE",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "member"],
     }), { resources: new Set<string>(["tenant", "member"]) });
@@ -2492,6 +2548,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "event-with-tenant"],
     }), { resources: new Set<string>(["tenant", "event-with-tenant"]) });
@@ -2510,6 +2567,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2548,6 +2606,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2573,6 +2632,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2639,6 +2699,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2661,6 +2722,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "scheduled-workflow-run"],
     }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
@@ -2682,6 +2744,7 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
       method: "DELETE",
       secure: true,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "scheduled-workflow-run"],
     }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
@@ -2707,6 +2770,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "scheduled-workflow-run"],
     }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
@@ -2731,6 +2795,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2755,6 +2820,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2780,6 +2846,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2834,6 +2901,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -2856,6 +2924,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "cron-workflow"],
     }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
@@ -2877,6 +2946,7 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: "DELETE",
       secure: true,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "cron-workflow"],
     }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
@@ -2901,6 +2971,7 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "cron-workflow"],
     }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
@@ -2930,6 +3001,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3146,6 +3218,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3202,6 +3275,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "workflow"],
     }), { resources: new Set<string>(["tenant", "workflow"]) });
@@ -3301,6 +3375,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3325,6 +3400,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3394,6 +3470,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3416,6 +3493,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "workflow-run"],
     }), { resources: new Set<string>(["tenant", "workflow-run"]) });
@@ -3438,6 +3516,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "workflow-run"],
     }), { resources: new Set<string>(["tenant", "workflow-run"]) });
@@ -3456,6 +3535,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "step-run"],
     }), { resources: new Set<string>(["tenant", "step-run"]) });
@@ -3481,6 +3561,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "step-run"],
     }), { resources: new Set<string>(["tenant", "step-run"]) });
@@ -3503,6 +3584,7 @@ export class Api<
       method: "POST",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "step-run"],
     }), { resources: new Set<string>(["tenant", "step-run"]) });
@@ -3525,6 +3607,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "step-run"],
     }), { resources: new Set<string>(["tenant", "step-run"]) });
@@ -3561,6 +3644,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3620,6 +3704,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3643,6 +3728,7 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3698,6 +3784,7 @@ export class Api<
       method: "GET",
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant", "workflow-run"],
     }), { resources: new Set<string>(["tenant", "workflow-run"]) });
@@ -3714,6 +3801,7 @@ export class Api<
       path: `/api/v1/monitoring/${tenant}/probe`,
       method: "POST",
       secure: true,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3752,6 +3840,7 @@ export class Api<
       path: `/api/v1/tenants/${tenant}/prometheus-metrics`,
       method: "GET",
       secure: true,
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3778,6 +3867,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
@@ -3806,6 +3896,7 @@ export class Api<
       query: query,
       secure: true,
       format: "json",
+      xTenantId: tenant,
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
