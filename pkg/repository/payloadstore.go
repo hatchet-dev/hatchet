@@ -115,6 +115,7 @@ type PayloadStoreRepository interface {
 	InlineStoreTTL() *time.Duration
 	ExternalCutoverBatchSize() int32
 	ExternalCutoverNumConcurrentOffloads() int32
+	EnableWindowSizeOptimization() bool
 	ExternalStoreEnabled() bool
 	ExternalStore() ExternalStore
 	ProcessPayloadCutovers(ctx context.Context) error
@@ -135,6 +136,7 @@ type payloadStoreRepositoryImpl struct {
 	externalCutoverProcessInterval       time.Duration
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
+	enableWindowSizeOptimization         bool
 }
 
 type PayloadStoreRepositoryOpts struct {
@@ -146,6 +148,7 @@ type PayloadStoreRepositoryOpts struct {
 	ExternalCutoverBatchSize             int32
 	ExternalCutoverNumConcurrentOffloads int32
 	InlineStoreTTL                       *time.Duration
+	EnableWindowSizeOptimization         bool
 }
 
 func NewPayloadStoreRepository(
@@ -169,6 +172,7 @@ func NewPayloadStoreRepository(
 		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
+		enableWindowSizeOptimization:         opts.EnableWindowSizeOptimization,
 	}
 }
 
@@ -353,19 +357,9 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
 			var retrieveFromExternalOpt RetrieveFromExternalOpts
 
-			if strings.HasSuffix(string(key), ".index") {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(key),
-						ExternalId:   payload.ExternalID,
-					},
-				}
-			} else {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByKey,
-					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-				}
+			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByKey,
+				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}
 
 			retrieveFromExternalOptsToOpts[retrieveFromExternalOpt] = opt
@@ -477,6 +471,10 @@ func (p *payloadStoreRepositoryImpl) ExternalCutoverBatchSize() int32 {
 
 func (p *payloadStoreRepositoryImpl) ExternalCutoverNumConcurrentOffloads() int32 {
 	return p.externalCutoverNumConcurrentOffloads
+}
+
+func (p *payloadStoreRepositoryImpl) EnableWindowSizeOptimization() bool {
+	return p.enableWindowSizeOptimization
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalStoreEnabled() bool {
@@ -603,19 +601,23 @@ func (p *payloadStoreRepositoryImpl) ProcessPayloadCutoverBatch(ctx context.Cont
 
 	defer rollback()
 
-	windowSizePtr, err := p.OptimizePayloadWindowSize(
-		ctx,
-		tx,
-		partitionDate,
-		p.externalCutoverBatchSize*p.externalCutoverNumConcurrentOffloads,
-		lastExternalId,
-	)
+	windowSize := p.externalCutoverBatchSize * p.externalCutoverNumConcurrentOffloads
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+	if p.enableWindowSizeOptimization {
+		windowSizePtr, err := p.OptimizePayloadWindowSize(
+			ctx,
+			tx,
+			partitionDate,
+			windowSize,
+			lastExternalId,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to optimize payload window size: %w", err)
+		}
+
+		windowSize = *windowSizePtr
 	}
-
-	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreatePayloadRangeChunks(ctx, tx, sqlcv1.CreatePayloadRangeChunksParams{
 		Chunksize:      p.externalCutoverBatchSize,
@@ -854,20 +856,72 @@ func (p *payloadStoreRepositoryImpl) processSinglePartition(ctx context.Context,
 		return nil
 	}
 
-	duplicatedExternalIds, err := p.ValidateNoDuplicateExternalIds(ctx, p.pool, partitionDate)
+	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
+	if jobMeta.LastExternalId == uuid.Nil {
+		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
 
-	if err != nil {
-		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
-	}
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
 
-	if len(duplicatedExternalIds) > 0 {
-		var duplicatedIds []string
-
-		for _, row := range duplicatedExternalIds {
-			duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+		if err != nil {
+			return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
 		}
 
-		return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+		defer release()
+
+		stopLeaseExtension := make(chan struct{})
+		leaseExtensionDone := make(chan struct{})
+
+		go func() {
+			defer close(leaseExtensionDone)
+
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-stopLeaseExtension:
+					return
+				case <-ticker.C:
+					leaseTx, leaseCommit, leaseRollback, txErr := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+					if txErr != nil {
+						p.l.Error().Err(txErr).Msg("failed to prepare transaction for lease extension during duplicate check")
+						continue
+					}
+
+					_, txErr = p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, jobMeta.LastExternalId)
+
+					if txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to extend lease during duplicate check")
+						continue
+					}
+
+					if txErr = leaseCommit(ctx); txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
+					}
+				}
+			}
+		}()
+
+		duplicatedExternalIds, err := p.ValidateNoDuplicateExternalIds(ctx, conn, partitionDate)
+		close(stopLeaseExtension)
+		<-leaseExtensionDone
+
+		if err != nil {
+			return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+		}
+
+		if len(duplicatedExternalIds) > 0 {
+			var duplicatedIds []string
+
+			for _, row := range duplicatedExternalIds {
+				duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+			}
+
+			return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+		}
 	}
 
 	lastExternalId := jobMeta.LastExternalId

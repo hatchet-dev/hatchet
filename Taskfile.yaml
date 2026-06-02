@@ -309,35 +309,56 @@ tasks:
           task: stop-db
       - go test -count=1 -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
+  release:
+    desc: Create and push annotated tag, triggering the release pipeline.
+    vars:
+      CURRENT:
+        sh: git tag --points-at HEAD --sort=-v:refname | head -n1
+      TAG: '{{.TAG | default .CURRENT}}'
+    preconditions:
+      - sh: '[ -n "{{.TAG}}" ]'
+        msg: "No TAG value found"
+      - sh: '! gh release view {{.TAG}} >/dev/null 2>&1'
+        msg: "{{.TAG}} already has a GitHub Release."
+      - sh: '[ "$(git cat-file -t {{.TAG}})" != "tag" ]'
+        msg: "{{.TAG}} is already an annotated tag."
+      - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
+        msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
+    prompt: Create new release for tag {{.TAG}}?
+    cmds:
+      # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.
+      - ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a -f {{.TAG}} HEAD -F -
+      - git push --force origin {{.TAG}}
+
   patch:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
     cmds:
       - |
-        current=$(git describe --tags --abbrev=0)
+        current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         IFS='.' read -r major minor patch <<< "${current#v}"
         patch=$((patch + 1))
         next="v${major}.${minor}.${patch}"
         echo "Bumping ${current} → ${next}"
-        git tag -a "${next}" -m "${next}"
+        git tag "${next}"
         git push origin "${next}"
 
   minor:
     desc: Bump minor version (e.g. v0.83.16 → v0.84.0) and push the tag
     cmds:
       - |
-        current=$(git describe --tags --abbrev=0)
+        current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         IFS='.' read -r major minor patch <<< "${current#v}"
         minor=$((minor + 1))
         next="v${major}.${minor}.0"
         echo "Bumping ${current} → ${next}"
-        git tag -a "${next}" -m "${next}"
+        git tag "${next}"
         git push origin "${next}"
 
   alpha:
     desc: Bump to next alpha pre-release (e.g. v0.83.16 → v0.83.16-alpha.0, or v0.83.16-alpha.0 → v0.83.16-alpha.1)
     cmds:
       - |
-        current=$(git describe --tags --abbrev=0)
+        current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         base="${current%%-alpha.*}"
         if [[ "${current}" == *-alpha.* ]]; then
           alpha_num="${current##*-alpha.}"
@@ -346,5 +367,5 @@ tasks:
           next="${base}-alpha.0"
         fi
         echo "Bumping ${current} → ${next}"
-        git tag -a "${next}" -m "${next}"
+        git tag "${next}"
         git push origin "${next}"

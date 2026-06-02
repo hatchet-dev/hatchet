@@ -283,7 +283,7 @@ type OLAPRepository interface {
 
 	ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error)
 
-	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error
+	ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error
 
 	CountOLAPTempTableSizeForDAGStatusUpdates(ctx context.Context) (int64, error)
 	CountOLAPTempTableSizeForTaskStatusUpdates(ctx context.Context) (int64, error)
@@ -351,6 +351,26 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 }
 
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
+	const leaseKey = "v1_olap_partitions"
+
+	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
+	if err != nil {
+		return fmt.Errorf("failed to acquire partition lease: %w", err)
+	}
+
+	if len(leases) == 0 {
+		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
+		return nil
+	}
+
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if releaseErr := r.releasePartitionLease(releaseCtx, r.ddlPool, leases); releaseErr != nil {
+			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
+		}
+	}()
+
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.olapRetentionPeriod)
@@ -358,7 +378,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err := r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
+	err = r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
 		Date: pgtype.Date{
 			Time:  today,
 			Valid: true,
@@ -3070,19 +3090,9 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
 			var retrieveFromExternalOpt RetrieveFromExternalOpts
 
-			if strings.HasSuffix(string(key), ".index") {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByIndexFile,
-					ByIndexFile: &RetrieveFromExternalByIndexFileOpt{
-						IndexFileKey: ExternalIndexFileLocationKey(key),
-						ExternalId:   payload.ExternalID,
-					},
-				}
-			} else {
-				retrieveFromExternalOpt = RetrieveFromExternalOpts{
-					Method: RetrieveFromExternalByKey,
-					ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
-				}
+			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+				Method: RetrieveFromExternalByKey,
+				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}
 
 			externalIdToRetrieveFromExternalOpt[payload.ExternalID] = retrieveFromExternalOpt
@@ -3421,7 +3431,7 @@ func (p *OLAPRepositoryImpl) OptimizeOLAPPayloadWindowSize(ctx context.Context, 
 	)
 }
 
-func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) (*OLAPCutoverBatchOutcome, error) {
+func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, lastExternalId uuid.UUID, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) (*OLAPCutoverBatchOutcome, error) {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPRepository.processOLAPPayloadCutoverBatch")
 	defer span.End()
 
@@ -3433,19 +3443,23 @@ func (p *OLAPRepositoryImpl) processOLAPPayloadCutoverBatch(ctx context.Context,
 
 	defer rollback()
 
-	windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
-		ctx,
-		tx,
-		partitionDate,
-		externalCutoverBatchSize*externalCutoverNumConcurrentOffloads,
-		lastExternalId,
-	)
+	windowSize := externalCutoverBatchSize * externalCutoverNumConcurrentOffloads
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+	if enableWindowSizeOptimization {
+		windowSizePtr, err := p.OptimizeOLAPPayloadWindowSize(
+			ctx,
+			tx,
+			partitionDate,
+			windowSize,
+			lastExternalId,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to optimize olap payload window size: %w", err)
+		}
+
+		windowSize = *windowSizePtr
 	}
-
-	windowSize := *windowSizePtr
 
 	payloadRanges, err := p.queries.CreateOLAPPayloadRangeChunks(ctx, tx, sqlcv1.CreateOLAPPayloadRangeChunksParams{
 		Chunksize:      externalCutoverBatchSize,
@@ -3659,7 +3673,7 @@ func (p *OLAPRepositoryImpl) prepareCutoverTableJob(ctx context.Context, process
 	}, nil
 }
 
-func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
+func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, processId uuid.UUID, partitionDate PartitionDate, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
 	ctx, span := telemetry.NewSpan(ctx, "olap_repository.processSinglePartition")
 	defer span.End()
 
@@ -3673,26 +3687,78 @@ func (p *OLAPRepositoryImpl) processSinglePartition(ctx context.Context, process
 		return nil
 	}
 
-	duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, p.pool, partitionDate)
+	// if the job is running for the first time, check that there aren't any duplicate external ids before proceeding
+	if jobMeta.LastExternalId == uuid.Nil {
+		connStatementTimeout := 15 * 60 * 1000 // 15 minutes
 
-	if err != nil {
-		return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
-	}
+		conn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, p.pool, p.l, connStatementTimeout)
 
-	if len(duplicatedExternalIds) > 0 {
-		var duplicatedIds []string
-
-		for _, row := range duplicatedExternalIds {
-			duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+		if err != nil {
+			return fmt.Errorf("failed to acquire connection with statement timeout: %w", err)
 		}
 
-		return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+		defer release()
+
+		stopLeaseExtension := make(chan struct{})
+		leaseExtensionDone := make(chan struct{})
+
+		go func() {
+			defer close(leaseExtensionDone)
+
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-stopLeaseExtension:
+					return
+				case <-ticker.C:
+					leaseTx, leaseCommit, leaseRollback, txErr := sqlchelpers.PrepareTx(ctx, p.pool, p.l)
+
+					if txErr != nil {
+						p.l.Error().Err(txErr).Msg("failed to prepare transaction for lease extension during duplicate check")
+						continue
+					}
+
+					_, txErr = p.acquireOrExtendJobLease(ctx, leaseTx, processId, partitionDate, jobMeta.LastExternalId)
+
+					if txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to extend lease during duplicate check")
+						continue
+					}
+
+					if txErr = leaseCommit(ctx); txErr != nil {
+						leaseRollback()
+						p.l.Error().Err(txErr).Msg("failed to commit lease extension during duplicate check")
+					}
+				}
+			}
+		}()
+
+		duplicatedExternalIds, err := p.ValidateNoDuplicateOLAPExternalIds(ctx, conn, partitionDate)
+		close(stopLeaseExtension)
+		<-leaseExtensionDone
+
+		if err != nil {
+			return fmt.Errorf("failed to validate no duplicate external ids: %w", err)
+		}
+
+		if len(duplicatedExternalIds) > 0 {
+			var duplicatedIds []string
+
+			for _, row := range duplicatedExternalIds {
+				duplicatedIds = append(duplicatedIds, row.ExternalId.String())
+			}
+
+			return fmt.Errorf("found duplicate external ids in partition %s. Sampled ids: %s", partitionDate.String(), strings.Join(duplicatedIds, ", "))
+		}
 	}
 
 	lastExternalId := jobMeta.LastExternalId
 
 	for {
-		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
+		outcome, err := p.processOLAPPayloadCutoverBatch(ctx, processId, partitionDate, lastExternalId, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
 
 		if err != nil {
 			return fmt.Errorf("failed to process payload cutover batch: %w", err)
@@ -3741,7 +3807,7 @@ func (p *OLAPRepositoryImpl) createOLAPIndexBlock(ctx context.Context, tx pgx.Tx
 	})
 }
 
-func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32) error {
+func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, externalStoreEnabled bool, inlineStoreTTL *time.Duration, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads int32, enableWindowSizeOptimization bool) error {
 	if !externalStoreEnabled {
 		return nil
 	}
@@ -3768,7 +3834,7 @@ func (p *OLAPRepositoryImpl) ProcessOLAPPayloadCutovers(ctx context.Context, ext
 
 	for _, partition := range partitions {
 		p.l.Info().Ctx(ctx).Str("partition", partition.PartitionName).Msg("processing payload cutover for partition")
-		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads)
+		err = p.processSinglePartition(ctx, processId, PartitionDate(partition.PartitionDate), inlineStoreTTL, externalCutoverBatchSize, externalCutoverNumConcurrentOffloads, enableWindowSizeOptimization)
 
 		if err != nil {
 			return fmt.Errorf("failed to process partition %s: %w", partition.PartitionName, err)
