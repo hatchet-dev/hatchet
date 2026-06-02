@@ -87,6 +87,24 @@ function getPlanChangeErrorMessage(error: unknown) {
   return fallback;
 }
 
+const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
+
+type PylonWindow = Window & {
+  Pylon?: (command: 'show') => void;
+};
+
+function openPylonSupport() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const { Pylon } = window as PylonWindow;
+
+  if (typeof Pylon === 'function') {
+    Pylon('show');
+  }
+}
+
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   upcoming,
@@ -348,17 +366,32 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
       <div>
         {isDedicatedPlan ? (
-          <div className="flex flex-row items-center justify-between">
-            <p className="text-xl font-semibold leading-tight text-foreground">
-              You are on the Dedicated plan
-            </p>
-            <Button
-              onClick={manageClicked}
-              variant="outline"
-              disabled={portalLoading}
-            >
-              {portalLoading ? <Spinner /> : 'Manage Billing'}
-            </Button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-xl font-semibold leading-tight text-foreground">
+                You are on a Dedicated plan
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Contact us to make changes to your plan.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button onClick={openPylonSupport} variant="outline">
+                Contact us
+              </Button>
+              <Button asChild variant="outline">
+                <a href={OFFICE_HOURS_URL} target="_blank" rel="noreferrer">
+                  Office hours
+                </a>
+              </Button>
+              <Button
+                onClick={manageClicked}
+                variant="outline"
+                disabled={portalLoading}
+              >
+                {portalLoading ? <Spinner /> : 'Manage Billing'}
+              </Button>
+            </div>
           </div>
         ) : (
           <>
