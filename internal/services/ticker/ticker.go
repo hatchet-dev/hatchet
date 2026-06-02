@@ -16,12 +16,10 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type Ticker interface {
 	Start(ctx context.Context) error
-	RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId uuid.UUID, scheduled *sqlcv1.PollScheduledWorkflowsRow)
 }
 
 type TickerImpl struct {
