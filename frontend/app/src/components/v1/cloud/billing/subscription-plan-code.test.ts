@@ -1,5 +1,8 @@
 import { resolveSubscriptionPlanCode } from './subscription-plan-code';
-import { OrganizationBillingStateSubscription } from '@/lib/api/generated/control-plane/data-contracts';
+import {
+  OrganizationBillingStateSubscription,
+  SubscriptionPlanCode,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
@@ -15,7 +18,10 @@ function subscription(
 describe('resolveSubscriptionPlanCode', () => {
   it('uses the server-resolved subscription plan code', () => {
     assert.equal(
-      resolveSubscriptionPlanCode(subscription('team', 'team_monthly'), 'free'),
+      resolveSubscriptionPlanCode(
+        subscription(SubscriptionPlanCode.Team, 'team_monthly'),
+        'free',
+      ),
       'team_monthly',
     );
   });
@@ -23,7 +29,7 @@ describe('resolveSubscriptionPlanCode', () => {
   it('supports plan codes that do not include a period', () => {
     assert.equal(
       resolveSubscriptionPlanCode(
-        subscription('developer', 'developer'),
+        subscription(SubscriptionPlanCode.Developer, 'developer'),
         'free',
       ),
       'developer',
