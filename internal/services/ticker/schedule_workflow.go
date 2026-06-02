@@ -128,7 +128,7 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 		}
 
 		err = t.RunScheduledWorkflowV1(ctx, tenantId, repository.RunScheduledWorkflowV1Opts{
-			Id:                 scheduledWorkflowId,
+			ID:                 scheduledWorkflowId,
 			Input:              scheduled.Input,
 			AdditionalMetadata: scheduled.AdditionalMetadata,
 			Priority:           &scheduled.Priority,

@@ -28,7 +28,7 @@ type ListTickerOpts struct {
 }
 
 type RunScheduledWorkflowV1Opts struct {
-	Id                 uuid.UUID
+	ID                 uuid.UUID
 	Input              []byte
 	AdditionalMetadata []byte
 	Priority           *int32

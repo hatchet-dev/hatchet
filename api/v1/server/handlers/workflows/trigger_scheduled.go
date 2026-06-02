@@ -33,7 +33,7 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 		w.config.V1,
 		scheduled.TenantId,
 		repository.RunScheduledWorkflowV1Opts{
-			Id:                 scheduled.ID,
+			ID:                 scheduled.ID,
 			Input:              scheduled.Input,
 			AdditionalMetadata: scheduled.AdditionalMetadata,
 			Priority:           &scheduled.Priority,

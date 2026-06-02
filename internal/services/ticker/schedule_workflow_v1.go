@@ -24,19 +24,19 @@ func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 
 func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) (*uuid.UUID, error) {
 	expiresAt := opts.TriggerAt.Add(time.Second * 30)
-	err := repo.Idempotency().CreateIdempotencyKey(ctx, tenantId, opts.Id.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
+	err := repo.Idempotency().CreateIdempotencyKey(ctx, tenantId, opts.ID.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
 
 	var pgErr *pgconn.PgError
 	// if we get a unique violation, it means we tried to create a duplicate idempotency key, which means this
 	// run has already been processed, so we should just return
 	if err != nil && errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", opts.Id.String())
+		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", opts.ID.String())
 		return nil, nil
 	} else if err != nil {
 		return nil, fmt.Errorf("could not create idempotency key: %w", err)
 	}
 
-	key := v1.IdempotencyKey(opts.Id.String())
+	key := v1.IdempotencyKey(opts.ID.String())
 	externalId := uuid.New()
 
 	msg, err := tasktypes.TriggerTaskMessage(
@@ -62,5 +62,5 @@ func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.Me
 		return nil, fmt.Errorf("could not send message to task queue: %w", err)
 	}
 
-	return &externalId, repo.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, opts.Id)
+	return &externalId, repo.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, opts.ID)
 }
