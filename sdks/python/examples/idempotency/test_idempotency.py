@@ -57,14 +57,25 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
 ) -> None:
     test_run_id = str(uuid4())
     for i in range(4):
-        await idempotent_task_short_window.aio_run(
-            input=IdempotencyInput(id=test_run_id),
-            wait_for_result=False,
-            additional_metadata={"test_run_id": test_run_id},
-        )
+        if i == 1:
+            with pytest.raises(IdempotencyCollisionError) as exc_info:
+                await idempotent_task_short_window.aio_run(
+                    input=IdempotencyInput(id=test_run_id),
+                    wait_for_result=False,
+                    additional_metadata={"test_run_id": test_run_id},
+                )
+
+            assert exc_info.value.existing_run_external_id is not None
+        else:
+            await idempotent_task_short_window.aio_run(
+                input=IdempotencyInput(id=test_run_id),
+                wait_for_result=False,
+                additional_metadata={"test_run_id": test_run_id},
+            )
 
         ## dynamic sleep, first task should run, second should not, third should, fourth should
-        await asyncio.sleep(i + 1.5)
+        if i != 3:
+            await asyncio.sleep(i + 1.5)
 
     runs: V1TaskSummaryList | None = None
 
@@ -74,7 +85,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) != 0:
+        if len(runs.rows) < 3:
             await asyncio.sleep(1)
             continue
 
@@ -82,7 +93,6 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
     else:
         pytest.fail("Expected to find at least one run, but found none.")
 
-    assert runs
     assert runs.rows
     assert len(runs.rows) == 3
 
