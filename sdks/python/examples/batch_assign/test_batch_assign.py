@@ -2,6 +2,8 @@ import asyncio
 
 import pytest
 
+pytestmark = [pytest.mark.usefixtures("_skip_unless_batching")]
+
 from examples.batch_assign.worker import (
     KeyedInput,
     LargePayloadInput,

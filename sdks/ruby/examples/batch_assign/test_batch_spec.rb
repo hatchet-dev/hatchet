@@ -7,6 +7,8 @@ require_relative "../worker_fixture"
 RSpec.describe "batch-task e2e" do
   BATCH_HEALTHCHECK_PORT = 8010
 
+  before(:all) { skip_unless_batching }
+
   before(:all) do
     @batch_run_id = SecureRandom.uuid
 
