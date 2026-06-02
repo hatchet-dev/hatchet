@@ -18,6 +18,7 @@ export const CronColumn = {
   name: 'Name',
   workflow: 'Workflow',
   metadata: 'Metadata',
+  input: 'Input',
   createdAt: 'Created At',
   actions: 'Actions',
   enabled: 'Enabled',
@@ -32,6 +33,7 @@ const timezoneKey: CronColumnKeys = 'timezone';
 const nameKey: CronColumnKeys = 'name';
 export const workflowKey: CronColumnKeys = 'workflow';
 export const metadataKey: CronColumnKeys = 'metadata';
+export const inputKey: CronColumnKeys = 'input';
 const createdAtKey: CronColumnKeys = 'createdAt';
 const actionsKey: CronColumnKeys = 'actions';
 
@@ -147,6 +149,33 @@ export const columns = ({
                 setSelectedJobId(null);
               }
             }}
+          />
+        );
+      },
+      enableSorting: false,
+    },
+    {
+      accessorKey: inputKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.input} />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.input) {
+          return <div></div>;
+        }
+
+        return (
+          <AdditionalMetadata
+            metadata={row.original.input}
+            isOpen={selectedJobId === row.original.metadata.id}
+            onOpenChange={(open) => {
+              if (open) {
+                setSelectedJobId(row.original.metadata.id);
+              } else {
+                setSelectedJobId(null);
+              }
+            }}
+            title="Input"
           />
         );
       },
