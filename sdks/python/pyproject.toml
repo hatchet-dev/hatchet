@@ -48,6 +48,7 @@ lint = [
     "types-requests>=2.33.0.20260518",
     "psutil>=6.0.0",
     "types-grpcio>=1.0.0",
+    "types-grpcio-status (>=1.0.0.20260408,<2.0.0.0)",
 ]
 
 test = [
