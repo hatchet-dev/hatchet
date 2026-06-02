@@ -97,7 +97,7 @@ export interface APIControlPlaneMetadata {
    */
   observabilityEnabled?: boolean;
   /**
-   * whether organization billing APIs are enabled (Autumn configured)
+   * whether organization billing APIs are enabled
    * @example false
    */
   canBill?: boolean;
@@ -491,7 +491,9 @@ export interface OrganizationSubscription {
 }
 
 export interface OrganizationBillingStateSubscription {
-  /** The plan code associated with the tenant subscription. */
+  /** The subscription plan code matching an entry in the available plans list. */
+  planCode: string;
+  /** The base plan code associated with the organization subscription. */
   plan: SubscriptionPlanCode;
   /** The period associated with the organization subscription. */
   period?: SubscriptionPeriod;

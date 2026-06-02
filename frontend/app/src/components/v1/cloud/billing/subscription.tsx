@@ -1,4 +1,5 @@
 import { PlanSelector } from './plan-selector';
+import { resolveSubscriptionPlanCode } from './subscription-plan-code';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Badge } from '@/components/v1/ui/badge';
@@ -170,10 +171,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   });
 
   const activePlanCode = useMemo(() => {
-    if (!active?.plan || active.plan === 'free') {
-      return 'free';
-    }
-    return [active.plan, active.period].filter((x) => !!x).join('_');
+    return resolveSubscriptionPlanCode(active, 'free') ?? 'free';
   }, [active]);
 
   useEffect(() => {
@@ -181,10 +179,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   }, [active]);
 
   const upcomingPlanCode = useMemo(() => {
-    if (!upcoming?.plan) {
-      return null;
-    }
-    return [upcoming.plan, upcoming.period].filter((x) => !!x).join('_');
+    return resolveSubscriptionPlanCode(upcoming, null);
   }, [upcoming]);
 
   const activePlanAmountCents = useMemo(
