@@ -1,6 +1,11 @@
 import pytest
 
-from examples.idempotency.worker import idempotent_task, IdempotencyInput, EVENT_KEY
+from examples.idempotency.worker import (
+    idempotent_task,
+    idempotent_task_short_window,
+    IdempotencyInput,
+    EVENT_KEY,
+)
 
 from hatchet_sdk import Hatchet, IdempotencyCollisionError, RunStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
@@ -44,6 +49,42 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
     assert runs is not None
     assert len(runs.rows) == 1
     assert runs.rows[0].metadata.id == ref1.workflow_run_id
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_window(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    for i in range(4):
+        await idempotent_task_short_window.aio_run(
+            input=IdempotencyInput(id=test_run_id),
+            wait_for_result=False,
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        ## dynamic sleep, first task should run, second should not, third should, fourth should
+        await asyncio.sleep(i + 1.5)
+
+    runs: V1TaskSummaryList | None = None
+
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) != 0:
+            await asyncio.sleep(1)
+            continue
+
+        break
+    else:
+        pytest.fail("Expected to find at least one run, but found none.")
+
+    assert runs
+    assert runs.rows
+    assert len(runs.rows) == 3
 
 
 @pytest.mark.asyncio(loop_scope="session")

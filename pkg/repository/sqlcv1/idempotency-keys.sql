@@ -11,6 +11,13 @@ WITH inputs AS (
         UNNEST(@keys::TEXT[]) AS key,
         UNNEST(@expiresAts::TIMESTAMPTZ[]) AS expires_at,
         UNNEST(@claimedByExternalIds::UUID[]) AS claimed_by_external_id
+), inputs_with_rn AS (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY key ORDER BY expires_at DESC) AS rn
+    FROM inputs
+), deduplicated_potential_claims AS (
+    SELECT *
+    FROM inputs_with_rn
+    WHERE rn = 1
 ), locked_existing_keys AS (
     SELECT *
     FROM v1_idempotency_key
@@ -18,13 +25,9 @@ WITH inputs AS (
         tenant_id = @tenantId::UUID
         AND key IN (
             SELECT key
-            FROM inputs
+            FROM deduplicated_potential_claims
         )
     FOR UPDATE SKIP LOCKED
-), already_claimed_keys AS (
-    SELECT *
-    FROM locked_existing_keys
-    WHERE expires_at > NOW()
 ), claimable_keys AS (
     SELECT *
     FROM locked_existing_keys
@@ -32,7 +35,7 @@ WITH inputs AS (
 ), claims AS (
     INSERT INTO v1_idempotency_key (key, expires_at, tenant_id, claimed_by_external_id)
     SELECT key, expires_at, @tenantId::UUID, claimed_by_external_id
-    FROM inputs
+    FROM deduplicated_potential_claims
     ON CONFLICT (tenant_id, key) DO UPDATE
     SET
         expires_at = CASE

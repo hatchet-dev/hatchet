@@ -101,7 +101,7 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
-from examples.idempotency.worker import idempotent_task
+from examples.idempotency.worker import idempotent_task, idempotent_task_short_window
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -197,6 +197,7 @@ def main() -> None:
             durable_child_key_dedup_replay,
             durable_spawn_many_dags,
             idempotent_task,
+            idempotent_task_short_window,
         ],
         lifespan=lifespan,
     )

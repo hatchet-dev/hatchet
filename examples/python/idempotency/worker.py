@@ -21,7 +21,7 @@ async def idempotent_task(input: IdempotencyInput, ctx: Context) -> dict[str, st
 def main() -> None:
     worker = hatchet.worker(
         "test-worker",
-        workflows=[idempotent_task],
+        workflows=[idempotent_task, idempotent_task],
     )
     worker.start()
 
