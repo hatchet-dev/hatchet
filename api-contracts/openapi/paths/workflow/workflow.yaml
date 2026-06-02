@@ -1199,7 +1199,7 @@ scheduled:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/ScheduledWorkflows"
+              $ref: "../../components/schemas/_index.yaml#/TriggerRunResult"
         description: Successfully triggered the scheduled workflow run
       "400":
         content:
@@ -1482,7 +1482,7 @@ crons:
         content:
           application/json:
             schema:
-              $ref: "../../components/schemas/_index.yaml#/CronWorkflows"
+              $ref: "../../components/schemas/_index.yaml#/TriggerRunResult"
         description: Successfully triggered the workflow run
       "400":
         content:

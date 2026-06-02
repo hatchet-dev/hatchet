@@ -77,6 +77,7 @@ import {
   TenantQueueMetrics,
   TenantResourcePolicy,
   TenantStepRunQueueMetrics,
+  TriggerRunResult,
   TriggerWorkflowRunRequest,
   UpdateCronWorkflowTriggerRequest,
   UpdateScheduledWorkflowRunRequest,
@@ -2724,7 +2725,7 @@ export class Api<
     scheduledWorkflowRun: string,
     params: RequestParams = {},
   ) =>
-    this.request<ScheduledWorkflows, APIErrors>({
+    this.request<TriggerRunResult, APIErrors>({
       path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
       method: "POST",
       secure: true,
@@ -2940,7 +2941,7 @@ export class Api<
     cronWorkflow: string,
     params: RequestParams = {},
   ) =>
-    this.request<CronWorkflows, APIErrors | APIError>({
+    this.request<TriggerRunResult, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: "POST",
       secure: true,

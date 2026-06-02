@@ -7,7 +7,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
-	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -20,7 +19,7 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 		return gen.WorkflowScheduledTrigger404JSONResponse(apierrors.NewAPIErrors("Scheduled workflow not found.")), nil
 	}
 
-	err := ticker.RunScheduledWorkflow(
+	externalId, err := ticker.RunScheduledWorkflow(
 		ctx.Request().Context(),
 		w.config.Logger,
 		w.config.MessageQueueV1,
@@ -40,7 +39,7 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 		return gen.WorkflowScheduledTrigger400JSONResponse(apierrors.NewAPIErrors("Failed to trigger scheduled workflow.")), nil
 	}
 
-	return gen.WorkflowScheduledTrigger200JSONResponse(
-		*transformers.ToScheduledWorkflowsFromSQLC(scheduled),
-	), nil
+	return gen.WorkflowScheduledTrigger200JSONResponse(gen.TriggerRunResult{
+		ExternalId: externalId,
+	}), nil
 }

@@ -1304,6 +1304,12 @@ type TenantStepRunQueueMetrics struct {
 // TenantVersion defines model for TenantVersion.
 type TenantVersion string
 
+// TriggerRunResult defines model for TriggerRunResult.
+type TriggerRunResult struct {
+	// ExternalId The external ID of the triggered workflow run
+	ExternalId openapi_types.UUID `json:"externalId"`
+}
+
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
@@ -17481,7 +17487,7 @@ func (r WorkflowCronUpdateResponse) StatusCode() int {
 type WorkflowCronTriggerResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *CronWorkflows
+	JSON200      *TriggerRunResult
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
@@ -17699,7 +17705,7 @@ func (r WorkflowScheduledUpdateResponse) StatusCode() int {
 type WorkflowScheduledTriggerResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ScheduledWorkflows
+	JSON200      *TriggerRunResult
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
@@ -24462,7 +24468,7 @@ func ParseWorkflowCronTriggerResponse(rsp *http.Response) (*WorkflowCronTriggerR
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CronWorkflows
+		var dest TriggerRunResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -24836,7 +24842,7 @@ func ParseWorkflowScheduledTriggerResponse(rsp *http.Response) (*WorkflowSchedul
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ScheduledWorkflows
+		var dest TriggerRunResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
