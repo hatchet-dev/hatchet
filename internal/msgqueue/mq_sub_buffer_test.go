@@ -13,6 +13,74 @@ import (
 
 var testTenantID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
+// TestSubBufferFlushesWhenFull verifies that filling the buffer triggers a flush via the
+// notifier path without waiting for the flush interval timer. A 10s flush interval is used
+// so the test would time out if only the ticker triggered the flush.
+func TestSubBufferFlushesWhenFull(t *testing.T) {
+	const bufSize = 5
+	origSize := SUB_BUFFER_SIZE
+	origInterval := SUB_FLUSH_INTERVAL
+	SUB_BUFFER_SIZE = bufSize
+	SUB_FLUSH_INTERVAL = 10 * time.Second
+	defer func() {
+		SUB_BUFFER_SIZE = origSize
+		SUB_FLUSH_INTERVAL = origInterval
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	flushed := make(chan [][]byte, bufSize)
+	dst := func(_ uuid.UUID, _ string, payloads [][]byte) error {
+		flushed <- payloads
+		return nil
+	}
+
+	buf := NewMQSubBuffer(TASK_PROCESSING_QUEUE, &mockMessageQueue{}, dst,
+		WithFlushInterval(SUB_FLUSH_INTERVAL),
+		WithBufferSize(bufSize),
+		WithMaxConcurrency(bufSize), // one slot per message so each notifier signal can flush independently
+	)
+
+	// Send bufSize messages concurrently via handleMsg, which blocks each goroutine until
+	// its message is flushed. If any message waits for the 10s timer the overall deadline fires first.
+	var wg sync.WaitGroup
+	for i := 0; i < bufSize; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := buf.handleMsg(ctx, &Message{
+				TenantID: testTenantID,
+				ID:       "test-msg",
+				Payloads: [][]byte{[]byte("p")},
+			}); err != nil {
+				t.Errorf("handleMsg returned error: %v", err)
+			}
+		}()
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("sub buffer did not flush all messages within 2s; flush interval is 10s, so the timer was not the trigger")
+	}
+
+	// Tally payloads across all dst calls as a sanity check.
+	var total int
+	for len(flushed) > 0 {
+		total += len(<-flushed)
+	}
+	if total != bufSize {
+		t.Errorf("expected %d payloads across all dst calls, got %d", bufSize, total)
+	}
+}
+
 // TestMsgIdBufferMemoryLeak verifies that the semaphore releaser reuses timers
 // and doesn't create unbounded goroutines or memory leaks
 func TestMsgIdBufferMemoryLeak(t *testing.T) {
