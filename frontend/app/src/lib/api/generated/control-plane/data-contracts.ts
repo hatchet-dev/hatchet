@@ -15,6 +15,12 @@ export enum CouponFrequency {
   Recurring = "recurring",
 }
 
+export enum SubscriptionStatus {
+  Current = "current",
+  Upcoming = "upcoming",
+  Past = "past",
+}
+
 export enum SubscriptionPeriod {
   Monthly = "monthly",
   Yearly = "yearly",
@@ -450,6 +456,8 @@ export interface OrganizationBillingState {
   currentSubscription: OrganizationBillingStateSubscription;
   /** The upcoming subscription associated with this policy. */
   upcomingSubscription?: OrganizationBillingStateSubscription;
+  /** The full subscription history for the organization, most recent first. */
+  subscriptionHistory?: OrganizationBillingStateSubscription[];
   /** A list of plans available for the organization. */
   plans: SubscriptionPlan[];
   /** A list of coupons applied to the organization. */
@@ -545,6 +553,8 @@ export interface OrganizationBillingStateSubscription {
   plan: SubscriptionPlanCode;
   /** The period associated with the organization subscription. */
   period?: SubscriptionPeriod;
+  /** The lifecycle status of the organization subscription. */
+  status?: SubscriptionStatus;
   /**
    * The start date of the organization subscription.
    * @format date-time

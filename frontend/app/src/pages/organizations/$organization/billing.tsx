@@ -1,4 +1,7 @@
-import { Subscription } from '@/components/v1/cloud/billing';
+import {
+  Subscription,
+  SubscriptionHistory,
+} from '@/components/v1/cloud/billing';
 import { Spinner } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { queries } from '@/lib/api';
@@ -80,6 +83,22 @@ export default function OrganizationBillingPage() {
             )}
           </div>
         ) : null}
+
+        <div className="mt-12 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Plan history
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A record of subscription changes for this organization.
+            </p>
+          </div>
+
+          <SubscriptionHistory
+            history={billingState.data?.subscriptionHistory}
+            plans={billingState.data?.plans}
+          />
+        </div>
       </div>
     </div>
   );
