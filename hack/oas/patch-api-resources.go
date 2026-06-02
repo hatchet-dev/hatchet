@@ -4,6 +4,9 @@
 //
 //	api.v1TaskGet.resources.has("tenant") // true
 //
+// For operations whose path contains {tenant}, it also injects xTenantId: tenant
+// so the exchange-token interceptor can resolve the tenant without URL parsing.
+//
 // Run from the repo root after swagger-typescript-api generation:
 //
 //	go run ./hack/oas/patch-api-resources.go
@@ -41,6 +44,11 @@ type Operation struct {
 	XResources []string `yaml:"x-resources"`
 }
 
+type operationMetadata struct {
+	resources     []string
+	hasTenantPath bool
+}
+
 func main() {
 	// Load and parse OpenAPI spec.
 	specData, err := os.ReadFile(specPath)
@@ -53,22 +61,23 @@ func main() {
 		log.Fatalf("parsing %s: %v", specPath, err)
 	}
 
-	// Build lookup: "METHOD /path" -> resources (may be nil/empty).
-	resourcesMap := buildResourcesMap(spec)
+	metadataMap := buildOperationMetadataMap(spec)
 
-	// Read, transform, write Api.ts.
 	apiData, err := os.ReadFile(apiPath)
 	if err != nil {
 		log.Fatalf("reading %s: %v", apiPath, err)
 	}
 
-	result, total, withResources := transformApiTs(string(apiData), resourcesMap)
+	result, total, withResources, withTenantPath := transformApiTs(string(apiData), metadataMap)
 
 	if err := os.WriteFile(apiPath, []byte(result), 0644); err != nil { // nolint:gosec
 		log.Fatalf("writing %s: %v", apiPath, err)
 	}
 
-	fmt.Printf("patched %s: %d methods transformed (%d with x-resources)\n", apiPath, total, withResources)
+	fmt.Printf(
+		"patched %s: %d methods transformed (%d with x-resources, %d with xTenantId)\n",
+		apiPath, total, withResources, withTenantPath,
+	)
 }
 
 type resource struct {
@@ -76,10 +85,10 @@ type resource struct {
 	method string
 }
 
-// buildResourcesMap returns a map from "METHOD /path" to the x-resources list.
-func buildResourcesMap(spec OpenAPISpec) map[string][]string {
-	m := make(map[string][]string)
+func buildOperationMetadataMap(spec OpenAPISpec) map[string]operationMetadata {
+	m := make(map[string]operationMetadata)
 	for path, item := range spec.Paths {
+		hasTenantPath := strings.Contains(path, "{tenant}")
 		for _, entry := range []resource{
 			{op: item.Get, method: "GET"},
 			{op: item.Post, method: "POST"},
@@ -88,7 +97,10 @@ func buildResourcesMap(spec OpenAPISpec) map[string][]string {
 			{op: item.Delete, method: "DELETE"},
 		} {
 			if entry.op != nil {
-				m[entry.method+" "+path] = entry.op.XResources
+				m[entry.method+" "+path] = operationMetadata{
+					resources:     entry.op.XResources,
+					hasTenantPath: hasTenantPath,
+				}
 			}
 		}
 	}
@@ -107,7 +119,7 @@ func buildResourcesMap(spec OpenAPISpec) map[string][]string {
 //
 //	methodName = Object.assign((args) =>
 //	  this.request({...}), { resources: new Set<string>(["tenant"]) });
-func transformApiTs(content string, resourcesMap map[string][]string) (result string, total, withResources int) {
+func transformApiTs(content string, metadataMap map[string]operationMetadata) (result string, total, withResources, withTenantPath int) {
 	lines := strings.Split(content, "\n")
 	out := make([]string, 0, len(lines))
 
@@ -123,23 +135,22 @@ func transformApiTs(content string, resourcesMap map[string][]string) (result st
 			continue
 		}
 
-		// Collect JSDoc lines and extract the @request annotation.
 		jsdocLines, requestKey, advance := collectJSDoc(lines, i)
 		i += advance
 
-		// Collect the method body (everything up to and including "    });").
 		methodLines, advance := collectMethodBody(lines, i)
 		i += advance
 
-		// Look up resources; transform regardless (empty Set for unscoped methods).
-		// Skip if already patched (idempotent when run multiple times).
 		alreadyPatched := len(methodLines) > 0 && strings.Contains(methodLines[0], "Object.assign(")
 		if requestKey != "" && !alreadyPatched {
-			res := resourcesMap[requestKey]
-			methodLines = transformMethod(methodLines, res)
+			meta := metadataMap[requestKey]
+			methodLines = transformMethod(methodLines, meta)
 			total++
-			if len(res) > 0 {
+			if len(meta.resources) > 0 {
 				withResources++
+			}
+			if meta.hasTenantPath {
+				withTenantPath++
 			}
 		}
 
@@ -147,7 +158,7 @@ func transformApiTs(content string, resourcesMap map[string][]string) (result st
 		out = append(out, methodLines...)
 	}
 
-	return strings.Join(out, "\n"), total, withResources
+	return strings.Join(out, "\n"), total, withResources, withTenantPath
 }
 
 // collectJSDoc returns the JSDoc lines, the @request key ("METHOD /path"), and
@@ -216,31 +227,45 @@ func collectMethodBody(lines []string, start int) (methodLines []string, consume
 // available on the Axios config inside interceptors:
 //
 //	(config as any).xResources // ["tenant", "task"]
-func transformMethod(lines []string, resources []string) []string {
+//
+// When the OpenAPI path contains {tenant}, it injects xTenantId: tenant before
+// ...params so explicit caller params.xTenantId can still override.
+func transformMethod(lines []string, meta operationMetadata) []string {
 	if len(lines) < 2 {
 		return lines
 	}
 
-	// Split "  methodName = REST" into prefix and the part after " = ".
 	prefix, afterEq, ok := strings.Cut(lines[0], " = ")
 	if !ok {
-		return lines // unexpected format; leave unchanged
+		return lines
 	}
 
-	arrayLit := arrayLiteral(resources)
+	arrayLit := arrayLiteral(meta.resources)
+	middle := lines[1 : len(lines)-1]
+	if meta.hasTenantPath {
+		middle = injectXTenantId(middle)
+	}
 
-	// Rebuild the lines:
-	//   1. First line gets Object.assign( prepended.
-	//   2. Middle lines are unchanged.
-	//   3. A new xResources line is inserted before the closing    });
-	//   4. The closing    }); becomes    }), { resources: new Set<string>([...]) });
-	result := make([]string, 0, len(lines)+1)
+	result := make([]string, 0, len(lines)+2)
 	result = append(result, prefix+" = Object.assign("+afterEq)
-	result = append(result, lines[1:len(lines)-1]...)
+	result = append(result, middle...)
 	result = append(result, "      xResources: "+arrayLit+",")
 	result = append(result, "    }), { resources: new Set<string>("+arrayLit+") });")
 
 	return result
+}
+
+func injectXTenantId(lines []string) []string {
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "...params," {
+			out := make([]string, 0, len(lines)+1)
+			out = append(out, lines[:i]...)
+			out = append(out, "      xTenantId: tenant,")
+			out = append(out, lines[i:]...)
+			return out
+		}
+	}
+	return lines
 }
 
 // arrayLiteral builds a TypeScript array literal from a slice of strings:
