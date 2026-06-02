@@ -243,8 +243,8 @@ WITH included_events AS (
         )
         AND (
             $6::UUID[] IS NULL OR
-            EXISTS (
-                SELECT 1
+            (e.id, e.seen_at) IN (
+                SELECT event_id, event_seen_at
                 FROM v1_event_lookup_table_olap elt
                 WHERE elt.tenant_id = $1::UUID AND elt.external_id = ANY($6::UUID[])
             )
@@ -1334,8 +1334,8 @@ WHERE
     )
     AND (
         $6::UUID[] IS NULL OR
-        EXISTS (
-            SELECT 1
+        (e.id, e.seen_at) IN (
+            SELECT event_id, event_seen_at
             FROM v1_event_lookup_table_olap elt
             WHERE elt.tenant_id = $1::UUID AND elt.external_id = ANY($6::UUID[])
         )

@@ -2526,7 +2526,7 @@ type EventTriggersFromExternalId struct {
 	RunInsertedAt   pgtype.Timestamptz `json:"run_inserted_at"`
 	EventExternalId uuid.UUID          `json:"event_external_id"`
 	EventSeenAt     pgtype.Timestamptz `json:"event_seen_at"`
-	FilterId        uuid.UUID          `json:"filter_id"`
+	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error {
@@ -2582,7 +2582,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			RunInsertedAt: trigger.RunInsertedAt,
 			EventID:       eventId,
 			EventSeenAt:   trigger.EventSeenAt,
-			FilterID:      &trigger.FilterId,
+			FilterID:      trigger.FilterId,
 		})
 	}
 
