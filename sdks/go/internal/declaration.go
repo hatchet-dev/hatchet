@@ -36,6 +36,7 @@ type EvictionPolicyOpts = task.EvictionPolicyOpts
 type NamedFunction struct {
 	ActionID       string
 	Fn             WrappedTaskFn
+	BatchFn        worker.BatchWrappedFn
 	EvictionPolicy *EvictionPolicyOpts
 }
 

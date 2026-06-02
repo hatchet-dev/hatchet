@@ -34,6 +34,10 @@ func TestMain(m *testing.M) {
 	}
 	sharedClient = client
 
+	// Give batch tasks unique names to avoid conflicts with previous test runs.
+	batchRunId = uniqueID()
+	registerBatchWorkflows(client)
+
 	worker, cleanup, err := startTestWorker(client)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start test worker: %v\n", err)

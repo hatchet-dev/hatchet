@@ -73,7 +73,15 @@ const (
 	ActionTypeStartStepRun     ActionType = "START_STEP_RUN"
 	ActionTypeCancelStepRun    ActionType = "CANCEL_STEP_RUN"
 	ActionTypeStartGetGroupKey ActionType = "START_GET_GROUP_KEY"
+	ActionTypeStartBatch       ActionType = "START_BATCH"
 )
+
+// BatchStart carries the flush signal metadata for a batch task.
+type BatchStart struct {
+	TriggerTime   time.Time
+	TriggerReason string
+	ExpectedSize  int32
+}
 
 type Action struct {
 	// the worker id
@@ -141,6 +149,12 @@ type Action struct {
 	TriggeringEventKey *string `json:"triggeringEventKey,omitempty"`
 
 	DurableTaskInvocationCount *int32 `json:"durableTaskInvocationCount,omitempty"`
+
+	// Batch fields — set when this action is part of a batch task.
+	BatchId    *string     `json:"batchId,omitempty"`
+	BatchIndex *int32      `json:"batchIndex,omitempty"`
+	BatchKey   *string     `json:"batchKey,omitempty"`
+	BatchStart *BatchStart `json:"batchStart,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -438,6 +452,8 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				actionType = ActionTypeCancelStepRun
 			case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
 				actionType = ActionTypeStartGetGroupKey
+			case dispatchercontracts.ActionType_START_BATCH:
+				actionType = ActionTypeStartBatch
 			default:
 				a.l.Error().Ctx(ctx).Msgf("Unknown action type: %s", assignedAction.ActionType)
 				continue
@@ -467,7 +483,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				}
 			}
 
-			ch <- &Action{
+			act := &Action{
 				TenantId:                   assignedAction.TenantId,
 				WorkflowRunId:              assignedAction.WorkflowRunId,
 				GetGroupKeyRunId:           assignedAction.GetGroupKeyRunId,
@@ -492,7 +508,26 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				TriggeringEventExternalId:  assignedAction.TriggeringEventExternalId,
 				TriggeringEventKey:         assignedAction.TriggeringEventKey,
 				DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
+				BatchId:                    assignedAction.BatchId,
+				BatchIndex:                 assignedAction.BatchIndex,
+				BatchKey:                   assignedAction.BatchKey,
 			}
+
+			if assignedAction.BatchStart != nil {
+				bs := assignedAction.BatchStart
+				batchStart := &BatchStart{
+					ExpectedSize: bs.GetExpectedSize(),
+				}
+				if bs.TriggerReason != "" {
+					batchStart.TriggerReason = bs.TriggerReason
+				}
+				if bs.TriggerTime != nil {
+					batchStart.TriggerTime = bs.TriggerTime.AsTime()
+				}
+				act.BatchStart = batchStart
+			}
+
+			ch <- act
 		}
 
 		errCh <- fmt.Errorf("could not subscribe to the worker after %d retries", retries)

@@ -182,6 +182,14 @@ func (c *testHatchetContext) WorkerId() string {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) BatchId() *string {
+	return nil
+}
+
+func (c *testHatchetContext) BatchIndex() *int32 {
+	return nil
+}
+
 func TestAddMiddleware(t *testing.T) {
 	m := middlewares{}
 	middlewareFunc := func(ctx HatchetContext, next func(HatchetContext) error) error {
