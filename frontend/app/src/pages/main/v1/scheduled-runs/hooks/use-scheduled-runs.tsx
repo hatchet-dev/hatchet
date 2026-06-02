@@ -3,8 +3,8 @@ import {
   statusKey,
   metadataKey,
 } from '../components/scheduled-runs-columns';
-import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useToast } from '@/components/v1/hooks/use-toast';
+import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -16,8 +16,8 @@ import api, {
   WorkflowRunOrderByDirection,
 } from '@/lib/api';
 import { appRoutes } from '@/router';
-import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
@@ -106,7 +106,7 @@ export const useScheduledRuns = ({
 
   const triggerNowMutation = useMutation({
     mutationFn: async (scheduledRunId: string) =>
-      await api.workflowScheduledTrigger(tenantId, scheduledRunId),
+      api.workflowScheduledTrigger(tenantId, scheduledRunId),
     onSuccess: (data) => {
       const runId = data?.data?.externalId;
       if (runId) {
