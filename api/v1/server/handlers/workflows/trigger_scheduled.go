@@ -8,6 +8,7 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/internal/services/ticker"
+	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -46,6 +47,13 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 	if err != nil || externalId == nil {
 		return gen.WorkflowScheduledTrigger500JSONResponse(apierrors.NewAPIErrors("Failed to trigger scheduled workflow.")), nil
 	}
+
+	w.config.Analytics.Enqueue(
+		ctx.Request().Context(),
+		analytics.WorkflowRun, analytics.Create,
+		externalId.String(),
+		nil,
+	)
 
 	return gen.WorkflowScheduledTrigger200JSONResponse(gen.TriggerRunResult{
 		ExternalId: *externalId,
