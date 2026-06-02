@@ -2940,10 +2940,11 @@ export class Api<
     cronWorkflow: string,
     params: RequestParams = {},
   ) =>
-    this.request<void, APIErrors | APIError>({
+    this.request<CronWorkflows, APIErrors | APIError>({
       path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
       method: "POST",
       secure: true,
+      format: "json",
       ...params,
       xResources: ["tenant", "cron-workflow"],
     }), { resources: new Set<string>(["tenant", "cron-workflow"]) });

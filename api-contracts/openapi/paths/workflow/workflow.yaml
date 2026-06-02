@@ -1478,8 +1478,12 @@ crons:
           minLength: 36
           maxLength: 36
     responses:
-      "204":
-        description: Successfully triggered the cron job workflow run
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/CronWorkflows"
+        description: Successfully triggered the workflow run
       "400":
         content:
           application/json:

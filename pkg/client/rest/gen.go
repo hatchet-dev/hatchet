@@ -17481,6 +17481,7 @@ func (r WorkflowCronUpdateResponse) StatusCode() int {
 type WorkflowCronTriggerResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON200      *CronWorkflows
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
@@ -24460,6 +24461,13 @@ func ParseWorkflowCronTriggerResponse(rsp *http.Response) (*WorkflowCronTriggerR
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CronWorkflows
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest APIErrors
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
