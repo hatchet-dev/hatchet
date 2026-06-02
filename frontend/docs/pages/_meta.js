@@ -6,6 +6,13 @@ export default {
       toc: true,
     },
   },
+  changelog: {
+    title: "Changelog",
+    type: "page",
+    theme: {
+      toc: true,
+    },
+  },
   cookbooks: {
     title: "Cookbooks",
     type: "page",
