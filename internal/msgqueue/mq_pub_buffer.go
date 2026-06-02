@@ -14,7 +14,7 @@ import (
 // nolint: staticcheck
 var (
 	PUB_FLUSH_INTERVAL  = 10 * time.Millisecond
-	PUB_BUFFER_SIZE     = 1000
+	PUB_BUFFER_SIZE     = 100
 	PUB_MAX_CONCURRENCY = 1
 	PUB_TIMEOUT         = 10 * time.Second
 )

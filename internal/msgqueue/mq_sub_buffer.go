@@ -15,7 +15,7 @@ import (
 // nolint: staticcheck
 var (
 	SUB_FLUSH_INTERVAL  = 10 * time.Millisecond
-	SUB_BUFFER_SIZE     = 1000
+	SUB_BUFFER_SIZE     = 100
 	SUB_MAX_CONCURRENCY = 10
 )
 
