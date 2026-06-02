@@ -1,0 +1,88 @@
+# git-cliff ~ GitHub release-notes config (consolidated multi-tag)
+# https://git-cliff.org/docs/configuration
+
+[remote.github]
+# NOTE: this requires a GitHub auth token passed via GITHUB_TOKEN.
+owner = "hatchet-dev"
+repo  = "hatchet"
+
+[changelog]
+header = ""
+
+# NOTE: the template lives entirely in `footer` (with `body` empty) on purpose.
+# This is a consolidated multi-tag changelog: we loop over the whole `releases`
+# array to merge every version into one set of sections. `body` is rendered once
+# PER RELEASE and has no access to the `releases` array, so the loop can only run
+# in `header`/`footer`, which receive the full context.
+body = ""
+
+footer = """
+{%- macro remote_url() -%}https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}{%- endmacro -%}
+{%- set_global groups = [] -%}
+{%- for release in releases -%}
+  {%- for commit in release.commits -%}
+    {%- set core = commit.scope and commit.scope is matching("engine|api|migrate|admin|cli|dashboard|lite") -%}
+    {%- set labeled = commit.remote.pr_labels and (commit.remote.pr_labels is containing("engine") or commit.remote.pr_labels is containing("dashboard")) -%}
+    {%- if (core or labeled) and commit.group and not (groups is containing(commit.group)) -%}
+      {%- set_global groups = groups | concat(with=commit.group) -%}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endfor -%}
+## What's Changed
+{% for group in groups | sort %}
+### {{ group | striptags | trim | upper_first }}
+{% for release in releases -%}
+{%- for commit in release.commits -%}
+{%- set core = commit.scope and commit.scope is matching("engine|api|migrate|admin|cli|dashboard|lite") -%}
+{%- set labeled = commit.remote.pr_labels and (commit.remote.pr_labels is containing("engine") or commit.remote.pr_labels is containing("dashboard")) -%}
+{%- if (core or labeled) and commit.group == group -%}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | split(pat="\n") | first | upper_first | trim }} `{{ release.version }}`{% if commit.remote.username %} by @{{ commit.remote.username }}{% endif %}{% if commit.remote.pr_number %} in [#{{ commit.remote.pr_number }}]({{ self::remote_url() }}/pull/{{ commit.remote.pr_number }}){% endif %}
+{% endif -%}
+{%- endfor -%}
+{%- endfor -%}
+{% endfor -%}
+{%- set_global new_contributors = [] -%}
+{%- for release in releases -%}
+  {%- for contributor in release.github.contributors | filter(attribute="is_first_time", value=true) -%}
+    {%- set_global new_contributors = new_contributors | concat(with=contributor) -%}
+  {%- endfor -%}
+{%- endfor -%}
+{%- if new_contributors | length != 0 %}
+## New Contributors
+{% for contributor in new_contributors -%}
+* @{{ contributor.username }} made their first contribution{% if contributor.pr_number %} in [#{{ contributor.pr_number }}]({{ self::remote_url() }}/pull/{{ contributor.pr_number }}){% endif %}
+{% endfor -%}
+{%- endif -%}
+"""
+
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+commit_preprocessors = [
+  { pattern = '\((\w+\s)?#([0-9]+)\)', replace = "" },
+]
+
+commit_parsers = [
+  { field = "github.pr_labels", pattern = "skip changelog", skip = true },
+
+  { message = "^chore",  skip = true },
+  { message = "^ci",     skip = true },
+  { message = "^docs",   skip = true },
+  { message = "^build",  skip = true },
+  { message = "^style",  skip = true },
+  { message = "^test",   skip = true },
+
+  { message = "^.*!:",     group = "<!-- 1 -->Changed" },
+  { message = "^feat",     group = "<!-- 0 -->Added" },
+  { message = "^perf",     group = "<!-- 1 -->Changed" },
+  { message = "^refactor", group = "<!-- 1 -->Changed" },
+  { message = "^revert",   group = "<!-- 2 -->Removed" },
+  { message = "^fix",      group = "<!-- 3 -->Fixed" },
+  { message = "^hotfix",   group = "<!-- 3 -->Fixed" },
+]
+
+tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+"
+topo_order = false
+sort_commits = "newest"
