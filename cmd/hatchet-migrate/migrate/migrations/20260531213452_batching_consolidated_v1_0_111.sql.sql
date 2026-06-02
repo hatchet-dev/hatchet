@@ -122,75 +122,78 @@ RETURNS TRIGGER AS $$
 DECLARE
     rec RECORD;
 BEGIN
-    WITH new_slot_rows AS (
+    -- Only insert if there's a single task with initial_state = 'QUEUED' and concurrency_strategy_ids is not null
+    IF (SELECT COUNT(*) FROM new_table WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL) > 0 THEN
+        WITH new_slot_rows AS (
+            SELECT
+                id,
+                inserted_at,
+                retry_count,
+                tenant_id,
+                priority,
+                concurrency_parent_strategy_ids[1] AS parent_strategy_id,
+                CASE
+                    WHEN array_length(concurrency_parent_strategy_ids, 1) > 1 THEN concurrency_parent_strategy_ids[2:array_length(concurrency_parent_strategy_ids, 1)]
+                    ELSE '{}'::bigint[]
+                END AS next_parent_strategy_ids,
+                concurrency_strategy_ids[1] AS strategy_id,
+                external_id,
+                workflow_run_id,
+                CASE
+                    WHEN array_length(concurrency_strategy_ids, 1) > 1 THEN concurrency_strategy_ids[2:array_length(concurrency_strategy_ids, 1)]
+                    ELSE '{}'::bigint[]
+                END AS next_strategy_ids,
+                concurrency_keys[1] AS key,
+                CASE
+                    WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
+                    ELSE '{}'::text[]
+                END AS next_keys,
+                workflow_id,
+                workflow_version_id,
+                queue,
+                CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
+            FROM new_table
+            WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL
+        )
+        INSERT INTO v1_concurrency_slot (
+            task_id,
+            task_inserted_at,
+            task_retry_count,
+            external_id,
+            tenant_id,
+            workflow_id,
+            workflow_version_id,
+            workflow_run_id,
+            parent_strategy_id,
+            next_parent_strategy_ids,
+            strategy_id,
+            next_strategy_ids,
+            priority,
+            key,
+            next_keys,
+            queue_to_notify,
+            schedule_timeout_at
+        )
         SELECT
             id,
             inserted_at,
             retry_count,
-            tenant_id,
-            priority,
-            concurrency_parent_strategy_ids[1] AS parent_strategy_id,
-            CASE
-                WHEN array_length(concurrency_parent_strategy_ids, 1) > 1 THEN concurrency_parent_strategy_ids[2:array_length(concurrency_parent_strategy_ids, 1)]
-                ELSE '{}'::bigint[]
-            END AS next_parent_strategy_ids,
-            concurrency_strategy_ids[1] AS strategy_id,
             external_id,
-            workflow_run_id,
-            CASE
-                WHEN array_length(concurrency_strategy_ids, 1) > 1 THEN concurrency_strategy_ids[2:array_length(concurrency_strategy_ids, 1)]
-                ELSE '{}'::bigint[]
-            END AS next_strategy_ids,
-            concurrency_keys[1] AS key,
-            CASE
-                WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
-                ELSE '{}'::text[]
-            END AS next_keys,
+            tenant_id,
             workflow_id,
             workflow_version_id,
+            workflow_run_id,
+            parent_strategy_id,
+            next_parent_strategy_ids,
+            strategy_id,
+            next_strategy_ids,
+            COALESCE(priority, 1),
+            key,
+            next_keys,
             queue,
-            CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
-        FROM new_table
-        WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL
-    )
-    INSERT INTO v1_concurrency_slot (
-        task_id,
-        task_inserted_at,
-        task_retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        priority,
-        key,
-        next_keys,
-        queue_to_notify,
-        schedule_timeout_at
-    )
-    SELECT
-        id,
-        inserted_at,
-        retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        COALESCE(priority, 1),
-        key,
-        next_keys,
-        queue,
-        schedule_timeout_at
-    FROM new_slot_rows;
+            schedule_timeout_at
+        FROM new_slot_rows;
+    END IF;
 
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -208,6 +211,7 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
+        desired_worker_label,
         batch_key
     )
     SELECT
@@ -226,26 +230,32 @@ BEGIN
         nt.sticky,
         nt.desired_worker_id,
         nt.retry_count,
+        nt.desired_worker_label,
         COALESCE(nt.batch_key, t.batch_key)
     FROM new_table nt
-    LEFT JOIN v1_task t
-        ON t.id = nt.id
-        AND t.inserted_at = nt.inserted_at
-    WHERE nt.initial_state = 'QUEUED' AND nt.concurrency_strategy_ids[1] IS NULL;
+         LEFT JOIN v1_task t
+         ON t.id = nt.id
+         AND t.inserted_at = nt.inserted_at
+    WHERE nt.initial_state = 'QUEUED' AND nt.concurrency_strategy_ids[1] IS NULL
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
-    INSERT INTO v1_dag_to_task (
-        dag_id,
-        dag_inserted_at,
-        task_id,
-        task_inserted_at
-    )
-    SELECT
-        dag_id,
-        dag_inserted_at,
-        id,
-        inserted_at
-    FROM new_table
-    WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL;
+    -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
+    IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
+        INSERT INTO v1_dag_to_task (
+            dag_id,
+            dag_inserted_at,
+            task_id,
+            task_inserted_at
+        )
+        SELECT
+            dag_id,
+            dag_inserted_at,
+            id,
+            inserted_at
+        FROM new_table
+        WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL;
+    END IF;
 
     INSERT INTO v1_lookup_table (
         external_id,
@@ -415,6 +425,7 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
+        desired_worker_label,
         batch_key
     )
     SELECT
@@ -433,13 +444,16 @@ BEGIN
         nt.sticky,
         nt.desired_worker_id,
         nt.retry_count,
+        nt.desired_worker_label,
         nt.batch_key
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
-        AND ot.retry_count IS DISTINCT FROM nt.retry_count;
+        AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -552,6 +566,7 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
+        desired_worker_label,
         batch_key
     )
     SELECT
@@ -570,8 +585,11 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
+        desired_worker_label,
         batch_key
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -687,6 +705,7 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
+        desired_worker_label,
         batch_key
     )
     SELECT
@@ -705,8 +724,11 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
+        desired_worker_label,
         batch_key
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -802,129 +824,84 @@ SELECT 'no-op: cannot remove value from "LeaseKind"' AS notice;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
--- Restore trigger functions to pre-batching versions (from v1_0_0 baseline), so down migrations remain functional.
+-- Restore trigger functions to pre-batching versions (from v1_0_106 baseline), so down migrations remain functional.
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
 DECLARE
     rec RECORD;
 BEGIN
-    FOR rec IN SELECT * FROM new_table WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL AND concurrency_keys[1] IS NULL LOOP
-        RAISE WARNING 'New table row: %', row_to_json(rec);
-    END LOOP;
-
-    -- When a task is inserted in a non-queued state, we should add all relevant completed_child_strategy_ids to the parent
-    -- concurrency slots.
-    WITH parent_slots AS (
-        SELECT
-            nt.workflow_id,
-            nt.workflow_version_id,
-            nt.workflow_run_id,
-            UNNEST(nt.concurrency_strategy_ids) AS strategy_id,
-            UNNEST(nt.concurrency_parent_strategy_ids) AS parent_strategy_id
-        FROM
-            new_table nt
-        WHERE
-            cardinality(nt.concurrency_parent_strategy_ids) > 0
-            AND nt.initial_state != 'QUEUED'
-    ), locked_parent_slots AS (
-        SELECT
-            wcs.workflow_id,
-            wcs.workflow_version_id,
-            wcs.workflow_run_id,
-            wcs.strategy_id,
-            cs.strategy_id AS child_strategy_id
-        FROM
-            v1_workflow_concurrency_slot wcs
-        JOIN
-            parent_slots cs ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id) = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
-        ORDER BY
-            wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id
-        FOR UPDATE
-    )
-    UPDATE
-        v1_workflow_concurrency_slot wcs
-    SET
-        -- get unique completed_child_strategy_ids after append with cs.strategy_id
-        completed_child_strategy_ids = ARRAY(
+    -- Only insert if there's a single task with initial_state = 'QUEUED' and concurrency_strategy_ids is not null
+    IF (SELECT COUNT(*) FROM new_table WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL) > 0 THEN
+        WITH new_slot_rows AS (
             SELECT
-                DISTINCT UNNEST(ARRAY_APPEND(wcs.completed_child_strategy_ids, cs.child_strategy_id))
+                id,
+                inserted_at,
+                retry_count,
+                tenant_id,
+                priority,
+                concurrency_parent_strategy_ids[1] AS parent_strategy_id,
+                CASE
+                    WHEN array_length(concurrency_parent_strategy_ids, 1) > 1 THEN concurrency_parent_strategy_ids[2:array_length(concurrency_parent_strategy_ids, 1)]
+                    ELSE '{}'::bigint[]
+                END AS next_parent_strategy_ids,
+                concurrency_strategy_ids[1] AS strategy_id,
+                external_id,
+                workflow_run_id,
+                CASE
+                    WHEN array_length(concurrency_strategy_ids, 1) > 1 THEN concurrency_strategy_ids[2:array_length(concurrency_strategy_ids, 1)]
+                    ELSE '{}'::bigint[]
+                END AS next_strategy_ids,
+                concurrency_keys[1] AS key,
+                CASE
+                    WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
+                    ELSE '{}'::text[]
+                END AS next_keys,
+                workflow_id,
+                workflow_version_id,
+                queue,
+                CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
+            FROM new_table
+            WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL
         )
-    FROM
-        locked_parent_slots cs
-    WHERE
-        wcs.strategy_id = cs.strategy_id
-        AND wcs.workflow_version_id = cs.workflow_version_id
-        AND wcs.workflow_run_id = cs.workflow_run_id;
-
-    WITH new_slot_rows AS (
+        INSERT INTO v1_concurrency_slot (
+            task_id,
+            task_inserted_at,
+            task_retry_count,
+            external_id,
+            tenant_id,
+            workflow_id,
+            workflow_version_id,
+            workflow_run_id,
+            parent_strategy_id,
+            next_parent_strategy_ids,
+            strategy_id,
+            next_strategy_ids,
+            priority,
+            key,
+            next_keys,
+            queue_to_notify,
+            schedule_timeout_at
+        )
         SELECT
             id,
             inserted_at,
             retry_count,
-            tenant_id,
-            priority,
-            concurrency_parent_strategy_ids[1] AS parent_strategy_id,
-            CASE
-                WHEN array_length(concurrency_parent_strategy_ids, 1) > 1 THEN concurrency_parent_strategy_ids[2:array_length(concurrency_parent_strategy_ids, 1)]
-                ELSE '{}'::bigint[]
-            END AS next_parent_strategy_ids,
-            concurrency_strategy_ids[1] AS strategy_id,
             external_id,
-            workflow_run_id,
-            CASE
-                WHEN array_length(concurrency_strategy_ids, 1) > 1 THEN concurrency_strategy_ids[2:array_length(concurrency_strategy_ids, 1)]
-                ELSE '{}'::bigint[]
-            END AS next_strategy_ids,
-            concurrency_keys[1] AS key,
-            CASE
-                WHEN array_length(concurrency_keys, 1) > 1 THEN concurrency_keys[2:array_length(concurrency_keys, 1)]
-                ELSE '{}'::text[]
-            END AS next_keys,
+            tenant_id,
             workflow_id,
             workflow_version_id,
+            workflow_run_id,
+            parent_strategy_id,
+            next_parent_strategy_ids,
+            strategy_id,
+            next_strategy_ids,
+            COALESCE(priority, 1),
+            key,
+            next_keys,
             queue,
-            CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout) AS schedule_timeout_at
-        FROM new_table
-        WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NOT NULL
-    )
-    INSERT INTO v1_concurrency_slot (
-        task_id,
-        task_inserted_at,
-        task_retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        priority,
-        key,
-        next_keys,
-        queue_to_notify,
-        schedule_timeout_at
-    )
-    SELECT
-        id,
-        inserted_at,
-        retry_count,
-        external_id,
-        tenant_id,
-        workflow_id,
-        workflow_version_id,
-        workflow_run_id,
-        parent_strategy_id,
-        next_parent_strategy_ids,
-        strategy_id,
-        next_strategy_ids,
-        COALESCE(priority, 1),
-        key,
-        next_keys,
-        queue,
-        schedule_timeout_at
-    FROM new_slot_rows;
+            schedule_timeout_at
+        FROM new_slot_rows;
+    END IF;
 
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -941,7 +918,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         tenant_id,
@@ -958,23 +936,29 @@ BEGIN
         COALESCE(priority, 1),
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     FROM new_table
-    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
+    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
-    INSERT INTO v1_dag_to_task (
-        dag_id,
-        dag_inserted_at,
-        task_id,
-        task_inserted_at
-    )
-    SELECT
-        dag_id,
-        dag_inserted_at,
-        id,
-        inserted_at
-    FROM new_table
-    WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL;
+    -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
+    IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
+        INSERT INTO v1_dag_to_task (
+            dag_id,
+            dag_inserted_at,
+            task_id,
+            task_inserted_at
+        )
+        SELECT
+            dag_id,
+            dag_inserted_at,
+            id,
+            inserted_at
+        FROM new_table
+        WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL;
+    END IF;
 
     INSERT INTO v1_lookup_table (
         external_id,
@@ -1059,9 +1043,35 @@ BEGIN
         FROM new_table nt
         JOIN old_table ot ON ot.id = nt.id
         WHERE nt.initial_state = 'QUEUED'
+            -- Concurrency strategy id should never be null
             AND nt.concurrency_strategy_ids[1] IS NOT NULL
             AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
             AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ), updated_slot AS (
+        UPDATE
+            v1_concurrency_slot cs
+        SET
+            task_retry_count = nt.retry_count,
+            schedule_timeout_at = nt.schedule_timeout_at,
+            is_filled = FALSE,
+            priority = 4
+        FROM
+            new_slot_rows nt
+        WHERE
+            cs.task_id = nt.id
+            AND cs.task_inserted_at = nt.inserted_at
+            AND cs.strategy_id = nt.strategy_id
+        RETURNING cs.*
+    ), slots_to_insert AS (
+        -- select the rows that were not updated
+        SELECT
+            nt.*
+        FROM
+            new_slot_rows nt
+        LEFT JOIN
+            updated_slot cs ON cs.task_id = nt.id AND cs.task_inserted_at = nt.inserted_at AND cs.strategy_id = nt.strategy_id
+        WHERE
+            cs.task_id IS NULL
     )
     INSERT INTO v1_concurrency_slot (
         task_id,
@@ -1100,7 +1110,7 @@ BEGIN
         next_keys,
         queue,
         schedule_timeout_at
-    FROM new_slot_rows;
+    FROM slots_to_insert;
 
     INSERT INTO v1_queue_item (
         tenant_id,
@@ -1117,7 +1127,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         nt.tenant_id,
@@ -1134,13 +1145,15 @@ BEGIN
         4,
         nt.sticky,
         nt.desired_worker_id,
-        nt.retry_count
+        nt.retry_count,
+        nt.desired_worker_label
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
-        AND ot.retry_count IS DISTINCT FROM nt.retry_count;
+        AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -1184,6 +1197,7 @@ BEGIN
         WHERE
             dr.retry_after <= NOW()
             AND t.initial_state = 'QUEUED'
+            -- Check to see if the task has a concurrency strategy
             AND t.concurrency_strategy_ids[1] IS NOT NULL
     )
     INSERT INTO v1_concurrency_slot (
@@ -1251,7 +1265,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         tenant_id,
@@ -1268,8 +1283,11 @@ BEGIN
         4,
         sticky,
         desired_worker_id,
-        retry_count
-    FROM tasks;
+        retry_count,
+        desired_worker_label
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1384,7 +1402,8 @@ BEGIN
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        desired_worker_label
     )
     SELECT
         tenant_id,
@@ -1401,8 +1420,11 @@ BEGIN
         COALESCE(priority, 1),
         sticky,
         desired_worker_id,
-        retry_count
-    FROM tasks;
+        retry_count,
+        desired_worker_label
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
