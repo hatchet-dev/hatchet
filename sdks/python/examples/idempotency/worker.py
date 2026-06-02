@@ -8,7 +8,9 @@ hatchet = Hatchet()
 class IdempotencyInput(BaseModel):
     id: str
 
+
 EVENT_KEY = "idempotency:example"
+
 
 @hatchet.task(
     idempotency=IdempotencyConfig(key_expression="input.id", ttl=timedelta(minutes=1)),

@@ -85,6 +85,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
         event_ids=[e1.event_id, e2.event_id],
     )
 
+    assert details.rows
     assert len(details.rows) == 2
 
     all_triggered_runs = [

@@ -2774,7 +2774,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	eventExternalIds := make([]uuid.UUID, len(events))
 	readPayloadOpts := make([]ReadOLAPPayloadOpts, len(events))
-	minSeenAt := time.Now().UTC()
 
 	for i, event := range events {
 		eventExternalIds[i] = event.ExternalID
@@ -2782,17 +2781,13 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			ExternalId: event.ExternalID,
 			InsertedAt: event.SeenAt,
 		}
-
-		if event.SeenAt.Time.Before(minSeenAt) {
-			minSeenAt = event.SeenAt.Time
-		}
 	}
 
 	eventExternalIdToData, err := r.PopulateEventData(
 		ctx,
 		opts.Tenantid,
 		eventExternalIds,
-		sqlchelpers.TimestamptzFromTime(minSeenAt),
+		opts.Since,
 	)
 
 	if err != nil {
