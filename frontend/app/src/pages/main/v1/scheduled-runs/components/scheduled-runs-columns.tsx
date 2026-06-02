@@ -33,6 +33,7 @@ export const columns = ({
   tenantId,
   onDeleteClick,
   onRescheduleClick,
+  onTriggerClick,
   selectedAdditionalMetaJobId,
   handleSetSelectedAdditionalMetaJobId,
   onRowClick,
@@ -40,6 +41,7 @@ export const columns = ({
   tenantId: string;
   onDeleteClick: (row: ScheduledWorkflows) => void;
   onRescheduleClick: (row: ScheduledWorkflows) => void;
+  onTriggerClick: (row: ScheduledWorkflows) => void;
   selectedAdditionalMetaJobId: string | null;
   handleSetSelectedAdditionalMetaJobId: (runId: string | null) => void;
   onRowClick?: (row: ScheduledWorkflows) => void;
@@ -214,6 +216,10 @@ export const columns = ({
                     : row.original.workflowRunId
                       ? 'Cannot reschedule a scheduled run that has already been triggered'
                       : undefined,
+              },
+              {
+                label: 'Trigger Now',
+                onClick: () => onTriggerClick(row.original),
               },
               {
                 label: 'Delete',

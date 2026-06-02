@@ -8,14 +8,14 @@ import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import {
+import api, {
   queries,
   ScheduledRunStatus,
   ScheduledWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
 } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 type UseScheduledRunsProps = {
@@ -99,6 +99,16 @@ export const useScheduledRuns = ({
     );
   }, [workflowKeys]);
 
+  const triggerNowMutation = useMutation({
+    mutationFn: async (scheduledRunId: string) =>
+      await api.workflowScheduledTrigger(tenantId, scheduledRunId),
+  });
+
+  const triggerNow = useCallback(
+    async (scheduledRunId: string) => triggerNowMutation.mutate(scheduledRunId),
+    [triggerNowMutation],
+  );
+
   return {
     scheduledRuns,
     numPages,
@@ -116,5 +126,6 @@ export const useScheduledRuns = ({
     workflowKeyFilters,
     isRefetching,
     resetFilters,
+    triggerNow,
   };
 };
