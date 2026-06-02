@@ -14,32 +14,31 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId uuid.UUID, scheduled *sqlcv1.PollScheduledWorkflowsRow) error {
-	expiresAt := scheduled.TriggerAt.Time.Add(time.Second * 30)
-	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, scheduledWorkflowId.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
+func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) error {
+	expiresAt := opts.TriggerAt.Add(time.Second * 30)
+	err := t.repov1.Idempotency().CreateIdempotencyKey(ctx, tenantId, opts.Id.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
 
 	var pgErr *pgconn.PgError
 	// if we get a unique violation, it means we tried to create a duplicate idempotency key, which means this
 	// run has already been processed, so we should just return
 	if err != nil && errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-		t.l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", scheduledWorkflowId)
+		t.l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", opts.Id.String())
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("could not create idempotency key: %w", err)
 	}
 
-	key := v1.IdempotencyKey(scheduledWorkflowId.String())
+	key := v1.IdempotencyKey(opts.Id.String())
 
 	// send workflow run to task controller
 	opt := &v1.WorkflowNameTriggerOpts{
 		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:       workflowVersion.WorkflowName,
-			Data:               scheduled.Input,
-			AdditionalMetadata: scheduled.AdditionalMetadata,
-			Priority:           &scheduled.Priority,
+			WorkflowName:       opts.WorkflowName,
+			Data:               opts.Input,
+			AdditionalMetadata: opts.AdditionalMetadata,
+			Priority:           opts.Priority,
 		},
 		IdempotencyKey: &key,
 		ExternalId:     uuid.New(),
@@ -62,5 +61,5 @@ func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 	}
 
 	// delete the scheduled workflow
-	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, scheduledWorkflowId)
+	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, opts.Id)
 }
