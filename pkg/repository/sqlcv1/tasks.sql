@@ -499,8 +499,6 @@ FROM
     v1_task
 JOIN
     v1_task_runtime runtime ON runtime.task_id = v1_task.id
-        AND runtime.task_inserted_at = v1_task.inserted_at
-        AND runtime.retry_count = v1_task.retry_count
 WHERE
     v1_task.tenant_id = @tenantId::uuid
     AND runtime.batch_id = @batchId::uuid;
@@ -1232,7 +1230,6 @@ ANALYZE v1_task;
 
 -- name: AnalyzeV1TaskEvent :exec
 ANALYZE v1_task_event;
-
 
 -- name: AnalyzeV1Dag :exec
 ANALYZE v1_dag;
