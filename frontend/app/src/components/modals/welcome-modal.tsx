@@ -1,3 +1,4 @@
+import { WELCOME_KEY } from './welcome-modal-state';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -18,8 +19,6 @@ import {
 import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-
-const WELCOME_KEY = 'hatchet:show-welcome';
 
 interface WelcomeModalProps {
   tenantId: string | undefined;
