@@ -210,9 +210,9 @@ tasks:
     dir: frontend/snippets
     cmds:
       - "source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - task: sync-changelog
       - task: fmt
       - task: sync-agent-instructions
-      - task: sync-changelog
   generate-certs:
     cmds:
       - bash ./hack/dev/generate-x509-certs.sh ./hack/dev/certs
@@ -297,10 +297,10 @@ tasks:
     deps: [venv]
     cmds:
       - cmd: "cd frontend/snippets && source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - task: sync-changelog
       - task: fmt-go
       - task: fmt-docs
       - task: sync-agent-instructions
-      - task: sync-changelog
       - |
         # Create a trap to kill the watcher when the task exits
         trap 'kill $(jobs -p) 2>/dev/null' EXIT
