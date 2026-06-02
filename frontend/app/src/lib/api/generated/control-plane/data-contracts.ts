@@ -117,6 +117,11 @@ export interface APIControlPlaneMetadata {
    * @example false
    */
   canBill?: boolean;
+  /**
+   * whether organization billing UI should show a maintenance message
+   * @example false
+   */
+  billingMaintenanceMode?: boolean;
 }
 
 import type { APIMetaAuth } from '@/lib/api/generated/data-contracts';

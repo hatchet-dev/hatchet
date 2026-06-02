@@ -1,5 +1,6 @@
 import { PlanSelector } from './plan-selector';
 import { resolveSubscriptionPlanCode } from './subscription-plan-code';
+import { usePylon } from '@/components/support-chat';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
@@ -89,22 +90,6 @@ function getPlanChangeErrorMessage(error: unknown) {
 
 const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
-type PylonWindow = Window & {
-  Pylon?: (command: 'show') => void;
-};
-
-function openPylonSupport() {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const { Pylon } = window as PylonWindow;
-
-  if (typeof Pylon === 'function') {
-    Pylon('show');
-  }
-}
-
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
   upcoming,
@@ -122,6 +107,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   const { tenantId, tenant, billing, organizationId } = useTenantDetails();
   const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
   const { handleApiError } = useApiError({});
+  const pylon = usePylon();
   const [portalLoading, setPortalLoading] = useState(false);
   const creditBalanceQuery = useQuery({
     ...queries.controlPlane.creditBalance(organizationId || ''),
@@ -376,9 +362,11 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button onClick={openPylonSupport} variant="outline">
-                Contact us
-              </Button>
+              {pylon.enabled && (
+                <Button onClick={pylon.show} variant="outline">
+                  Contact us
+                </Button>
+              )}
               <Button asChild variant="outline">
                 <a href={OFFICE_HOURS_URL} target="_blank" rel="noreferrer">
                   Office hours

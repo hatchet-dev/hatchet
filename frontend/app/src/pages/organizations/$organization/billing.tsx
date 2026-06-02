@@ -1,3 +1,4 @@
+import { usePylon } from '@/components/support-chat';
 import {
   Subscription,
   SubscriptionHistory,
@@ -5,8 +6,15 @@ import {
 import { resolveSubscriptionPlanCode } from '@/components/v1/cloud/billing/subscription-plan-code';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import type { TenantResourceLimit } from '@/lib/api';
 import type { TenantResourceLimit as ControlPlaneTenantResourceLimit } from '@/lib/api/generated/control-plane/data-contracts';
@@ -16,7 +24,7 @@ import { TenantResourceLimitsTable } from '@/pages/main/v1/tenant-settings/resou
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 // While a plan change finalizes, poll billing state until the rendered active
 // or upcoming plan reflects the expected plan code.
@@ -25,6 +33,44 @@ const SYNC_TIMEOUT_MS = 90_000;
 const SYNC_SUCCESS_DISMISS_MS = 6000;
 
 type SyncState = 'idle' | 'syncing' | 'done' | 'timeout';
+
+function BillingPageLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="h-full w-full flex-grow">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <SettingsPageHeader
+          title="Billing"
+          description="Manage your organization subscription, payment methods, and plan changes."
+        />
+
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function BillingMaintenanceCard() {
+  const pylon = usePylon();
+
+  return (
+    <Card variant="light" className="mt-6">
+      <CardHeader>
+        <CardTitle>Billing maintenance</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          We're making some upgrades to billing. Check back soon, or contact us
+          if you need help.
+        </p>
+        {pylon.enabled && (
+          <Button onClick={pylon.show} variant="outline">
+            Contact us
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function toTenantResourceLimit(
   limit: ControlPlaneTenantResourceLimit,
@@ -36,6 +82,24 @@ function toTenantResourceLimit(
 }
 
 export default function OrganizationBillingPage() {
+  const { controlPlaneMeta } = useControlPlane();
+
+  if (controlPlaneMeta?.billingMaintenanceMode) {
+    return (
+      <BillingPageLayout>
+        <BillingMaintenanceCard />
+      </BillingPageLayout>
+    );
+  }
+
+  return (
+    <BillingPageLayout>
+      <OrganizationBillingContent />
+    </BillingPageLayout>
+  );
+}
+
+function OrganizationBillingContent() {
   const { organization } = useParams({
     from: appRoutes.organizationsRoute.to,
   });
@@ -146,115 +210,108 @@ export default function OrganizationBillingPage() {
   const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
 
   return (
-    <div className="h-full w-full flex-grow">
-      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <SettingsPageHeader
-          title="Billing"
-          description="Manage your organization subscription, payment methods, and plan changes."
-        />
+    <>
+      {syncState === 'syncing' && (
+        <Alert variant="info" className="mb-6">
+          <AlertTitle className="flex items-center gap-2">
+            <Spinner className="h-4 w-4" />
+            Finalizing your plan change
+          </AlertTitle>
+          <AlertDescription>
+            {expectedPlanName
+              ? `We're activating the ${expectedPlanName} plan...`
+              : "We're activating your new plan..."}
+          </AlertDescription>
+        </Alert>
+      )}
 
-        {syncState === 'syncing' && (
-          <Alert variant="info" className="mb-6">
-            <AlertTitle className="flex items-center gap-2">
-              <Spinner className="h-4 w-4" />
-              Finalizing your plan change
-            </AlertTitle>
-            <AlertDescription>
-              {expectedPlanName
-                ? `We're activating the ${expectedPlanName} plan...`
-                : "We're activating your new plan..."}
-            </AlertDescription>
-          </Alert>
-        )}
+      {syncState === 'done' && (
+        <Alert variant="info" className="mb-6">
+          <AlertTitle>Plan change complete</AlertTitle>
+          <AlertDescription>
+            {expectedPlanName
+              ? `Your ${expectedPlanName} plan is now active.`
+              : 'Your new plan is now active.'}
+          </AlertDescription>
+        </Alert>
+      )}
 
-        {syncState === 'done' && (
-          <Alert variant="info" className="mb-6">
-            <AlertTitle>Plan change complete</AlertTitle>
-            <AlertDescription>
-              {expectedPlanName
-                ? `Your ${expectedPlanName} plan is now active.`
-                : 'Your new plan is now active.'}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {syncState === 'timeout' && (
-          <Alert variant="warn" className="mb-6">
-            <AlertTitle>Your plan change is still processing</AlertTitle>
-            <AlertDescription className="flex flex-col gap-3">
-              <span>
-                This is taking longer than expected. Your change may still be
-                finalizing in the background.
-              </span>
-              <div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSyncState('syncing');
-                    void billingState.refetch();
-                  }}
-                >
-                  Check again
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <Subscription
-          active={billingState.data?.currentSubscription}
-          upcoming={billingState.data?.upcomingSubscription}
-          plans={billingState.data?.plans}
-          coupons={billingState.data?.coupons}
-        />
-
-        {tenantResourceLimits.isLoading || organizationTenants.length > 0 ? (
-          <div className="mt-12 space-y-8">
+      {syncState === 'timeout' && (
+        <Alert variant="warn" className="mb-6">
+          <AlertTitle>Your plan change is still processing</AlertTitle>
+          <AlertDescription className="flex flex-col gap-3">
+            <span>
+              This is taking longer than expected. Your change may still be
+              finalizing in the background.
+            </span>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Resource limits
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Usage limits applied to each tenant in this organization.
-              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSyncState('syncing');
+                  void billingState.refetch();
+                }}
+              >
+                Check again
+              </Button>
             </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
-            {tenantResourceLimits.isLoading ? (
-              <div className="py-6">
-                <Spinner />
-              </div>
-            ) : (
-              organizationTenants.map((tenant) => (
-                <TenantResourceLimitsTable
-                  key={tenant.tenantId}
-                  tenantId={tenant.tenantId}
-                  tenantName={
-                    tenant.tenantName || tenant.tenantSlug || tenant.tenantId
-                  }
-                  limits={tenant.limits.map(toTenantResourceLimit)}
-                />
-              ))
-            )}
-          </div>
-        ) : null}
+      <Subscription
+        active={billingState.data?.currentSubscription}
+        upcoming={billingState.data?.upcomingSubscription}
+        plans={billingState.data?.plans}
+        coupons={billingState.data?.coupons}
+      />
 
-        <div className="mt-12 space-y-4">
+      {tenantResourceLimits.isLoading || organizationTenants.length > 0 ? (
+        <div className="mt-12 space-y-8">
           <div>
             <h2 className="text-lg font-semibold text-foreground">
-              Plan history
+              Resource limits
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A record of subscription changes for this organization.
+              Usage limits applied to each tenant in this organization.
             </p>
           </div>
 
-          <SubscriptionHistory
-            history={billingState.data?.subscriptionHistory}
-            plans={billingState.data?.plans}
-          />
+          {tenantResourceLimits.isLoading ? (
+            <div className="py-6">
+              <Spinner />
+            </div>
+          ) : (
+            organizationTenants.map((tenant) => (
+              <TenantResourceLimitsTable
+                key={tenant.tenantId}
+                tenantId={tenant.tenantId}
+                tenantName={
+                  tenant.tenantName || tenant.tenantSlug || tenant.tenantId
+                }
+                limits={tenant.limits.map(toTenantResourceLimit)}
+              />
+            ))
+          )}
         </div>
+      ) : null}
+
+      <div className="mt-12 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            Plan history
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A record of subscription changes for this organization.
+          </p>
+        </div>
+
+        <SubscriptionHistory
+          history={billingState.data?.subscriptionHistory}
+          plans={billingState.data?.plans}
+        />
       </div>
-    </div>
+    </>
   );
 }
