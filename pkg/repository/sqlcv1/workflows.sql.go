@@ -168,11 +168,7 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable",
-    "batch_max_size",
-    "batch_max_interval",
-    "batch_group_key",
-    "batch_group_max_runs"
+    "isDurable"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -188,12 +184,8 @@ INSERT INTO "Step" (
     coalesce($12::text, '5m'),
     $13,
     $14,
-    coalesce($15::boolean, false),
-    $16::integer,
-    $17::integer,
-    $18::text,
-    $19::integer
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable", batch_max_size, batch_max_interval, batch_group_key, batch_group_max_runs
+    coalesce($15::boolean, false)
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable"
 `
 
 type CreateStepParams struct {
@@ -212,10 +204,6 @@ type CreateStepParams struct {
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	IsDurable          pgtype.Bool      `json:"isDurable"`
-	BatchMaxSize       pgtype.Int4      `json:"batchMaxSize"`
-	BatchMaxInterval   pgtype.Int4      `json:"batchMaxInterval"`
-	BatchGroupKey      pgtype.Text      `json:"batchGroupKey"`
-	BatchGroupMaxRuns  pgtype.Int4      `json:"batchGroupMaxRuns"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -235,10 +223,6 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.RetryBackoffFactor,
 		arg.RetryMaxBackoff,
 		arg.IsDurable,
-		arg.BatchMaxSize,
-		arg.BatchMaxInterval,
-		arg.BatchGroupKey,
-		arg.BatchGroupMaxRuns,
 	)
 	var i Step
 	err := row.Scan(
@@ -257,12 +241,47 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.RetryMaxBackoff,
 		&i.ScheduleTimeout,
 		&i.IsDurable,
-		&i.BatchMaxSize,
-		&i.BatchMaxInterval,
-		&i.BatchGroupKey,
-		&i.BatchGroupMaxRuns,
 	)
 	return &i, err
+}
+
+const createStepBatchConfig = `-- name: CreateStepBatchConfig :exec
+INSERT INTO "StepBatchConfig" (
+    "stepId",
+    "batchMaxSize",
+    "batchMaxInterval",
+    "batchGroupKey",
+    "batchGroupMaxRuns"
+) VALUES (
+    $1::uuid,
+    $2::integer,
+    $3::integer,
+    $4::text,
+    $5::integer
+) ON CONFLICT ("stepId") DO UPDATE SET
+    "batchMaxSize" = EXCLUDED."batchMaxSize",
+    "batchMaxInterval" = EXCLUDED."batchMaxInterval",
+    "batchGroupKey" = EXCLUDED."batchGroupKey",
+    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns"
+`
+
+type CreateStepBatchConfigParams struct {
+	Stepid            uuid.UUID   `json:"stepid"`
+	Batchmaxsize      int32       `json:"batchmaxsize"`
+	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
+	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
+}
+
+func (q *Queries) CreateStepBatchConfig(ctx context.Context, db DBTX, arg CreateStepBatchConfigParams) error {
+	_, err := db.Exec(ctx, createStepBatchConfig,
+		arg.Stepid,
+		arg.Batchmaxsize,
+		arg.BatchMaxInterval,
+		arg.BatchGroupKey,
+		arg.BatchGroupMaxRuns,
+	)
+	return err
 }
 
 const createStepConcurrency = `-- name: CreateStepConcurrency :one
@@ -1059,7 +1078,7 @@ func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db D
 const getStepsForJobs = `-- name: GetStepsForJobs :many
 SELECT
 	j."id" as "jobId",
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s.batch_max_size, s.batch_max_interval, s.batch_group_key, s.batch_group_max_runs,
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable",
     (
         SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
         FROM "_StepOrder" so
@@ -1110,10 +1129,6 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 			&i.Step.RetryMaxBackoff,
 			&i.Step.ScheduleTimeout,
 			&i.Step.IsDurable,
-			&i.Step.BatchMaxSize,
-			&i.Step.BatchMaxInterval,
-			&i.Step.BatchGroupKey,
-			&i.Step.BatchGroupMaxRuns,
 			&i.Parents,
 		); err != nil {
 			return nil, err
@@ -1617,14 +1632,15 @@ func (q *Queries) ListStepMatchConditions(ctx context.Context, db DBTX, arg List
 
 const listStepsByIds = `-- name: ListStepsByIds :many
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s.batch_max_size, s.batch_max_interval, s.batch_group_key, s.batch_group_max_runs,
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable",
     wv."id" as "workflowVersionId",
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
     w."id" as "workflowId",
     COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
-    COUNT(sc.id) as "concurrencyCount"
+    COUNT(sc.id) as "concurrencyCount",
+    sbc."batchGroupKey" AS "batchGroupKey"
 FROM
     "Step" s
 JOIN
@@ -1637,13 +1653,15 @@ LEFT JOIN
     v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
 LEFT JOIN
     "StepExpression" se ON se."stepId" = s."id"
+LEFT JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
 WHERE
     s."id" = ANY($1::uuid[])
     AND w."tenantId" = $2::uuid
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id", wv."sticky"
+    s."id", wv."id", w."name", w."id", wv."sticky", sbc."batchGroupKey"
 `
 
 type ListStepsByIdsParams struct {
@@ -1667,10 +1685,6 @@ type ListStepsByIdsRow struct {
 	RetryMaxBackoff       pgtype.Int4        `json:"retryMaxBackoff"`
 	ScheduleTimeout       string             `json:"scheduleTimeout"`
 	IsDurable             bool               `json:"isDurable"`
-	BatchMaxSize          pgtype.Int4        `json:"batch_max_size"`
-	BatchMaxInterval      pgtype.Int4        `json:"batch_max_interval"`
-	BatchGroupKey         pgtype.Text        `json:"batch_group_key"`
-	BatchGroupMaxRuns     pgtype.Int4        `json:"batch_group_max_runs"`
 	WorkflowVersionId     uuid.UUID          `json:"workflowVersionId"`
 	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
 	WorkflowName          string             `json:"workflowName"`
@@ -1678,6 +1692,7 @@ type ListStepsByIdsRow struct {
 	DefaultPriority       int32              `json:"defaultPriority"`
 	ExprCount             int64              `json:"exprCount"`
 	ConcurrencyCount      int64              `json:"concurrencyCount"`
+	BatchGroupKey         pgtype.Text        `json:"batchGroupKey"`
 }
 
 func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsByIdsParams) ([]*ListStepsByIdsRow, error) {
@@ -1705,10 +1720,6 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
 			&i.IsDurable,
-			&i.BatchMaxSize,
-			&i.BatchMaxInterval,
-			&i.BatchGroupKey,
-			&i.BatchGroupMaxRuns,
 			&i.WorkflowVersionId,
 			&i.WorkflowVersionSticky,
 			&i.WorkflowName,
@@ -1716,6 +1727,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.DefaultPriority,
 			&i.ExprCount,
 			&i.ConcurrencyCount,
+			&i.BatchGroupKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1730,7 +1742,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 const listStepsByWorkflowVersionIds = `-- name: ListStepsByWorkflowVersionIds :many
 WITH steps AS (
     SELECT
-        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s.batch_max_size, s.batch_max_interval, s.batch_group_key, s.batch_group_max_runs,
+        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable",
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
         w."id" as "workflowId",
@@ -1765,7 +1777,7 @@ WITH steps AS (
         so."B"
 )
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s.batch_max_size, s.batch_max_interval, s.batch_group_key, s.batch_group_max_runs, s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
     steps s
@@ -1794,10 +1806,6 @@ type ListStepsByWorkflowVersionIdsRow struct {
 	RetryMaxBackoff     pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout     string           `json:"scheduleTimeout"`
 	IsDurable           bool             `json:"isDurable"`
-	BatchMaxSize        pgtype.Int4      `json:"batch_max_size"`
-	BatchMaxInterval    pgtype.Int4      `json:"batch_max_interval"`
-	BatchGroupKey       pgtype.Text      `json:"batch_group_key"`
-	BatchGroupMaxRuns   pgtype.Int4      `json:"batch_group_max_runs"`
 	WorkflowVersionId   uuid.UUID        `json:"workflowVersionId"`
 	WorkflowName        string           `json:"workflowName"`
 	WorkflowId          uuid.UUID        `json:"workflowId"`
@@ -1831,10 +1839,6 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
 			&i.IsDurable,
-			&i.BatchMaxSize,
-			&i.BatchMaxInterval,
-			&i.BatchGroupKey,
-			&i.BatchGroupMaxRuns,
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,

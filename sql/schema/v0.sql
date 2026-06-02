@@ -455,12 +455,18 @@ CREATE TABLE "Step" (
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
-    "batch_max_size" INTEGER,
-    "batch_max_interval" INTEGER,
-    "batch_group_key" TEXT,
-    "batch_group_max_runs" INTEGER,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "StepBatchConfig" (
+    "stepId" UUID NOT NULL,
+    "batchMaxSize" INTEGER NOT NULL,
+    "batchMaxInterval" INTEGER,
+    "batchGroupKey" TEXT,
+    "batchGroupMaxRuns" INTEGER,
+    CONSTRAINT "StepBatchConfig_pkey" PRIMARY KEY ("stepId"),
+    CONSTRAINT "StepBatchConfig_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable

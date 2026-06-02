@@ -2784,10 +2784,14 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
-	BatchMaxSize       pgtype.Int4      `json:"batch_max_size"`
-	BatchMaxInterval   pgtype.Int4      `json:"batch_max_interval"`
-	BatchGroupKey      pgtype.Text      `json:"batch_group_key"`
-	BatchGroupMaxRuns  pgtype.Int4      `json:"batch_group_max_runs"`
+}
+
+type StepBatchConfig struct {
+	StepId            uuid.UUID   `json:"stepId"`
+	BatchMaxSize      int32       `json:"batchMaxSize"`
+	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
+	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
 }
 
 type StepDesiredWorkerLabel struct {

@@ -51,15 +51,6 @@ WHERE
     AND w."isPaused" = false;
 
 
--- subtract the filled slots from the max runs to get the available slots
-SELECT
-    wmr."id",
-    wmr."maxRuns" - COALESCE(wfs."filledSlots", 0) AS "availableSlots"
-FROM
-    worker_max_runs wmr
-LEFT JOIN
-    worker_filled_slots wfs ON wmr."id" = wfs.worker_id;
-
 -- name: ListQueues :many
 SELECT
     *
@@ -357,13 +348,14 @@ WHERE
 
 -- name: ListStepsWithBatchConfig :many
 SELECT
-    "id" AS step_id
+    s."id" AS step_id
 FROM
-    "Step"
+    "Step" s
+JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
 WHERE
-    "id" = ANY(@stepIds::uuid[])
-    AND "batch_max_size" IS NOT NULL
-    AND "batch_max_size" >= 1;
+    s."id" = ANY(@stepIds::uuid[])
+    AND sbc."batchMaxSize" >= 1;
 
 -- name: GetStepSlotRequests :many
 SELECT
@@ -700,13 +692,13 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    COALESCE(MAX(s."batch_max_size"), -1)::integer AS batch_max_size,
-    COALESCE(MAX(s."batch_max_interval"), -1)::integer AS batch_max_interval,
-    COALESCE(MAX(s."batch_group_max_runs"), -1)::integer AS batch_group_max_runs
+    COALESCE(MAX(sbc."batchMaxSize"), -1)::integer AS batch_max_size,
+    COALESCE(MAX(sbc."batchMaxInterval"), -1)::integer AS batch_max_interval,
+    COALESCE(MAX(sbc."batchGroupMaxRuns"), -1)::integer AS batch_group_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
-    "Step" s ON s."id" = b.step_id
+    "StepBatchConfig" sbc ON sbc."stepId" = b.step_id
 WHERE
     b.tenant_id = @tenantId::uuid
 GROUP BY
@@ -722,11 +714,10 @@ WITH locked_qis AS (
     FROM
         v1_queue_item qi
     JOIN
-        "Step" s ON s."id" = qi.step_id
+        "StepBatchConfig" sbc ON sbc."stepId" = qi.step_id
     WHERE
         qi.id = ANY(@ids::bigint[])
-        AND s."batch_max_size" IS NOT NULL
-        AND s."batch_max_size" >= 1
+        AND sbc."batchMaxSize" >= 1
     ORDER BY
         qi.id ASC
     FOR UPDATE

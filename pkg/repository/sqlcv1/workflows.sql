@@ -52,7 +52,8 @@ SELECT
     w."id" as "workflowId",
     COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
-    COUNT(sc.id) as "concurrencyCount"
+    COUNT(sc.id) as "concurrencyCount",
+    sbc."batchGroupKey" AS "batchGroupKey"
 FROM
     "Step" s
 JOIN
@@ -65,13 +66,15 @@ LEFT JOIN
     v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
 LEFT JOIN
     "StepExpression" se ON se."stepId" = s."id"
+LEFT JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
 WHERE
     s."id" = ANY(@ids::uuid[])
     AND w."tenantId" = @tenantId::uuid
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id", wv."sticky";
+    s."id", wv."id", w."name", w."id", wv."sticky", sbc."batchGroupKey";
 
 -- name: ListStepExpressions :many
 SELECT
@@ -287,11 +290,7 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable",
-    "batch_max_size",
-    "batch_max_interval",
-    "batch_group_key",
-    "batch_group_max_runs"
+    "isDurable"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -307,12 +306,27 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
-    coalesce(sqlc.narg('isDurable')::boolean, false),
-    sqlc.narg('batchMaxSize')::integer,
+    coalesce(sqlc.narg('isDurable')::boolean, false)
+) RETURNING *;
+
+-- name: CreateStepBatchConfig :exec
+INSERT INTO "StepBatchConfig" (
+    "stepId",
+    "batchMaxSize",
+    "batchMaxInterval",
+    "batchGroupKey",
+    "batchGroupMaxRuns"
+) VALUES (
+    @stepId::uuid,
+    @batchMaxSize::integer,
     sqlc.narg('batchMaxInterval')::integer,
     sqlc.narg('batchGroupKey')::text,
     sqlc.narg('batchGroupMaxRuns')::integer
-) RETURNING *;
+) ON CONFLICT ("stepId") DO UPDATE SET
+    "batchMaxSize" = EXCLUDED."batchMaxSize",
+    "batchMaxInterval" = EXCLUDED."batchMaxInterval",
+    "batchGroupKey" = EXCLUDED."batchGroupKey",
+    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns";
 
 -- name: CreateStepSlotRequests :exec
 INSERT INTO v1_step_slot_request (

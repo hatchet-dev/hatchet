@@ -707,13 +707,13 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    COALESCE(MAX(s."batch_max_size"), -1)::integer AS batch_max_size,
-    COALESCE(MAX(s."batch_max_interval"), -1)::integer AS batch_max_interval,
-    COALESCE(MAX(s."batch_group_max_runs"), -1)::integer AS batch_group_max_runs
+    COALESCE(MAX(sbc."batchMaxSize"), -1)::integer AS batch_max_size,
+    COALESCE(MAX(sbc."batchMaxInterval"), -1)::integer AS batch_max_interval,
+    COALESCE(MAX(sbc."batchGroupMaxRuns"), -1)::integer AS batch_group_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
-    "Step" s ON s."id" = b.step_id
+    "StepBatchConfig" sbc ON sbc."stepId" = b.step_id
 WHERE
     b.tenant_id = $1::uuid
 GROUP BY
@@ -967,13 +967,14 @@ func (q *Queries) ListQueues(ctx context.Context, db DBTX, tenantid uuid.UUID) (
 
 const listStepsWithBatchConfig = `-- name: ListStepsWithBatchConfig :many
 SELECT
-    "id" AS step_id
+    s."id" AS step_id
 FROM
-    "Step"
+    "Step" s
+JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
 WHERE
-    "id" = ANY($1::uuid[])
-    AND "batch_max_size" IS NOT NULL
-    AND "batch_max_size" >= 1
+    s."id" = ANY($1::uuid[])
+    AND sbc."batchMaxSize" >= 1
 `
 
 func (q *Queries) ListStepsWithBatchConfig(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]uuid.UUID, error) {
@@ -1098,11 +1099,10 @@ WITH locked_qis AS (
     FROM
         v1_queue_item qi
     JOIN
-        "Step" s ON s."id" = qi.step_id
+        "StepBatchConfig" sbc ON sbc."stepId" = qi.step_id
     WHERE
         qi.id = ANY($1::bigint[])
-        AND s."batch_max_size" IS NOT NULL
-        AND s."batch_max_size" >= 1
+        AND sbc."batchMaxSize" >= 1
     ORDER BY
         qi.id ASC
     FOR UPDATE

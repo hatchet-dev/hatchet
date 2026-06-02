@@ -481,8 +481,6 @@ END;
 $$
 LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
-
 CREATE TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime
 AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
@@ -629,12 +627,6 @@ alter table v1_batched_queue_item set (
     autovacuum_vacuum_cost_limit='1000'
 );
 
-CREATE INDEX v1_batched_queue_item_lookup_idx ON v1_batched_queue_item (
-    tenant_id ASC,
-    step_id ASC,
-    batch_key ASC,
-    inserted_at ASC
-);
 
 CREATE INDEX v1_batched_queue_item_step_batch_id_idx ON v1_batched_queue_item (
     tenant_id ASC,

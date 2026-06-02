@@ -3,12 +3,16 @@
 -- v0 schema alignment
 ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
--- v0 "Step" batching configuration fields
-ALTER TABLE "Step"
-    ADD COLUMN batch_max_size INTEGER,
-    ADD COLUMN batch_max_interval INTEGER,
-    ADD COLUMN batch_group_key TEXT,
-    ADD COLUMN batch_group_max_runs INTEGER;
+-- v0 "Step" batching configuration (auxiliary table)
+CREATE TABLE IF NOT EXISTS "StepBatchConfig" (
+    "stepId" UUID NOT NULL,
+    "batchMaxSize" INTEGER NOT NULL,
+    "batchMaxInterval" INTEGER,
+    "batchGroupKey" TEXT,
+    "batchGroupMaxRuns" INTEGER,
+    CONSTRAINT "StepBatchConfig_pkey" PRIMARY KEY ("stepId"),
+    CONSTRAINT "StepBatchConfig_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
 
 -- v1 batching propagation fields
 ALTER TABLE v1_task
@@ -62,9 +66,6 @@ ALTER TABLE v1_batched_queue_item SET (
     autovacuum_vacuum_cost_delay = '10',
     autovacuum_vacuum_cost_limit = '1000'
 );
-
-CREATE INDEX v1_batched_queue_item_lookup_idx
-    ON v1_batched_queue_item (tenant_id ASC, step_id ASC, batch_key ASC, inserted_at ASC);
 
 CREATE INDEX v1_batched_queue_item_step_batch_id_idx
     ON v1_batched_queue_item (tenant_id ASC, step_id ASC, batch_key ASC, id ASC);
@@ -761,7 +762,6 @@ DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- Drop batch buffer table and indexes
 DROP INDEX v1_batched_queue_item_step_batch_id_idx;
-DROP INDEX v1_batched_queue_item_lookup_idx;
 DROP TABLE v1_batched_queue_item;
 
 -- Drop v1 batch runtime table
@@ -786,11 +786,7 @@ ALTER TABLE v1_queue_item
 ALTER TABLE v1_rate_limited_queue_items
     DROP COLUMN batch_key;
 
-ALTER TABLE "Step"
-    DROP COLUMN batch_group_max_runs,
-    DROP COLUMN batch_group_key,
-    DROP COLUMN batch_max_interval,
-    DROP COLUMN batch_max_size;
+DROP TABLE IF EXISTS "StepBatchConfig";
 
 -- +goose StatementEnd
 
