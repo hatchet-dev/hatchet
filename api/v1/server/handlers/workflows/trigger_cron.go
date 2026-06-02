@@ -1,7 +1,6 @@
 package workflows
 
 import (
-	"context"
 	"encoding/json"
 	"time"
 
@@ -15,18 +14,7 @@ import (
 
 func (t *WorkflowService) WorkflowCronTrigger(ctx echo.Context, request gen.WorkflowCronTriggerRequestObject) (gen.WorkflowCronTriggerResponseObject, error) {
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
-
-	dbCtx, cancel := context.WithTimeout(ctx.Request().Context(), 30*time.Second)
-	defer cancel()
-
-	cron, err := t.config.V1.WorkflowSchedules().GetCronWorkflow(dbCtx, tenant.ID, request.CronWorkflow)
-	if err != nil {
-		return nil, err
-	}
-
-	if cron == nil {
-		return gen.WorkflowCronTrigger404JSONResponse(apierrors.NewAPIErrors("Cron workflow not found.")), nil
-	}
+	cron := ctx.Get("cron-workflow").(*sqlcv1.ListCronWorkflowsRow)
 
 	var additionalMetadata map[string]interface{}
 	if len(cron.AdditionalMetadata) > 0 {
