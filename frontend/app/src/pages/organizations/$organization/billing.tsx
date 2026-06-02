@@ -2,16 +2,29 @@ import {
   Subscription,
   SubscriptionHistory,
 } from '@/components/v1/cloud/billing';
+import { resolveSubscriptionPlanCode } from '@/components/v1/cloud/billing/subscription-plan-code';
+import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
+import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { queries } from '@/lib/api';
 import type { TenantResourceLimit } from '@/lib/api';
 import type { TenantResourceLimit as ControlPlaneTenantResourceLimit } from '@/lib/api/generated/control-plane/data-contracts';
+import { useSearchParams } from '@/lib/router-helpers';
 import { SettingsPageHeader } from '@/pages/main/v1/tenant-settings/components/settings-page-header';
 import { TenantResourceLimitsTable } from '@/pages/main/v1/tenant-settings/resource-limits/components/tenant-resource-limits-table';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
+import { useEffect, useMemo, useState } from 'react';
+
+// While a plan change finalizes, poll billing state until the rendered active
+// or upcoming plan reflects the expected plan code.
+const SYNC_POLL_INTERVAL_MS = 2000;
+const SYNC_TIMEOUT_MS = 90_000;
+const SYNC_SUCCESS_DISMISS_MS = 6000;
+
+type SyncState = 'idle' | 'syncing' | 'done' | 'timeout';
 
 function toTenantResourceLimit(
   limit: ControlPlaneTenantResourceLimit,
@@ -27,11 +40,103 @@ export default function OrganizationBillingPage() {
     from: appRoutes.organizationsRoute.to,
   });
   const { cloud, isCloudEnabled } = useCloud();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Capture the sync hints once on mount; the URL is cleaned up immediately so
+  // a reload does not restart stale polling. All authoritative state still
+  // comes from the billing-state query below.
+  const [expectedPlanCode] = useState<string | null>(() =>
+    searchParams.get('billing_sync') === 'plan_change'
+      ? searchParams.get('plan_code')
+      : null,
+  );
+  const [syncState, setSyncState] = useState<SyncState>(() =>
+    searchParams.get('billing_sync') === 'plan_change' &&
+    searchParams.get('plan_code')
+      ? 'syncing'
+      : 'idle',
+  );
+
+  useEffect(() => {
+    if (
+      searchParams.get('billing_sync') === null &&
+      searchParams.get('plan_code') === null
+    ) {
+      return;
+    }
+
+    setSearchParams(
+      (prev) => {
+        prev.delete('billing_sync');
+        prev.delete('plan_code');
+        return prev;
+      },
+      { replace: true },
+    );
+    // Run once on mount to strip the sync params from the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const isSyncing = syncState === 'syncing';
 
   const billingState = useQuery({
     ...queries.controlPlane.billing(organization),
     enabled: isCloudEnabled && !!cloud?.canBill,
+    refetchInterval: isSyncing ? SYNC_POLL_INTERVAL_MS : false,
   });
+
+  const activePlanCode = resolveSubscriptionPlanCode(
+    billingState.data?.currentSubscription,
+    null,
+  );
+  const upcomingPlanCode = resolveSubscriptionPlanCode(
+    billingState.data?.upcomingSubscription,
+    null,
+  );
+
+  useEffect(() => {
+    if (syncState !== 'syncing' || !expectedPlanCode) {
+      return;
+    }
+
+    if (
+      activePlanCode === expectedPlanCode ||
+      upcomingPlanCode === expectedPlanCode
+    ) {
+      setSyncState('done');
+    }
+  }, [syncState, expectedPlanCode, activePlanCode, upcomingPlanCode]);
+
+  useEffect(() => {
+    if (syncState !== 'syncing') {
+      return;
+    }
+
+    const timer = setTimeout(() => setSyncState('timeout'), SYNC_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [syncState]);
+
+  useEffect(() => {
+    if (syncState !== 'done') {
+      return;
+    }
+
+    const timer = setTimeout(
+      () => setSyncState('idle'),
+      SYNC_SUCCESS_DISMISS_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [syncState]);
+
+  const expectedPlanName = useMemo(() => {
+    if (!expectedPlanCode) {
+      return null;
+    }
+    return (
+      billingState.data?.plans?.find((p) => p.planCode === expectedPlanCode)
+        ?.name ?? null
+    );
+  }, [billingState.data?.plans, expectedPlanCode]);
 
   const tenantResourceLimits = useQuery({
     ...queries.controlPlane.tenantResourceLimits(organization),
@@ -47,6 +152,56 @@ export default function OrganizationBillingPage() {
           title="Billing"
           description="Manage your organization subscription, payment methods, and plan changes."
         />
+
+        {syncState === 'syncing' && (
+          <Alert variant="info" className="mb-6">
+            <AlertTitle className="flex items-center gap-2">
+              <Spinner className="h-4 w-4" />
+              Finalizing your plan change
+            </AlertTitle>
+            <AlertDescription>
+              {expectedPlanName
+                ? `We're activating the ${expectedPlanName} plan...`
+                : "We're activating your new plan..."}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {syncState === 'done' && (
+          <Alert variant="info" className="mb-6">
+            <AlertTitle>Plan change complete</AlertTitle>
+            <AlertDescription>
+              {expectedPlanName
+                ? `Your ${expectedPlanName} plan is now active.`
+                : 'Your new plan is now active.'}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {syncState === 'timeout' && (
+          <Alert variant="warn" className="mb-6">
+            <AlertTitle>Your plan change is still processing</AlertTitle>
+            <AlertDescription className="flex flex-col gap-3">
+              <span>
+                This is taking longer than expected. Your change may still be
+                finalizing in the background.
+              </span>
+              <div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSyncState('syncing');
+                    void billingState.refetch();
+                  }}
+                >
+                  Check again
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Subscription
           active={billingState.data?.currentSubscription}
           upcoming={billingState.data?.upcomingSubscription}
