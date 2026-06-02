@@ -7,9 +7,9 @@ require_relative "../worker_fixture"
 RSpec.describe "batch-task e2e" do
   BATCH_HEALTHCHECK_PORT = 8010
 
-  before(:all) { skip_unless_batching }
-
   before(:all) do
+    skip_unless_batching
+
     @batch_run_id = SecureRandom.uuid
 
     # Set env vars before spawning the subprocess so both processes share the
