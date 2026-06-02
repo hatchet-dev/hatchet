@@ -38,7 +38,7 @@ func (w *WorkflowService) WorkflowScheduledTrigger(ctx echo.Context, request gen
 	// external id can be nil if idempotency collision happens
 	// note: this will be fixed soon with the new idempotency improvements
 	if err != nil || externalId == nil {
-		return gen.WorkflowScheduledTrigger400JSONResponse(apierrors.NewAPIErrors("Failed to trigger scheduled workflow.")), nil
+		return gen.WorkflowScheduledTrigger500JSONResponse(apierrors.NewAPIErrors("Failed to trigger scheduled workflow.")), nil
 	}
 
 	return gen.WorkflowScheduledTrigger200JSONResponse(gen.TriggerRunResult{

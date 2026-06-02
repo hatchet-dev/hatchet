@@ -1219,6 +1219,12 @@ scheduled:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "500":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Internal server error
     summary: Trigger scheduled workflow run
     tags:
       - Workflow
@@ -1502,6 +1508,12 @@ crons:
             schema:
               $ref: "../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+      "500":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Internal server error
     summary: Trigger cron job workflow run immediately
     tags:
       - Workflow

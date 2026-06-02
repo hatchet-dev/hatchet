@@ -17491,6 +17491,7 @@ type WorkflowCronTriggerResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIError
 	JSON404      *APIErrors
+	JSON500      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -17709,6 +17710,7 @@ type WorkflowScheduledTriggerResponse struct {
 	JSON400      *APIErrors
 	JSON403      *APIErrors
 	JSON404      *APIErrors
+	JSON500      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -24495,6 +24497,13 @@ func ParseWorkflowCronTriggerResponse(rsp *http.Response) (*WorkflowCronTriggerR
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -24868,6 +24877,13 @@ func ParseWorkflowScheduledTriggerResponse(rsp *http.Response) (*WorkflowSchedul
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
