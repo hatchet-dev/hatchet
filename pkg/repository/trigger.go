@@ -710,7 +710,7 @@ func (r *sharedRepository) triggerWorkflows(
 	var idempotencyKeyCollisions []IdempotencyCollision
 
 	if len(keys) > 0 {
-		claims, err := r.queries.ClaimIdempotencyKeys(ctx, existingTx.tx, sqlcv1.ClaimIdempotencyKeysParams{
+		claims, err := r.queries.ClaimIdempotencyKeys(ctx, preflightTx, sqlcv1.ClaimIdempotencyKeysParams{
 			Keys:                 keys,
 			Expiresats:           expiresAts,
 			Claimedbyexternalids: claimedByExternalIds,
