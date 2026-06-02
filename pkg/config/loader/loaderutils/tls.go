@@ -5,10 +5,24 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
+
+// ParseTLSMinVersion parses a TLS minimum version string.
+// Empty defaults to TLS 1.3.
+func ParseTLSMinVersion(s string) (uint16, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "", "1.3", "tls1.3", "tls_1.3", "tls13":
+		return tls.VersionTLS13, nil
+	case "1.2", "tls1.2", "tls_1.2", "tls12":
+		return tls.VersionTLS12, nil
+	default:
+		return 0, fmt.Errorf("unsupported TLS minimum version %q: must be \"1.2\" or \"1.3\"", s)
+	}
+}
 
 func LoadClientTLSConfig(tlsConfig *client.ClientTLSConfigFile, serverName string) (*tls.Config, error) {
 	res, ca, err := LoadBaseTLSConfig(&tlsConfig.Base)
@@ -94,8 +108,13 @@ func LoadBaseTLSConfig(tlsConfig *shared.TLSConfigFile) (*tls.Config, *x509.Cert
 		}
 	}
 
+	minVersion, err := ParseTLSMinVersion(tlsConfig.TLSMinVersion)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	res := &tls.Config{
-		MinVersion: tls.VersionTLS13,
+		MinVersion: minVersion,
 	}
 
 	if len(x509Cert.Certificate) != 0 {
