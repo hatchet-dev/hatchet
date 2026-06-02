@@ -34,6 +34,15 @@ export const queries = createQueryKeyStore({
       queryFn: async () =>
         (await controlPlaneApi.organizationBillingStateGet(organization)).data,
     }),
+    tenantResourceLimits: (organization: string) => ({
+      queryKey: ['organization-tenant-resource-limits:get', organization],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.organizationTenantResourceLimitsGet(
+            organization,
+          )
+        ).data,
+    }),
     creditBalance: (organization: string) => ({
       queryKey: ['organization-credit-balance:get', organization],
       queryFn: async () =>

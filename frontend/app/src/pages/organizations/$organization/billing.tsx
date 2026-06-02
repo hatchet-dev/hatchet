@@ -1,36 +1,41 @@
 import { Subscription } from '@/components/v1/cloud/billing';
+import { Spinner } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { queries } from '@/lib/api';
+import type { TenantResourceLimit } from '@/lib/api';
+import type { TenantResourceLimit as ControlPlaneTenantResourceLimit } from '@/lib/api/generated/control-plane/data-contracts';
 import { SettingsPageHeader } from '@/pages/main/v1/tenant-settings/components/settings-page-header';
 import { TenantResourceLimitsTable } from '@/pages/main/v1/tenant-settings/resource-limits/components/tenant-resource-limits-table';
-import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { useMemo } from 'react';
+
+function toTenantResourceLimit(
+  limit: ControlPlaneTenantResourceLimit,
+): TenantResourceLimit {
+  return {
+    ...limit,
+    resource: limit.resource as TenantResourceLimit['resource'],
+  };
+}
 
 export default function OrganizationBillingPage() {
   const { organization } = useParams({
     from: appRoutes.organizationsRoute.to,
   });
   const { cloud, isCloudEnabled } = useCloud();
-  const userUniverse = useUserUniverse();
 
   const billingState = useQuery({
     ...queries.controlPlane.billing(organization),
     enabled: isCloudEnabled && !!cloud?.canBill,
   });
 
-  const organizationTenants = useMemo(() => {
-    if (!userUniverse.isLoaded || !userUniverse.organizations) {
-      return [];
-    }
+  const tenantResourceLimits = useQuery({
+    ...queries.controlPlane.tenantResourceLimits(organization),
+    enabled: isCloudEnabled,
+  });
 
-    return (
-      userUniverse.organizations.find((org) => org.metadata.id === organization)
-        ?.tenants ?? []
-    );
-  }, [organization, userUniverse.isLoaded, userUniverse.organizations]);
+  const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
 
   return (
     <div className="h-full w-full flex-grow">
@@ -46,7 +51,7 @@ export default function OrganizationBillingPage() {
           coupons={billingState.data?.coupons}
         />
 
-        {organizationTenants.length > 0 ? (
+        {tenantResourceLimits.isLoading || organizationTenants.length > 0 ? (
           <div className="mt-12 space-y-8">
             <div>
               <h2 className="text-lg font-semibold text-foreground">
@@ -57,13 +62,22 @@ export default function OrganizationBillingPage() {
               </p>
             </div>
 
-            {organizationTenants.map((tenant) => (
-              <TenantResourceLimitsTable
-                key={tenant.id}
-                tenantId={tenant.id}
-                tenantName={tenant.name ?? tenant.slug ?? tenant.id}
-              />
-            ))}
+            {tenantResourceLimits.isLoading ? (
+              <div className="py-6">
+                <Spinner />
+              </div>
+            ) : (
+              organizationTenants.map((tenant) => (
+                <TenantResourceLimitsTable
+                  key={tenant.tenantId}
+                  tenantId={tenant.tenantId}
+                  tenantName={
+                    tenant.tenantName || tenant.tenantSlug || tenant.tenantId
+                  }
+                  limits={tenant.limits.map(toTenantResourceLimit)}
+                />
+              ))
+            )}
           </div>
         ) : null}
       </div>

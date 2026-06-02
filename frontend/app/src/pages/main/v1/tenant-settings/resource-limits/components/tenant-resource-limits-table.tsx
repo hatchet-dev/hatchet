@@ -4,6 +4,7 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Spinner } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { queries } from '@/lib/api';
+import type { TenantResourceLimit } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 
@@ -12,12 +13,16 @@ const BILLING_SYNC_REFETCH_INTERVAL_MS = 5000;
 type TenantResourceLimitsTableProps = {
   tenantId: string;
   tenantName?: string;
+  limits?: TenantResourceLimit[];
+  isLoading?: boolean;
   showDocsOnEmpty?: boolean;
 };
 
 export function TenantResourceLimitsTable({
   tenantId,
   tenantName,
+  limits,
+  isLoading,
   showDocsOnEmpty = false,
 }: TenantResourceLimitsTableProps) {
   const { isCloudEnabled } = useCloud();
@@ -29,12 +34,13 @@ export function TenantResourceLimitsTable({
 
   const resourcePolicyQuery = useQuery({
     ...queries.tenantResourcePolicy.get(tenantId),
+    enabled: limits === undefined,
     refetchInterval: billingSyncRefetchInterval,
   });
 
-  const resourceLimits = resourcePolicyQuery.data?.limits ?? [];
+  const resourceLimits = limits ?? resourcePolicyQuery.data?.limits ?? [];
 
-  if (resourcePolicyQuery.isLoading) {
+  if (isLoading ?? resourcePolicyQuery.isLoading) {
     return (
       <div className="py-6">
         <Spinner />

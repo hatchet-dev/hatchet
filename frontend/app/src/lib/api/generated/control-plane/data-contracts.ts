@@ -30,6 +30,16 @@ export enum SubscriptionPlanCode {
   Dedicated = "dedicated",
 }
 
+export enum TenantResource {
+  TASK_RUN = "TASK_RUN",
+  EVENT = "EVENT",
+  WORKER = "WORKER",
+  WORKER_SLOT = "WORKER_SLOT",
+  CRON = "CRON",
+  SCHEDULE = "SCHEDULE",
+  INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
+}
+
 /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
 export enum OrganizationAvailableShardClass {
   SHARED = "SHARED",
@@ -444,6 +454,44 @@ export interface OrganizationBillingState {
   plans: SubscriptionPlan[];
   /** A list of coupons applied to the organization. */
   coupons?: Coupon[];
+}
+
+export interface TenantResourceLimit {
+  metadata: APIResourceMeta;
+  /** The resource associated with this limit. */
+  resource: TenantResource;
+  /** The limit associated with this limit. */
+  limitValue: number;
+  /** The alarm value associated with this limit to warn of approaching limit value. */
+  alarmValue?: number;
+  /** The current value associated with this limit. */
+  value: number;
+  /** The meter window for the limit. (i.e. 1 day, 1 week, 1 month) */
+  window?: string;
+  /**
+   * The last time the limit was refilled.
+   * @format date-time
+   */
+  lastRefill?: string;
+}
+
+export interface OrganizationTenantResourceLimits {
+  /**
+   * The tenant id.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The tenant display name. */
+  tenantName: string;
+  /** The tenant slug. */
+  tenantSlug: string;
+  /** Resource limits for the tenant. */
+  limits: TenantResourceLimit[];
+}
+
+export interface OrganizationTenantResourceLimitsList {
+  /** Resource limits grouped by tenant. */
+  tenants: OrganizationTenantResourceLimits[];
 }
 
 export interface OrganizationPaymentMethod {

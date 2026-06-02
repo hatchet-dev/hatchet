@@ -38,6 +38,7 @@ import {
   OrganizationInviteList,
   OrganizationPaymentMethodList,
   OrganizationTenant,
+  OrganizationTenantResourceLimitsList,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
@@ -1178,6 +1179,26 @@ export class Api<
   ) =>
     this.request<OrganizationBillingState, APIErrors | APIError>({
       path: `/api/v1/control-plane/billing/organizations/${organization}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the current resource limits for tenants in an organization
+   *
+   * @tags Organization
+   * @name OrganizationTenantResourceLimitsGet
+   * @summary Get tenant resource limits for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/tenant-resource-limits
+   * @secure
+   */
+  organizationTenantResourceLimitsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenantResourceLimitsList, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/tenant-resource-limits`,
       method: "GET",
       secure: true,
       format: "json",
