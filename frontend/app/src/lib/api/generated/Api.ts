@@ -2711,6 +2711,28 @@ export class Api<
       xResources: ["tenant", "scheduled-workflow-run"],
     }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
   /**
+   * @description Trigger a scheduled workflow run immediately for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledTrigger
+   * @summary Trigger scheduled workflow run
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
+   * @secure
+   */
+  workflowScheduledTrigger = Object.assign((
+    tenant: string,
+    scheduledWorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<ScheduledWorkflows, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
+      method: "POST",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "scheduled-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
+  /**
    * @description Bulk delete scheduled workflow runs for a tenant
    *
    * @tags Workflow
@@ -2901,6 +2923,27 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+      xResources: ["tenant", "cron-workflow"],
+    }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
+  /**
+   * @description Trigger a cron workflow immediately for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronTrigger
+   * @summary Trigger cron job workflow run immediately
+   * @request POST:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
+   * @secure
+   */
+  workflowCronTrigger = Object.assign((
+    tenant: string,
+    cronWorkflow: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
+      method: "POST",
+      secure: true,
       ...params,
       xResources: ["tenant", "cron-workflow"],
     }), { resources: new Set<string>(["tenant", "cron-workflow"]) });

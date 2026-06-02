@@ -3746,6 +3746,9 @@ type ServerInterface interface {
 	// Update cron job workflow run
 	// (PATCH /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow})
 	WorkflowCronUpdate(ctx echo.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) error
+	// Trigger cron job workflow run immediately
+	// (POST /api/v1/tenants/{tenant}/workflows/crons/{cron-workflow})
+	WorkflowCronTrigger(ctx echo.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) error
 	// Get workflow runs
 	// (GET /api/v1/tenants/{tenant}/workflows/runs)
 	WorkflowRunList(ctx echo.Context, tenant openapi_types.UUID, params WorkflowRunListParams) error
@@ -3770,6 +3773,9 @@ type ServerInterface interface {
 	// Update scheduled workflow run
 	// (PATCH /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run})
 	WorkflowScheduledUpdate(ctx echo.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) error
+	// Trigger scheduled workflow run
+	// (POST /api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run})
+	WorkflowScheduledTrigger(ctx echo.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) error
 	// Create cron job workflow trigger
 	// (POST /api/v1/tenants/{tenant}/workflows/{workflow}/crons)
 	CronWorkflowTriggerCreate(ctx echo.Context, tenant openapi_types.UUID, workflow string) error
@@ -7007,6 +7013,34 @@ func (w *ServerInterfaceWrapper) WorkflowCronUpdate(ctx echo.Context) error {
 	return err
 }
 
+// WorkflowCronTrigger converts echo context to params.
+func (w *ServerInterfaceWrapper) WorkflowCronTrigger(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "cron-workflow" -------------
+	var cronWorkflow openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "cron-workflow", runtime.ParamLocationPath, ctx.Param("cron-workflow"), &cronWorkflow)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter cron-workflow: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.WorkflowCronTrigger(ctx, tenant, cronWorkflow)
+	return err
+}
+
 // WorkflowRunList converts echo context to params.
 func (w *ServerInterfaceWrapper) WorkflowRunList(ctx echo.Context) error {
 	var err error
@@ -7411,6 +7445,34 @@ func (w *ServerInterfaceWrapper) WorkflowScheduledUpdate(ctx echo.Context) error
 
 	// Invoke the callback with all the unmarshaled arguments
 	err = w.Handler.WorkflowScheduledUpdate(ctx, tenant, scheduledWorkflowRun)
+	return err
+}
+
+// WorkflowScheduledTrigger converts echo context to params.
+func (w *ServerInterfaceWrapper) WorkflowScheduledTrigger(ctx echo.Context) error {
+	var err error
+	// ------------- Path parameter "tenant" -------------
+	var tenant openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "tenant", runtime.ParamLocationPath, ctx.Param("tenant"), &tenant)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter tenant: %s", err))
+	}
+
+	// ------------- Path parameter "scheduled-workflow-run" -------------
+	var scheduledWorkflowRun openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithLocation("simple", false, "scheduled-workflow-run", runtime.ParamLocationPath, ctx.Param("scheduled-workflow-run"), &scheduledWorkflowRun)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter scheduled-workflow-run: %s", err))
+	}
+
+	ctx.Set(BearerAuthScopes, []string{})
+
+	ctx.Set(CookieAuthScopes, []string{})
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.WorkflowScheduledTrigger(ctx, tenant, scheduledWorkflowRun)
 	return err
 }
 
@@ -8020,6 +8082,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.DELETE(baseURL+"/api/v1/tenants/:tenant/workflows/crons/:cron-workflow", wrapper.WorkflowCronDelete)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/crons/:cron-workflow", wrapper.WorkflowCronGet)
 	router.PATCH(baseURL+"/api/v1/tenants/:tenant/workflows/crons/:cron-workflow", wrapper.WorkflowCronUpdate)
+	router.POST(baseURL+"/api/v1/tenants/:tenant/workflows/crons/:cron-workflow", wrapper.WorkflowCronTrigger)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/runs", wrapper.WorkflowRunList)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/runs/metrics", wrapper.WorkflowRunGetMetrics)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled", wrapper.WorkflowScheduledList)
@@ -8028,6 +8091,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.DELETE(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled/:scheduled-workflow-run", wrapper.WorkflowScheduledDelete)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled/:scheduled-workflow-run", wrapper.WorkflowScheduledGet)
 	router.PATCH(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled/:scheduled-workflow-run", wrapper.WorkflowScheduledUpdate)
+	router.POST(baseURL+"/api/v1/tenants/:tenant/workflows/scheduled/:scheduled-workflow-run", wrapper.WorkflowScheduledTrigger)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/workflows/:workflow/crons", wrapper.CronWorkflowTriggerCreate)
 	router.POST(baseURL+"/api/v1/tenants/:tenant/workflows/:workflow/scheduled", wrapper.ScheduledWorkflowRunCreate)
 	router.GET(baseURL+"/api/v1/tenants/:tenant/workflows/:workflow/worker-count", wrapper.WorkflowGetWorkersCount)
@@ -12248,6 +12312,50 @@ func (response WorkflowCronUpdate403JSONResponse) VisitWorkflowCronUpdateRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type WorkflowCronTriggerRequestObject struct {
+	Tenant       openapi_types.UUID `json:"tenant"`
+	CronWorkflow openapi_types.UUID `json:"cron-workflow"`
+}
+
+type WorkflowCronTriggerResponseObject interface {
+	VisitWorkflowCronTriggerResponse(w http.ResponseWriter) error
+}
+
+type WorkflowCronTrigger204Response struct {
+}
+
+func (response WorkflowCronTrigger204Response) VisitWorkflowCronTriggerResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type WorkflowCronTrigger400JSONResponse APIErrors
+
+func (response WorkflowCronTrigger400JSONResponse) VisitWorkflowCronTriggerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowCronTrigger403JSONResponse APIError
+
+func (response WorkflowCronTrigger403JSONResponse) VisitWorkflowCronTriggerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowCronTrigger404JSONResponse APIErrors
+
+func (response WorkflowCronTrigger404JSONResponse) VisitWorkflowCronTriggerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type WorkflowRunListRequestObject struct {
 	Tenant openapi_types.UUID `json:"tenant"`
 	Params WorkflowRunListParams
@@ -12548,6 +12656,51 @@ func (response WorkflowScheduledUpdate403JSONResponse) VisitWorkflowScheduledUpd
 type WorkflowScheduledUpdate404JSONResponse APIErrors
 
 func (response WorkflowScheduledUpdate404JSONResponse) VisitWorkflowScheduledUpdateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledTriggerRequestObject struct {
+	Tenant               openapi_types.UUID `json:"tenant"`
+	ScheduledWorkflowRun openapi_types.UUID `json:"scheduled-workflow-run"`
+}
+
+type WorkflowScheduledTriggerResponseObject interface {
+	VisitWorkflowScheduledTriggerResponse(w http.ResponseWriter) error
+}
+
+type WorkflowScheduledTrigger200JSONResponse ScheduledWorkflows
+
+func (response WorkflowScheduledTrigger200JSONResponse) VisitWorkflowScheduledTriggerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledTrigger400JSONResponse APIErrors
+
+func (response WorkflowScheduledTrigger400JSONResponse) VisitWorkflowScheduledTriggerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledTrigger403JSONResponse APIErrors
+
+func (response WorkflowScheduledTrigger403JSONResponse) VisitWorkflowScheduledTriggerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type WorkflowScheduledTrigger404JSONResponse APIErrors
+
+func (response WorkflowScheduledTrigger404JSONResponse) VisitWorkflowScheduledTriggerResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
 
@@ -13841,6 +13994,8 @@ type StrictServerInterface interface {
 
 	WorkflowCronUpdate(ctx echo.Context, request WorkflowCronUpdateRequestObject) (WorkflowCronUpdateResponseObject, error)
 
+	WorkflowCronTrigger(ctx echo.Context, request WorkflowCronTriggerRequestObject) (WorkflowCronTriggerResponseObject, error)
+
 	WorkflowRunList(ctx echo.Context, request WorkflowRunListRequestObject) (WorkflowRunListResponseObject, error)
 
 	WorkflowRunGetMetrics(ctx echo.Context, request WorkflowRunGetMetricsRequestObject) (WorkflowRunGetMetricsResponseObject, error)
@@ -13856,6 +14011,8 @@ type StrictServerInterface interface {
 	WorkflowScheduledGet(ctx echo.Context, request WorkflowScheduledGetRequestObject) (WorkflowScheduledGetResponseObject, error)
 
 	WorkflowScheduledUpdate(ctx echo.Context, request WorkflowScheduledUpdateRequestObject) (WorkflowScheduledUpdateResponseObject, error)
+
+	WorkflowScheduledTrigger(ctx echo.Context, request WorkflowScheduledTriggerRequestObject) (WorkflowScheduledTriggerResponseObject, error)
 
 	CronWorkflowTriggerCreate(ctx echo.Context, request CronWorkflowTriggerCreateRequestObject) (CronWorkflowTriggerCreateResponseObject, error)
 
@@ -16437,6 +16594,29 @@ func (sh *strictHandler) WorkflowCronUpdate(ctx echo.Context, tenant openapi_typ
 	return nil
 }
 
+// WorkflowCronTrigger operation
+func (sh *strictHandler) WorkflowCronTrigger(ctx echo.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) error {
+	var request WorkflowCronTriggerRequestObject
+
+	request.Tenant = tenant
+	request.CronWorkflow = cronWorkflow
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WorkflowCronTrigger(ctx, request.(WorkflowCronTriggerRequestObject))
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(WorkflowCronTriggerResponseObject); ok {
+		return validResponse.VisitWorkflowCronTriggerResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // WorkflowRunList operation
 func (sh *strictHandler) WorkflowRunList(ctx echo.Context, tenant openapi_types.UUID, params WorkflowRunListParams) error {
 	var request WorkflowRunListRequestObject
@@ -16631,6 +16811,29 @@ func (sh *strictHandler) WorkflowScheduledUpdate(ctx echo.Context, tenant openap
 		return err
 	} else if validResponse, ok := response.(WorkflowScheduledUpdateResponseObject); ok {
 		return validResponse.VisitWorkflowScheduledUpdateResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("Unexpected response type: %T", response)
+	}
+	return nil
+}
+
+// WorkflowScheduledTrigger operation
+func (sh *strictHandler) WorkflowScheduledTrigger(ctx echo.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) error {
+	var request WorkflowScheduledTriggerRequestObject
+
+	request.Tenant = tenant
+	request.ScheduledWorkflowRun = scheduledWorkflowRun
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.WorkflowScheduledTrigger(ctx, request.(WorkflowScheduledTriggerRequestObject))
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(WorkflowScheduledTriggerResponseObject); ok {
+		return validResponse.VisitWorkflowScheduledTriggerResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -17612,42 +17815,44 @@ var swaggerSpec = []string{
 	"uSl4V3WqlHZKRvFNpqMdmk91mGUfKrIxT5bOVGR83lhSaFWKYPvE0JPl9nJDK0rBjrND55CxhobeHrsa",
 	"Lb10zm1JXaeH7vEP+p+e/NWudmj5ILZ++KCEc+B1K9LVm8DKYXT3tUQtC15oN7HNPF0sfaFHU7O3ijxB",
 	"GEti8MfENZnrkN2T9piztnR0tsfmIRj2Gx3WG5EPdTV72azpjNbC4cAL+O6XfNhWCV9VQNxyA4eVrY9S",
-	"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",
-	"k4zLgyT2O287nedvz/8vAAD//yNgtIMvegMA",
+	"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",
+	"vO10nr89/78AAAD//3EaQpGFggMA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
