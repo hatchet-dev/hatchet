@@ -16,7 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uuid.UUID, cron string, workflowName string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) (uuid.UUID, error) {
+func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uuid.UUID, cron string, workflowName string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) (*uuid.UUID, error) {
 	if additionalMetadata == nil {
 		additionalMetadata = make(map[string]interface{})
 	}
@@ -35,7 +35,7 @@ func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uui
 
 	additionalMetaBytes, err := json.Marshal(additionalMetadata)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("could not marshal additional metadata: %w", err)
+		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
 	}
 
 	externalId := uuid.New()
@@ -53,14 +53,14 @@ func RunCronWorkflow(ctx context.Context, mq msgqueue.MessageQueue, tenantId uui
 
 	msg, err := tasktypes.TriggerTaskMessage(tenantId, opt)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("could not create trigger task message: %w", err)
+		return nil, fmt.Errorf("could not create trigger task message: %w", err)
 	}
 
 	if err := mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-		return uuid.Nil, fmt.Errorf("could not send message to task queue: %w", err)
+		return nil, fmt.Errorf("could not send message to task queue: %w", err)
 	}
 
-	return externalId, nil
+	return &externalId, nil
 }
 
 func (t *TickerImpl) runCronWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, cron, cronParentId string, cronName *string, input []byte, additionalMetadata map[string]interface{}, priority *int32, scheduledAt time.Time) error {

@@ -54,11 +54,11 @@ func (t *WorkflowService) WorkflowCronTrigger(ctx echo.Context, request gen.Work
 		&priority,
 		time.Now().UTC(),
 	)
-	if err != nil {
+	if err != nil || externalId == nil {
 		return gen.WorkflowCronTrigger400JSONResponse(apierrors.NewAPIErrors("Failed to trigger cron workflow.")), nil
 	}
 
 	return gen.WorkflowCronTrigger200JSONResponse(gen.TriggerRunResult{
-		ExternalId: externalId,
+		ExternalId: *externalId,
 	}), nil
 }
