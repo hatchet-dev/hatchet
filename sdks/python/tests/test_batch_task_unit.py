@@ -1,6 +1,5 @@
 import asyncio
 import queue
-from dataclasses import dataclass
 from typing import Any, cast
 
 import pytest
@@ -11,9 +10,9 @@ from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.worker.runner.runner import Runner
 
 
-@dataclass
 class FakeCtx:
-    workflow_input: dict[str, Any]
+    def __init__(self, workflow_input: dict[str, Any]) -> None:
+        self._workflow_input = workflow_input
 
 
 @pytest.mark.asyncio(loop_scope="session")
