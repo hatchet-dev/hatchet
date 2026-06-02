@@ -735,7 +735,6 @@ BEGIN
             FROM v1_task_runtime tr
             WHERE tr.tenant_id = br.tenant_id
               AND tr.batch_id = br.batch_id
-            FOR UPDATE SKIP LOCKED -- NOTE: important to use skip locked here to avoid race conditions on multiple completions of the same batch run
         )
         FOR UPDATE
     )

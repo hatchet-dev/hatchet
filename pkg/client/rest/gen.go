@@ -1850,8 +1850,6 @@ type V1TaskEvent struct {
 	Attempt      *int    `json:"attempt,omitempty"`
 	ErrorMessage *string `json:"errorMessage,omitempty"`
 
-	// EventPayload Optional structured metadata for the event encoded as JSON.
-	EventPayload *string         `json:"eventPayload,omitempty"`
 	EventType    V1TaskEventType `json:"eventType"`
 	Id           int             `json:"id"`
 	Message      string          `json:"message"`
