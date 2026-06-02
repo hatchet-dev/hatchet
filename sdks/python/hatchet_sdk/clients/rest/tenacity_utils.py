@@ -48,14 +48,20 @@ def tenacity_should_retry(
 
     # gRPC errors: retry most, except specific permanent failure codes
     if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
-        return ex.code() not in [
+        non_retryable = [
             grpc.StatusCode.UNIMPLEMENTED,
-            grpc.StatusCode.NOT_FOUND,
             grpc.StatusCode.INVALID_ARGUMENT,
             grpc.StatusCode.ALREADY_EXISTS,
             grpc.StatusCode.UNAUTHENTICATED,
             grpc.StatusCode.PERMISSION_DENIED,
         ]
+        if not config or not config.retry_not_found:
+            ## don't retry NOT_FOUND by default,
+            ## but allow it to be configurable so that we can
+            ## allow this internally, e.g. in `get_details`
+            non_retryable.append(grpc.StatusCode.NOT_FOUND)
+
+        return ex.code() not in non_retryable
 
     # REST transport errors: opt-in retry for configured HTTP methods
     if isinstance(ex, RestTransportError):

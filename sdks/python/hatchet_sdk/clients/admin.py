@@ -633,7 +633,10 @@ class AdminClient:
 
     def get_details(self, external_id: str) -> WorkflowRunDetail:
         client = self._get_or_create_v1_client()
-        get_run_payloads = tenacity_retry(client.GetRunDetails, self.config.tenacity)
+        get_run_payloads = tenacity_retry(
+            client.GetRunDetails,
+            self.config.tenacity.model_copy(update={"retry_not_found": True}),
+        )
 
         response = cast(
             workflow_protos.GetRunDetailsResponse,
