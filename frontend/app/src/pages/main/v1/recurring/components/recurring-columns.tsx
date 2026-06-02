@@ -193,7 +193,7 @@ export const columns = ({
             row={row.original}
             actions={[
               {
-                label: 'Run Now',
+                label: 'Trigger Now',
                 onClick: () => onTriggerClick(row.original),
               },
               {
