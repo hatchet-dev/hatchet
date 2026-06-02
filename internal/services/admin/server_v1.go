@@ -272,6 +272,7 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		localAssigned, idempotencyKeyCollisions, schedulingErr := i.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
+		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
 				i.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
@@ -304,12 +305,14 @@ func (i *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			return idempotencyKeyCollisions, nil
 		}
 
+		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
 		if schedulingErr == nil {
 			return idempotencyKeyCollisions, nil
 		}
 	} else if i.tw != nil {
 		idempotencyKeyCollisions, triggerErr := i.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 
+		// if we fail to trigger via gRPC, we fall back to normal ingestion
 		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
 			i.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
 		} else if triggerErr == nil {

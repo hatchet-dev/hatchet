@@ -626,6 +626,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 		localAssigned, idempotencyKeyCollisions, schedulingErr := a.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
+		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
 			if !errors.Is(schedulingErr, schedulingv1.ErrTenantNotFound) && !errors.Is(schedulingErr, schedulingv1.ErrNoOptimisticSlots) {
 				a.l.Error().Ctx(ctx).Err(schedulingErr).Msg("could not run optimistic scheduling")
@@ -653,9 +654,12 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 				a.l.Error().Ctx(ctx).Err(dispatcherErr).Msg("could not handle local assignments")
 			}
 
+			// we return nil because the failed assignments would have been requeued by the local dispatcher,
+			// and we have already written the tasks to the database
 			return idempotencyKeyCollisions, nil
 		}
 
+		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
 		if schedulingErr == nil {
 			return idempotencyKeyCollisions, nil
 		}
