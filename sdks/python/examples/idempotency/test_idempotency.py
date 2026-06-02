@@ -2,7 +2,7 @@ import pytest
 
 from examples.idempotency.worker import idempotent_task, IdempotencyInput, EVENT_KEY
 
-from hatchet_sdk import Hatchet, IdempotencyCollisionError
+from hatchet_sdk import Hatchet, IdempotencyCollisionError, RunStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
@@ -79,8 +79,6 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     assert runs is not None
     assert len(runs.rows) == 1
 
-    await asyncio.sleep(3)
-
     details = await hatchet.event.aio_list(
         event_ids=[e1.event_id, e2.event_id],
     )
@@ -94,3 +92,14 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     ]
 
     assert len(all_triggered_runs) == 1
+
+    for _ in range(15):
+        run_details = await hatchet.runs.aio_get_details(
+            all_triggered_runs[0].workflow_run_id
+        )
+
+        if run_details.status in [RunStatus.QUEUED, RunStatus.RUNNING]:
+            await asyncio.sleep(1)
+            continue
+
+        assert run_details.status == RunStatus.COMPLETED
