@@ -26,7 +26,6 @@ type AdminServiceClient interface {
 	CancelTasks(ctx context.Context, in *CancelTasksRequest, opts ...grpc.CallOption) (*CancelTasksResponse, error)
 	ReplayTasks(ctx context.Context, in *ReplayTasksRequest, opts ...grpc.CallOption) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(ctx context.Context, in *TriggerWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerWorkflowRunResponse, error)
-	TriggerScheduledWorkflowRun(ctx context.Context, in *TriggerScheduledWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerScheduledWorkflowRunResponse, error)
 	GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error)
 	BranchDurableTask(ctx context.Context, in *BranchDurableTaskRequest, opts ...grpc.CallOption) (*BranchDurableTaskResponse, error)
 }
@@ -75,15 +74,6 @@ func (c *adminServiceClient) TriggerWorkflowRun(ctx context.Context, in *Trigger
 	return out, nil
 }
 
-func (c *adminServiceClient) TriggerScheduledWorkflowRun(ctx context.Context, in *TriggerScheduledWorkflowRunRequest, opts ...grpc.CallOption) (*TriggerScheduledWorkflowRunResponse, error) {
-	out := new(TriggerScheduledWorkflowRunResponse)
-	err := c.cc.Invoke(ctx, "/v1.AdminService/TriggerScheduledWorkflowRun", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *adminServiceClient) GetRunDetails(ctx context.Context, in *GetRunDetailsRequest, opts ...grpc.CallOption) (*GetRunDetailsResponse, error) {
 	out := new(GetRunDetailsResponse)
 	err := c.cc.Invoke(ctx, "/v1.AdminService/GetRunDetails", in, out, opts...)
@@ -110,7 +100,6 @@ type AdminServiceServer interface {
 	CancelTasks(context.Context, *CancelTasksRequest) (*CancelTasksResponse, error)
 	ReplayTasks(context.Context, *ReplayTasksRequest) (*ReplayTasksResponse, error)
 	TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error)
-	TriggerScheduledWorkflowRun(context.Context, *TriggerScheduledWorkflowRunRequest) (*TriggerScheduledWorkflowRunResponse, error)
 	GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error)
 	BranchDurableTask(context.Context, *BranchDurableTaskRequest) (*BranchDurableTaskResponse, error)
 	mustEmbedUnimplementedAdminServiceServer()
@@ -131,9 +120,6 @@ func (UnimplementedAdminServiceServer) ReplayTasks(context.Context, *ReplayTasks
 }
 func (UnimplementedAdminServiceServer) TriggerWorkflowRun(context.Context, *TriggerWorkflowRunRequest) (*TriggerWorkflowRunResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TriggerWorkflowRun not implemented")
-}
-func (UnimplementedAdminServiceServer) TriggerScheduledWorkflowRun(context.Context, *TriggerScheduledWorkflowRunRequest) (*TriggerScheduledWorkflowRunResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method TriggerScheduledWorkflowRun not implemented")
 }
 func (UnimplementedAdminServiceServer) GetRunDetails(context.Context, *GetRunDetailsRequest) (*GetRunDetailsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRunDetails not implemented")
@@ -226,24 +212,6 @@ func _AdminService_TriggerWorkflowRun_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AdminService_TriggerScheduledWorkflowRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TriggerScheduledWorkflowRunRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AdminServiceServer).TriggerScheduledWorkflowRun(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/v1.AdminService/TriggerScheduledWorkflowRun",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdminServiceServer).TriggerScheduledWorkflowRun(ctx, req.(*TriggerScheduledWorkflowRunRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AdminService_GetRunDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetRunDetailsRequest)
 	if err := dec(in); err != nil {
@@ -302,10 +270,6 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TriggerWorkflowRun",
 			Handler:    _AdminService_TriggerWorkflowRun_Handler,
-		},
-		{
-			MethodName: "TriggerScheduledWorkflowRun",
-			Handler:    _AdminService_TriggerScheduledWorkflowRun_Handler,
 		},
 		{
 			MethodName: "GetRunDetails",

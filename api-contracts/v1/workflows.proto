@@ -14,7 +14,6 @@ service AdminService {
     rpc CancelTasks(CancelTasksRequest) returns (CancelTasksResponse);
     rpc ReplayTasks(ReplayTasksRequest) returns (ReplayTasksResponse);
     rpc TriggerWorkflowRun(TriggerWorkflowRunRequest) returns (TriggerWorkflowRunResponse);
-    rpc TriggerScheduledWorkflowRun(TriggerScheduledWorkflowRunRequest) returns (TriggerScheduledWorkflowRunResponse);
     rpc GetRunDetails(GetRunDetailsRequest) returns (GetRunDetailsResponse);
     rpc BranchDurableTask(BranchDurableTaskRequest) returns (BranchDurableTaskResponse);
 }
@@ -57,11 +56,6 @@ message TriggerWorkflowRunResponse {
     string external_id = 1;
 }
 
-message TriggerScheduledWorkflowRunRequest {
-    string schedule_id = 1;
-}
-
-message TriggerScheduledWorkflowRunResponse {}
 
 message BranchDurableTaskRequest {
     string task_external_id = 1; // (required) the external id (uuid) of the durable task
