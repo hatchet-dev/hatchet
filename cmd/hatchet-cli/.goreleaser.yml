@@ -84,12 +84,10 @@ release:
   prerelease: auto
   mode: append
   header: |
-    ## Hatchet CLI {{ .Tag }}
-
-    Welcome to this new release of the Hatchet CLI!
+    ## Hatchet {{ .Tag }}
 
     For full documentation, visit [https://docs.hatchet.run/cli](https://docs.hatchet.run/cli)
-  footer: |
+
     ## Installation
 
     ### MacOS, Linux, WSL
@@ -109,7 +107,7 @@ release:
     ```bash
     hatchet --version
     ```
-  name_template: "{{.ProjectName}}-cli-{{.Version}}"
+  name_template: "{{.ProjectName}} {{.Version}}"
   disable: false
 
 # Homebrew tap
