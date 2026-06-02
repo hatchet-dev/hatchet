@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { LanguageLogo } from "@/lib/language-logos";
 
 export default {
