@@ -18,7 +18,6 @@ const defaultBatchPollInterval = 200 * time.Millisecond
 const batchFetchLimit int32 = 256
 const defaultBatchIdleTTL = 30 * time.Second
 
-
 // BatchScheduler coordinates batching for a (step_id, batch_key) pair. It buffers queue
 // items in-memory, flushing them once batch requirements are satisfied.
 type BatchScheduler struct {

@@ -530,8 +530,6 @@ export interface V1TaskEvent {
   timestamp: string;
   eventType: V1TaskEventType;
   message: string;
-  /** Optional structured metadata for the event encoded as JSON. */
-  eventPayload?: string;
   errorMessage?: string;
   output?: string;
   /** @format uuid */
@@ -1881,6 +1879,16 @@ export interface ScheduledWorkflows {
 export interface ScheduledWorkflowsList {
   rows?: ScheduledWorkflows[];
   pagination?: PaginationResponse;
+}
+
+export interface TriggerRunResult {
+  /**
+   * The external ID of the triggered workflow run
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  externalId: string;
 }
 
 export interface UpdateScheduledWorkflowRunRequest {

@@ -1,3 +1,4 @@
+import { WELCOME_KEY } from './welcome-modal-state';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -8,6 +9,7 @@ import {
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
+import useCloud from '@/hooks/use-cloud';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import {
@@ -18,31 +20,36 @@ import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
-const WELCOME_KEY = 'hatchet:show-welcome';
-
 interface WelcomeModalProps {
   tenantId: string | undefined;
+  organizationId: string | undefined;
   open: boolean;
   onClose: () => void;
 }
 
-export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
+export function WelcomeModal({
+  tenantId,
+  organizationId,
+  open,
+  onClose,
+}: WelcomeModalProps) {
   const { capture } = useAnalytics();
   const navigate = useNavigate();
+  const { cloud, isCloudEnabled } = useCloud();
 
   const welcomePlansQuery = useQuery({
-    ...queries.cloud.subscriptionPlans(),
-    enabled: open,
+    ...queries.controlPlane.subscriptionPlans(),
+    enabled: open && isCloudEnabled && !!cloud?.canBill,
   });
 
   const developerPlanMutation = useMutation({
     mutationKey: ['welcome:developer-plan'],
     mutationFn: async () => {
-      if (!tenantId) {
-        throw new Error('No tenant id');
+      if (!organizationId) {
+        throw new Error('No organization id');
       }
-      const response = await controlPlaneApi.tenantSubscriptionUpdate(
-        tenantId,
+      const response = await controlPlaneApi.organizationSubscriptionUpdate(
+        organizationId,
         {
           plan: SubscriptionPlanCode.Developer,
           period: SubscriptionPeriod.Monthly,
@@ -108,6 +115,7 @@ export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
               onClick={() => {
                 capture('welcome_modal_add_payment', {
                   tenant_id: tenantId,
+                  organization_id: organizationId,
                   cta: 'developer_plan',
                 });
                 developerPlanMutation.mutate();
@@ -128,6 +136,7 @@ export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
               onClick={() => {
                 capture('welcome_modal_dismissed', {
                   tenant_id: tenantId,
+                  organization_id: organizationId,
                   cta: 'continue_with_limits',
                 });
                 dismiss();
@@ -141,13 +150,14 @@ export function WelcomeModal({ tenantId, open, onClose }: WelcomeModalProps) {
               onClick={() => {
                 capture('welcome_modal_view_plans', {
                   tenant_id: tenantId,
+                  organization_id: organizationId,
                   cta: 'view_plan_options',
                 });
                 dismiss();
                 if (tenantId) {
                   navigate({
-                    to: appRoutes.tenantSettingsBillingRoute.to,
-                    params: { tenant: tenantId },
+                    to: appRoutes.organizationSettingsBillingRoute.to,
+                    params: { organization: organizationId ?? '' },
                   });
                 }
               }}

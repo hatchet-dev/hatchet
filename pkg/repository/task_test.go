@@ -84,7 +84,7 @@ func TestInsertTasksPersistsBatchKeys(t *testing.T) {
 		RetryBackoffFactor: pgtype.Float8{},
 		RetryMaxBackoff:    pgtype.Int4{},
 		ScheduleTimeout:    "PT1M",
-		BatchGroupKey: sqlchelpers.TextFromStr("input.batchKey"),
+		BatchGroupKey:      sqlchelpers.TextFromStr("input.batchKey"),
 		WorkflowVersionId:  workflowVersionID,
 		WorkflowId:         workflowID,
 		DefaultPriority:    1,
