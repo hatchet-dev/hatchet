@@ -905,8 +905,9 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 type V1CelEvaluationFailureSource string
 
 const (
-	V1CelEvaluationFailureSourceFILTER  V1CelEvaluationFailureSource = "FILTER"
-	V1CelEvaluationFailureSourceWEBHOOK V1CelEvaluationFailureSource = "WEBHOOK"
+	V1CelEvaluationFailureSourceFILTER         V1CelEvaluationFailureSource = "FILTER"
+	V1CelEvaluationFailureSourceWEBHOOK        V1CelEvaluationFailureSource = "WEBHOOK"
+	V1CelEvaluationFailureSourceIDEMPOTENCYKEY V1CelEvaluationFailureSource = "IDEMPOTENCY_KEY"
 )
 
 func (e *V1CelEvaluationFailureSource) Scan(src interface{}) error {

@@ -4,6 +4,8 @@ ALTER TABLE "WorkflowVersion"
     ADD COLUMN "idempotencyKeyExpression" TEXT,
     ADD COLUMN "idempotencyKeyTtlMs" BIGINT
     ;
+
+ALTER TYPE v1_cel_evaluation_failure_source ADD VALUE IF NOT EXISTS 'IDEMPOTENCY_KEY';
 -- +goose StatementEnd
 
 -- +goose Down
