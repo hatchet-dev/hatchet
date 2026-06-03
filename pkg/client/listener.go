@@ -142,7 +142,7 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 
 	r.workflowRunListener = w
 	if !w.startListening() {
-		if closeErr := w.Close(); closeErr != nil {
+		if closeErr := w.closeStream(); closeErr != nil {
 			r.l.Error().Err(closeErr).Msg("failed to close workflow run events listener")
 		}
 
@@ -152,12 +152,6 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 
 	go func() {
 		defer func() {
-			err := w.Close()
-
-			if err != nil {
-				r.l.Error().Err(err).Msg("failed to close workflow run events listener")
-			}
-
 			r.workflowRunListenerMu.Lock()
 			if r.workflowRunListener == w {
 				r.workflowRunListener = nil
@@ -451,6 +445,11 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 	if client == nil {
 		return fmt.Errorf("client is not connected")
 	}
+	defer func() {
+		if closeErr := client.CloseSend(); closeErr != nil {
+			l.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listen exit")
+		}
+	}()
 
 	for {
 		event, err := client.Recv()
@@ -511,6 +510,10 @@ func (l *WorkflowRunsListener) Close() error {
 	l.closed = true
 	l.listenMu.Unlock()
 
+	return l.closeStream()
+}
+
+func (l *WorkflowRunsListener) closeStream() error {
 	l.clientMu.Lock()
 	client := l.client
 	l.clientMu.Unlock()

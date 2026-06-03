@@ -167,6 +167,70 @@ func TestGetDurableEventsListenerImmediateAddDoesNotOpenSecondStream(t *testing.
 	}, time.Second, 10*time.Millisecond)
 }
 
+func TestGetDurableEventsListenerInternalCleanupDoesNotTerminallyCloseListener(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockDurableEventClient{
+		recvFn: func() (*contracts.DurableEvent, error) {
+			return nil, io.EOF
+		},
+	}
+	replacementClient := &mockDurableEventClient{
+		recvCh: make(chan *contracts.DurableEvent, 1),
+	}
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				if constructorCalls.Add(1) == 1 {
+					return initialClient, nil
+				}
+
+				return replacementClient, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getDurableEventsListener(context.Background())
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+
+	received := make(chan DurableEvent, 1)
+	require.NoError(t, listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		received <- e
+		return nil
+	}))
+
+	require.Equal(t, int32(2), constructorCalls.Load())
+	require.Equal(t, int32(1), replacementClient.sendCount.Load())
+
+	replacementClient.recvCh <- &contracts.DurableEvent{
+		TaskId:    "task-1",
+		SignalKey: "signal-1",
+		Data:      []byte(`{"ok":true}`),
+	}
+
+	select {
+	case event := <-received:
+		require.Equal(t, "task-1", event.TaskId)
+		require.Equal(t, "signal-1", event.SignalKey)
+		require.JSONEq(t, `{"ok":true}`, string(event.Data))
+	case <-time.After(time.Second):
+		t.Fatal("expected durable event after internal cleanup")
+	}
+
+	close(replacementClient.recvCh)
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+}
+
 // TestDurableEventsListenerReconnectsWhileRetrySendBacksOff verifies that a
 // stream disconnect can reconnect while AddSignal is retrying a send on the
 // broken stream. This is the lock-contention repro: retrySend must not hold a

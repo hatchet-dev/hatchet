@@ -223,6 +223,65 @@ func TestGetWorkflowRunsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T
 	}, time.Second, 10*time.Millisecond)
 }
 
+func TestGetWorkflowRunsListenerInternalCleanupDoesNotTerminallyCloseListener(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				if constructorCalls.Add(1) == 1 {
+					return initialClient, nil
+				}
+
+				return replacementClient, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getWorkflowRunsListener(context.Background())
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+
+	received := make(chan WorkflowRunEvent, 1)
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		received <- event
+		return nil
+	}))
+
+	require.Equal(t, int32(2), constructorCalls.Load())
+	require.Equal(t, int32(1), replacementClient.sendCount.Load())
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	select {
+	case event := <-received:
+		assert.Equal(t, "run-1", event.WorkflowRunId)
+	case <-time.After(time.Second):
+		t.Fatal("expected workflow run event after internal cleanup")
+	}
+
+	listener.RemoveWorkflowRun("run-1", "session-1")
+	close(replacementClient.recvChan)
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+}
+
 func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {
 	// This test verifies that when Send() fails on a broken stream,
 	// retrySend will call retrySubscribe to establish a new stream

@@ -74,7 +74,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 
 	r.durableEventsListener = w
 	if !w.startListening() {
-		if closeErr := w.Close(); closeErr != nil {
+		if closeErr := w.closeStream(); closeErr != nil {
 			r.l.Error().Ctx(ctx).Err(closeErr).Msg("failed to close durable events listener")
 		}
 
@@ -84,12 +84,6 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 
 	go func() {
 		defer func() {
-			err := w.Close()
-
-			if err != nil {
-				r.l.Error().Ctx(ctx).Err(err).Msg("failed to close durable events listener")
-			}
-
 			r.durableEventsListenerMu.Lock()
 			if r.durableEventsListener == w {
 				r.durableEventsListener = nil
@@ -363,6 +357,11 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 	if client == nil {
 		return fmt.Errorf("client is not connected")
 	}
+	defer func() {
+		if closeErr := client.CloseSend(); closeErr != nil {
+			l.l.Warn().Err(closeErr).Msg("failed to close durable event stream after listen exit")
+		}
+	}()
 
 	for {
 		event, err := client.Recv()
@@ -423,6 +422,10 @@ func (l *DurableEventsListener) Close() error {
 	l.closed = true
 	l.listenMu.Unlock()
 
+	return l.closeStream()
+}
+
+func (l *DurableEventsListener) closeStream() error {
 	l.clientMu.Lock()
 	client := l.client
 	l.clientMu.Unlock()
