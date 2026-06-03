@@ -17,11 +17,7 @@ Configuring idempotency on a workflow or standalone task requires two parameters
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
-    <Snippet
-      src={
-        snippets.python.idempotency.worker.idempotency
-      }
-    />
+    <Snippet src={snippets.python.idempotency.worker.idempotency} />
   </Tabs.Tab>
   <Tabs.Tab>
     <Snippet src={snippets.typescript.idempotency.workflow.idempotency} />
@@ -42,11 +38,7 @@ When a collision occurs, the engine will reject the workflow run, and, if the ru
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
-    <Snippet
-      src={
-        snippets.python.idempotency.trigger.trigger
-      }
-    />
+    <Snippet src={snippets.python.idempotency.trigger.trigger} />
   </Tabs.Tab>
   <Tabs.Tab>
     <Snippet src={snippets.typescript.idempotency.run.trigger} />
