@@ -81,7 +81,7 @@ export function WelcomeModal({
       }}
     >
       <DialogContent className="max-w-lg text-center">
-        <div className="flex flex-col items-center gap-6">
+        <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6">
           <HatchetLogo variant="mark" className="h-10 w-10" />
           <div className="space-y-2">
             <DialogTitle className="text-center text-2xl">
@@ -124,10 +124,7 @@ export function WelcomeModal({
               {developerPlanMutation.isPending ? (
                 'Redirecting…'
               ) : (
-                <>
-                  Add a payment method to remove limits, no commitment required
-                  &rarr;
-                </>
+                <>Add a payment method to remove limits &rarr;</>
               )}
             </Button>
             <Button
