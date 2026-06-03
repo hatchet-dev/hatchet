@@ -6,6 +6,7 @@ import { Api as ControlPlaneApi } from './generated/control-plane/Api';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
+import { validate as validateUuid } from 'uuid';
 
 // Extend Axios config with custom fields injected by the API code generator.
 // https://www.typescriptlang.org/docs/handbook/declaration-merging.html
@@ -69,6 +70,35 @@ function readStoredTenantId(): string | null {
   }
 }
 
+function readTenantIdFromPathname(pathname: string): string | null {
+  const segments = pathname.split('/').filter(Boolean);
+  const tenantSegmentIndex = segments.indexOf('tenants');
+  if (tenantSegmentIndex === -1) {
+    return null;
+  }
+
+  const tenantId = segments[tenantSegmentIndex + 1];
+  if (!tenantId || !validateUuid(tenantId)) {
+    return null;
+  }
+
+  return tenantId;
+}
+
+export function readTenantIdFromLocation(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return readTenantIdFromPathname(window.location.pathname);
+}
+
+export function resolveExchangeTokenTenantId(
+  config: Pick<InternalAxiosRequestConfig, 'xTenantId'>,
+): string | null {
+  return config.xTenantId ?? readTenantIdFromLocation() ?? readStoredTenantId();
+}
+
 /**
  * Shared query config for control-plane metadata.
  * Exported so loaders and the hook can reuse the same key/fn/staleTime,
@@ -120,10 +150,10 @@ export async function exchangeTokenInterceptor(
 
   const cpEnabled = await resolveControlPlaneEnabled();
 
-  // xTenantId takes precedence — callers that know the tenant ID at request
-  // time set it explicitly to avoid relying on the localStorage fallback. this prevents race
-  // conditions where the interceptor checks localStorage before it's updated with the new tenant ID.
-  const tenantId = config.xTenantId ?? readStoredTenantId();
+  // xTenantId takes precedence — callers that intentionally target a tenant
+  // other than the current page tenant set it explicitly. Otherwise the
+  // interceptor uses the tenant encoded in window.location, then storage.
+  const tenantId = resolveExchangeTokenTenantId(config);
 
   if (!cpEnabled) {
     return config;
