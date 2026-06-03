@@ -361,6 +361,7 @@ class Runner:
         self._batch_controllers: dict[str, _BatchController] = {}
         for action_id, task in self.action_registry.items():
             if task.is_batch:
+                print(action_id, task)
                 self._batch_controllers[action_id] = _BatchController(action_id, task)
 
         if self.config.enable_thread_pool_monitoring:

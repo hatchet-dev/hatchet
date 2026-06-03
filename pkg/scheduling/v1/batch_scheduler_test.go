@@ -184,8 +184,6 @@ func newTestSharedConfig(repo v1repo.BatchQueueRepository) *sharedConfig {
 }
 
 func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
-	t.Skip("TODO: update for new batch scheduler flush semantics")
-
 	tenantId := uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	stepId := uuid.MustParse("00000000-0000-0000-0000-000000000010")
 
@@ -233,7 +231,6 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 }
 
 func TestBatchSchedulerFlushOnInterval(t *testing.T) {
-	t.Skip("TODO: update for new batch scheduler flush semantics")
 
 	tenantId := uuid.MustParse("00000000-0000-0000-0000-000000000002")
 	stepId := uuid.MustParse("00000000-0000-0000-0000-000000000020")
@@ -394,7 +391,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		require.Equal(t, workerID, assigned.WorkerId)
 		require.NotNil(t, assigned.QueueItem)
 		require.NotNil(t, assigned.Batch)
-		require.Equal(t, string(v1repo.FlushReasonBatchSizeReached), assigned.Batch.Reason)
+		require.Equal(t, v1repo.FlushReasonBatchSizeReached, assigned.Batch.Reason)
 		require.Equal(t, int32(2), assigned.Batch.ConfiguredBatchMaxSize)
 		require.Equal(t, int32(1), assigned.Batch.ConfiguredBatchGroupMaxRuns)
 		require.NotEmpty(t, assigned.Batch.BatchID)

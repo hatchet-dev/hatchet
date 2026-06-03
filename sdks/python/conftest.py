@@ -61,10 +61,11 @@ async def supports_batching(engine_version: str | None) -> bool:
 
 @pytest.fixture()
 def _skip_unless_batching(supports_batching: bool) -> None:
-    if not supports_batching:
-        pytest.skip(
-            f"Engine does not support batch tasks (requires >= {MinEngineVersion.BATCHING})"
-        )
+    pass
+    # if not supports_batching:
+    #     pytest.skip(
+    #         f"Engine does not support batch tasks (requires >= {MinEngineVersion.BATCHING})"
+    #     )
 
 
 @pytest.fixture(scope="session", autouse=True)

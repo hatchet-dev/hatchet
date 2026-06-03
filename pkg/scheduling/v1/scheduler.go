@@ -741,11 +741,7 @@ func (s *Scheduler) tryAssignChunk(
 	// This replaces the old DB trigger-based redirect.
 	for i := range res {
 		qi := res[i].qi
-		if qi == nil || !qi.BatchKey.Valid {
-			continue
-		}
-
-		if strings.TrimSpace(qi.BatchKey.String) == "" {
+		if qi == nil {
 			continue
 		}
 
