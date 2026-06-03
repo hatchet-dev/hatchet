@@ -22,7 +22,8 @@ func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) (*uuid.UUID, error) {
 	expiresAt := sqlchelpers.TimestamptzFromTime(opts.TriggerAt.Add(30 * time.Second))
 
-	claimed, err := t.repov1.Idempotency().ClaimKey(ctx, tenantId, opts.ID.String(), expiresAt, opts.ID.String())
+	claimed, err := repo.Idempotency().ClaimKey(ctx, tenantId, opts.ID.String(), expiresAt, opts.ID)
+
 	if err != nil {
 		return nil, fmt.Errorf("could not claim idempotency key for scheduled workflow: %w", err)
 	}
