@@ -1,6 +1,9 @@
 import HatchetError from '@util/errors/hatchet-error';
+import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
+import { BinaryReader } from '@bufbuild/protobuf/wire';
+import { IdempotencyCollisionError as IdempotencyCollisionErrorProto } from '@hatchet/protoc/v1/workflows';
 
 import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
@@ -21,6 +24,52 @@ import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
+
+function extractExistingRunIdFromGrpcError(e: any): string {
+  try {
+    const detailsBin = e.metadata?.get?.('grpc-status-details-bin');
+    const binData = Array.isArray(detailsBin) ? detailsBin[0] : detailsBin;
+    if (!binData) return '';
+
+    const statusBytes = binData instanceof Buffer ? binData : Buffer.from(binData);
+    const reader = new BinaryReader(statusBytes);
+
+    while (reader.pos < reader.len) {
+      const tag = reader.uint32();
+      const fieldNumber = tag >>> 3;
+      const wireType = tag & 7;
+
+      if (fieldNumber === 3 && wireType === 2) {
+        // google.rpc.Status.details: repeated google.protobuf.Any
+        const anyBytes = reader.bytes();
+        const anyReader = new BinaryReader(anyBytes);
+        let typeUrl = '';
+        let value: Uint8Array | undefined;
+
+        while (anyReader.pos < anyReader.len) {
+          const anyTag = anyReader.uint32();
+          const anyField = anyTag >>> 3;
+          if (anyField === 1) {
+            typeUrl = anyReader.string();
+          } else if (anyField === 2) {
+            value = anyReader.bytes();
+          } else {
+            anyReader.skip(anyTag & 7);
+          }
+        }
+
+        if (typeUrl.includes('IdempotencyCollisionError') && value) {
+          return IdempotencyCollisionErrorProto.decode(value).existingRunExternalId ?? '';
+        }
+      } else {
+        reader.skip(wireType);
+      }
+    }
+  } catch {
+    // ignore decoding errors
+  }
+  return '';
+}
 
 type DesiredWorkerLabelOpt = {
   value: string | number;
@@ -180,6 +229,9 @@ export class AdminClient {
       await ref.getWorkflowRunId();
       return ref;
     } catch (e: any) {
+      if (e.code === 6) {
+        throw new IdempotencyCollisionError(extractExistingRunIdFromGrpcError(e));
+      }
       throw new HatchetError(e.message);
     }
   }

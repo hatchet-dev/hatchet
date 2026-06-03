@@ -142,6 +142,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	DefaultPriority *int32
 	DefaultFilters  []types.DefaultFilter
+	Idempotency     *create.IdempotencyConfig
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
@@ -197,6 +198,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		outputSetters:    make(map[string]func(*O, interface{})),
 		DefaultPriority:  opts.DefaultPriority,
 		DefaultFilters:   opts.DefaultFilters,
+		Idempotency:      opts.Idempotency,
 	}
 
 	if opts.Version != "" {
@@ -640,6 +642,13 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	if w.StickyStrategy != nil {
 		stickyStrategy := contracts.StickyStrategy(*w.StickyStrategy)
 		req.Sticky = &stickyStrategy
+	}
+
+	if w.Idempotency != nil {
+		req.Idempotency = &contracts.IdempotencyConfig{
+			Expression: w.Idempotency.Expression,
+			TtlMs:      w.Idempotency.TTL.Milliseconds(),
+		}
 	}
 
 	// Create named function objects for regular tasks

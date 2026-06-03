@@ -11,6 +11,10 @@ If you need to prevent more than one run of a task from occurring within a given
 
 Configuring idempotency on a workflow or standalone task requires two parameters to be set: the **expression**, which will be used to create an idempotency key from the input and additional metadata of the run that's going to be triggered, and the **TTL**, which determines how long the key should live for.
 
+<Callout type="warning">
+  The idempotency key expression must evaluate to a string.
+</Callout>
+
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
     <Snippet
@@ -20,14 +24,13 @@ Configuring idempotency on a workflow or standalone task requires two parameters
     />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Add snippet */}
+    <Snippet src={snippets.typescript.idempotency.workflow.idempotency} />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Add snippet */}
+    <Snippet src={snippets.go.idempotency.worker.idempotency} />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Add snippet */}
-
+    <Snippet src={snippets.ruby.idempotency.worker.idempotency} />
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -46,16 +49,14 @@ When a collision occurs, the engine will reject the workflow run, and, if the ru
     />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Add snippet */}
+    <Snippet src={snippets.typescript.idempotency.run.trigger} />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Add snippet */}
+    <Snippet src={snippets.go.idempotency.trigger.trigger} />
   </Tabs.Tab>
   <Tabs.Tab>
-  {/* TODO: Add snippet */}
-
+    <Snippet src={snippets.ruby.idempotency.trigger.trigger} />
   </Tabs.Tab>
 </UniversalTabs>
 
 In other cases, such as triggering by events, the idempotency collision will be swallowed, and no additional runs will be created by the event will still be ingested correctly without an error being raised.
-

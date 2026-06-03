@@ -421,6 +421,12 @@ export class InternalWorker {
             expression: f.expression,
             payload: f.payload ? new TextEncoder().encode(JSON.stringify(f.payload)) : undefined,
           })) ?? [],
+        idempotency: workflow.idempotency
+          ? {
+              expression: workflow.idempotency.expression,
+              ttlMs: workflow.idempotency.ttlMs,
+            }
+          : undefined,
       });
       this.registeredWorkflowPromises.push(registeredWorkflow);
       await registeredWorkflow;

@@ -195,7 +195,7 @@ module Hatchet
     # Create a new workflow definition
     #
     # @param name [String] Workflow name
-    # @param opts [Hash] Workflow options
+    # @param opts [Hash] Workflow options (on_events:, concurrency:, idempotency:, etc.)
     # @return [Hatchet::Workflow]
     #
     # @example
@@ -208,17 +208,17 @@ module Hatchet
     # Create a standalone task (auto-wraps in a single-task workflow)
     #
     # @param name [String] Task name
-    # @param opts [Hash] Task options
+    # @param opts [Hash] Task options (on_events:, idempotency:, retries:, etc.)
     # @yield [input, ctx] The task execution block
     # @return [Hatchet::Task]
     #
     # @example
     #   my_task = hatchet.task(name: "my_task") { |input, ctx| { "result" => "done" } }
     def task(name:, **opts, &block)
-      # Create a workflow wrapper for standalone tasks
       wf = Workflow.new(name: name, client: self,
                         on_events: opts.delete(:on_events) || [],
-                        default_filters: opts.delete(:default_filters) || [],)
+                        default_filters: opts.delete(:default_filters) || [],
+                        idempotency: opts.delete(:idempotency),)
       wf.task(name, **opts, &block)
     end
 

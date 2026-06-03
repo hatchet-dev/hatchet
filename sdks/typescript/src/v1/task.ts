@@ -42,6 +42,23 @@ export type Concurrency = {
  */
 export type TaskConcurrency = Concurrency;
 
+/**
+ * Configuration for idempotency on a workflow or standalone task.
+ * Prevents more than one run from occurring within a given time window.
+ */
+export type IdempotencyConfig = {
+  /**
+   * CEL expression to create an idempotency key from input and metadata.
+   * @example "input.id" // use the 'id' field from input as the key
+   */
+  expression: string;
+
+  /**
+   * How long the idempotency key should live (in milliseconds).
+   */
+  ttlMs: number;
+};
+
 export class NonRetryableError extends Error {
   constructor(message?: string) {
     super(message);
