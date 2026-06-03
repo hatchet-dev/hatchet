@@ -10,10 +10,18 @@ See the official release notes for the Hatchet platform and SDKs:
 
 <ul className="flex flex-col gap-2 mt-4 list-none pl-0">
   {[
-    { label: "Platform & Go SDK", href: "/changelog/platform", lang: "go" },
-    { label: "Python SDK", href: "/changelog/python", lang: "py" },
-    { label: "TypeScript SDK", href: "/changelog/typescript", lang: "ts" },
-    { label: "Ruby SDK", href: "/changelog/ruby", lang: "rb" },
+    {
+      label: "Platform & Go SDK",
+      href: "/changelog/reference/platform",
+      lang: "go",
+    },
+    { label: "Python SDK", href: "/changelog/reference/python", lang: "py" },
+    {
+      label: "TypeScript SDK",
+      href: "/changelog/reference/typescript",
+      lang: "ts",
+    },
+    { label: "Ruby SDK", href: "/changelog/reference/ruby", lang: "rb" },
   ].map((item) => (
     <li
       key={item.href}
