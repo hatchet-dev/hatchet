@@ -1109,18 +1109,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		workerBatches := map[string][]tasktypes.TaskAssignedBatch{
-			key.WorkerID: {
-				{
-					BatchID:    batchID,
-					BatchSize:  batchSize,
-					TaskIds:    taskIds,
-					StartBatch: &startPayload,
-				},
-			},
-		}
-
-		assignedMsg, err := taskAssignedBatchMessage(tenantId, workerBatches)
+		assignedMsg, err := taskBulkAssignedTask(tenantId, map[uuid.UUID][]int64{workerUUID: taskIds})
 		if err != nil {
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
@@ -1184,13 +1173,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 		batchPayload := buildBatchEventPayload(batchPayloadFields)
 
-		workerPtrUuid, err := uuid.Parse(key.WorkerID)
-		var workerPtr *uuid.UUID
-		if err != nil {
-			workerPtr = nil
-		} else {
-			workerPtr = &workerPtrUuid
-		}
+		workerPtr := &workerUUID
 
 		monitoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(group))
 		for _, item := range group {
@@ -1252,37 +1235,16 @@ func describeBatchFlushReason(reason string, batchSize int, interval time.Durati
 	}
 }
 
-func taskAssignedBatchMessage(tenantId uuid.UUID, workerBatches map[string][]tasktypes.TaskAssignedBatch) (*msgqueue.Message, error) {
+func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
 		msgqueue.MsgIDTaskAssignedBulk,
 		false,
 		true,
 		tasktypes.TaskAssignedBulkTaskPayload{
-			WorkerBatches: workerBatches,
+			WorkerIdToTaskIds: workerIdsToTaskIds,
 		},
 	)
-}
-
-func taskBulkAssignedTask(tenantId uuid.UUID, workerIdsToTaskIds map[uuid.UUID][]int64) (*msgqueue.Message, error) {
-	workerBatches := make(map[string][]tasktypes.TaskAssignedBatch, len(workerIdsToTaskIds))
-
-	for workerId, taskIds := range workerIdsToTaskIds {
-		if len(taskIds) == 0 {
-			continue
-		}
-
-		copied := make([]int64, len(taskIds))
-		copy(copied, taskIds)
-
-		workerBatches[workerId.String()] = append(workerBatches[workerId.String()], tasktypes.TaskAssignedBatch{
-			BatchID:   "",
-			BatchSize: len(copied),
-			TaskIds:   copied,
-		})
-	}
-
-	return taskAssignedBatchMessage(tenantId, workerBatches)
 }
 
 func buildBatchEventPayload(fields map[string]interface{}) string {
@@ -1353,11 +1315,9 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 	taskIds := make([]int64, 0)
 
 	for _, innerMsg := range msgs {
-		for workerID, batches := range innerMsg.WorkerBatches {
-			for _, batch := range batches {
-				s.l.Error().Ctx(ctx).Msgf("handling dead-lettered task assignments for tenant %s, worker %s, batch %s tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, workerID, batch.BatchID, batch.TaskIds)
-				taskIds = append(taskIds, batch.TaskIds...)
-			}
+		for workerID, ids := range innerMsg.WorkerIdToTaskIds {
+			s.l.Error().Ctx(ctx).Msgf("handling dead-lettered task assignments for tenant %s, worker %s, tasks: %v. This indicates an abrupt shutdown of a dispatcher and should be investigated.", msg.TenantID, workerID, ids)
+			taskIds = append(taskIds, ids...)
 		}
 	}
 

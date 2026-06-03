@@ -1233,28 +1233,25 @@ BEGIN
         batch_key
     )
     SELECT
-        nt.tenant_id,
-        nt.queue,
-        nt.id,
-        nt.inserted_at,
-        nt.external_id,
-        nt.action_id,
-        nt.step_id,
-        nt.workflow_id,
-        nt.workflow_run_id,
-        CURRENT_TIMESTAMP + convert_duration_to_interval(nt.schedule_timeout),
-        nt.step_timeout,
-        COALESCE(nt.priority, 1),
-        nt.sticky,
-        nt.desired_worker_id,
-        nt.retry_count,
-        nt.desired_worker_label,
-        COALESCE(nt.batch_key, t.batch_key)
-    FROM new_table nt
-         LEFT JOIN v1_task t
-         ON t.id = nt.id
-         AND t.inserted_at = nt.inserted_at
-    WHERE nt.initial_state = 'QUEUED' AND nt.concurrency_strategy_ids[1] IS NULL
+        tenant_id,
+        queue,
+        id,
+        inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        CURRENT_TIMESTAMP + convert_duration_to_interval(schedule_timeout),
+        step_timeout,
+        COALESCE(priority, 1),
+        sticky,
+        desired_worker_id,
+        retry_count,
+        desired_worker_label,
+        batch_key
+    FROM new_table
+    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
 

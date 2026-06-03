@@ -86,15 +86,7 @@ func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgq
 }
 
 type TaskAssignedBulkTaskPayload struct {
-	WorkerBatches     map[string][]TaskAssignedBatch `json:"worker_batches" validate:"required"`
-	WorkerIdToTaskIds map[uuid.UUID][]int64          `json:"worker_id_to_task_id" validate:"required"`
-}
-
-type TaskAssignedBatch struct {
-	BatchID    string                 `json:"batch_id"`
-	BatchSize  int                    `json:"batch_size"`
-	TaskIds    []int64                `json:"task_ids"`
-	StartBatch *StartBatchTaskPayload `json:"start_batch,omitempty"`
+	WorkerIdToTaskIds map[uuid.UUID][]int64 `json:"worker_id_to_task_ids" validate:"required"`
 }
 
 type StartBatchTaskPayload struct {
@@ -112,7 +104,7 @@ type StartBatchTaskPayload struct {
 func StartBatchMessage(tenantId uuid.UUID, payload StartBatchTaskPayload) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
-		"batch-start",
+		msgqueue.MsgIDBatchStart,
 		false,
 		true,
 		payload,

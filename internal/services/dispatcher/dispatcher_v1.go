@@ -50,10 +50,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		// load the step runs from the database
 		taskIds := make([]int64, 0)
 
-		for _, batches := range innerMsg.WorkerBatches {
-			for _, batch := range batches {
-				taskIds = append(taskIds, batch.TaskIds...)
-			}
+		for _, ids := range innerMsg.WorkerIdToTaskIds {
+			taskIds = append(taskIds, ids...)
 		}
 
 		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIds)
@@ -63,24 +61,13 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
-		for workerIdStr, batches := range innerMsg.WorkerBatches {
-			workerId, err := uuid.Parse(workerIdStr)
-			if err != nil {
-				d.l.Error().Ctx(ctx).Err(err).Msgf("could not parse worker id %s", workerIdStr)
-				continue
-			}
-
-			batchTaskIds := make([]int64, 0)
-			for _, batch := range batches {
-				batchTaskIds = append(batchTaskIds, batch.TaskIds...)
-			}
-
-			if len(batchTaskIds) == 0 {
+		for workerId, ids := range innerMsg.WorkerIdToTaskIds {
+			if len(ids) == 0 {
 				continue
 			}
 
 			outerEg.Go(func() error {
-				return d.sendTasksToWorker(ctx, requeue, msg.TenantID, workerId, batchTaskIds, taskIdToData)
+				return d.sendTasksToWorker(ctx, requeue, msg.TenantID, workerId, ids, taskIdToData)
 			})
 		}
 	}
@@ -514,15 +501,12 @@ func (d *DispatcherImpl) handleRetries(
 	return retryGroup.Wait()
 }
 
-func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, msgTenantId uuid.UUID, payload *tasktypesv1.StartBatchTaskPayload) error {
+func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload *tasktypesv1.StartBatchTaskPayload) error {
 	if payload == nil {
 		return nil
 	}
 
 	tenantId := payload.TenantId
-	if tenantId == "" {
-		tenantId = msgTenantId.String()
-	}
 
 	if payload.BatchId == "" {
 		return fmt.Errorf("batch start payload missing batch id")
@@ -700,7 +684,7 @@ func (d *DispatcherImpl) handleBatchStartTask(ctx context.Context, msg *msgqueue
 	var result error
 
 	for _, payload := range payloads {
-		if err := d.sendBatchStartFromPayload(ctx, msg.TenantID, payload); err != nil {
+		if err := d.sendBatchStartFromPayload(ctx, payload); err != nil {
 			if errors.Is(err, ErrWorkerNotFound) {
 				continue
 			}
