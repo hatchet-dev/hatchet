@@ -1941,6 +1941,23 @@ export class Api<
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });
   /**
+   * @description Soft deletes a tenant and renames its slug
+   *
+   * @tags Tenant
+   * @name TenantDelete
+   * @summary Delete tenant
+   * @request DELETE:/api/v1/tenants/{tenant}
+   * @secure
+   */
+  tenantDelete = Object.assign((tenant: string, params: RequestParams = {}) =>
+    this.request<void, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+      xResources: ["tenant"],
+    }), { resources: new Set<string>(["tenant"]) });
+  /**
    * @description Gets the alerting settings for a tenant
    *
    * @tags Tenant
