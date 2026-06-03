@@ -85,6 +85,7 @@ export default function ScheduledRunsTable({
     selectedWorkflowIds,
     selectedStatuses,
     selectedMetadata,
+    triggerNow,
   } = useScheduledRuns({
     key: 'table',
     workflowId,
@@ -146,6 +147,7 @@ export default function ScheduledRunsTable({
         onRescheduleClick: (row) => {
           setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
         },
+        onTriggerClick: (row) => triggerNow(row.metadata.id),
         selectedAdditionalMetaJobId,
         handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
         onRowClick: (row) => {

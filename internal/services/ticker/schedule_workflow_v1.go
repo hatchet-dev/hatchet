@@ -6,53 +6,55 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
-func (t *TickerImpl) runScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, workflowVersion *sqlcv1.GetWorkflowVersionForEngineRow, scheduledWorkflowId uuid.UUID, scheduled *sqlcv1.PollScheduledWorkflowsRow) error {
-	expiresAt := pgtype.Timestamptz{Time: scheduled.TriggerAt.Time.Add(30 * time.Second), Valid: true}
+func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) error {
+	_, err := RunScheduledWorkflow(ctx, t.l, t.mqv1, t.repov1, tenantId, opts)
+	return err
+}
 
-	claimed, err := t.repov1.Idempotency().ClaimKey(ctx, tenantId, scheduledWorkflowId.String(), expiresAt, scheduledWorkflowId)
+func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) (*uuid.UUID, error) {
+	expiresAt := sqlchelpers.TimestamptzFromTime(opts.TriggerAt.Add(30 * time.Second))
+
+	claimed, err := t.repov1.Idempotency().ClaimKey(ctx, tenantId, opts.ID.String(), expiresAt, opts.ID.String())
 	if err != nil {
-		return fmt.Errorf("could not claim idempotency key for scheduled workflow: %w", err)
+		return nil, fmt.Errorf("could not claim idempotency key for scheduled workflow: %w", err)
 	}
 
 	if !claimed {
-		t.l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already claimed, skipping", scheduledWorkflowId)
-		return nil
+		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already claimed, skipping", opts.ID.String())
+		return nil, nil
 	}
 
-	opt := &v1.WorkflowNameTriggerOpts{
-		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:       workflowVersion.WorkflowName,
-			Data:               scheduled.Input,
-			AdditionalMetadata: scheduled.AdditionalMetadata,
-			Priority:           &scheduled.Priority,
-		},
-		ExternalId: uuid.New(),
-		ShouldSkip: false,
-	}
+	externalId := uuid.New()
 
 	msg, err := tasktypes.TriggerTaskMessage(
 		tenantId,
-		opt,
+		&v1.WorkflowNameTriggerOpts{
+			TriggerTaskData: &v1.TriggerTaskData{
+				WorkflowName:       opts.WorkflowName,
+				Data:               opts.Input,
+				AdditionalMetadata: opts.AdditionalMetadata,
+				Priority:           opts.Priority,
+			},
+			ExternalId: externalId,
+			ShouldSkip: false,
+		},
 	)
 
 	if err != nil {
-		return fmt.Errorf("could not create trigger task message: %w", err)
+		return nil, fmt.Errorf("could not create trigger task message: %w", err)
 	}
 
-	err = t.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
-	if err != nil {
-		return fmt.Errorf("could not send message to task queue: %w", err)
+	if err := mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, fmt.Errorf("could not send message to task queue: %w", err)
 	}
 
-	// delete the scheduled workflow
-	return t.repov1.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, scheduledWorkflowId)
+	return &externalId, repo.WorkflowSchedules().DeleteScheduledWorkflow(ctx, tenantId, opts.ID)
 }

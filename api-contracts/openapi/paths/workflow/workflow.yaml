@@ -1171,6 +1171,63 @@ scheduled:
     summary: Update scheduled workflow run
     tags:
       - Workflow
+  post:
+    x-resources: ["tenant", "scheduled-workflow-run"]
+    description: Trigger a scheduled workflow run immediately for a tenant
+    operationId: workflow-scheduled:trigger
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The scheduled workflow id
+        in: path
+        name: scheduled-workflow-run
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TriggerRunResult"
+        description: Successfully triggered the scheduled workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+      "500":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Internal server error
+    summary: Trigger scheduled workflow run
+    tags:
+      - Workflow
 
 scheduledBulkDelete:
   post:
@@ -1401,6 +1458,63 @@ crons:
               $ref: "../../components/schemas/_index.yaml#/APIError"
         description: Forbidden
     summary: Update cron job workflow run
+    tags:
+      - Workflow
+  post:
+    x-resources: ["tenant", "cron-workflow"]
+    description: Trigger a cron workflow immediately for a tenant
+    operationId: workflow-cron:trigger
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The cron job id
+        in: path
+        name: cron-workflow
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/TriggerRunResult"
+        description: Successfully triggered the workflow run
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIError"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+      "500":
+        content:
+          application/json:
+            schema:
+              $ref: "../../components/schemas/_index.yaml#/APIErrors"
+        description: Internal server error
+    summary: Trigger cron job workflow run immediately
     tags:
       - Workflow
 
