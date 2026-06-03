@@ -4,6 +4,11 @@ import { AppLayout } from '@/components/layout/app-layout';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
+import {
+  readWelcomeTrigger,
+  WELCOME_KEY,
+  WELCOME_TRIGGER,
+} from '@/components/modals/welcome-modal-state';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
 import {
@@ -26,6 +31,7 @@ import {
   CONTROL_PLANE_TENANT_STORAGE_KEY,
   fetchControlPlaneStatus,
 } from '@/lib/api/api';
+import { SubscriptionPlanCode } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
@@ -54,11 +60,11 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] =
-    await Promise.all([
-      queryClient.fetchQuery(getCloudMetadataQuery),
-      fetchControlPlaneStatus(),
-    ]);
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+
+  const { isCloudEnabled, ...meta } = isControlPlaneEnabled
+    ? { isCloudEnabled: false as const }
+    : await queryClient.fetchQuery(getCloudMetadataQuery);
 
   await queryClient.fetchQuery(
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
@@ -72,7 +78,7 @@ export async function loader(_args: { request: Request }) {
 }
 
 function AuthenticatedInner() {
-  const { tenant, limit } = useTenantDetails();
+  const { tenant, organizationId } = useTenantDetails();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -149,7 +155,7 @@ function AuthenticatedInner() {
     tenantMemberships,
   } = useUserUniverse();
 
-  const { isControlPlaneEnabled } = useControlPlane();
+  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
   const orgApi = useOrganizationApi();
   const orgIdForTenant = organizations?.find((o) =>
     o.tenants?.some((t) => t.id === tenant?.metadata?.id),
@@ -162,6 +168,15 @@ function AuthenticatedInner() {
     ? ((orgQuery.data as { inactivity_timeout?: number } | undefined)
         ?.inactivity_timeout ?? -1)
     : loaderData.inactivityLogoutMs;
+  const welcomeBillingState = useQuery({
+    ...queries.controlPlane.billing(organizationId || ''),
+    enabled:
+      isCloudEnabled &&
+      isControlPlaneEnabled &&
+      !!controlPlaneMeta?.canBill &&
+      !!organizationId,
+    retry: false,
+  });
 
   useInactivityDetection({
     timeoutMs: inactivityTimeoutMs,
@@ -385,31 +400,87 @@ function AuthenticatedInner() {
   );
 
   useEffect(() => {
-    const key = 'hatchet:show-welcome';
-    if (!localStorage.getItem(key)) {
+    const welcomeTrigger = readWelcomeTrigger(
+      localStorage.getItem(WELCOME_KEY),
+    );
+    if (!welcomeTrigger) {
       return;
     }
 
-    if (limit.isLoading || !limit.isFetched) {
+    if (!tenant?.metadata.id) {
       return;
     }
 
-    if (!limit.data?.length) {
-      localStorage.removeItem(key);
+    if (!isUserUniverseLoaded) {
       return;
     }
 
-    localStorage.removeItem(key);
+    if (!isCloudEnabled) {
+      localStorage.removeItem(WELCOME_KEY);
+      return;
+    }
+
+    if (!organizationId) {
+      return;
+    }
+
+    if (!controlPlaneMeta?.canBill) {
+      return;
+    }
+
+    if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
+      localStorage.removeItem(WELCOME_KEY);
+      setShowWelcome(true);
+      capture('welcome_modal_shown', {
+        tenant_id: tenant?.metadata.id,
+        source: welcomeTrigger,
+      });
+      return;
+    }
+
+    if (welcomeBillingState.isPending) {
+      return;
+    }
+
+    const billingStateError =
+      welcomeBillingState.error as AxiosError<unknown> | null;
+    const billingStateNotFound =
+      billingStateError?.status === 404 ||
+      billingStateError?.response?.status === 404;
+
+    if (welcomeBillingState.isError && !billingStateNotFound) {
+      return;
+    }
+
+    const currentSubscription = billingStateNotFound
+      ? undefined
+      : welcomeBillingState.data?.currentSubscription;
+    const canShowWelcomeForSubscription =
+      !currentSubscription ||
+      currentSubscription.plan === SubscriptionPlanCode.Free;
+
+    if (!canShowWelcomeForSubscription) {
+      localStorage.removeItem(WELCOME_KEY);
+      return;
+    }
+
+    localStorage.removeItem(WELCOME_KEY);
     setShowWelcome(true);
     capture('welcome_modal_shown', {
       tenant_id: tenant?.metadata.id,
+      source: welcomeTrigger,
     });
   }, [
     tenant?.metadata.id,
+    organizationId,
     capture,
-    limit.isLoading,
-    limit.isFetched,
-    limit.data,
+    isCloudEnabled,
+    isUserUniverseLoaded,
+    controlPlaneMeta?.canBill,
+    welcomeBillingState.data?.currentSubscription,
+    welcomeBillingState.error,
+    welcomeBillingState.isError,
+    welcomeBillingState.isPending,
   ]);
 
   if (!currentUser) {
@@ -457,7 +528,7 @@ function AuthenticatedInner() {
 
                   if (result.type === 'cloud') {
                     void queryClient.prefetchQuery(
-                      queries.cloud.subscriptionPlans(),
+                      queries.controlPlane.subscriptionPlans(),
                     );
                   }
 
@@ -497,6 +568,7 @@ function AuthenticatedInner() {
         )}
         <WelcomeModal
           tenantId={tenant?.metadata.id}
+          organizationId={organizationId}
           open={showWelcome}
           onClose={() => setShowWelcome(false)}
         />
