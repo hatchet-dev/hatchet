@@ -102,6 +102,7 @@ func TestWorkflowRunsListenerAddWorkflowRunSendsOnceWhenStarting(t *testing.T) {
 	}))
 	assert.Equal(t, int32(1), client.sendCount.Load())
 
+	require.NoError(t, listener.Close())
 	close(recvChan)
 }
 
@@ -316,6 +317,11 @@ func TestListen_DispatchesEventsToHandlers(t *testing.T) {
 		WorkflowRunId: "run-1",
 	}
 
+	require.Eventually(t, func() bool {
+		return receivedEvent.Load() != nil
+	}, time.Second, 10*time.Millisecond)
+	listener.handlers.Delete("run-1")
+
 	// Close the channel to trigger EOF and cleanly end Listen
 	close(recvChan)
 
@@ -405,7 +411,6 @@ func TestWorkflowRunsListenerRestartsAfterListenExits(t *testing.T) {
 	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
 		WorkflowRunId: "run-1",
 	}
-	close(replacementClient.recvChan)
 
 	select {
 	case event := <-received:
@@ -413,6 +418,103 @@ func TestWorkflowRunsListenerRestartsAfterListenExits(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("expected workflow run event after listener restarted")
 	}
+
+	listener.RemoveWorkflowRun("run-1", "session-1")
+	close(replacementClient.recvChan)
+}
+
+func TestWorkflowRunsListenerReconnectsOnEOFWithRegisteredHandlers(t *testing.T) {
+	logger := zerolog.Nop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return replacementClient, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	received := make(chan WorkflowRunEvent, 1)
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				received <- event
+				return nil
+			},
+		},
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(ctx)
+	}()
+
+	require.Eventually(t, func() bool {
+		return constructorCalls.Load() == 1 && replacementClient.sendCount.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	select {
+	case event := <-received:
+		assert.Equal(t, "run-1", event.WorkflowRunId)
+	case <-time.After(time.Second):
+		t.Fatal("expected workflow run event after EOF reconnect")
+	}
+
+	listener.RemoveWorkflowRun("run-1", "session-1")
+	close(replacementClient.recvChan)
+	require.NoError(t, <-listenErr)
+}
+
+func TestWorkflowRunsListenerClosePreventsEOFReconnectAndAdd(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return &mockSubscribeClient{
+				recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+			}, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				return nil
+			},
+		},
+	})
+
+	require.NoError(t, listener.Close())
+	require.NoError(t, listener.listen(context.Background()))
+	assert.Equal(t, int32(0), constructorCalls.Load())
+
+	err := listener.AddWorkflowRun("run-2", "session-2", func(event WorkflowRunEvent) error {
+		return nil
+	})
+	require.ErrorIs(t, err, errListenerClosed)
 }
 
 func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
@@ -462,6 +564,11 @@ func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 	newRecvChan <- &dispatchercontracts.WorkflowRunEvent{
 		WorkflowRunId: "run-1",
 	}
+
+	require.Eventually(t, func() bool {
+		return receivedEvent.Load() != nil
+	}, time.Second, 10*time.Millisecond)
+	listener.handlers.Delete("run-1")
 	close(newRecvChan)
 
 	err := <-listenErr

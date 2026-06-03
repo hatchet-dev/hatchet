@@ -23,6 +23,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
+var errListenerClosed = errors.New("listener is closed")
+
 // ResourceType represents the type of resource
 type ResourceType int32
 
@@ -105,6 +107,7 @@ type WorkflowRunsListener struct {
 	reconnectGroup singleflight.Group
 	listenMu       sync.Mutex
 	listening      bool
+	closed         bool
 
 	l *zerolog.Logger
 
@@ -177,11 +180,17 @@ func (w *WorkflowRunsListener) isListening() bool {
 	return w.listening
 }
 
+func (w *WorkflowRunsListener) isClosed() bool {
+	w.listenMu.Lock()
+	defer w.listenMu.Unlock()
+	return w.closed
+}
+
 func (w *WorkflowRunsListener) startListening() bool {
 	w.listenMu.Lock()
 	defer w.listenMu.Unlock()
 
-	if w.listening {
+	if w.listening || w.closed {
 		return false
 	}
 
@@ -196,6 +205,10 @@ func (w *WorkflowRunsListener) stopListening() {
 }
 
 func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
+	if w.isClosed() {
+		return errListenerClosed
+	}
+
 	if w.isListening() {
 		return nil
 	}
@@ -205,6 +218,10 @@ func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
 	}
 
 	if !w.startListening() {
+		if w.isClosed() {
+			return errListenerClosed
+		}
+
 		return nil
 	}
 
@@ -222,6 +239,10 @@ func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
 // retrySubscribe coalesces concurrent reconnection attempts via singleflight.
 // Multiple goroutines calling this concurrently will share a single reconnection attempt.
 func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
+	if w.isClosed() {
+		return errListenerClosed
+	}
+
 	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
 		return nil, w.doRetrySubscribe(ctx)
 	})
@@ -231,6 +252,10 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 	w.clientMu.Lock()
 	defer w.clientMu.Unlock()
+
+	if w.isClosed() {
+		return errListenerClosed
+	}
 
 	retries := 0
 
@@ -270,6 +295,10 @@ func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 			continue
 		}
 
+		if w.isClosed() {
+			return errListenerClosed
+		}
+
 		w.client = client
 		w.generation++
 		return nil
@@ -288,6 +317,10 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	workflowRunId, sessionId string,
 	handler WorkflowRunEventHandler,
 ) error {
+	if l.isClosed() {
+		return errListenerClosed
+	}
+
 	if !l.isListening() {
 		if err := l.ensureListening(context.Background()); err != nil {
 			return err
@@ -398,16 +431,19 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 		event, err := client.Recv()
 
 		if err != nil {
-			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+			switch {
+			case errors.Is(err, io.EOF):
+				if !l.shouldReconnectOnEOF(ctx) {
+					return nil
+				}
+			case status.Code(err) == codes.Canceled:
 				return nil
-			}
-
-			consecutiveErrors++
-
-			if status.Code(err) == codes.Unavailable {
+			case status.Code(err) == codes.Unavailable:
 				l.l.Warn().Err(err).Msg("dispatcher is unavailable, retrying subscribe after 1 second")
 				time.Sleep(1 * time.Second)
 			}
+
+			consecutiveErrors++
 
 			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
 				client, generation = l.getClientSnapshot()
@@ -418,6 +454,10 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 			retryErr := l.retrySubscribe(ctx)
 
 			if retryErr != nil {
+				if errors.Is(retryErr, errListenerClosed) {
+					return nil
+				}
+
 				l.l.Error().Err(retryErr).Msgf("failed to resubscribe (consecutive errors: %d/%d)", consecutiveErrors, maxConsecutiveErrors)
 
 				if consecutiveErrors >= maxConsecutiveErrors {
@@ -442,6 +482,10 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 }
 
 func (l *WorkflowRunsListener) Close() error {
+	l.listenMu.Lock()
+	l.closed = true
+	l.listenMu.Unlock()
+
 	l.clientMu.Lock()
 	client := l.client
 	l.clientMu.Unlock()
@@ -485,6 +529,30 @@ func (l *WorkflowRunsListener) handleWorkflowRun(event *dispatchercontracts.Work
 	err := eg.Wait()
 
 	return err
+}
+
+func (l *WorkflowRunsListener) hasHandlers() bool {
+	hasHandlers := false
+
+	l.handlers.Range(func(key, value interface{}) bool {
+		h := value.(*threadSafeHandlers)
+
+		h.mu.RLock()
+		hasHandlers = len(h.handlers) > 0
+		h.mu.RUnlock()
+
+		return !hasHandlers
+	})
+
+	return hasHandlers
+}
+
+func (l *WorkflowRunsListener) shouldReconnectOnEOF(ctx context.Context) bool {
+	if ctx.Err() != nil || l.isClosed() {
+		return false
+	}
+
+	return l.hasHandlers()
 }
 
 type SubscribeClient interface {

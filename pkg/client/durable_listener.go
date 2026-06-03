@@ -34,6 +34,7 @@ type DurableEventsListener struct {
 	reconnectGroup singleflight.Group
 	listenMu       sync.Mutex
 	listening      bool
+	closed         bool
 
 	l *zerolog.Logger
 
@@ -99,6 +100,10 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 }
 
 func (w *DurableEventsListener) retryListen(ctx context.Context) error {
+	if w.isClosed() {
+		return errListenerClosed
+	}
+
 	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
 		return nil, w.doRetryListen(ctx)
 	})
@@ -108,6 +113,10 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 func (w *DurableEventsListener) doRetryListen(ctx context.Context) error {
 	w.clientMu.Lock()
 	defer w.clientMu.Unlock()
+
+	if w.isClosed() {
+		return errListenerClosed
+	}
 
 	retries := 0
 
@@ -148,6 +157,10 @@ func (w *DurableEventsListener) doRetryListen(ctx context.Context) error {
 			continue
 		}
 
+		if w.isClosed() {
+			return errListenerClosed
+		}
+
 		w.client = client
 		w.generation++
 		return nil
@@ -168,11 +181,17 @@ func (w *DurableEventsListener) isListening() bool {
 	return w.listening
 }
 
+func (w *DurableEventsListener) isClosed() bool {
+	w.listenMu.Lock()
+	defer w.listenMu.Unlock()
+	return w.closed
+}
+
 func (w *DurableEventsListener) startListening() bool {
 	w.listenMu.Lock()
 	defer w.listenMu.Unlock()
 
-	if w.listening {
+	if w.listening || w.closed {
 		return false
 	}
 
@@ -187,6 +206,10 @@ func (w *DurableEventsListener) stopListening() {
 }
 
 func (w *DurableEventsListener) ensureListening(ctx context.Context) error {
+	if w.isClosed() {
+		return errListenerClosed
+	}
+
 	if w.isListening() {
 		return nil
 	}
@@ -196,6 +219,10 @@ func (w *DurableEventsListener) ensureListening(ctx context.Context) error {
 	}
 
 	if !w.startListening() {
+		if w.isClosed() {
+			return errListenerClosed
+		}
+
 		return nil
 	}
 
@@ -220,6 +247,10 @@ func (l *DurableEventsListener) AddSignal(
 	signalKey string,
 	handler DurableEventHandler,
 ) error {
+	if l.isClosed() {
+		return errListenerClosed
+	}
+
 	t := listenTuple{
 		taskId:    taskId,
 		signalKey: signalKey,
@@ -312,16 +343,19 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 		event, err := client.Recv()
 
 		if err != nil {
-			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+			switch {
+			case errors.Is(err, io.EOF):
+				if !l.shouldReconnectOnEOF(ctx) {
+					return nil
+				}
+			case status.Code(err) == codes.Canceled:
 				return nil
-			}
-
-			consecutiveErrors++
-
-			if status.Code(err) == codes.Unavailable {
+			case status.Code(err) == codes.Unavailable:
 				l.l.Warn().Err(err).Msg("dispatcher is unavailable, retrying durable event listener after 1 second")
 				time.Sleep(1 * time.Second)
 			}
+
+			consecutiveErrors++
 
 			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
 				client, generation = l.getClientSnapshot()
@@ -332,6 +366,10 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 			retryErr := l.retryListen(ctx)
 
 			if retryErr != nil {
+				if errors.Is(retryErr, errListenerClosed) {
+					return nil
+				}
+
 				l.l.Error().Err(retryErr).Msgf("failed to relisten (consecutive errors: %d/%d)", consecutiveErrors, maxConsecutiveErrors)
 
 				if consecutiveErrors >= maxConsecutiveErrors {
@@ -356,6 +394,10 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 }
 
 func (l *DurableEventsListener) Close() error {
+	l.listenMu.Lock()
+	l.closed = true
+	l.listenMu.Unlock()
+
 	l.clientMu.Lock()
 	client := l.client
 	l.clientMu.Unlock()
@@ -368,11 +410,13 @@ func (l *DurableEventsListener) Close() error {
 }
 
 func (l *DurableEventsListener) handleEvent(e *contracts.DurableEvent) error {
-	// find all handlers for this workflow run
-	handlers, ok := l.handlers.Load(listenTuple{
+	t := listenTuple{
 		taskId:    e.TaskId,
 		signalKey: e.SignalKey,
-	})
+	}
+
+	// find all handlers for this workflow run
+	handlers, ok := l.handlers.Load(t)
 
 	if !ok {
 		return nil
@@ -396,5 +440,33 @@ func (l *DurableEventsListener) handleEvent(e *contracts.DurableEvent) error {
 
 	err := eg.Wait()
 
+	if err == nil {
+		l.handlers.Delete(t)
+	}
+
 	return err
+}
+
+func (l *DurableEventsListener) hasHandlers() bool {
+	hasHandlers := false
+
+	l.handlers.Range(func(key, value interface{}) bool {
+		h := value.(*threadSafeDurableEventHandlers)
+
+		h.mu.RLock()
+		hasHandlers = len(h.handlers) > 0
+		h.mu.RUnlock()
+
+		return !hasHandlers
+	})
+
+	return hasHandlers
+}
+
+func (l *DurableEventsListener) shouldReconnectOnEOF(ctx context.Context) bool {
+	if ctx.Err() != nil || l.isClosed() {
+		return false
+	}
+
+	return l.hasHandlers()
 }

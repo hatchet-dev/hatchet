@@ -94,6 +94,7 @@ func TestDurableEventsListenerAddSignalSendsOnceWhenStarting(t *testing.T) {
 	}))
 	require.Equal(t, int32(1), client.sendCount.Load())
 
+	require.NoError(t, listener.Close())
 	close(recvCh)
 }
 
@@ -323,4 +324,64 @@ func TestDurableEventsListenerRestartsAfterListenExits(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("expected durable event after listener restarted")
 	}
+}
+
+func TestDurableEventsListenerReconnectsOnEOFWithRegisteredHandlers(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockDurableEventClient{
+		recvFn: func() (*contracts.DurableEvent, error) {
+			return nil, io.EOF
+		},
+	}
+	replacementClient := &mockDurableEventClient{
+		recvCh: make(chan *contracts.DurableEvent, 1),
+	}
+	constructorCalls := atomic.Int32{}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			constructorCalls.Add(1)
+			return replacementClient, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	received := make(chan DurableEvent, 1)
+	listener.handlers.Store(listenTuple{taskId: "task-1", signalKey: "signal-1"}, &threadSafeDurableEventHandlers{
+		handlers: []DurableEventHandler{
+			func(e DurableEvent) error {
+				received <- e
+				return nil
+			},
+		},
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	require.Eventually(t, func() bool {
+		return constructorCalls.Load() == 1 && replacementClient.sendCount.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	replacementClient.recvCh <- &contracts.DurableEvent{
+		TaskId:    "task-1",
+		SignalKey: "signal-1",
+		Data:      []byte(`{"ok":true}`),
+	}
+
+	select {
+	case event := <-received:
+		require.Equal(t, "task-1", event.TaskId)
+		require.Equal(t, "signal-1", event.SignalKey)
+		require.JSONEq(t, `{"ok":true}`, string(event.Data))
+	case <-time.After(time.Second):
+		t.Fatal("expected durable event after EOF reconnect")
+	}
+
+	close(replacementClient.recvCh)
+	require.NoError(t, <-listenErr)
 }
