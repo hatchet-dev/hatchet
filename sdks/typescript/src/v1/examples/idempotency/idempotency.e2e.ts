@@ -146,18 +146,15 @@ describe('idempotency-e2e', () => {
 
     expect(allTriggeredRuns).toHaveLength(1);
 
-    const runDetails = await poll(
-      async () => hatchet.runs.get(allTriggeredRuns[0].workflowRunId),
-      {
-        timeoutMs: 30_000,
-        intervalMs: 200,
-        label: 'idempotent event-triggered run completion',
-        shouldStop: (response) => {
-          const status = response.run?.status;
-          return status !== V1TaskStatus.QUEUED && status !== V1TaskStatus.RUNNING;
-        },
-      }
-    );
+    const runDetails = await poll(async () => hatchet.runs.get(allTriggeredRuns[0].workflowRunId), {
+      timeoutMs: 30_000,
+      intervalMs: 200,
+      label: 'idempotent event-triggered run completion',
+      shouldStop: (response) => {
+        const status = response.run?.status;
+        return status !== V1TaskStatus.QUEUED && status !== V1TaskStatus.RUNNING;
+      },
+    });
 
     expect(runDetails.run?.status).toBe(V1TaskStatus.COMPLETED);
   }, 60_000);
