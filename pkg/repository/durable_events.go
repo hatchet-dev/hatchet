@@ -83,10 +83,10 @@ type IngestTriggerRunsEntry struct {
 }
 
 type IngestTriggerRunsResult struct {
-	Entries              []*IngestTriggerRunsEntry
-	CreatedTasks         []*V1TaskWithPayload
-	CreatedDAGs          []*DAGWithData
-	InvocationCount      int32
+	Entries               []*IngestTriggerRunsEntry
+	CreatedTasks          []*V1TaskWithPayload
+	CreatedDAGs           []*DAGWithData
+	InvocationCount       int32
 	CELEvaluationFailures []CELEvaluationFailure
 }
 
