@@ -1,5 +1,6 @@
 import {
   CONTROL_PLANE_TENANT_STORAGE_KEY,
+  getApiErrorStatus,
   readTenantIdFromLocation,
   resolveExchangeTokenTenantId,
 } from './api';
@@ -120,4 +121,14 @@ test('resolveExchangeTokenTenantId uses location tenant instead of stale storage
       assert.equal(resolveExchangeTokenTenantId({}), tenantA);
     });
   });
+});
+
+test('getApiErrorStatus returns the HTTP response status', () => {
+  assert.equal(getApiErrorStatus({ response: { status: 401 } }), 401);
+  assert.equal(getApiErrorStatus({ status: 403 }), 403);
+});
+
+test('getApiErrorStatus ignores non-HTTP errors', () => {
+  assert.equal(getApiErrorStatus(new Error('boom')), undefined);
+  assert.equal(getApiErrorStatus({ response: { status: '401' } }), undefined);
 });
