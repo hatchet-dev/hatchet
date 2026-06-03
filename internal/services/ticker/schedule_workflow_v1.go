@@ -11,7 +11,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) error {
@@ -20,9 +19,7 @@ func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 }
 
 func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) (*uuid.UUID, error) {
-	expiresAt := sqlchelpers.TimestamptzFromTime(opts.TriggerAt.Add(30 * time.Second))
-
-	claimed, err := repo.Idempotency().ClaimKey(ctx, tenantId, opts.ID.String(), expiresAt, opts.ID)
+	claimed, err := repo.Idempotency().ClaimKey(ctx, tenantId, fmt.Sprintf("hatchet_internal_%s", opts.ID.String()), opts.TriggerAt.Add(30*time.Second), opts.ID)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not claim idempotency key for scheduled workflow: %w", err)
