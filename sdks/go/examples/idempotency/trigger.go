@@ -4,18 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
-
-type IdempotencyInput struct {
-	ID string `json:"id"`
-}
-
-type IdempotencyOutput struct {
-	Result string `json:"result"`
-}
 
 func main() {
 	client, err := hatchet.NewClient()
@@ -23,18 +15,21 @@ func main() {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
-	idempotentTask := client.NewStandaloneTask(
-		"idempotent-task",
-		func(ctx hatchet.Context, input IdempotencyInput) (*IdempotencyOutput, error) {
-			return &IdempotencyOutput{
-				Result: fmt.Sprintf("Hello, world from task %s", input.ID),
-			}, nil
-		},
-		hatchet.WithWorkflowIdempotency(hatchet.IdempotencyConfig{
-			Expression: "input.id",
-			TTL:        time.Minute,
-		}),
-	)
+	idempotentTask := IdempotentTask(client)
+
+	worker, err := client.NewWorker("idempotency-worker", hatchet.WithWorkflows(idempotentTask))
+	if err != nil {
+		log.Fatalf("failed to create worker: %v", err)
+	}
+
+	interruptCtx, cancel := cmdutils.NewInterruptContext()
+	defer cancel()
+
+	go func() {
+		if err := worker.StartBlocking(interruptCtx); err != nil {
+			log.Fatalf("failed to start worker: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
