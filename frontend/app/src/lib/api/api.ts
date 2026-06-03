@@ -9,6 +9,7 @@ import qs from 'qs';
 import { validate as validateUuid } from 'uuid';
 
 type HttpErrorLike = {
+  status?: unknown;
   response?: {
     status?: unknown;
   };
@@ -19,12 +20,10 @@ export function getApiErrorStatus(error: unknown): number | undefined {
     return undefined;
   }
 
-  const response = (error as HttpErrorLike).response;
-  if (!response || typeof response.status !== 'number') {
-    return undefined;
-  }
+  const maybeError = error as HttpErrorLike;
+  const status = maybeError.status ?? maybeError.response?.status;
 
-  return response.status;
+  return typeof status === 'number' ? status : undefined;
 }
 
 // Extend Axios config with custom fields injected by the API code generator.
