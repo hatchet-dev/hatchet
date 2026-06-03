@@ -2,6 +2,7 @@
 
 require "json"
 require "google/protobuf/timestamp_pb"
+require "google/rpc/status_pb"
 
 module Hatchet
   module Clients
@@ -93,11 +94,8 @@ module Hatchet
             response = @v0_stub.trigger_workflow(request, metadata: @config.auth_metadata)
             response.workflow_run_id
           rescue ::GRPC::AlreadyExists => e
-            if e.message.include?("idempotency key collision")
-              run_id = extract_idempotency_run_id(e)
-              raise IdempotencyCollisionError, run_id
-            end
-            raise DedupeViolationError, "Deduplication violation: #{e.message}"
+            run_id = extract_idempotency_run_id(e)
+            raise(run_id ? IdempotencyCollisionError.new(run_id) : DedupeViolationError, "Deduplication violation: #{e.message}")
           rescue ::GRPC::ResourceExhausted => e
             raise ResourceExhaustedError, e.message
           rescue ::GRPC::BadStatus => e
@@ -288,109 +286,19 @@ module Hatchet
           end
         end
 
-        # Parse the grpc-status-details-bin binary protobuf from a gRPC error to
-        # extract the existing run ID from a V1::IdempotencyCollisionError detail.
         def extract_idempotency_run_id(grpc_error)
           status_bin = grpc_error.to_status.metadata&.[]("grpc-status-details-bin")
-          return "" unless status_bin
+          return nil unless status_bin
 
-          parse_idempotency_run_id(status_bin.b)
+          rpc_status = Google::Rpc::Status.decode(status_bin.b)
+          rpc_status.details.each do |any|
+            next unless any.type_url.include?("IdempotencyCollisionError")
+
+            return ::V1::IdempotencyCollisionError.decode(any.value).existing_run_external_id
+          end
+          nil
         rescue StandardError
-          ""
-        end
-
-        # Parse the binary google.rpc.Status proto to find an IdempotencyCollisionError
-        # detail and return the existing_run_external_id field value.
-        #
-        # google.rpc.Status layout (proto3):
-        #   field 1 (int32)  = code
-        #   field 2 (string) = message
-        #   field 3 (message, repeated) = details  <- we want these
-        #
-        # Each detail is google.protobuf.Any:
-        #   field 1 (string) = type_url
-        #   field 2 (bytes)  = value
-        def parse_idempotency_run_id(data)
-          pos = 0
-
-          while pos < data.bytesize
-            tag, pos = read_varint(data, pos)
-            field_num = tag >> 3
-            wire_type = tag & 7
-
-            if field_num == 3 && wire_type == 2
-              len, pos = read_varint(data, pos)
-              any_data = data.byteslice(pos, len)
-              pos += len
-
-              type_url, value = parse_any_message(any_data)
-              if type_url&.include?("IdempotencyCollisionError") && value
-                return ::V1::IdempotencyCollisionError.decode(value).existing_run_external_id
-              end
-            else
-              pos = skip_field(data, pos, wire_type)
-            end
-          end
-
-          ""
-        rescue StandardError
-          ""
-        end
-
-        def parse_any_message(data)
-          type_url = nil
-          value = nil
-          pos = 0
-
-          while pos < data.bytesize
-            tag, pos = read_varint(data, pos)
-            field_num = tag >> 3
-            wire_type = tag & 7
-
-            if wire_type == 2
-              len, pos = read_varint(data, pos)
-              field_data = data.byteslice(pos, len)
-              type_url = field_data if field_num == 1
-              value = field_data if field_num == 2
-            else
-              pos = skip_field(data, pos, wire_type)
-            end
-          end
-
-          [type_url, value]
-        end
-
-        def read_varint(data, pos)
-          result = 0
-          shift = 0
-          loop do
-            byte = data.getbyte(pos)
-            pos += 1
-            result |= (byte & 0x7F) << shift
-            break if byte.nobits?(0x80)
-
-            shift += 7
-          end
-          [result, pos]
-        end
-
-        def skip_field(data, pos, wire_type)
-          case wire_type
-          when 0
-            loop do
-              byte = data.getbyte(pos)
-              pos += 1
-              break if byte.nobits?(0x80)
-            end
-          when 1
-            pos += 8
-          when 2
-            len, pos = read_varint(data, pos)
-            pos += len
-          when 5
-            pos += 4
-          end
-          pos
+          nil
         end
 
         def ensure_connected!

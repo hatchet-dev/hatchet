@@ -2,7 +2,8 @@ import HatchetError from '@util/errors/hatchet-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
-import { Status } from '@hatchet/protoc/google/rpc/status';
+import { ServiceError, status as GrpcStatus } from '@grpc/grpc-js';
+import { Status as RpcStatus } from '@hatchet/protoc/google/rpc/status';
 import { IdempotencyCollisionError as IdempotencyCollisionErrorProto } from '@hatchet/protoc/v1/workflows';
 
 import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
@@ -25,13 +26,16 @@ import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
 
-function extractExistingRunIdFromGrpcError(e: any): string {
+function isGrpcServiceError(e: unknown): e is ServiceError {
+  return e instanceof Error && 'code' in e && 'metadata' in e;
+}
+
+function extractExistingRunIdFromGrpcError(e: ServiceError): string {
   try {
-    const detailsBin = e.metadata?.get?.('grpc-status-details-bin');
-    const binData = Array.isArray(detailsBin) ? detailsBin[0] : detailsBin;
+    const [binData] = e.metadata.get('grpc-status-details-bin');
     if (!binData) return '';
 
-    const status = Status.decode(binData instanceof Buffer ? binData : Buffer.from(binData));
+    const status = RpcStatus.decode(binData instanceof Buffer ? binData : Buffer.from(binData));
     for (const detail of status.details) {
       if (detail.typeUrl.includes('IdempotencyCollisionError')) {
         return IdempotencyCollisionErrorProto.decode(detail.value).existingRunExternalId ?? '';
@@ -200,11 +204,11 @@ export class AdminClient {
       );
       await ref.getWorkflowRunId();
       return ref;
-    } catch (e: any) {
-      if (e.code === 6) {
+    } catch (e: unknown) {
+      if (isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS) {
         throw new IdempotencyCollisionError(extractExistingRunIdFromGrpcError(e));
       }
-      throw new HatchetError(e.message);
+      throw new HatchetError(e instanceof Error ? e.message : String(e));
     }
   }
 
