@@ -94,7 +94,7 @@ tasks:
             release=1
             sub(/\[/, "v"); sub(/\]/, "")
           }
-          release' {{.ITEM}}; } > frontend/docs/pages/changelog/{{.KEY}}.mdx
+          release' {{.ITEM}}; } > frontend/docs/pages/reference/changelog/{{.KEY}}.mdx
   pre:
     aliases: [fmt]
     cmds:
