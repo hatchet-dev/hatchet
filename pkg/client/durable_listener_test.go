@@ -10,6 +10,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -23,6 +24,26 @@ type mockDurableEventClient struct {
 	closeSendFn func() error
 	recvCh      chan *contracts.DurableEvent
 	sendCount   atomic.Int32
+}
+
+type mockV1DispatcherClient struct {
+	listenForDurableEventFn func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error)
+}
+
+func (m *mockV1DispatcherClient) DurableTask(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_DurableTaskClient, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockV1DispatcherClient) RegisterDurableEvent(ctx context.Context, in *contracts.RegisterDurableEventRequest, opts ...grpc.CallOption) (*contracts.RegisterDurableEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockV1DispatcherClient) ListenForDurableEvent(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+	if m.listenForDurableEventFn != nil {
+		return m.listenForDurableEventFn(ctx, opts...)
+	}
+
+	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
 func (m *mockDurableEventClient) Send(req *contracts.ListenForDurableEventRequest) error {
@@ -96,6 +117,54 @@ func TestDurableEventsListenerAddSignalSendsOnceWhenStarting(t *testing.T) {
 
 	require.NoError(t, listener.Close())
 	close(recvCh)
+}
+
+func TestGetDurableEventsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T) {
+	logger := zerolog.Nop()
+	closeCh := make(chan struct{})
+	var closeOnce sync.Once
+
+	client := &mockDurableEventClient{
+		recvFn: func() (*contracts.DurableEvent, error) {
+			<-closeCh
+			return nil, io.EOF
+		},
+		closeSendFn: func() error {
+			closeOnce.Do(func() {
+				close(closeCh)
+			})
+			return nil
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				constructorCalls.Add(1)
+				return client, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getDurableEventsListener(context.Background())
+	require.NoError(t, err)
+	require.True(t, listener.isListening())
+
+	require.NoError(t, listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		return nil
+	}))
+
+	require.Equal(t, int32(1), constructorCalls.Load())
+	require.Equal(t, int32(1), client.sendCount.Load())
+
+	require.NoError(t, listener.Close())
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
 }
 
 // TestDurableEventsListenerReconnectsWhileRetrySendBacksOff verifies that a

@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -31,6 +32,74 @@ type mockSubscribeClient struct {
 	closeSendFn func() error
 	sendFn      func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error
 	recvFn      func() (*dispatchercontracts.WorkflowRunEvent, error)
+}
+
+type mockDispatcherClient struct {
+	subscribeToWorkflowRunsFn func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
+}
+
+func (m *mockDispatcherClient) Register(ctx context.Context, in *dispatchercontracts.WorkerRegisterRequest, opts ...grpc.CallOption) (*dispatchercontracts.WorkerRegisterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) Listen(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenClient, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) ListenV2(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenV2Client, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) Heartbeat(ctx context.Context, in *dispatchercontracts.HeartbeatRequest, opts ...grpc.CallOption) (*dispatchercontracts.HeartbeatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SubscribeToWorkflowEvents(ctx context.Context, in *dispatchercontracts.SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	if m.subscribeToWorkflowRunsFn != nil {
+		return m.subscribeToWorkflowRunsFn(ctx, opts...)
+	}
+
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SendStepActionEvent(ctx context.Context, in *dispatchercontracts.StepActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *dispatchercontracts.GroupKeyActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) PutOverridesData(ctx context.Context, in *dispatchercontracts.OverridesData, opts ...grpc.CallOption) (*dispatchercontracts.OverridesDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) Unsubscribe(ctx context.Context, in *dispatchercontracts.WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*dispatchercontracts.WorkerUnsubscribeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) RefreshTimeout(ctx context.Context, in *dispatchercontracts.RefreshTimeoutRequest, opts ...grpc.CallOption) (*dispatchercontracts.RefreshTimeoutResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) ReleaseSlot(ctx context.Context, in *dispatchercontracts.ReleaseSlotRequest, opts ...grpc.CallOption) (*dispatchercontracts.ReleaseSlotResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) RestoreEvictedTask(ctx context.Context, in *dispatchercontracts.RestoreEvictedTaskRequest, opts ...grpc.CallOption) (*dispatchercontracts.RestoreEvictedTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) UpsertWorkerLabels(ctx context.Context, in *dispatchercontracts.UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*dispatchercontracts.UpsertWorkerLabelsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) GetVersion(ctx context.Context, in *dispatchercontracts.GetVersionRequest, opts ...grpc.CallOption) (*dispatchercontracts.GetVersionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
 func (m *mockSubscribeClient) Send(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
@@ -104,6 +173,54 @@ func TestWorkflowRunsListenerAddWorkflowRunSendsOnceWhenStarting(t *testing.T) {
 
 	require.NoError(t, listener.Close())
 	close(recvChan)
+}
+
+func TestGetWorkflowRunsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T) {
+	logger := zerolog.Nop()
+	closeCh := make(chan struct{})
+	var closeOnce sync.Once
+
+	client := &mockSubscribeClient{
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			<-closeCh
+			return nil, io.EOF
+		},
+		closeSendFn: func() error {
+			closeOnce.Do(func() {
+				close(closeCh)
+			})
+			return nil
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				constructorCalls.Add(1)
+				return client, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getWorkflowRunsListener(context.Background())
+	require.NoError(t, err)
+	require.True(t, listener.isListening())
+
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		return nil
+	}))
+
+	require.Equal(t, int32(1), constructorCalls.Load())
+	require.Equal(t, int32(1), client.sendCount.Load())
+
+	require.NoError(t, listener.Close())
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {

@@ -73,6 +73,14 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 	}
 
 	r.durableEventsListener = w
+	if !w.startListening() {
+		if closeErr := w.Close(); closeErr != nil {
+			r.l.Error().Ctx(ctx).Err(closeErr).Msg("failed to close durable events listener")
+		}
+
+		r.durableEventsListener = nil
+		return nil, errListenerClosed
+	}
 
 	go func() {
 		defer func() {
@@ -88,8 +96,9 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 			}
 			r.durableEventsListenerMu.Unlock()
 		}()
+		defer w.stopListening()
 
-		err := w.Listen(ctx)
+		err := w.listen(ctx)
 
 		if err != nil {
 			r.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")

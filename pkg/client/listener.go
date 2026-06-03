@@ -141,6 +141,14 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	}
 
 	r.workflowRunListener = w
+	if !w.startListening() {
+		if closeErr := w.Close(); closeErr != nil {
+			r.l.Error().Err(closeErr).Msg("failed to close workflow run events listener")
+		}
+
+		r.workflowRunListener = nil
+		return nil, errListenerClosed
+	}
 
 	go func() {
 		defer func() {
@@ -156,8 +164,9 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 			}
 			r.workflowRunListenerMu.Unlock()
 		}()
+		defer w.stopListening()
 
-		err := w.Listen(ctx)
+		err := w.listen(ctx)
 
 		if err != nil {
 			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
