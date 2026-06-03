@@ -95,6 +95,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tls.base.tlsCert", "HATCHET_CLIENT_TLS_CERT")
 	_ = v.BindEnv("tls.base.tlsKey", "HATCHET_CLIENT_TLS_KEY")
 	_ = v.BindEnv("tls.base.tlsRootCA", "HATCHET_CLIENT_TLS_ROOT_CA")
+	_ = v.BindEnv("tls.base.tlsMinVersion", "HATCHET_CLIENT_TLS_MIN_VERSION")
 	_ = v.BindEnv("tls.tlsServerName", "HATCHET_CLIENT_TLS_SERVER_NAME")
 }
 
