@@ -83,30 +83,11 @@ release:
   draft: false
   prerelease: auto
   mode: append
-  header: |
-    ## Hatchet {{ .Tag }}
+  footer: |
+    ---
 
-    For full documentation, visit [https://docs.hatchet.run/cli](https://docs.hatchet.run/cli)
-
-    ## Installation
-
-    ### MacOS, Linux, WSL
-    ```bash
-    curl -fsSL https://install.hatchet.run/install.sh | bash
-    ```
-
-    ### MacOS (Homebrew)
-    ```bash
-    brew install hatchet-dev/hatchet/hatchet --cask
-    ```
-
-    ### Manual Installation
-    Download the appropriate binary for your platform from the assets below.
-
-    ### Verify Installation
-    ```bash
-    hatchet --version
-    ```
+    🪓 New to Hatchet? See [Get started quickly](https://github.com/hatchet-dev/hatchet#get-started-quickly)
+    or the [full documentation](https://docs.hatchet.run).
   name_template: "{{.ProjectName}} {{.Version}}"
   disable: false
 
