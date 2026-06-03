@@ -186,8 +186,10 @@ function OrganizationBillingContent() {
   const billingState = useQuery({
     ...queries.controlPlane.billing(organization),
     enabled: isCloudEnabled && !!cloud?.canBill,
-    retry: (failureCount, error) =>
-      getApiErrorStatus(error) !== 401 && failureCount < 3,
+    retry: (failureCount, error) => {
+      const status = getApiErrorStatus(error);
+      return status !== 401 && status !== 403 && failureCount < 3;
+    },
     refetchInterval: isSyncing ? SYNC_POLL_INTERVAL_MS : false,
   });
 
