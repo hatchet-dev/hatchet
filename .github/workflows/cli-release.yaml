@@ -113,7 +113,7 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch the tag object
-        run: git fetch --force origin tag "$GITHUB_TAG"
+        run: git fetch --force origin tag "$GITHUB_REF_NAME"
 
       - name: Determine previous release tag
         id: prev

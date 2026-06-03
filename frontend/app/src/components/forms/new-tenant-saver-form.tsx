@@ -1,5 +1,9 @@
 import { generateTenantSlug } from './generate-tenant-slug';
 import { NewTenantInputForm } from './new-tenant-input-form';
+import {
+  WELCOME_KEY,
+  WELCOME_TRIGGER,
+} from '@/components/modals/welcome-modal-state';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useControlPlane from '@/hooks/use-control-plane';
 import api, { Tenant } from '@/lib/api';
@@ -72,7 +76,7 @@ const useSaveTenant = ({
       // before afterSave navigates away.
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (data.type === 'cloud') {
-        localStorage.setItem('hatchet:show-welcome', '1');
+        localStorage.setItem(WELCOME_KEY, WELCOME_TRIGGER.TenantCreated);
       }
       capture('onboarding_tenant_created', {
         tenant_type: data.type,
