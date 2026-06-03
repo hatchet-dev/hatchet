@@ -18,6 +18,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+type BatchFlushReason string
+
+const (
+	FlushReasonBatchSizeReached  BatchFlushReason = "batch_size_reached"
+	FlushReasonWorkerChanged     BatchFlushReason = "worker_changed"
+	FlushReasonDispatcherChanged BatchFlushReason = "dispatcher_changed"
+	FlushReasonIntervalElapsed   BatchFlushReason = "interval_elapsed"
+	FlushReasonBufferDrained     BatchFlushReason = "buffer_drained"
+)
+
 type RateLimitResult struct {
 	*sqlcv1.V1QueueItem
 
@@ -49,7 +59,7 @@ type AssignedItem struct {
 type BatchAssignmentMetadata struct {
 	State string
 
-	Reason string
+	Reason BatchFlushReason
 
 	TriggeredAt time.Time
 

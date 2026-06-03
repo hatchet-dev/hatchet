@@ -355,7 +355,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 
 	queueItems := []*sqlcv1.V1BatchedQueueItem{item1, item2}
 
-	remaining, err := scheduler.assignAndDispatch(context.Background(), queueItems, flushReasonBatchSizeReached)
+	remaining, err := scheduler.assignAndDispatch(context.Background(), queueItems, v1repo.FlushReasonBatchSizeReached)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 
@@ -394,7 +394,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 		require.Equal(t, workerID, assigned.WorkerId)
 		require.NotNil(t, assigned.QueueItem)
 		require.NotNil(t, assigned.Batch)
-		require.Equal(t, string(flushReasonBatchSizeReached), assigned.Batch.Reason)
+		require.Equal(t, string(v1repo.FlushReasonBatchSizeReached), assigned.Batch.Reason)
 		require.Equal(t, int32(2), assigned.Batch.ConfiguredBatchMaxSize)
 		require.Equal(t, int32(1), assigned.Batch.ConfiguredBatchGroupMaxRuns)
 		require.NotEmpty(t, assigned.Batch.BatchID)
@@ -478,7 +478,7 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		}, nil, nil
 	}
 
-	remaining, err := scheduler.assignAndDispatch(context.Background(), items, flushReasonBatchSizeReached)
+	remaining, err := scheduler.assignAndDispatch(context.Background(), items, v1repo.FlushReasonBatchSizeReached)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 

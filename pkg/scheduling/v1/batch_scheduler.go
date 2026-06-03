@@ -18,15 +18,6 @@ const defaultBatchPollInterval = 200 * time.Millisecond
 const batchFetchLimit int32 = 256
 const defaultBatchIdleTTL = 30 * time.Second
 
-type BatchFlushReason string
-
-const (
-	flushReasonBatchSizeReached  BatchFlushReason = "batch_size_reached"
-	flushReasonWorkerChanged     BatchFlushReason = "worker_changed"
-	flushReasonDispatcherChanged BatchFlushReason = "dispatcher_changed"
-	flushReasonIntervalElapsed   BatchFlushReason = "interval_elapsed"
-	flushReasonBufferDrained     BatchFlushReason = "buffer_drained"
-)
 
 // BatchScheduler coordinates batching for a (step_id, batch_key) pair. It buffers queue
 // items in-memory, flushing them once batch requirements are satisfied.
@@ -247,13 +238,13 @@ func (b *BatchScheduler) tick() error {
 	}
 
 	if b.batchSize > 0 && len(b.buffer) >= b.batchSize {
-		if err := b.flush(b.batchSize, flushReasonBatchSizeReached); err != nil {
+		if err := b.flush(b.batchSize, v1repo.FlushReasonBatchSizeReached); err != nil {
 			return err
 		}
 	}
 
 	if b.flushDeadline != nil && time.Now().After(*b.flushDeadline) && len(b.buffer) > 0 {
-		if err := b.flush(len(b.buffer), flushReasonIntervalElapsed); err != nil {
+		if err := b.flush(len(b.buffer), v1repo.FlushReasonIntervalElapsed); err != nil {
 			return err
 		}
 	}
@@ -391,7 +382,7 @@ func (b *BatchScheduler) maybeStopIfIdle() {
 	b.cancel()
 }
 
-func (b *BatchScheduler) flush(count int, reason BatchFlushReason) error {
+func (b *BatchScheduler) flush(count int, reason v1repo.BatchFlushReason) error {
 	if len(b.buffer) == 0 || count <= 0 {
 		return nil
 	}
@@ -590,7 +581,7 @@ func (b *BatchScheduler) assignQueueItems(
 	}}, nil, nil
 }
 
-func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.V1BatchedQueueItem, reason BatchFlushReason) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.V1BatchedQueueItem, reason v1repo.BatchFlushReason) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	if b.scheduler == nil {
 		return items, fmt.Errorf("batch scheduler missing core scheduler")
 	}
@@ -860,7 +851,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 				QueueItem: queueItem,
 				Batch: &v1repo.BatchAssignmentMetadata{
 					State:                        "flushed",
-					Reason:                       string(reason),
+					Reason:                       reason,
 					TriggeredAt:                  triggeredAt,
 					ConfiguredBatchMaxSize:       int32(b.batchSize),
 					ConfiguredBatchMaxIntervalMs: batchMaxIntervalMs,

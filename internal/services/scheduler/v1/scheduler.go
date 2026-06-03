@@ -769,7 +769,7 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId uuid.UU
 
 	msg, err := msgqueue.NewTenantMessage(
 		tenantId,
-		"create-monitoring-event",
+		msgqueue.MsgIDCreateMonitoringEvent,
 		false,
 		true,
 		payloads...,
@@ -951,12 +951,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 		// In some edge cases we can end up with multiple AssignedItems that
 		// reference the same underlying task, which would cause duplicate
 		// batch indexes on the worker side.
-		type taskKey struct {
-			id         int64
-			insertedAt time.Time
-		}
 
-		seen := make(map[taskKey]bool, len(group))
+		seen := make(map[repov1.IdInsertedAt]bool, len(group))
 		dedupedGroup := make([]*repov1.AssignedItem, 0, len(group))
 
 		for _, item := range group {
@@ -964,9 +960,9 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 				continue
 			}
 
-			k := taskKey{
-				id:         item.QueueItem.TaskID,
-				insertedAt: item.QueueItem.TaskInsertedAt.Time,
+			k := repov1.IdInsertedAt{
+				ID:         item.QueueItem.TaskID,
+				InsertedAt: item.QueueItem.TaskInsertedAt,
 			}
 
 			if seen[k] {
@@ -1212,26 +1208,26 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 	return result
 }
 
-func describeBatchFlushReason(reason string, batchSize int, interval time.Duration) string {
+func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, interval time.Duration) string {
 	switch reason {
-	case "batch_size_reached":
+	case repov1.FlushReasonBatchSizeReached:
 		if batchSize > 0 {
 			return fmt.Sprintf("batch size threshold %d reached", batchSize)
 		}
 		return "batch size threshold reached"
-	case "worker_changed":
+	case repov1.FlushReasonWorkerChanged:
 		return "assigned worker changed"
-	case "dispatcher_changed":
+	case repov1.FlushReasonDispatcherChanged:
 		return "dispatcher changed"
-	case "interval_elapsed":
+	case repov1.FlushReasonIntervalElapsed:
 		if interval > 0 {
 			return fmt.Sprintf("batch max interval %s elapsed", interval)
 		}
 		return "batch max interval elapsed"
-	case "buffer_drained":
+	case repov1.FlushReasonBufferDrained:
 		return "buffer drained during shutdown"
 	default:
-		return reason
+		return string(reason)
 	}
 }
 
