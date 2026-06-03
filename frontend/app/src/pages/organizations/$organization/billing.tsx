@@ -252,7 +252,8 @@ function OrganizationBillingContent() {
   const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
 
   if (billingState.isError) {
-    const isUnauthorized = getApiErrorStatus(billingState.error) === 401;
+    const status = getApiErrorStatus(billingState.error);
+    const isUnauthorized = status === 401 || status === 403;
 
     return (
       <BillingErrorCard
