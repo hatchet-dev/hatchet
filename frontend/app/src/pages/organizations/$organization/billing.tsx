@@ -17,6 +17,7 @@ import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import type { TenantResourceLimit } from '@/lib/api';
+import { getApiErrorStatus } from '@/lib/api/api';
 import type { TenantResourceLimit as ControlPlaneTenantResourceLimit } from '@/lib/api/generated/control-plane/data-contracts';
 import { useSearchParams } from '@/lib/router-helpers';
 import { SettingsPageHeader } from '@/pages/main/v1/tenant-settings/components/settings-page-header';
@@ -67,6 +68,45 @@ function BillingMaintenanceCard() {
             Contact us
           </Button>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BillingErrorCard({
+  isRetrying,
+  isUnauthorized,
+  onRetry,
+}: {
+  isRetrying: boolean;
+  isUnauthorized: boolean;
+  onRetry: () => void;
+}) {
+  const pylon = usePylon();
+
+  return (
+    <Card variant="light" className="mt-6">
+      <CardHeader>
+        <CardTitle>
+          {isUnauthorized ? 'Unauthorized' : 'Billing unavailable'}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {isUnauthorized
+            ? 'You must be an organization owner to view billing and usage details.'
+            : "We couldn't load this organization's billing and usage details. Please try again, or contact us if this keeps happening."}
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button onClick={onRetry} variant="outline" disabled={isRetrying}>
+            {isRetrying ? <Spinner /> : 'Try again'}
+          </Button>
+          {pylon.enabled && (
+            <Button onClick={pylon.show} variant="outline">
+              Contact us
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -146,6 +186,8 @@ function OrganizationBillingContent() {
   const billingState = useQuery({
     ...queries.controlPlane.billing(organization),
     enabled: isCloudEnabled && !!cloud?.canBill,
+    retry: (failureCount, error) =>
+      getApiErrorStatus(error) !== 401 && failureCount < 3,
     refetchInterval: isSyncing ? SYNC_POLL_INTERVAL_MS : false,
   });
 
@@ -208,6 +250,20 @@ function OrganizationBillingContent() {
   });
 
   const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
+
+  if (billingState.isError) {
+    const isUnauthorized = getApiErrorStatus(billingState.error) === 401;
+
+    return (
+      <BillingErrorCard
+        isRetrying={billingState.isFetching}
+        isUnauthorized={isUnauthorized}
+        onRetry={() => {
+          void billingState.refetch();
+        }}
+      />
+    );
+  }
 
   return (
     <>

@@ -8,6 +8,25 @@ import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
 import { validate as validateUuid } from 'uuid';
 
+type HttpErrorLike = {
+  response?: {
+    status?: unknown;
+  };
+};
+
+export function getApiErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const response = (error as HttpErrorLike).response;
+  if (!response || typeof response.status !== 'number') {
+    return undefined;
+  }
+
+  return response.status;
+}
+
 // Extend Axios config with custom fields injected by the API code generator.
 // https://www.typescriptlang.org/docs/handbook/declaration-merging.html
 declare module 'axios' {
