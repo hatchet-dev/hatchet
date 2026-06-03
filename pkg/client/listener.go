@@ -263,9 +263,6 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 }
 
 func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
-	w.clientMu.Lock()
-	defer w.clientMu.Unlock()
-
 	if w.isClosed() {
 		return errListenerClosed
 	}
@@ -275,6 +272,10 @@ func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 	for retries < DefaultActionListenerRetryCount {
 		if retries > 0 {
 			time.Sleep(DefaultActionListenerRetryInterval)
+		}
+
+		if w.isClosed() {
+			return errListenerClosed
 		}
 
 		client, err := w.constructor(ctx)
@@ -304,16 +305,27 @@ func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 		})
 
 		if rangeErr != nil {
+			if closeErr := client.CloseSend(); closeErr != nil {
+				w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after replay failure")
+			}
+
 			retries++
 			continue
 		}
 
+		w.clientMu.Lock()
 		if w.isClosed() {
+			w.clientMu.Unlock()
+			if closeErr := client.CloseSend(); closeErr != nil {
+				w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listener closed")
+			}
+
 			return errListenerClosed
 		}
 
 		w.client = client
 		w.generation++
+		w.clientMu.Unlock()
 		return nil
 	}
 

@@ -274,6 +274,68 @@ func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {
 	assert.Equal(t, int32(1), workingClient.sendCount.Load(), "working client should have received exactly one send")
 }
 
+func TestWorkflowRunsListenerReconnectDoesNotBlockClientSnapshot(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorEntered := make(chan struct{})
+	releaseConstructor := make(chan struct{})
+	var closeConstructorEntered sync.Once
+
+	oldClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+	newClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			closeConstructorEntered.Do(func() {
+				close(constructorEntered)
+			})
+			<-releaseConstructor
+			return newClient, nil
+		},
+		client: oldClient,
+		l:      &logger,
+	}
+
+	retryErr := make(chan error, 1)
+	go func() {
+		retryErr <- listener.retrySubscribe(context.Background())
+	}()
+
+	select {
+	case <-constructorEntered:
+	case <-time.After(time.Second):
+		t.Fatal("reconnect did not reach constructor")
+	}
+
+	snapshotRead := make(chan struct {
+		client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
+		generation uint64
+	}, 1)
+	go func() {
+		client, generation := listener.getClientSnapshot()
+		snapshotRead <- struct {
+			client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
+			generation uint64
+		}{client: client, generation: generation}
+	}()
+
+	select {
+	case snapshot := <-snapshotRead:
+		require.Same(t, oldClient, snapshot.client)
+		require.Equal(t, uint64(0), snapshot.generation)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("getClientSnapshot blocked behind reconnect")
+	}
+
+	close(releaseConstructor)
+
+	require.NoError(t, <-retryErr)
+	require.NoError(t, listener.Close())
+}
+
 func TestRetrySend_FailsAfterMaxRetries(t *testing.T) {
 	// This test verifies that retrySend returns an error after
 	// exhausting all retry attempts when resubscribe also fails.

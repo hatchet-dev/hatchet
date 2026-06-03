@@ -251,6 +251,68 @@ func TestDurableEventsListenerReconnectsWhileRetrySendBacksOff(t *testing.T) {
 	}
 }
 
+func TestDurableEventsListenerReconnectDoesNotBlockClientSnapshot(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorEntered := make(chan struct{})
+	releaseConstructor := make(chan struct{})
+	var closeConstructorEntered sync.Once
+
+	oldClient := &mockDurableEventClient{
+		recvCh: make(chan *contracts.DurableEvent),
+	}
+	newClient := &mockDurableEventClient{
+		recvCh: make(chan *contracts.DurableEvent),
+	}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			closeConstructorEntered.Do(func() {
+				close(constructorEntered)
+			})
+			<-releaseConstructor
+			return newClient, nil
+		},
+		client: oldClient,
+		l:      &logger,
+	}
+
+	retryErr := make(chan error, 1)
+	go func() {
+		retryErr <- listener.retryListen(context.Background())
+	}()
+
+	select {
+	case <-constructorEntered:
+	case <-time.After(time.Second):
+		t.Fatal("reconnect did not reach constructor")
+	}
+
+	snapshotRead := make(chan struct {
+		client     contracts.V1Dispatcher_ListenForDurableEventClient
+		generation uint64
+	}, 1)
+	go func() {
+		client, generation := listener.getClientSnapshot()
+		snapshotRead <- struct {
+			client     contracts.V1Dispatcher_ListenForDurableEventClient
+			generation uint64
+		}{client: client, generation: generation}
+	}()
+
+	select {
+	case snapshot := <-snapshotRead:
+		require.Same(t, oldClient, snapshot.client)
+		require.Equal(t, uint64(0), snapshot.generation)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("getClientSnapshot blocked behind reconnect")
+	}
+
+	close(releaseConstructor)
+
+	require.NoError(t, <-retryErr)
+	require.NoError(t, listener.Close())
+}
+
 // TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff
 // verifies the user-visible symptom: after a disconnect during AddSignal's
 // retry window, the listener should reconnect and deliver the durable event
