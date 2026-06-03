@@ -74,6 +74,29 @@ func (m *mockDurableEventClient) RecvMsg(msg interface{}) error {
 	return nil
 }
 
+func TestDurableEventsListenerAddSignalSendsOnceWhenStarting(t *testing.T) {
+	logger := zerolog.Nop()
+	recvCh := make(chan *contracts.DurableEvent)
+
+	client := &mockDurableEventClient{
+		recvCh: recvCh,
+	}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			return client, nil
+		},
+		l: &logger,
+	}
+
+	require.NoError(t, listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		return nil
+	}))
+	require.Equal(t, int32(1), client.sendCount.Load())
+
+	close(recvCh)
+}
+
 // TestDurableEventsListenerReconnectsWhileRetrySendBacksOff verifies that a
 // stream disconnect can reconnect while AddSignal is retrying a send on the
 // broken stream. This is the lock-contention repro: retrySend must not hold a
@@ -96,7 +119,8 @@ func TestDurableEventsListenerReconnectsWhileRetrySendBacksOff(t *testing.T) {
 			return status.Error(codes.Unavailable, "stream broken")
 		},
 		recvFn: func() (*contracts.DurableEvent, error) {
-			return nil, status.Error(codes.Unavailable, "stream broken")
+			<-sendAttempted
+			return nil, status.Error(codes.Internal, "stream broken")
 		},
 	}
 
@@ -123,6 +147,13 @@ func TestDurableEventsListenerReconnectsWhileRetrySendBacksOff(t *testing.T) {
 		l:      &logger,
 	}
 
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(ctx)
+	}()
+
+	require.Eventually(t, listener.isListening, time.Second, 10*time.Millisecond)
+
 	addErr := make(chan error, 1)
 	go func() {
 		addErr <- listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
@@ -130,8 +161,6 @@ func TestDurableEventsListenerReconnectsWhileRetrySendBacksOff(t *testing.T) {
 		})
 	}()
 
-	// Wait until AddSignal has definitely attempted to use the broken stream
-	// before forcing Listen down the reconnect path.
 	require.Eventually(t, func() bool {
 		select {
 		case <-sendAttempted:
@@ -140,11 +169,6 @@ func TestDurableEventsListenerReconnectsWhileRetrySendBacksOff(t *testing.T) {
 			return false
 		}
 	}, time.Second, 10*time.Millisecond)
-
-	listenErr := make(chan error, 1)
-	go func() {
-		listenErr <- listener.Listen(ctx)
-	}()
 
 	select {
 	case <-constructorCalled:
@@ -179,7 +203,8 @@ func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *t
 			return status.Error(codes.Unavailable, "stream broken")
 		},
 		recvFn: func() (*contracts.DurableEvent, error) {
-			return nil, status.Error(codes.Unavailable, "stream broken")
+			<-sendAttempted
+			return nil, status.Error(codes.Internal, "stream broken")
 		},
 	}
 
@@ -202,6 +227,13 @@ func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *t
 		l:      &logger,
 	}
 
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(ctx)
+	}()
+
+	require.Eventually(t, listener.isListening, time.Second, 10*time.Millisecond)
+
 	received := make(chan DurableEvent, 1)
 	addErr := make(chan error, 1)
 	go func() {
@@ -220,11 +252,6 @@ func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *t
 		}
 	}, time.Second, 10*time.Millisecond)
 
-	listenErr := make(chan error, 1)
-	go func() {
-		listenErr <- listener.Listen(ctx)
-	}()
-
 	select {
 	case event := <-received:
 		require.Equal(t, "task-1", event.TaskId)
@@ -232,9 +259,68 @@ func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *t
 		require.JSONEq(t, `{"ok":true}`, string(event.Data))
 	case err := <-addErr:
 		require.NoError(t, err)
+		select {
+		case event := <-received:
+			require.Equal(t, "task-1", event.TaskId)
+			require.Equal(t, "signal-1", event.SignalKey)
+			require.JSONEq(t, `{"ok":true}`, string(event.Data))
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("AddSignal returned before durable event was delivered after reconnect")
+		}
 	case err := <-listenErr:
 		require.NoError(t, err)
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("expected durable event to be delivered after reconnect during retrySend backoff")
+	}
+}
+
+func TestDurableEventsListenerRestartsAfterListenExits(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockDurableEventClient{
+		recvFn: func() (*contracts.DurableEvent, error) {
+			return nil, io.EOF
+		},
+	}
+	replacementClient := &mockDurableEventClient{
+		recvCh: make(chan *contracts.DurableEvent, 1),
+	}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			return replacementClient, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	require.NoError(t, <-listenErr)
+	require.False(t, listener.isListening())
+
+	received := make(chan DurableEvent, 1)
+	require.NoError(t, listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		received <- e
+		return nil
+	}))
+
+	replacementClient.recvCh <- &contracts.DurableEvent{
+		TaskId:    "task-1",
+		SignalKey: "signal-1",
+		Data:      []byte(`{"ok":true}`),
+	}
+	close(replacementClient.recvCh)
+
+	select {
+	case event := <-received:
+		require.Equal(t, "task-1", event.TaskId)
+		require.Equal(t, "signal-1", event.SignalKey)
+		require.JSONEq(t, `{"ok":true}`, string(event.Data))
+	case <-time.After(time.Second):
+		t.Fatal("expected durable event after listener restarted")
 	}
 }

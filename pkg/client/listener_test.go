@@ -82,6 +82,29 @@ func (m *mockSubscribeClient) RecvMsg(msg interface{}) error {
 	return nil
 }
 
+func TestWorkflowRunsListenerAddWorkflowRunSendsOnceWhenStarting(t *testing.T) {
+	logger := zerolog.Nop()
+	recvChan := make(chan *dispatchercontracts.WorkflowRunEvent)
+
+	client := &mockSubscribeClient{
+		recvChan: recvChan,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		l: &logger,
+	}
+
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		return nil
+	}))
+	assert.Equal(t, int32(1), client.sendCount.Load())
+
+	close(recvChan)
+}
+
 func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {
 	// This test verifies that when Send() fails on a broken stream,
 	// retrySend will call retrySubscribe to establish a new stream
@@ -273,9 +296,13 @@ func TestListen_DispatchesEventsToHandlers(t *testing.T) {
 	}
 
 	var receivedEvent atomic.Value
-	listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
-		receivedEvent.Store(event)
-		return nil
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				receivedEvent.Store(event)
+				return nil
+			},
+		},
 	})
 
 	// Start Listen in a goroutine
@@ -343,6 +370,51 @@ func TestListen_ExitsOnCanceled(t *testing.T) {
 	assert.NoError(t, err, "Listen should return nil on Canceled")
 }
 
+func TestWorkflowRunsListenerRestartsAfterListenExits(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return replacementClient, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	require.NoError(t, <-listenErr)
+	require.False(t, listener.isListening())
+
+	received := make(chan WorkflowRunEvent, 1)
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		received <- event
+		return nil
+	}))
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+	close(replacementClient.recvChan)
+
+	select {
+	case event := <-received:
+		assert.Equal(t, "run-1", event.WorkflowRunId)
+	case <-time.After(time.Second):
+		t.Fatal("expected workflow run event after listener restarted")
+	}
+}
+
 func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 	// Verifies that after a Recv error, Listen reconnects and reads from the new client.
 
@@ -372,9 +444,13 @@ func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 	}
 
 	var receivedEvent atomic.Value
-	listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
-		receivedEvent.Store(event)
-		return nil
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				receivedEvent.Store(event)
+				return nil
+			},
+		},
 	})
 
 	listenErr := make(chan error, 1)

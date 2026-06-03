@@ -103,6 +103,8 @@ type WorkflowRunsListener struct {
 	generation uint64
 
 	reconnectGroup singleflight.Group
+	listenMu       sync.Mutex
+	listening      bool
 
 	l *zerolog.Logger
 
@@ -138,7 +140,13 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	r.workflowRunListener = w
 
 	go func() {
-		defer func() {
+		err := w.Listen(ctx)
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
+		}
+
+		if ctx.Err() != nil {
 			err := w.Close()
 
 			if err != nil {
@@ -146,14 +154,10 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 			}
 
 			r.workflowRunListenerMu.Lock()
-			r.workflowRunListener = nil
+			if r.workflowRunListener == w {
+				r.workflowRunListener = nil
+			}
 			r.workflowRunListenerMu.Unlock()
-		}()
-
-		err := w.Listen(ctx)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
 		}
 	}()
 
@@ -165,6 +169,54 @@ func (w *WorkflowRunsListener) getClientSnapshot() (dispatchercontracts.Dispatch
 	w.clientMu.Lock()
 	defer w.clientMu.Unlock()
 	return w.client, w.generation
+}
+
+func (w *WorkflowRunsListener) isListening() bool {
+	w.listenMu.Lock()
+	defer w.listenMu.Unlock()
+	return w.listening
+}
+
+func (w *WorkflowRunsListener) startListening() bool {
+	w.listenMu.Lock()
+	defer w.listenMu.Unlock()
+
+	if w.listening {
+		return false
+	}
+
+	w.listening = true
+	return true
+}
+
+func (w *WorkflowRunsListener) stopListening() {
+	w.listenMu.Lock()
+	w.listening = false
+	w.listenMu.Unlock()
+}
+
+func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
+	if w.isListening() {
+		return nil
+	}
+
+	if err := w.retrySubscribe(ctx); err != nil {
+		return err
+	}
+
+	if !w.startListening() {
+		return nil
+	}
+
+	go func() {
+		defer w.stopListening()
+
+		if err := w.listen(ctx); err != nil {
+			w.l.Error().Err(err).Msg("failed to listen for workflow run events")
+		}
+	}()
+
+	return nil
 }
 
 // retrySubscribe coalesces concurrent reconnection attempts via singleflight.
@@ -195,15 +247,12 @@ func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 			continue
 		}
 
-		w.client = client
-
-		// listen for all the same workflow runs
 		var rangeErr error
 
 		w.handlers.Range(func(key, value interface{}) bool {
 			workflowRunId := key.(string)
 
-			err := w.client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
+			err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
 				WorkflowRunId: workflowRunId,
 			})
 
@@ -221,6 +270,7 @@ func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
 			continue
 		}
 
+		w.client = client
 		w.generation++
 		return nil
 	}
@@ -238,6 +288,12 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	workflowRunId, sessionId string,
 	handler WorkflowRunEventHandler,
 ) error {
+	if !l.isListening() {
+		if err := l.ensureListening(context.Background()); err != nil {
+			return err
+		}
+	}
+
 	handlers, _ := l.handlers.LoadOrStore(workflowRunId, &threadSafeHandlers{
 		handlers: map[string]WorkflowRunEventHandler{},
 	})
@@ -249,13 +305,19 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	l.handlers.Store(workflowRunId, h)
 	h.mu.Unlock()
 
-	err := l.retrySend(workflowRunId)
+	if err := l.retrySend(workflowRunId); err != nil {
+		if !l.isListening() {
+			if listenErr := l.ensureListening(context.Background()); listenErr != nil {
+				return listenErr
+			}
 
-	if err != nil {
+			return l.retrySend(workflowRunId)
+		}
+
 		return err
 	}
 
-	return nil
+	return l.ensureListening(context.Background())
 }
 
 func (l *WorkflowRunsListener) RemoveWorkflowRun(
@@ -314,11 +376,23 @@ func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 }
 
 func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
+	if !l.startListening() {
+		return nil
+	}
+	defer l.stopListening()
+
+	return l.listen(ctx)
+}
+
+func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 	consecutiveErrors := 0
 	maxConsecutiveErrors := 10
 
 	// Take a snapshot of the client so we never hold the lock during a blocking Recv.
-	client, _ := l.getClientSnapshot()
+	client, generation := l.getClientSnapshot()
+	if client == nil {
+		return fmt.Errorf("client is not connected")
+	}
 
 	for {
 		event, err := client.Recv()
@@ -335,6 +409,12 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 				time.Sleep(1 * time.Second)
 			}
 
+			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
+				client, generation = l.getClientSnapshot()
+				consecutiveErrors = 0
+				continue
+			}
+
 			retryErr := l.retrySubscribe(ctx)
 
 			if retryErr != nil {
@@ -348,7 +428,7 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 				continue
 			}
 
-			client, _ = l.getClientSnapshot()
+			client, generation = l.getClientSnapshot()
 			consecutiveErrors = 0
 			continue
 		}
