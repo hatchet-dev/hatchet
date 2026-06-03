@@ -675,51 +675,34 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 		return nil, fmt.Errorf("could not populate workflow info: %w", err)
 	}
 
-	// important: if there's an idempotency key, we can't fall back to the MQ as we'd lose
-	// any tx-safety we get if we did, so we call `TriggerFromWorkflowNames` directly for those,
-	// and only fall back to the MQ for opts without idempotency keys
-	optsWithIdempotencyKeys := make([]*v1.WorkflowNameTriggerOpts, 0, len(optsToSend))
-	optsWithoutIdempotencyKeys := make([]*v1.WorkflowNameTriggerOpts, 0, len(optsToSend))
-
+	hasIdempotencyKeys := false
 	for _, opt := range optsToSend {
 		if opt.HasIdempotencyKey {
-			optsWithIdempotencyKeys = append(optsWithIdempotencyKeys, opt)
-		} else {
-			optsWithoutIdempotencyKeys = append(optsWithoutIdempotencyKeys, opt)
+			hasIdempotencyKeys = true
+			break
 		}
 	}
 
-	var allIdempotencyKeyCollisions []v1.IdempotencyCollision
-
-	if len(optsWithIdempotencyKeys) > 0 {
-		tasks, dags, idempotencyKeyCollisions, err := a.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, optsWithIdempotencyKeys)
-
+	// if we have _any_ runs to trigger with idempotency keys, we trigger everything in the batch directly to maintain atomicity
+	if hasIdempotencyKeys {
+		idempotencyKeyCollisions, err := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
 		if err != nil {
 			return nil, fmt.Errorf("could not trigger workflows: %w", err)
 		}
-
-		if a.tw != nil {
-			if signalErr := a.tw.SignalCreated(ctx, tenantId, tasks, dags); signalErr != nil {
-				a.l.Error().Ctx(ctx).Err(signalErr).Msg("failed to signal created tasks and DAGs")
-			}
-		}
-
-		allIdempotencyKeyCollisions = append(allIdempotencyKeyCollisions, idempotencyKeyCollisions...)
+		return idempotencyKeyCollisions, nil
 	}
 
-	if len(optsWithoutIdempotencyKeys) > 0 {
-		msg, err := tasktypes.TriggerTaskMessage(tenantId, optsWithoutIdempotencyKeys...)
+	msg, err := tasktypes.TriggerTaskMessage(tenantId, optsToSend...)
 
-		if err != nil {
-			return nil, fmt.Errorf("could not create trigger message: %w", err)
-		}
-
-		if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
-			return nil, fmt.Errorf("could not send trigger message: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("could not create trigger message: %w", err)
 	}
 
-	return allIdempotencyKeyCollisions, nil
+	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, fmt.Errorf("could not send trigger message: %w", err)
+	}
+
+	return nil, nil
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {

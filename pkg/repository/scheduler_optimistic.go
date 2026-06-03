@@ -79,7 +79,7 @@ func (r *optimisticSchedulingRepositoryImpl) TriggerFromNames(ctx context.Contex
 		return nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
-	tasks, dags, idempotencyKeyCollisions, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
+	tasks, dags, idempotencyKeyCollisions, _, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
 
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to trigger workflows: %w", err)
