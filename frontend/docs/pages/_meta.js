@@ -24,6 +24,11 @@ export default {
     title: "Reference",
     type: "menu",
     items: {
+      changelog: {
+        title: "Changelog",
+        href: "/reference/changelog",
+        type: "page",
+      },
       cli: {
         title: "CLI Reference",
         href: "/reference/cli",
