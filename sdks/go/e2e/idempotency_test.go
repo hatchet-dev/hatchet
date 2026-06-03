@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	idempotencyEventKey        = "go-e2e:idempotency-example"
-	idempotentTaskName         = "go-e2e-idempotent-task"
-	idempotentShortWindowName  = "go-e2e-idempotent-task-short-window"
+	idempotencyEventKey       = "go-e2e:idempotency-example"
+	idempotentTaskName        = "go-e2e-idempotent-task"
+	idempotentShortWindowName = "go-e2e-idempotent-task-short-window"
 )
 
 type idempotencyInput struct {
