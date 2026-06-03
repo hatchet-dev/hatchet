@@ -143,13 +143,7 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 	r.workflowRunListener = w
 
 	go func() {
-		err := w.Listen(ctx)
-
-		if err != nil {
-			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
-		}
-
-		if ctx.Err() != nil {
+		defer func() {
 			err := w.Close()
 
 			if err != nil {
@@ -161,6 +155,12 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 				r.workflowRunListener = nil
 			}
 			r.workflowRunListenerMu.Unlock()
+		}()
+
+		err := w.Listen(ctx)
+
+		if err != nil {
+			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
 		}
 	}()
 
@@ -243,8 +243,12 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 		return errListenerClosed
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
-		return nil, w.doRetrySubscribe(ctx)
+		return nil, w.doRetrySubscribe(context.Background())
 	})
 	return err
 }

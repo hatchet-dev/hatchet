@@ -75,13 +75,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 	r.durableEventsListener = w
 
 	go func() {
-		err := w.Listen(ctx)
-
-		if err != nil {
-			r.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")
-		}
-
-		if ctx.Err() != nil {
+		defer func() {
 			err := w.Close()
 
 			if err != nil {
@@ -93,6 +87,12 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 				r.durableEventsListener = nil
 			}
 			r.durableEventsListenerMu.Unlock()
+		}()
+
+		err := w.Listen(ctx)
+
+		if err != nil {
+			r.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")
 		}
 	}()
 
@@ -104,8 +104,12 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 		return errListenerClosed
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
-		return nil, w.doRetryListen(ctx)
+		return nil, w.doRetryListen(context.Background())
 	})
 	return err
 }
