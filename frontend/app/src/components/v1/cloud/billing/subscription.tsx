@@ -53,6 +53,34 @@ function formatCurrency(cents: number, period?: string) {
   }).format(monthly);
 }
 
+function formatPlanName(planCode?: string, plan?: string) {
+  const value = planCode || plan;
+  if (!value) {
+    return 'Unknown plan';
+  }
+
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatPeriod(period?: string) {
+  if (!period) {
+    return 'Active subscription';
+  }
+
+  return `${period.charAt(0).toUpperCase() + period.slice(1)} billing`;
+}
+
+function isLegacySubscriptionPlan(plan?: SubscriptionPlanCode) {
+  return (
+    plan === SubscriptionPlanCode.Starter ||
+    plan === SubscriptionPlanCode.Growth
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
 }
@@ -277,11 +305,26 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     });
   }, [active?.endsAt]);
 
-  const currentPlanDetails = useMemo(() => {
+  const currentPlanSummary = useMemo(() => {
     if (!active?.plan) {
       return null;
     }
-    return plans?.find((p) => p.planCode === activePlanCode);
+    const plan = plans?.find((p) => p.planCode === activePlanCode);
+
+    if (plan) {
+      return {
+        name: plan.name,
+        amountCents: plan.amountCents,
+        period: plan.period,
+        legacy: !!plan.legacy,
+      };
+    }
+
+    return {
+      name: formatPlanName(activePlanCode, active.plan),
+      period: active.period,
+      legacy: isLegacySubscriptionPlan(active.plan),
+    };
   }, [active, activePlanCode, plans]);
 
   const enterpriseContactUrl = useMemo(() => {
@@ -426,7 +469,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Card>
             )}
 
-            {currentPlanDetails && (
+            {currentPlanSummary && (
               <Card
                 variant="light"
                 className="mb-6 bg-transparent ring-1 ring-border/50 border-none"
@@ -449,9 +492,9 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-lg font-semibold text-foreground">
-                          {currentPlanDetails.name}
+                          {currentPlanSummary.name}
                         </span>
-                        {currentPlanDetails.legacy && (
+                        {currentPlanSummary.legacy && (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger>
@@ -472,15 +515,23 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                       )}
                     </div>
                     <div className="text-right">
-                      <span className="text-2xl font-bold text-foreground">
-                        {formatCurrency(
-                          currentPlanDetails.amountCents,
-                          currentPlanDetails.period,
-                        )}
-                      </span>
-                      <span className="text-sm text-muted-foreground ml-1">
-                        / month
-                      </span>
+                      {typeof currentPlanSummary.amountCents === 'number' ? (
+                        <>
+                          <span className="text-2xl font-bold text-foreground">
+                            {formatCurrency(
+                              currentPlanSummary.amountCents,
+                              currentPlanSummary.period,
+                            )}
+                          </span>
+                          <span className="text-sm text-muted-foreground ml-1">
+                            / month
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">
+                          {formatPeriod(currentPlanSummary.period)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </CardContent>
