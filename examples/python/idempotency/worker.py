@@ -4,12 +4,13 @@ from pydantic import BaseModel
 
 hatchet = Hatchet()
 
+# > idempotency
+
+EVENT_KEY = "idempotency:example"
+
 
 class IdempotencyInput(BaseModel):
     id: str
-
-
-EVENT_KEY = "idempotency:example"
 
 
 @hatchet.task(
@@ -19,6 +20,8 @@ EVENT_KEY = "idempotency:example"
 )
 async def idempotent_task(input: IdempotencyInput, ctx: Context) -> dict[str, str]:
     return {"result": f"Hello, world from task {input.id}"}
+
+
 
 
 @hatchet.task(

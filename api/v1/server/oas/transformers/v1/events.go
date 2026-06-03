@@ -60,7 +60,7 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 		triggeredRuns = []gen.V1EventTriggeredRun{}
 	}
 
-	transformedEvent := gen.V1Event{
+	return gen.V1Event{
 		AdditionalMetadata: &additionalMetadata,
 		Key:                event.EventKey,
 		Metadata: gen.APIResourceMeta{
@@ -77,12 +77,10 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 		},
 		Payload:               &payload,
 		SeenAt:                &event.EventSeenAt.Time,
+		Scope:                 event.EventScope,
 		TriggeredRuns:         &triggeredRuns,
 		TriggeringWebhookName: event.TriggeringWebhookName,
-		Scope:                 event.EventScope,
 	}
-
-	return transformedEvent
 }
 
 func ToV1EventList(events []*v1.EventWithPayload, limit, offset, total int64) gen.V1EventList {
