@@ -1,6 +1,7 @@
 import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import { IdempotencyCollisionError } from '@hatchet/v1';
 import { makeE2EClient, poll, startWorker, stopWorker } from '../__e2e__/harness';
 import { EVENT_KEY, idempotentTask, idempotentTaskShortWindow } from './workflow';
 
@@ -48,15 +49,20 @@ describe('idempotency-e2e', () => {
       }
     );
 
-    let collided = false;
+    let collisionError: IdempotencyCollisionError | undefined;
 
     try {
       await idempotentTask.runNoWait({ id: testRunId });
-    } catch {
-      collided = true;
+    } catch (e) {
+      if (e instanceof IdempotencyCollisionError) {
+        collisionError = e;
+      } else {
+        throw e;
+      }
     }
 
-    expect(collided).toBe(true);
+    expect(collisionError).toBeInstanceOf(IdempotencyCollisionError);
+    expect(collisionError?.existingRunExternalId).toBe(await ref1.getWorkflowRunId());
 
     const runs = await waitForRuns(testRunId, 1);
 
@@ -68,16 +74,28 @@ describe('idempotency-e2e', () => {
     const testRunId = randomUUID();
 
     for (let i = 0; i < 4; i += 1) {
-      try {
+      if (i === 1) {
+        let collisionError: IdempotencyCollisionError | undefined;
+        try {
+          await idempotentTaskShortWindow.runNoWait(
+            { id: testRunId },
+            { additionalMetadata: { test_run_id: testRunId } }
+          );
+        } catch (e) {
+          if (e instanceof IdempotencyCollisionError) {
+            collisionError = e;
+          } else {
+            throw e;
+          }
+        }
+        expect(collisionError).toBeInstanceOf(IdempotencyCollisionError);
+        expect(collisionError?.existingRunExternalId).toBeTruthy();
+      } else {
         await idempotentTaskShortWindow.runNoWait(
           { id: testRunId },
-          {
-            additionalMetadata: {
-              test_run_id: testRunId,
-            },
-          }
+          { additionalMetadata: { test_run_id: testRunId } }
         );
-      } catch {}
+      }
 
       if (i !== 3) {
         await sleep((i + 1.5) * 1000);
