@@ -125,6 +125,7 @@ test('resolveExchangeTokenTenantId uses location tenant instead of stale storage
 
 test('getApiErrorStatus returns the HTTP response status', () => {
   assert.equal(getApiErrorStatus({ response: { status: 401 } }), 401);
+  assert.equal(getApiErrorStatus({ status: 403 }), 403);
 });
 
 test('getApiErrorStatus ignores non-HTTP errors', () => {
