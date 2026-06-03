@@ -25,7 +25,7 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 export default function ManagedWorkers() {
-  const { tenant, billing, can } = useTenantDetails();
+  const { tenant, billing, can, organizationId } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -66,7 +66,10 @@ export default function ManagedWorkers() {
       if (!tenantId) {
         return;
       }
-      const link = await controlPlaneApi.billingPortalLinkGet(tenantId);
+      if (!organizationId) {
+        return;
+      }
+      const link = await controlPlaneApi.billingPortalLinkGet(organizationId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
