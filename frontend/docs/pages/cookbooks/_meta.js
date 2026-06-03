@@ -20,4 +20,5 @@ export default {
     type: "separator",
   },
   "hatchet-and-mcp": "Hatchet Agent Tools",
+  "workflow-aws-s3": "S3 Processing Pipeline",
 };

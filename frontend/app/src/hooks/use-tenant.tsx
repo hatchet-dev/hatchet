@@ -141,16 +141,32 @@ export function useTenantDetails() {
 
   const { cloud, isCloudEnabled } = useCloud();
 
+  const organizationId = useMemo(() => {
+    if (!appContext.isUserUniverseLoaded || !appContext.organizations) {
+      return undefined;
+    }
+
+    return appContext.organizations.find((organization) =>
+      organization.tenants.some(
+        (organizationTenant) => organizationTenant.id === tenant?.metadata?.id,
+      ),
+    )?.metadata.id;
+  }, [
+    appContext.isUserUniverseLoaded,
+    appContext.organizations,
+    tenant?.metadata?.id,
+  ]);
+
   const billingState = useQuery({
-    ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
+    ...queries.controlPlane.billing(organizationId || ''),
+    enabled: !!organizationId && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
-    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
-    enabled: !!tenant && !!cloud?.canBill,
+    ...queries.controlPlane.paymentMethods(organizationId || ''),
+    enabled: !!organizationId && !!cloud?.canBill,
     retry: false,
   });
 
@@ -212,6 +228,7 @@ export function useTenantDetails() {
     },
     limit: resourcePolicyQuery,
     billing: billingContext,
+    organizationId,
     can,
   };
 }

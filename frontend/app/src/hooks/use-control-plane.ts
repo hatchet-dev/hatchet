@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 export default function useControlPlane() {
-  const result = useQuery(controlPlaneMetaQuery);
+  const result = useQuery({
+    ...controlPlaneMetaQuery,
+    refetchOnMount: 'always',
+  });
 
   const isControlPlaneEnabled = useMemo(
     () => inferControlPlaneEnabled(result.data?.data),

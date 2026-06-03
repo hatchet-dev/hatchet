@@ -46,6 +46,7 @@ export default function CronsTable() {
     updateCron,
     isUpdatePending,
     updatingCronId,
+    triggerNow,
   } = useCrons({
     key: 'table',
   });
@@ -77,13 +78,14 @@ export default function CronsTable() {
         tenantId,
         onDeleteClick: handleDeleteClick,
         onEnableClick,
+        onTriggerClick: (cron) => triggerNow(cron.metadata.id),
         selectedJobId,
         setSelectedJobId,
         isUpdatePending,
         updatingCronId,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenantId, selectedJobId, isUpdatePending, updatingCronId],
+    [tenantId, selectedJobId, isUpdatePending, updatingCronId, triggerNow],
   );
 
   const filters: ToolbarFilters = [

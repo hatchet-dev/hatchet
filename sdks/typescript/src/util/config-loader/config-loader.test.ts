@@ -1,4 +1,6 @@
+import { ChannelCredentials } from 'nice-grpc';
 import { ConfigLoader } from './config-loader';
+import { HatchetClient } from '@hatchet/v1';
 
 describe('ConfigLoader', () => {
   beforeEach(() => {
@@ -120,6 +122,21 @@ describe('ConfigLoader', () => {
       grpc_max_recv_message_length: 8 * 1024 * 1024,
       grpc_max_send_message_length: 16 * 1024 * 1024,
     });
+  });
+
+  it('should propagate overrides', () => {
+    const client = HatchetClient.init(
+      { cancellation_grace_period: 60_000, cancellation_warning_threshold: 10_000 },
+      { credentials: ChannelCredentials.createInsecure() }
+    );
+    expect(client.config.cancellation_grace_period).toEqual(60_000);
+    expect(client.config.cancellation_warning_threshold).toEqual(10_000);
+  });
+
+  it('should use default cancellation values when not overridden', () => {
+    const client = HatchetClient.init({}, { credentials: ChannelCredentials.createInsecure() });
+    expect(client.config.cancellation_grace_period).toEqual(1000);
+    expect(client.config.cancellation_warning_threshold).toEqual(300);
   });
 
   xit('should attempt to load the root .hatchet.yaml config', () => {

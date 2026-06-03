@@ -34,8 +34,11 @@ engine:
           - "pkg/**"
           - "internal/**"
           - "api/**"
-          - "frontend/app/src/**"
           - "sql/**"
+
+dashboard:
+  - changed-files:
+      - any-glob-to-any-file: "frontend/app/src/**"
 
 documentation:
   - changed-files:
