@@ -10,9 +10,34 @@ on:
         required: true
 name: Release
 jobs:
+  verify:
+      runs-on: ubuntu-latest
+      if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+      outputs:
+        tag: ${{ steps.tag_name.outputs.tag }}
+        should_publish: ${{ steps.skip.outputs.should_publish }}
+      steps:
+        - id: tag_name
+          run: |
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            fi
+
+        - id: skip
+          run: |
+            tag="${{ steps.tag_name.outputs.tag }}"
+            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            fi
+
   load:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubicloud-standard-8
+    needs: [verify]
+    if: needs.verify.outputs.should_publish == 'true'
     timeout-minutes: 30
     strategy:
       matrix:
@@ -23,6 +48,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+          fetch-depth: 0
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -52,20 +80,13 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    needs: [verify]
+    if: needs.verify.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
         id: tag_name
-        run: |
-          if [ -z "${{ github.event.inputs.tag }}" ]; then
-            tag=${GITHUB_TAG/refs\/tags\//}
-          else
-            tag=${{ github.event.inputs.tag }}
-          fi
-          echo ::set-output name=tag::$tag
-        env:
-          GITHUB_TAG: ${{ github.ref }}
+        run: echo "tag=${{ needs.verify.outputs.tag }}" >> "$GITHUB_OUTPUT"
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
