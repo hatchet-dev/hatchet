@@ -1047,7 +1047,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 		flushReason := describeBatchFlushReason(meta.Reason, configuredSize, time.Duration(meta.ConfiguredBatchMaxIntervalMs)*time.Millisecond)
 
 		assignmentsPayload := make([]repov1.TaskBatchAssignment, 0, len(group))
-		taskIds := make([]int64, 0, len(group))
+		batchItems := make([]tasktypes.BatchTaskItem, 0, len(group))
 
 		for idx, item := range group {
 			if item == nil || item.QueueItem == nil || !item.QueueItem.TaskInsertedAt.Valid {
@@ -1060,7 +1060,12 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 				BatchIndex:     idx,
 			})
 
-			taskIds = append(taskIds, item.QueueItem.TaskID)
+			batchItems = append(batchItems, tasktypes.BatchTaskItem{
+				TaskID:        item.QueueItem.TaskID,
+				ExternalID:    item.QueueItem.ExternalID.String(),
+				WorkflowRunID: item.QueueItem.WorkflowRunID.String(),
+				InsertedAt:    item.QueueItem.TaskInsertedAt.Time,
+			})
 		}
 
 		if len(assignmentsPayload) == 0 {
@@ -1083,6 +1088,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			BatchKey:      key.BatchKey,
 			TriggerReason: flushReason,
 			TriggerTime:   triggeredAt,
+			Items:         batchItems,
 		}
 
 		if meta.ConfiguredBatchGroupMaxRuns > 0 {
@@ -1102,21 +1108,6 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
 			result = multierror.Append(result, fmt.Errorf("could not send batch start message: %w", err))
-			continue
-		}
-
-		assignedMsg, err := taskBulkAssignedTask(tenantId, map[uuid.UUID][]int64{workerUUID: taskIds})
-		if err != nil {
-			s.internalRetry(ctx, tenantId, group...)
-			releaseOnError()
-			result = multierror.Append(result, fmt.Errorf("could not create bulk assigned batch message: %w", err))
-			continue
-		}
-
-		if err := s.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherID), assignedMsg); err != nil {
-			s.internalRetry(ctx, tenantId, group...)
-			releaseOnError()
-			result = multierror.Append(result, fmt.Errorf("could not send bulk assigned batch message: %w", err))
 			continue
 		}
 
@@ -1226,6 +1217,8 @@ func describeBatchFlushReason(reason repov1.BatchFlushReason, batchSize int, int
 		return "batch max interval elapsed"
 	case repov1.FlushReasonBufferDrained:
 		return "buffer drained during shutdown"
+	case repov1.FlushReasonBufferMemorySizeReached:
+		return "batch max memory size reached"
 	default:
 		return string(reason)
 	}

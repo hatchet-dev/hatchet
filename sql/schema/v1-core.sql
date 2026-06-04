@@ -612,7 +612,7 @@ CREATE TABLE v1_batched_queue_item (
     retry_count INTEGER NOT NULL DEFAULT 0,
     batch_key TEXT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
+    payload_size INTEGER NOT NULL DEFAULT 0,
     CONSTRAINT v1_batched_queue_item_pkey PRIMARY KEY (id),
     CONSTRAINT v1_batched_queue_item_task_key UNIQUE (task_id, task_inserted_at, retry_count)
 );

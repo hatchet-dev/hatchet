@@ -3117,6 +3117,7 @@ type V1BatchedQueueItem struct {
 	RetryCount        int32              `json:"retry_count"`
 	BatchKey          string             `json:"batch_key"`
 	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	PayloadSize       int32              `json:"payload_size"`
 }
 
 type V1CelEvaluationFailuresOlap struct {

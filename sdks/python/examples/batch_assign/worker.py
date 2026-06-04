@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 from pydantic import BaseModel
@@ -84,8 +85,10 @@ async def batch_keyed_interval(
 async def batch_large(
     tasks: list[tuple[LargePayloadInput, Context]],
 ) -> list[dict[str, Any]]:
+    batch_id = str(uuid.uuid4())
     return [
         {
+            "batchId": batch_id,
             "received": True,
             "batchSize": len(tasks),
             "dataLength": len(inp.data),

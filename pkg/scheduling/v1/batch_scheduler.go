@@ -223,6 +223,17 @@ func (b *BatchScheduler) run() {
 	}
 }
 
+func (b *BatchScheduler) shouldMemoryLimitFlush() (bool, int) {
+	totalPayloadSize := int32(0)
+	for i, item := range b.buffer {
+		totalPayloadSize += item.PayloadSize
+		if totalPayloadSize > (4000000 / 2) {
+			return true, i - 1
+		}
+	}
+	return false, 0
+}
+
 func (b *BatchScheduler) tick() error {
 	if err := b.fetchNewItems(); err != nil {
 		return err
@@ -234,6 +245,17 @@ func (b *BatchScheduler) tick() error {
 	// Check for timed out items in the buffer
 	if err := b.checkBufferForTimeouts(); err != nil {
 		return err
+	}
+
+	// automatically flush when payloads go over 4mb limit
+	for {
+		flush, count := b.shouldMemoryLimitFlush()
+		if !flush {
+			break
+		}
+		if err := b.flush(count, v1repo.FlushReasonBufferMemorySizeReached); err != nil {
+			return err
+		}
 	}
 
 	if b.batchSize > 0 && len(b.buffer) >= b.batchSize {

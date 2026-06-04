@@ -728,6 +728,9 @@ func (q *Queuer) runOptimisticQueue(
 
 	}
 	batchConfigs, err := q.repo.GetStepBatchConfigs(ctx, stepIds)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	labels, err := q.repo.GetDesiredLabels(ctx, tx, stepIds)
 

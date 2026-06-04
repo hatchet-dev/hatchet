@@ -530,7 +530,8 @@ SELECT
     desired_worker_id,
     retry_count,
     batch_key,
-    inserted_at
+    inserted_at,
+    payload_size
 FROM
     v1_batched_queue_item
 WHERE
@@ -590,6 +591,7 @@ func (q *Queries) ListBatchedQueueItemsForBatch(ctx context.Context, db DBTX, ar
 			&i.RetryCount,
 			&i.BatchKey,
 			&i.InsertedAt,
+			&i.PayloadSize,
 		); err != nil {
 			return nil, err
 		}
@@ -1124,28 +1126,31 @@ WITH locked_qis AS (
         desired_worker_id,
         retry_count,
         batch_key,
-        inserted_at
+        inserted_at,
+        payload_size
     )
     SELECT
-        tenant_id,
-        queue,
-        task_id,
-        task_inserted_at,
-        external_id,
-        action_id,
-        step_id,
-        workflow_id,
-        workflow_run_id,
-        schedule_timeout_at,
-        step_timeout,
-        priority,
-        sticky,
-        desired_worker_id,
-        retry_count,
-        COALESCE(BTRIM(batch_key), ''),
-        CURRENT_TIMESTAMP
+        lqi.tenant_id,
+        lqi.queue,
+        lqi.task_id,
+        lqi.task_inserted_at,
+        lqi.external_id,
+        lqi.action_id,
+        lqi.step_id,
+        lqi.workflow_id,
+        lqi.workflow_run_id,
+        lqi.schedule_timeout_at,
+        lqi.step_timeout,
+        lqi.priority,
+        lqi.sticky,
+        lqi.desired_worker_id,
+        lqi.retry_count,
+        COALESCE(BTRIM(lqi.batch_key), ''),
+        CURRENT_TIMESTAMP,
+        COALESCE(OCTET_LENGTH(t.input::text), 0)
     FROM
-        locked_qis
+        locked_qis lqi
+    LEFT JOIN v1_task t ON t.id = lqi.task_id AND t.inserted_at = lqi.task_inserted_at
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
 ), deleted AS (

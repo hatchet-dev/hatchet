@@ -21,11 +21,12 @@ import (
 type BatchFlushReason string
 
 const (
-	FlushReasonBatchSizeReached  BatchFlushReason = "batch_size_reached"
-	FlushReasonWorkerChanged     BatchFlushReason = "worker_changed"
-	FlushReasonDispatcherChanged BatchFlushReason = "dispatcher_changed"
-	FlushReasonIntervalElapsed   BatchFlushReason = "interval_elapsed"
-	FlushReasonBufferDrained     BatchFlushReason = "buffer_drained"
+	FlushReasonBatchSizeReached        BatchFlushReason = "batch_size_reached"
+	FlushReasonWorkerChanged           BatchFlushReason = "worker_changed"
+	FlushReasonDispatcherChanged       BatchFlushReason = "dispatcher_changed"
+	FlushReasonIntervalElapsed         BatchFlushReason = "interval_elapsed"
+	FlushReasonBufferDrained           BatchFlushReason = "buffer_drained"
+	FlushReasonBufferMemorySizeReached BatchFlushReason = "memory_size_reached"
 )
 
 type RateLimitResult struct {

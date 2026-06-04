@@ -60,6 +60,13 @@ class BatchStartPayload(BaseModel):
     trigger_time: datetime | None = None
 
 
+class BatchItemData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    payload: ActionPayload
+    workflow_run_id: str
+
+
 class Action(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -80,12 +87,12 @@ class Action(BaseModel):
     action_payload: ActionPayload
     additional_metadata: JSONSerializableMapping = field(default_factory=dict)
 
-    # Batch metadata (populated for batched tasks / START_BATCH coordination)
+    # Batch metadata
     batch_id: str | None = None
-    batch_size: int | None = None
-    batch_index: int | None = None
     batch_key: str | None = None
     batch_start: BatchStartPayload | None = None
+    # Populated for START_BATCH: maps task_run_external_id -> item data (payload + workflow_run_id)
+    batch_items: dict[str, BatchItemData] | None = None
 
     child_workflow_index: int | None = None
     child_workflow_key: str | None = None

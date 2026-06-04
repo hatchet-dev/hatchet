@@ -488,7 +488,7 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_async_fn(self._fn):  # type: ignore
+        if is_async_fn(self._fn):
             return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
