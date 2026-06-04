@@ -26,7 +26,7 @@ class WorkerActionRunLoopManager:
         durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
-        event_queue: "Queue[ActionEvent]",
+        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
         debug: bool,
@@ -127,7 +127,8 @@ class WorkerActionRunLoopManager:
             return
 
         logger.info("gracefully exiting runner...")
-
+        await self.evict_all_waiting_durable_runs()
+        await self.wait_for_tasks()
         self.cleanup()
 
         # Wait for 1 second to allow last calls to flush. These are calls which have been

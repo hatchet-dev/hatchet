@@ -939,3 +939,15 @@ StepRunDiff:
     - key
     - original
     - modified
+
+TriggerRunResult:
+  properties:
+    externalId:
+      description: The external ID of the triggered workflow run
+      type: string
+      format: uuid
+      minLength: 36
+      maxLength: 36
+  required:
+    - externalId
+  type: object

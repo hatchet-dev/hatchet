@@ -93,7 +93,7 @@ export default function useCloud(tenantId?: string): UseCloudReturn {
   if (isControlPlaneEnabled) {
     return {
       cloud: {
-        canBill: true,
+        canBill: controlPlaneMeta?.canBill ?? false,
         canLinkGithub: true,
         metricsEnabled: true,
         requireBillingForManagedCompute: true,

@@ -47,7 +47,7 @@ DO UPDATE SET
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payload_cutover_job_offset.lease_expires_at < NOW() OR v1_payload_cutover_job_offset.lease_process_id = $1::UUID
-RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_inserted_at, last_id, last_type, last_external_id, final_source_table_row_count, final_target_table_row_count, final_row_count_diff
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_external_id
 `
 
 type AcquireOrExtendCutoverJobLeaseParams struct {
@@ -70,14 +70,7 @@ func (q *Queries) AcquireOrExtendCutoverJobLease(ctx context.Context, db DBTX, a
 		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
-		&i.LastTenantID,
-		&i.LastInsertedAt,
-		&i.LastID,
-		&i.LastType,
 		&i.LastExternalID,
-		&i.FinalSourceTableRowCount,
-		&i.FinalTargetTableRowCount,
-		&i.FinalRowCountDiff,
 	)
 	return &i, err
 }
@@ -120,6 +113,37 @@ func (q *Queries) ComputePayloadBatchSize(ctx context.Context, db DBTX, arg Comp
 	var total_size_bytes int64
 	err := row.Scan(&total_size_bytes)
 	return total_size_bytes, err
+}
+
+const createOffloadedPayloadIndexBlock = `-- name: CreateOffloadedPayloadIndexBlock :exec
+INSERT INTO v1_payload_offloaded_block_index (
+    payload_inserted_at_date,
+    block_external_id_range,
+    index_file_key
+)
+VALUES (
+    $1::DATE,
+    uuidrange($2::UUID, $3::UUID, '(]'),
+    $4::TEXT
+)
+ON CONFLICT ON CONSTRAINT v1_payload_offloaded_block_index_date_range_excl DO NOTHING
+`
+
+type CreateOffloadedPayloadIndexBlockParams struct {
+	Payloadinsertedatdate     pgtype.Date `json:"payloadinsertedatdate"`
+	Blocklowerexternalidbound uuid.UUID   `json:"blocklowerexternalidbound"`
+	Blockupperexternalidbound uuid.UUID   `json:"blockupperexternalidbound"`
+	Indexfilekey              string      `json:"indexfilekey"`
+}
+
+func (q *Queries) CreateOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOffloadedPayloadIndexBlockParams) error {
+	_, err := db.Exec(ctx, createOffloadedPayloadIndexBlock,
+		arg.Payloadinsertedatdate,
+		arg.Blocklowerexternalidbound,
+		arg.Blockupperexternalidbound,
+		arg.Indexfilekey,
+	)
+	return err
 }
 
 const createPayloadRangeChunks = `-- name: CreatePayloadRangeChunks :many
@@ -186,58 +210,50 @@ func (q *Queries) CreateV1PayloadCutoverTemporaryTable(ctx context.Context, db D
 	return err
 }
 
-const diffPayloadSourceAndTargetPartitions = `-- name: DiffPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_payload_source_and_target_partitions($1::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    id::BIGINT,
-    inserted_at::TIMESTAMPTZ,
-    external_id::UUID,
-    type::v1_payload_type,
-    location::v1_payload_location,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
+const deleteOldPayloadOffloadedBlockIndexRows = `-- name: DeleteOldPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payload_offloaded_block_index
+WHERE payload_inserted_at_date < $1::DATE
 `
 
-type DiffPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            uuid.UUID          `json:"tenant_id"`
-	ID                  int64              `json:"id"`
-	InsertedAt          pgtype.Timestamptz `json:"inserted_at"`
-	ExternalID          uuid.UUID          `json:"external_id"`
-	Type                V1PayloadType      `json:"type"`
-	Location            V1PayloadLocation  `json:"location"`
-	ExternalLocationKey string             `json:"external_location_key"`
-	InlineContent       []byte             `json:"inline_content"`
-	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+func (q *Queries) DeleteOldPayloadOffloadedBlockIndexRows(ctx context.Context, db DBTX, before pgtype.Date) error {
+	_, err := db.Exec(ctx, deleteOldPayloadOffloadedBlockIndexRows, before)
+	return err
 }
 
-func (q *Queries) DiffPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffPayloadSourceAndTargetPartitionsRow, error) {
-	rows, err := db.Query(ctx, diffPayloadSourceAndTargetPartitions, partitiondate)
+const getOffloadedPayloadIndexBlocks = `-- name: GetOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::DATE[]) AS inserted_at_date,
+        UNNEST($2::UUID[]) AS external_id
+)
+
+SELECT i.external_id::UUID AS external_id, index_file_key
+FROM v1_payload_offloaded_block_index p
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
+`
+
+type GetOffloadedPayloadIndexBlocksParams struct {
+	Insertedats []pgtype.Date `json:"insertedats"`
+	Externalids []uuid.UUID   `json:"externalids"`
+}
+
+type GetOffloadedPayloadIndexBlocksRow struct {
+	ExternalID   uuid.UUID `json:"external_id"`
+	IndexFileKey string    `json:"index_file_key"`
+}
+
+func (q *Queries) GetOffloadedPayloadIndexBlocks(ctx context.Context, db DBTX, arg GetOffloadedPayloadIndexBlocksParams) ([]*GetOffloadedPayloadIndexBlocksRow, error) {
+	rows, err := db.Query(ctx, getOffloadedPayloadIndexBlocks, arg.Insertedats, arg.Externalids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*DiffPayloadSourceAndTargetPartitionsRow
+	var items []*GetOffloadedPayloadIndexBlocksRow
 	for rows.Next() {
-		var i DiffPayloadSourceAndTargetPartitionsRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ID,
-			&i.InsertedAt,
-			&i.ExternalID,
-			&i.Type,
-			&i.Location,
-			&i.ExternalLocationKey,
-			&i.InlineContent,
-			&i.UpdatedAt,
-		); err != nil {
+		var i GetOffloadedPayloadIndexBlocksRow
+		if err := rows.Scan(&i.ExternalID, &i.IndexFileKey); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -394,32 +410,6 @@ func (q *Queries) ReadPayloads(ctx context.Context, db DBTX, arg ReadPayloadsPar
 		return nil, err
 	}
 	return items, nil
-}
-
-const setFinalPayloadCutoverRowCounts = `-- name: SetFinalPayloadCutoverRowCounts :exec
-UPDATE v1_payload_cutover_job_offset
-SET
-    final_source_table_row_count = $1::BIGINT,
-    final_target_table_row_count = $2::BIGINT,
-    final_row_count_diff = $3::BIGINT
-WHERE key = $4::DATE
-`
-
-type SetFinalPayloadCutoverRowCountsParams struct {
-	Finalsourcetablerowcount int64       `json:"finalsourcetablerowcount"`
-	Finaltargettablerowcount int64       `json:"finaltargettablerowcount"`
-	Finalrowcountdiff        int64       `json:"finalrowcountdiff"`
-	Key                      pgtype.Date `json:"key"`
-}
-
-func (q *Queries) SetFinalPayloadCutoverRowCounts(ctx context.Context, db DBTX, arg SetFinalPayloadCutoverRowCountsParams) error {
-	_, err := db.Exec(ctx, setFinalPayloadCutoverRowCounts,
-		arg.Finalsourcetablerowcount,
-		arg.Finaltargettablerowcount,
-		arg.Finalrowcountdiff,
-		arg.Key,
-	)
-	return err
 }
 
 const swapV1PayloadPartitionWithTemp = `-- name: SwapV1PayloadPartitionWithTemp :exec

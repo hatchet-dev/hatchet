@@ -1,0 +1,12 @@
+services:
+  localstack:
+    image: localstack/localstack:4.14
+    ports:
+      - "4566:4566"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - SERVICES=s3
+    healthcheck:
+      # health-check should ONLY pass after ready.d hooks complete.
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/init/ready | grep -q '\"completed\": true'"]

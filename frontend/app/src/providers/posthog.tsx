@@ -1,13 +1,11 @@
 import type { User } from '@/lib/api';
+import { REFERRAL_CODE_KEY, sanitizeReferralCode } from '@/lib/referral';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useAppContext } from '@/providers/app-context';
 import { useLocation } from '@tanstack/react-router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PhProvider, usePostHog } from 'posthog-js/react';
-import { useEffect, useRef, useMemo, createContext } from 'react';
-
-const CROSS_DOMAIN_SESSION_ID_KEY = 'session_id';
-const CROSS_DOMAIN_DISTINCT_ID_KEY = 'distinct_id';
+import { useEffect, useMemo, useState, createContext } from 'react';
 
 interface PostHogContextValue {
   isReady: boolean;
@@ -27,13 +25,12 @@ interface PostHogProviderProps {
  * - Config from API meta endpoint (or env vars in dev)
  * - User identification with email/name
  * - Tenant-level analytics opt-out
- * - Cross-domain tracking via URL hash bootstrap
  * - Session recording with input masking
  */
 export function PostHogProvider({ children, user }: PostHogProviderProps) {
   const { meta } = useApiMeta();
   const { tenant } = useAppContext();
-  const initializedRef = useRef(false);
+  const [initialized, setInitialized] = useState(false);
 
   const config = useMemo(() => {
     if (import.meta.env.DEV) {
@@ -45,24 +42,8 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
     return meta?.posthog;
   }, [meta?.posthog]);
 
-  // Check for cross-domain tracking params in URL hash
-  const bootstrapIds = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return null;
-    }
-
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const sessionId = hashParams.get(CROSS_DOMAIN_SESSION_ID_KEY);
-    const distinctId = hashParams.get(CROSS_DOMAIN_DISTINCT_ID_KEY);
-
-    if (sessionId && distinctId) {
-      return { sessionID: sessionId, distinctID: distinctId };
-    }
-    return null;
-  }, []);
-
   useEffect(() => {
-    if (initializedRef.current) {
+    if (initialized) {
       return;
     }
 
@@ -89,32 +70,36 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
         maskTextSelector: '*',
       },
       persistence: 'localStorage+cookie',
-      bootstrap: bootstrapIds || undefined,
+      cross_subdomain_cookie: true,
     });
 
-    initializedRef.current = true;
-  }, [config, tenant, bootstrapIds]);
+    setInitialized(true);
+  }, [config, tenant, initialized]);
 
   // Handle user identification
   useEffect(() => {
-    if (!initializedRef.current || !user) {
+    if (!initialized || !user) {
       return;
     }
 
-    const ref = localStorage.getItem('ref');
-    if (ref) {
-      posthog.identify(ref);
-    }
+    const referralCode = sanitizeReferralCode(
+      localStorage.getItem(REFERRAL_CODE_KEY),
+    );
 
-    posthog.identify(user.metadata.id, {
+    posthog.identify(`$user_${user.metadata.id}`, {
       email: user.email,
       name: user.name,
+      ...(referralCode && { referral_key: referralCode }),
     });
-  }, [user]);
+
+    if (referralCode) {
+      localStorage.removeItem(REFERRAL_CODE_KEY);
+    }
+  }, [user, initialized]);
 
   // Handle opt-out changes
   useEffect(() => {
-    if (!initializedRef.current) {
+    if (!initialized) {
       return;
     }
 
@@ -124,10 +109,10 @@ export function PostHogProvider({ children, user }: PostHogProviderProps) {
     } else {
       posthog.opt_in_capturing();
     }
-  }, [tenant?.analyticsOptOut]);
+  }, [tenant?.analyticsOptOut, initialized]);
 
   const contextValue: PostHogContextValue = {
-    isReady: initializedRef.current,
+    isReady: initialized,
   };
 
   return (

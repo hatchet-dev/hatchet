@@ -147,3 +147,5 @@ roles:
       - V1TenantLogLineGetPointMetrics
       - TenantFeatureFlagEvaluate
       - V1DurableTaskEventLogList
+      - WorkflowCronTrigger
+      - WorkflowScheduledTrigger
