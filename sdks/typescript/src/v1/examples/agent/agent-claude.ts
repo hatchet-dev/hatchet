@@ -1,4 +1,3 @@
-// eslint-disable-next-line
 import { createTemperatureWorkflowToolClaude } from './workflow';
 
 async function main() {

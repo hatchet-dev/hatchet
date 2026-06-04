@@ -1,0 +1,52 @@
+sdk-go:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/go/**"
+
+sdk-py:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/python/**"
+
+sdk-ts:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/typescript/**"
+
+sdk-ruby:
+  - changed-files:
+      - any-glob-to-any-file: "sdks/ruby/**"
+
+vscode-ext:
+  - changed-files:
+      - any-glob-to-any-file: "frontend/vscode-extension/**"
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+        - ".github/workflows/**"
+        - ".github/dependabot.yml"
+        - ".github/labeler.yml"
+
+engine:
+  - changed-files:
+      # TODO: Disambiguating between components is non-trivial,
+      # For now, we rely on a mixture of files changed + title scoping.
+      - any-glob-to-any-file:
+          - "cmd/**"
+          - "!cmd/hatchet-cli/.goreleaser.yaml"
+          - "pkg/**"
+          - "internal/**"
+          - "api/**"
+          - "sql/**"
+
+dashboard:
+  - changed-files:
+      - any-glob-to-any-file: "frontend/app/src/**"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "README.md"
+          - "AI_POLICY.md"
+          - "CONTRIBUTING.md"
+          - "SECURITY.md"
+          - "frontend/docs/**"
+          - "examples/**"

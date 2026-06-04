@@ -1,6 +1,6 @@
 [project]
 name = "hatchet-sdk"
-version = "1.33.5"
+version = "1.33.6"
 description = "This is the official Python SDK for Hatchet, a distributed, fault-tolerant task queue. The SDK allows you to easily integrate Hatchet's task scheduling and workflow orchestration capabilities into your Python applications."
 readme = "README.md"
 license = { text = "MIT" }
@@ -44,7 +44,7 @@ lint = [
     "click>=8.3.3",
     "types-psutil>=7.2.2.20260508",
     "ruff==0.15.10",
-    "types-requests>=2.33.0.20260503",
+    "types-requests>=2.33.0.20260518",
     "psutil>=6.0.0",
     "types-grpcio>=1.0.0",
 ]
@@ -57,6 +57,8 @@ test = [
     "psycopg[pool]>=3.3.4,<4",
     "pytest-xdist>=3.7.0",
     "requests>=2.33.0,<3",
+    "boto3[s3]>=1.42.95",
+    "botocore>=1.42.95",
 ]
 
 docs = [

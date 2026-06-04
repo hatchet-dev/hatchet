@@ -109,6 +109,26 @@ const organizationsIndexRoute = createRoute({
   ),
 });
 
+const organizationBillingRoute = createRoute({
+  getParentRoute: () => organizationsRoute,
+  path: 'billing',
+  component: lazyRouteComponent(
+    () => import('./pages/organizations/$organization/billing'),
+    'default',
+  ),
+});
+
+const organizationSettingsBillingRoute = createRoute({
+  getParentRoute: () => organizationsRoute,
+  path: 'settings/billing',
+  loader: ({ params }) => {
+    throw redirect({
+      to: appRoutes.organizationBillingRoute.to,
+      params,
+    });
+  },
+});
+
 const tenantsRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'tenants',
@@ -566,10 +586,21 @@ const tenantSettingsAlertingRoute = createRoute({
 const tenantSettingsBillingRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'settings/billing-and-limits',
-  component: lazyRouteComponent(
-    () => import('./pages/main/v1/tenant-settings/resource-limits'),
-    'default',
-  ),
+  loader: async ({ params }) => {
+    const orgId = await getOrganizationIdForTenantInRouter(params.tenant);
+
+    if (!orgId) {
+      throw redirect({
+        to: appRoutes.tenantSettingsOverviewRoute.to,
+        params,
+      });
+    }
+
+    throw redirect({
+      to: appRoutes.organizationBillingRoute.to,
+      params: { organization: orgId },
+    });
+  },
 });
 
 const tenantSettingsIngestorsRoute = createRoute({
@@ -652,9 +683,30 @@ const tenantLegacySettingsAlertingRoute = createRoute({
 const tenantLegacySettingsBillingRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'tenant-settings/billing-and-limits',
-  loader: ({ params }) => {
-    throw redirect({ to: appRoutes.tenantSettingsBillingRoute.to, params });
+  loader: async ({ params }) => {
+    const orgId = await getOrganizationIdForTenantInRouter(params.tenant);
+
+    if (!orgId) {
+      throw redirect({
+        to: appRoutes.tenantSettingsOverviewRoute.to,
+        params,
+      });
+    }
+
+    throw redirect({
+      to: appRoutes.organizationBillingRoute.to,
+      params: { organization: orgId },
+    });
   },
+});
+
+const tenantSettingsResourceLimitsRoute = createRoute({
+  getParentRoute: () => tenantRoute,
+  path: 'settings/resource-limits',
+  component: lazyRouteComponent(
+    () => import('./pages/main/v1/tenant-settings/resource-limits'),
+    'default',
+  ),
 });
 
 const tenantLegacySettingsIngestorsRoute = createRoute({
@@ -835,6 +887,7 @@ const tenantRoutes = [
   tenantSettingsMembersRoute,
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
+  tenantSettingsResourceLimitsRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
   tenantSettingsOrganizationRoute,
@@ -852,7 +905,11 @@ const routeTree = rootRoute.addChildren([
     onboardingCreateOrganizationRoute,
     onboardingInvitesRoute,
     redeemOffersRoute,
-    organizationsRoute.addChildren([organizationsIndexRoute]),
+    organizationsRoute.addChildren([
+      organizationsIndexRoute,
+      organizationBillingRoute,
+      organizationSettingsBillingRoute,
+    ]),
     organizationsNewRoute,
     tenantsRoute.addChildren([tenantsIndexRoute]),
     tenantRoute.addChildren([tenantIndexRedirectRoute, ...tenantRoutes]),
@@ -883,6 +940,8 @@ export const appRoutes = {
   redeemOffersRoute,
   organizationsRoute,
   organizationsIndexRoute,
+  organizationBillingRoute,
+  organizationSettingsBillingRoute,
   organizationsNewRoute,
   tenantsRoute,
   tenantsIndexRoute,
@@ -919,6 +978,7 @@ export const appRoutes = {
   tenantSettingsMembersRoute,
   tenantSettingsAlertingRoute,
   tenantSettingsBillingRoute,
+  tenantSettingsResourceLimitsRoute,
   tenantSettingsIngestorsRoute,
   tenantSettingsIntegrationsRoute,
   tenantSettingsOrganizationRoute,

@@ -1,0 +1,6 @@
+overrides:
+  qs: ">=6.14.2"
+
+allowBuilds:
+  "@hatchet-dev/typescript-sdk": true
+  protobufjs: true

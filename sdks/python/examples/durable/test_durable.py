@@ -29,6 +29,7 @@ from examples.durable.worker import (
     wait_for_event_lookback,
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
+    durable_spawn_many_dags,
 )
 from hatchet_sdk import Hatchet
 
@@ -424,3 +425,25 @@ async def test_engine_picks_most_recent_event(hatchet: Hatchet) -> None:
     payload = cast(dict[str, str], json.loads(event.payload))
 
     assert res.event.order == payload["order"]
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
+    ref = await durable_spawn_many_dags.aio_run(wait_for_result=False)
+    result = await ref.aio_result()
+
+    assert {singleton.child_index for singleton in result.results} == set(range(20))
+    assert all(singleton.has_both_child_outputs for singleton in result.results)
+
+    await hatchet.runs.aio_replay(ref.workflow_run_id)
+
+    await asyncio.sleep(5)
+
+    replayed_result = await ref.aio_result()
+
+    assert {singleton.child_index for singleton in replayed_result.results} == set(
+        range(20)
+    )
+    assert all(
+        singleton.has_both_child_outputs for singleton in replayed_result.results
+    )

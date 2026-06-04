@@ -5,7 +5,6 @@ package repository
 import (
 	"context"
 	"os"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -179,89 +178,33 @@ func TestUpdateTablePartitions_SerialExecution(t *testing.T) {
 	assert.Equal(t, int64(numRuns), atomic.LoadInt64(&successCount), "All serial runs should succeed")
 }
 
-func TestUpdateTablePartitions_AdvisoryLockBehavior(t *testing.T) {
+func TestUpdateTablePartitions_LeaseBehavior(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
 
 	ctx := context.Background()
+	repo := createTaskRepository(pool)
 
-	const PARTITION_LOCK_OFFSET = 9000000000000000000
-	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
-
-	tx1, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	// Acquire the lease directly to verify the mechanism.
+	leases, err := repo.acquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
 	require.NoError(t, err)
-	defer tx1.Rollback(ctx)
+	assert.Len(t, leases, 1, "First caller should acquire the lease")
 
-	tx2, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	// A second caller with the same key should get nothing while the lease is held.
+	repo2 := createTaskRepository(pool)
+	leases2, err := repo2.acquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
 	require.NoError(t, err)
-	defer tx2.Rollback(ctx)
+	assert.Len(t, leases2, 0, "Second caller should not acquire while the lease is held")
 
-	var acquired1 bool
-	err = tx1.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired1)
-	require.NoError(t, err)
-	assert.True(t, acquired1, "First transaction should acquire lock")
-
-	var acquired2 bool
-	err = tx2.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired2)
-	require.NoError(t, err)
-	assert.False(t, acquired2, "Second transaction should not acquire lock")
-
-	err = tx1.Commit(ctx)
+	// Release and verify a new caller can now acquire.
+	err = repo.releasePartitionLease(ctx, repo.ddlPool, leases)
 	require.NoError(t, err)
 
-	tx3, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	leases3, err := repo2.acquirePartitionLease(ctx, repo.ddlPool, "v1_task_partitions_test")
 	require.NoError(t, err)
-	defer tx3.Rollback(ctx)
+	assert.Len(t, leases3, 1, "Third caller should acquire after release")
 
-	var acquired3 bool
-	err = tx3.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired3)
-	require.NoError(t, err)
-	assert.True(t, acquired3, "Third transaction should acquire lock after first commits")
-
-	err = tx3.Commit(ctx)
-	require.NoError(t, err)
-}
-
-func TestUpdateTablePartitions_LockAutoReleaseOnRollback(t *testing.T) {
-	pool, cleanup := setupPostgresWithMigration(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	const PARTITION_LOCK_OFFSET = 9000000000000000000
-	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
-
-	tx1, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	require.NoError(t, err)
-
-	var acquired1 bool
-	err = tx1.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired1)
-	require.NoError(t, err)
-	assert.True(t, acquired1, "First transaction should acquire lock")
-
-	tx2, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	require.NoError(t, err)
-	defer tx2.Rollback(ctx)
-
-	var acquired2 bool
-	err = tx2.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired2)
-	require.NoError(t, err)
-	assert.False(t, acquired2, "Second transaction should not acquire lock while first holds it")
-
-	t.Log("Simulating connection loss by rolling back first transaction...")
-	err = tx1.Rollback(ctx)
-	require.NoError(t, err)
-
-	tx3, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	require.NoError(t, err)
-	defer tx3.Rollback(ctx)
-
-	var acquired3 bool
-	err = tx3.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired3)
-	require.NoError(t, err)
-	assert.True(t, acquired3, "Third transaction should acquire lock after first transaction rolled back")
-
-	err = tx3.Commit(ctx)
+	err = repo2.releasePartitionLease(ctx, repo.ddlPool, leases3)
 	require.NoError(t, err)
 }
 
@@ -357,13 +300,8 @@ func TestUpdateTablePartitions_LockContention(t *testing.T) {
 			err := repos[repoID].UpdateTablePartitions(ctx)
 
 			if err != nil {
-				if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-					atomic.AddInt64(&successCount, 1)
-					t.Logf("Repository %d handled expected PostgreSQL DDL contention gracefully", repoID)
-				} else {
-					atomic.AddInt64(&errorCount, 1)
-					t.Logf("Repository %d encountered unexpected error: %v", repoID, err)
-				}
+				atomic.AddInt64(&errorCount, 1)
+				t.Logf("Repository %d encountered error: %v", repoID, err)
 			} else {
 				atomic.AddInt64(&successCount, 1)
 				t.Logf("Repository %d completed successfully", repoID)
@@ -377,52 +315,8 @@ func TestUpdateTablePartitions_LockContention(t *testing.T) {
 	finalSuccessCount := atomic.LoadInt64(&successCount)
 	finalErrorCount := atomic.LoadInt64(&errorCount)
 
-	t.Logf("High contention test - Successes: %d, Unexpected Errors: %d", finalSuccessCount, finalErrorCount)
+	t.Logf("High contention test - Successes: %d, Errors: %d", finalSuccessCount, finalErrorCount)
 
-	assert.Equal(t, int64(0), finalErrorCount, "No unexpected errors should occur")
-	assert.Equal(t, int64(numRepositories), finalSuccessCount, "All repositories should complete successfully or handle DDL contention gracefully")
-}
-
-func TestUpdateTablePartitions_SeparateTransactionApproach(t *testing.T) {
-	pool, cleanup := setupPostgresWithMigration(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	const PARTITION_LOCK_OFFSET = 9000000000000000000
-	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
-
-	lockTx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	require.NoError(t, err)
-	defer lockTx.Rollback(ctx)
-
-	var acquired bool
-	err = lockTx.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired)
-	require.NoError(t, err)
-	assert.True(t, acquired, "Should acquire advisory lock")
-
-	var countInTransaction int
-	err = lockTx.QueryRow(ctx, "SELECT COUNT(*) FROM pg_tables WHERE tablename LIKE 'v1_task_%'").Scan(&countInTransaction)
-	require.NoError(t, err)
-
-	var countOutsideTransaction int
-	err = pool.QueryRow(ctx, "SELECT COUNT(*) FROM pg_tables WHERE tablename LIKE 'v1_task_%'").Scan(&countOutsideTransaction)
-	require.NoError(t, err)
-
-	assert.Equal(t, countInTransaction, countOutsideTransaction, "Partition operations should be visible outside the lock transaction")
-
-	err = lockTx.Commit(ctx)
-	require.NoError(t, err)
-
-	lockTx2, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	require.NoError(t, err)
-	defer lockTx2.Rollback(ctx)
-
-	var acquired2 bool
-	err = lockTx2.QueryRow(ctx, "SELECT pg_try_advisory_xact_lock($1)", partitionLockKey).Scan(&acquired2)
-	require.NoError(t, err)
-	assert.True(t, acquired2, "Should be able to acquire lock again after first transaction commits")
-
-	err = lockTx2.Commit(ctx)
-	require.NoError(t, err)
+	assert.Equal(t, int64(0), finalErrorCount, "No errors should occur under contention")
+	assert.Equal(t, int64(numRepositories), finalSuccessCount, "All repositories should complete successfully")
 }
