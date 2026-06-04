@@ -1,8 +1,8 @@
 on:
-  push:
-    tags:
-      - "v*" # Trigger on version tags like v0.73.10
-      - "!v*-alpha*" # Do not trigger for alpha releases
+  workflow_run:
+    workflows: ["Create prerelease w/ binaries and static assets"]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       tag:
@@ -11,6 +11,7 @@ on:
 name: Release
 jobs:
   load:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
     strategy:
@@ -51,99 +52,33 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          [api, engine, admin, frontend, migrate, lite, dashboard, loadtest]
     steps:
       - name: Get tag name
         id: tag_name
         run: |
-          if [ -z "${{ github.event.inputs.tag }}" ]; then
-            tag=${GITHUB_TAG/refs\/tags\//}
-          else
-            tag=${{ github.event.inputs.tag }}
+          tag="${{ github.event.inputs.tag }}"
+          if [ -z "$tag" ]; then
+            tag="${GITHUB_REF#refs/tags/}"
           fi
-          echo ::set-output name=tag::$tag
-        env:
-          GITHUB_TAG: ${{ github.ref }}
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Login to GHCR
-        id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Pull and push hatchet-api
+
+      - name: Pull and push ${{ matrix.image }}
+        env:
+          IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-${{ matrix.image }}
+          TAG: ${{ steps.tag_name.outputs.tag }}
         run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-api:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:latest
-      - name: Pull and push hatchet-engine
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine:latest
-      - name: Pull and push hatchet-admin
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
-      - name: Pull and push hatchet-frontend
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-frontend:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-frontend:latest
-      - name: Pull and push hatchet-migrate
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
-      - name: Pull and push hatchet-lite
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
-      - name: Pull and push hatchet-dashboard
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:latest
-      - name: Pull and push hatchet-loadtest
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64
-
-          docker manifest create ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest \
-            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-amd64 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{steps.tag_name.outputs.tag}}-arm64
-
-          docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:latest
+          docker pull "$IMAGE:$TAG-amd64"
+          docker pull "$IMAGE:$TAG-arm64"
+          docker manifest create "$IMAGE:latest" \
+            "$IMAGE:$TAG-amd64" \
+            "$IMAGE:$TAG-arm64"
+          docker manifest push "$IMAGE:latest"
