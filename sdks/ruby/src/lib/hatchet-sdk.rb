@@ -3,80 +3,71 @@
 require_relative "hatchet/version"
 require_relative "hatchet/config"
 
-# Define base error class before loading submodules that depend on it
-module Hatchet
-  # Base error class for all Hatchet-related errors
-  class Error < StandardError; end
-end
-
-require_relative "hatchet/clients"
-require_relative "hatchet/features/events"
-require_relative "hatchet/features/runs"
-require_relative "hatchet/features/tenant"
-require_relative "hatchet/features/logs"
-require_relative "hatchet/features/workers"
-require_relative "hatchet/features/cel"
-require_relative "hatchet/features/workflows"
-require_relative "hatchet/features/filters"
-require_relative "hatchet/features/metrics"
-require_relative "hatchet/features/rate_limits"
-require_relative "hatchet/features/cron"
-require_relative "hatchet/features/scheduled"
-
-# Core classes
-require_relative "hatchet/exceptions"
-require_relative "hatchet/engine_version"
-require_relative "hatchet/eviction_policy"
-require_relative "hatchet/concurrency"
-require_relative "hatchet/conditions"
-require_relative "hatchet/condition_converter"
-require_relative "hatchet/rate_limit"
-require_relative "hatchet/labels"
-require_relative "hatchet/trigger_options"
-require_relative "hatchet/default_filter"
-require_relative "hatchet/workflow_run"
-require_relative "hatchet/context"
-require_relative "hatchet/durable_context"
-require_relative "hatchet/task"
-require_relative "hatchet/workflow"
-require_relative "hatchet/context_vars"
-require_relative "hatchet/worker_obj"
-
-# gRPC connection and client infrastructure
-require_relative "hatchet/connection"
-
-# Generated protobuf contracts (add contracts directory to load path for internal requires)
-$LOAD_PATH.unshift(File.join(__dir__, "hatchet", "contracts")) unless $LOAD_PATH.include?(File.join(__dir__, "hatchet", "contracts"))
-require_relative "hatchet/contracts/dispatcher/dispatcher_pb"
-require_relative "hatchet/contracts/dispatcher/dispatcher_services_pb"
-require_relative "hatchet/contracts/events/events_pb"
-require_relative "hatchet/contracts/events/events_services_pb"
-require_relative "hatchet/contracts/workflows/workflows_pb"
-require_relative "hatchet/contracts/workflows/workflows_services_pb"
-require_relative "hatchet/contracts/v1/shared/condition_pb"
-require_relative "hatchet/contracts/v1/shared/trigger_pb"
-require_relative "hatchet/contracts/v1/dispatcher_pb"
-require_relative "hatchet/contracts/v1/dispatcher_services_pb"
-require_relative "hatchet/contracts/v1/workflows_pb"
-require_relative "hatchet/contracts/v1/workflows_services_pb"
-
-# gRPC client wrappers
-require_relative "hatchet/clients/grpc/dispatcher"
-require_relative "hatchet/clients/grpc/admin"
-require_relative "hatchet/clients/grpc/event_client"
-
-# Worker runtime
-require_relative "hatchet/worker/action_listener"
-require_relative "hatchet/worker/workflow_run_listener"
-require_relative "hatchet/worker/durable_eviction/cache"
-require_relative "hatchet/worker/durable_eviction/manager"
-require_relative "hatchet/worker/durable_event_listener"
-require_relative "hatchet/worker/runner"
-
 # Ruby SDK for Hatchet workflow engine
 #
 # @see https://docs.hatchet.run for Hatchet documentation
 module Hatchet
+  class Error < StandardError; end
+
+  require_relative "hatchet/clients"
+  require_relative "hatchet/features/events"
+  require_relative "hatchet/features/runs"
+  require_relative "hatchet/features/tenant"
+  require_relative "hatchet/features/logs"
+  require_relative "hatchet/features/workers"
+  require_relative "hatchet/features/cel"
+  require_relative "hatchet/features/workflows"
+  require_relative "hatchet/features/filters"
+  require_relative "hatchet/features/metrics"
+  require_relative "hatchet/features/rate_limits"
+  require_relative "hatchet/features/cron"
+  require_relative "hatchet/features/scheduled"
+
+  require_relative "hatchet/exceptions"
+  require_relative "hatchet/engine_version"
+  require_relative "hatchet/eviction_policy"
+  require_relative "hatchet/concurrency"
+  require_relative "hatchet/conditions"
+  require_relative "hatchet/condition_converter"
+  require_relative "hatchet/rate_limit"
+  require_relative "hatchet/labels"
+  require_relative "hatchet/trigger_options"
+  require_relative "hatchet/default_filter"
+  require_relative "hatchet/workflow_run"
+  require_relative "hatchet/context"
+  require_relative "hatchet/durable_context"
+  require_relative "hatchet/task"
+  require_relative "hatchet/workflow"
+  require_relative "hatchet/context_vars"
+  require_relative "hatchet/worker_obj"
+
+  require_relative "hatchet/connection"
+
+  $LOAD_PATH.unshift(File.join(__dir__, "hatchet", "contracts")) unless $LOAD_PATH.include?(File.join(__dir__, "hatchet", "contracts"))
+  require_relative "hatchet/contracts/dispatcher/dispatcher_pb"
+  require_relative "hatchet/contracts/dispatcher/dispatcher_services_pb"
+  require_relative "hatchet/contracts/events/events_pb"
+  require_relative "hatchet/contracts/events/events_services_pb"
+  require_relative "hatchet/contracts/workflows/workflows_pb"
+  require_relative "hatchet/contracts/workflows/workflows_services_pb"
+  require_relative "hatchet/contracts/v1/shared/condition_pb"
+  require_relative "hatchet/contracts/v1/shared/trigger_pb"
+  require_relative "hatchet/contracts/v1/dispatcher_pb"
+  require_relative "hatchet/contracts/v1/dispatcher_services_pb"
+  require_relative "hatchet/contracts/v1/workflows_pb"
+  require_relative "hatchet/contracts/v1/workflows_services_pb"
+
+  require_relative "hatchet/clients/grpc/dispatcher"
+  require_relative "hatchet/clients/grpc/admin"
+  require_relative "hatchet/clients/grpc/event_client"
+
+  require_relative "hatchet/worker/action_listener"
+  require_relative "hatchet/worker/workflow_run_listener"
+  require_relative "hatchet/worker/durable_eviction/cache"
+  require_relative "hatchet/worker/durable_eviction/manager"
+  require_relative "hatchet/worker/durable_event_listener"
+  require_relative "hatchet/worker/runner"
+
   # The main client for interacting with Hatchet services.
   #
   # @example Basic usage with API token

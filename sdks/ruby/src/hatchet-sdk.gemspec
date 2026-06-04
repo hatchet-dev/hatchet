@@ -57,8 +57,8 @@ Gem::Specification.new do |spec|
 
   # Runtime dependencies for gRPC
   spec.add_dependency "concurrent-ruby", ">= 1.1"
-  spec.add_dependency "google-protobuf", "~> 4.0"
   spec.add_dependency "googleapis-common-protos-types", "~> 1.0"
+  spec.add_dependency "google-protobuf", "~> 4.0"
   spec.add_dependency "grpc", "~> 1.60"
 
   # Development dependencies
