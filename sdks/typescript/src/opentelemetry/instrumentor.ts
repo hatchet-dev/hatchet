@@ -561,34 +561,42 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
             attributes,
           },
           (batchSpan: Span) => {
+            const individualSpans = getConfig().individualRunSpansForBulkRun;
             const itemSpans: Span[] = [];
             let enhancedWorkflowRuns: typeof workflowRuns;
             try {
               enhancedWorkflowRuns = workflowRuns.map((run) => {
-                const itemAttributes = filterAttributes(
-                  {
-                    [OTelAttribute.WORKFLOW_NAME]: run.workflowName,
-                    [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(run.input),
-                    [OTelAttribute.PARENT_ID]: run.options?.parentId,
-                    [OTelAttribute.PARENT_STEP_RUN_ID]: run.options?.parentStepRunId,
-                    [OTelAttribute.CHILD_INDEX]: run.options?.childIndex,
-                    [OTelAttribute.CHILD_KEY]: run.options?.childKey,
-                    [OTelAttribute.ADDITIONAL_METADATA]: run.options?.additionalMetadata
-                      ? JSON.stringify(run.options.additionalMetadata)
-                      : undefined,
-                    [OTelAttribute.PRIORITY]: run.options?.priority,
-                    [OTelAttribute.DESIRED_WORKER_ID]: run.options?.desiredWorkerId,
-                  },
-                  getConfig().excludedAttributes
-                );
-                const itemSpan = tracer.startSpan('hatchet.run_workflow', {
-                  kind: SpanKind.PRODUCER,
-                  attributes: itemAttributes,
-                });
-                itemSpans.push(itemSpan);
-
                 const enhancedMetadata: Carrier = { ...(run.options?.additionalMetadata ?? {}) };
-                propagation.inject(trace.setSpan(context.active(), itemSpan), enhancedMetadata);
+
+                if (individualSpans) {
+                  const itemAttributes = filterAttributes(
+                    {
+                      [OTelAttribute.WORKFLOW_NAME]: run.workflowName,
+                      [OTelAttribute.ACTION_PAYLOAD]: JSON.stringify(run.input),
+                      [OTelAttribute.PARENT_ID]: run.options?.parentId,
+                      [OTelAttribute.PARENT_STEP_RUN_ID]: run.options?.parentStepRunId,
+                      [OTelAttribute.CHILD_INDEX]: run.options?.childIndex,
+                      [OTelAttribute.CHILD_KEY]: run.options?.childKey,
+                      [OTelAttribute.ADDITIONAL_METADATA]: run.options?.additionalMetadata
+                        ? JSON.stringify(run.options.additionalMetadata)
+                        : undefined,
+                      [OTelAttribute.PRIORITY]: run.options?.priority,
+                      [OTelAttribute.DESIRED_WORKER_ID]: run.options?.desiredWorkerId,
+                    },
+                    getConfig().excludedAttributes
+                  );
+                  const itemSpan = tracer.startSpan('hatchet.run_workflow', {
+                    kind: SpanKind.PRODUCER,
+                    attributes: itemAttributes,
+                  });
+                  itemSpans.push(itemSpan);
+                  propagation.inject(trace.setSpan(context.active(), itemSpan), enhancedMetadata);
+                } else {
+                  // Legacy behaviour: inject the active (batch) span context so the
+                  // span structure seen by downstream collectors is unchanged.
+                  injectContext(enhancedMetadata);
+                }
+
                 return {
                   ...run,
                   options: {

@@ -51,14 +51,45 @@ def exporter() -> Iterator[InMemorySpanExporter]:
 @pytest.fixture
 def instrumentor(exporter: InMemorySpanExporter) -> HatchetInstrumentor:
     # ClientConfig requires a JWT token. Bypass __init__ since we only need
-    # the tracer and config.otel.excluded_attributes for the wrappers.
+    # the tracer and config.otel.{excluded_attributes,individual_run_spans_for_bulk_run}
+    # for the wrappers.
     inst = object.__new__(HatchetInstrumentor)
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     inst._tracer = get_tracer(__name__, "test", provider)
     inst.config = MagicMock()
     inst.config.otel.excluded_attributes = []
+    # Per-item spans are opt-in; the per-item assertions below require the flag.
+    inst.config.otel.individual_run_spans_for_bulk_run = True
     return inst
+
+
+def test_run_workflows_creates_no_item_spans_when_flag_disabled(
+    instrumentor: HatchetInstrumentor, exporter: InMemorySpanExporter
+) -> None:
+    # Default behaviour: no per-item spans, and every item carries the batch
+    # span's traceparent so the span structure for downstream collectors is
+    # unchanged.
+    instrumentor.config.otel.individual_run_spans_for_bulk_run = False
+    captured: list[WorkflowRunTriggerConfig] = []
+
+    def wrapped(configs: list[WorkflowRunTriggerConfig]) -> list[WorkflowRunRef]:
+        captured.extend(configs)
+        return [cast(WorkflowRunRef, MagicMock()) for _ in configs]
+
+    configs = [_make_config(f"wf-{i}") for i in range(3)]
+    instrumentor._wrap_run_workflows(wrapped, MagicMock(), (configs,), {})
+
+    batch_spans = _spans_by_name(exporter, BATCH_SPAN_NAME)
+    assert len(batch_spans) == 1
+    assert _spans_by_name(exporter, ITEM_SPAN_NAME) == []
+
+    # Every item shares the batch span's traceparent (the legacy behaviour).
+    batch_span_id_hex = format(batch_spans[0].context.span_id, "016x")
+    traceparents = [c.options.additional_metadata["traceparent"] for c in captured]
+    assert len(set(traceparents)) == 1
+    for tp in traceparents:
+        assert tp.split("-")[2] == batch_span_id_hex
 
 
 def test_run_workflows_creates_one_item_span_per_config_with_unique_traceparent(

@@ -28,6 +28,15 @@ export const OpenTelemetryConfigSchema = z.object({
    * e.g., "hatchet.start_step_run.my_task" instead of "hatchet.start_step_run"
    */
   includeTaskNameInSpanName: z.boolean().optional().default(false),
+
+  /**
+   * If true, a child `hatchet.run_workflow` span is created for each item in a
+   * bulk run (`runWorkflows`), nested under the parent `hatchet.run_workflows`
+   * span, and each item's traceparent points at its own span. Defaults to false
+   * to preserve the existing span structure for downstream OpenTelemetry
+   * collectors.
+   */
+  individualRunSpansForBulkRun: z.boolean().optional().default(false),
 });
 
 export type OpenTelemetryConfig = z.infer<typeof OpenTelemetryConfigSchema>;

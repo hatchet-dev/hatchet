@@ -40,6 +40,7 @@ describe('ConfigLoader', () => {
       otel: {
         excludedAttributes: [],
         includeTaskNameInSpanName: false,
+        individualRunSpansForBulkRun: false,
       },
     });
   });

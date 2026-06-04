@@ -6,7 +6,15 @@
  *   the underlying synchronous call, or the returned promise fails
  */
 
-import { trace, propagation, SpanStatusCode } from '@opentelemetry/api';
+import {
+  trace,
+  propagation,
+  context,
+  ROOT_CONTEXT,
+  SpanStatusCode,
+  type Context,
+  type ContextManager,
+} from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import {
   BasicTracerProvider,
@@ -16,6 +24,45 @@ import {
 } from '@opentelemetry/sdk-trace-base';
 
 import { HatchetInstrumentor } from './instrumentor';
+
+// Node has no context manager registered by default (unlike Python's
+// contextvars), so `startActiveSpan` would not make the batch span the active
+// context. Register a minimal synchronous stack-based manager so the legacy
+// (flag-off) path can resolve the active span exactly as it does in production.
+class StackContextManager implements ContextManager {
+  private _stack: Context[] = [];
+
+  active(): Context {
+    return this._stack[this._stack.length - 1] ?? ROOT_CONTEXT;
+  }
+
+  with<A extends unknown[], F extends (...args: A) => ReturnType<F>>(
+    ctx: Context,
+    fn: F,
+    thisArg?: ThisParameterType<F>,
+    ...args: A
+  ): ReturnType<F> {
+    this._stack.push(ctx);
+    try {
+      return fn.call(thisArg as ThisParameterType<F>, ...args);
+    } finally {
+      this._stack.pop();
+    }
+  }
+
+  bind<T>(_ctx: Context, target: T): T {
+    return target;
+  }
+
+  enable(): this {
+    return this;
+  }
+
+  disable(): this {
+    this._stack = [];
+    return this;
+  }
+}
 
 const BATCH_SPAN_NAME = 'hatchet.run_workflows';
 const ITEM_SPAN_NAME = 'hatchet.run_workflow';
@@ -56,8 +103,12 @@ describe('HatchetInstrumentor batch runWorkflows', () => {
     });
     trace.setGlobalTracerProvider(provider);
     propagation.setGlobalPropagator(new W3CTraceContextPropagator());
+    context.setGlobalContextManager(new StackContextManager());
 
-    instrumentor = new HatchetInstrumentor({ enableHatchetCollector: false });
+    instrumentor = new HatchetInstrumentor({
+      enableHatchetCollector: false,
+      individualRunSpansForBulkRun: true,
+    });
 
     originalRunWorkflows = jest.fn(async (runs: RunInput[]) => runs.map(() => ({ id: 'ok' })));
     prototype = { runWorkflows: originalRunWorkflows };
@@ -71,6 +122,7 @@ describe('HatchetInstrumentor batch runWorkflows', () => {
     await provider.shutdown();
     trace.disable();
     propagation.disable();
+    context.disable();
   });
 
   it('creates one item span per config with a distinct, item-scoped traceparent', async () => {
@@ -164,5 +216,44 @@ describe('HatchetInstrumentor batch runWorkflows', () => {
     const batchSpans = spansByName(exporter, BATCH_SPAN_NAME);
     expect(batchSpans).toHaveLength(1);
     expect(batchSpans[0].status.code).toBe(SpanStatusCode.ERROR);
+  });
+
+  describe('with individualRunSpansForBulkRun disabled (default)', () => {
+    let defaultInstrumentor: HatchetInstrumentor;
+    let defaultPrototype: typeof prototype;
+    let defaultOriginal: jest.Mock;
+
+    beforeEach(() => {
+      defaultInstrumentor = new HatchetInstrumentor({ enableHatchetCollector: false });
+      defaultOriginal = jest.fn(async (runs: RunInput[]) => runs.map(() => ({ id: 'ok' })));
+      defaultPrototype = { runWorkflows: defaultOriginal };
+      (
+        defaultInstrumentor as unknown as {
+          _patchRunWorkflows: (p: typeof defaultPrototype) => void;
+        }
+      )._patchRunWorkflows(defaultPrototype);
+    });
+
+    it('creates no item spans and injects the batch span traceparent into every item', async () => {
+      const runs = [makeRun('wf-0'), makeRun('wf-1'), makeRun('wf-2')];
+      await defaultPrototype.runWorkflows(runs);
+
+      const batchSpans = spansByName(exporter, BATCH_SPAN_NAME);
+      expect(batchSpans).toHaveLength(1);
+      // No per-item spans should be created when the flag is off — this preserves
+      // the existing span structure for downstream collectors.
+      expect(spansByName(exporter, ITEM_SPAN_NAME)).toHaveLength(0);
+
+      const enhanced = defaultOriginal.mock.calls[0][0] as RunInput[];
+      const traceparents = enhanced.map((r) => r.options?.additionalMetadata?.traceparent);
+      // Every item carries the SAME traceparent, pointing at the batch span.
+      expect(new Set(traceparents).size).toBe(1);
+      const batchSpanId = batchSpans[0].spanContext().spanId;
+      for (const tp of traceparents) {
+        expect(typeof tp).toBe('string');
+        const [, , spanIdHex] = tp!.split('-');
+        expect(spanIdHex).toBe(batchSpanId);
+      }
+    });
   });
 });
