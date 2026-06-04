@@ -246,8 +246,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             except Exception:
                 json_schema = None
 
-        # print("idempotency key expression:", self._config.idempotency_key_expression)
-
         return CreateWorkflowVersionRequest(
             name=name,
             description=self._config.description,

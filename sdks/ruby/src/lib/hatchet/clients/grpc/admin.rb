@@ -95,7 +95,9 @@ module Hatchet
             response.workflow_run_id
           rescue ::GRPC::AlreadyExists => e
             run_id = extract_idempotency_run_id(e)
-            raise(run_id ? IdempotencyCollisionError.new(run_id) : DedupeViolationError, "Deduplication violation: #{e.message}")
+            raise(IdempotencyCollisionError, run_id) if run_id
+
+            raise DedupeViolationError, "Deduplication violation: #{e.message}"
           rescue ::GRPC::ResourceExhausted => e
             raise ResourceExhaustedError, e.message
           rescue ::GRPC::BadStatus => e

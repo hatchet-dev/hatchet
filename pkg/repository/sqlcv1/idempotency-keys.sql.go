@@ -52,6 +52,10 @@ WITH inputs AS (
         claimed_by_external_id = CASE
             WHEN (v1_idempotency_key.tenant_id, v1_idempotency_key.key) IN (SELECT tenant_id, key FROM claimable_keys) THEN EXCLUDED.claimed_by_external_id
             ELSE v1_idempotency_key.claimed_by_external_id
+        END,
+        updated_at = CASE
+            WHEN (v1_idempotency_key.tenant_id, v1_idempotency_key.key) IN (SELECT tenant_id, key FROM claimable_keys) THEN NOW()
+            ELSE v1_idempotency_key.updated_at
         END
     RETURNING tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
 )

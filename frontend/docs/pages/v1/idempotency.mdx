@@ -30,7 +30,7 @@ Configuring idempotency on a workflow or standalone task requires two parameters
   </Tabs.Tab>
 </UniversalTabs>
 
-When idempotency is configured, only one run of a workflow will occur in the time window from when the first trigger comes in until the TTL expires. For instance, if you trigger a workflow at `00:00:00 UTC` (midnight) with a TTL of five minutes, and then you the same workflow is triggered again with the same inputs and metadata at `00:02:00 UTC`, `00:04:00 UTC`, and `00:06:00 UTC`, only the first one (at midnight) and the final one (at `00:06:00 UTC`) will run, and then after the second run occurs, the lock on the key will be held until `00:11:00 UTC` (five minutes after the final run was triggered).
+When idempotency is configured, only one run of a workflow will occur in the time window from when the first trigger comes in until the TTL expires. For instance, if you trigger a workflow at `00:00:00 UTC` (midnight) with a TTL of five minutes, and then the same workflow is triggered again with the same inputs and metadata at `00:02:00 UTC`, `00:04:00 UTC`, and `00:06:00 UTC`, only the first one (at midnight) and the final one (at `00:06:00 UTC`) will run, and then after the second run occurs, the lock on the key will be held until `00:11:00 UTC` (five minutes after the final run was triggered).
 
 ## Handling Collisions
 
@@ -51,4 +51,4 @@ When a collision occurs, the engine will reject the workflow run, and, if the ru
   </Tabs.Tab>
 </UniversalTabs>
 
-In other cases, such as triggering by events, the idempotency collision will be swallowed, and no additional runs will be created by the event will still be ingested correctly without an error being raised.
+In other cases, such as triggering by events, the idempotency collision will be swallowed, and no additional runs will be created, but the event will still be ingested correctly without an error being raised.

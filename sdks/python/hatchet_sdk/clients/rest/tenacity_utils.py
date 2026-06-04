@@ -40,14 +40,14 @@ def tenacity_should_retry(
     ex: BaseException, config: TenacityConfig | None = None
 ) -> bool:
     """Return True when the exception should be retried."""
-    if isinstance(ex, ServiceException | NotFoundException):
+    if isinstance(ex, (ServiceException, NotFoundException)):
         return True
 
     if isinstance(ex, TooManyRequestsException):
         return bool(config and config.retry_429)
 
     # gRPC errors: retry most, except specific permanent failure codes
-    if isinstance(ex, grpc.aio.AioRpcError | grpc.RpcError):
+    if isinstance(ex, (grpc.aio.AioRpcError, grpc.RpcError)):
         non_retryable = [
             grpc.StatusCode.UNIMPLEMENTED,
             grpc.StatusCode.INVALID_ARGUMENT,
