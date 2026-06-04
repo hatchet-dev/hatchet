@@ -314,6 +314,9 @@ from hatchet_sdk.clients.rest.models.v1_durable_event_log_entry import (
 from hatchet_sdk.clients.rest.models.v1_durable_event_log_kind import (
     V1DurableEventLogKind,
 )
+from hatchet_sdk.clients.rest.models.v1_durable_wait_condition import (
+    V1DurableWaitCondition,
+)
 from hatchet_sdk.clients.rest.models.v1_durable_wait_condition_kind import (
     V1DurableWaitConditionKind,
 )
@@ -362,6 +365,7 @@ from hatchet_sdk.clients.rest.models.v1_update_filter_request import (
 from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
     V1UpdateWebhookRequest,
 )
+from hatchet_sdk.clients.rest.models.v1_wait_item import V1WaitItem
 from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
@@ -409,6 +413,7 @@ from hatchet_sdk.clients.rest.models.worker_list import WorkerList
 from hatchet_sdk.clients.rest.models.worker_runtime_info import WorkerRuntimeInfo
 from hatchet_sdk.clients.rest.models.worker_runtime_sdks import WorkerRuntimeSDKs
 from hatchet_sdk.clients.rest.models.worker_slot_config import WorkerSlotConfig
+from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
 from hatchet_sdk.clients.rest.models.worker_type import WorkerType
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency

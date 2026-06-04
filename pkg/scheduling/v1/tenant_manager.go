@@ -416,21 +416,21 @@ func (t *tenantManager) runOptimisticScheduling(
 	ctx context.Context,
 	opts []*v1.WorkflowNameTriggerOpts,
 	localWorkerIds map[uuid.UUID]struct{},
-) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	// create a transaction
 	tx, err := t.cf.repo.Optimistic().StartTx(ctx)
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	defer tx.Rollback()
 
 	// hook into the trigger transaction
-	qis, tasks, dags, err := t.cf.repo.Optimistic().TriggerFromNames(ctx, tx, t.tenantId, opts)
+	qis, tasks, dags, collisions, err := t.cf.repo.Optimistic().TriggerFromNames(ctx, tx, t.tenantId, opts)
 
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	// read the queue items for the tasks we just created
@@ -456,7 +456,7 @@ func (t *tenantManager) runOptimisticScheduling(
 
 				if err != nil {
 					t.queuersMu.RUnlock()
-					return nil, nil, nil, err
+					return nil, nil, nil, nil, err
 				}
 
 				allLocalAssigned = append(allLocalAssigned, localAssigned...)
@@ -467,7 +467,7 @@ func (t *tenantManager) runOptimisticScheduling(
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	for _, qr := range allQueueResults {
@@ -504,7 +504,7 @@ func (t *tenantManager) runOptimisticScheduling(
 		})
 	}
 
-	return res, tasks, dags, nil
+	return res, tasks, dags, collisions, nil
 }
 
 func (t *tenantManager) runOptimisticSchedulingFromEvents(

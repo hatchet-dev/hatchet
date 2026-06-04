@@ -110,7 +110,7 @@ func (tw *TriggerWriter) TriggerFromEvents(ctx context.Context, tenantId uuid.UU
 	return nil
 }
 
-func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) error {
+func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts) ([]v1.IdempotencyCollision, error) {
 	// attempt to acquire a slot in the semaphore
 	if tw.semaphore != nil {
 		select {
@@ -121,35 +121,49 @@ func (tw *TriggerWriter) TriggerFromWorkflowNames(ctx context.Context, tenantId 
 			}()
 		default:
 			// no slots available
-			return ErrNoTriggerSlots
+			return nil, ErrNoTriggerSlots
 		}
 	}
 
-	tasks, dags, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := tw.repo.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 
 	if err != nil {
 		if errors.Is(err, v1.ErrResourceExhausted) {
 			tw.l.Warn().Ctx(ctx).Str("tenantId", tenantId.String()).Msg("resource exhausted while calling TriggerFromWorkflowNames. Not retrying")
 
-			return nil
+			return nil, nil
 		}
 
-		return fmt.Errorf("could not trigger workflows from names: %w", err)
+		return nil, fmt.Errorf("could not trigger workflows from names: %w", err)
 	}
 
-	// signaling errors do not result in a failure, since we have already written the tasks to the database, but
-	// we log the error
+	// signaling errors do not result in a failure since we have already written the tasks to the database,
+	// but we log them.
 	// FIXME: we need a mechanism to DLQ these failed signals
 	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
 		tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal created tasks and DAGs in TriggerFromWorkflowNames")
 	}
 
-	return nil
+	if len(celEvaluationFailures) > 0 {
+		if err := tw.signaler.SignalCELEvaluationFailures(ctx, tenantId, celEvaluationFailures); err != nil {
+			tw.l.Error().Ctx(ctx).Err(err).Msg("failed to signal CEL evaluation failures in TriggerFromWorkflowNames")
+		}
+	}
+
+	return idempotencyKeyCollisions, nil
 }
 
 func (tw *TriggerWriter) SignalCreated(ctx context.Context, tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload, dags []*v1.DAGWithData) error {
 	if err := tw.signaler.SignalCreated(ctx, tenantId, tasks, dags); err != nil {
 		tw.l.Error().Err(err).Msg("failed to signal created tasks and DAGs in SignalCreated")
+	}
+
+	return nil
+}
+
+func (tw *TriggerWriter) SignalCELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures []v1.CELEvaluationFailure) error {
+	if err := tw.signaler.SignalCELEvaluationFailures(ctx, tenantId, failures); err != nil {
+		tw.l.Error().Err(err).Msg("failed to signal CEL evaluation failures in SignalCELEvaluationFailures")
 	}
 
 	return nil

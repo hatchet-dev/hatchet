@@ -1,11 +1,12 @@
 PATH
   remote: .
   specs:
-    hatchet-sdk (0.3.0)
+    hatchet-sdk (0.4.0)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart
       google-protobuf (~> 4.0)
+      googleapis-common-protos-types (~> 1.0)
       grpc (~> 1.60)
       json (~> 2.0)
       marcel

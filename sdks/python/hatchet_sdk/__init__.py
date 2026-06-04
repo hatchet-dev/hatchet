@@ -134,6 +134,7 @@ from hatchet_sdk.exceptions import (
     DedupeViolationError,
     EvictionNotSupportedError,
     FailedTaskRunExceptionGroup,
+    IdempotencyCollisionError,
     NonDeterminismError,
     NonRetryableException,
     TaskRunError,
@@ -154,6 +155,7 @@ from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
 )
+from hatchet_sdk.types.idempotency import IdempotencyConfig
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
     WorkerLabel,
@@ -223,6 +225,8 @@ __all__ = [
     "GithubBranch",
     "GithubRepo",
     "Hatchet",
+    "IdempotencyCollisionError",
+    "IdempotencyConfig",
     "Job",
     "JobRun",
     "JobRunStatus",

@@ -154,7 +154,7 @@ class BranchDurableTaskResponse(_message.Message):
     def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
 
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema", "idempotency")
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -169,6 +169,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     CONCURRENCY_ARR_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
     INPUT_JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -183,7 +184,22 @@ class CreateWorkflowVersionRequest(_message.Message):
     concurrency_arr: _containers.RepeatedCompositeFieldContainer[Concurrency]
     default_filters: _containers.RepeatedCompositeFieldContainer[DefaultFilter]
     input_json_schema: bytes
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ...) -> None: ...
+    idempotency: IdempotencyConfig
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ..., idempotency: _Optional[_Union[IdempotencyConfig, _Mapping]] = ...) -> None: ...
+
+class IdempotencyConfig(_message.Message):
+    __slots__ = ("expression", "ttl_ms")
+    EXPRESSION_FIELD_NUMBER: _ClassVar[int]
+    TTL_MS_FIELD_NUMBER: _ClassVar[int]
+    expression: str
+    ttl_ms: int
+    def __init__(self, expression: _Optional[str] = ..., ttl_ms: _Optional[int] = ...) -> None: ...
+
+class IdempotencyCollisionError(_message.Message):
+    __slots__ = ("existing_run_external_id",)
+    EXISTING_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    existing_run_external_id: str
+    def __init__(self, existing_run_external_id: _Optional[str] = ...) -> None: ...
 
 class DefaultFilter(_message.Message):
     __slots__ = ("expression", "scope", "payload")

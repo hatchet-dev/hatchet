@@ -2,6 +2,7 @@
 
 require "json"
 require "google/protobuf/timestamp_pb"
+require "google/rpc/status_pb"
 
 module Hatchet
   module Clients
@@ -93,6 +94,9 @@ module Hatchet
             response = @v0_stub.trigger_workflow(request, metadata: @config.auth_metadata)
             response.workflow_run_id
           rescue ::GRPC::AlreadyExists => e
+            run_id = extract_idempotency_run_id(e)
+            raise(IdempotencyCollisionError, run_id) if run_id
+
             raise DedupeViolationError, "Deduplication violation: #{e.message}"
           rescue ::GRPC::ResourceExhausted => e
             raise ResourceExhaustedError, e.message
@@ -282,6 +286,21 @@ module Hatchet
                   end
             map[k.to_s] = dwl
           end
+        end
+
+        def extract_idempotency_run_id(grpc_error)
+          status_bin = grpc_error.to_status.metadata&.[]("grpc-status-details-bin")
+          return nil unless status_bin
+
+          rpc_status = Google::Rpc::Status.decode(status_bin.b)
+          rpc_status.details.each do |any|
+            next unless any.type_url.include?("IdempotencyCollisionError")
+
+            return ::V1::IdempotencyCollisionError.decode(any.value).existing_run_external_id
+          end
+          nil
+        rescue StandardError
+          nil
         end
 
         def ensure_connected!

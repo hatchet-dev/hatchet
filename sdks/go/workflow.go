@@ -148,6 +148,17 @@ func (w *Workflow) GetName() string {
 // WorkflowOption configures a workflow instance.
 type WorkflowOption func(*workflowConfig)
 
+// IdempotencyConfig configures idempotency behavior for a workflow or standalone task.
+// When set, runs triggered with the same computed key within the TTL window return an
+// IdempotencyCollisionError instead of creating a new run.
+type IdempotencyConfig struct {
+	// Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
+	Expression string
+
+	// TTL is the duration during which duplicate runs with the same key are rejected.
+	TTL time.Duration
+}
+
 type workflowConfig struct {
 	onCron          []string
 	onEvents        []string
@@ -158,6 +169,7 @@ type workflowConfig struct {
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
+	idempotency     *IdempotencyConfig
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -235,6 +247,15 @@ func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOpt
 	}
 }
 
+// WithWorkflowIdempotency configures idempotency for the workflow.
+// When set, runs triggered with the same computed key within the TTL window return an
+// IdempotencyCollisionError instead of creating a new run.
+func WithWorkflowIdempotency(config IdempotencyConfig) WorkflowOption {
+	return func(c *workflowConfig) {
+		c.idempotency = &config
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -263,6 +284,13 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 	if config.defaultPriority != nil {
 		priority := int32(*config.defaultPriority)
 		createOpts.DefaultPriority = &priority
+	}
+
+	if config.idempotency != nil {
+		createOpts.Idempotency = &create.IdempotencyConfig{
+			Expression: config.idempotency.Expression,
+			TTL:        config.idempotency.TTL,
+		}
 	}
 
 	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
@@ -725,6 +753,14 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 	}
 
 	if err != nil {
+		var idempViolation *v0Client.IdempotencyViolationErr
+		if errors.As(err, &idempViolation) {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			return nil, &IdempotencyCollisionError{
+				ExistingRunExternalId: idempViolation.ExistingRunExternalId,
+			}
+		}
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err

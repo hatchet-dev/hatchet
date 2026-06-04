@@ -27,11 +27,11 @@ type WorkflowNameTriggerOpts struct {
 
 	ExternalId uuid.UUID
 
-	// (optional) The idempotency key to use for debouncing this task
-	IdempotencyKey *IdempotencyKey
-
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
+
+	// Whether the workflow has an idempotency key expression configured.
+	HasIdempotencyKey bool
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {

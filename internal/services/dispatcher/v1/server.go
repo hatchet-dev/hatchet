@@ -691,6 +691,12 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		}
 	}
 
+	if failures := ingestionResult.TriggerRunsResult.CELEvaluationFailures; len(failures) > 0 {
+		if sigErr := d.triggerWriter.SignalCELEvaluationFailures(ctx, invocation.tenantId, failures); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal CEL evaluation failures for durable run trigger")
+		}
+	}
+
 	err = invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_TriggerRunsAck{
 			TriggerRunsAck: ackResp,

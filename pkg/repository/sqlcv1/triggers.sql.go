@@ -9,13 +9,16 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const listWorkflowsByNames = `-- name: ListWorkflowsByNames :many
 SELECT DISTINCT ON("workflowId")
     "workflowId",
     workflowVersions."id" AS "workflowVersionId",
-    workflow."name" AS "workflowName"
+    workflow."name" AS "workflowName",
+    workflowVersions."idempotencyKeyExpression",
+    workflowVersions."idempotencyKeyTtlMs"
 FROM
     "WorkflowVersion" as workflowVersions
 JOIN
@@ -33,9 +36,11 @@ type ListWorkflowsByNamesParams struct {
 }
 
 type ListWorkflowsByNamesRow struct {
-	WorkflowId        uuid.UUID `json:"workflowId"`
-	WorkflowVersionId uuid.UUID `json:"workflowVersionId"`
-	WorkflowName      string    `json:"workflowName"`
+	WorkflowId               uuid.UUID   `json:"workflowId"`
+	WorkflowVersionId        uuid.UUID   `json:"workflowVersionId"`
+	WorkflowName             string      `json:"workflowName"`
+	IdempotencyKeyExpression pgtype.Text `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs      pgtype.Int8 `json:"idempotencyKeyTtlMs"`
 }
 
 func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWorkflowsByNamesParams) ([]*ListWorkflowsByNamesRow, error) {
@@ -47,7 +52,13 @@ func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWor
 	var items []*ListWorkflowsByNamesRow
 	for rows.Next() {
 		var i ListWorkflowsByNamesRow
-		if err := rows.Scan(&i.WorkflowId, &i.WorkflowVersionId, &i.WorkflowName); err != nil {
+		if err := rows.Scan(
+			&i.WorkflowId,
+			&i.WorkflowVersionId,
+			&i.WorkflowName,
+			&i.IdempotencyKeyExpression,
+			&i.IdempotencyKeyTtlMs,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -63,7 +74,9 @@ WITH latest_versions AS (
     SELECT DISTINCT ON("workflowId")
         "workflowId",
         workflowVersions."id" AS "workflowVersionId",
-        workflow."name" AS "workflowName"
+        workflow."name" AS "workflowName",
+        workflowVersions."idempotencyKeyExpression",
+        workflowVersions."idempotencyKeyTtlMs"
     FROM
         "WorkflowVersion" as workflowVersions
     JOIN
@@ -82,7 +95,9 @@ SELECT
     latest_versions."workflowId",
     latest_versions."workflowName",
     eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
-    k.event_key::TEXT as "incomingEventKey"
+    k.event_key::TEXT as "incomingEventKey",
+    latest_versions."idempotencyKeyExpression",
+    latest_versions."idempotencyKeyTtlMs"
 FROM
     latest_versions
 JOIN
@@ -98,11 +113,13 @@ type ListWorkflowsForEventsParams struct {
 }
 
 type ListWorkflowsForEventsRow struct {
-	WorkflowVersionId                 uuid.UUID `json:"workflowVersionId"`
-	WorkflowId                        uuid.UUID `json:"workflowId"`
-	WorkflowName                      string    `json:"workflowName"`
-	WorkflowTriggeringEventKeyPattern string    `json:"workflowTriggeringEventKeyPattern"`
-	IncomingEventKey                  string    `json:"incomingEventKey"`
+	WorkflowVersionId                 uuid.UUID   `json:"workflowVersionId"`
+	WorkflowId                        uuid.UUID   `json:"workflowId"`
+	WorkflowName                      string      `json:"workflowName"`
+	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
+	IncomingEventKey                  string      `json:"incomingEventKey"`
+	IdempotencyKeyExpression          pgtype.Text `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs               pgtype.Int8 `json:"idempotencyKeyTtlMs"`
 }
 
 // Get all of the latest workflow versions
@@ -122,6 +139,8 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.WorkflowName,
 			&i.WorkflowTriggeringEventKeyPattern,
 			&i.IncomingEventKey,
+			&i.IdempotencyKeyExpression,
+			&i.IdempotencyKeyTtlMs,
 		); err != nil {
 			return nil, err
 		}

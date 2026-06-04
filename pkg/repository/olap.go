@@ -2526,7 +2526,7 @@ type EventTriggersFromExternalId struct {
 	RunInsertedAt   pgtype.Timestamptz `json:"run_inserted_at"`
 	EventExternalId uuid.UUID          `json:"event_external_id"`
 	EventSeenAt     pgtype.Timestamptz `json:"event_seen_at"`
-	FilterId        uuid.UUID          `json:"filter_id"`
+	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
 func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error {
@@ -2582,7 +2582,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 			RunInsertedAt: trigger.RunInsertedAt,
 			EventID:       eventId,
 			EventSeenAt:   trigger.EventSeenAt,
-			FilterID:      &trigger.FilterId,
+			FilterID:      trigger.FilterId,
 		})
 	}
 
@@ -2685,6 +2685,12 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 		failedCount = eventData.FailedCount
 	}
 
+	var eventScope *string
+
+	if event.Scope.Valid && event.Scope.String != "" {
+		eventScope = &event.Scope.String
+	}
+
 	return &EventWithPayload{
 		ListEventsRow: &ListEventsRow{
 			TenantID:                event.TenantID,
@@ -2694,7 +2700,7 @@ func (r *OLAPRepositoryImpl) GetEventWithPayload(ctx context.Context, externalId
 			EventKey:                event.Key,
 			EventPayload:            payload,
 			EventAdditionalMetadata: event.AdditionalMetadata,
-			EventScope:              event.Scope.String,
+			EventScope:              eventScope,
 			QueuedCount:             queuedCount,
 			RunningCount:            runningCount,
 			CompletedCount:          completedCount,
@@ -2715,7 +2721,7 @@ type ListEventsRow struct {
 	EventKey                string             `json:"event_key"`
 	EventPayload            []byte             `json:"event_payload"`
 	EventAdditionalMetadata []byte             `json:"event_additional_metadata"`
-	EventScope              string             `json:"event_scope"`
+	EventScope              *string            `json:"event_scope,omitempty,omitzero"`
 	QueuedCount             int64              `json:"queued_count"`
 	RunningCount            int64              `json:"running_count"`
 	CompletedCount          int64              `json:"completed_count"`
@@ -2768,7 +2774,6 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 
 	eventExternalIds := make([]uuid.UUID, len(events))
 	readPayloadOpts := make([]ReadOLAPPayloadOpts, len(events))
-	minSeenAt := sqlchelpers.TimestamptzFromTime(time.Now())
 
 	for i, event := range events {
 		eventExternalIds[i] = event.ExternalID
@@ -2776,17 +2781,13 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			ExternalId: event.ExternalID,
 			InsertedAt: event.SeenAt,
 		}
-
-		if event.SeenAt.Time.Before(minSeenAt.Time) {
-			minSeenAt = event.SeenAt
-		}
 	}
 
 	eventExternalIdToData, err := r.PopulateEventData(
 		ctx,
 		opts.Tenantid,
 		eventExternalIds,
-		minSeenAt,
+		opts.Since,
 	)
 
 	if err != nil {
@@ -2829,6 +2830,12 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 			failedCount = data.FailedCount
 		}
 
+		var eventScope *string
+
+		if event.Scope.Valid && event.Scope.String != "" {
+			eventScope = &event.Scope.String
+		}
+
 		result = append(result, &EventWithPayload{
 			ListEventsRow: &ListEventsRow{
 				TenantID:                event.TenantID,
@@ -2838,7 +2845,7 @@ func (r *OLAPRepositoryImpl) ListEvents(ctx context.Context, opts sqlcv1.ListEve
 				EventKey:                event.Key,
 				EventPayload:            payload,
 				EventAdditionalMetadata: event.AdditionalMetadata,
-				EventScope:              event.Scope.String,
+				EventScope:              eventScope,
 				QueuedCount:             queuedCount,
 				RunningCount:            runningCount,
 				CompletedCount:          completedCount,

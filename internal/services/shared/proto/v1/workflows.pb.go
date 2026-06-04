@@ -789,14 +789,15 @@ type CreateWorkflowVersionRequest struct {
 	CronTriggers  []string          `protobuf:"bytes,5,rep,name=cron_triggers,json=cronTriggers,proto3" json:"cron_triggers,omitempty"`    // (optional) cron triggers for the workflow
 	Tasks         []*CreateTaskOpts `protobuf:"bytes,6,rep,name=tasks,proto3" json:"tasks,omitempty"`                                      // (required) the workflow jobs
 	// Deprecated: use concurrency_arr instead
-	Concurrency     *Concurrency     `protobuf:"bytes,7,opt,name=concurrency,proto3" json:"concurrency,omitempty"`                                         // (optional) the workflow concurrency options
-	CronInput       *string          `protobuf:"bytes,8,opt,name=cron_input,json=cronInput,proto3,oneof" json:"cron_input,omitempty"`                      // (optional) the input for the cron trigger
-	OnFailureTask   *CreateTaskOpts  `protobuf:"bytes,9,opt,name=on_failure_task,json=onFailureTask,proto3,oneof" json:"on_failure_task,omitempty"`        // (optional) the job to run on failure
-	Sticky          *StickyStrategy  `protobuf:"varint,10,opt,name=sticky,proto3,enum=v1.StickyStrategy,oneof" json:"sticky,omitempty"`                    // (optional) the sticky strategy for assigning tasks to workers
-	DefaultPriority *int32           `protobuf:"varint,11,opt,name=default_priority,json=defaultPriority,proto3,oneof" json:"default_priority,omitempty"`  // (optional) the default priority for the workflow
-	ConcurrencyArr  []*Concurrency   `protobuf:"bytes,12,rep,name=concurrency_arr,json=concurrencyArr,proto3" json:"concurrency_arr,omitempty"`            // (optional) the workflow concurrency options
-	DefaultFilters  []*DefaultFilter `protobuf:"bytes,13,rep,name=default_filters,json=defaultFilters,proto3" json:"default_filters,omitempty"`            // (optional) the default filters for the workflow
-	InputJsonSchema []byte           `protobuf:"bytes,14,opt,name=input_json_schema,json=inputJsonSchema,proto3,oneof" json:"input_json_schema,omitempty"` // (optional) the JSON schema for the workflow input
+	Concurrency     *Concurrency       `protobuf:"bytes,7,opt,name=concurrency,proto3" json:"concurrency,omitempty"`                                         // (optional) the workflow concurrency options
+	CronInput       *string            `protobuf:"bytes,8,opt,name=cron_input,json=cronInput,proto3,oneof" json:"cron_input,omitempty"`                      // (optional) the input for the cron trigger
+	OnFailureTask   *CreateTaskOpts    `protobuf:"bytes,9,opt,name=on_failure_task,json=onFailureTask,proto3,oneof" json:"on_failure_task,omitempty"`        // (optional) the job to run on failure
+	Sticky          *StickyStrategy    `protobuf:"varint,10,opt,name=sticky,proto3,enum=v1.StickyStrategy,oneof" json:"sticky,omitempty"`                    // (optional) the sticky strategy for assigning tasks to workers
+	DefaultPriority *int32             `protobuf:"varint,11,opt,name=default_priority,json=defaultPriority,proto3,oneof" json:"default_priority,omitempty"`  // (optional) the default priority for the workflow
+	ConcurrencyArr  []*Concurrency     `protobuf:"bytes,12,rep,name=concurrency_arr,json=concurrencyArr,proto3" json:"concurrency_arr,omitempty"`            // (optional) the workflow concurrency options
+	DefaultFilters  []*DefaultFilter   `protobuf:"bytes,13,rep,name=default_filters,json=defaultFilters,proto3" json:"default_filters,omitempty"`            // (optional) the default filters for the workflow
+	InputJsonSchema []byte             `protobuf:"bytes,14,opt,name=input_json_schema,json=inputJsonSchema,proto3,oneof" json:"input_json_schema,omitempty"` // (optional) the JSON schema for the workflow input
+	Idempotency     *IdempotencyConfig `protobuf:"bytes,15,opt,name=idempotency,proto3,oneof" json:"idempotency,omitempty"`                                  // (optional) idempotency configuration for the workflow
 }
 
 func (x *CreateWorkflowVersionRequest) Reset() {
@@ -929,6 +930,115 @@ func (x *CreateWorkflowVersionRequest) GetInputJsonSchema() []byte {
 	return nil
 }
 
+func (x *CreateWorkflowVersionRequest) GetIdempotency() *IdempotencyConfig {
+	if x != nil {
+		return x.Idempotency
+	}
+	return nil
+}
+
+type IdempotencyConfig struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Expression string `protobuf:"bytes,1,opt,name=expression,proto3" json:"expression,omitempty"`     // a CEL expression for determining the idempotency key for workflow runs
+	TtlMs      int64  `protobuf:"varint,2,opt,name=ttl_ms,json=ttlMs,proto3" json:"ttl_ms,omitempty"` // time-to-live for idempotency keys in milliseconds
+}
+
+func (x *IdempotencyConfig) Reset() {
+	*x = IdempotencyConfig{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_v1_workflows_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *IdempotencyConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IdempotencyConfig) ProtoMessage() {}
+
+func (x *IdempotencyConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_workflows_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IdempotencyConfig.ProtoReflect.Descriptor instead.
+func (*IdempotencyConfig) Descriptor() ([]byte, []int) {
+	return file_v1_workflows_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *IdempotencyConfig) GetExpression() string {
+	if x != nil {
+		return x.Expression
+	}
+	return ""
+}
+
+func (x *IdempotencyConfig) GetTtlMs() int64 {
+	if x != nil {
+		return x.TtlMs
+	}
+	return 0
+}
+
+type IdempotencyCollisionError struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ExistingRunExternalId string `protobuf:"bytes,1,opt,name=existing_run_external_id,json=existingRunExternalId,proto3" json:"existing_run_external_id,omitempty"` // the external ID of the existing workflow run that caused the collision
+}
+
+func (x *IdempotencyCollisionError) Reset() {
+	*x = IdempotencyCollisionError{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_v1_workflows_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *IdempotencyCollisionError) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IdempotencyCollisionError) ProtoMessage() {}
+
+func (x *IdempotencyCollisionError) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_workflows_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IdempotencyCollisionError.ProtoReflect.Descriptor instead.
+func (*IdempotencyCollisionError) Descriptor() ([]byte, []int) {
+	return file_v1_workflows_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *IdempotencyCollisionError) GetExistingRunExternalId() string {
+	if x != nil {
+		return x.ExistingRunExternalId
+	}
+	return ""
+}
+
 type DefaultFilter struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -942,7 +1052,7 @@ type DefaultFilter struct {
 func (x *DefaultFilter) Reset() {
 	*x = DefaultFilter{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[10]
+		mi := &file_v1_workflows_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -955,7 +1065,7 @@ func (x *DefaultFilter) String() string {
 func (*DefaultFilter) ProtoMessage() {}
 
 func (x *DefaultFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[10]
+	mi := &file_v1_workflows_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -968,7 +1078,7 @@ func (x *DefaultFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DefaultFilter.ProtoReflect.Descriptor instead.
 func (*DefaultFilter) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{10}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DefaultFilter) GetExpression() string {
@@ -1005,7 +1115,7 @@ type Concurrency struct {
 func (x *Concurrency) Reset() {
 	*x = Concurrency{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[11]
+		mi := &file_v1_workflows_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1018,7 +1128,7 @@ func (x *Concurrency) String() string {
 func (*Concurrency) ProtoMessage() {}
 
 func (x *Concurrency) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[11]
+	mi := &file_v1_workflows_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1031,7 +1141,7 @@ func (x *Concurrency) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Concurrency.ProtoReflect.Descriptor instead.
 func (*Concurrency) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{11}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Concurrency) GetExpression() string {
@@ -1081,7 +1191,7 @@ type CreateTaskOpts struct {
 func (x *CreateTaskOpts) Reset() {
 	*x = CreateTaskOpts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[12]
+		mi := &file_v1_workflows_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1094,7 +1204,7 @@ func (x *CreateTaskOpts) String() string {
 func (*CreateTaskOpts) ProtoMessage() {}
 
 func (x *CreateTaskOpts) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[12]
+	mi := &file_v1_workflows_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1107,7 +1217,7 @@ func (x *CreateTaskOpts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTaskOpts.ProtoReflect.Descriptor instead.
 func (*CreateTaskOpts) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{12}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CreateTaskOpts) GetReadableId() string {
@@ -1231,7 +1341,7 @@ type CreateTaskRateLimit struct {
 func (x *CreateTaskRateLimit) Reset() {
 	*x = CreateTaskRateLimit{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[13]
+		mi := &file_v1_workflows_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1244,7 +1354,7 @@ func (x *CreateTaskRateLimit) String() string {
 func (*CreateTaskRateLimit) ProtoMessage() {}
 
 func (x *CreateTaskRateLimit) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[13]
+	mi := &file_v1_workflows_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1257,7 +1367,7 @@ func (x *CreateTaskRateLimit) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTaskRateLimit.ProtoReflect.Descriptor instead.
 func (*CreateTaskRateLimit) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{13}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CreateTaskRateLimit) GetKey() string {
@@ -1315,7 +1425,7 @@ type CreateWorkflowVersionResponse struct {
 func (x *CreateWorkflowVersionResponse) Reset() {
 	*x = CreateWorkflowVersionResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[14]
+		mi := &file_v1_workflows_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1328,7 +1438,7 @@ func (x *CreateWorkflowVersionResponse) String() string {
 func (*CreateWorkflowVersionResponse) ProtoMessage() {}
 
 func (x *CreateWorkflowVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[14]
+	mi := &file_v1_workflows_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1341,7 +1451,7 @@ func (x *CreateWorkflowVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateWorkflowVersionResponse.ProtoReflect.Descriptor instead.
 func (*CreateWorkflowVersionResponse) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{14}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CreateWorkflowVersionResponse) GetId() string {
@@ -1369,7 +1479,7 @@ type GetRunDetailsRequest struct {
 func (x *GetRunDetailsRequest) Reset() {
 	*x = GetRunDetailsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[15]
+		mi := &file_v1_workflows_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1382,7 +1492,7 @@ func (x *GetRunDetailsRequest) String() string {
 func (*GetRunDetailsRequest) ProtoMessage() {}
 
 func (x *GetRunDetailsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[15]
+	mi := &file_v1_workflows_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1395,7 +1505,7 @@ func (x *GetRunDetailsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRunDetailsRequest.ProtoReflect.Descriptor instead.
 func (*GetRunDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{15}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetRunDetailsRequest) GetExternalId() string {
@@ -1421,7 +1531,7 @@ type TaskRunDetail struct {
 func (x *TaskRunDetail) Reset() {
 	*x = TaskRunDetail{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[16]
+		mi := &file_v1_workflows_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1434,7 +1544,7 @@ func (x *TaskRunDetail) String() string {
 func (*TaskRunDetail) ProtoMessage() {}
 
 func (x *TaskRunDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[16]
+	mi := &file_v1_workflows_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1447,7 +1557,7 @@ func (x *TaskRunDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskRunDetail.ProtoReflect.Descriptor instead.
 func (*TaskRunDetail) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{16}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *TaskRunDetail) GetExternalId() string {
@@ -1508,7 +1618,7 @@ type GetRunDetailsResponse struct {
 func (x *GetRunDetailsResponse) Reset() {
 	*x = GetRunDetailsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_v1_workflows_proto_msgTypes[17]
+		mi := &file_v1_workflows_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1521,7 +1631,7 @@ func (x *GetRunDetailsResponse) String() string {
 func (*GetRunDetailsResponse) ProtoMessage() {}
 
 func (x *GetRunDetailsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_workflows_proto_msgTypes[17]
+	mi := &file_v1_workflows_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1534,7 +1644,7 @@ func (x *GetRunDetailsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRunDetailsResponse.ProtoReflect.Descriptor instead.
 func (*GetRunDetailsResponse) Descriptor() ([]byte, []int) {
-	return file_v1_workflows_proto_rawDescGZIP(), []int{17}
+	return file_v1_workflows_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetRunDetailsResponse) GetInput() []byte {
@@ -1670,7 +1780,7 @@ var file_v1_workflows_proto_rawDesc = []byte{
 	0x65, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x06, 0x6e, 0x6f, 0x64, 0x65,
 	0x49, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x62, 0x72, 0x61, 0x6e, 0x63, 0x68, 0x5f, 0x69, 0x64, 0x18,
 	0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x08, 0x62, 0x72, 0x61, 0x6e, 0x63, 0x68, 0x49, 0x64, 0x22,
-	0xdd, 0x05, 0x0a, 0x1c, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c,
+	0xab, 0x06, 0x0a, 0x1c, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x57, 0x6f, 0x72, 0x6b, 0x66, 0x6c,
 	0x6f, 0x77, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
 	0x6e, 0x61, 0x6d, 0x65, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74,
@@ -1710,12 +1820,27 @@ var file_v1_workflows_proto_rawDesc = []byte{
 	0x6c, 0x74, 0x65, 0x72, 0x73, 0x12, 0x2f, 0x0a, 0x11, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x5f, 0x6a,
 	0x73, 0x6f, 0x6e, 0x5f, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x0c,
 	0x48, 0x04, 0x52, 0x0f, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x4a, 0x73, 0x6f, 0x6e, 0x53, 0x63, 0x68,
-	0x65, 0x6d, 0x61, 0x88, 0x01, 0x01, 0x42, 0x0d, 0x0a, 0x0b, 0x5f, 0x63, 0x72, 0x6f, 0x6e, 0x5f,
-	0x69, 0x6e, 0x70, 0x75, 0x74, 0x42, 0x12, 0x0a, 0x10, 0x5f, 0x6f, 0x6e, 0x5f, 0x66, 0x61, 0x69,
-	0x6c, 0x75, 0x72, 0x65, 0x5f, 0x74, 0x61, 0x73, 0x6b, 0x42, 0x09, 0x0a, 0x07, 0x5f, 0x73, 0x74,
-	0x69, 0x63, 0x6b, 0x79, 0x42, 0x13, 0x0a, 0x11, 0x5f, 0x64, 0x65, 0x66, 0x61, 0x75, 0x6c, 0x74,
-	0x5f, 0x70, 0x72, 0x69, 0x6f, 0x72, 0x69, 0x74, 0x79, 0x42, 0x14, 0x0a, 0x12, 0x5f, 0x69, 0x6e,
-	0x70, 0x75, 0x74, 0x5f, 0x6a, 0x73, 0x6f, 0x6e, 0x5f, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x22,
+	0x65, 0x6d, 0x61, 0x88, 0x01, 0x01, 0x12, 0x3c, 0x0a, 0x0b, 0x69, 0x64, 0x65, 0x6d, 0x70, 0x6f,
+	0x74, 0x65, 0x6e, 0x63, 0x79, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x15, 0x2e, 0x76, 0x31,
+	0x2e, 0x49, 0x64, 0x65, 0x6d, 0x70, 0x6f, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x43, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x48, 0x05, 0x52, 0x0b, 0x69, 0x64, 0x65, 0x6d, 0x70, 0x6f, 0x74, 0x65, 0x6e, 0x63,
+	0x79, 0x88, 0x01, 0x01, 0x42, 0x0d, 0x0a, 0x0b, 0x5f, 0x63, 0x72, 0x6f, 0x6e, 0x5f, 0x69, 0x6e,
+	0x70, 0x75, 0x74, 0x42, 0x12, 0x0a, 0x10, 0x5f, 0x6f, 0x6e, 0x5f, 0x66, 0x61, 0x69, 0x6c, 0x75,
+	0x72, 0x65, 0x5f, 0x74, 0x61, 0x73, 0x6b, 0x42, 0x09, 0x0a, 0x07, 0x5f, 0x73, 0x74, 0x69, 0x63,
+	0x6b, 0x79, 0x42, 0x13, 0x0a, 0x11, 0x5f, 0x64, 0x65, 0x66, 0x61, 0x75, 0x6c, 0x74, 0x5f, 0x70,
+	0x72, 0x69, 0x6f, 0x72, 0x69, 0x74, 0x79, 0x42, 0x14, 0x0a, 0x12, 0x5f, 0x69, 0x6e, 0x70, 0x75,
+	0x74, 0x5f, 0x6a, 0x73, 0x6f, 0x6e, 0x5f, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x61, 0x42, 0x0e, 0x0a,
+	0x0c, 0x5f, 0x69, 0x64, 0x65, 0x6d, 0x70, 0x6f, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x22, 0x4a, 0x0a,
+	0x11, 0x49, 0x64, 0x65, 0x6d, 0x70, 0x6f, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x43, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x12, 0x1e, 0x0a, 0x0a, 0x65, 0x78, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x65, 0x78, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69,
+	0x6f, 0x6e, 0x12, 0x15, 0x0a, 0x06, 0x74, 0x74, 0x6c, 0x5f, 0x6d, 0x73, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x03, 0x52, 0x05, 0x74, 0x74, 0x6c, 0x4d, 0x73, 0x22, 0x54, 0x0a, 0x19, 0x49, 0x64, 0x65,
+	0x6d, 0x70, 0x6f, 0x74, 0x65, 0x6e, 0x63, 0x79, 0x43, 0x6f, 0x6c, 0x6c, 0x69, 0x73, 0x69, 0x6f,
+	0x6e, 0x45, 0x72, 0x72, 0x6f, 0x72, 0x12, 0x37, 0x0a, 0x18, 0x65, 0x78, 0x69, 0x73, 0x74, 0x69,
+	0x6e, 0x67, 0x5f, 0x72, 0x75, 0x6e, 0x5f, 0x65, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x5f,
+	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x15, 0x65, 0x78, 0x69, 0x73, 0x74, 0x69,
+	0x6e, 0x67, 0x52, 0x75, 0x6e, 0x45, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x49, 0x64, 0x22,
 	0x70, 0x0a, 0x0d, 0x44, 0x65, 0x66, 0x61, 0x75, 0x6c, 0x74, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72,
 	0x12, 0x1e, 0x0a, 0x0a, 0x65, 0x78, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x65, 0x78, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
@@ -1927,7 +2052,7 @@ func file_v1_workflows_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_workflows_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_v1_workflows_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_v1_workflows_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_v1_workflows_proto_goTypes = []interface{}{
 	(StickyStrategy)(0),                   // 0: v1.StickyStrategy
 	(RateLimitDuration)(0),                // 1: v1.RateLimitDuration
@@ -1943,64 +2068,67 @@ var file_v1_workflows_proto_goTypes = []interface{}{
 	(*BranchDurableTaskRequest)(nil),      // 11: v1.BranchDurableTaskRequest
 	(*BranchDurableTaskResponse)(nil),     // 12: v1.BranchDurableTaskResponse
 	(*CreateWorkflowVersionRequest)(nil),  // 13: v1.CreateWorkflowVersionRequest
-	(*DefaultFilter)(nil),                 // 14: v1.DefaultFilter
-	(*Concurrency)(nil),                   // 15: v1.Concurrency
-	(*CreateTaskOpts)(nil),                // 16: v1.CreateTaskOpts
-	(*CreateTaskRateLimit)(nil),           // 17: v1.CreateTaskRateLimit
-	(*CreateWorkflowVersionResponse)(nil), // 18: v1.CreateWorkflowVersionResponse
-	(*GetRunDetailsRequest)(nil),          // 19: v1.GetRunDetailsRequest
-	(*TaskRunDetail)(nil),                 // 20: v1.TaskRunDetail
-	(*GetRunDetailsResponse)(nil),         // 21: v1.GetRunDetailsResponse
-	nil,                                   // 22: v1.TriggerWorkflowRunRequest.DesiredWorkerLabelsEntry
-	nil,                                   // 23: v1.CreateTaskOpts.WorkerLabelsEntry
-	nil,                                   // 24: v1.CreateTaskOpts.SlotRequestsEntry
-	nil,                                   // 25: v1.GetRunDetailsResponse.TaskRunsEntry
-	(*timestamppb.Timestamp)(nil),         // 26: google.protobuf.Timestamp
-	(*TaskConditions)(nil),                // 27: v1.TaskConditions
-	(*DesiredWorkerLabels)(nil),           // 28: v1.DesiredWorkerLabels
+	(*IdempotencyConfig)(nil),             // 14: v1.IdempotencyConfig
+	(*IdempotencyCollisionError)(nil),     // 15: v1.IdempotencyCollisionError
+	(*DefaultFilter)(nil),                 // 16: v1.DefaultFilter
+	(*Concurrency)(nil),                   // 17: v1.Concurrency
+	(*CreateTaskOpts)(nil),                // 18: v1.CreateTaskOpts
+	(*CreateTaskRateLimit)(nil),           // 19: v1.CreateTaskRateLimit
+	(*CreateWorkflowVersionResponse)(nil), // 20: v1.CreateWorkflowVersionResponse
+	(*GetRunDetailsRequest)(nil),          // 21: v1.GetRunDetailsRequest
+	(*TaskRunDetail)(nil),                 // 22: v1.TaskRunDetail
+	(*GetRunDetailsResponse)(nil),         // 23: v1.GetRunDetailsResponse
+	nil,                                   // 24: v1.TriggerWorkflowRunRequest.DesiredWorkerLabelsEntry
+	nil,                                   // 25: v1.CreateTaskOpts.WorkerLabelsEntry
+	nil,                                   // 26: v1.CreateTaskOpts.SlotRequestsEntry
+	nil,                                   // 27: v1.GetRunDetailsResponse.TaskRunsEntry
+	(*timestamppb.Timestamp)(nil),         // 28: google.protobuf.Timestamp
+	(*TaskConditions)(nil),                // 29: v1.TaskConditions
+	(*DesiredWorkerLabels)(nil),           // 30: v1.DesiredWorkerLabels
 }
 var file_v1_workflows_proto_depIdxs = []int32{
 	6,  // 0: v1.CancelTasksRequest.filter:type_name -> v1.TasksFilter
 	6,  // 1: v1.ReplayTasksRequest.filter:type_name -> v1.TasksFilter
-	26, // 2: v1.TasksFilter.since:type_name -> google.protobuf.Timestamp
-	26, // 3: v1.TasksFilter.until:type_name -> google.protobuf.Timestamp
-	22, // 4: v1.TriggerWorkflowRunRequest.desired_worker_labels:type_name -> v1.TriggerWorkflowRunRequest.DesiredWorkerLabelsEntry
-	16, // 5: v1.CreateWorkflowVersionRequest.tasks:type_name -> v1.CreateTaskOpts
-	15, // 6: v1.CreateWorkflowVersionRequest.concurrency:type_name -> v1.Concurrency
-	16, // 7: v1.CreateWorkflowVersionRequest.on_failure_task:type_name -> v1.CreateTaskOpts
+	28, // 2: v1.TasksFilter.since:type_name -> google.protobuf.Timestamp
+	28, // 3: v1.TasksFilter.until:type_name -> google.protobuf.Timestamp
+	24, // 4: v1.TriggerWorkflowRunRequest.desired_worker_labels:type_name -> v1.TriggerWorkflowRunRequest.DesiredWorkerLabelsEntry
+	18, // 5: v1.CreateWorkflowVersionRequest.tasks:type_name -> v1.CreateTaskOpts
+	17, // 6: v1.CreateWorkflowVersionRequest.concurrency:type_name -> v1.Concurrency
+	18, // 7: v1.CreateWorkflowVersionRequest.on_failure_task:type_name -> v1.CreateTaskOpts
 	0,  // 8: v1.CreateWorkflowVersionRequest.sticky:type_name -> v1.StickyStrategy
-	15, // 9: v1.CreateWorkflowVersionRequest.concurrency_arr:type_name -> v1.Concurrency
-	14, // 10: v1.CreateWorkflowVersionRequest.default_filters:type_name -> v1.DefaultFilter
-	3,  // 11: v1.Concurrency.limit_strategy:type_name -> v1.ConcurrencyLimitStrategy
-	17, // 12: v1.CreateTaskOpts.rate_limits:type_name -> v1.CreateTaskRateLimit
-	23, // 13: v1.CreateTaskOpts.worker_labels:type_name -> v1.CreateTaskOpts.WorkerLabelsEntry
-	15, // 14: v1.CreateTaskOpts.concurrency:type_name -> v1.Concurrency
-	27, // 15: v1.CreateTaskOpts.conditions:type_name -> v1.TaskConditions
-	24, // 16: v1.CreateTaskOpts.slot_requests:type_name -> v1.CreateTaskOpts.SlotRequestsEntry
-	1,  // 17: v1.CreateTaskRateLimit.duration:type_name -> v1.RateLimitDuration
-	2,  // 18: v1.TaskRunDetail.status:type_name -> v1.RunStatus
-	2,  // 19: v1.GetRunDetailsResponse.status:type_name -> v1.RunStatus
-	25, // 20: v1.GetRunDetailsResponse.task_runs:type_name -> v1.GetRunDetailsResponse.TaskRunsEntry
-	28, // 21: v1.TriggerWorkflowRunRequest.DesiredWorkerLabelsEntry.value:type_name -> v1.DesiredWorkerLabels
-	28, // 22: v1.CreateTaskOpts.WorkerLabelsEntry.value:type_name -> v1.DesiredWorkerLabels
-	20, // 23: v1.GetRunDetailsResponse.TaskRunsEntry.value:type_name -> v1.TaskRunDetail
-	13, // 24: v1.AdminService.PutWorkflow:input_type -> v1.CreateWorkflowVersionRequest
-	4,  // 25: v1.AdminService.CancelTasks:input_type -> v1.CancelTasksRequest
-	5,  // 26: v1.AdminService.ReplayTasks:input_type -> v1.ReplayTasksRequest
-	9,  // 27: v1.AdminService.TriggerWorkflowRun:input_type -> v1.TriggerWorkflowRunRequest
-	19, // 28: v1.AdminService.GetRunDetails:input_type -> v1.GetRunDetailsRequest
-	11, // 29: v1.AdminService.BranchDurableTask:input_type -> v1.BranchDurableTaskRequest
-	18, // 30: v1.AdminService.PutWorkflow:output_type -> v1.CreateWorkflowVersionResponse
-	7,  // 31: v1.AdminService.CancelTasks:output_type -> v1.CancelTasksResponse
-	8,  // 32: v1.AdminService.ReplayTasks:output_type -> v1.ReplayTasksResponse
-	10, // 33: v1.AdminService.TriggerWorkflowRun:output_type -> v1.TriggerWorkflowRunResponse
-	21, // 34: v1.AdminService.GetRunDetails:output_type -> v1.GetRunDetailsResponse
-	12, // 35: v1.AdminService.BranchDurableTask:output_type -> v1.BranchDurableTaskResponse
-	30, // [30:36] is the sub-list for method output_type
-	24, // [24:30] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	17, // 9: v1.CreateWorkflowVersionRequest.concurrency_arr:type_name -> v1.Concurrency
+	16, // 10: v1.CreateWorkflowVersionRequest.default_filters:type_name -> v1.DefaultFilter
+	14, // 11: v1.CreateWorkflowVersionRequest.idempotency:type_name -> v1.IdempotencyConfig
+	3,  // 12: v1.Concurrency.limit_strategy:type_name -> v1.ConcurrencyLimitStrategy
+	19, // 13: v1.CreateTaskOpts.rate_limits:type_name -> v1.CreateTaskRateLimit
+	25, // 14: v1.CreateTaskOpts.worker_labels:type_name -> v1.CreateTaskOpts.WorkerLabelsEntry
+	17, // 15: v1.CreateTaskOpts.concurrency:type_name -> v1.Concurrency
+	29, // 16: v1.CreateTaskOpts.conditions:type_name -> v1.TaskConditions
+	26, // 17: v1.CreateTaskOpts.slot_requests:type_name -> v1.CreateTaskOpts.SlotRequestsEntry
+	1,  // 18: v1.CreateTaskRateLimit.duration:type_name -> v1.RateLimitDuration
+	2,  // 19: v1.TaskRunDetail.status:type_name -> v1.RunStatus
+	2,  // 20: v1.GetRunDetailsResponse.status:type_name -> v1.RunStatus
+	27, // 21: v1.GetRunDetailsResponse.task_runs:type_name -> v1.GetRunDetailsResponse.TaskRunsEntry
+	30, // 22: v1.TriggerWorkflowRunRequest.DesiredWorkerLabelsEntry.value:type_name -> v1.DesiredWorkerLabels
+	30, // 23: v1.CreateTaskOpts.WorkerLabelsEntry.value:type_name -> v1.DesiredWorkerLabels
+	22, // 24: v1.GetRunDetailsResponse.TaskRunsEntry.value:type_name -> v1.TaskRunDetail
+	13, // 25: v1.AdminService.PutWorkflow:input_type -> v1.CreateWorkflowVersionRequest
+	4,  // 26: v1.AdminService.CancelTasks:input_type -> v1.CancelTasksRequest
+	5,  // 27: v1.AdminService.ReplayTasks:input_type -> v1.ReplayTasksRequest
+	9,  // 28: v1.AdminService.TriggerWorkflowRun:input_type -> v1.TriggerWorkflowRunRequest
+	21, // 29: v1.AdminService.GetRunDetails:input_type -> v1.GetRunDetailsRequest
+	11, // 30: v1.AdminService.BranchDurableTask:input_type -> v1.BranchDurableTaskRequest
+	20, // 31: v1.AdminService.PutWorkflow:output_type -> v1.CreateWorkflowVersionResponse
+	7,  // 32: v1.AdminService.CancelTasks:output_type -> v1.CancelTasksResponse
+	8,  // 33: v1.AdminService.ReplayTasks:output_type -> v1.ReplayTasksResponse
+	10, // 34: v1.AdminService.TriggerWorkflowRun:output_type -> v1.TriggerWorkflowRunResponse
+	23, // 35: v1.AdminService.GetRunDetails:output_type -> v1.GetRunDetailsResponse
+	12, // 36: v1.AdminService.BranchDurableTask:output_type -> v1.BranchDurableTaskResponse
+	31, // [31:37] is the sub-list for method output_type
+	25, // [25:31] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_v1_workflows_proto_init() }
@@ -2132,7 +2260,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DefaultFilter); i {
+			switch v := v.(*IdempotencyConfig); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2144,7 +2272,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Concurrency); i {
+			switch v := v.(*IdempotencyCollisionError); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2156,7 +2284,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateTaskOpts); i {
+			switch v := v.(*DefaultFilter); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2168,7 +2296,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateTaskRateLimit); i {
+			switch v := v.(*Concurrency); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2180,7 +2308,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateWorkflowVersionResponse); i {
+			switch v := v.(*CreateTaskOpts); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2192,7 +2320,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetRunDetailsRequest); i {
+			switch v := v.(*CreateTaskRateLimit); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2204,7 +2332,7 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TaskRunDetail); i {
+			switch v := v.(*CreateWorkflowVersionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2216,6 +2344,30 @@ func file_v1_workflows_proto_init() {
 			}
 		}
 		file_v1_workflows_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetRunDetailsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_v1_workflows_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TaskRunDetail); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_v1_workflows_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetRunDetailsResponse); i {
 			case 0:
 				return &v.state
@@ -2233,18 +2385,18 @@ func file_v1_workflows_proto_init() {
 	file_v1_workflows_proto_msgTypes[2].OneofWrappers = []interface{}{}
 	file_v1_workflows_proto_msgTypes[5].OneofWrappers = []interface{}{}
 	file_v1_workflows_proto_msgTypes[9].OneofWrappers = []interface{}{}
-	file_v1_workflows_proto_msgTypes[10].OneofWrappers = []interface{}{}
-	file_v1_workflows_proto_msgTypes[11].OneofWrappers = []interface{}{}
 	file_v1_workflows_proto_msgTypes[12].OneofWrappers = []interface{}{}
 	file_v1_workflows_proto_msgTypes[13].OneofWrappers = []interface{}{}
-	file_v1_workflows_proto_msgTypes[16].OneofWrappers = []interface{}{}
+	file_v1_workflows_proto_msgTypes[14].OneofWrappers = []interface{}{}
+	file_v1_workflows_proto_msgTypes[15].OneofWrappers = []interface{}{}
+	file_v1_workflows_proto_msgTypes[18].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_v1_workflows_proto_rawDesc,
 			NumEnums:      4,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

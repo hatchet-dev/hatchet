@@ -24,6 +24,18 @@ module Hatchet
     end
   end
 
+  # Raised when an idempotency key collision occurs.
+  # Contains the ID of the existing run that claimed the key.
+  class IdempotencyCollisionError < Error
+    # @return [String] The external ID of the existing workflow run
+    attr_reader :existing_run_external_id
+
+    def initialize(existing_run_external_id)
+      @existing_run_external_id = existing_run_external_id
+      super("idempotency key collision: existing run #{existing_run_external_id} already exists")
+    end
+  end
+
   # Represents an error from a failed task run
   class TaskRunError < Error
     # @return [String] The external ID of the failed task run

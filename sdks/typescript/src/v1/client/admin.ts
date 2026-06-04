@@ -1,6 +1,15 @@
 import HatchetError from '@util/errors/hatchet-error';
+import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
+import { ServiceError, status as GrpcStatus } from '@grpc/grpc-js';
+import { Status as RpcStatus } from '@hatchet/protoc/google/rpc/status';
+import { IdempotencyCollisionError as IdempotencyCollisionErrorProto } from '@hatchet/protoc/v1/workflows';
+import {
+  ClientError,
+  Metadata as NiceGrpcMetadata,
+  Status as NiceGrpcStatus,
+} from 'nice-grpc-common';
 
 import { Priority, RateLimitDuration, RunsClient, WorkerLabelComparator } from '@hatchet/v1';
 import { createGrpcClient } from '@hatchet/util/grpc-helpers';
@@ -21,6 +30,48 @@ import { retrier } from '@hatchet/util/retrier';
 import { batch } from '@hatchet/util/batch';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
+
+function isGrpcServiceError(e: unknown): e is ServiceError {
+  return e instanceof Error && 'code' in e && 'metadata' in e;
+}
+
+function extractExistingRunIdFromGrpcError(e: ServiceError): string {
+  try {
+    const [binData] = e.metadata.get('grpc-status-details-bin');
+    if (!binData) return '';
+
+    const status = RpcStatus.decode(binData instanceof Buffer ? binData : Buffer.from(binData));
+    for (const detail of status.details) {
+      if (detail.typeUrl.includes('IdempotencyCollisionError')) {
+        return IdempotencyCollisionErrorProto.decode(detail.value).existingRunExternalId ?? '';
+      }
+    }
+  } catch {
+    // ignore decoding errors
+  }
+  return '';
+}
+
+function isNiceGrpcAlreadyExists(e: unknown): e is ClientError {
+  return e instanceof ClientError && e.code === NiceGrpcStatus.ALREADY_EXISTS;
+}
+
+function extractRunIdFromNiceGrpcMetadata(metadata: NiceGrpcMetadata | undefined): string {
+  if (!metadata) return '';
+  try {
+    const binData = metadata.get('grpc-status-details-bin');
+    if (!binData) return '';
+    const status = RpcStatus.decode(binData);
+    for (const detail of status.details) {
+      if (detail.typeUrl.includes('IdempotencyCollisionError')) {
+        return IdempotencyCollisionErrorProto.decode(detail.value).existingRunExternalId ?? '';
+      }
+    }
+  } catch {
+    // ignore decoding errors
+  }
+  return '';
+}
 
 type DesiredWorkerLabelOpt = {
   value: string | number;
@@ -135,6 +186,8 @@ export class AdminClient {
       _standaloneTaskName?: string | undefined;
     }
   ) {
+    let trailerMetadata: NiceGrpcMetadata | undefined;
+
     try {
       const computedName = applyNamespace(workflowName, this.config.namespace).toLowerCase();
 
@@ -163,8 +216,16 @@ export class AdminClient {
       };
 
       const resp = await retrier(
-        async () => this.workflowsGrpc.triggerWorkflow(request),
-        this.logger
+        async () =>
+          this.workflowsGrpc.triggerWorkflow(request, {
+            onTrailer: (trailer) => {
+              trailerMetadata = trailer;
+            },
+          }),
+        this.logger,
+        undefined,
+        undefined,
+        (e) => !isNiceGrpcAlreadyExists(e)
       );
 
       const id = resp.workflowRunId;
@@ -179,8 +240,14 @@ export class AdminClient {
       );
       await ref.getWorkflowRunId();
       return ref;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      if (isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS) {
+        throw new IdempotencyCollisionError(extractExistingRunIdFromGrpcError(e));
+      }
+      if (isNiceGrpcAlreadyExists(e)) {
+        throw new IdempotencyCollisionError(extractRunIdFromNiceGrpcMetadata(trailerMetadata));
+      }
+      throw new HatchetError(e instanceof Error ? e.message : String(e));
     }
   }
 

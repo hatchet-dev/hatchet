@@ -51,3 +51,21 @@ func IsEvictionNotSupportedError(err error) (*EvictionNotSupportedError, bool) {
 	}
 	return nil, false
 }
+
+// IdempotencyCollisionError is returned when an idempotency key collision occurs.
+// It contains the ID of the existing run that claimed the key.
+type IdempotencyCollisionError struct {
+	ExistingRunExternalId string
+}
+
+func (e *IdempotencyCollisionError) Error() string {
+	return fmt.Sprintf("idempotency key collision: existing run %s already exists", e.ExistingRunExternalId)
+}
+
+// IsIdempotencyCollisionError checks if the error is an IdempotencyCollisionError.
+func IsIdempotencyCollisionError(err error) (*IdempotencyCollisionError, bool) {
+	if e, ok := err.(*IdempotencyCollisionError); ok {
+		return e, true
+	}
+	return nil, false
+}

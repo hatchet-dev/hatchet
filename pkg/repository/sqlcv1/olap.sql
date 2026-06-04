@@ -1860,8 +1860,8 @@ WHERE
     )
     AND (
         sqlc.narg('eventIds')::UUID[] IS NULL OR
-        EXISTS (
-            SELECT 1
+        (e.id, e.seen_at) IN (
+            SELECT event_id, event_seen_at
             FROM v1_event_lookup_table_olap elt
             WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
         )
@@ -1922,8 +1922,8 @@ WITH included_events AS (
         )
         AND (
             sqlc.narg('eventIds')::UUID[] IS NULL OR
-            EXISTS (
-                SELECT 1
+            (e.id, e.seen_at) IN (
+                SELECT event_id, event_seen_at
                 FROM v1_event_lookup_table_olap elt
                 WHERE elt.tenant_id = @tenantId::UUID AND elt.external_id = ANY(sqlc.narg('eventIds')::UUID[])
             )
