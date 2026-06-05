@@ -294,15 +294,6 @@ func TestOLAPUpdateTablePartitions_FailsFastDuringAnalyze(t *testing.T) {
 	t.Logf("Detected lock conflict and failed fast in %s", elapsed)
 }
 
-// TestDetachOLAPPartition_FailsFastDuringAnalyze verifies the DETACH PARTITION CONCURRENTLY path
-// also returns ErrPartitionLockConflict quickly when ANALYZE is running.
-//
-// Setup:
-//  1. Run UpdateTablePartitions once (no lock) so tomorrow's partitions already exist.
-//     On the second run, both CreateOLAPPartitions calls are no-ops and we reach the DETACH step.
-//  2. Use olapRetentionPeriod = -48h so removeBefore = today+2days, making today's and
-//     tomorrow's partitions eligible for removal on the second run.
-//  3. Hold ShareUpdateExclusiveLock and verify DETACH fails fast.
 func TestDetachOLAPPartition_FailsFastDuringAnalyze(t *testing.T) {
 	pool, cleanup := setupPostgresWithMigration(t)
 	defer cleanup()
