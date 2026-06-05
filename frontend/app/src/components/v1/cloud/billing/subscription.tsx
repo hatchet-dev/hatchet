@@ -443,7 +443,10 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
             {usageSlot && <div className="mb-6">{usageSlot}</div>}
 
-            <div className="flex flex-row items-center justify-between mb-4">
+            <div
+              id="plan-selector"
+              className="flex flex-row items-center justify-between mb-4 scroll-mt-20"
+            >
               <p className="text-md text-muted-foreground">
                 For plan details, visit{' '}
                 <a

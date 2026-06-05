@@ -8,7 +8,7 @@ import {
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -32,6 +32,17 @@ export function useOrganizations() {
   } = useUserUniverse();
   const { handleApiError } = useApiError({});
   const orgApi = useOrganizationApi();
+  const queryClient = useQueryClient();
+
+  // Entitlement usage (seats/tenants) changes whenever invites or tenants are
+  // added or removed, so refresh any cached entitlement state to keep upgrade
+  // gating accurate.
+  const invalidateEntitlements = useCallback(() => {
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === 'organization:entitlements:get',
+    });
+  }, [queryClient]);
 
   // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
@@ -122,6 +133,7 @@ export function useOrganizations() {
     mutationFn: async (data: { inviteId: string }) => {
       await orgApi.organizationInviteDeleteMutation(data.inviteId).mutationFn();
     },
+    onSuccess: invalidateEntitlements,
     onError: handleApiError,
   });
 
@@ -172,6 +184,7 @@ export function useOrganizations() {
         .organizationMemberDeleteMutation(data.memberId)
         .mutationFn({ emails: [data.email] });
     },
+    onSuccess: invalidateEntitlements,
     onError: handleApiError,
   });
 
@@ -186,6 +199,7 @@ export function useOrganizations() {
     mutationFn: async (data: { tenantId: string }) => {
       await orgApi.organizationTenantDeleteMutation(data.tenantId).mutationFn();
     },
+    onSuccess: invalidateEntitlements,
     onError: handleApiError,
   });
 

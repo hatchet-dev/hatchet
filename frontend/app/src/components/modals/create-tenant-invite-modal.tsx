@@ -1,3 +1,4 @@
+import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantMemberRole } from '@/lib/api';
 import { TenantInvite } from '@/lib/api/generated/data-contracts';
@@ -23,6 +25,7 @@ import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -140,12 +143,15 @@ export const CreateTenantInviteModal = ({
 }) => {
   const { getOrganizationIdForTenant, isCloudEnabled } = useOrganizations();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [limitReached, setLimitReached] = useState(false);
   const { handleApiError } = useApiError({
     setFieldErrors,
   });
 
   const queryClient = useQueryClient();
   const organizationId = getOrganizationIdForTenant(tenantId);
+
+  const { canInviteUser } = useOrganizationEntitlements(organizationId);
 
   const { tenantInviteCreateMutation } = useTenantApi();
   const createMutation = useMutation({
@@ -154,11 +160,41 @@ export const CreateTenantInviteModal = ({
       queryClient.invalidateQueries({
         queryKey: ['tenant-invite:list', tenantId],
       });
+      if (organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: ['organization:entitlements:get', organizationId],
+        });
+      }
       onCreated(invite);
       onClose();
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (error instanceof AxiosError && error.response?.status === 403) {
+        setLimitReached(true);
+        return;
+      }
+      handleApiError(error as AxiosError);
+    },
   });
+
+  const showUpgrade = (limitReached || !canInviteUser) && !!organizationId;
+
+  if (showUpgrade && organizationId) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="w-fit min-w-[500px] max-w-[80%]">
+          <DialogHeader>
+            <DialogTitle>Invite new tenant member</DialogTitle>
+          </DialogHeader>
+          <UpgradeRequiredCard
+            resource="users"
+            organizationId={organizationId}
+            onNavigate={onClose}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

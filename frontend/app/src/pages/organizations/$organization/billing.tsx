@@ -194,6 +194,25 @@ function OrganizationBillingContent() {
     refetchInterval: isSyncing ? SYNC_POLL_INTERVAL_MS : false,
   });
 
+  // When an upgrade surface routes here with the #plan-selector hash, bring the
+  // plan selector into view once billing data has rendered the section.
+  useEffect(() => {
+    if (!billingState.isSuccess) {
+      return;
+    }
+    if (window.location.hash !== '#plan-selector') {
+      return;
+    }
+
+    const raf = requestAnimationFrame(() => {
+      document
+        .getElementById('plan-selector')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [billingState.isSuccess]);
+
   const activePlanCode = resolveSubscriptionPlanCode(
     billingState.data?.currentSubscription,
     null,

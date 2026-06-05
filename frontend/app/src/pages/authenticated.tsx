@@ -518,6 +518,10 @@ function AuthenticatedInner() {
             <div className="flex justify-center">
               <NewTenantSaverForm
                 defaultOrganizationId={defaultOrganizationId}
+                onUpgradeNavigate={() => {
+                  setDefaultOrganizationId(undefined);
+                  setNewTenantModalOpen(false);
+                }}
                 afterSave={(result) => {
                   setDefaultOrganizationId(undefined);
                   setNewTenantModalOpen(false);

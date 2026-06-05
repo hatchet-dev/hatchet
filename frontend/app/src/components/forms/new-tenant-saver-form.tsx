@@ -4,15 +4,18 @@ import {
   WELCOME_KEY,
   WELCOME_TRIGGER,
 } from '@/components/modals/welcome-modal-state';
+import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
 import { useAnalytics } from '@/hooks/use-analytics';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import api, { Tenant } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useEffect, useState } from 'react';
 import invariant from 'tiny-invariant';
 
@@ -24,12 +27,17 @@ type NewTenantSaverFormProps = {
       | { type: 'cloud'; tenant: OrganizationTenant; organizationId: string }
       | { type: 'regular'; tenant: Tenant },
   ) => void;
+  // Called when the user leaves the form to upgrade (e.g. so a host modal can
+  // close before navigating to billing).
+  onUpgradeNavigate?: () => void;
 };
 
 const useSaveTenant = ({
   afterSave,
+  onLimitReached,
 }: {
   afterSave: NewTenantSaverFormProps['afterSave'];
+  onLimitReached?: () => void;
 }) => {
   const { isCloudEnabled, invalidate: invalidateUserUniverse } =
     useUserUniverse();
@@ -37,6 +45,7 @@ const useSaveTenant = ({
   const { capture } = useAnalytics();
   const { handleApiError } = useApiError();
   const orgApi = useOrganizationApi();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -77,6 +86,9 @@ const useSaveTenant = ({
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (data.type === 'cloud') {
         localStorage.setItem(WELCOME_KEY, WELCOME_TRIGGER.TenantCreated);
+        queryClient.invalidateQueries({
+          queryKey: ['organization:entitlements:get', data.organizationId],
+        });
       }
       capture('onboarding_tenant_created', {
         tenant_type: data.type,
@@ -84,7 +96,13 @@ const useSaveTenant = ({
       });
       afterSave(data);
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (error instanceof AxiosError && error.response?.status === 403) {
+        onLimitReached?.();
+        return;
+      }
+      handleApiError(error as AxiosError);
+    },
   });
 };
 
@@ -92,6 +110,7 @@ export function NewTenantSaverForm({
   defaultTenantName,
   defaultOrganizationId,
   afterSave,
+  onUpgradeNavigate,
 }: NewTenantSaverFormProps) {
   const {
     isCloudEnabled,
@@ -102,10 +121,13 @@ export function NewTenantSaverForm({
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(
     defaultOrganizationId,
   );
+  const [limitReached, setLimitReached] = useState(false);
 
   useEffect(() => {
     setSelectedOrgId(defaultOrganizationId);
   }, [defaultOrganizationId]);
+
+  const { canCreateTenant } = useOrganizationEntitlements(selectedOrgId);
 
   const shardsQuery = useQuery({
     queryKey: ['organization:available-shards', selectedOrgId ?? ''] as const,
@@ -115,7 +137,10 @@ export function NewTenantSaverForm({
     enabled: Boolean(isCloudEnabled && isControlPlaneEnabled && selectedOrgId),
   });
 
-  const saveTenantMutation = useSaveTenant({ afterSave });
+  const saveTenantMutation = useSaveTenant({
+    afterSave,
+    onLimitReached: () => setLimitReached(true),
+  });
 
   if (!isUserUniverseLoaded) {
     return <></>;
@@ -130,6 +155,16 @@ export function NewTenantSaverForm({
         isSaving={saveTenantMutation.isPending}
         isCloudEnabled={false}
         onSubmit={saveTenantMutation.mutate}
+      />
+    );
+  }
+
+  if (selectedOrgId && (limitReached || !canCreateTenant)) {
+    return (
+      <UpgradeRequiredCard
+        resource="tenants"
+        organizationId={selectedOrgId}
+        onNavigate={onUpgradeNavigate}
       />
     );
   }
