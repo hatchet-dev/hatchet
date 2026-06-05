@@ -102,6 +102,8 @@ export function UsageSummary({ summary, isLoading }: UsageSummaryProps) {
 
     const rows: Record<string, number | string>[] = [];
     const start = startOfUtcDay(summary.dataStart);
+    // Render the full billing period; future days (and inactive past days) are
+    // zero-filled so the axis spans the whole period.
     const end = startOfUtcDay(summary.periodEnd);
     for (let ts = start; ts <= end; ts += 24 * 60 * 60 * 1000) {
       const iso = new Date(ts).toISOString();
