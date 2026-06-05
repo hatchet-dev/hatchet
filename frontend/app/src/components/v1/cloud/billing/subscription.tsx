@@ -579,7 +579,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
             )}
 
             <div className="flex flex-row items-center justify-between mb-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-md text-muted-foreground">
                 For plan details, visit{' '}
                 <a
                   href="https://hatchet.run/pricing"
