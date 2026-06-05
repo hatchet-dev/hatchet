@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -23,6 +24,18 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
+
+// ErrPartitionLockConflict is returned when a partition DDL operation cannot acquire the necessary
+// table lock because another operation (e.g. ANALYZE) is holding a conflicting lock. The caller
+// should treat this as a transient condition and retry later.
+var ErrPartitionLockConflict = errors.New("partition DDL could not acquire lock due to concurrent table operation")
+
+// isLockNotAvailable reports whether err is a PostgreSQL lock_not_available error (SQLSTATE 55P03),
+// which is raised when a lock_timeout fires.
+func isLockNotAvailable(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
+}
 
 type CreateTaskOpts struct {
 	// (required) the external id
@@ -355,23 +368,56 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
+	//
+	// A dedicated connection is used so we can set lock_timeout and reset it on release,
+	// ensuring it doesn't affect other pool users. lock_timeout causes a fast 55P03 failure
+	// if ANALYZE is concurrently holding a ShareUpdateExclusiveLock on the parent tables.
+	createConn, createRelease, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 10*60*1000)
+	if err != nil {
+		return err
+	}
+
+	releaseCreateConn := func() {
+		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, resetErr := createConn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+		}
+		createRelease()
+	}
+
+	if _, err = createConn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+		releaseCreateConn()
+		return fmt.Errorf("failed to set lock_timeout: %w", err)
+	}
+
+	err = r.queries.CreatePartitions(ctx, createConn, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
 
 	if err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, createConn, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
 
 	if err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
 		return err
 	}
+
+	releaseCreateConn()
 
 	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
 		Time:  removeBefore,
@@ -395,6 +441,23 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return err
 		}
 
+		// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
+		// the setting doesn't bleed into subsequent users of the same ddlPool connection.
+		releaseConn := func() {
+			resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+			}
+			release()
+		}
+
+		// Set a short lock_timeout so we fail fast rather than blocking behind ANALYZE.
+		if _, err = conn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+			releaseConn()
+			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
+		}
+
 		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
 		_, err = conn.Exec(
 			ctx,
@@ -402,7 +465,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		)
 
 		if err != nil {
-			release()
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
 		}
 
@@ -412,11 +478,14 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		)
 
 		if err != nil {
-			release()
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
 		}
 
-		release()
+		releaseConn()
 	}
 
 	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
