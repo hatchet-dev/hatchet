@@ -254,27 +254,16 @@ export function sideNavItems(opts: {
       itemsClassName: 'space-y-1',
       items: [
         {
+          key: 'tenant-settings-divider',
+          name: 'Tenant',
+          type: 'divider',
+        },
+        {
           key: 'settings-overview',
           name: 'General',
           to: appRoutes.tenantSettingsOverviewRoute.to,
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiSettings3Line
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
-          key: 'organization',
-          name: opts.isCloudEnabled ? 'Organization' : 'Tenants',
-          to:
-            opts.isCloudEnabled && opts.orgId
-              ? appRoutes.organizationsRoute.to
-              : appRoutes.tenantsRoute.to,
-          ...(opts.isCloudEnabled && opts.orgId
-            ? { params: { organization: opts.orgId } }
-            : { params: {} }),
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiOrganizationChart
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
@@ -290,19 +279,7 @@ export function sideNavItems(opts: {
           ),
         },
         ...(opts.canBill && opts.orgId
-          ? [
-              {
-                key: 'settings-billing',
-                name: 'Billing & Usage',
-                to: appRoutes.organizationBillingRoute.to,
-                params: { organization: opts.orgId },
-                icon: ({ collapsed }: { collapsed: boolean }) => (
-                  <RiBillLine
-                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-                  />
-                ),
-              },
-            ]
+          ? []
           : [
               {
                 key: 'settings-resource-limits',
@@ -325,6 +302,42 @@ export function sideNavItems(opts: {
             />
           ),
         },
+        {
+          key: 'organization-settings-divider',
+          name: 'Organization',
+          type: 'divider',
+        },
+        {
+          key: 'organization',
+          name: opts.isCloudEnabled ? 'Organization' : 'Tenants',
+          to:
+            opts.isCloudEnabled && opts.orgId
+              ? appRoutes.organizationsRoute.to
+              : appRoutes.tenantsRoute.to,
+          ...(opts.isCloudEnabled && opts.orgId
+            ? { params: { organization: opts.orgId } }
+            : { params: {} }),
+          icon: ({ collapsed }: { collapsed: boolean }) => (
+            <RiOrganizationChart
+              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+            />
+          ),
+        },
+        ...(opts.canBill && opts.orgId
+          ? [
+              {
+                key: 'settings-billing',
+                name: 'Billing & Usage',
+                to: appRoutes.organizationBillingRoute.to,
+                params: { organization: opts.orgId },
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiBillLine
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : []),
       ],
     },
   ];

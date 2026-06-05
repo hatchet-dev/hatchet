@@ -66,9 +66,9 @@ import {
   shardDeploymentKey,
 } from '@/lib/shard-deployment-key';
 import { parseDuration, msToDurationString } from '@/lib/utils';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
+import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -143,9 +143,10 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
   const { currentUser } = useCurrentUser();
-  const { meta } = useApiMeta();
-  const schemes = meta?.auth?.schemes || [];
-  const canManageSso = isOrganizationOwner && schemes.includes('sso');
+  // SSO configuration is a control-plane feature. Show the tab to org owners
+  // whenever the control plane is enabled; plan-level availability (canUseSso)
+  // is surfaced inline via an upgrade surface rather than hiding the tab.
+  const canManageSso = isOrganizationOwner && isControlPlaneEnabled;
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
@@ -1095,17 +1096,8 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                   </div>
                 </div>
               ) : (
-                <div className="py-16 text-center text-sm text-muted-foreground">
-                  SSO is not enabled for this organization. Please{' '}
-                  <a
-                    href={OFFICE_HOURS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    contact us
-                  </a>{' '}
-                  to get access.
+                <div className="py-8">
+                  <UpgradeRequiredCard resource="sso" organizationId={orgId} />
                 </div>
               )}
             </TabsContent>

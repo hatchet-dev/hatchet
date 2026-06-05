@@ -8,7 +8,7 @@ import { ArrowUpCircleIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
-export type UpgradeResource = 'users' | 'tenants';
+export type UpgradeResource = 'users' | 'tenants' | 'sso';
 
 type UpgradeRequiredCardProps = {
   resource: UpgradeResource;
@@ -18,7 +18,7 @@ type UpgradeRequiredCardProps = {
 
 const COPY: Record<
   UpgradeResource,
-  { title: string; description: string; noun: string }
+  { title: string; description: string; noun?: string }
 > = {
   users: {
     title: "You've reached your plan's member limit",
@@ -31,6 +31,11 @@ const COPY: Record<
     description:
       'Your current plan does not allow creating additional tenants. Upgrade your plan to create more tenants in your organization.',
     noun: 'tenants',
+  },
+  sso: {
+    title: 'Enterprise SSO is not included in your plan',
+    description:
+      'Single sign-on lets your team log in through your identity provider. Upgrade your plan to configure SSO for your organization.',
   },
 };
 
@@ -55,7 +60,7 @@ export function UpgradeRequiredCard({
     enabled: isCloudEnabled && !!cloud?.canBill && !!organizationId,
   });
 
-  const limit = entitlements?.[resource];
+  const limit = resource === 'sso' ? undefined : entitlements?.[resource];
 
   const currentPlanCode = resolveSubscriptionPlanCode(
     billingState.data?.currentSubscription,
