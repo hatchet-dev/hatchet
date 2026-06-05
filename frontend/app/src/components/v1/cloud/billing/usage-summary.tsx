@@ -1,3 +1,4 @@
+import { computeUsageSpend, type UsageSpendMetric } from './usage-spend';
 import {
   Card,
   CardContent,
@@ -11,8 +12,17 @@ import {
   ChartTooltipContent,
 } from '@/components/v1/ui/chart';
 import { Spinner } from '@/components/v1/ui/loading';
-import type { OrganizationUsageSummary } from '@/lib/api/generated/control-plane/data-contracts';
-import { useMemo } from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
+import type {
+  OrganizationUsageSummary,
+  SubscriptionPlan,
+} from '@/lib/api/generated/control-plane/data-contracts';
+import { useMemo, type ReactNode } from 'react';
 import {
   Bar,
   BarChart,
@@ -35,6 +45,127 @@ const TENANT_COLORS = [
 ];
 
 const numberFormatter = new Intl.NumberFormat();
+
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+});
+
+function formatCents(cents: number): string {
+  return currencyFormatter.format(cents / 100);
+}
+
+function fmtInt(n: number): string {
+  return numberFormatter.format(Math.round(n));
+}
+
+function formatPrice(dollars: number): string {
+  return currencyFormatter.format(dollars);
+}
+
+// renderOverage shows a metric's overage cost for the current or projected
+// column, or a muted "Included" when the usage stays within the plan allotment.
+function renderOverage(
+  metric: UsageSpendMetric | undefined,
+  projected: boolean,
+) {
+  const cents = projected
+    ? (metric?.projectedOverageCents ?? 0)
+    : (metric?.overageCents ?? 0);
+
+  if (metric?.metered && cents > 0) {
+    return <span className="text-foreground">{formatCents(cents)}</span>;
+  }
+  return <span className="text-muted-foreground">Included</span>;
+}
+
+// AmountCell wraps an invoice amount with a hover tooltip explaining its math.
+function AmountCell({
+  className,
+  amount,
+  math,
+}: {
+  className: string;
+  amount: ReactNode;
+  math: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={`cursor-help ${className}`}>{amount}</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[18rem] text-left">
+        {math}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// overageMath explains how a metric's current or projected overage was derived.
+function overageMath(
+  label: string,
+  unit: string,
+  metric: UsageSpendMetric,
+  projected: boolean,
+  remainingDays: number,
+  windowDays: number,
+): ReactNode {
+  if (!metric.metered) {
+    return <p>{label} are included in your plan with no metered overage.</p>;
+  }
+
+  const usage = projected ? metric.projectedUsage : metric.usage;
+  const overageUnits = projected
+    ? metric.projectedOverageUnits
+    : metric.overageUnits;
+  const blocks = projected
+    ? metric.projectedOverageBlocks
+    : metric.overageBlocks;
+  const cents = projected ? metric.projectedOverageCents : metric.overageCents;
+
+  return (
+    <div className="space-y-1.5">
+      {projected ? (
+        <p>
+          Projected{' '}
+          <span className="font-semibold">
+            {fmtInt(usage)} {unit}
+          </span>{' '}
+          = {fmtInt(metric.usage)} so far + {fmtInt(metric.dailyRate)}/day ×{' '}
+          {remainingDays.toFixed(1)} days left
+          <span className="mt-0.5 block text-muted-foreground">
+            daily rate averaged over the last {windowDays}{' '}
+            {windowDays === 1 ? 'day' : 'days'}
+          </span>
+        </p>
+      ) : (
+        <p>
+          <span className="font-semibold">{fmtInt(usage)}</span> {unit} used so
+          far this period.
+        </p>
+      )}
+
+      {overageUnits > 0 ? (
+        <>
+          <p>
+            {fmtInt(usage)} − {fmtInt(metric.includedUsage)} included ={' '}
+            {fmtInt(overageUnits)} over, billed in {fmtInt(metric.billingUnits)}{' '}
+            blocks (rounded up to {fmtInt(blocks)}).
+          </p>
+          <p className="font-semibold">
+            {fmtInt(blocks)} {blocks === 1 ? 'block' : 'blocks'} ×{' '}
+            {formatPrice(metric.overagePrice)} = {formatCents(cents)}
+          </p>
+        </>
+      ) : (
+        <p>
+          Within the {fmtInt(metric.includedUsage)} included {unit} — no
+          overage.
+        </p>
+      )}
+    </div>
+  );
+}
 
 // startOfUtcDay returns the epoch millis for the UTC midnight of the given date.
 function startOfUtcDay(value: string): number {
@@ -67,10 +198,19 @@ function formatRange(start: string, end: string): string {
 
 interface UsageSummaryProps {
   summary?: OrganizationUsageSummary;
+  // The organization's active plan, used to price current and projected spend.
+  plan?: SubscriptionPlan;
   isLoading: boolean;
 }
 
-export function UsageSummary({ summary, isLoading }: UsageSummaryProps) {
+export function UsageSummary({ summary, plan, isLoading }: UsageSummaryProps) {
+  const spend = useMemo(() => {
+    if (!summary || !plan) {
+      return undefined;
+    }
+    return computeUsageSpend(plan, summary);
+  }, [summary, plan]);
+
   const chartConfig = useMemo<ChartConfig>(() => {
     const config: ChartConfig = {};
     summary?.tenants.forEach((tenant, idx) => {
@@ -116,25 +256,27 @@ export function UsageSummary({ summary, isLoading }: UsageSummaryProps) {
 
   const tenantIds = summary?.tenants.map((t) => t.tenantId) ?? [];
 
-  // Line items for the breakdown panel. `cost` is intentionally left undefined
-  // for now; a projected/actual $ value per metric will render here soon.
-  const lineItems: {
-    key: string;
-    label: string;
-    value: number;
-    cost?: string;
-  }[] = [
+  // Invoice-style usage line items. When the plan is priced (spend present) the
+  // amount column shows the metered overage; otherwise it falls back to raw
+  // usage counts.
+  const usageLines = [
     {
       key: 'task_runs',
       label: 'Task runs',
+      unit: 'runs',
       value: summary?.totalTaskRunCount ?? 0,
+      metric: spend?.taskRuns,
     },
     {
       key: 'events',
       label: 'Events',
+      unit: 'events',
       value: summary?.totalEventCount ?? 0,
+      metric: spend?.events,
     },
   ];
+
+  const elapsedPct = spend ? Math.round(spend.fractionElapsed * 100) : 0;
 
   return (
     <Card variant="light">
@@ -208,31 +350,138 @@ export function UsageSummary({ summary, isLoading }: UsageSummaryProps) {
           </div>
 
           <div className="lg:col-span-1">
-            <h4 className="font-mono text-xs font-normal uppercase tracking-wider text-muted-foreground">
-              This period
-            </h4>
-            <div className="mt-2 divide-y divide-border/50">
-              {lineItems.map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between py-3"
-                >
-                  <span className="text-sm text-muted-foreground">
-                    {item.label}
-                  </span>
-                  <div className="flex items-baseline gap-3 text-right">
-                    <span className="text-sm font-semibold tabular-nums text-foreground">
-                      {numberFormatter.format(item.value)}
+            <TooltipProvider delayDuration={100}>
+              <div className="mt-3">
+                {spend ? (
+                  <div className="flex items-center gap-3 pb-1.5">
+                    <span className="flex-1" />
+                    <span className="w-20 text-right font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                      Current
                     </span>
-                    {item.cost ? (
-                      <span className="w-16 text-sm tabular-nums text-muted-foreground">
-                        {item.cost}
-                      </span>
-                    ) : null}
+                    <span className="w-20 text-right font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                      Projected
+                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
+                ) : null}
+
+                {spend ? (
+                  <div className="flex items-baseline gap-3 border-t border-border/50 py-3">
+                    <div className="flex-1">
+                      <div className="text-sm text-foreground">Base price</div>
+                      {plan ? (
+                        <div className="text-xs text-muted-foreground">
+                          {plan.name}
+                          {plan.period ? ` · ${plan.period}` : ''}
+                        </div>
+                      ) : null}
+                    </div>
+                    <AmountCell
+                      className="w-20 text-right text-sm tabular-nums text-foreground"
+                      amount={formatCents(spend.baseCents)}
+                      math={
+                        <p>
+                          {plan?.name ?? 'Plan'} base price, charged each
+                          billing period regardless of usage.
+                        </p>
+                      }
+                    />
+                    <AmountCell
+                      className="w-20 text-right text-sm tabular-nums text-muted-foreground"
+                      amount={formatCents(spend.baseCents)}
+                      math={
+                        <p>
+                          {plan?.name ?? 'Plan'} base price, charged each
+                          billing period regardless of usage.
+                        </p>
+                      }
+                    />
+                  </div>
+                ) : null}
+
+                {usageLines.map((line) => (
+                  <div
+                    key={line.key}
+                    className="flex items-baseline gap-3 border-t border-border/50 py-3"
+                  >
+                    <div className="flex-1">
+                      <div className="text-sm text-foreground">
+                        {line.label}
+                      </div>
+                      <div className="text-xs tabular-nums text-muted-foreground">
+                        {numberFormatter.format(line.value)} {line.unit}
+                      </div>
+                    </div>
+                    {spend && line.metric ? (
+                      <>
+                        <AmountCell
+                          className="w-20 text-right text-sm tabular-nums"
+                          amount={renderOverage(line.metric, false)}
+                          math={overageMath(
+                            line.label,
+                            line.unit,
+                            line.metric,
+                            false,
+                            spend.remainingDays,
+                            spend.windowDays,
+                          )}
+                        />
+                        <AmountCell
+                          className="w-20 text-right text-sm tabular-nums"
+                          amount={renderOverage(line.metric, true)}
+                          math={overageMath(
+                            line.label,
+                            line.unit,
+                            line.metric,
+                            true,
+                            spend.remainingDays,
+                            spend.windowDays,
+                          )}
+                        />
+                      </>
+                    ) : (
+                      <span className="text-sm font-semibold tabular-nums text-foreground">
+                        {numberFormatter.format(line.value)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+                {spend ? (
+                  <div className="flex items-baseline gap-3 border-t border-border/50 py-3">
+                    <span className="flex-1 text-sm font-semibold text-foreground">
+                      Total
+                    </span>
+                    <AmountCell
+                      className="w-20 text-right text-base font-semibold tabular-nums text-foreground"
+                      amount={formatCents(spend.currentCents)}
+                      math={
+                        <p>
+                          Base {formatCents(spend.baseCents)} + task runs{' '}
+                          {formatCents(spend.taskRuns.overageCents)} + events{' '}
+                          {formatCents(spend.events.overageCents)} ={' '}
+                          {formatCents(spend.currentCents)} accrued so far (
+                          {elapsedPct}% of the period elapsed).
+                        </p>
+                      }
+                    />
+                    <AmountCell
+                      className="w-20 text-right text-base font-medium tabular-nums text-muted-foreground"
+                      amount={formatCents(spend.projectedCents)}
+                      math={
+                        <p>
+                          Base {formatCents(spend.baseCents)} + task runs{' '}
+                          {formatCents(spend.taskRuns.projectedOverageCents)} +
+                          events{' '}
+                          {formatCents(spend.events.projectedOverageCents)} ={' '}
+                          {formatCents(spend.projectedCents)}, projecting
+                          current usage across the full period.
+                        </p>
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </TooltipProvider>
           </div>
         </div>
       </CardContent>

@@ -543,6 +543,30 @@ export interface OrganizationUsageDailyPoint {
   eventCount: number;
 }
 
+/** Trailing usage window used to estimate the daily rate for spend projection, independent of the billing period. */
+export interface OrganizationUsageRecentWindow {
+  /**
+   * The start of the trailing window (inclusive).
+   * @format date-time
+   */
+  start: string;
+  /**
+   * The end of the trailing window (exclusive), aligned to the start of the current UTC day.
+   * @format date-time
+   */
+  end: string;
+  /**
+   * Total billable task runs across all tenants over the trailing window.
+   * @format int64
+   */
+  taskRunCount: number;
+  /**
+   * Total billable events across all tenants over the trailing window.
+   * @format int64
+   */
+  eventCount: number;
+}
+
 export interface OrganizationUsageSummary {
   /**
    * The start of the billing period the usage covers.
@@ -573,6 +597,8 @@ export interface OrganizationUsageSummary {
    * @format int64
    */
   totalEventCount: number;
+  /** Trailing usage window used to project spend for the remainder of the period. */
+  recent: OrganizationUsageRecentWindow;
 }
 
 export interface OrganizationPaymentMethod {

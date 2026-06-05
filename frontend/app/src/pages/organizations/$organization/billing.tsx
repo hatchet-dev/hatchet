@@ -263,6 +263,11 @@ function OrganizationBillingContent() {
     },
   });
 
+  const activePlan = useMemo(
+    () => billingState.data?.plans?.find((p) => p.planCode === activePlanCode),
+    [billingState.data?.plans, activePlanCode],
+  );
+
   if (billingState.isError) {
     const status = getApiErrorStatus(billingState.error);
     const isUnauthorized = status === 401 || status === 403;
@@ -338,6 +343,7 @@ function OrganizationBillingContent() {
           !usageSummary.isError ? (
             <UsageSummary
               summary={usageSummary.data}
+              plan={activePlan}
               isLoading={usageSummary.isLoading}
             />
           ) : null
