@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,16 +26,11 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
-// ErrPartitionLockConflict is returned when a partition DDL operation cannot acquire the necessary
-// table lock because another operation (e.g. ANALYZE) is holding a conflicting lock. The caller
-// should treat this as a transient condition and retry later.
 var ErrPartitionLockConflict = errors.New("partition DDL could not acquire lock due to concurrent table operation")
 
-// isLockNotAvailable reports whether err is a PostgreSQL lock_not_available error (SQLSTATE 55P03),
-// which is raised when a lock_timeout fires.
 func isLockNotAvailable(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
 }
 
 type CreateTaskOpts struct {
