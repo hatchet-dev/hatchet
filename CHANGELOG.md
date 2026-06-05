@@ -1,3 +1,29 @@
+## [Unreleased]
+
+### Upgrade Notes
+
+* This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, we recommend running the following query against your Postgres instance to ensure a bulk-cleanup:
+
+```sql
+BEGIN;
+
+LOCK TABLE "UserSession" IN ACCESS EXCLUSIVE MODE;
+
+CREATE TABLE tmp_UserSession AS
+SELECT *
+FROM "UserSession"
+WHERE
+   ("userId" IS NOT NULL AND "expiresAt" >= NOW())
+OR
+   ("userId" IS NULL AND "createdAt" >= NOW() - INTERVAL '24 hours');
+
+DROP TABLE "UserSession";
+
+ALTER TABLE tmp_UserSession RENAME TO "UserSession";
+
+COMMIT;
+```
+
 ## [0.89.0] - 2026-06-09
 
 Hatchet v0.89.0 introduces a range of updates to the platform, consisting largely of performance improvements and bug fixes to the engine, alongside several user-experience changes to the dashboard.
