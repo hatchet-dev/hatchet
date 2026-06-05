@@ -431,14 +431,14 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionOtelTables {
-		if err = runPartitionDDLWithLockTimeout(ctx, r.pool, func(tx pgx.Tx) error {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, func(tx pgx.Tx) error {
 			return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
 		}); err != nil {
 			return err
 		}
 	}
 
-	if err = runPartitionDDLWithLockTimeout(ctx, r.pool, func(tx pgx.Tx) error {
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, func(tx pgx.Tx) error {
 		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
 			Date:       pgtype.Date{Time: tomorrow, Valid: true},
 			Partitions: NUM_PARTITIONS,
@@ -456,7 +456,7 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	}
 
 	if r.shouldPartitionOtelTables {
-		if err = runPartitionDDLWithLockTimeout(ctx, r.pool, func(tx pgx.Tx) error {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, func(tx pgx.Tx) error {
 			return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
 		}); err != nil {
 			return err
