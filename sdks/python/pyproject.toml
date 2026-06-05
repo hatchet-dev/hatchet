@@ -86,8 +86,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["hatchet_sdk"]
 
-[tool.hatch.build]
-include = ["hatchet_sdk/py.typed"]
+[tool.hatch.build.targets.sdist]
+packages = ["hatchet_sdk"]
 
 
 [tool.pytest.ini_options]

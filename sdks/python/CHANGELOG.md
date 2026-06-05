@@ -5,11 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.33.7] - 2026-06-06
 
 ### Fixed
 
 - Fixed a bug where synchronous log calls via `asyncio.to_thread` (or other threads) could block workers.
+- Ensure that the sdist also contains the Python sources.
 
 ## [1.33.6] - 2026-05-27
 
