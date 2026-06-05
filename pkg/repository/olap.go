@@ -353,10 +353,7 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 // runPartitionDDLWithLockTimeout wraps fn in a transaction with a short lock_timeout so that DDL
 // fails fast with ErrPartitionLockConflict instead of blocking if ANALYZE (or another DDL) holds a
 // conflicting ShareUpdateExclusiveLock on the parent table.
-// runPartitionDDLWithLockTimeout wraps fn in a transaction with a short lock_timeout so that DDL
-// fails fast with ErrPartitionLockConflict instead of blocking if ANALYZE (or another DDL) holds a
-// conflicting ShareUpdateExclusiveLock on the parent table.
-//
+
 // Only CREATE TABLE / ALTER TABLE ATTACH PARTITION may be passed in fn. DETACH PARTITION
 // CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
 func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, fn func(tx pgx.Tx) error) error {

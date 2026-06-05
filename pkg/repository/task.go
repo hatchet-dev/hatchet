@@ -368,30 +368,20 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	//
-	// A dedicated connection is used so we can set lock_timeout and reset it on release,
-	// ensuring it doesn't affect other pool users. lock_timeout causes a fast 55P03 failure
-	// if ANALYZE is concurrently holding a ShareUpdateExclusiveLock on the parent tables.
-	createConn, createRelease, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 10*60*1000)
-	if err != nil {
-		return err
-	}
-
 	releaseCreateConn := func() {
 		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if _, resetErr := createConn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+		if _, resetErr := r.ddlPool.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
 			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
 		}
-		createRelease()
 	}
 
-	if _, err = createConn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+	if _, err = r.ddlPool.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
 		releaseCreateConn()
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
 
-	err = r.queries.CreatePartitions(ctx, createConn, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
@@ -404,7 +394,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, createConn, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
