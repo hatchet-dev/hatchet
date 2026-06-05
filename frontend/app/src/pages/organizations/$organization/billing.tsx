@@ -2,6 +2,7 @@ import { usePylon } from '@/components/support-chat';
 import {
   Subscription,
   SubscriptionHistory,
+  UsageSummary,
 } from '@/components/v1/cloud/billing';
 import { resolveSubscriptionPlanCode } from '@/components/v1/cloud/billing/subscription-plan-code';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
@@ -253,6 +254,15 @@ function OrganizationBillingContent() {
 
   const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
 
+  const usageSummary = useQuery({
+    ...queries.controlPlane.usageSummary(organization),
+    enabled: isCloudEnabled && !!cloud?.canBill,
+    retry: (failureCount, error) => {
+      const status = getApiErrorStatus(error);
+      return status !== 401 && status !== 403 && failureCount < 3;
+    },
+  });
+
   if (billingState.isError) {
     const status = getApiErrorStatus(billingState.error);
     const isUnauthorized = status === 401 || status === 403;
@@ -324,6 +334,14 @@ function OrganizationBillingContent() {
         upcoming={billingState.data?.upcomingSubscription}
         plans={billingState.data?.plans}
         coupons={billingState.data?.coupons}
+        usageSlot={
+          !usageSummary.isError ? (
+            <UsageSummary
+              summary={usageSummary.data}
+              isLoading={usageSummary.isLoading}
+            />
+          ) : null
+        }
       />
 
       {tenantResourceLimits.isLoading || organizationTenants.length > 0 ? (

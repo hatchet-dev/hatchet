@@ -43,6 +43,7 @@ interface SubscriptionProps {
   upcoming?: OrganizationBillingStateSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
+  usageSlot?: React.ReactNode;
 }
 
 function formatCurrency(cents: number, period?: string) {
@@ -123,6 +124,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   upcoming,
   plans,
   coupons,
+  usageSlot,
 }) => {
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
@@ -423,6 +425,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 {portalLoading ? <Spinner /> : 'Manage Billing'}
               </Button>
             </div>
+            {usageSlot && <div className="mt-6">{usageSlot}</div>}
           </div>
         ) : (
           <>
@@ -577,6 +580,8 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 </CardHeader>
               </Card>
             )}
+
+            {usageSlot && <div className="mb-6">{usageSlot}</div>}
 
             <div className="flex flex-row items-center justify-between mb-4">
               <p className="text-md text-muted-foreground">

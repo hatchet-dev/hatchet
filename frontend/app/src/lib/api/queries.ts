@@ -43,6 +43,11 @@ export const queries = createQueryKeyStore({
           )
         ).data,
     }),
+    usageSummary: (organization: string) => ({
+      queryKey: ['organization-usage-summary:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationUsageSummaryGet(organization)).data,
+    }),
     creditBalance: (organization: string) => ({
       queryKey: ['organization-credit-balance:get', organization],
       queryFn: async () =>

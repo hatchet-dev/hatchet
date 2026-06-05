@@ -30,6 +30,7 @@ export enum SubscriptionPlanCode {
   Free = "free",
   Starter = "starter",
   Growth = "growth",
+  Migration = "migration",
   Developer = "developer",
   Team = "team",
   Scale = "scale",
@@ -505,6 +506,73 @@ export interface OrganizationTenantResourceLimits {
 export interface OrganizationTenantResourceLimitsList {
   /** Resource limits grouped by tenant. */
   tenants: OrganizationTenantResourceLimits[];
+}
+
+export interface OrganizationUsageSummaryTenant {
+  /**
+   * The tenant id.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The tenant display name. */
+  tenantName: string;
+  /** The tenant slug. */
+  tenantSlug: string;
+}
+
+export interface OrganizationUsageDailyPoint {
+  /**
+   * The start of the UTC day this usage row covers.
+   * @format date-time
+   */
+  day: string;
+  /**
+   * The tenant the usage belongs to.
+   * @format uuid
+   */
+  tenantId: string;
+  /**
+   * Billable task runs for the tenant on this day.
+   * @format int64
+   */
+  taskRunCount: number;
+  /**
+   * Billable events for the tenant on this day.
+   * @format int64
+   */
+  eventCount: number;
+}
+
+export interface OrganizationUsageSummary {
+  /**
+   * The start of the billing period the usage covers.
+   * @format date-time
+   */
+  periodStart: string;
+  /**
+   * The end of the billing period the usage covers.
+   * @format date-time
+   */
+  periodEnd: string;
+  /**
+   * The earliest day for which usage data is available, accounting for shard retention. May be later than periodStart.
+   * @format date-time
+   */
+  dataStart: string;
+  /** The active tenants included in the usage summary. */
+  tenants: OrganizationUsageSummaryTenant[];
+  /** Daily per-tenant usage rows ordered by day then tenant. */
+  daily: OrganizationUsageDailyPoint[];
+  /**
+   * Total billable task runs across all tenants for the period.
+   * @format int64
+   */
+  totalTaskRunCount: number;
+  /**
+   * Total billable events across all tenants for the period.
+   * @format int64
+   */
+  totalEventCount: number;
 }
 
 export interface OrganizationPaymentMethod {
