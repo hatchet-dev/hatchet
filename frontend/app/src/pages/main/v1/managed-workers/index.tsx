@@ -25,7 +25,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-export default function ManagedWorkers() {
+function ManagedWorkersImpl() {
   const { tenant, billing, can, organizationId } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
