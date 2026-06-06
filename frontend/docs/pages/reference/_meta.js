@@ -1,4 +1,11 @@
 export default {
+  changelog: {
+    title: "Changelog",
+    type: "page",
+    theme: {
+      toc: true,
+    },
+  },
   python: {
     title: "Python SDK",
     type: "page",
