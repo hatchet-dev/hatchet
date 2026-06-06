@@ -985,6 +985,8 @@ export interface Tenant {
   serverUrl?: string;
   /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
   region?: string;
+  /** The data retention period for the tenant (e.g. 720h). */
+  dataRetentionPeriod?: string;
 }
 
 export interface V1EventWorkflowRunSummary {
@@ -1522,6 +1524,8 @@ export interface CreateTenantRequest {
   engineVersion?: TenantVersion;
   /** The environment type of the tenant. */
   environment?: TenantEnvironment;
+  /** The data retention period for the tenant (e.g. 720h). */
+  dataRetentionPeriod?: string;
   /** Additional onboarding data to store with the tenant. */
   onboardingData?: Record<string, any>;
 }
@@ -1543,6 +1547,8 @@ export interface UpdateTenantRequest {
   maxAlertingFrequency?: string;
   /** The version of the tenant. */
   version?: TenantVersion;
+  /** The data retention period for the tenant (e.g. 720h). */
+  dataRetentionPeriod?: string;
 }
 
 export interface TenantAlertingSettings {

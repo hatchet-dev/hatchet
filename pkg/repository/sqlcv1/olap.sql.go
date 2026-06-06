@@ -193,6 +193,32 @@ func (q *Queries) CleanUpOLAPCutoverJobOffsets(ctx context.Context, db DBTX, key
 	return err
 }
 
+const cleanupOldTaskEventsOLAP = `-- name: CleanupOldTaskEventsOLAP :execrows
+WITH old_events AS (
+    SELECT id
+    FROM v1_task_events_olap
+    WHERE tenant_id = $1::uuid
+      AND inserted_at < $2::timestamptz
+    LIMIT $3::int
+)
+DELETE FROM v1_task_events_olap
+WHERE id IN (SELECT id FROM old_events)
+`
+
+type CleanupOldTaskEventsOLAPParams struct {
+	Tenantid  uuid.UUID          `json:"tenantid"`
+	Cutoff    pgtype.Timestamptz `json:"cutoff"`
+	Batchsize int32              `json:"batchsize"`
+}
+
+func (q *Queries) CleanupOldTaskEventsOLAP(ctx context.Context, db DBTX, arg CleanupOldTaskEventsOLAPParams) (int64, error) {
+	result, err := db.Exec(ctx, cleanupOldTaskEventsOLAP, arg.Tenantid, arg.Cutoff, arg.Batchsize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const computeOLAPPayloadBatchSize = `-- name: ComputeOLAPPayloadBatchSize :one
 SELECT compute_olap_payload_batch_size(
     $1::DATE,

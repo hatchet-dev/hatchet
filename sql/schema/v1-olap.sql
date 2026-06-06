@@ -331,6 +331,7 @@ CREATE TABLE v1_task_events_olap (
 );
 
 CREATE INDEX v1_task_events_olap_task_id_idx ON v1_task_events_olap (task_id);
+CREATE INDEX v1_task_events_olap_tenant_id_inserted_at_idx ON v1_task_events_olap (tenant_id, inserted_at);
 
 CREATE TABLE v1_incoming_webhook_validation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,

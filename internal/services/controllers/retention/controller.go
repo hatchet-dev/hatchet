@@ -55,7 +55,7 @@ func defaultRetentionControllerOpts() *RetentionControllerOpts {
 		l:               &logger,
 		dv:              datautils.NewDataDecoderValidator(),
 		alerter:         alerter,
-		dataRetention:   true,
+		dataRetention:   false,
 		queueRetention:  true,
 		workerRetention: false,
 	}
@@ -189,6 +189,23 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runCleanupOldWorkers: %w", err)
+		}
+	}
+
+	if rc.dataRetention {
+		dataInterval := 24 * time.Hour
+
+		_, err := rc.s.NewJob(
+			gocron.DurationJob(dataInterval),
+			gocron.NewTask(
+				rc.runCleanupOldData(ctx),
+			),
+			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		)
+
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not set up runCleanupOldData: %w", err)
 		}
 	}
 

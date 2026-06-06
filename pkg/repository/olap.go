@@ -265,6 +265,7 @@ type OLAPRepository interface {
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
 	ListEventKeys(ctx context.Context, tenantId uuid.UUID) ([]string, error)
+	CleanupOldTaskEvents(ctx context.Context, tenantId uuid.UUID, cutoff time.Time) (bool, error)
 
 	GetDAGDurations(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error)
 	GetTaskDurationsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskIds []int64, taskInsertedAts []pgtype.Timestamptz, readableStatuses []sqlcv1.V1ReadableStatusOlap) (map[int64]*sqlcv1.GetTaskDurationsByTaskIdsRow, error)
@@ -2867,6 +2868,33 @@ func (r *OLAPRepositoryImpl) ListEventKeys(ctx context.Context, tenantId uuid.UU
 	}
 
 	return keys, nil
+}
+
+func (r *OLAPRepositoryImpl) CleanupOldTaskEvents(ctx context.Context, tenantId uuid.UUID, cutoff time.Time) (bool, error) {
+	const timeout = 1000 * 60 * 3 // 3 minutes
+	const batchSize int32 = 10000
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+	if err != nil {
+		return false, fmt.Errorf("error beginning transaction: %w", err)
+	}
+	defer rollback()
+
+	rows, err := r.queries.CleanupOldTaskEventsOLAP(ctx, tx, sqlcv1.CleanupOldTaskEventsOLAPParams{
+		Tenantid:  tenantId,
+		Cutoff:    sqlchelpers.TimestamptzFromTime(cutoff),
+		Batchsize: batchSize,
+	})
+
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up old task events for tenant %s: %w", tenantId.String(), err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return rows == int64(batchSize), nil
 }
 
 func (r *OLAPRepositoryImpl) GetDAGDurations(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID, minInsertedAt pgtype.Timestamptz) (map[string]*sqlcv1.GetDagDurationsRow, error) {

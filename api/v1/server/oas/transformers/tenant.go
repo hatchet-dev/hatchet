@@ -17,14 +17,15 @@ func ToTenant(tenant *sqlcv1.Tenant, serverURL string) *gen.Tenant {
 	}
 
 	return &gen.Tenant{
-		Metadata:          *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
-		Name:              tenant.Name,
-		Slug:              tenant.Slug,
-		AnalyticsOptOut:   &tenant.AnalyticsOptOut,
-		AlertMemberEmails: &tenant.AlertMemberEmails,
-		Version:           gen.TenantVersion(tenant.Version),
-		Environment:       environment,
-		ServerUrl:         &serverURL,
+		Metadata:            *toAPIMetadata(tenant.ID, tenant.CreatedAt.Time, tenant.UpdatedAt.Time),
+		Name:                tenant.Name,
+		Slug:                tenant.Slug,
+		AnalyticsOptOut:     &tenant.AnalyticsOptOut,
+		AlertMemberEmails:   &tenant.AlertMemberEmails,
+		DataRetentionPeriod: &tenant.DataRetentionPeriod,
+		Version:             gen.TenantVersion(tenant.Version),
+		Environment:         environment,
+		ServerUrl:           &serverURL,
 	}
 }
 

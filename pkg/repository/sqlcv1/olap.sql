@@ -2388,3 +2388,14 @@ WHERE
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
 RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.readable_status, t.latest_worker_id, t.workflow_id, t.dag_id, t.dag_inserted_at;
+
+-- name: CleanupOldTaskEventsOLAP :execrows
+WITH old_events AS (
+    SELECT id
+    FROM v1_task_events_olap
+    WHERE tenant_id = @tenantId::uuid
+      AND inserted_at < @cutoff::timestamptz
+    LIMIT @batchSize::int
+)
+DELETE FROM v1_task_events_olap
+WHERE id IN (SELECT id FROM old_events);

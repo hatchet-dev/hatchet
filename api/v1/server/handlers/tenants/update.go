@@ -51,6 +51,10 @@ func (t *TenantService) TenantUpdate(ctx echo.Context, request gen.TenantUpdateR
 		updateOpts.Name = request.Body.Name
 	}
 
+	if request.Body.DataRetentionPeriod != nil {
+		updateOpts.DataRetentionPeriod = request.Body.DataRetentionPeriod
+	}
+
 	// update the tenant
 	tenant, err := t.config.V1.Tenant().UpdateTenant(ctx.Request().Context(), tenantId, updateOpts)
 

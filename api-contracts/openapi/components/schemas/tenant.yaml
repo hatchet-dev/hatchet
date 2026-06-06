@@ -26,6 +26,9 @@ Tenant:
     region:
       type: string
       description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
+    dataRetentionPeriod:
+      type: string
+      description: The data retention period for the tenant (e.g. 720h).
   required:
     - metadata
     - name
@@ -99,6 +102,11 @@ CreateTenantRequest:
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
+    dataRetentionPeriod:
+      type: string
+      description: The data retention period for the tenant (e.g. 720h).
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,duration"
     onboardingData:
       type: object
       description: Additional onboarding data to store with the tenant.
@@ -136,6 +144,11 @@ UpdateTenantRequest:
     version:
       $ref: "#/TenantVersion"
       description: The version of the tenant.
+    dataRetentionPeriod:
+      type: string
+      description: The data retention period for the tenant (e.g. 720h).
+      x-oapi-codegen-extra-tags:
+        validate: "omitnil,duration"
   type: object
 
 TenantResource:

@@ -1,6 +1,7 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
 import { UpdateTenantForm } from './components/update-tenant-form';
 import { Button } from '@/components/v1/ui/button';
+import { Input } from '@/components/v1/ui/input';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
@@ -15,7 +16,7 @@ export default function TenantSettings() {
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
           title="General settings"
-          description="Update the tenant name and analytics preferences for this tenant."
+          description="Update the tenant name, data retention, and analytics preferences for this tenant."
         />
 
         <div className="divide-y divide-border">
@@ -27,6 +28,12 @@ export default function TenantSettings() {
             description="Disable usage analytics collection for this tenant."
           >
             <AnalyticsOptOut />
+          </SettingRow>
+          <SettingRow
+            label="Data Retention Period"
+            description="How long to retain task run and event data for this tenant (e.g. 24h, 168h, 720h)."
+          >
+            <DataRetention />
           </SettingRow>
         </div>
       </div>
@@ -76,6 +83,58 @@ const UpdateTenant: React.FC = () => {
       isLoading={isLoading}
       onSubmit={(data) => updateMutation.mutate(data)}
     />
+  );
+};
+
+const DataRetention: React.FC = () => {
+  const { tenant } = useTenantDetails();
+  const { tenantId } = useCurrentTenantId();
+  const [changed, setChanged] = useState(false);
+  const [value, setValue] = useState(tenant?.dataRetentionPeriod || '');
+  const [isLoading, setIsLoading] = useState(false);
+  const { handleApiError } = useApiError({});
+
+  const updateMutation = useMutation({
+    mutationKey: ['tenant:update'],
+    mutationFn: async (data: UpdateTenantRequest) => {
+      await api.tenantUpdate(tenantId, data);
+    },
+    onMutate: () => setIsLoading(true),
+    onSuccess: () => window.location.reload(),
+    onSettled: () => setTimeout(() => setIsLoading(false), 1000),
+    onError: handleApiError,
+  });
+
+  return (
+    <div className="flex items-center gap-3">
+      <Input
+        id="drp"
+        placeholder="720h"
+        type="text"
+        autoCapitalize="none"
+        autoCorrect="off"
+        className="w-[120px]"
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setChanged(true);
+        }}
+        disabled={isLoading}
+      />
+      {changed &&
+        (isLoading ? (
+          <Spinner />
+        ) : (
+          <Button
+            size="sm"
+            onClick={() =>
+              updateMutation.mutate({ dataRetentionPeriod: value })
+            }
+          >
+            Save
+          </Button>
+        ))}
+    </div>
   );
 };
 

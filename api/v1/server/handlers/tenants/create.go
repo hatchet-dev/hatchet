@@ -54,7 +54,9 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 		createOpts.Environment = &environment
 	}
 
-	if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
+	if request.Body.DataRetentionPeriod != nil {
+		createOpts.DataRetentionPeriod = request.Body.DataRetentionPeriod
+	} else if t.config.Runtime.Limits.DefaultTenantRetentionPeriod != "" {
 		createOpts.DataRetentionPeriod = &t.config.Runtime.Limits.DefaultTenantRetentionPeriod
 	}
 
