@@ -378,6 +378,8 @@ func (r *tenantRepository) UpdateTenant(ctx context.Context, id uuid.UUID, opts 
 		return nil, err
 	}
 
+	r.cache.Remove("api" + id.String())
+
 	for _, cb := range r.updateCallbacks {
 		cb.Do(r.l, updated)
 	}

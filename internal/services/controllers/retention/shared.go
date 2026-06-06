@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -12,8 +13,24 @@ import (
 	"github.com/google/uuid"
 )
 
+func parseDuration(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("invalid duration: %s", s)
+	}
+
+	if s[len(s)-1] == 'd' {
+		hours, err := strconv.Atoi(s[:len(s)-1])
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration: %s", s)
+		}
+		return time.Duration(hours) * time.Hour * 24, nil
+	}
+
+	return time.ParseDuration(s)
+}
+
 func GetDataRetentionExpiredTime(duration string) (time.Time, error) {
-	d, err := time.ParseDuration(duration)
+	d, err := parseDuration(duration)
 
 	if err != nil {
 		return time.Time{}, fmt.Errorf("could not parse duration: %w", err)

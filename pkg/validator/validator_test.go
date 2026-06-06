@@ -89,8 +89,20 @@ func TestValidatorDuration(t *testing.T) {
 		wantErrTag string
 	}{
 		{
-			name:  "valid duration",
+			name:  "valid duration (seconds)",
 			input: "5s",
+		},
+		{
+			name:  "valid duration (minutes)",
+			input: "10m",
+		},
+		{
+			name:  "valid duration (hours)",
+			input: "24h",
+		},
+		{
+			name:  "valid duration (days)",
+			input: "7d",
 		},
 		{
 			name:       "invalid duration (missing unit)",

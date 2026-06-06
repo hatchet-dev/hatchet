@@ -1153,6 +1153,7 @@ SELECT
     t."slug" as "tenantSlug",
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
+    t."dataRetentionPeriod" as "dataRetentionPeriod",
     t."version" as "tenantVersion",
     t."environment" as "tenantEnvironment"
 FROM
@@ -1179,10 +1180,11 @@ type PopulateTenantMembersRow struct {
 	TenantUpdatedAt   pgtype.Timestamp         `json:"tenantUpdatedAt"`
 	TenantName        string                   `json:"tenantName"`
 	TenantSlug        string                   `json:"tenantSlug"`
-	AlertMemberEmails bool                     `json:"alertMemberEmails"`
-	AnalyticsOptOut   bool                     `json:"analyticsOptOut"`
-	TenantVersion     TenantMajorEngineVersion `json:"tenantVersion"`
-	TenantEnvironment NullTenantEnvironment    `json:"tenantEnvironment"`
+	AlertMemberEmails   bool                     `json:"alertMemberEmails"`
+	AnalyticsOptOut     bool                     `json:"analyticsOptOut"`
+	DataRetentionPeriod string                   `json:"dataRetentionPeriod"`
+	TenantVersion       TenantMajorEngineVersion `json:"tenantVersion"`
+	TenantEnvironment   NullTenantEnvironment    `json:"tenantEnvironment"`
 }
 
 func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*PopulateTenantMembersRow, error) {
@@ -1210,6 +1212,7 @@ func (q *Queries) PopulateTenantMembers(ctx context.Context, db DBTX, ids []uuid
 			&i.TenantSlug,
 			&i.AlertMemberEmails,
 			&i.AnalyticsOptOut,
+			&i.DataRetentionPeriod,
 			&i.TenantVersion,
 			&i.TenantEnvironment,
 		); err != nil {

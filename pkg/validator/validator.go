@@ -3,6 +3,7 @@ package validator
 import (
 	"encoding/json"
 	"regexp"
+	"strconv"
 	"time"
 	"unicode"
 
@@ -62,8 +63,19 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
-		_, err := time.ParseDuration(fl.Field().String())
+		s := fl.Field().String()
 
+		if len(s) < 2 {
+			return false
+		}
+
+		if s[len(s)-1] == 'd' {
+			hours := s[:len(s)-1]
+			_, err := strconv.Atoi(hours)
+			return err == nil
+		}
+
+		_, err := time.ParseDuration(s)
 		return err == nil
 	})
 

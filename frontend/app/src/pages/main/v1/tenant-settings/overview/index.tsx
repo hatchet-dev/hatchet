@@ -7,7 +7,7 @@ import { Switch } from '@/components/v1/ui/switch';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 export default function TenantSettings() {
@@ -93,6 +93,7 @@ const DataRetention: React.FC = () => {
   const [value, setValue] = useState(tenant?.dataRetentionPeriod || '');
   const [isLoading, setIsLoading] = useState(false);
   const { handleApiError } = useApiError({});
+  const queryClient = useQueryClient();
 
   const updateMutation = useMutation({
     mutationKey: ['tenant:update'],
@@ -100,9 +101,15 @@ const DataRetention: React.FC = () => {
       await api.tenantUpdate(tenantId, data);
     },
     onMutate: () => setIsLoading(true),
-    onSuccess: () => window.location.reload(),
-    onSettled: () => setTimeout(() => setIsLoading(false), 1000),
-    onError: handleApiError,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-universe'] });
+      setChanged(false);
+      setIsLoading(false);
+    },
+    onError: (e: unknown) => {
+      handleApiError(e as any);
+      setIsLoading(false);
+    },
   });
 
   return (

@@ -20,7 +20,7 @@ const (
 	HatchetNameErr = "Hatchet names must match the regex ^[a-zA-Z0-9\\.\\-_]+$"
 	ActionIDErr    = "Invalid action ID. Action IDs must be in the format <integrationId>:<verb>"
 	CronErr        = "Invalid cron expression"
-	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h'"
+	DurationErr    = "Invalid duration. Use a format like 24h, 168h, or 7d (s=seconds, m=minutes, h=hours, d=days)"
 	CELExprErr     = "Invalid CEL expression"
 )
 

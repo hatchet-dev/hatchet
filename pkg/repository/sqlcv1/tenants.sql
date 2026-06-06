@@ -609,6 +609,7 @@ SELECT
     t."slug" as "tenantSlug",
     t."alertMemberEmails" as "alertMemberEmails",
     t."analyticsOptOut" as "analyticsOptOut",
+    t."dataRetentionPeriod" as "dataRetentionPeriod",
     t."version" as "tenantVersion",
     t."environment" as "tenantEnvironment"
 FROM
