@@ -341,8 +341,8 @@ func WithEvents(events ...string) TaskOption {
 	}
 }
 
-// WithFilters sets default filters for event-triggered workflows or standalone tasks.
-func WithFilters(filters ...types.DefaultFilter) WorkflowOption {
+// WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks.
+func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
 	return func(config *workflowConfig) {
 		config.defaultFilters = filters
 	}
