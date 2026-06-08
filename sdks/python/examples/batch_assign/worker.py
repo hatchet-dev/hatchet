@@ -32,9 +32,11 @@ class LargePayloadInput(BaseModel):
     input_validator=SimpleInput,
 )
 async def batch_simple(
-    tasks: list[tuple[SimpleInput, Context]],
-) -> list[dict[str, Any]]:
-    return [{"TransformedMessage": inp.Message.upper()} for inp, _ctx in tasks]
+    tasks: dict[str, SimpleInput],
+    context: Context
+) -> dict[str, Any]:
+    print(tasks)
+    return {id: {"TransformedMessage": inp.Message.upper()} for id, inp in tasks.items()}
 
 
 @hatchet.batch_task(
@@ -43,17 +45,19 @@ async def batch_simple(
     batch_group_key="input.group",
     input_validator=KeyedInput,
 )
-async def batch_keyed(tasks: list[tuple[KeyedInput, Context]]) -> list[dict[str, Any]]:
-    unique_keys = len({inp.group for inp, _ in tasks})
-    return [
+async def batch_keyed(tasks: dict[str, KeyedInput], context: Context) -> dict[str, Any]:
+    print(tasks)
+    unique_keys = len({inp.group for _, inp in tasks.items()})
+    return {
+        id:
         {
             "batchKey": inp.group,
             "batchSize": len(tasks),
             "uniqueKeys": unique_keys,
             "uppercase": inp.Message.upper(),
         }
-        for inp, _ctx in tasks
-    ]
+        for id, inp in tasks.items()
+    }
 
 
 @hatchet.batch_task(
@@ -63,18 +67,19 @@ async def batch_keyed(tasks: list[tuple[KeyedInput, Context]]) -> list[dict[str,
     input_validator=KeyedInput,
 )
 async def batch_keyed_interval(
-    tasks: list[tuple[KeyedInput, Context]],
-) -> list[dict[str, Any]]:
-    unique_keys = len({inp.group for inp, _ in tasks})
-    return [
+    tasks: dict[str, KeyedInput], context: Context,
+) -> dict[str, Any]:
+    unique_keys = len({inp.group for _, inp in tasks.items()})
+    return {
+        id:
         {
             "batchKey": inp.group,
             "batchSize": len(tasks),
             "uniqueKeys": unique_keys,
             "payload": inp.Message,
         }
-        for inp, _ctx in tasks
-    ]
+        for id, inp in tasks.items()
+    }
 
 
 @hatchet.batch_task(
@@ -83,18 +88,19 @@ async def batch_keyed_interval(
     input_validator=LargePayloadInput,
 )
 async def batch_large(
-    tasks: list[tuple[LargePayloadInput, Context]],
-) -> list[dict[str, Any]]:
+    tasks: dict[str, LargePayloadInput],
+    context: Context
+) -> dict[str, Any]:
     batch_id = str(uuid.uuid4())
-    return [
-        {
+    return {
+        id: {
             "batchId": batch_id,
             "received": True,
             "batchSize": len(tasks),
             "dataLength": len(inp.data),
         }
-        for inp, _ctx in tasks
-    ]
+        for id, inp in tasks.items()
+    }
 
 
 @hatchet.batch_task(
@@ -103,9 +109,10 @@ async def batch_large(
     input_validator=SimpleInput,
 )
 async def batch_single(
-    tasks: list[tuple[SimpleInput, Context]],
-) -> list[dict[str, Any]]:
-    return [{"original": inp.Message, "batchSize": len(tasks)} for inp, _ctx in tasks]
+    tasks: dict[str, SimpleInput],
+    context: Context
+) -> dict[str, Any]:
+    return { id: {"original": inp.Message, "batchSize": len(tasks)} for id, inp in tasks.items()}
 
 
 @hatchet.batch_task(
@@ -114,9 +121,10 @@ async def batch_single(
     input_validator=OrderedInput,
 )
 async def batch_ordered(
-    tasks: list[tuple[OrderedInput, Context]],
-) -> list[dict[str, Any]]:
-    return [{"index": inp.index} for inp, _ctx in tasks]
+    tasks: dict[str, OrderedInput],
+    context: Context
+) -> dict[str, Any]:
+    return {id: {"index": inp.index} for id, inp in tasks.items()}
 
 
 def main() -> None:

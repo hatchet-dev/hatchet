@@ -94,7 +94,6 @@ async def test_completes_all_tasks_with_large_payloads() -> None:
             for _ in range(task_count)
         ]
     )
-    print(results)
     assert len(results) == task_count
     # test that the batch got flushed each time the batch payload size got over 4mb
     assert len(set(r["batchId"] for r in results)) == 3

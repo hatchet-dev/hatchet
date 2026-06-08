@@ -210,8 +210,6 @@ class Runner:
                 logger.info(log)
                 t = asyncio.create_task(self.handle_cancel_action(action))
             case ActionType.START_BATCH:
-                import sys
-                print("action size", sys.getsizeof(action), "action payload size", sys.getsizeof(action.action_payload))
                 log = f"run: start batch: {action.action_id}/{action.batch_id}"
                 logger.info(log)
                 t = asyncio.create_task(self.handle_start_batch(action))
@@ -454,7 +452,8 @@ class Runner:
             logger.error(f"START_BATCH received with no items for action '{action_id}'")
             return
 
-        item_actions = [
+        item_actions = {
+            ext_id:
             action.model_copy(
                 update={
                     "step_run_id": ext_id,
@@ -464,10 +463,10 @@ class Runner:
                 }
             )
             for ext_id, item_data in action.batch_items.items()
-        ]
+        }
 
         # Send STARTED events for all items
-        for item_action in item_actions:
+        for _, item_action in item_actions.items():
             self.event_queue.put(
                 ActionEvent(
                     action=item_action,
@@ -477,30 +476,32 @@ class Runner:
                 )
             )
 
-        item_contexts = [
-            self.create_context(action=item_action, task=task, is_durable=False)
-            for item_action in item_actions
-        ]
-
-        inputs = [task.workflow._get_workflow_input(ctx) for ctx in item_contexts]
-        batch_tasks = list(zip(inputs, item_contexts, strict=False))
+        cast_input = lambda input: cast(
+            TWorkflowInput,
+            task._workflow.input_validator.validate_python(
+                input, context=HATCHET_PYDANTIC_SENTINEL
+            ),
+        )
+        task_inputs = {i: cast_input(item.payload.input) for i, item in action.batch_items.items()}
+        context = self.create_context(action=action, task=task, is_durable=False)
         try:
             if task.is_async_function:
                 batch_fn_async = cast(
                     Coroutine[Any, Any, list[Any]],
                     task.fn,
                 )
-                outputs = await cast(Any, batch_fn_async)(batch_tasks)
+                outputs = await cast(Any, batch_fn_async)(task_inputs, context)
             else:
                 loop = asyncio.get_running_loop()
                 outputs = await loop.run_in_executor(
                     self.thread_pool,
-                    lambda: task.fn(batch_tasks),  # type: ignore[operator]
+                    lambda: task.fn(task_inputs, context),  # type: ignore[operator]
                 )
-
-            if not isinstance(outputs, list):
+            # handling for single vs multi outputs
+            # TODO: add configuration for single outputs
+            if not isinstance(outputs, dict):
                 raise ValueError(
-                    f"Batch task '{action_id}' must return a list of outputs"
+                    f"Batch task '{action_id}' must return a dict of outputs"
                 )
 
             if len(outputs) != len(item_actions):
@@ -508,13 +509,14 @@ class Runner:
                     f"Batch task '{action_id}' returned {len(outputs)} outputs for {len(item_actions)} inputs"
                 )
 
-            for item_action, output in zip(item_actions, outputs, strict=False):
+            for step_run_id, output in outputs.items():
+                item_action = item_actions[step_run_id]
                 try:
                     serialized = self.serialize_output(task._validators.step_output, output)
                     if not serialized:
-                        print(item_action, output)
+                        raise ValueError(f"Batch task {action_id} has step run id {step_run_id} with empty output")
                 except Exception as e:
-                    exc = TaskRunError.from_exception(e, item_action.step_run_id)
+                    exc = TaskRunError.from_exception(e, step_run_id)
                     self.event_queue.put(
                         ActionEvent(
                             action=item_action,
@@ -536,7 +538,7 @@ class Runner:
         except Exception as e:
             logger.exception(f"Batch task '{action_id}' failed for batch {action.batch_id}")
             should_not_retry = isinstance(e, NonRetryableException)
-            for item_action in item_actions:
+            for _, item_action in item_actions.items():
                 exc = TaskRunError.from_exception(e, item_action.step_run_id)
                 self.event_queue.put(
                     ActionEvent(
