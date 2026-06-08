@@ -22,7 +22,6 @@ import {
   CreateOnSuccessTaskOpts,
   CreateWorkflowDurableTaskOpts,
   CreateWorkflowTaskOpts,
-  BatchTaskConfig,
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
@@ -34,7 +33,6 @@ import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
 import { Duration, durationToString } from '../duration';
-import { durationToMs } from '@hatchet/v1/client/duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -46,40 +44,6 @@ import { supportsEviction } from './engine-version';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 export type ActionRegistry = Record<Action['actionId'], Function>;
-
-type BatchQueueItem = {
-  ctx: Context<any, any>;
-  resolve: (value: any) => void;
-  reject: (reason?: any) => void;
-};
-
-type BatchState = {
-  expectedSize: number;
-  items: Map<number, BatchQueueItem>;
-  started: boolean;
-  startReason?: string;
-  triggerTime?: Date;
-  batchKey?: string;
-};
-
-type BatchController = {
-  enqueueItem: (metadata: {
-    batchId: string;
-    expectedSize: number;
-    index: number;
-    ctx: Context<any, any>;
-    resolve: (value: any) => void;
-    reject: (reason?: any) => void;
-    batchKey?: string;
-  }) => void;
-  startBatch: (metadata: {
-    batchId: string;
-    expectedSize: number;
-    triggerReason?: string;
-    triggerTime?: Date;
-    batchKey?: string;
-  }) => void;
-};
 
 export interface WorkerOpts {
   name: string;
@@ -122,7 +86,6 @@ export class InternalWorker {
 
   private healthServer: HealthServer | undefined;
   private status: WorkerStatus = workerStatus.INITIALIZED;
-  private batchControllers: Map<string, BatchController> = new Map();
 
   constructor(
     client: HatchetClient,
@@ -158,42 +121,6 @@ export class InternalWorker {
     if (this.enableHealthServer && this.healthPort) {
       this.initializeHealthServer();
     }
-  }
-
-  private handleStartBatchAction(action: Action) {
-    const { actionId, batchId, batchStart } = action;
-
-    if (!actionId) {
-      this.logger.error('Received start batch action without action id');
-      return;
-    }
-
-    if (!batchId) {
-      this.logger.error('Received start batch action without batch id');
-      return;
-    }
-
-    if (!batchStart) {
-      this.logger.error(`Received start batch action without payload for batch ${batchId}`);
-      return;
-    }
-
-    const controller = this.batchControllers.get(actionId);
-
-    if (!controller) {
-      this.logger.error(
-        `No batch controller registered for action '${actionId}', cannot start batch ${batchId}`
-      );
-      return;
-    }
-
-    controller.startBatch({
-      batchId,
-      expectedSize: batchStart.expectedSize ?? 0,
-      triggerReason: batchStart.triggerReason ?? undefined,
-      triggerTime: batchStart.triggerTime ?? undefined,
-      batchKey: action.batchKey ?? undefined,
-    });
   }
 
   private initializeHealthServer(): void {
@@ -264,224 +191,13 @@ export class InternalWorker {
       ...newActions,
     };
   }
-  private createBatchActionHandler(
-    actionId: string,
-    workflow: WorkflowDefinition,
-    task: CreateWorkflowTaskOpts<any, any>
-  ) {
-    const batchedTask = task as CreateWorkflowTaskOpts<any, any> & {
-      batch?: BatchTaskConfig<any, any>;
-    };
-    const { batch } = batchedTask;
 
-    if (!batch) {
-      throw new HatchetError(`Batch configuration missing for task '${task.name}'`);
-    }
-
-    const { batchMaxSize } = batch;
-
-    if (!Number.isInteger(batchMaxSize) || batchMaxSize <= 0) {
-      throw new HatchetError(
-        `Batch task '${workflow.name}:${task.name}' must have a positive integer batchMaxSize`
-      );
-    }
-
-    const batches = new Map<string, BatchState>();
-
-    const flushBatch = async (batchId: string, state: BatchState) => {
-      const orderedItems = Array.from(state.items.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([, item]) => item);
-      const tasks = orderedItems.map((item) => [item.ctx.input, item.ctx] as const);
-
-      try {
-        const outputs = await batch.fn(tasks as any);
-
-        if (!Array.isArray(outputs)) {
-          throw new HatchetError(`Batch task '${task.name}' must return an array of outputs`);
-        }
-
-        if (outputs.length !== orderedItems.length) {
-          throw new HatchetError(
-            `Batch task '${task.name}' returned ${outputs.length} outputs for ${orderedItems.length} inputs`
-          );
-        }
-
-        outputs.forEach((output, index) => orderedItems[index].resolve(output));
-      } catch (err: any) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        orderedItems.forEach(({ reject }) => reject(error));
-        this.logger.error(
-          `Batch task '${workflow.name}:${task.name}' failed to process batch ${batchId}`,
-          error
-        );
-      }
-    };
-
-    const maybeFlush = (batchId: string) => {
-      const state = batches.get(batchId);
-
-      if (!state || !state.started) {
-        return;
-      }
-
-      if (state.items.size !== state.expectedSize) {
-        return;
-      }
-
-      batches.delete(batchId);
-
-      flushBatch(batchId, state).catch((err: unknown) => {
-        const error = err instanceof Error ? err : new Error(String(err));
-        this.logger.error(
-          `Batch task '${workflow.name}:${task.name}' flush encountered an error`,
-          error
-        );
-      });
-    };
-
-    const controller: BatchController = {
-      enqueueItem: ({ batchId, expectedSize, index, ctx, resolve, reject, batchKey }) => {
-        let state = batches.get(batchId);
-
-        if (!state) {
-          state = {
-            expectedSize,
-            items: new Map<number, BatchQueueItem>(),
-            started: false,
-            batchKey,
-          };
-          batches.set(batchId, state);
-        } else if (state.expectedSize !== expectedSize) {
-          this.logger.error(
-            `Batch metadata mismatch for '${workflow.name}:${task.name}' batch ${batchId}: expected size ${state.expectedSize}, received ${expectedSize}`
-          );
-          reject(
-            new HatchetError(
-              `Batch metadata mismatch for task '${workflow.name}:${task.name}' (batch ${batchId})`
-            )
-          );
-          return;
-        }
-
-        if (state.items.has(index)) {
-          this.logger.error(
-            `Duplicate batch index ${index} for batch ${batchId} on task '${workflow.name}:${task.name}'`
-          );
-          reject(
-            new HatchetError(
-              `Duplicate batch index ${index} for task '${workflow.name}:${task.name}' (batch ${batchId})`
-            )
-          );
-          return;
-        }
-
-        state.items.set(index, { ctx, resolve, reject });
-
-        if (batchKey && !state.batchKey) {
-          state.batchKey = batchKey;
-        }
-
-        if (state.started) {
-          maybeFlush(batchId);
-        }
-      },
-      startBatch: ({ batchId, expectedSize, triggerReason, triggerTime, batchKey }) => {
-        let state = batches.get(batchId);
-
-        if (!state) {
-          state = {
-            expectedSize: expectedSize > 0 ? expectedSize : batchMaxSize,
-            items: new Map<number, BatchQueueItem>(),
-            started: true,
-            batchKey,
-          };
-          batches.set(batchId, state);
-        } else {
-          if (expectedSize > 0 && state.expectedSize !== expectedSize) {
-            this.logger.warn(
-              `Batch metadata mismatch for '${workflow.name}:${task.name}' batch ${batchId}: expected size ${state.expectedSize}, received start signal with ${expectedSize}`
-            );
-            state.expectedSize = expectedSize;
-          }
-
-          state.started = true;
-        }
-
-        state.startReason = triggerReason;
-        state.triggerTime = triggerTime;
-        if (batchKey) {
-          state.batchKey = batchKey;
-        }
-
-        maybeFlush(batchId);
-      },
-    };
-
-    this.batchControllers.set(actionId, controller);
-
-    return (ctx: Context<any, any>) =>
-      new Promise((resolve, reject) => {
-        const { batchId, batchSize: expectedSize, batchIndex } = ctx.action;
-        console.info(ctx.action);
-        if (!batchId || expectedSize === undefined || batchIndex === undefined) {
-          reject(
-            new HatchetError(
-              `Batch metadata missing for task '${workflow.name}:${task.name}', cannot process batch`
-            )
-          );
-          return;
-        }
-
-        if (expectedSize <= 0) {
-          reject(
-            new HatchetError(
-              `Batch task '${workflow.name}:${task.name}' received invalid batch size: ${expectedSize}`
-            )
-          );
-          return;
-        }
-
-        const index = Number(batchIndex);
-
-        if (!Number.isInteger(index) || index < 0) {
-          reject(
-            new HatchetError(
-              `Batch task '${workflow.name}:${task.name}' received invalid batch index: ${batchIndex}`
-            )
-          );
-          return;
-        }
-
-        controller.enqueueItem({
-          batchId,
-          expectedSize,
-          index,
-          ctx,
-          resolve,
-          reject,
-          batchKey: ctx.action.batchKey ?? undefined,
-        });
-      });
-  }
   private registerActions(workflow: WorkflowDefinition) {
     const newActions = workflow._tasks
-      .filter((task) => {
-        const batchedTask = task as CreateWorkflowTaskOpts<any, any> & {
-          batch?: BatchTaskConfig<any, any>;
-        };
-        return !!task.fn || !!batchedTask.batch?.fn;
-      })
+      .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
-        const actionId = `${workflow.name}:${task.name.toLowerCase()}`;
-        const batchedTask = task as CreateWorkflowTaskOpts<any, any> & {
-          batch?: BatchTaskConfig<any, any>;
-        };
-        if (batchedTask.batch?.fn) {
-          acc[actionId] = this.createBatchActionHandler(actionId, workflow, task);
-        } else {
-          acc[actionId] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx);
-        }
+        acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
+          task.fn!(ctx.input, ctx);
         return acc;
       }, {});
 
@@ -669,55 +385,35 @@ export class InternalWorker {
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
         inputJsonSchema,
-        tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => {
-          const batchedTask = task as CreateWorkflowTaskOpts<any, any> & {
-            batch?: BatchTaskConfig<any, any>;
-          };
-
-          return {
-            readableId: task.name,
-            action: `${workflow.name}:${task.name}`,
-            timeout: resolveExecutionTimeout(task, workflow.taskDefaults),
-            scheduleTimeout: resolveScheduleTimeout(task, workflow.taskDefaults),
-            inputs: '{}',
-            parents: task.parents?.map((p) => p.name) ?? [],
-            userData: '{}',
-            retries: task.retries || workflow.taskDefaults?.retries || 0,
-            rateLimits: mapRateLimitPb(task.rateLimits || workflow.taskDefaults?.rateLimits),
-            workerLabels: mapWorkerLabelPb(
-              task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
-            ),
-            backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
-            backoffMaxSeconds:
-              task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
-            conditions: taskConditionsToPb(task, this.client.config.namespace),
-            isDurable: durableTaskSet.has(task),
-            slotRequests:
-              task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
-            concurrency: task.concurrency
-              ? Array.isArray(task.concurrency)
-                ? task.concurrency
-                : [task.concurrency]
-              : workflow.taskDefaults?.concurrency
-                ? Array.isArray(workflow.taskDefaults.concurrency)
-                  ? workflow.taskDefaults.concurrency
-                  : [workflow.taskDefaults.concurrency]
-                : [],
-            batch: batchedTask.batch
-              ? {
-                  batchMaxSize: batchedTask.batch.batchMaxSize,
-                  batchMaxInterval: batchedTask.batch.batchMaxInterval
-                    ? durationToMs(batchedTask.batch.batchMaxInterval)
-                    : undefined,
-                  batchGroupKey: batchedTask.batch.batchGroupKey,
-                  batchGroupMaxRuns:
-                    typeof batchedTask.batch.batchGroupMaxRuns === 'number'
-                      ? batchedTask.batch.batchGroupMaxRuns
-                      : undefined,
-                }
-              : undefined,
-          };
-        }),
+        tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
+          readableId: task.name,
+          action: `${workflow.name}:${task.name}`,
+          timeout: resolveExecutionTimeout(task, workflow.taskDefaults),
+          scheduleTimeout: resolveScheduleTimeout(task, workflow.taskDefaults),
+          inputs: '{}',
+          parents: task.parents?.map((p) => p.name) ?? [],
+          userData: '{}',
+          retries: task.retries || workflow.taskDefaults?.retries || 0,
+          rateLimits: mapRateLimitPb(task.rateLimits || workflow.taskDefaults?.rateLimits),
+          workerLabels: mapWorkerLabelPb(
+            task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
+          ),
+          backoffFactor: task.backoff?.factor || workflow.taskDefaults?.backoff?.factor,
+          backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
+          conditions: taskConditionsToPb(task, this.client.config.namespace),
+          isDurable: durableTaskSet.has(task),
+          slotRequests:
+            task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
+          concurrency: task.concurrency
+            ? Array.isArray(task.concurrency)
+              ? task.concurrency
+              : [task.concurrency]
+            : workflow.taskDefaults?.concurrency
+              ? Array.isArray(workflow.taskDefaults.concurrency)
+                ? workflow.taskDefaults.concurrency
+                : [workflow.taskDefaults.concurrency]
+              : [],
+        })),
         concurrency: concurrencySolo,
         defaultFilters:
           workflow.defaultFilters?.map((f) => ({
@@ -1282,8 +978,6 @@ export class InternalWorker {
         return this.handleStartStepRun(action);
       case ActionType.CANCEL_STEP_RUN:
         return this.handleCancelStepRun(action);
-      case ActionType.START_BATCH:
-        return this.handleStartBatchAction(action);
       case ActionType.START_GET_GROUP_KEY:
         this.logger.error(
           `Worker ${this.name} received unsupported action type START_GET_GROUP_KEY, please upgrade to V1...`

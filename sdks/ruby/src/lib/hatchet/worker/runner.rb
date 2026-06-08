@@ -66,10 +66,6 @@ module Hatchet
         @pool = Concurrent::FixedThreadPool.new(slots)
         @semaphore = Concurrent::Semaphore.new(slots)
 
-        @batch_mu = Mutex.new
-        @batch_states = {}
-        @batch_map = {}
-
         @task_map = build_task_map
 
         @contexts_mu = Monitor.new
@@ -96,24 +92,6 @@ module Hatchet
       #
       # @param action [AssignedAction] The action from the dispatcher
       def execute(action)
-        # START_BATCH is a lightweight control signal — no slot consumed
-        if action.respond_to?(:action_type) && action.action_type == :START_BATCH
-          handle_start_batch_action(action)
-          return
-        end
-
-        # Batch items must all be simultaneously in-flight so the batch state
-        # machine can accumulate every peer item before flushing. If they went
-        # through the semaphore the first batch would fill all slots while
-        # blocking on the result queue, preventing the remaining items from
-        # starting — deadlock. Raw threads let all items wait concurrently.
-        has_batch_id = action.respond_to?(:batchId) && action.batchId && !action.batchId.empty?
-        if has_batch_id && @batch_map.key?(action.action_id.downcase)
-          t = Thread.new { execute_batch_item(action) }
-          t.abort_on_exception = false
-          return
-        end
-
         ensure_eviction_manager_started(action)
 
         @semaphore.acquire
@@ -220,123 +198,6 @@ module Hatchet
         )
       end
 
-      # Handle a START_BATCH control action: mark the batch as started and flush if ready.
-      def handle_start_batch_action(action)
-        action_id = action.action_id.downcase
-        batch_id = action.batchId
-        expected_size = action.respond_to?(:batchStart) && action.batchStart ? action.batchStart.expectedSize.to_i : 0
-
-        @logger.debug("Runner: START_BATCH action_id=#{action_id} batch_id=#{batch_id} expected_size=#{expected_size}")
-
-        flush_now = false
-        flush_task = nil
-        flush_state = nil
-
-        @batch_mu.synchronize do
-          states = (@batch_states[action_id] ||= {})
-          state = (states[batch_id] ||= { expected_size: expected_size, items: {}, started: false })
-
-          state[:started] = true
-          state[:expected_size] = expected_size if expected_size.positive?
-
-          if state[:expected_size].positive? && state[:items].size >= state[:expected_size]
-            flush_now = true
-            flush_task = @batch_map[action_id]
-            flush_state = states.delete(batch_id)
-          end
-        end
-
-        return unless flush_now && flush_task && flush_state
-
-        flush_batch(flush_task, flush_state)
-      rescue StandardError => e
-        @logger.error("Runner: error in handle_start_batch_action: #{e.class}: #{e.message}")
-      end
-
-      # Execute a single batch item. Runs in a raw thread (outside the semaphore-protected pool)
-      # so batch items can all wait simultaneously without exhausting the slot pool.
-      def execute_batch_item(action)
-        action_key = action_key_for(action)
-        task_key = action.action_id.downcase
-        task = @task_map[task_key]
-
-        unless task
-          @logger.error("Runner: no task found for batch action: #{task_key}")
-          return
-        end
-
-        prepare_action_execution(action)
-        ctx = build_context(action, task)
-        input = parse_input(action)
-
-        batch_id = action.batchId
-        expected_size = action.respond_to?(:batchSize) && action.batchSize ? action.batchSize.to_i : 0
-        batch_index = action.respond_to?(:batchIndex) && action.batchIndex ? action.batchIndex.to_i : 0
-
-        result_queue = SizedQueue.new(1)
-        flush_now = false
-        flush_state = nil
-
-        @batch_mu.synchronize do
-          states = (@batch_states[task_key] ||= {})
-          state = (states[batch_id] ||= { expected_size: expected_size, items: {}, started: false })
-
-          state[:expected_size] = expected_size if expected_size.positive? && state[:expected_size].zero?
-
-          if state[:items].key?(batch_index)
-            @logger.error("Runner: duplicate batch index #{batch_index} for batch #{batch_id}")
-            result_queue.push([:error, Error.new("Duplicate batch index #{batch_index}")])
-          else
-            state[:items][batch_index] = { input: input, ctx: ctx, result_queue: result_queue }
-
-            if state[:started] && state[:expected_size].positive? && state[:items].size >= state[:expected_size]
-              flush_now = true
-              flush_state = states.delete(batch_id)
-            end
-          end
-        end
-
-        flush_batch(task, flush_state) if flush_now
-
-        result_type, value = result_queue.pop
-
-        if result_type == :ok
-          send_result(action, value)
-        else
-          send_failure(action, value, retryable: true)
-        end
-      rescue NonRetryableError => e
-        @logger.error("Runner: non-retryable error in batch item #{action_key}: #{e.message}")
-        send_failure(action, e, retryable: false)
-      rescue StandardError => e
-        @logger.error("Runner: error in batch item #{action_key}: #{e.message}")
-        send_failure(action, e, retryable: true)
-      ensure
-        ContextVars.clear
-      end
-
-      # Execute the batch fn for all collected items and distribute results.
-      def flush_batch(task, state)
-        sorted_items = state[:items].sort_by { |idx, _| idx }.map { |_, entry| entry }
-        tasks = sorted_items.map { |e| [e[:input], e[:ctx]] }
-
-        begin
-          results = task.batch_fn.call(tasks)
-
-          unless results.is_a?(Array) && results.length == sorted_items.length
-            raise Error, "Batch fn returned #{results.is_a?(Array) ? results.length : results.class} " \
-                         "outputs for #{sorted_items.length} inputs"
-          end
-
-          sorted_items.each_with_index do |entry, i|
-            entry[:result_queue].push([:ok, results[i]])
-          end
-        rescue StandardError => e
-          @logger.error("Runner: batch fn failed: #{e.class}: #{e.message}")
-          sorted_items.each { |entry| entry[:result_queue].push([:error, e]) }
-        end
-      end
-
       def build_task_map
         map = {}
 
@@ -347,7 +208,6 @@ module Hatchet
             wf.tasks.each do |name, task|
               key = "#{service_name}:#{name}".downcase
               map[key] = task
-              @batch_map[key] = task if task.batch?
             end
 
             map["#{service_name}:on_failure"] = wf.on_failure if wf.on_failure
@@ -357,9 +217,7 @@ module Hatchet
             workflow = wf.workflow
             if workflow
               service_name = @client.config.apply_namespace(workflow.name.downcase)
-              key = "#{service_name}:#{wf.name}".downcase
-              map[key] = wf
-              @batch_map[key] = wf if wf.batch?
+              map["#{service_name}:#{wf.name}".downcase] = wf
             end
           end
         end

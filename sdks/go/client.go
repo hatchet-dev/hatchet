@@ -228,11 +228,7 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 		}
 
 		for _, namedFn := range dump.regularActions {
-			if namedFn.BatchFn != nil {
-				err = mainWorker.RegisterBatchAction(namedFn.ActionID, namedFn.BatchFn)
-			} else {
-				err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn) //nolint:staticcheck
-			}
+			err = mainWorker.RegisterAction(namedFn.ActionID, namedFn.Fn)
 			if err != nil {
 				return nil, err
 			}

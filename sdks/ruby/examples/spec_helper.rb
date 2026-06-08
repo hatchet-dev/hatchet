@@ -28,17 +28,6 @@ def hatchet
   RSpec.configuration.hatchet_client
 end
 
-# Skip the current example if the engine does not support batch tasks.
-# Call inside a before(:all) block at the top of a describe/context.
-def skip_unless_batching
-  version = hatchet.dispatcher_grpc.get_version
-  if version.nil? || Hatchet::EngineVersion.semver_less_than?(version, Hatchet::MinEngineVersion::BATCHING)
-    skip "Engine does not support batch tasks (requires >= #{Hatchet::MinEngineVersion::BATCHING})"
-  end
-rescue StandardError => e
-  skip "Could not determine engine version (#{e.message}); skipping batch tests"
-end
-
 # Poll until the workflow run reaches RUNNING status or timeout is exceeded.
 # Retries on 404s since the run record may not be immediately visible.
 def wait_for_running_status(client, run_id, timeout: 60, interval: 0.5)

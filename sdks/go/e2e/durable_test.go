@@ -114,6 +114,8 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+
 	result, err := ref.Result()
 	require.NoError(t, err)
 	replayElapsed := time.Since(replayStart).Seconds()

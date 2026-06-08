@@ -1,4 +1,3 @@
-type MillisecondsDuration = `${number}ms`;
 type SecondsDuration = `${number}s`;
 type MinutesDuration = `${number}m`;
 type HoursDuration = `${number}h`;
@@ -10,8 +9,7 @@ type DurationString =
   | MinutesDuration
   | HoursDuration
   | TwoUnitDurations
-  | ThreeUnitDurations
-  | MillisecondsDuration;
+  | ThreeUnitDurations;
 
 export interface DurationObject {
   hours?: number;
@@ -22,7 +20,7 @@ export interface DurationObject {
 /** A number is treated as milliseconds. */
 export type Duration = DurationString | DurationObject | number;
 
-const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$/;
+const DURATION_RE = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/;
 
 /** Normalizes a Duration to Go-style string format (e.g. "1h30m5s"). */
 export function durationToString(d: Duration): string {
@@ -58,9 +56,8 @@ export function durationToMs(d: Duration): number {
     );
   }
 
-  const [, h, m, s, ms] = match;
+  const [, h, m, s] = match;
   return (
-    (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) * 1000 +
-    parseInt(ms ?? '0')
+    (parseInt(h ?? '0', 10) * 3600 + parseInt(m ?? '0', 10) * 60 + parseInt(s ?? '0', 10)) * 1000
   );
 }

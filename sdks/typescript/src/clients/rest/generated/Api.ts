@@ -99,7 +99,6 @@ import {
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
-  V1DurableEventLogList,
   V1Event,
   V1EventList,
   V1Filter,
@@ -135,7 +134,6 @@ import {
   WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
-  WorkerStatus,
   Workflow,
   WorkflowID,
   WorkflowKindList,
@@ -627,39 +625,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
-      format: 'json',
-      ...params,
-    });
-  /**
-   * @description Lists all event log entries for a durable task.
-   *
-   * @tags Durable Tasks
-   * @name V1DurableTaskEventLogList
-   * @summary List durable event log
-   * @request GET:/api/v1/stable/durable-tasks/{durable-task}
-   * @secure
-   */
-  v1DurableTaskEventLogList = (
-    durableTask: string,
-    query?: {
-      /**
-       * The number of event log entries to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number of event log entries to limit by
-       * @format int64
-       */
-      limit?: number;
-    },
-    params: RequestParams = {}
-  ) =>
-    this.request<V1DurableEventLogList, APIErrors>({
-      path: `/api/v1/stable/durable-tasks/${durableTask}`,
-      method: 'GET',
-      query: query,
-      secure: true,
       format: 'json',
       ...params,
     });
@@ -2171,30 +2136,6 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
-   * @description Delete a rate limit for a tenant.
-   *
-   * @tags Rate Limits
-   * @name RateLimitDelete
-   * @summary Delete rate limit
-   * @request DELETE:/api/v1/tenants/{tenant}/rate-limits
-   * @secure
-   */
-  rateLimitDelete = (
-    tenant: string,
-    query: {
-      /** The limit key */
-      key: string;
-    },
-    params: RequestParams = {}
-  ) =>
-    this.request<void, APIErrors>({
-      path: `/api/v1/tenants/${tenant}/rate-limits`,
-      method: 'DELETE',
-      query: query,
-      secure: true,
-      ...params,
-    });
-  /**
    * @description Gets a list of tenant members
    *
    * @tags Tenant
@@ -3279,28 +3220,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/worker
    * @secure
    */
-  workerList = (
-    tenant: string,
-    query?: {
-      /**
-       * The number to skip
-       * @format int64
-       */
-      offset?: number;
-      /**
-       * The number to limit by
-       * @format int64
-       */
-      limit?: number;
-      /** Filter by worker status */
-      statuses?: WorkerStatus[];
-    },
-    params: RequestParams = {}
-  ) =>
+  workerList = (tenant: string, params: RequestParams = {}) =>
     this.request<WorkerList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/worker`,
       method: 'GET',
-      query: query,
       secure: true,
       format: 'json',
       ...params,
@@ -3483,18 +3406,10 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/task-stats
    * @secure
    */
-  tenantGetTaskStats = (
-    tenant: string,
-    query?: {
-      /** Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves. */
-      taskNames?: string[];
-    },
-    params: RequestParams = {}
-  ) =>
+  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: 'GET',
-      query: query,
       secure: true,
       format: 'json',
       ...params,

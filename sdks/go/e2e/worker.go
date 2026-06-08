@@ -612,12 +612,6 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testNonEvictableSleep,
 			testEvictionChildTask,
 			testEvictionBulkChildTask,
-			testBatchSimple,
-			testBatchKeyed,
-			testBatchKeyedInterval,
-			testBatchLarge,
-			testBatchSingle,
-			testBatchOrdered,
 		),
 		hatchet.WithDurableSlots(10),
 	)

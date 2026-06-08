@@ -34,8 +34,6 @@ import {
   RunOpts,
   BaseWorkflowDeclaration,
   CreateTaskWorkflow,
-  CreateBatchTaskWorkflow,
-  CreateBatchTaskWorkflowOpts,
   WorkflowDeclaration,
   TaskWorkflowDeclaration,
   CreateDurableTaskWorkflow,
@@ -332,26 +330,6 @@ export class HatchetClient<
    */
   task(options: any): TaskWorkflowDeclaration<any, any> {
     return CreateTaskWorkflow(options, this);
-  }
-
-  /**
-   * Creates a new batched task workflow. Batched tasks aggregate pending executions until the configured
-   * batch size is reached or the optional flush interval elapses, then invoke the handler with all buffered
-   * items as `(input, ctx)` tuples.
-   * @template I The per-item input type for the task.
-   * @template O The per-item output type for the task.
-   * @param options Batch task configuration options.
-   * @returns A TaskWorkflowDeclaration instance configured for batched execution.
-   */
-  batchTask<I extends InputType = UnknownInputType, O extends OutputType = void>(
-    options: CreateBatchTaskWorkflowOpts<I, O>
-  ): TaskWorkflowDeclaration<I, O>;
-
-  /**
-   * Implementation of the batchTask method.
-   */
-  batchTask(options: any): TaskWorkflowDeclaration<any, any> {
-    return CreateBatchTaskWorkflow(options, this);
   }
 
   /**
