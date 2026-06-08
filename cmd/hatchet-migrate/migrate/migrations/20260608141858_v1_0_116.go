@@ -41,7 +41,13 @@ func upV10116(ctx context.Context, db *sql.DB) error {
 	stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);", quoteIdent(v10116NewIndexName("v1_runs_olap")))
 
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("failed to create index on %s: %w", "v1_payload", err)
+		return fmt.Errorf("failed to create index on %s: %w", "v1_runs_olap", err)
+	}
+
+	stmt = fmt.Sprintf("DROP INDEX IF EXISTS %s;", quoteIdent(v10116OldIndexName("v1_runs_olap")))
+
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("failed to drop old index on %s: %w", "v1_runs_olap", err)
 	}
 
 	return nil
@@ -68,7 +74,13 @@ func downV10116(ctx context.Context, db *sql.DB) error {
 	stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON v1_runs_olap (tenant_id, readable_status, inserted_at DESC);", quoteIdent(v10116OldIndexName("v1_runs_olap")))
 
 	if _, err := db.ExecContext(ctx, stmt); err != nil {
-		return fmt.Errorf("failed to create index on %s: %w", "v1_payload", err)
+		return fmt.Errorf("failed to create index on %s: %w", "v1_runs_olap", err)
+	}
+
+	stmt = fmt.Sprintf("DROP INDEX IF EXISTS %s;", quoteIdent(v10116NewIndexName("v1_runs_olap")))
+
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("failed to drop new index on %s: %w", "v1_runs_olap", err)
 	}
 
 	return nil
