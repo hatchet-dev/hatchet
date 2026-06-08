@@ -48,7 +48,7 @@ importers:
         version: 6.15.2
       semver:
         specifier: ^7.7.4
-        version: 7.8.1
+        version: 7.8.2
       yaml:
         specifier: ^2.8.3
         version: 2.9.0
@@ -3317,11 +3317,6 @@ packages:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
 
-  semver@7.8.1:
-    resolution: {integrity: sha512-rkVq3IXh+4FDGch+KwzX3aV9W3kO54GyEgpvBzSyctDA6Xtd7RJQV1xmXbeQp5v7+VzLOfVqiutSE6GICgPFvg==}
-    engines: {node: '>=10'}
-    hasBin: true
-
   semver@7.8.2:
     resolution: {integrity: sha512-c8jsqUZm3omBOI66G90z1Dyw5z622G8oLG+omfsHBJf3CWQTlOcwOjvOG6wtiNfW6anKm/eA39LMwMtMez2TiQ==}
     engines: {node: '>=10'}
@@ -4707,7 +4702,7 @@ snapshots:
       https-proxy-agent: 7.0.6
       node-fetch: 2.7.0
       nopt: 8.1.0
-      semver: 7.8.1
+      semver: 7.8.2
       tar: 7.5.10
     transitivePeerDependencies:
       - encoding
@@ -6513,7 +6508,7 @@ snapshots:
 
   is-bun-module@2.0.0:
     dependencies:
-      semver: 7.8.1
+      semver: 7.8.2
 
   is-callable@1.2.7:
     optional: true
@@ -6933,7 +6928,7 @@ snapshots:
       jest-util: 29.7.0
       natural-compare: 1.4.0
       pretty-format: 29.7.0
-      semver: 7.8.1
+      semver: 7.8.2
     transitivePeerDependencies:
       - supports-color
 
@@ -7534,8 +7529,6 @@ snapshots:
 
   semver@6.3.1: {}
 
-  semver@7.8.1: {}
-
   semver@7.8.2: {}
 
   send@1.2.1:
@@ -7787,7 +7780,7 @@ snapshots:
       json5: 2.2.3
       lodash.memoize: 4.1.2
       make-error: 1.3.6
-      semver: 7.8.1
+      semver: 7.8.2
       type-fest: 4.41.0
       typescript: 5.9.3
       yargs-parser: 21.1.1
