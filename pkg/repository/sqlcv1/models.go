@@ -2787,11 +2787,12 @@ type Step struct {
 }
 
 type StepBatchConfig struct {
-	StepId            uuid.UUID   `json:"stepId"`
-	BatchMaxSize      int32       `json:"batchMaxSize"`
-	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
-	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
-	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
+	StepId            uuid.UUID    `json:"stepId"`
+	BatchMaxSize      int32        `json:"batchMaxSize"`
+	BatchMaxInterval  pgtype.Int4  `json:"batchMaxInterval"`
+	BatchGroupKey     pgtype.Text  `json:"batchGroupKey"`
+	BatchGroupMaxRuns pgtype.Int4  `json:"batchGroupMaxRuns"`
+	BroadcastOutput   bool         `json:"broadcastOutput"`
 }
 
 type StepDesiredWorkerLabel struct {

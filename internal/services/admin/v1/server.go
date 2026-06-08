@@ -1200,6 +1200,10 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				steps[j].BatchConfig.BatchGroupMaxRuns = stepCp.Batch.BatchGroupMaxRuns
 			}
 
+			if stepCp.Batch.BroadcastOutput != nil {
+				steps[j].BatchConfig.BroadcastOutput = *stepCp.Batch.BroadcastOutput
+			}
+
 		}
 	}
 

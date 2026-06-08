@@ -35,7 +35,6 @@ async def batch_simple(
     tasks: dict[str, SimpleInput],
     context: Context
 ) -> dict[str, Any]:
-    print(tasks)
     return {id: {"TransformedMessage": inp.Message.upper()} for id, inp in tasks.items()}
 
 
@@ -46,7 +45,6 @@ async def batch_simple(
     input_validator=KeyedInput,
 )
 async def batch_keyed(tasks: dict[str, KeyedInput], context: Context) -> dict[str, Any]:
-    print(tasks)
     unique_keys = len({inp.group for _, inp in tasks.items()})
     return {
         id:
@@ -126,6 +124,18 @@ async def batch_ordered(
 ) -> dict[str, Any]:
     return {id: {"index": inp.index} for id, inp in tasks.items()}
 
+@hatchet.batch_task(
+    batch_max_size=10,
+    batch_max_interval=timedelta(seconds=2),
+    input_validator=SimpleInput,
+    broadcast_output=True,
+)
+async def batch_broadcast(
+        tasks: dict[str, SimpleInput],
+        context: Context
+) -> dict:
+    return {"sum": sum(len(i.Message) for _, i in tasks.items())}
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -137,6 +147,7 @@ def main() -> None:
             batch_large,
             batch_single,
             batch_ordered,
+            batch_broadcast,
         ],
         slots=25,
     )

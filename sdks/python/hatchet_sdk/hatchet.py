@@ -588,6 +588,7 @@ class Hatchet:
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
+        broadcast_output: bool = False,
     ) -> Callable[
         [
             Callable[
@@ -622,6 +623,7 @@ class Hatchet:
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
+        broadcast_output: bool = False,
     ) -> Callable[
         [
             Callable[
@@ -656,6 +658,7 @@ class Hatchet:
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
+        broadcast_output: bool = False,
     ) -> Callable[
         [
             Callable[
@@ -716,6 +719,7 @@ class Hatchet:
                 batch_max_interval=batch_max_interval,
                 batch_group_key=batch_group_key,
                 batch_group_max_runs=batch_group_max_runs,
+                broadcast_output=broadcast_output,
             )
 
             created_task = task_wrapper(func)

@@ -1449,6 +1449,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         batch_max_interval: timedelta | None = None,
         batch_group_key: str | None = None,
         batch_group_max_runs: int | None = None,
+        broadcast_output: bool = False,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
@@ -1539,6 +1540,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                     batch_max_interval=batch_max_interval,
                     batch_group_key=batch_group_key,
                     batch_group_max_runs=batch_group_max_runs,
+                    broadcast_output=broadcast_output,
                 ),
             )
 

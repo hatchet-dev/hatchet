@@ -121,6 +121,7 @@ type StepBatchConfig struct {
 	BatchMaxInterval  *int32  `json:"batchMaxInterval,omitempty" validate:"omitempty,min=1,max=86400000"`
 	BatchGroupKey     *string `json:"batchGroupKey,omitempty"`
 	BatchGroupMaxRuns *int32  `json:"batchGroupMaxRuns,omitempty" validate:"omitempty,min=1,max=10000"`
+	BroadcastOutput   bool    `json:"broadcastOutput,omitempty"`
 }
 
 type CreateStepMatchConditionOpt struct {
@@ -785,8 +786,9 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 		if stepOpts.BatchConfig != nil {
 			batchCfgParams := sqlcv1.CreateStepBatchConfigParams{
-				Stepid:       stepId,
-				Batchmaxsize: stepOpts.BatchConfig.BatchMaxSize,
+				Stepid:          stepId,
+				Batchmaxsize:    stepOpts.BatchConfig.BatchMaxSize,
+				BroadcastOutput: stepOpts.BatchConfig.BroadcastOutput,
 			}
 			if stepOpts.BatchConfig.BatchMaxInterval != nil {
 				batchCfgParams.BatchMaxInterval = pgtype.Int4{

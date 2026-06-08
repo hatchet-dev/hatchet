@@ -1,8 +1,8 @@
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
-from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
-from hatchet_sdk.contracts.v1.shared import trigger_pb2 as _trigger_pb2
+from v1.shared import condition_pb2 as _condition_pb2
+from v1.shared import trigger_pb2 as _trigger_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -206,16 +206,18 @@ class Concurrency(_message.Message):
     def __init__(self, expression: _Optional[str] = ..., max_runs: _Optional[int] = ..., limit_strategy: _Optional[_Union[ConcurrencyLimitStrategy, str]] = ...) -> None: ...
 
 class TaskBatchConfig(_message.Message):
-    __slots__ = ("batch_max_size", "batch_max_interval", "batch_group_key", "batch_group_max_runs")
+    __slots__ = ("batch_max_size", "batch_max_interval_ms", "batch_group_key", "batch_group_max_runs", "broadcast_output")
     BATCH_MAX_SIZE_FIELD_NUMBER: _ClassVar[int]
-    BATCH_MAX_INTERVAL_FIELD_NUMBER: _ClassVar[int]
+    BATCH_MAX_INTERVAL_MS_FIELD_NUMBER: _ClassVar[int]
     BATCH_GROUP_KEY_FIELD_NUMBER: _ClassVar[int]
     BATCH_GROUP_MAX_RUNS_FIELD_NUMBER: _ClassVar[int]
+    BROADCAST_OUTPUT_FIELD_NUMBER: _ClassVar[int]
     batch_max_size: int
-    batch_max_interval: int
+    batch_max_interval_ms: int
     batch_group_key: str
     batch_group_max_runs: int
-    def __init__(self, batch_max_size: _Optional[int] = ..., batch_max_interval: _Optional[int] = ..., batch_group_key: _Optional[str] = ..., batch_group_max_runs: _Optional[int] = ...) -> None: ...
+    broadcast_output: bool
+    def __init__(self, batch_max_size: _Optional[int] = ..., batch_max_interval_ms: _Optional[int] = ..., batch_group_key: _Optional[str] = ..., batch_group_max_runs: _Optional[int] = ..., broadcast_output: bool = ...) -> None: ...
 
 class CreateTaskOpts(_message.Message):
     __slots__ = ("readable_id", "action", "timeout", "inputs", "parents", "retries", "rate_limits", "worker_labels", "backoff_factor", "backoff_max_seconds", "concurrency", "conditions", "schedule_timeout", "is_durable", "slot_requests", "batch")

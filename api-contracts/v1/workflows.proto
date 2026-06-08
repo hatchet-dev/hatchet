@@ -140,6 +140,7 @@ message TaskBatchConfig {
     optional int32 batch_max_interval_ms = 2; // (optional) time before batch flushes (milliseconds)
     optional string batch_group_key = 3; // (optional) partition key for fairness (prevents mixing tenants)
     optional int32 batch_group_max_runs = 4; // (optional) concurrent batches per group
+    optional bool broadcast_output = 5; // (optional) when true, the handler returns one value broadcast to all callers; when false (default), the handler returns a dict keyed by step run id
 }
 
 // CreateTaskOpts represents options to create a task.

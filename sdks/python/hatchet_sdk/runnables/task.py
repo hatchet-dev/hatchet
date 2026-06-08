@@ -87,6 +87,7 @@ class BatchTaskConfig:
     batch_max_interval: timedelta | None = None
     batch_group_key: str | None = None
     batch_group_max_runs: int | None = None
+    broadcast_output: bool = False
 
 
 def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
@@ -530,13 +531,16 @@ class Task(Generic[TWorkflowInput, R]):
                     raise ValueError(
                         "batch_max_interval must be positive when provided"
                     )
-                batch_proto.batch_max_interval = interval_ms
+                batch_proto.batch_max_interval_ms = interval_ms
 
             if self.batch.batch_group_key is not None:
                 batch_proto.batch_group_key = self.batch.batch_group_key
 
             if self.batch.batch_group_max_runs is not None:
                 batch_proto.batch_group_max_runs = self.batch.batch_group_max_runs
+
+            if self.batch.broadcast_output:
+                batch_proto.broadcast_output = True
 
             proto.batch.CopyFrom(batch_proto)
 

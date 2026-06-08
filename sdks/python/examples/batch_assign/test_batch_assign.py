@@ -15,6 +15,7 @@ from examples.batch_assign.worker import (
     batch_ordered,
     batch_simple,
     batch_single,
+    batch_broadcast,
 )
 
 
@@ -124,3 +125,14 @@ async def test_returns_results_in_submission_order() -> None:
     assert len(results) == count
     for i, result in enumerate(results):
         assert result["index"] == i
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_broadcasted_return() -> None:
+    count = 10
+
+    results = await asyncio.gather(
+        *[batch_broadcast.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+    )
+    assert len(results) == 10
+    assert all(r["sum"] == 50 for r in results)

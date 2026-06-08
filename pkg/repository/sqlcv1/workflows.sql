@@ -315,18 +315,21 @@ INSERT INTO "StepBatchConfig" (
     "batchMaxSize",
     "batchMaxInterval",
     "batchGroupKey",
-    "batchGroupMaxRuns"
+    "batchGroupMaxRuns",
+    "broadcastOutput"
 ) VALUES (
     @stepId::uuid,
     @batchMaxSize::integer,
     sqlc.narg('batchMaxInterval')::integer,
     sqlc.narg('batchGroupKey')::text,
-    sqlc.narg('batchGroupMaxRuns')::integer
+    sqlc.narg('batchGroupMaxRuns')::integer,
+    @broadcastOutput::boolean
 ) ON CONFLICT ("stepId") DO UPDATE SET
     "batchMaxSize" = EXCLUDED."batchMaxSize",
     "batchMaxInterval" = EXCLUDED."batchMaxInterval",
     "batchGroupKey" = EXCLUDED."batchGroupKey",
-    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns";
+    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns",
+    "broadcastOutput" = EXCLUDED."broadcastOutput";
 
 -- name: CreateStepSlotRequests :exec
 INSERT INTO v1_step_slot_request (

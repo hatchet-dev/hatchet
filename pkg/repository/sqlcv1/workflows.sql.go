@@ -251,26 +251,30 @@ INSERT INTO "StepBatchConfig" (
     "batchMaxSize",
     "batchMaxInterval",
     "batchGroupKey",
-    "batchGroupMaxRuns"
+    "batchGroupMaxRuns",
+    "broadcastOutput"
 ) VALUES (
     $1::uuid,
     $2::integer,
     $3::integer,
     $4::text,
-    $5::integer
+    $5::integer,
+    $6::boolean
 ) ON CONFLICT ("stepId") DO UPDATE SET
     "batchMaxSize" = EXCLUDED."batchMaxSize",
     "batchMaxInterval" = EXCLUDED."batchMaxInterval",
     "batchGroupKey" = EXCLUDED."batchGroupKey",
-    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns"
+    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns",
+    "broadcastOutput" = EXCLUDED."broadcastOutput"
 `
 
 type CreateStepBatchConfigParams struct {
-	Stepid            uuid.UUID   `json:"stepid"`
-	Batchmaxsize      int32       `json:"batchmaxsize"`
-	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
-	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
-	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
+	Stepid            uuid.UUID    `json:"stepid"`
+	Batchmaxsize      int32        `json:"batchmaxsize"`
+	BatchMaxInterval  pgtype.Int4  `json:"batchMaxInterval"`
+	BatchGroupKey     pgtype.Text  `json:"batchGroupKey"`
+	BatchGroupMaxRuns pgtype.Int4  `json:"batchGroupMaxRuns"`
+	BroadcastOutput   bool         `json:"broadcastOutput"`
 }
 
 func (q *Queries) CreateStepBatchConfig(ctx context.Context, db DBTX, arg CreateStepBatchConfigParams) error {
@@ -280,6 +284,7 @@ func (q *Queries) CreateStepBatchConfig(ctx context.Context, db DBTX, arg Create
 		arg.BatchMaxInterval,
 		arg.BatchGroupKey,
 		arg.BatchGroupMaxRuns,
+		arg.BroadcastOutput,
 	)
 	return err
 }
