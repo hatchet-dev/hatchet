@@ -350,6 +350,32 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 }
 
+// Only CREATE TABLE / ALTER TABLE ATTACH PARTITION may be passed in fn. DETACH PARTITION
+// CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
+func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, logger *zerolog.Logger, fn func(tx pgx.Tx) error) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, pool, logger)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if _, err = tx.Exec(ctx, "SET LOCAL lock_timeout = '5s'"); err != nil {
+		return fmt.Errorf("set lock_timeout: %w", err)
+	}
+
+	err = fn(tx)
+
+	if err != nil && isLockNotAvailable(err) {
+		return ErrPartitionLockConflict
+	} else if err != nil {
+		return err
+	}
+
+	return commit(ctx)
+}
+
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_olap_partitions"
 
@@ -378,70 +404,55 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err = r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
-		Date: pgtype.Date{
-			Time:  today,
-			Valid: true,
-		},
-		Partitions: NUM_PARTITIONS,
-	})
-
-	if err != nil {
+	//
+	// Each CreateXxx call runs in its own short-lock_timeout transaction so we fail fast
+	// (ErrPartitionLockConflict) if ANALYZE is holding a conflicting lock.
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+			Date:       pgtype.Date{Time: today, Valid: true},
+			Partitions: NUM_PARTITIONS,
+		})
+	}); err != nil {
 		return err
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
-			Time:  today,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
 
 	if r.shouldPartitionOtelTables {
-		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
-			Time:  today,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
 
-	err = r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
-		Date: pgtype.Date{
-			Time:  tomorrow,
-			Valid: true,
-		},
-		Partitions: NUM_PARTITIONS,
-	})
-
-	if err != nil {
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+			Date:       pgtype.Date{Time: tomorrow, Valid: true},
+			Partitions: NUM_PARTITIONS,
+		})
+	}); err != nil {
 		return err
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
-			Time:  tomorrow,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
 
 	if r.shouldPartitionOtelTables {
-		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
-			Time:  tomorrow,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
@@ -474,6 +485,23 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return err
 		}
 
+		// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
+		// the setting doesn't bleed into subsequent users of the same ddlPool connection.
+		releaseConn := func() {
+			resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+			}
+			release()
+		}
+
+		// Set a short lock_timeout so we fail fast rather than blocking behind ANALYZE.
+		if _, err = conn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+			releaseConn()
+			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
+		}
+
 		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
 		_, err = conn.Exec(
 			ctx,
@@ -481,7 +509,10 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		)
 
 		if err != nil {
-			release()
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
 		}
 
@@ -491,11 +522,14 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		)
 
 		if err != nil {
-			release()
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
 		}
 
-		release()
+		releaseConn()
 	}
 
 	if err = r.queries.DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
