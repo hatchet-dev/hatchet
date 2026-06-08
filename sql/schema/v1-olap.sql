@@ -204,7 +204,7 @@ CREATE TABLE v1_runs_olap (
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
-CREATE INDEX ix_v1_runs_olap_tenant_status_ins_at ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);
+CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
