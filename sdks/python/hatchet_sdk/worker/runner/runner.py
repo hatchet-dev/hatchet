@@ -485,17 +485,13 @@ class Runner:
         }
         context = self.create_context(action=action, task=task, is_durable=False)
         try:
-            if task.is_async_function:
-                batch_fn_async = cast(
-                    Coroutine[Any, Any, list[Any]],
-                    task.fn,
-                )
-                outputs = await cast(Any, batch_fn_async)(task_inputs, context)
+            if task._is_async_function:
+                outputs = await cast(Any, task._fn)(task_inputs, context)
             else:
                 loop = asyncio.get_running_loop()
                 outputs = await loop.run_in_executor(
                     self.thread_pool,
-                    lambda: task.fn(task_inputs, context),
+                    lambda: task._fn(task_inputs, context),
                 )
 
             if context.is_cancelled:
