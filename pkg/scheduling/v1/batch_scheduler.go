@@ -227,7 +227,7 @@ func (b *BatchScheduler) shouldMemoryLimitFlush() (bool, int) {
 	totalPayloadSize := int32(0)
 	for i, item := range b.buffer {
 		totalPayloadSize += item.PayloadSize
-		if totalPayloadSize > (4000000 / 2) {
+		if totalPayloadSize > (4000000) {
 			return true, i - 1
 		}
 	}

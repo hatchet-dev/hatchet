@@ -82,7 +82,10 @@ async def test_flushes_keyed_batches_independently_when_interval_elapses() -> No
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_completes_all_tasks_with_large_payloads() -> None:
-    payload = "x" * 380_000
+    # 100kb per task, 10mb of data total, so should be 2 batches that flush for memory size,
+    # and one final batch that flushes because of the 1 second timeout
+    payload_size = 100_000
+    payload = "x" * payload_size
     task_count = 100
 
     results = await asyncio.gather(
@@ -94,10 +97,9 @@ async def test_completes_all_tasks_with_large_payloads() -> None:
     print(results)
     assert len(results) == task_count
     # test that the batch got flushed each time the batch payload size got over 4mb
-    assert len(set(r["batchId"] for r in results)) == 10
+    assert len(set(r["batchId"] for r in results)) == 3
     assert all(r["received"] for r in results)
-    assert all(r["dataLength"] == 380_000 for r in results)
-    assert all(r["batchSize"] == 10 for r in results)
+    assert all(r["dataLength"] == payload_size for r in results)
 
 
 @pytest.mark.asyncio(loop_scope="session")

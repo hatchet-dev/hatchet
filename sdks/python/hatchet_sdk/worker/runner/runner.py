@@ -210,6 +210,8 @@ class Runner:
                 logger.info(log)
                 t = asyncio.create_task(self.handle_cancel_action(action))
             case ActionType.START_BATCH:
+                import sys
+                print("action size", sys.getsizeof(action), "action payload size", sys.getsizeof(action.action_payload))
                 log = f"run: start batch: {action.action_id}/{action.batch_id}"
                 logger.info(log)
                 t = asyncio.create_task(self.handle_start_batch(action))
@@ -509,6 +511,8 @@ class Runner:
             for item_action, output in zip(item_actions, outputs, strict=False):
                 try:
                     serialized = self.serialize_output(task._validators.step_output, output)
+                    if not serialized:
+                        print(item_action, output)
                 except Exception as e:
                     exc = TaskRunError.from_exception(e, item_action.step_run_id)
                     self.event_queue.put(

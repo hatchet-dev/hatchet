@@ -79,7 +79,7 @@ async def batch_keyed_interval(
 
 @hatchet.batch_task(
     batch_max_size=100,
-    batch_max_interval=timedelta(seconds=10000),
+    batch_max_interval=timedelta(seconds=1),
     input_validator=LargePayloadInput,
 )
 async def batch_large(

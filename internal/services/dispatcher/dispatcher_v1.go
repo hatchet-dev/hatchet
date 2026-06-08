@@ -566,6 +566,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 			if payloadBytes == nil {
 				payloadBytes = []byte("{}")
 			}
+			fmt.Println("payload item raw bytes", len(payloadBytes))
 			batchItems[extID] = batchItemPayload{
 				Payload:       json.RawMessage(payloadBytes),
 				WorkflowRunID: workflowRunIDByTaskID[taskID],
@@ -573,6 +574,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 		}
 
 		payloadJSON, err := json.Marshal(batchItems)
+		fmt.Println("payload json size", len(payloadJSON))
 		if err != nil {
 			return fmt.Errorf("could not marshal batch items payload for batch %s: %w", payload.BatchId, err)
 		}

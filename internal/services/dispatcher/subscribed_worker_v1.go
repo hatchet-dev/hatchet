@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 
@@ -92,10 +93,10 @@ func (worker *subscribedWorker) sendToWorker(
 	)
 
 	_, encodeSpan := telemetry.NewSpan(ctx, "encode-action")
+	fmt.Println("sent message of size", proto.Size(action), action.ActionId, action.BatchStartPayload.TriggerReason)
 
 	msg := &grpc.PreparedMsg{}
 	err := msg.Encode(worker.stream, action)
-
 	if err != nil {
 		encodeSpan.RecordError(err)
 		encodeSpan.End()
