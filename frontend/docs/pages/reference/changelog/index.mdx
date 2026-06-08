@@ -1,0 +1,36 @@
+---
+asIndexPage: true
+---
+
+import { LanguageLogo } from "@/lib/language-logos";
+
+# Changelog
+
+See the official release notes for the Hatchet platform and SDKs:
+
+<ul className="flex flex-col gap-2 mt-4 list-none pl-0">
+  {[
+    {
+      label: "Platform & Go SDK",
+      href: "/reference/changelog/platform",
+      lang: "go",
+    },
+    { label: "Python SDK", href: "/reference/changelog/python", lang: "py" },
+    {
+      label: "TypeScript SDK",
+      href: "/reference/changelog/typescript",
+      lang: "ts",
+    },
+    { label: "Ruby SDK", href: "/reference/changelog/ruby", lang: "rb" },
+  ].map((item) => (
+    <li
+      key={item.href}
+      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[hsl(var(--primary))] transition-colors hover:bg-[hsl(var(--muted))]"
+    >
+      <LanguageLogo language={item.lang} size={16} />
+      <a href={item.href} className="hover:underline">
+        {item.label}
+      </a>
+    </li>
+  ))}
+</ul>

@@ -123,6 +123,8 @@ func (c *Workflow) Result() (*WorkflowResult, error) {
 
 			break
 		}
+
+		retries++
 	}
 
 	if retries == DefaultActionListenerRetryCount && err != nil {

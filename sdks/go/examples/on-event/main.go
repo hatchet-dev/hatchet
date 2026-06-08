@@ -57,7 +57,7 @@ func LowerWithFilter(client *hatchet.Client) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask(
 		"lower", accessFilterPayload,
 		hatchet.WithWorkflowEvents(SimpleEvent),
-		hatchet.WithFilters(types.DefaultFilter{
+		hatchet.WithDefaultFilters(types.DefaultFilter{
 			Expression: "true",
 			Scope:      "example-scope",
 			Payload: map[string]interface{}{
