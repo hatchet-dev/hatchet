@@ -27,6 +27,7 @@ github_actions:
 
 engine:
   - changed-files:
+      - all-globs-to-all-files: "!cmd/hatchet-cli/.goreleaser.yaml"
       # TODO: Disambiguating between components is non-trivial,
       # For now, we rely on a mixture of files changed + title scoping.
       - any-glob-to-any-file:
@@ -34,8 +35,11 @@ engine:
           - "pkg/**"
           - "internal/**"
           - "api/**"
-          - "frontend/app/src/**"
           - "sql/**"
+
+dashboard:
+  - changed-files:
+      - any-glob-to-any-file: "frontend/app/src/**"
 
 documentation:
   - changed-files:

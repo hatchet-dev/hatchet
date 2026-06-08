@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds an optional `priority` argument to `ScheduledClient.create` and `ScheduledClient.aio_create`, allowing scheduled workflow runs to be created with a priority between 1 and 3.
 
+### Fixed
+
+- Fixed a bug where synchronous log calls via `asyncio.to_thread` (or other threads) could block workers.
+
+## [1.33.6] - 2026-05-27
+
+### Changed
+
+- Refactored worker graceful shutdown to prevent in-flight tasks from being killed.
+
 ## [1.33.5] - 2026-05-12
 
 ### Security

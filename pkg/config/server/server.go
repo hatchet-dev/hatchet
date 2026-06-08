@@ -708,7 +708,7 @@ type PayloadStoreConfig struct {
 	ExternalCutoverBatchSize             int32         `mapstructure:"externalCutoverBatchSize" json:"externalCutoverBatchSize,omitempty" default:"1000"`
 	ExternalCutoverNumConcurrentOffloads int32         `mapstructure:"externalCutoverNumConcurrentOffloads" json:"externalCutoverNumConcurrentOffloads,omitempty" default:"10"`
 	InlineStoreTTLDays                   int32         `mapstructure:"inlineStoreTTLDays" json:"inlineStoreTTLDays,omitempty" default:"2"`
-	EnableImmediateOffloads              bool          `mapstructure:"enableImmediateOffloads" json:"enableImmediateOffloads,omitempty" default:"false"`
+	EnableWindowSizeOptimization         bool          `mapstructure:"enableWindowSizeOptimization" json:"enableWindowSizeOptimization,omitempty" default:"true"`
 }
 
 func (c *ServerConfig) HasService(name string) bool {
@@ -898,6 +898,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tls.tlsKeyFile", "SERVER_TLS_KEY_FILE")
 	_ = v.BindEnv("tls.tlsRootCA", "SERVER_TLS_ROOT_CA")
 	_ = v.BindEnv("tls.tlsRootCAFile", "SERVER_TLS_ROOT_CA_FILE")
+	_ = v.BindEnv("tls.tlsMinVersion", "SERVER_TLS_MIN_VERSION")
 	_ = v.BindEnv("tls.tlsServerName", "SERVER_TLS_SERVER_NAME")
 
 	// logger options
@@ -990,7 +991,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("payloadStore.externalCutoverBatchSize", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_BATCH_SIZE")
 	_ = v.BindEnv("payloadStore.externalCutoverNumConcurrentOffloads", "SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_NUM_CONCURRENT_OFFLOADS")
 	_ = v.BindEnv("payloadStore.inlineStoreTTLDays", "SERVER_PAYLOAD_STORE_INLINE_STORE_TTL_DAYS")
-	_ = v.BindEnv("payloadStore.enableImmediateOffloads", "SERVER_PAYLOAD_STORE_ENABLE_IMMEDIATE_OFFLOADS")
+	_ = v.BindEnv("payloadStore.enableWindowSizeOptimization", "SERVER_PAYLOAD_STORE_ENABLE_WINDOW_SIZE_OPTIMIZATION")
 
 	// cron operations options
 	_ = v.BindEnv("cronOperations.taskAnalyzeCronInterval", "SERVER_CRON_OPERATIONS_TASK_ANALYZE_CRON_INTERVAL")

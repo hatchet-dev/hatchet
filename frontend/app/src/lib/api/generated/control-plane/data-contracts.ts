@@ -15,6 +15,12 @@ export enum CouponFrequency {
   Recurring = "recurring",
 }
 
+export enum SubscriptionStatus {
+  Current = "current",
+  Upcoming = "upcoming",
+  Past = "past",
+}
+
 export enum SubscriptionPeriod {
   Monthly = "monthly",
   Yearly = "yearly",
@@ -28,6 +34,16 @@ export enum SubscriptionPlanCode {
   Team = "team",
   Scale = "scale",
   Dedicated = "dedicated",
+}
+
+export enum TenantResource {
+  TASK_RUN = "TASK_RUN",
+  EVENT = "EVENT",
+  WORKER = "WORKER",
+  WORKER_SLOT = "WORKER_SLOT",
+  CRON = "CRON",
+  SCHEDULE = "SCHEDULE",
+  INCOMING_WEBHOOK = "INCOMING_WEBHOOK",
 }
 
 /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
@@ -96,6 +112,16 @@ export interface APIControlPlaneMetadata {
    * @example false
    */
   observabilityEnabled?: boolean;
+  /**
+   * whether organization billing APIs are enabled
+   * @example false
+   */
+  canBill?: boolean;
+  /**
+   * whether organization billing UI should show a maintenance message
+   * @example false
+   */
+  billingMaintenanceMode?: boolean;
 }
 
 import type { APIMetaAuth } from '@/lib/api/generated/data-contracts';
@@ -210,8 +236,8 @@ export interface OrganizationTenant {
    * @format date-time
    */
   archivedAt?: string;
-  /** Control-plane shard region for the tenant (e.g. aws:us-west-2). */
-  region?: string;
+  /** Control-plane deployment location for this tenant. */
+  region?: ShardRegionKey;
 }
 
 export interface OrganizationTenantList {
@@ -224,10 +250,10 @@ export interface CreateNewTenantForOrganizationRequest {
   /** The slug of the tenant. */
   slug: string;
   /**
-   * Optional shard region (e.g. aws:us-east-1). When omitted, the server picks one.
-   * @example "aws:us-east-1"
+   * Optional deployment target. When omitted, the server selects an eligible shard.
+   * @example "aws:us-west-2"
    */
-  region?: string;
+  region?: ShardRegionKey;
 }
 
 export interface CreateManagementTokenRequest {
@@ -391,8 +417,18 @@ export interface CreateTenantAPITokenResponse {
 export interface OrganizationAvailableShard {
   /** Cloud provider for this deployment target (e.g. aws). */
   provider: string;
-  /** Region within the provider (e.g. us-east-1). */
+  /**
+   * Cloud region within the provider (e.g. us-east-1).
+   * @pattern ^[a-z0-9-]+$
+   * @example "us-east-1"
+   */
   region: string;
+  /**
+   * Optional shard discriminator when multiple shards share the same provider and cloud region.
+   * @pattern ^[a-z0-9-]+$
+   * @example "shard-foo"
+   */
+  shardName?: string;
   /** SHARED when the shard is in the general pool; DEDICATED when it is pinned to specific organizations. */
   shardClass: OrganizationAvailableShardClass;
 }
@@ -420,18 +456,58 @@ export interface SsoConfig {
   forceSSO: boolean;
 }
 
-export interface TenantBillingState {
+export interface OrganizationBillingState {
   /** The subscription associated with this policy. */
-  currentSubscription: TenantBillingStateSubscription;
+  currentSubscription: OrganizationBillingStateSubscription;
   /** The upcoming subscription associated with this policy. */
-  upcomingSubscription?: TenantBillingStateSubscription;
-  /** A list of plans available for the tenant. */
+  upcomingSubscription?: OrganizationBillingStateSubscription;
+  /** The full subscription history for the organization, most recent first. */
+  subscriptionHistory?: OrganizationBillingStateSubscription[];
+  /** A list of plans available for the organization. */
   plans: SubscriptionPlan[];
-  /** A list of coupons applied to the tenant. */
+  /** A list of coupons applied to the organization. */
   coupons?: Coupon[];
 }
 
-export interface TenantPaymentMethod {
+export interface TenantResourceLimit {
+  metadata: APIResourceMeta;
+  /** The resource associated with this limit. */
+  resource: TenantResource;
+  /** The limit associated with this limit. */
+  limitValue: number;
+  /** The alarm value associated with this limit to warn of approaching limit value. */
+  alarmValue?: number;
+  /** The current value associated with this limit. */
+  value: number;
+  /** The meter window for the limit. (i.e. 1 day, 1 week, 1 month) */
+  window?: string;
+  /**
+   * The last time the limit was refilled.
+   * @format date-time
+   */
+  lastRefill?: string;
+}
+
+export interface OrganizationTenantResourceLimits {
+  /**
+   * The tenant id.
+   * @format uuid
+   */
+  tenantId: string;
+  /** The tenant display name. */
+  tenantName: string;
+  /** The tenant slug. */
+  tenantSlug: string;
+  /** Resource limits for the tenant. */
+  limits: TenantResourceLimit[];
+}
+
+export interface OrganizationTenantResourceLimitsList {
+  /** Resource limits grouped by tenant. */
+  tenants: OrganizationTenantResourceLimits[];
+}
+
+export interface OrganizationPaymentMethod {
   /** The brand of the payment method. */
   brand: string;
   /** The last 4 digits of the card. */
@@ -442,9 +518,9 @@ export interface TenantPaymentMethod {
   description?: string;
 }
 
-export type TenantPaymentMethodList = TenantPaymentMethod[];
+export type OrganizationPaymentMethodList = OrganizationPaymentMethod[];
 
-export interface TenantCreditBalance {
+export interface OrganizationCreditBalance {
   /** The Stripe customer balance in cents. Negative means customer credit. */
   balanceCents: number;
   /** ISO currency code for the Stripe customer balance. */
@@ -458,52 +534,56 @@ export interface TenantCreditBalance {
   expiresAt?: string;
 }
 
-export interface TenantSubscription {
-  /** The plan code associated with the tenant subscription. */
+export interface OrganizationSubscription {
+  /** The plan code associated with the organization subscription. */
   plan: SubscriptionPlanCode;
-  /** The period associated with the tenant subscription. */
+  /** The period associated with the organization subscription. */
   period?: SubscriptionPeriod;
   /**
-   * The start date of the tenant subscription.
+   * The start date of the organization subscription.
    * @format date-time
    */
   startedAt: string;
   /**
-   * The end date of the tenant subscription.
+   * The end date of the organization subscription.
    * @format date-time
    */
   endsAt?: string;
 }
 
-export interface TenantBillingStateSubscription {
-  /** The plan code associated with the tenant subscription. */
+export interface OrganizationBillingStateSubscription {
+  /** The subscription plan code matching an entry in the available plans list. */
+  planCode: string;
+  /** The base plan code associated with the organization subscription. */
   plan: SubscriptionPlanCode;
-  /** The period associated with the tenant subscription. */
+  /** The period associated with the organization subscription. */
   period?: SubscriptionPeriod;
+  /** The lifecycle status of the organization subscription. */
+  status?: SubscriptionStatus;
   /**
-   * The start date of the tenant subscription.
+   * The start date of the organization subscription.
    * @format date-time
    */
   startedAt: string;
   /**
-   * The end date of the tenant subscription.
+   * The end date of the organization subscription.
    * @format date-time
    */
   endsAt?: string;
 }
 
-export interface UpdateTenantSubscriptionState {
+export interface UpdateOrganizationSubscriptionState {
   /** The plan code associated with the tenant subscription. */
   plan: SubscriptionPlanCode;
-  /** The period associated with the tenant subscription. */
+  /** The period associated with the organization subscription. */
   period?: SubscriptionPeriod;
   /**
-   * The start date of the tenant subscription.
+   * The start date of the organization subscription.
    * @format date-time
    */
   startedAt: string;
   /**
-   * The end date of the tenant subscription.
+   * The end date of the organization subscription.
    * @format date-time
    */
   endsAt?: string;
@@ -595,18 +675,18 @@ export interface SubscriptionPlanList {
   freeLimits: SubscriptionPlanFreeLimit[];
 }
 
-export interface UpdateTenantSubscriptionRequest {
+export interface UpdateOrganizationSubscriptionRequest {
   /** The code of the plan. */
   plan: SubscriptionPlanCode;
   /** The period of the plan. */
   period?: SubscriptionPeriod;
 }
 
-export interface UpdateTenantSubscriptionResponse {
+export interface UpdateOrganizationSubscriptionResponse {
   /** The URL to the checkout page. */
   checkoutUrl?: string;
-  currentSubscription?: UpdateTenantSubscriptionState;
-  upcomingSubscription?: UpdateTenantSubscriptionState;
+  currentSubscription?: UpdateOrganizationSubscriptionState;
+  upcomingSubscription?: UpdateOrganizationSubscriptionState;
 }
 
 export interface CheckoutURLResponse {
@@ -637,3 +717,10 @@ export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
 }
+
+/**
+ * Shard selector as `provider:cloud-region` or `provider:cloud-region:shard-name`. The shard name is optional.
+ * @pattern ^[a-z0-9-]+:[a-z0-9-]+(:[a-z0-9-]+)?$
+ * @example "aws:us-west-2"
+ */
+export type ShardRegionKey = string;

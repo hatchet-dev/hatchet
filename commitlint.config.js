@@ -8,6 +8,7 @@ module.exports = {
         'build', // Build system or external dependencies
         'chore', // Other changes that don't modify src or test files
         'ci', // CI configuration changes
+        'deprecate', // Deprecation changes
         'docs', // Documentation only changes
         'feat', // New feature
         'fix', // Bug fix
