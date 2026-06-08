@@ -335,19 +335,19 @@ uvloop = ["uvloop (>=0.15.2) ; sys_platform != \"win32\"", "winloop (>=0.5.0) ; 
 
 [[package]]
 name = "boto3"
-version = "1.43.19"
+version = "1.43.24"
 description = "The AWS SDK for Python"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"test\""
 files = [
-    {file = "boto3-1.43.19-py3-none-any.whl", hash = "sha256:ec6825193b75fbb6bfbf12181e4960d00ad2f404343586765394ce620e63783c"},
-    {file = "boto3-1.43.19.tar.gz", hash = "sha256:8b84704719dd3960ac12a8f37d9ff5adb853715baa9742f84fdbe2de0305c4cb"},
+    {file = "boto3-1.43.24-py3-none-any.whl", hash = "sha256:b18ef745274ef548a9660d733d985d4a971b16bd8a6af88165ea9d0e40913b86"},
+    {file = "boto3-1.43.24.tar.gz", hash = "sha256:ba5afa266bf7265e0c1a454fcfd48bffe5939cb16ed223bebc669c3dc8ee0bc8"},
 ]
 
 [package.dependencies]
-botocore = ">=1.43.19,<1.44.0"
+botocore = ">=1.43.24,<1.44.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.18.0,<0.19.0"
 
@@ -4235,4 +4235,4 @@ test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "de19fd53609b0eab76be0eda2cbdec93921f04e35ab890067315db518edf0b38"
+content-hash = "febd448625301e12a7c6beafd4d1861de8225f687712f01d37a04b26baed3c1e"
