@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `WorkflowsClient.get()` now finds the exact workflow name match from list results instead of taking the first result, preventing incorrect workflow ID resolution when a name prefix-match returns multiple workflows.
+
 ## [1.23.0] - 2026-05-27
 
 ### Added

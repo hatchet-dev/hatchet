@@ -105,9 +105,8 @@ export class WorkflowsClient {
       });
 
       if (data && data.rows && data.rows.length > 0) {
-        const [wf] = data.rows;
+        const wf = data.rows.find((row) => row.name === name) ?? data.rows[0];
 
-        // Cache the result
         this.workflowCache.set(name, {
           workflow: wf,
           expiry: Date.now() + this.cacheTTL,
