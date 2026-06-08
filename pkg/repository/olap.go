@@ -354,24 +354,25 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 // CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
 func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, logger *zerolog.Logger, fn func(tx pgx.Tx) error) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, pool, logger)
+
 	if err != nil {
-		defer rollback()
 		return err
 	}
+
+	defer rollback()
+
 	if _, err = tx.Exec(ctx, "SET LOCAL lock_timeout = '5s'"); err != nil {
-		defer rollback()
 		return fmt.Errorf("set lock_timeout: %w", err)
 	}
-	if err = fn(tx); err != nil {
-		defer rollback()
-		if isLockNotAvailable(err) {
-			return ErrPartitionLockConflict
-		}
+
+	err = fn(tx)
+
+	if err != nil && isLockNotAvailable(err) {
+		return ErrPartitionLockConflict
+	} else if err != nil {
 		return err
 	}
-	// lock_timeout cannot fire during COMMIT (no new locks are acquired), so we don't check for
-	// ErrPartitionLockConflict here. We do roll back on any commit failure so the connection is
-	// returned cleanly — pgx v5 has no GC-time rollback finalizer.
+
 	return commit(ctx)
 }
 
