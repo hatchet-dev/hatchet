@@ -1467,8 +1467,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> Callable[
         [
             Callable[
-                [list[tuple[TWorkflowInput, Context]]],
-                list[R] | CoroutineLike[list[R]],
+                [dict[str, TWorkflowInput], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
         Task[TWorkflowInput, R],
@@ -1477,9 +1477,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
 
         Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
-        then invoke the handler once with all (input, context) pairs.
+        then invoke the handler once with all buffered inputs keyed by step run ID.
 
-        The handler must return a list of outputs with the same length as the input list.
+        The handler must return a dict mapping each step run ID to its output.
         """
 
         if batch_max_size <= 0:
@@ -1504,8 +1504,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         def inner(
             func: Callable[
-                [list[tuple[TWorkflowInput, Context]]],
-                list[R] | CoroutineLike[list[R]],
+                [dict[str, TWorkflowInput], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ],
         ) -> Task[TWorkflowInput, R]:
             _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
@@ -1518,7 +1518,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 ]
             )
             task = Task(
-                _fn=func,  # batch handler; executed by worker batch coordinator
+                _fn=cast(
+                    Callable[[TWorkflowInput, Context], R | CoroutineLike[R]], func
+                ),
                 is_durable=False,
                 workflow=self,
                 type=StepType.DEFAULT,

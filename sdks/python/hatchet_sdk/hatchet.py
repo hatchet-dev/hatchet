@@ -592,7 +592,8 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [list[tuple[EmptyModel, Context]]], list[R] | CoroutineLike[list[R]]
+                [dict[str, EmptyModel], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
         Standalone[EmptyModel, R],
@@ -627,8 +628,8 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [list[tuple[TWorkflowInput, Context]]],
-                list[R] | CoroutineLike[list[R]],
+                [dict[str, TWorkflowInput], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
         Standalone[TWorkflowInput, R],
@@ -662,8 +663,8 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [list[tuple[TWorkflowInput, Context]]],
-                list[R] | CoroutineLike[list[R]],
+                [dict[str, TWorkflowInput], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
         Standalone[TWorkflowInput, R],
@@ -676,8 +677,8 @@ class Hatchet:
 
         def inner(
             func: Callable[
-                [list[tuple[TWorkflowInput, Context]]],
-                list[R] | CoroutineLike[list[R]],
+                [dict[str, TWorkflowInput], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ],
         ) -> Standalone[TWorkflowInput, R]:
             inferred_name = name or func.__name__

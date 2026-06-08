@@ -16,6 +16,7 @@ from examples.batch_assign.worker import (
     batch_simple,
     batch_single,
     batch_broadcast,
+    batch_cancel,
 )
 
 
@@ -136,3 +137,13 @@ async def test_broadcasted_return() -> None:
     )
     assert len(results) == 10
     assert all(r["sum"] == 50 for r in results)
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cancel_semantics() -> None:
+    count = 10
+
+    results = await asyncio.gather(
+        *[batch_cancel.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+    )
+    assert not any(results)

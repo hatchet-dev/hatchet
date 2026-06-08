@@ -45,7 +45,7 @@ from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
-from hatchet_sdk.features.runs import RunsClient
+from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import ActionPayload
 from hatchet_sdk.runnables.types import (
@@ -422,7 +422,12 @@ class Context:
         :return: None
         """
         logger.debug("cancelling step...")
-        self._runs_client.cancel(self._step_run_id)
+        if self._action.batch_items:
+            self._runs_client.bulk_cancel(
+                opts=BulkCancelReplayOpts(ids=list(self._action.batch_items.keys()))
+            )
+        else:
+            self._runs_client.cancel(self._step_run_id)
         self._set_cancellation_flag()
 
     async def aio_cancel(self) -> None:
@@ -432,7 +437,12 @@ class Context:
         :return: None
         """
         logger.debug("cancelling step...")
-        await self._runs_client.aio_cancel(self._step_run_id)
+        if self._action.batch_items:
+            await self._runs_client.aio_bulk_cancel(
+                opts=BulkCancelReplayOpts(ids=list(self._action.batch_items.keys()))
+            )
+        else:
+            await self._runs_client.aio_cancel(self._step_run_id)
         self._set_cancellation_flag()
 
     def done(self) -> bool:
