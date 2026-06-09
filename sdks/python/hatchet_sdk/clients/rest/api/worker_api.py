@@ -16,11 +16,13 @@ from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
-from pydantic import Field
+from pydantic import Field, StrictInt
+from typing import List, Optional
 from typing_extensions import Annotated
 from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.clients.rest.models.worker import Worker
 from hatchet_sdk.clients.rest.models.worker_list import WorkerList
+from hatchet_sdk.clients.rest.models.worker_status import WorkerStatus
 
 from hatchet_sdk.clients.rest.api_client import ApiClient, RequestSerialized
 from hatchet_sdk.clients.rest.api_response import ApiResponse
@@ -311,6 +313,15 @@ class WorkerApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        statuses: Annotated[
+            Optional[List[WorkerStatus]], Field(description="Filter by worker status")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -329,6 +340,12 @@ class WorkerApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
+        :param offset: The number to skip
+        :type offset: int
+        :param limit: The number to limit by
+        :type limit: int
+        :param statuses: Filter by worker status
+        :type statuses: List[WorkerStatus]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -353,6 +370,9 @@ class WorkerApi:
 
         _param = self._worker_list_serialize(
             tenant=tenant,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -382,6 +402,15 @@ class WorkerApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        statuses: Annotated[
+            Optional[List[WorkerStatus]], Field(description="Filter by worker status")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -400,6 +429,12 @@ class WorkerApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
+        :param offset: The number to skip
+        :type offset: int
+        :param limit: The number to limit by
+        :type limit: int
+        :param statuses: Filter by worker status
+        :type statuses: List[WorkerStatus]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -424,6 +459,9 @@ class WorkerApi:
 
         _param = self._worker_list_serialize(
             tenant=tenant,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -453,6 +491,15 @@ class WorkerApi:
                 min_length=36, strict=True, max_length=36, description="The tenant id"
             ),
         ],
+        offset: Annotated[
+            Optional[StrictInt], Field(description="The number to skip")
+        ] = None,
+        limit: Annotated[
+            Optional[StrictInt], Field(description="The number to limit by")
+        ] = None,
+        statuses: Annotated[
+            Optional[List[WorkerStatus]], Field(description="Filter by worker status")
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -471,6 +518,12 @@ class WorkerApi:
 
         :param tenant: The tenant id (required)
         :type tenant: str
+        :param offset: The number to skip
+        :type offset: int
+        :param limit: The number to limit by
+        :type limit: int
+        :param statuses: Filter by worker status
+        :type statuses: List[WorkerStatus]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -495,6 +548,9 @@ class WorkerApi:
 
         _param = self._worker_list_serialize(
             tenant=tenant,
+            offset=offset,
+            limit=limit,
+            statuses=statuses,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -514,6 +570,9 @@ class WorkerApi:
     def _worker_list_serialize(
         self,
         tenant,
+        offset,
+        limit,
+        statuses,
         _request_auth,
         _content_type,
         _headers,
@@ -522,7 +581,9 @@ class WorkerApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+            "statuses": "multi",
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -537,6 +598,18 @@ class WorkerApi:
         if tenant is not None:
             _path_params["tenant"] = tenant
         # process the query parameters
+        if offset is not None:
+
+            _query_params.append(("offset", offset))
+
+        if limit is not None:
+
+            _query_params.append(("limit", limit))
+
+        if statuses is not None:
+
+            _query_params.append(("statuses", statuses))
+
         # process the header parameters
         # process the form parameters
         # process the body parameter
