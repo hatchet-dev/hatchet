@@ -269,12 +269,12 @@ INSERT INTO "StepBatchConfig" (
 `
 
 type CreateStepBatchConfigParams struct {
-	Stepid            uuid.UUID    `json:"stepid"`
-	Batchmaxsize      int32        `json:"batchmaxsize"`
-	BatchMaxInterval  pgtype.Int4  `json:"batchMaxInterval"`
-	BatchGroupKey     pgtype.Text  `json:"batchGroupKey"`
-	BatchGroupMaxRuns pgtype.Int4  `json:"batchGroupMaxRuns"`
-	BroadcastOutput   bool         `json:"broadcastOutput"`
+	Stepid            uuid.UUID   `json:"stepid"`
+	Batchmaxsize      int32       `json:"batchmaxsize"`
+	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
+	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
+	Broadcastoutput   bool        `json:"broadcastoutput"`
 }
 
 func (q *Queries) CreateStepBatchConfig(ctx context.Context, db DBTX, arg CreateStepBatchConfigParams) error {
@@ -284,7 +284,7 @@ func (q *Queries) CreateStepBatchConfig(ctx context.Context, db DBTX, arg Create
 		arg.BatchMaxInterval,
 		arg.BatchGroupKey,
 		arg.BatchGroupMaxRuns,
-		arg.BroadcastOutput,
+		arg.Broadcastoutput,
 	)
 	return err
 }

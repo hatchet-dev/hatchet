@@ -788,7 +788,7 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 			batchCfgParams := sqlcv1.CreateStepBatchConfigParams{
 				Stepid:          stepId,
 				Batchmaxsize:    stepOpts.BatchConfig.BatchMaxSize,
-				BroadcastOutput: stepOpts.BatchConfig.BroadcastOutput,
+				Broadcastoutput: stepOpts.BatchConfig.BroadcastOutput,
 			}
 			if stepOpts.BatchConfig.BatchMaxInterval != nil {
 				batchCfgParams.BatchMaxInterval = pgtype.Int4{

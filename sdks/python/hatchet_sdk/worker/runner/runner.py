@@ -2,7 +2,7 @@ import asyncio
 import ctypes
 import functools
 import re
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import is_dataclass
 from enum import Enum
