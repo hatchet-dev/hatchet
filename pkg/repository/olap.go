@@ -508,12 +508,22 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
-		if err != nil {
+		if err != nil && !isPendingDetach(err) {
 			releaseConn()
 			if isLockNotAvailable(err) {
 				return ErrPartitionLockConflict
 			}
 			return err
+		} else if isPendingDetach(err) {
+			_, err = conn.Exec(
+				ctx,
+				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
+			)
+
+			if err != nil {
+				releaseConn()
+				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
+			}
 		}
 
 		_, err = conn.Exec(
