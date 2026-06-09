@@ -65,6 +65,7 @@ jobs:
           workdir: cmd/hatchet-cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_PREVIOUS_TAG: ${{ needs.verify.outputs.prev_tag }}
           # Homebrew tap token
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           # macOS signing and notarization secrets
@@ -91,6 +92,7 @@ jobs:
     outputs:
       # We should only be triggering a release when using an annotated tag type.
       should_release: ${{ steps.tag_name.outputs.tag_type == 'tag' }}
+      prev_tag: ${{ steps.prev.outputs.prev_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -107,6 +109,15 @@ jobs:
           echo "Tag [$GITHUB_TAG] is of type [$tag_type]."
           echo "tag_type=$tag_type" >> $GITHUB_OUTPUT
 
+      - name: Determine previous release tag
+        id: prev
+        run: |
+          PREV_TAG=$(gh release view --json tagName --jq .tagName)
+          echo "Previous release tag: $PREV_TAG"
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   generate-changelog:
     name: Generate release_notes.md artifact
     runs-on: ubuntu-latest
@@ -114,6 +125,7 @@ jobs:
     if: needs.verify.outputs.should_release == 'true'
     env:
       GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
+      PREV_TAG: ${{ needs.verify.outputs.prev_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -122,15 +134,6 @@ jobs:
 
       - name: Fetch the tag object
         run: git fetch --force origin tag "$GITHUB_TAG"
-
-      - name: Determine previous release tag
-        id: prev
-        run: |
-          PREV_TAG=$(gh release view --json tagName --jq .tagName)
-          echo "Previous release tag: $PREV_TAG"
-          echo "PREV_TAG=$PREV_TAG" >> "$GITHUB_ENV"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate release section
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
