@@ -467,6 +467,11 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 				ctx,
 				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
 			)
+
+			if err != nil {
+				releaseConn()
+				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
+			}
 		}
 
 		_, err = conn.Exec(
