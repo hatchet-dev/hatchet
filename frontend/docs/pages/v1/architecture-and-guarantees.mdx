@@ -90,7 +90,7 @@ Hatchet aims to sit in the middle: more structure than a simple queue, but simpl
 
 - **Workflow orchestration** with dependencies, retries, and timeouts
 - **Durable background jobs** where “don’t lose work” matters
-- **Moderate to high throughput** systems (and a path to higher scale with tuning/sharding). If you’re pushing the limits, [contact us](https://hatchet.run/contact).
+- **Moderate to high throughput** systems (and a path to higher scale with tuning/sharding). If you’re pushing the limits, [contact us](mailto:support@hatchet.run).
 - **Multi-language / polyglot workers**
 - **Teams already on PostgreSQL** who want operational simplicity
 - **Cloud or air-gapped environments** ([Hatchet Cloud](https://cloud.hatchet.run) or [self-hosting](/self-hosting))
@@ -129,7 +129,7 @@ The engine and API server are designed to restart without losing state, which al
 Real-world performance depends heavily on topology (worker ↔ engine network latency), database sizing, and workload shape.
 
 - **Dispatch latency**: often sub-50ms with PostgreSQL-backed storage; in optimized, “hot worker” setups it can be closer to ~25ms P95.
-- **Throughput**: varies by setup. PostgreSQL-only deployments often handle hundreds of tasks/sec per engine instance; higher throughput typically requires additional tuning and/or components like RabbitMQ. With tuning and sharding, Hatchet can scale into the high tens of thousands of tasks/sec—[contact us](https://hatchet.run/contact) if you want to design for that.
+- **Throughput**: varies by setup. PostgreSQL-only deployments often handle hundreds of tasks/sec per engine instance; higher throughput typically requires additional tuning and/or components like RabbitMQ. With tuning and sharding, Hatchet can scale into the high tens of thousands of tasks/sec—[contact us](mailto:support@hatchet.run) if you want to design for that.
 - **Common bottlenecks**: DB connection limits, large payloads (e.g. > 1MB), complex dependency graphs, and cross-region latency.
 
 <Callout type="warning">
