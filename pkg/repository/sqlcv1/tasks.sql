@@ -390,6 +390,8 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
+        -- evicted tasks are not eligible for timeout
+        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT
@@ -431,6 +433,7 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
+    FOR UPDATE OF runtime SKIP LOCKED
 )
 SELECT
     v1_task.id,
