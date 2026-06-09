@@ -17,21 +17,19 @@ from enum import Enum
 from typing_extensions import Self
 
 
-class FeatureFlagId(str, Enum):
+class WorkerStatus(str, Enum):
     """
-    FeatureFlagId
+    WorkerStatus
     """
 
     """
     allowed enum values
     """
-    TENANT_MINUS_LOG_MINUS_WORKFLOW_MINUS_FILTER_MINUS_ENABLED = (
-        "tenant-log-workflow-filter-enabled"
-    )
-    TRACE_MINUS_MINIMAP_MINUS_ENABLED = "trace-minimap-enabled"
-    ORGANIZATION_MINUS_SSO_MINUS_ENABLED = "organization-sso-enabled"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    PAUSED = "PAUSED"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:
-        """Create an instance of FeatureFlagId from a JSON string"""
+        """Create an instance of WorkerStatus from a JSON string"""
         return cls(json.loads(json_str))
