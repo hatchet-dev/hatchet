@@ -341,7 +341,8 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
+	sw := newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer)
+	s.workers.Add(workerId, sessionId, sw)
 
 	defer func() {
 		// non-blocking send
@@ -352,6 +353,21 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 		s.workers.DeleteForSession(workerId, sessionId)
 	}()
+
+	// Optionally send periodic keepalive messages on the ListenV2 stream to
+	// prevent L7 proxies (e.g., Envoy on Azure Container Apps) from killing the
+	// stream due to stream_idle_timeout. Keepalives are sent unconditionally at
+	// the configured interval regardless of other stream activity. This does NOT
+	// affect worker liveness detection, which is handled by the separate
+	// Heartbeat RPC.
+	var keepaliveTicker *time.Ticker
+	var keepaliveC <-chan time.Time
+
+	if s.listenV2StreamKeepaliveInterval > 0 {
+		keepaliveTicker = time.NewTicker(s.listenV2StreamKeepaliveInterval)
+		keepaliveC = keepaliveTicker.C
+		defer keepaliveTicker.Stop()
+	}
 
 	// Keep the connection alive for sending messages
 	for {
@@ -381,6 +397,20 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 			}
 
 			return nil
+		case <-keepaliveC:
+			if !sw.sendLock.Acquire() {
+				s.l.Debug().Msgf("could not acquire send lock for keepalive to worker %s, skipping", request.WorkerId)
+				continue
+			}
+			err := stream.Send(&contracts.AssignedAction{
+				ActionType: contracts.ActionType_STREAM_KEEPALIVE,
+			})
+			sw.sendLock.Release()
+
+			if err != nil {
+				s.l.Debug().Err(err).Msgf("failed to send stream keepalive for worker %s, closing stream", request.WorkerId)
+				return nil
+			}
 		}
 	}
 }
