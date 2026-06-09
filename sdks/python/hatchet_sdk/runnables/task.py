@@ -152,12 +152,8 @@ class Task(Generic[TWorkflowInput, R]):
             Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
             | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
             | Callable[
-                Concatenate[list[TWorkflowInput], list[Context], P],
-                list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
-            ]
-            | Callable[
-                Concatenate[list[tuple[TWorkflowInput, Context]], P],
-                list[R] | CoroutineLike[list[R]] | AwaitableLike[list[R]],
+                [dict[str, TWorkflowInput], Context],
+                dict[str, R] | CoroutineLike[dict[str, R]],
             ]
             | (
                 Callable[
@@ -489,7 +485,7 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_async_fn(self._fn):  # type: ignore[arg-type]
+        if is_async_fn(self._fn):  # type: ignore[arg-type, type-var]
             return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")

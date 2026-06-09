@@ -480,7 +480,7 @@ class Runner:
                 input, context=HATCHET_PYDANTIC_SENTINEL
             )
 
-        task_inputs = {
+        task_inputs: dict[str, Any] = {
             i: cast_input(item.payload.input) for i, item in action.batch_items.items()
         }
         context = self.create_context(action=action, task=task, is_durable=False)
@@ -491,7 +491,7 @@ class Runner:
                 loop = asyncio.get_running_loop()
                 outputs = await loop.run_in_executor(
                     self.thread_pool,
-                    lambda: task._fn(task_inputs, context),
+                    lambda: cast(Any, task._fn)(task_inputs, context),
                 )
 
             if context.is_cancelled:
