@@ -46,6 +46,7 @@ describe('ConfigLoader', () => {
       otel: {
         excludedAttributes: [],
         includeTaskNameInSpanName: false,
+        individualRunSpansForBulkRun: false,
       },
       grpc_max_recv_message_length: 8 * 1024 * 1024,
       grpc_max_send_message_length: 16 * 1024 * 1024,

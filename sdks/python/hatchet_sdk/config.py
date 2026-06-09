@@ -88,6 +88,17 @@ class OpenTelemetryConfig(BaseSettings):
 
     include_task_name_in_start_step_run_span_name: bool = False
 
+    individual_run_spans_for_bulk_run: bool = Field(
+        default=False,
+        description=(
+            "If true, a child `hatchet.run_workflow` span is created for each "
+            "item in a bulk run (`run_workflows`), nested under the parent "
+            "`hatchet.run_workflows` span, and each item's traceparent points at "
+            "its own span. Defaults to false to preserve the existing span "
+            "structure for downstream OpenTelemetry collectors."
+        ),
+    )
+
 
 class HTTPMethod(str, Enum):
     GET = "GET"
