@@ -26,16 +26,21 @@ github_actions:
         - ".github/labeler.yml"
 
 engine:
+  # ensures that ALL of the provided options must match for the label to be applied
+- all:
+  # NOTE: Linting fails in vscode due to the JSON schema at https://www.schemastore.org/pull-request-labeler.json
+  # not being applied correctly via the redhat YAML extension. See https://github.com/actions/labeler/issues/746
   - changed-files:
       # TODO: Disambiguating between components is non-trivial,
       # For now, we rely on a mixture of files changed + title scoping.
       - any-glob-to-any-file:
           - "cmd/**"
-          - "!cmd/hatchet-cli/.goreleaser.yaml"
           - "pkg/**"
           - "internal/**"
           - "api/**"
           - "sql/**"
+      - all-globs-to-all-files:
+        - "!cmd/hatchet-cli/.goreleaser.yml"
 
 dashboard:
   - changed-files:

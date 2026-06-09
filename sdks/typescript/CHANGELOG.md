@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an `individualRunSpansForBulkRun` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`runWorkflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
 
+### Fixed
+
+- `WorkflowsClient.get()` now finds the exact workflow name match from list results instead of taking the first result, preventing incorrect workflow ID resolution when a name prefix-match returns multiple workflows.
+
 ## [1.23.0] - 2026-05-27
 
 ### Added

@@ -244,6 +244,10 @@ tasks:
   generate-sqlc:
     cmds:
       - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/sqlcv1/sqlc.yaml
+  update-go-quickstart-deps:
+    desc: Update Go quickstart template Hatchet SDK to latest (or VERSION=vX.Y.Z)
+    cmds:
+      - bash ./hack/update-go-quickstart-deps.sh {{.VERSION | default "latest"}}
   lint:
     cmds:
       - task: lint-go

@@ -49,6 +49,7 @@ func NewDurableTask[I, O any](opts create.StandaloneTask, fn func(ctx worker.Dur
 		OnCron:          opts.OnCron,
 		OutputKey:       &opts.Name,
 		DefaultPriority: opts.DefaultPriority,
+		DefaultFilters:  opts.DefaultFilters,
 	}
 
 	// Create the workflow
