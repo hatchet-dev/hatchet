@@ -1482,7 +1482,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	for _, task := range toTimeout {
 		errorMsg := fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String)
 		if task.BatchID != nil {
-			errorMsg = "Task failed due to batch timeout"
+			errorMsg = fmt.Sprintf("Task failed due to batch timeout, exceeded timeout of %s", task.StepTimeout.String)
 		}
 
 		failOpts = append(failOpts, FailTaskOpts{

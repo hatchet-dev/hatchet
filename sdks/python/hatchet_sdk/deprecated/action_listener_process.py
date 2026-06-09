@@ -435,6 +435,10 @@ class LegacyWorkerActionListenerProcess:
 
                     case ActionType.CANCEL_STEP_RUN:
                         logger.info(f"rx: cancel step run: {action.step_run_id}")
+                    case ActionType.START_BATCH:
+                        logger.info(
+                            f"rx: start batch: {action.action_id}/{action.batch_id} expected={action.batch_start.expected_size if action.batch_start else None}"
+                        )
                     case _:
                         logger.error(
                             f"rx: unknown action type ({action.action_type}): {action.action_type}"

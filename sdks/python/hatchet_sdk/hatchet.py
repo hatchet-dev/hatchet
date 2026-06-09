@@ -575,7 +575,6 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -611,7 +610,6 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -646,7 +644,6 @@ class Hatchet:
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int = 1,
-        concurrency: ConcurrencyExpression | list[ConcurrencyExpression] | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -698,13 +695,6 @@ class Hatchet:
                 self,
             )
 
-            if isinstance(concurrency, list):
-                _concurrency = concurrency
-            elif isinstance(concurrency, ConcurrencyExpression):
-                _concurrency = [concurrency]
-            else:
-                _concurrency = []
-
             task_wrapper = workflow.batch_task(
                 name=inferred_name,
                 schedule_timeout=schedule_timeout,
@@ -715,7 +705,6 @@ class Hatchet:
                 desired_worker_labels=desired_worker_labels or {},
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
-                concurrency=_concurrency,
                 batch_max_size=batch_max_size,
                 batch_max_interval=batch_max_interval,
                 batch_group_key=batch_group_key,

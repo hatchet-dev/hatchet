@@ -82,7 +82,7 @@ async def batch_keyed_interval(
 
 @hatchet.batch_task(
     batch_max_size=100,
-    batch_max_interval=timedelta(seconds=1),
+    batch_max_interval=timedelta(seconds=10),
     input_validator=LargePayloadInput,
 )
 async def batch_large(
@@ -148,6 +148,33 @@ async def batch_cancel(_: dict[str, SimpleInput], context: Context) -> dict[str,
     return {}
 
 
+@hatchet.task(
+    input_validator=SimpleInput
+)
+async def child(input: SimpleInput, context: Context) -> dict[str, Any]:
+    return {"blahblah": len(input.Message)}
+
+@hatchet.batch_task(
+    batch_max_size=10,
+    batch_max_interval=timedelta(seconds=10),
+    input_validator=SimpleInput,
+    broadcast_output=True,
+)
+async def child_batch(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
+    return inp
+
+@hatchet.batch_task(
+    batch_max_size=10,
+    batch_max_interval=timedelta(seconds=10),
+    input_validator=SimpleInput,
+    broadcast_output=True,
+    execution_timeout=timedelta(seconds=30)
+)
+async def batch_child_spawn(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
+    return {
+        id: await child_batch.aio_run(inp) | await child.aio_run(SimpleInput(Message="blahblah")) for id, inp in inp.items()
+    }
+
 def main() -> None:
     worker = hatchet.worker(
         "batch-e2e-worker",
@@ -160,6 +187,9 @@ def main() -> None:
             batch_ordered,
             batch_broadcast,
             batch_cancel,
+            batch_child_spawn,
+            child_batch,
+            child
         ],
         slots=25,
     )
