@@ -2,7 +2,7 @@
 
 Hatchet v0.89.0 introduces a range of updates to the platform, consisting largely of performance improvements and bug fixes to the engine, alongside several user-experience changes to the dashboard.
 
-### Enhancements
+### Highlights
 
 - Hatchet Cloud now consolidates billing at the organization level, providing a single surface for managing billing and resource limits across all tenants in an organization.
 - The Hatchet engine and clients can have their minimum TLS version configured via the `SERVER_TLS_MIN_VERSION` and `HATCHET_CLIENT_TLS_MIN_VERSION` environment variables, respectively (defaults to `1.3`).
