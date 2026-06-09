@@ -1,5 +1,6 @@
 import json
-from collections.abc import Callable, Collection, Coroutine, Sequence
+from collections.abc import Callable, Collection, Coroutine, Iterator, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from typing import Any, cast
@@ -680,12 +681,13 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
         }
 
-    def _enhance_workflow_run_configs(
+    @contextmanager
+    def _enhanced_workflow_run_configs(
         self,
         workflow_run_configs: list[WorkflowRunTriggerConfig],
-        item_spans: list[ApiSpan],
-    ) -> list[WorkflowRunTriggerConfig]:
-        """Build the per-item trigger configs with an injected traceparent.
+    ) -> Iterator[list[WorkflowRunTriggerConfig]]:
+        """Yield the per-item trigger configs with an injected traceparent and
+        manage the lifecycle of any per-item spans.
 
         When ``individual_run_spans_for_bulk_run`` is enabled, a dedicated
         ``hatchet.run_workflow`` span is started for each item and that span's
@@ -693,37 +695,50 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         behaviour is preserved: no per-item spans are created and the active
         (parent ``hatchet.run_workflows``) span's traceparent is injected.
 
-        Started item spans are appended to ``item_spans`` as they are created so
-        the caller can end them even if this method raises partway through.
+        Item spans are always ended when the context exits, and any exception
+        raised inside the context (e.g. by the wrapped bulk-run call) is
+        recorded on every item span before being re-raised.
         """
         individual_spans = self.config.otel.individual_run_spans_for_bulk_run
         configs_with_meta: list[WorkflowRunTriggerConfig] = []
+        item_spans: list[ApiSpan] = []
 
-        for config in workflow_run_configs:
-            traceparent: str | None = None
-            if individual_spans:
-                item_span = self._tracer.start_span(
-                    "hatchet.run_workflow",
-                    attributes=self._build_run_workflow_attributes(config),
-                    kind=SpanKind.PRODUCER,
-                )
-                item_spans.append(item_span)
-                traceparent = _create_traceparent_from_span(item_span)
+        try:
+            for config in workflow_run_configs:
+                traceparent: str | None = None
+                if individual_spans:
+                    item_span = self._tracer.start_span(
+                        "hatchet.run_workflow",
+                        attributes=self._build_run_workflow_attributes(config),
+                        kind=SpanKind.PRODUCER,
+                    )
+                    item_spans.append(item_span)
+                    traceparent = _create_traceparent_from_span(item_span)
 
-            configs_with_meta.append(
-                WorkflowRunTriggerConfig(
-                    **config.model_dump(exclude={"options"}),
-                    options=TriggerWorkflowOptions(
-                        **config.options.model_dump(exclude={"additional_metadata"}),
-                        additional_metadata=_inject_traceparent_into_metadata(
-                            config.options.additional_metadata,
-                            traceparent,
+                configs_with_meta.append(
+                    WorkflowRunTriggerConfig(
+                        **config.model_dump(exclude={"options"}),
+                        options=TriggerWorkflowOptions(
+                            **config.options.model_dump(
+                                exclude={"additional_metadata"}
+                            ),
+                            additional_metadata=_inject_traceparent_into_metadata(
+                                config.options.additional_metadata,
+                                traceparent,
+                            ),
                         ),
-                    ),
+                    )
                 )
-            )
 
-        return configs_with_meta
+            yield configs_with_meta
+        except Exception as e:
+            for s in item_spans:
+                s.record_exception(e)
+                s.set_status(StatusCode.ERROR, str(e))
+            raise
+        finally:
+            for s in item_spans:
+                s.end()
 
     def _wrap_run_workflow(
         self,
@@ -948,21 +963,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            item_spans: list[ApiSpan] = []
-            try:
-                workflow_run_configs_with_meta = self._enhance_workflow_run_configs(
-                    workflow_run_configs, item_spans
-                )
-
+            with self._enhanced_workflow_run_configs(
+                workflow_run_configs
+            ) as workflow_run_configs_with_meta:
                 return wrapped(workflow_run_configs_with_meta)
-            except Exception as e:
-                for s in item_spans:
-                    s.record_exception(e)
-                    s.set_status(StatusCode.ERROR, str(e))
-                raise
-            finally:
-                for s in item_spans:
-                    s.end()
 
     async def _wrap_async_run_workflows(
         self,
@@ -992,21 +996,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             },
             kind=SpanKind.PRODUCER,
         ):
-            item_spans: list[ApiSpan] = []
-            try:
-                workflow_run_configs_with_meta = self._enhance_workflow_run_configs(
-                    workflow_run_configs, item_spans
-                )
-
+            with self._enhanced_workflow_run_configs(
+                workflow_run_configs
+            ) as workflow_run_configs_with_meta:
                 return await wrapped(workflow_run_configs_with_meta)
-            except Exception as e:
-                for s in item_spans:
-                    s.record_exception(e)
-                    s.set_status(StatusCode.ERROR, str(e))
-                raise
-            finally:
-                for s in item_spans:
-                    s.end()
 
     async def _wrap_aio_wait_for(
         self,
