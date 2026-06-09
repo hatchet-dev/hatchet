@@ -952,21 +952,23 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config.workflow_name for config in workflow_run_configs
         }
 
-        with self._tracer.start_as_current_span(
-            "hatchet.run_workflows",
-            attributes={
-                "instrumentor": "hatchet",
-                "hatchet.num_workflows": num_workflows,
-                "hatchet.unique_workflow_names": json.dumps(
-                    unique_workflow_names, default=str
-                ),
-            },
-            kind=SpanKind.PRODUCER,
-        ):
-            with self._enhanced_workflow_run_configs(
+        with (
+            self._tracer.start_as_current_span(
+                "hatchet.run_workflows",
+                attributes={
+                    "instrumentor": "hatchet",
+                    "hatchet.num_workflows": num_workflows,
+                    "hatchet.unique_workflow_names": json.dumps(
+                        unique_workflow_names, default=str
+                    ),
+                },
+                kind=SpanKind.PRODUCER,
+            ),
+            self._enhanced_workflow_run_configs(
                 workflow_run_configs
-            ) as workflow_run_configs_with_meta:
-                return wrapped(workflow_run_configs_with_meta)
+            ) as workflow_run_configs_with_meta,
+        ):
+            return wrapped(workflow_run_configs_with_meta)
 
     async def _wrap_async_run_workflows(
         self,
@@ -985,21 +987,23 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config.workflow_name for config in workflow_run_configs
         }
 
-        with self._tracer.start_as_current_span(
-            "hatchet.run_workflows",
-            attributes={
-                "instrumentor": "hatchet",
-                "hatchet.num_workflows": num_workflows,
-                "hatchet.unique_workflow_names": json.dumps(
-                    unique_workflow_names, default=str
-                ),
-            },
-            kind=SpanKind.PRODUCER,
-        ):
-            with self._enhanced_workflow_run_configs(
+        with (
+            self._tracer.start_as_current_span(
+                "hatchet.run_workflows",
+                attributes={
+                    "instrumentor": "hatchet",
+                    "hatchet.num_workflows": num_workflows,
+                    "hatchet.unique_workflow_names": json.dumps(
+                        unique_workflow_names, default=str
+                    ),
+                },
+                kind=SpanKind.PRODUCER,
+            ),
+            self._enhanced_workflow_run_configs(
                 workflow_run_configs
-            ) as workflow_run_configs_with_meta:
-                return await wrapped(workflow_run_configs_with_meta)
+            ) as workflow_run_configs_with_meta,
+        ):
+            return await wrapped(workflow_run_configs_with_meta)
 
     async def _wrap_aio_wait_for(
         self,
