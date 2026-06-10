@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// ConditionAction is the action taken on the task run when a condition (or its
+// OR group) matches.
+enum ConditionAction {
+    CONDITION_ACTION_UNSPECIFIED = 0;
+    CONDITION_ACTION_CREATE = 1;
+    CONDITION_ACTION_QUEUE = 2;
+    CONDITION_ACTION_CANCEL = 3;
+    CONDITION_ACTION_SKIP = 4;
+}
+
+message BaseMatchCondition {
+    string readable_data_key = 1; // (required) the key under which the condition's data is exposed to the task input
+    ConditionAction action = 2; // (required) the action taken when the condition matches
+    string or_group_id = 3; // (required) a UUID defining the OR group for this condition
+    string expression = 4; // (optional) a CEL expression evaluated against the condition's data
+}
+
+message ParentOverrideMatchCondition {
+    BaseMatchCondition base = 1;
+    string parent_task_name = 2; // (required) the name of the parent task this condition overrides
+}
+
+message SleepMatchCondition {
+    BaseMatchCondition base = 1;
+    google.protobuf.Duration sleep_for = 2; // (required) how long to sleep before the condition matches
+}
+
+message UserEventMatchCondition {
+    BaseMatchCondition base = 1;
+    string event_key = 2; // (required) the user event key to match on
+    optional string event_scope = 3; // (optional) a scope for the user event condition, used for subsetting candidate events
+    optional google.protobuf.Timestamp consider_events_since = 4; // (optional) only match events created after this time
+}
+
+// TaskConditions gate the creation, queueing, skipping or cancellation of task
+// runs within a DAG.
+message TaskConditions {
+    repeated ParentOverrideMatchCondition parent_override_conditions = 1;
+    repeated SleepMatchCondition sleep_conditions = 2;
+    repeated UserEventMatchCondition user_event_conditions = 3;
+}
+
+// WaitForConditions are awaited by durable tasks via the durable session's
+// wait_for primitive.
+message WaitForConditions {
+    repeated SleepMatchCondition sleep_conditions = 1;
+    repeated UserEventMatchCondition user_event_conditions = 2;
+}

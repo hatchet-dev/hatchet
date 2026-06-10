@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "v2/task.proto";
+
+// WorkerService manages the worker lifecycle: registration (including the
+// worker's task definitions), heartbeats, assignment delivery and run state
+// reporting all happen over a single bidirectional session stream, so there is
+// one ordered channel between a worker and the server.
+service WorkerService {
+    rpc Session(stream WorkerSessionRequest) returns (stream WorkerSessionResponse) {}
+
+    rpc UpsertLabels(UpsertLabelsRequest) returns (UpsertLabelsResponse) {}
+
+    rpc Deregister(DeregisterRequest) returns (DeregisterResponse) {}
+}
+
+message WorkerLabel {
+    optional string str_value = 1;
+    optional int32 int_value = 2;
+}
+
+enum SdkLanguage {
+    SDK_LANGUAGE_UNSPECIFIED = 0;
+    SDK_LANGUAGE_GO = 1;
+    SDK_LANGUAGE_PYTHON = 2;
+    SDK_LANGUAGE_TYPESCRIPT = 3;
+    SDK_LANGUAGE_RUBY = 4;
+}
+
+message RuntimeInfo {
+    optional string sdk_version = 1;
+    optional SdkLanguage language = 2;
+    optional string language_version = 3;
+    optional string os = 4;
+    optional string extra = 5;
+}
+
+// RegisterWorker must be the first message sent on a session stream. It
+// establishes the worker and registers its task definitions in a single
+// request; the worker can run the actions of the tasks it registers.
+message RegisterWorker {
+    string name = 1; // (required) the name of the worker
+    repeated TaskDefinition tasks = 2; // (required) the task definitions this worker serves; tasks may reference each other as parents
+    map<string, int32> slot_config = 3; // (required) slot capacity for this worker (slot_type -> units)
+    map<string, WorkerLabel> labels = 4; // (optional) worker labels (i.e. state or other metadata)
+    optional RuntimeInfo runtime_info = 5; // (optional) information about the worker's runtime environment
+    optional string webhook_id = 6; // (optional) the id of the webhook the worker is associated with
+}
+
+message Heartbeat {
+    google.protobuf.Timestamp sent_at = 1; // (required) the time the worker sent the heartbeat
+}
+
+// AssignmentAck acknowledges receipt of an assignment before the worker starts
+// running it.
+message AssignmentAck {
+    string task_run_external_id = 1; // (required) the external id of the acknowledged task run
+    int32 retry_count = 2; // (required) the retry count of the acknowledged assignment
+}
+
+// TaskRunEventReport reports run progress. Workers only send STARTED,
+// COMPLETED and FAILED; the remaining event types are server-derived. The
+// reporting worker is implied by the session. The server confirms persistence
+// with a TaskRunEventReportAck.
+message TaskRunEventReport {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    int32 retry_count = 2; // (required) the retry attempt being reported
+    TaskRunEventType event_type = 3; // (required) the event type
+    google.protobuf.Timestamp occurred_at = 4; // (required) when the event occurred on the worker
+    optional bytes payload = 5; // (optional) the output on COMPLETED, the error on FAILED
+    optional bool should_not_retry = 6; // (optional) if true on FAILED, the run will not be retried
+}
+
+message RefreshTimeout {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    int32 retry_count = 2; // (required) the retry attempt holding the timeout
+    google.protobuf.Duration increment_by = 3; // (required) how much to extend the timeout
+}
+
+// ReleaseSlot releases the run's worker slots without completing the run,
+// freeing capacity for other runs while the current run keeps executing.
+message ReleaseSlot {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    int32 retry_count = 2; // (required) the retry attempt holding the slots
+}
+
+message WorkerSessionRequest {
+    oneof message {
+        RegisterWorker register = 1;
+        Heartbeat heartbeat = 2;
+        AssignmentAck assignment_ack = 3;
+        TaskRunEventReport report = 4;
+        RefreshTimeout refresh_timeout = 5;
+        ReleaseSlot release_slot = 6;
+    }
+}
+
+message RegisterWorkerAck {
+    string worker_id = 1;
+    string tenant_id = 2;
+    map<string, RegisteredTask> tasks = 3; // the registered task versions, keyed by task name
+}
+
+// Assignment instructs the worker to run a task.
+message Assignment {
+    string task_run_external_id = 1; // the external id of the task run
+    string task_name = 2; // the name of the task
+    string action = 3; // the action id to run
+    bytes input = 4; // the input payload for the run
+    int32 retry_count = 5; // the retry attempt for this assignment, 0 for the first attempt
+    int32 priority = 6; // the priority of the run
+    optional bytes extra = 7; // (optional) extra user metadata set on the run
+    optional string parent_task_run_external_id = 8; // (optional) the parent task run, if this is a child run
+    optional int32 child_index = 9; // (optional) the index of this child run within the parent
+    optional string child_key = 10; // (optional) the key of this child run within the parent
+    optional int32 durable_task_invocation_count = 11; // (optional) the invocation count, required for durable task runs
+    optional string triggering_event_external_id = 12; // (optional) the external id of the event that triggered this run
+    optional string triggering_event_key = 13; // (optional) the key of the event that triggered this run
+    optional google.protobuf.Timestamp timeout_at = 14; // (optional) when the server will time out the run, so workers can enforce it locally
+}
+
+message CancelTaskRun {
+    string task_run_external_id = 1; // the external id of the task run to cancel
+    int32 retry_count = 2; // the retry attempt being cancelled
+}
+
+// TaskRunEventReportAck confirms a report has been durably recorded; workers
+// may discard local state for the attempt once the terminal event is acked.
+message TaskRunEventReportAck {
+    string task_run_external_id = 1;
+    int32 retry_count = 2;
+    TaskRunEventType event_type = 3;
+}
+
+message RefreshTimeoutAck {
+    string task_run_external_id = 1;
+    int32 retry_count = 2;
+    google.protobuf.Timestamp timeout_at = 3; // the new timeout deadline
+}
+
+message WorkerSessionResponse {
+    oneof message {
+        RegisterWorkerAck register_ack = 1;
+        Assignment assignment = 2;
+        CancelTaskRun cancel_task_run = 3;
+        TaskRunEventReportAck report_ack = 4;
+        RefreshTimeoutAck refresh_timeout_ack = 5;
+    }
+}
+
+message UpsertLabelsRequest {
+    string worker_id = 1; // (required) the id of the worker
+    map<string, WorkerLabel> labels = 2; // (required) the labels to upsert
+}
+
+message UpsertLabelsResponse {}
+
+message DeregisterRequest {
+    string worker_id = 1; // (required) the id of the worker
+}
+
+message DeregisterResponse {}

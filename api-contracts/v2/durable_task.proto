@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "v2/shared/conditions.proto";
+import "v2/task.proto";
+
+// DurableTaskService provides the durable execution primitives. Durable task
+// runs are event-sourced: each side effect (memo, child run trigger, wait) is
+// recorded as an entry in the run's event log, identified by a branch id and a
+// node id, so the run can be replayed deterministically after eviction or
+// failure.
+//
+// The invocation_count on requests is a monotonically increasing count that
+// uniquely identifies an "attempt" at running a durable task. Each time the
+// task is started it gets a new invocation count, incremented by one from the
+// previous invocation. This lets the server and the worker differentiate
+// between attempts of the same task running in different places, preventing
+// race conditions from duplication, and allows older invocations to be evicted
+// cleanly.
+service DurableTaskService {
+    rpc Session(stream DurableSessionRequest) returns (stream DurableSessionResponse) {}
+
+    // Branch creates a new event log branch from an existing entry, used to
+    // fork a durable task's history.
+    rpc Branch(BranchRequest) returns (BranchResponse) {}
+}
+
+// EventLogEntryRef identifies a single entry in a durable task's event log.
+message EventLogEntryRef {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    int64 branch_id = 3;
+    int64 node_id = 4;
+}
+
+// RegisterDurableWorker must be the first message sent on a session stream.
+message RegisterDurableWorker {
+    string worker_id = 1; // (required) the id of the worker, from the WorkerService session
+}
+
+message RegisterDurableWorkerAck {
+    string worker_id = 1;
+}
+
+message MemoRequest {
+    string durable_task_external_id = 1; // (required) the external id of the durable task run
+    int32 invocation_count = 2; // (required) the current invocation count
+    bytes key = 3; // (required) the memo key
+    optional bytes payload = 4; // (optional) omitted to check whether a memo already exists
+}
+
+// CompleteMemoRequest records the result of a memoized side effect that was
+// executed on the worker.
+message CompleteMemoRequest {
+    EventLogEntryRef ref = 1;
+    bytes key = 2;
+    bytes payload = 3;
+}
+
+message MemoAck {
+    EventLogEntryRef ref = 1;
+    bool memo_already_existed = 2;
+    optional bytes memo_result_payload = 3; // (optional) the recorded result, if the memo already existed
+}
+
+message TriggerChildTaskRunsRequest {
+    string durable_task_external_id = 1; // (required) the external id of the durable task run
+    int32 invocation_count = 2; // (required) the current invocation count
+    repeated TaskTrigger triggers = 3; // (required) the child runs to trigger
+}
+
+message ChildTaskRunEntry {
+    int64 node_id = 1;
+    int64 branch_id = 2;
+    string task_run_external_id = 3; // the external id of the triggered child run
+}
+
+message TriggerChildTaskRunsAck {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    repeated ChildTaskRunEntry runs = 3;
+}
+
+message WaitForRequest {
+    string durable_task_external_id = 1; // (required) the external id of the durable task run
+    int32 invocation_count = 2; // (required) the current invocation count
+    WaitForConditions conditions = 3; // (required) the conditions to wait for
+    optional string label = 4; // (optional) a human-readable label for this wait, displayed in the dashboard, e.g. "Waiting for payment confirmation"
+}
+
+message WaitForAck {
+    EventLogEntryRef ref = 1;
+}
+
+// EntryCompleted notifies the worker that an awaited event log entry has a
+// result.
+message EntryCompleted {
+    EventLogEntryRef ref = 1;
+    bytes payload = 2;
+}
+
+message EvictInvocationRequest {
+    string durable_task_external_id = 1; // (required) the external id of the durable task run
+    int32 invocation_count = 2; // (required) the invocation to evict
+    optional string reason = 3;
+}
+
+message EvictInvocationAck {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+}
+
+// ServerEvictNotice notifies a worker that its invocation is stale and should
+// be cancelled.
+message ServerEvictNotice {
+    string durable_task_external_id = 1;
+    int32 invocation_count = 2;
+    string reason = 3;
+}
+
+message AwaitedEntry {
+    string durable_task_external_id = 1;
+    int64 branch_id = 2;
+    int64 node_id = 3;
+    int32 invocation_count = 4;
+}
+
+// WorkerStatus reports the entries a durable worker is currently awaiting, so
+// the server can re-deliver completions after reconnects.
+message WorkerStatus {
+    string worker_id = 1;
+    repeated AwaitedEntry waiting_entries = 2;
+}
+
+enum DurableTaskErrorType {
+    DURABLE_TASK_ERROR_TYPE_UNSPECIFIED = 0;
+    DURABLE_TASK_ERROR_TYPE_NONDETERMINISM = 1;
+}
+
+message DurableTaskError {
+    EventLogEntryRef ref = 1;
+    DurableTaskErrorType error_type = 2;
+    string error_message = 3;
+}
+
+message DurableSessionRequest {
+    oneof message {
+        RegisterDurableWorker register = 1;
+        MemoRequest memo = 2;
+        TriggerChildTaskRunsRequest trigger_child_task_runs = 3;
+        WaitForRequest wait_for = 4;
+        EvictInvocationRequest evict_invocation = 5;
+        WorkerStatus worker_status = 6;
+        CompleteMemoRequest complete_memo = 7;
+    }
+}
+
+message DurableSessionResponse {
+    oneof message {
+        RegisterDurableWorkerAck register_ack = 1;
+        MemoAck memo_ack = 2;
+        TriggerChildTaskRunsAck trigger_child_task_runs_ack = 3;
+        WaitForAck wait_for_ack = 4;
+        EntryCompleted entry_completed = 5;
+        DurableTaskError error = 6;
+        EvictInvocationAck evict_invocation_ack = 7;
+        ServerEvictNotice server_evict_notice = 8;
+    }
+}
+
+message BranchRequest {
+    string durable_task_external_id = 1; // (required) the external id of the durable task run
+    int64 node_id = 2; // (required) the node id to branch from
+    int64 branch_id = 3; // (required) the branch id to branch from
+}
+
+message BranchResponse {
+    string durable_task_external_id = 1;
+    int64 node_id = 2; // the node id of the new entry
+    int64 branch_id = 3; // the branch id of the new entry
+}
