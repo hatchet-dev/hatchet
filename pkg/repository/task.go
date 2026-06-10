@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +32,11 @@ var ErrPartitionLockConflict = errors.New("partition DDL could not acquire lock 
 func isLockNotAvailable(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
+}
+
+func isPendingDetach(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ObjectNotInPrerequisiteState && strings.Contains(pgErr.Message, "already pending detach")
 }
 
 type CreateTaskOpts struct {
@@ -450,12 +456,22 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
-		if err != nil {
+		if err != nil && !isPendingDetach(err) {
 			releaseConn()
 			if isLockNotAvailable(err) {
 				return ErrPartitionLockConflict
 			}
 			return err
+		} else if isPendingDetach(err) {
+			_, err = conn.Exec(
+				ctx,
+				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
+			)
+
+			if err != nil {
+				releaseConn()
+				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
+			}
 		}
 
 		_, err = conn.Exec(
@@ -814,6 +830,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	defer span.End()
 
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
+	errorMessageByTaskKey := make(map[string]string, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
 	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	appFailureTaskRetryCounts := make([]int32, 0)
@@ -825,6 +842,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	for i, failureOpt := range failureOpts {
 		tasks[i] = *failureOpt.TaskIdInsertedAtRetryCount
+		errorMessageByTaskKey[fmt.Sprintf("%d:%d", failureOpt.Id, failureOpt.RetryCount)] = failureOpt.ErrorMessage
 
 		if failureOpt.IsAppError {
 			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
@@ -921,7 +939,8 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage).Bytes()
+		errMsg := errorMessageByTaskKey[fmt.Sprintf("%d:%d", releasedTask.ID, releasedTask.RetryCount)]
+		out := NewFailedTaskOutputEvent(releasedTask, errMsg).Bytes()
 
 		outputs[i] = out
 	}
