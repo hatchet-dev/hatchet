@@ -237,17 +237,65 @@ class Hatchet:
         :raises TypeError: If any of the items in `workflows` is not an instance of `Workflow` or `Standalone`, which are the two types of workflow objects that can be passed to a worker. This is to catch a common mistake where users pass the result of a task declaration method like `Workflow.task` instead of the workflow object itself.
         """
 
+        unpacked_workflows: list[BaseWorkflow[Any]] = []
         for workflow in workflows or []:
             if not isinstance(workflow, BaseWorkflow):
                 raise TypeError(
                     f"workflows passed to a Hatchet worker need to be either a `Workflow` or a `Standalone`, created via `hatchet.workflow`, `hatchet.task`, or `hatchet.durable_task`. Got {type(workflow)}. hint: you likely passed the result of `Workflow.task`, `Workflow.durable_task`, etc. instead of the workflow itself."
                 )
 
+            if isinstance(workflow, Workflow):
+                for task in workflow.tasks:
+                    st = (
+                        self.durable_task(
+                            name=task.name,
+                            description=workflow.config.description,
+                            input_validator=workflow.input_validator_type,
+                            on_events=workflow.config.on_events,
+                            on_crons=workflow.config.on_crons,
+                            version=workflow.config.version,
+                            sticky=workflow.config.sticky,
+                            default_priority=workflow.config.default_priority,
+                            concurrency=workflow.config.concurrency,
+                            default_filters=workflow.config.default_filters,
+                            default_additional_metadata=workflow.config.default_additional_metadata,
+                        )(task._fn)
+                        if task.is_durable
+                        else self.task(
+                            name=task.name,
+                            description=workflow.config.description,
+                            input_validator=workflow.input_validator_type,
+                            on_events=workflow.config.on_events,
+                            on_crons=workflow.config.on_crons,
+                            version=workflow.config.version,
+                            sticky=workflow.config.sticky,
+                            default_priority=workflow.config.default_priority,
+                            concurrency=workflow.config.concurrency,
+                            default_filters=workflow.config.default_filters,
+                            default_additional_metadata=workflow.config.default_additional_metadata,
+                        )(task._fn)
+                    )
+                    unpacked_workflows.append(st)
+
+                async def orchestrator(
+                    input: TWorkflowInput, ctx: DurableContext
+                ) -> None:
+                    ## in here, we need to orchestrate the workflow
+                    ctx.log("running the orchestrator")
+
+                dt = self.durable_task(name=workflow.name + "_orchestrator")(
+                    orchestrator
+                )
+
+                unpacked_workflows.append(dt)
+            elif isinstance(workflow, Standalone):
+                unpacked_workflows.append(workflow)
+
         resolved_config = resolve_worker_slot_config(
             None,
             slots,
             durable_slots,
-            workflows,
+            unpacked_workflows,
         )
 
         return Worker(
@@ -256,7 +304,7 @@ class Hatchet:
             labels=labels,
             config=self._client.config,
             debug=self._client.debug,
-            workflows=workflows,
+            workflows=unpacked_workflows,
             lifespan=lifespan,
         )
 
