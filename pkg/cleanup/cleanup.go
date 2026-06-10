@@ -22,7 +22,7 @@ type Cleanup struct {
 func New(logger *zerolog.Logger) Cleanup {
 	return Cleanup{
 		Fns:       []CleanupFn{},
-		TimeLimit: time.Second * 25,
+		TimeLimit: time.Second * 15,
 		logger:    logger,
 	}
 }
@@ -35,12 +35,22 @@ func (c *Cleanup) Add(fn func() error, name string) {
 }
 
 func (c *Cleanup) Run() error {
-	// 1st and last line + 2 lines for each fn. Makes sure we don't block on the chan send
-	lines := make(chan string)
+	// 1st and last line + 2 lines for each fn. The buffer makes sure we don't block
+	// on the chan send: the logger goroutine only starts draining once the context
+	// is resolved, and an unbuffered send would stall Run for the full TimeLimit
+	// before any cleanup fn executes
+	lines := make(chan string, 2+2*len(c.Fns))
+	loggerDone := make(chan struct{})
+	// registered first so it runs last: wait for the logger to drain after
+	// cancel() resolves the context and close(lines) ends its loop, otherwise the
+	// process can exit before the shutdown logs are written
+	defer func() { <-loggerDone }()
 	defer close(lines)
 	ctx, cancel := context.WithTimeout(context.Background(), c.TimeLimit)
 	defer cancel()
 	go func() {
+		defer close(loggerDone)
+
 		// log at the debug level by default
 		logger := c.logger.Debug
 		<-ctx.Done()

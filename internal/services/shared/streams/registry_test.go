@@ -59,3 +59,18 @@ func TestRegistryCancelAllResets(t *testing.T) {
 		t.Fatalf("expected empty registry after CancelAll, got %d sessions", len(r.sessions))
 	}
 }
+
+func TestRegistryRegisterAfterCancelAll(t *testing.T) {
+	r := NewRegistry()
+	r.CancelAll()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	deregister := r.Register(cancel)
+	defer deregister()
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("session registered after CancelAll should be cancelled immediately")
+	}
+}

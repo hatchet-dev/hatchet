@@ -15,6 +15,7 @@ import (
 type Registry struct {
 	sessions map[uuid.UUID]context.CancelFunc
 	mu       sync.Mutex
+	closed   bool
 }
 
 func NewRegistry() *Registry {
@@ -26,9 +27,18 @@ func NewRegistry() *Registry {
 // Register adds a stream session's cancel function to the registry and returns a
 // deregister function which the stream handler must defer.
 func (r *Registry) Register(cancel context.CancelFunc) (deregister func()) {
-	id := uuid.New()
-
 	r.mu.Lock()
+
+	if r.closed {
+		// shutdown already drained the registry: hang up the late stream
+		// immediately instead of letting it block GracefulStop
+		r.mu.Unlock()
+		cancel()
+
+		return func() {}
+	}
+
+	id := uuid.New()
 	r.sessions[id] = cancel
 	r.mu.Unlock()
 
@@ -39,9 +49,12 @@ func (r *Registry) Register(cancel context.CancelFunc) (deregister func()) {
 	}
 }
 
-// CancelAll cancels every registered session. It is called once during shutdown.
+// CancelAll cancels every registered session and closes the registry: any
+// session registered afterwards is cancelled immediately. It is called once
+// during shutdown.
 func (r *Registry) CancelAll() {
 	r.mu.Lock()
+	r.closed = true
 	cancels := make([]context.CancelFunc, 0, len(r.sessions))
 
 	for _, cancel := range r.sessions {

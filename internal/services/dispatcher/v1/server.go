@@ -359,7 +359,12 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	}
 
 	registeredTasks := make(map[uuid.UUID]struct{})
+	tasksMu := sync.Mutex{}
+
 	defer func() {
+		tasksMu.Lock()
+		defer tasksMu.Unlock()
+
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(taskId)
 		}
@@ -371,41 +376,51 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		if err != nil {
 			return
 		}
+
+		tasksMu.Lock()
+		defer tasksMu.Unlock()
+
 		if _, exists := registeredTasks[taskExtId]; !exists {
 			d.durableInvocations.Store(taskExtId, invocation)
 			registeredTasks[taskExtId] = struct{}{}
 		}
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
+	// the receive loop runs in its own goroutine so that the handler can observe
+	// context cancellation (e.g. the server shutdown hanging up this stream) while
+	// blocked in Recv, which is only interrupted by the stream ending, not by ctx
+	go func() {
+		for {
+			req, err := server.Recv()
+			if err != nil {
+				cancel()
 
-		req, err := server.Recv()
-		if err != nil {
-			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
-				return nil
+				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+					return
+				}
+
+				d.l.Error().Err(err).Msg("error receiving durable task request")
+				return
 			}
-			d.l.Error().Err(err).Msg("error receiving durable task request")
-			return err
-		}
 
-		switch msg := req.GetMessage().(type) {
-		case *contracts.DurableTaskRequest_Memo:
-			registerTask(msg.Memo.DurableTaskExternalId)
-		case *contracts.DurableTaskRequest_TriggerRuns:
-			registerTask(msg.TriggerRuns.DurableTaskExternalId)
-		case *contracts.DurableTaskRequest_WaitFor:
-			registerTask(msg.WaitFor.DurableTaskExternalId)
-		}
+			switch msg := req.GetMessage().(type) {
+			case *contracts.DurableTaskRequest_Memo:
+				registerTask(msg.Memo.DurableTaskExternalId)
+			case *contracts.DurableTaskRequest_TriggerRuns:
+				registerTask(msg.TriggerRuns.DurableTaskExternalId)
+			case *contracts.DurableTaskRequest_WaitFor:
+				registerTask(msg.WaitFor.DurableTaskExternalId)
+			}
 
-		if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
-			d.l.Error().Err(err).Msg("error handling durable task request")
+			if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+				d.l.Error().Err(err).Msg("error handling durable task request")
+			}
 		}
-	}
+	}()
+
+	<-ctx.Done()
+
+	return nil
 }
 
 func (d *DispatcherServiceImpl) handleDurableTaskRequest(
