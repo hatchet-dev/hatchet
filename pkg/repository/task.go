@@ -830,6 +830,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	defer span.End()
 
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
+	errorMessageByTaskKey := make(map[string]string, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
 	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	appFailureTaskRetryCounts := make([]int32, 0)
@@ -841,6 +842,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	for i, failureOpt := range failureOpts {
 		tasks[i] = *failureOpt.TaskIdInsertedAtRetryCount
+		errorMessageByTaskKey[fmt.Sprintf("%d:%d", failureOpt.Id, failureOpt.RetryCount)] = failureOpt.ErrorMessage
 
 		if failureOpt.IsAppError {
 			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
@@ -937,7 +939,8 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage).Bytes()
+		errMsg := errorMessageByTaskKey[fmt.Sprintf("%d:%d", releasedTask.ID, releasedTask.RetryCount)]
+		out := NewFailedTaskOutputEvent(releasedTask, errMsg).Bytes()
 
 		outputs[i] = out
 	}
