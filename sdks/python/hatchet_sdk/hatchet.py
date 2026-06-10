@@ -72,6 +72,7 @@ class Node:
     def __init__(self, name: str):
         self.name = name
         self.children: set[Node] = set()
+        self.parents: set[Node] = set()
 
     def __repr__(self) -> str:
         return f"Node({self.name}, children={[child.name for child in self.children]})"
@@ -92,14 +93,11 @@ class Graph:
         child_node = self.nodes[child_name]
 
         parent_node.children.add(child_node)
+        child_node.parents.add(parent_node)
 
     @property
-    def roots(self) -> list[Node]:
-        return [
-            node
-            for node in self.nodes.values()
-            if not any(node in n.children for n in self.nodes.values())
-        ]
+    def roots(self) -> set[Node]:
+        return {node for node in self.nodes.values() if len(node.parents) == 0}
 
 
 class Hatchet:
@@ -374,7 +372,7 @@ class Hatchet:
 
                         import asyncio
 
-                        await asyncio.gather(
+                        results = await asyncio.gather(
                             *[
                                 ctx._aio_result_for_spawned_child(
                                     node_id=durable_spawn_result.node_id,
@@ -385,12 +383,14 @@ class Hatchet:
                             ]
                         )
 
-                        nodes_to_run = [
+                        print("results", results)
+
+                        nodes_to_run = {
                             c
                             for node in nodes_to_run
                             for c in node.children
                             if node and node.children
-                        ]
+                        }
 
                 dt = self.durable_task(name=workflow.name + "_orchestrator")(
                     orchestrator
