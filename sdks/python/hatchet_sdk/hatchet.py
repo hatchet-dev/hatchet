@@ -4,7 +4,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
@@ -39,7 +39,13 @@ from hatchet_sdk.runnables.types import (
     WorkflowConfig,
     normalize_validator,
 )
-from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
+from hatchet_sdk.runnables.workflow import (
+    BaseWorkflow,
+    Standalone,
+    Workflow,
+    WorkflowRunTriggerConfig,
+    TriggerWorkflowOptions,
+)
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
@@ -51,6 +57,49 @@ from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
 from hatchet_sdk.worker.worker import LifespanFn, Worker
 
 P = ParamSpec("P")
+
+
+class TaskWithDependencies(BaseModel):
+    name: str
+    child_task_names: list[str]
+
+
+class HatchetWorkflowShape(BaseModel):
+    tasks: list[TaskWithDependencies]
+
+
+class Node:
+    def __init__(self, name: str):
+        self.name = name
+        self.children: set[Node] = set()
+
+    def __repr__(self) -> str:
+        return f"Node({self.name}, children={[child.name for child in self.children]})"
+
+
+class Graph:
+    def __init__(self) -> None:
+        self.nodes: dict[str, Node] = {}
+
+    def add_edge(self, parent_name: str, child_name: str) -> None:
+        if parent_name not in self.nodes:
+            self.nodes[parent_name] = Node(parent_name)
+
+        if child_name not in self.nodes:
+            self.nodes[child_name] = Node(child_name)
+
+        parent_node = self.nodes[parent_name]
+        child_node = self.nodes[child_name]
+
+        parent_node.children.add(child_node)
+
+    @property
+    def roots(self) -> list[Node]:
+        return [
+            node
+            for node in self.nodes.values()
+            if not any(node in n.children for n in self.nodes.values())
+        ]
 
 
 class Hatchet:
@@ -280,8 +329,68 @@ class Hatchet:
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> None:
-                    ## in here, we need to orchestrate the workflow
-                    ctx.log("running the orchestrator")
+                    g = Graph()
+
+                    ## stub for now
+                    orch_ctx = HatchetWorkflowShape(
+                        tasks=[
+                            TaskWithDependencies(
+                                name="step1", child_task_names=["step2", "step3"]
+                            ),
+                            TaskWithDependencies(
+                                name="step2", child_task_names=["step4"]
+                            ),
+                            TaskWithDependencies(
+                                name="step3", child_task_names=["step4"]
+                            ),
+                        ]
+                    )
+
+                    for task in orch_ctx.tasks:
+                        for child in task.child_task_names:
+                            g.add_edge(task.name, child)
+
+                    nodes_to_run = g.roots
+                    while True:
+                        ctx.log(
+                            "running the orchestrator, nodes to run: "
+                            + ", ".join(node.name for node in nodes_to_run)
+                        )
+
+                        durable_spawn_results = await ctx._spawn_children_no_wait(
+                            [
+                                WorkflowRunTriggerConfig(
+                                    workflow_name=node.name,
+                                    input=input.model_dump_json(),
+                                    options=TriggerWorkflowOptions(),
+                                )
+                                for node in nodes_to_run
+                            ]
+                        )
+                        if not durable_spawn_results:
+                            raise RuntimeError(
+                                "Failed to spawn durable child workflow: no run references returned"
+                            )
+
+                        import asyncio
+
+                        await asyncio.gather(
+                            *[
+                                ctx._aio_result_for_spawned_child(
+                                    node_id=durable_spawn_result.node_id,
+                                    branch_id=durable_spawn_result.branch_id,
+                                    workflow_name=durable_spawn_result.workflow_name,
+                                )
+                                for durable_spawn_result in durable_spawn_results
+                            ]
+                        )
+
+                        nodes_to_run = [
+                            c
+                            for node in nodes_to_run
+                            for c in node.children
+                            if node and node.children
+                        ]
 
                 dt = self.durable_task(name=workflow.name + "_orchestrator")(
                     orchestrator
