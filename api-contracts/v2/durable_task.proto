@@ -38,7 +38,7 @@ message EventLogEntryRef {
 
 // RegisterDurableWorker must be the first message sent on a session stream.
 message RegisterDurableWorker {
-    string worker_id = 1; // (required) the id of the worker, from the WorkerService session
+    string worker_id = 1; // (required) the id of the worker, from WorkerService.Register
 }
 
 message RegisterDurableWorkerAck {

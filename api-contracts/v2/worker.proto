@@ -8,11 +8,24 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "v2/task.proto";
 
-// WorkerService manages the worker lifecycle: registration (including the
-// worker's task definitions), heartbeats, assignment delivery and run state
-// reporting all happen over a single bidirectional session stream, so there is
-// one ordered channel between a worker and the server.
+// WorkerService manages the worker lifecycle. Registration and the session
+// are deliberately separate: Register persists what the worker can run (its
+// task definitions) and returns a worker_id, while Session governs whether the
+// worker is connected. Heartbeats, assignment delivery and run state reporting
+// all happen over the single bidirectional session stream, so there is one
+// ordered channel between a connected worker and the server, and reconnects
+// only require a lightweight Attach rather than re-sending task definitions.
 service WorkerService {
+    // Register validates and persists the worker's task definitions and
+    // returns a worker_id. It does not make the worker available for
+    // assignments; the worker is assignable only while a session is attached.
+    // Registrations that are never attached expire after a server-side TTL.
+    rpc Register(RegisterWorkerRequest) returns (RegisterWorkerResponse) {}
+
+    // Session must begin with an AttachWorker message referencing a registered
+    // worker_id. Attaching with an unknown or expired worker_id fails the
+    // stream with NOT_FOUND, in which case the worker should Register again
+    // before reattaching.
     rpc Session(stream WorkerSessionRequest) returns (stream WorkerSessionResponse) {}
 
     rpc UpsertLabels(UpsertLabelsRequest) returns (UpsertLabelsResponse) {}
@@ -41,16 +54,30 @@ message RuntimeInfo {
     optional string extra = 5;
 }
 
-// RegisterWorker must be the first message sent on a session stream. It
-// establishes the worker and registers its task definitions in a single
-// request; the worker can run the actions of the tasks it registers.
-message RegisterWorker {
+// RegisterWorkerRequest establishes the worker and registers its task
+// definitions in a single request; the worker can run the actions of the
+// tasks it registers. Registration is idempotent: re-registering with changed
+// task definitions returns the same worker_id with updated task versions.
+message RegisterWorkerRequest {
     string name = 1; // (required) the name of the worker
     repeated TaskDefinition tasks = 2; // (required) the task definitions this worker serves; tasks may reference each other as parents
     map<string, int32> slot_config = 3; // (required) slot capacity for this worker (slot_type -> units)
     map<string, WorkerLabel> labels = 4; // (optional) worker labels (i.e. state or other metadata)
     optional RuntimeInfo runtime_info = 5; // (optional) information about the worker's runtime environment
     optional string webhook_id = 6; // (optional) the id of the webhook the worker is associated with
+}
+
+message RegisterWorkerResponse {
+    string worker_id = 1;
+    string tenant_id = 2;
+    map<string, RegisteredTask> tasks = 3; // the registered task versions, keyed by task name
+}
+
+// AttachWorker must be the first message sent on a session stream. It binds
+// the stream to a registered worker; assignment delivery begins once the
+// server responds with AttachWorkerAck.
+message AttachWorker {
+    string worker_id = 1; // (required) the worker_id from RegisterWorkerResponse
 }
 
 message Heartbeat {
@@ -92,7 +119,7 @@ message ReleaseSlot {
 
 message WorkerSessionRequest {
     oneof message {
-        RegisterWorker register = 1;
+        AttachWorker attach = 1;
         Heartbeat heartbeat = 2;
         AssignmentAck assignment_ack = 3;
         TaskRunEventReport report = 4;
@@ -101,10 +128,8 @@ message WorkerSessionRequest {
     }
 }
 
-message RegisterWorkerAck {
+message AttachWorkerAck {
     string worker_id = 1;
-    string tenant_id = 2;
-    map<string, RegisteredTask> tasks = 3; // the registered task versions, keyed by task name
 }
 
 // Assignment instructs the worker to run a task.
@@ -146,7 +171,7 @@ message RefreshTimeoutAck {
 
 message WorkerSessionResponse {
     oneof message {
-        RegisterWorkerAck register_ack = 1;
+        AttachWorkerAck attach_ack = 1;
         Assignment assignment = 2;
         CancelTaskRun cancel_task_run = 3;
         TaskRunEventReportAck report_ack = 4;
