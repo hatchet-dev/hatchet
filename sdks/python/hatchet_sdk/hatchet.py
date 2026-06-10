@@ -349,7 +349,7 @@ class Hatchet:
                             g.add_edge(task.name, child)
 
                     nodes_to_run = g.roots
-                    while True:
+                    while nodes_to_run:
                         ctx.log(
                             "running the orchestrator, nodes to run: "
                             + ", ".join(node.name for node in nodes_to_run)
@@ -380,7 +380,8 @@ class Hatchet:
                                     workflow_name=durable_spawn_result.workflow_name,
                                 )
                                 for durable_spawn_result in durable_spawn_results
-                            ]
+                            ],
+                            return_exceptions=False,
                         )
 
                         print("results", results)
