@@ -898,6 +898,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tls.tlsKeyFile", "SERVER_TLS_KEY_FILE")
 	_ = v.BindEnv("tls.tlsRootCA", "SERVER_TLS_ROOT_CA")
 	_ = v.BindEnv("tls.tlsRootCAFile", "SERVER_TLS_ROOT_CA_FILE")
+	_ = v.BindEnv("tls.tlsMinVersion", "SERVER_TLS_MIN_VERSION")
 	_ = v.BindEnv("tls.tlsServerName", "SERVER_TLS_SERVER_NAME")
 
 	// logger options

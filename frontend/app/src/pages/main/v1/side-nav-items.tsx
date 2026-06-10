@@ -25,8 +25,6 @@ export function sideNavItems(opts: {
   isCloudEnabled?: boolean;
   orgId?: string;
 }): SideNavSection[] {
-  const billingLabel = opts.canBill ? 'Billing & Limits' : 'Resource Limits';
-
   return [
     {
       key: 'overview',
@@ -291,16 +289,32 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        {
-          key: 'settings-billing-and-limits',
-          name: billingLabel,
-          to: appRoutes.tenantSettingsBillingRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiBillLine
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
+        ...(opts.canBill && opts.orgId
+          ? [
+              {
+                key: 'settings-billing',
+                name: 'Billing & Usage',
+                to: appRoutes.organizationBillingRoute.to,
+                params: { organization: opts.orgId },
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiBillLine
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]
+          : [
+              {
+                key: 'settings-resource-limits',
+                name: 'Resource Limits',
+                to: appRoutes.tenantSettingsResourceLimitsRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiEqualizer3Line
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]),
         {
           key: 'settings-integrations',
           name: 'Integrations',

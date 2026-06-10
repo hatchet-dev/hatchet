@@ -1,4 +1,5 @@
 import { BillingRequired } from '../components/billing-required';
+import { ManagedWorkersGate } from '../components/managed-workers-gate';
 import CreateWorkerForm from './components/create-worker-form';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
@@ -13,9 +14,9 @@ import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 
-export default function CreateWorker() {
+function CreateWorkerImpl() {
   const navigate = useNavigate();
-  const { tenant, billing, can } = useTenantDetails();
+  const { tenant, billing, can, organizationId } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -35,7 +36,10 @@ export default function CreateWorker() {
       }
       setPortalLoading(true);
       billing?.setPollBilling(true);
-      const link = await controlPlaneApi.billingPortalLinkGet(tenantId);
+      if (!organizationId) {
+        return;
+      }
+      const link = await controlPlaneApi.billingPortalLinkGet(organizationId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -90,5 +94,13 @@ export default function CreateWorker() {
         />
       </div>
     </div>
+  );
+}
+
+export default function CreateWorker() {
+  return (
+    <ManagedWorkersGate>
+      <CreateWorkerImpl />
+    </ManagedWorkersGate>
   );
 }

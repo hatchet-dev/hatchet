@@ -1,10 +1,14 @@
-# Changelog
+## [0.89.0] - 2026-06-09
 
-All notable changes to the Hatchet Platform will be documented in this changelog.
+Hatchet v0.89.0 introduces a range of updates to the platform, consisting largely of performance improvements and bug fixes to the engine, alongside several user-experience changes to the dashboard.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Highlights
 
+- Hatchet Cloud now consolidates billing at the organization level, providing a single surface for managing billing and resource limits across all tenants in an organization.
+- The Hatchet engine and clients can have their minimum TLS version configured via the `SERVER_TLS_MIN_VERSION` and `HATCHET_CLIENT_TLS_MIN_VERSION` environment variables, respectively (defaults to `1.3`).
+- Crons and scheduled runs can now be triggered on demand via the dashboard, rather than waiting for the next scheduled tick.
+- Improved engine query performance when filtering runs by status over large histories, particularly when matching rare statuses such as active runs.
+- Fixed an engine bug where re-registering a workflow left orphaned cron trigger rows behind, gradually slowing cron scheduling.
 
 ## [0.88.0] - 2026-05-30
 

@@ -1879,6 +1879,16 @@ export interface ScheduledWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export interface TriggerRunResult {
+  /**
+   * The external ID of the triggered workflow run
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  externalId: string;
+}
+
 export interface UpdateScheduledWorkflowRunRequest {
   /** @format date-time */
   triggerAt: string;

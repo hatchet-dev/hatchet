@@ -10,6 +10,9 @@ type TLSConfigFile struct {
 	TLSKeyFile    string `mapstructure:"tlsKeyFile" json:"tlsKeyFile,omitempty"`
 	TLSRootCA     string `mapstructure:"tlsRootCA" json:"tlsRootCA,omitempty"`
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
+
+	// TLSMinVersion sets the minimum TLS version ("1.2" or "1.3"). Defaults to TLS 1.3.
+	TLSMinVersion string `mapstructure:"tlsMinVersion" json:"tlsMinVersion,omitempty"`
 }
 
 type LoggerConfigFile struct {
