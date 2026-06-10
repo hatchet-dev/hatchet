@@ -22,7 +22,7 @@ type Cleanup struct {
 func New(logger *zerolog.Logger) Cleanup {
 	return Cleanup{
 		Fns:       []CleanupFn{},
-		TimeLimit: time.Second * 9,
+		TimeLimit: time.Second * 25,
 		logger:    logger,
 	}
 }

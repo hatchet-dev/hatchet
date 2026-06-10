@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
@@ -19,6 +20,7 @@ import (
 type DispatcherService interface {
 	contracts.V1DispatcherServer
 	DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error
+	CancelStreamSessions()
 }
 
 type DispatcherServiceImpl struct {
@@ -30,6 +32,7 @@ type DispatcherServiceImpl struct {
 
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
 	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
+	streamSessions     *streams.Registry
 	repo               v1.Repository
 	mq                 msgqueue.MessageQueue
 	v                  validator.Validator
@@ -95,6 +98,13 @@ func WithAnalytics(a analytics.Analytics) DispatcherServiceOpt {
 	}
 }
 
+// CancelStreamSessions hangs up all registered long-lived streams (durable event
+// and durable task listeners). It is called during shutdown before GracefulStop,
+// which would otherwise block on them until the process is killed.
+func (d *DispatcherServiceImpl) CancelStreamSessions() {
+	d.streamSessions.CancelAll()
+}
+
 func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error) {
 	opts := defaultDispatcherServiceOpts()
 
@@ -122,5 +132,7 @@ func NewDispatcherService(fs ...DispatcherServiceOpt) (DispatcherService, error)
 		pubBuffer:     pubBuffer,
 		dispatcherId:  opts.dispatcherId,
 		analytics:     opts.analytics,
+
+		streamSessions: streams.NewRegistry(),
 	}, nil
 }

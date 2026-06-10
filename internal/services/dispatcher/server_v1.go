@@ -321,6 +321,9 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	deregister := s.streamSessions.Register(cancel)
+	defer deregister()
+
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
 	ringIndex := 0
@@ -874,6 +877,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
 
+	deregister := s.streamSessions.Register(cancel)
+	defer deregister()
+
 	retries := 0
 	foundWorkflowRun := false
 
@@ -1059,6 +1065,9 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
+
+	deregister := s.streamSessions.Register(cancel)
+	defer deregister()
 
 	wg := sync.WaitGroup{}
 

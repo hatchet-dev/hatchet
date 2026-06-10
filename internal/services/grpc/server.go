@@ -66,6 +66,8 @@ type Server struct {
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
+
+	shutdownTimeout time.Duration
 }
 
 type ServerOpt func(*ServerOpts)
@@ -85,6 +87,8 @@ type ServerOpts struct {
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
+
+	shutdownTimeout time.Duration
 }
 
 func defaultServerOpts() *ServerOpts {
@@ -98,6 +102,8 @@ func defaultServerOpts() *ServerOpts {
 		port:        7070,
 		bindAddress: "127.0.0.1",
 		insecure:    false,
+
+		shutdownTimeout: 10 * time.Second,
 	}
 }
 
@@ -152,6 +158,17 @@ func WithTLSConfig(tls *tls.Config) ServerOpt {
 func WithInsecure() ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.insecure = true
+	}
+}
+
+// WithShutdownTimeout bounds how long the server waits for in-flight RPCs and
+// streams to drain on graceful shutdown before forcing a hard stop. Non-positive
+// values are ignored.
+func WithShutdownTimeout(timeout time.Duration) ServerOpt {
+	return func(opts *ServerOpts) {
+		if timeout > 0 {
+			opts.shutdownTimeout = timeout
+		}
 	}
 }
 
@@ -218,6 +235,8 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
+
+		shutdownTimeout: opts.shutdownTimeout,
 	}, nil
 }
 
@@ -366,7 +385,22 @@ func (s *Server) startGRPC() (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		grpcServer.GracefulStop()
+		stopped := make(chan struct{})
+
+		go func() {
+			defer close(stopped)
+			grpcServer.GracefulStop()
+		}()
+
+		select {
+		case <-stopped:
+			s.l.Debug().Msg("grpc server stopped gracefully")
+		case <-time.After(s.shutdownTimeout):
+			s.l.Error().Msgf("grpc server did not drain within %s, forcing a hard stop", s.shutdownTimeout)
+			grpcServer.Stop()
+			<-stopped
+		}
+
 		return nil
 	}
 

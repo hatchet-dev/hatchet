@@ -14,6 +14,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/streams"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
@@ -48,13 +49,21 @@ type DispatcherImpl struct {
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
 
-	dispatcherId uuid.UUID
-	workers      *workers
-	a            *hatcheterrors.Wrapped
+	dispatcherId   uuid.UUID
+	workers        *workers
+	a              *hatcheterrors.Wrapped
+	streamSessions *streams.Registry
 
 	durableCallbackFn func(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error
 	analytics         analytics.Analytics
 	version           string
+}
+
+// CancelStreamSessions hangs up all registered long-lived subscriber streams. It is
+// called during shutdown before GracefulStop, which would otherwise block on them
+// until the process is killed.
+func (d *DispatcherImpl) CancelStreamSessions() {
+	d.streamSessions.CancelAll()
 }
 
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
@@ -274,6 +283,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		repov1:                              opts.repov1,
 		dispatcherId:                        opts.dispatcherId,
 		workers:                             &workers{},
+		streamSessions:                      streams.NewRegistry(),
 		s:                                   s,
 		a:                                   a,
 		cache:                               opts.cache,

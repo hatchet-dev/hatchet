@@ -167,6 +167,9 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
 
+	deregister := d.streamSessions.Register(cancel)
+	defer deregister()
+
 	wg := sync.WaitGroup{}
 	sendMu := sync.Mutex{}
 	iterMu := sync.Mutex{}
@@ -345,6 +348,9 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
+
+	deregister := d.streamSessions.Register(cancel)
+	defer deregister()
 
 	invocation := &durableTaskInvocation{
 		server:   server,
