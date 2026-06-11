@@ -359,12 +359,8 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	}
 
 	registeredTasks := make(map[uuid.UUID]struct{})
-	tasksMu := sync.Mutex{}
 
 	defer func() {
-		tasksMu.Lock()
-		defer tasksMu.Unlock()
-
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(taskId)
 		}
@@ -377,33 +373,57 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 			return
 		}
 
-		tasksMu.Lock()
-		defer tasksMu.Unlock()
-
 		if _, exists := registeredTasks[taskExtId]; !exists {
 			d.durableInvocations.Store(taskExtId, invocation)
 			registeredTasks[taskExtId] = struct{}{}
 		}
 	}
 
-	// the receive loop runs in its own goroutine so that the handler can observe
-	// context cancellation (e.g. the server shutdown hanging up this stream) while
-	// blocked in Recv, which is only interrupted by the stream ending, not by ctx
+	type recvResult struct {
+		req *contracts.DurableTaskRequest
+		err error
+	}
+
+	msgCh := make(chan recvResult)
+
+	// Recv runs in its own goroutine because it is only interrupted by the stream
+	// ending, not by ctx; this lets the handler observe context cancellation (e.g.
+	// server shutdown hanging up this stream) while a Recv is pending. The goroutine
+	// does nothing but Recv and hand off, so all processing and the deferred cleanup
+	// stay serialized on the handler goroutine. Once the handler returns, gRPC
+	// cancels server.Context(), which unblocks the pending channel send (or the next
+	// Recv) and lets the goroutine exit.
 	go func() {
 		for {
 			req, err := server.Recv()
-			if err != nil {
-				cancel()
 
-				if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
-					return
-				}
-
-				d.l.Error().Err(err).Msg("error receiving durable task request")
+			select {
+			case msgCh <- recvResult{req: req, err: err}:
+			case <-ctx.Done():
 				return
 			}
 
-			switch msg := req.GetMessage().(type) {
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case r := <-msgCh:
+			if r.err != nil {
+				if errors.Is(r.err, io.EOF) || status.Code(r.err) == codes.Canceled {
+					return nil
+				}
+
+				d.l.Error().Err(r.err).Msg("error receiving durable task request")
+				return r.err
+			}
+
+			switch msg := r.req.GetMessage().(type) {
 			case *contracts.DurableTaskRequest_Memo:
 				registerTask(msg.Memo.DurableTaskExternalId)
 			case *contracts.DurableTaskRequest_TriggerRuns:
@@ -412,15 +432,11 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				registerTask(msg.WaitFor.DurableTaskExternalId)
 			}
 
-			if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
 				d.l.Error().Err(err).Msg("error handling durable task request")
 			}
 		}
-	}()
-
-	<-ctx.Done()
-
-	return nil
+	}
 }
 
 func (d *DispatcherServiceImpl) handleDurableTaskRequest(
