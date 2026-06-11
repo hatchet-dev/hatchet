@@ -529,3 +529,31 @@ func TestDurableMemoNowCaching(t *testing.T) {
 
 	assert.Equal(t, m1["start_time"], m2["start_time"])
 }
+
+func TestDurableErrorOnErrorInChild(t *testing.T) {
+	ctx := newTestContext(t)
+
+	errorMsg := "error in child task " + uuid.NewString()
+
+	result, err := testErrorRaisingDurableParent.Run(ctx, ErrorRaisingInput{ErrorMessage: errorMsg})
+	require.NoError(t, err)
+
+	var output map[string]any
+	err = result.TaskOutput("error-raising-durable-parent").Into(&output)
+	require.NoError(t, err)
+
+	require.True(t, output["child_raised"].(bool), "expected child_raised to be true")
+	childErrorStr, _ := output["child_error_str"].(string)
+	assert.Contains(t, childErrorStr, errorMsg)
+
+	childRunID, _ := output["child_run_external_id"].(string)
+	parentRunID, _ := output["parent_run_external_id"].(string)
+
+	childStatus, err := sharedClient.Runs().GetStatus(ctx, childRunID)
+	require.NoError(t, err)
+	assert.Equal(t, rest.V1TaskStatusFAILED, *childStatus)
+
+	parentStatus, err := sharedClient.Runs().GetStatus(ctx, parentRunID)
+	require.NoError(t, err)
+	assert.Equal(t, rest.V1TaskStatusCOMPLETED, *parentStatus)
+}
