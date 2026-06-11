@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import warnings
 from collections import defaultdict
@@ -51,7 +52,6 @@ from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.types.trigger import TriggerWorkflowOptions, WorkflowRunTriggerConfig
-from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
@@ -335,6 +335,49 @@ class Hatchet:
                             task_name_to_child_task_names[p.name].union({task.name})
                         )
 
+                async def _run_child_with_optional_conditions(
+                    input: TWorkflowInput,
+                    ctx: DurableContext,
+                    node: Node,
+                    parent_run_ids: list[str],
+                ) -> tuple[str, str, dict[str, Any]]:
+                    durable_spawn_results = await ctx._spawn_children_no_wait(
+                        [
+                            WorkflowRunTriggerConfig(
+                                workflow_name=node.name,
+                                input=ctx._input_validator_adapter.dump_json(
+                                    input
+                                ).decode("utf-8"),
+                                options=TriggerWorkflowOptions(),
+                                dag_parent_workflow_run_ids=parent_run_ids,
+                            )
+                        ]
+                    )
+
+                    if not durable_spawn_results:
+                        raise RuntimeError(
+                            "Failed to spawn durable child workflow: no run references returned"
+                        )
+
+                    if len(durable_spawn_results) > 1:
+                        raise RuntimeError(
+                            "Expected to spawn exactly one child workflow, but multiple run references were returned"
+                        )
+
+                    spawn_result = durable_spawn_results[0]
+
+                    ## refactor this to just return the single result
+                    ## also handle waits here, then rework the main loop to call `gather` on these
+                    return (
+                        node.name,
+                        spawn_result.workflow_run_external_id,
+                        await ctx._aio_result_for_spawned_child(
+                            node_id=spawn_result.node_id,
+                            branch_id=spawn_result.branch_id,
+                            workflow_name=spawn_result.workflow_name,
+                        ),
+                    )
+
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> dict[str, Any]:
@@ -369,65 +412,25 @@ class Hatchet:
                             + ", ".join(node.name for node in ordered_nodes)
                         )
 
-                        durable_spawn_results = await ctx._spawn_children_no_wait(
-                            [
-                                WorkflowRunTriggerConfig(
-                                    workflow_name=node.name,
-                                    input=ctx._input_validator_adapter.dump_json(
-                                        input
-                                    ).decode("utf-8"),
-                                    options=TriggerWorkflowOptions(),
-                                    dag_parent_workflow_run_ids=[
-                                        node_to_workflow_run_id[p.name]
-                                        for p in node.parents
-                                        if p.name in node_to_workflow_run_id
-                                    ]
-                                    or None,
-                                )
-                                for node in ordered_nodes
-                            ]
-                        )
-                        if not durable_spawn_results:
-                            raise RuntimeError(
-                                "Failed to spawn durable child workflow: no run references returned"
+                        children = [
+                            _run_child_with_optional_conditions(
+                                input=input,
+                                ctx=ctx,
+                                node=node,
+                                parent_run_ids=[
+                                    node_to_workflow_run_id[p.name]
+                                    for p in node.parents
+                                    if p.name in node_to_workflow_run_id
+                                ],
                             )
+                            for node in ordered_nodes
+                        ]
 
-                        async def _get_indexed_child_result(
-                            name: str,
-                            workflow_run_external_id: str,
-                            node_id: int,
-                            branch_id: int,
-                            workflow_name: str,
-                        ) -> tuple[str, str, dict[str, Any]]:
-                            result = await ctx._aio_result_for_spawned_child(
-                                node_id=node_id,
-                                branch_id=branch_id,
-                                workflow_name=workflow_name,
-                            )
-                            return name, workflow_run_external_id, result
+                        res = await asyncio.gather(*children)
 
-                        pairs = await gather_max_concurrency(
-                            *[
-                                _get_indexed_child_result(
-                                    name=node.name,
-                                    workflow_run_external_id=durable_spawn_result.workflow_run_external_id,
-                                    node_id=durable_spawn_result.node_id,
-                                    branch_id=durable_spawn_result.branch_id,
-                                    workflow_name=durable_spawn_result.workflow_name,
-                                )
-                                for node, durable_spawn_result in zip(
-                                    ordered_nodes,
-                                    durable_spawn_results,
-                                    strict=True,
-                                )
-                            ],
-                            return_exceptions=False,
-                            max_concurrency=20,
-                        )
-
-                        for name, workflow_run_external_id, result in pairs:
-                            task_name_to_output[name] = result
-                            node_to_workflow_run_id[name] = workflow_run_external_id
+                        for task_name, workflow_run_id, output in res:
+                            node_to_workflow_run_id[task_name] = workflow_run_id
+                            task_name_to_output[task_name] = output
 
                         nodes_to_run = {
                             c
