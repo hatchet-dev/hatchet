@@ -90,6 +90,10 @@ module Hatchet
             ack[:node_id],
           )
 
+          if result[:is_failure]
+            raise Hatchet::TaskRunError.new(result[:error_message] || "child task failed")
+          end
+
           result[:payload] || {}
         end
       else

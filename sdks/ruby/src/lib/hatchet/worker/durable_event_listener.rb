@@ -689,12 +689,14 @@ module Hatchet
 
       def parse_entry_completed(completed)
         payload = nil
-        if completed.payload && !completed.payload.empty?
-          begin
-            payload_json = completed.payload.dup.force_encoding("UTF-8")
-            payload = JSON.parse(payload_json)
-          rescue JSON::ParserError
-            payload = nil
+        unless completed.is_failure
+          if completed.payload && !completed.payload.empty?
+            begin
+              payload_json = completed.payload.dup.force_encoding("UTF-8")
+              payload = JSON.parse(payload_json)
+            rescue JSON::ParserError
+              payload = nil
+            end
           end
         end
 
@@ -702,6 +704,8 @@ module Hatchet
           durable_task_external_id: completed.ref.durable_task_external_id,
           node_id: completed.ref.node_id,
           payload: payload,
+          is_failure: completed.is_failure,
+          error_message: completed.error_message,
         }
       end
 
