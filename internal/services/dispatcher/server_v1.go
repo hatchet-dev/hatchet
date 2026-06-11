@@ -128,8 +128,8 @@ func (w *durableEventAcks) getNonAckdEvents() []v1.TaskIdInsertedAtSignalKey {
 }
 
 func (w *durableEventAcks) getExternalId(taskId int64, taskInsertedAt pgtype.Timestamptz, signalKey string) uuid.UUID {
-	w.mu.Lock()
-	defer w.mu.Unlock()
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 
 	k := v1.TaskIdInsertedAtSignalKey{
 		Id:         taskId,

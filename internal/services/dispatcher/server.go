@@ -1715,6 +1715,12 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 	}
 
 	<-ctx.Done()
+
+	// the consumer goroutine has exited with the context, so close the buffer now:
+	// otherwise in-flight f callbacks block sending to the buffer's full channel until
+	// this function returns, and waitFor below waits on those same callbacks
+	streamBuffer.Close()
+
 	if err := cleanupQueue(); err != nil {
 		return fmt.Errorf("could not cleanup queue: %w", err)
 	}
