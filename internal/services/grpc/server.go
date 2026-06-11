@@ -28,7 +28,6 @@ import (
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -60,7 +59,7 @@ type Server struct {
 	config        *server.ServerConfig
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
+	dispatcherv1  v1contracts.V1DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
@@ -81,7 +80,7 @@ type ServerOpts struct {
 	bindAddress   string
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
+	dispatcherv1  v1contracts.V1DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
@@ -178,7 +177,7 @@ func WithDispatcher(d dispatcher.Dispatcher) ServerOpt {
 	}
 }
 
-func WithDispatcherV1(d dispatcherv1.DispatcherService) ServerOpt {
+func WithDispatcherV1(d v1contracts.V1DispatcherServer) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.dispatcherv1 = d
 	}
