@@ -169,17 +169,6 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 					return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 				}
 
-				if event.IsFailure {
-					b, err := json.Marshal(map[string]any{
-						"is_failure":    true,
-						"error_message": event.ErrorMessage,
-					})
-					if err != nil {
-						return nil, fmt.Errorf("failed to marshal failure payload: %w", err)
-					}
-					return b, nil
-				}
-
 				return event.Output, nil
 			}
 		}
@@ -195,16 +184,7 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 				return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 			}
 
-			if event.IsFailure {
-				b, err := json.Marshal(map[string]any{
-					"is_failure":    true,
-					"error_message": event.ErrorMessage,
-				})
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal failure payload: %w", err)
-				}
-				aggregated[key] = b
-			} else if len(event.Output) > 0 {
+			if len(event.Output) > 0 {
 				aggregated[key] = json.RawMessage(event.Output)
 			}
 		}
@@ -218,4 +198,27 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("no entries found in match data")
+}
+
+func ExtractFailureFromMatchData(data []byte) (bool, *string) {
+	var outer map[string]map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &outer); err != nil {
+		return false, nil
+	}
+
+	for _, keyMap := range outer {
+		for _, entries := range keyMap {
+			if len(entries) == 0 {
+				continue
+			}
+			var event TaskOutputEvent
+			if err := json.Unmarshal(entries[0], &event); err != nil {
+				continue
+			}
+			if event.IsFailure {
+				return true, &event.ErrorMessage
+			}
+		}
+	}
+	return false, nil
 }

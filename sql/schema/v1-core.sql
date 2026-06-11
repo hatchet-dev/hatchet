@@ -2334,6 +2334,8 @@ CREATE TABLE v1_durable_event_log_entry (
     result_payload_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     -- Only set for RUN entries; holds the external_id of the child task that was spawned.
     child_task_external_id UUID,
+    child_task_is_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    child_task_error_message TEXT,
 
     -- The id and inserted_at of the durable task which created this entry
     -- The inserted_at time of this event from a DB clock perspective.

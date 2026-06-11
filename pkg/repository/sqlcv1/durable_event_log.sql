@@ -88,12 +88,16 @@ WITH inputs AS (
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
+        UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
 ), updated AS (
     UPDATE v1_durable_event_log_entry
     SET
         is_satisfied = true,
-        satisfied_at = COALESCE(satisfied_at, NOW())
+        satisfied_at = COALESCE(satisfied_at, NOW()),
+        child_task_is_failure = inputs.child_task_is_failure,
+        child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN inputs.child_task_error_message ELSE NULL END
     FROM inputs
     WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
       AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
