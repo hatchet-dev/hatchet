@@ -85,8 +85,6 @@ func WithMaxConcurrency(maxConcurrency int) mqSubBufferOptFunc {
 	return func(opts *mqSubBufferOpts) { opts.maxConcurrency = maxConcurrency }
 }
 
-// WithDisableImmediateFlush disables the notifier-triggered flush path so the
-// only flush trigger is the interval ticker.
 func WithDisableImmediateFlush(disableImmediateFlush bool) mqSubBufferOptFunc {
 	return func(opts *mqSubBufferOpts) { opts.disableImmediateFlush = disableImmediateFlush }
 }
