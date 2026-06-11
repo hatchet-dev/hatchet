@@ -39,7 +39,7 @@ jobs:
           # Check if there are any changes
           if [ -n "$(git status --porcelain)" ]; then
             CHANGED_FILES=$(git status --porcelain | awk '{print $2}')
-            NON_EXAMPLES_CHANGES=$(echo "$CHANGED_FILES" | grep -v "^examples/" || true)
+            NON_EXAMPLES_CHANGES=$(echo "$CHANGED_FILES" | grep -v "^examples/" | grep -v "^frontend/docs/pages/reference/changelog/" || true)
 
             if [ -n "$NON_EXAMPLES_CHANGES" ]; then
               echo "Error: Changes detected outside of examples directory:"
