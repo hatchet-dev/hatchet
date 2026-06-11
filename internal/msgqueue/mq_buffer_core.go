@@ -115,7 +115,7 @@ func (c *bufferCore) startSemaphoreReleaser(ctx context.Context, bufLen func() i
 							}
 						}
 					case <-ctx.Done():
-					return
+						return
 					}
 				} else {
 					select {
