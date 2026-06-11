@@ -539,7 +539,7 @@ func TestDurableErrorOnErrorInChild(t *testing.T) {
 	require.NoError(t, err)
 
 	var output map[string]any
-	err = result.TaskOutput("error-raising-durable-parent").Into(&output)
+	err = result.Into(&output)
 	require.NoError(t, err)
 
 	require.True(t, output["child_raised"].(bool), "expected child_raised to be true")
