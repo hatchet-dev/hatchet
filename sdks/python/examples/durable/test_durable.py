@@ -30,8 +30,11 @@ from examples.durable.worker import (
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
     durable_spawn_many_dags,
+    error_raising_durable_parent,
+    error_raising_task,
+    ErrorRaisingTaskInput,
 )
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, RunStatus
 
 from examples.test_utils import wait_for_running_status
 
@@ -447,3 +450,21 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
     assert all(
         singleton.has_both_child_outputs for singleton in replayed_result.results
     )
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
+    error_msg = f"error in child task {str(uuid4())}"
+    res = await error_raising_durable_parent.aio_run(
+        input=ErrorRaisingTaskInput(error_message=error_msg)
+    )
+
+    assert res.child_raised
+    assert res.child_error_str is not None
+    assert error_msg in res.child_error_str
+
+    child = await hatchet.runs.aio_get_details(res.child_run_external_id)
+    parent = await hatchet.runs.aio_get_details(res.parent_run_external_id)
+
+    assert parent.status == RunStatus.COMPLETED
+    assert child.status == RunStatus.FAILED
