@@ -306,14 +306,16 @@ describe('durable-e2e', () => {
     expect(result.child_raised).toBe(true);
     expect(result.child_error_str).toContain(errorMsg);
 
-    const child = await poll(
-      () => hatchet.runs.get(result.child_run_external_id),
-      { timeoutMs: 15_000, intervalMs: 500, shouldStop: (r: any) => r?.run?.status != null }
-    );
-    const parent = await poll(
-      () => hatchet.runs.get(result.parent_run_external_id),
-      { timeoutMs: 15_000, intervalMs: 500, shouldStop: (r: any) => r?.run?.status != null }
-    );
+    const child = await poll(() => hatchet.runs.get(result.child_run_external_id), {
+      timeoutMs: 15_000,
+      intervalMs: 500,
+      shouldStop: (r: any) => r?.run?.status != null,
+    });
+    const parent = await poll(() => hatchet.runs.get(result.parent_run_external_id), {
+      timeoutMs: 15_000,
+      intervalMs: 500,
+      shouldStop: (r: any) => r?.run?.status != null,
+    });
 
     expect((child as any).run?.status).toBe(V1TaskStatus.FAILED);
     expect((parent as any).run?.status).toBe(V1TaskStatus.COMPLETED);
