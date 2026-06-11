@@ -61,8 +61,12 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 	if len(request.SlotConfig) > 0 {
 		opts.SlotConfig = request.SlotConfig
 	} else {
-		// default to 100 slots
-		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: 100}
+		// default to 100 slots for both slot types so that legacy workers (which don't
+		// send slot_config) can still receive durable tasks
+		opts.SlotConfig = map[string]int32{
+			v1.SlotTypeDefault: 100,
+			v1.SlotTypeDurable: 100,
+		}
 	}
 
 	// fixme: deprecated remove in a future release feb6 2026
@@ -71,7 +75,10 @@ func (s *DispatcherImpl) Register(ctx context.Context, request *contracts.Worker
 			return nil, status.Errorf(codes.InvalidArgument, "either slot_config or slots (deprecated) must be provided, not both")
 		}
 
-		opts.SlotConfig = map[string]int32{v1.SlotTypeDefault: *request.Slots}
+		opts.SlotConfig = map[string]int32{
+			v1.SlotTypeDefault: *request.Slots,
+			v1.SlotTypeDurable: *request.Slots,
+		}
 	}
 
 	if apiErrors, err := s.v.ValidateAPI(opts); err != nil {
