@@ -158,6 +158,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	p.AddCleanupMethods(cleanup)
 
 	var h *health.Health
+	var healthCleanup func() error
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -165,10 +166,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
 		}
-		cleanup.Add(
-			cleanupHealth,
-			"health",
-		)
+		healthCleanup = cleanupHealth
 	}
 
 	var localScheduler *schedulerv1.Scheduler
@@ -435,6 +433,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+			grpc.WithShutdownTimeout(sc.Runtime.GRPCShutdownTimeout),
 		}
 
 		if sc.Observability.Enabled {
@@ -470,6 +469,11 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// hang up long-lived subscriber streams first so that GracefulStop does not
+			// block on them until the pod is killed
+			d.CancelStreamSessions()
+			dv1.CancelStreamSessions()
+
 			g := new(errgroup.Group)
 
 			g.Go(func() error {
@@ -516,6 +520,13 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 	}
 
+	// the health server is shut down as late as possible so that readiness and
+	// liveness probes (and the load balancer health check) observe the not-ready
+	// state for the entire teardown
+	if healthCleanup != nil {
+		cleanup.Add(healthCleanup, "health")
+	}
+
 	cleanup.Add(
 		telemetryShutdown,
 		"telemetry",
@@ -560,6 +571,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
+	var healthCleanup func() error
 
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -569,7 +581,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
 		}
-		cleanup.Add(clean, "health")
+		healthCleanup = clean
 	}
 
 	if sc.HasService("all") || sc.HasService("controllers") {
@@ -869,6 +881,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+			grpc.WithShutdownTimeout(sc.Runtime.GRPCShutdownTimeout),
 		}
 
 		if sc.Observability.Enabled {
@@ -904,6 +917,11 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// hang up long-lived subscriber streams first so that GracefulStop does not
+			// block on them until the pod is killed
+			d.CancelStreamSessions()
+			dv1.CancelStreamSessions()
+
 			g := new(errgroup.Group)
 
 			g.Go(func() error {
@@ -947,6 +965,13 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcApiCleanup,
 			"grpc",
 		)
+	}
+
+	// the health server is shut down as late as possible so that readiness and
+	// liveness probes (and the load balancer health check) observe the not-ready
+	// state for the entire teardown
+	if healthCleanup != nil {
+		cleanup.Add(healthCleanup, "health")
 	}
 
 	cleanup.Add(
