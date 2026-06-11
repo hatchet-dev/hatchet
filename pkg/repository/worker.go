@@ -124,6 +124,12 @@ type WorkerRepository interface {
 	// It will only update the worker if there is no lock on the worker, else it will skip.
 	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
 
+	// UpdateWorkerHeartbeats updates the heartbeat timestamp for many workers in a single statement.
+	UpdateWorkerHeartbeats(ctx context.Context, workerIds []uuid.UUID, lastHeartbeatAt time.Time) error
+
+	// PauseWorkers pauses many workers in a single statement.
+	PauseWorkers(ctx context.Context, workerIds []uuid.UUID) error
+
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
 
@@ -769,6 +775,37 @@ func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId u
 
 	if err != nil {
 		return fmt.Errorf("could not update worker heartbeat: %w", err)
+	}
+
+	return nil
+}
+
+func (w *workerRepository) UpdateWorkerHeartbeats(ctx context.Context, workerIds []uuid.UUID, lastHeartbeat time.Time) error {
+	if len(workerIds) == 0 {
+		return nil
+	}
+
+	err := w.queries.UpdateWorkerHeartbeats(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatsParams{
+		Ids:             workerIds,
+		Lastheartbeatat: sqlchelpers.TimestampFromTime(lastHeartbeat),
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not update worker heartbeats: %w", err)
+	}
+
+	return nil
+}
+
+func (w *workerRepository) PauseWorkers(ctx context.Context, workerIds []uuid.UUID) error {
+	if len(workerIds) == 0 {
+		return nil
+	}
+
+	err := w.queries.PauseWorkers(ctx, w.pool, workerIds)
+
+	if err != nil {
+		return fmt.Errorf("could not pause workers: %w", err)
 	}
 
 	return nil

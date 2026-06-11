@@ -313,18 +313,53 @@ func (d *DispatcherServiceImpl) ListenForDurableEvent(server contracts.V1Dispatc
 	return nil
 }
 
+// durableTaskInvocation represents a single durable-task session. It is transport-agnostic:
+// sendFn delivers a response to the client, whether that's a gRPC stream (server.Send) or a
+// channel (operator). Everything downstream — handlers and the async response router — only
+// needs send() and a slot in durableInvocations.
+var errDurableTaskSessionClosed = fmt.Errorf("durable task session closed")
+
 type durableTaskInvocation struct {
-	server   contracts.V1Dispatcher_DurableTaskServer
+	sendFn   func(*contracts.DurableTaskResponse) error
 	l        *zerolog.Logger
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
 	workerId uuid.UUID
+	closed   bool // channel transport only; guarded by sendMu
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
-	return s.server.Send(resp)
+
+	if s.closed {
+		return errDurableTaskSessionClosed
+	}
+
+	return s.sendFn(resp)
+}
+
+// processDurableTaskMessage performs the lazy task-id registration (so async responses route
+// back to this invocation) and dispatches the request to the typed handlers. It is shared by
+// the gRPC DurableTask loop and the channel-based RegisterDurableTask loop.
+func (d *DispatcherServiceImpl) processDurableTaskMessage(
+	ctx context.Context,
+	invocation *durableTaskInvocation,
+	req *contracts.DurableTaskRequest,
+	registerTask func(string),
+) {
+	switch msg := req.GetMessage().(type) {
+	case *contracts.DurableTaskRequest_Memo:
+		registerTask(msg.Memo.DurableTaskExternalId)
+	case *contracts.DurableTaskRequest_TriggerRuns:
+		registerTask(msg.TriggerRuns.DurableTaskExternalId)
+	case *contracts.DurableTaskRequest_WaitFor:
+		registerTask(msg.WaitFor.DurableTaskExternalId)
+	}
+
+	if err := d.handleDurableTaskRequest(ctx, invocation, req); err != nil {
+		d.l.Error().Err(err).Msg("error handling durable task request")
+	}
 }
 
 func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
@@ -338,7 +373,7 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	defer deregister()
 
 	invocation := &durableTaskInvocation{
-		server:   server,
+		sendFn:   server.Send,
 		tenantId: tenantId,
 		l:        d.l,
 	}
@@ -407,20 +442,108 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 				return r.err
 			}
 
-			switch msg := r.req.GetMessage().(type) {
-			case *contracts.DurableTaskRequest_Memo:
-				registerTask(msg.Memo.DurableTaskExternalId)
-			case *contracts.DurableTaskRequest_TriggerRuns:
-				registerTask(msg.TriggerRuns.DurableTaskExternalId)
-			case *contracts.DurableTaskRequest_WaitFor:
-				registerTask(msg.WaitFor.DurableTaskExternalId)
-			}
-
-			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
-				d.l.Error().Err(err).Msg("error handling durable task request")
-			}
+			d.processDurableTaskMessage(ctx, invocation, r.req, registerTask)
 		}
 	}
+}
+
+// RegisterDurableTask sets up a channel-backed durable-task session — the in-engine
+// equivalent of the DurableTask gRPC stream, for operators that don't hold a gRPC stream.
+// The caller writes DurableTaskRequests to the returned requestCh and reads
+// DurableTaskResponses from respCh, reusing the same handlers and routing table
+// (durableInvocations) as the gRPC path, so async responses (wait-for satisfied, evictions,
+// acks) are delivered identically.
+//
+// externalId is registered up front so responses route immediately; additional task ids are
+// registered lazily as messages reference them, matching DurableTask. The session is torn
+// down (invocations deregistered, respCh closed) when ctx is cancelled or requestCh is
+// closed.
+func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *contracts.DurableTaskRequest, <-chan *contracts.DurableTaskResponse, error) {
+	tenant, ok := ctx.Value("tenant").(*sqlcv1.Tenant)
+
+	if !ok {
+		return nil, nil, status.Error(codes.InvalidArgument, "tenant not found on context")
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	deregister := d.streamSessions.Register(cancel)
+
+	requestCh := make(chan *contracts.DurableTaskRequest)
+	respCh := make(chan *contracts.DurableTaskResponse)
+
+	invocation := &durableTaskInvocation{
+		tenantId: tenant.ID,
+		l:        d.l,
+		sendFn: func(resp *contracts.DurableTaskResponse) error {
+			select {
+			case respCh <- resp:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+
+	registeredTasks := make(map[uuid.UUID]struct{})
+
+	registerTask := func(externalIdStr string) {
+		taskExtId, err := uuid.Parse(externalIdStr)
+		if err != nil {
+			return
+		}
+
+		if _, exists := registeredTasks[taskExtId]; !exists {
+			d.durableInvocations.Store(taskExtId, invocation)
+			registeredTasks[taskExtId] = struct{}{}
+		}
+	}
+
+	// register the task up front so async responses route back to this invocation
+	// immediately, before the caller sends its first message.
+	d.durableInvocations.Store(externalId, invocation)
+	registeredTasks[externalId] = struct{}{}
+
+	go func() {
+		defer deregister()
+		defer cancel()
+
+		// Teardown order matters: deregister from durableInvocations first so new async
+		// routers can't find this invocation, then close respCh under sendMu so any in-flight
+		// send (which holds sendMu and selects on ctx.Done()) has already returned. Marking
+		// closed before close() makes later sends return an error instead of panicking on a
+		// closed channel.
+		defer func() {
+			for taskId := range registeredTasks {
+				d.durableInvocations.Delete(taskId)
+			}
+
+			invocation.sendMu.Lock()
+			invocation.closed = true
+			close(respCh)
+			invocation.sendMu.Unlock()
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case req, ok := <-requestCh:
+				if !ok {
+					return
+				}
+
+				d.processDurableTaskMessage(ctx, invocation, req, registerTask)
+			}
+		}
+	}()
+
+	return requestCh, respCh, nil
+}
+
+// RegisterDurableTask delegates to the V1 dispatcher service so DispatcherImpl satisfies
+// operator.TaskEventWriter, giving operators the in-engine equivalent of the DurableTask RPC.
+func (d *DispatcherImpl) RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *contracts.DurableTaskRequest, <-chan *contracts.DurableTaskResponse, error) {
+	return d.serviceV1.RegisterDurableTask(ctx, externalId)
 }
 
 func (d *DispatcherServiceImpl) handleDurableTaskRequest(

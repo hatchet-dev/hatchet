@@ -1402,6 +1402,21 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 	return items, nil
 }
 
+const pauseWorkers = `-- name: PauseWorkers :exec
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "isPaused" = TRUE
+WHERE
+    "id" = ANY($1::uuid[])
+`
+
+func (q *Queries) PauseWorkers(ctx context.Context, db DBTX, ids []uuid.UUID) error {
+	_, err := db.Exec(ctx, pauseWorkers, ids)
+	return err
+}
+
 const updateWorker = `-- name: UpdateWorker :one
 UPDATE
     "Worker"
@@ -1601,6 +1616,26 @@ func (q *Queries) UpdateWorkerHeartbeat(ctx context.Context, db DBTX, arg Update
 		&i.ActionHash,
 	)
 	return &i, err
+}
+
+const updateWorkerHeartbeats = `-- name: UpdateWorkerHeartbeats :exec
+UPDATE
+    "Worker"
+SET
+    "updatedAt" = CURRENT_TIMESTAMP,
+    "lastHeartbeatAt" = $1::timestamp
+WHERE
+    "id" = ANY($2::uuid[])
+`
+
+type UpdateWorkerHeartbeatsParams struct {
+	Lastheartbeatat pgtype.Timestamp `json:"lastheartbeatat"`
+	Ids             []uuid.UUID      `json:"ids"`
+}
+
+func (q *Queries) UpdateWorkerHeartbeats(ctx context.Context, db DBTX, arg UpdateWorkerHeartbeatsParams) error {
+	_, err := db.Exec(ctx, updateWorkerHeartbeats, arg.Lastheartbeatat, arg.Ids)
+	return err
 }
 
 const upsertService = `-- name: UpsertService :one

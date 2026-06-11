@@ -32,19 +32,23 @@ const eventReportTimeout = 30 * time.Second
 type Operator interface {
 	HandleAction(ctx context.Context, action *contracts.AssignedAction) error
 
-	HandleDurableTaskRequest(ctx context.Context, req *v1contracts.DurableTaskRequest) error
-
-	// TODO: unify interface with the TaskEventWriter below, these are basically doing the same thing, except the
-	// durable task handler requires a callback stream (so we need to send it directly to the durableInvocations)
-	RegisterDurableTaskHandler(func(ctx context.Context, req *v1contracts.DurableTaskResponse) error)
-
 	WorkerId() uuid.UUID
 
+	// Cleanup tears down a single operator: it pauses the operator's worker and then drains.
 	Cleanup()
+
+	// Drain stops accepting new tasks and waits for in-flight ones, without pausing the
+	// worker. Used for bulk teardown, where the caller pauses all workers in one query
+	// instead of one update per operator.
+	Drain()
 }
 
 type TaskEventWriter interface {
 	SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
+
+	// RegisterDurableTask opens a channel-based durable-task session: the operator (acting as
+	// a durable worker) writes requests to the returned channel and reads responses from it.
+	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
 }
 
 type SharedOperator[T any] struct {
@@ -52,7 +56,6 @@ type SharedOperator[T any] struct {
 	repo            repository.Repository
 	taskEventWriter TaskEventWriter
 	l               *zerolog.Logger
-	cancel          func()
 	tasks           sync.WaitGroup
 	mu              sync.Mutex
 	workerId        uuid.UUID
@@ -60,6 +63,7 @@ type SharedOperator[T any] struct {
 	shutdown        bool
 }
 
+// NewSharedOperator constructs the shared operator state.
 func NewSharedOperator[T any](operator *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Repository, taskEventWriter TaskEventWriter, workerId uuid.UUID, t T) (*SharedOperator[T], error) {
 	err := json.Unmarshal(operator.Config, &t)
 
@@ -67,21 +71,14 @@ func NewSharedOperator[T any](operator *sqlcv1.V1Operator, l *zerolog.Logger, re
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background()) // #nosec G118 -- cancel is stored on the struct and invoked in Cleanup
-
-	s := &SharedOperator[T]{
+	return &SharedOperator[T]{
 		operatorConfig:  t,
 		l:               l,
 		repo:            repo,
 		taskEventWriter: taskEventWriter,
 		workerId:        workerId,
 		tenantId:        operator.TenantID,
-		cancel:          cancel,
-	}
-
-	go s.startHeartbeatTicker(ctx)
-
-	return s, nil
+	}, nil
 }
 
 func (s *SharedOperator[T]) Config() T {
@@ -90,23 +87,6 @@ func (s *SharedOperator[T]) Config() T {
 
 func (s *SharedOperator[T]) Logger() *zerolog.Logger {
 	return s.l
-}
-
-func (s *SharedOperator[T]) startHeartbeatTicker(ctx context.Context) {
-	t := time.NewTicker(4 * time.Second)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-			err := s.repo.Workers().UpdateWorkerHeartbeat(ctx, s.tenantId, s.workerId, time.Now().UTC())
-
-			if err != nil {
-				s.l.Error().Err(err).Msgf("could not update worker heartbeat")
-			}
-		}
-	}
 }
 
 func (s *SharedOperator[T]) WorkerId() uuid.UUID {
@@ -194,11 +174,9 @@ func (s *SharedOperator[T]) RecordTask() func() {
 }
 
 func (s *SharedOperator[T]) Cleanup() {
-	// Stop accepting new tracked tasks. Setting this under the mutex (paired with the Add in
-	// RecordTask) guarantees no WaitGroup.Add races with the Wait below.
-	s.mu.Lock()
-	s.shutdown = true
-	s.mu.Unlock()
+	// Stop accepting new tracked tasks before pausing, so no task slips in between the pause
+	// and the drain.
+	s.beginShutdown()
 
 	// Pause the worker so the scheduler stops assigning new tasks to it while we drain the
 	// in-flight ones. Uses a detached, bounded context since the operator's own context is
@@ -217,17 +195,24 @@ func (s *SharedOperator[T]) Cleanup() {
 		cancel()
 	}
 
-	// Wait for in-flight tasks to finish before tearing down. The heartbeat keeps running
-	// during the drain so the worker stays registered until its tasks complete.
+	s.drainTasks()
+}
+
+func (s *SharedOperator[T]) Drain() {
+	s.beginShutdown()
+	s.drainTasks()
+}
+
+// beginShutdown stops accepting new tracked tasks. Setting the flag under the mutex (paired
+// with the Add in RecordTask) guarantees no WaitGroup.Add races with the Wait in drainTasks.
+func (s *SharedOperator[T]) beginShutdown() {
+	s.mu.Lock()
+	s.shutdown = true
+	s.mu.Unlock()
+}
+
+// drainTasks waits for in-flight tasks to finish before tearing down. The manager keeps
+// heartbeating this worker during the drain so it stays registered until its tasks complete.
+func (s *SharedOperator[T]) drainTasks() {
 	s.tasks.Wait()
-
-	s.cancel()
-}
-
-func (s *SharedOperator[T]) HandleDurableTaskRequest(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
-	panic("durable task handling not yet implemented for http operator")
-}
-
-func (s *SharedOperator[T]) RegisterDurableTaskHandler(handler func(ctx context.Context, req *v1contracts.DurableTaskResponse) error) {
-	panic("durable task handling not yet implemented for http operator")
 }

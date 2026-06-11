@@ -362,7 +362,7 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 	operatorCh := d.om.Start(ctx, d)
 
-	go d.listenForOperators(ctx, operatorCh)
+	go d.listenForOperators(operatorCh)
 
 	wg := sync.WaitGroup{}
 
@@ -399,6 +399,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
+		// drain the operators (waits for their in-flight tasks and stops their heartbeats);
+		// this runs after wg.Wait so in-flight queue tasks can still reach their operators,
+		// and before pubBuffer.Stop so draining operators can still flush result events
+		d.om.Cleanup()
+
 		d.pubBuffer.Stop()
 
 		// drain the existing connections
@@ -407,6 +412,12 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
 			value.Range(func(key string, value *subscribedWorker) bool {
 				w := value
+
+				// operator-backed workers have no stream goroutine reading `finished`; the
+				// operator manager has already drained them above
+				if w.operator != nil {
+					return true
+				}
 
 				w.finished <- true
 
@@ -437,21 +448,51 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	return cleanup, nil
 }
 
-// TODO: each operator should come with a sessionId and we should receive an array of operators, and
-// then remove the ones which are no longer in the reported set of active operators.
-func (d *DispatcherImpl) listenForOperators(ctx context.Context, ch <-chan operator.Operator) {
-	for o := range ch {
-		workerId := o.WorkerId()
+// listenForOperators mirrors the manager's reported operator set into the workers map. Each
+// message carries the full set of active operators (resent every poll), so entries that
+// disappear from the set are removed — the dispatcher never accumulates routing entries for
+// operators that are no longer claimed by it.
+func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
+	// workerId -> sessionId for the operator-backed entries this loop has added; only this
+	// goroutine touches it. operator workers are exclusive to their operator instance, so a
+	// stable session per worker is sufficient.
+	sessions := make(map[uuid.UUID]string)
 
-		d.workers.Add(
-			workerId,
-			uuid.NewString(),
-			newOperatorSubscribedWorker(make(chan bool),
+	for operators := range ch {
+		current := make(map[uuid.UUID]struct{}, len(operators))
+
+		for _, o := range operators {
+			workerId := o.WorkerId()
+			current[workerId] = struct{}{}
+
+			if _, ok := sessions[workerId]; ok {
+				continue
+			}
+
+			sessionId := uuid.NewString()
+			sessions[workerId] = sessionId
+
+			d.workers.Add(
 				workerId,
-				d.pubBuffer,
-				o,
-			),
-		)
+				sessionId,
+				// nil finished channel: operator workers have no stream goroutine to signal,
+				// and the shutdown drain skips them (the operator manager owns their teardown)
+				newOperatorSubscribedWorker(
+					workerId,
+					d.pubBuffer,
+					o,
+				),
+			)
+		}
+
+		for workerId := range sessions {
+			if _, ok := current[workerId]; ok {
+				continue
+			}
+
+			delete(sessions, workerId)
+			d.workers.Delete(workerId)
+		}
 	}
 }
 

@@ -18,17 +18,37 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+// heartbeatTimeout bounds a single bulk heartbeat write. Heartbeats use a detached context
+// because they must keep running while operators drain during shutdown.
+const heartbeatTimeout = 5 * time.Second
+
+// bulkPauseTimeout bounds the single statement that pauses all operator workers during
+// manager shutdown.
+const bulkPauseTimeout = 30 * time.Second
+
 type OperatorManager struct {
 	repo              repository.Repository
 	enc               encryption.EncryptionService
 	taskEventWriter   operator.TaskEventWriter
 	l                 *zerolog.Logger
-	operatorsCh       chan operator.Operator
+	operatorsCh       chan []operator.Operator
 	donePollingCh     chan struct{}
+	doneHeartbeatCh   chan struct{}
 	cleanup           func()
+	stopHeartbeats    func()
 	operators         syncx.Map[uuid.UUID, operator.Operator]
 	infraBlockedCIDRs []string
-	dispatcherId      uuid.UUID
+
+	// draining holds worker IDs of operators that are draining in-flight tasks; they must
+	// keep receiving heartbeats until the drain completes. mu guards it (poll loop adds,
+	// per-operator drain goroutines remove, heartbeat loop reads).
+	draining map[uuid.UUID]struct{}
+
+	dispatcherId uuid.UUID
+	mu           sync.Mutex
+
+	// drains tracks in-flight per-operator drain goroutines so Cleanup can await them.
+	drains sync.WaitGroup
 }
 
 func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo repository.Repository, enc encryption.EncryptionService, infraBlockedCIDRs []string) *OperatorManager {
@@ -38,8 +58,10 @@ func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo reposito
 		l:                 l,
 		enc:               enc,
 		infraBlockedCIDRs: infraBlockedCIDRs,
-		operatorsCh:       make(chan operator.Operator),
+		operatorsCh:       make(chan []operator.Operator),
 		donePollingCh:     make(chan struct{}, 1),
+		doneHeartbeatCh:   make(chan struct{}),
+		draining:          make(map[uuid.UUID]struct{}),
 	}
 
 	return om
@@ -49,33 +71,74 @@ func NewOperatorManager(dispatcherId uuid.UUID, l *zerolog.Logger, repo reposito
 // task results back through the dispatcher (the DispatcherImpl itself satisfies it); it is
 // passed here rather than to the constructor because the dispatcher isn't fully built when
 // the manager is created.
-func (om *OperatorManager) Start(ctx context.Context, taskEventWriter operator.TaskEventWriter) <-chan operator.Operator {
+//
+// The returned channel carries the full set of active operators on every poll; consumers
+// should treat each message as the desired state and remove anything no longer present.
+func (om *OperatorManager) Start(ctx context.Context, taskEventWriter operator.TaskEventWriter) <-chan []operator.Operator {
 	ctx, cancel := context.WithCancel(ctx)
 
 	om.cleanup = cancel
 	om.taskEventWriter = taskEventWriter
 
+	// heartbeats deliberately outlive the polling context: they must keep running while
+	// operators drain during shutdown, and are stopped explicitly at the end of Cleanup
+	heartbeatCtx, stopHeartbeats := context.WithCancel(context.WithoutCancel(ctx))
+
+	om.stopHeartbeats = stopHeartbeats
+
 	go om.pollOperators(ctx)
+	go om.runHeartbeats(heartbeatCtx)
 
 	return om.operatorsCh
 }
 
 func (om *OperatorManager) Cleanup() {
-	if om.cleanup != nil {
-		om.cleanup()
+	if om.cleanup == nil {
+		// Start was never called; there is nothing to drain.
+		close(om.operatorsCh)
+		return
 	}
+
+	om.cleanup()
 
 	<-om.donePollingCh
 
-	// clean up the operators simultaneously
+	// pause every operator worker in a single statement (rather than one update per
+	// operator) so the scheduler stops assigning to them while they drain
+	workerIds := make([]uuid.UUID, 0)
+
+	om.operators.Range(func(_ uuid.UUID, op operator.Operator) bool {
+		workerIds = append(workerIds, op.WorkerId())
+		return true
+	})
+
+	if len(workerIds) > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), bulkPauseTimeout)
+
+		if err := om.repo.Workers().PauseWorkers(ctx, workerIds); err != nil {
+			om.l.Error().Err(err).Msgf("could not pause operator workers on shutdown")
+		}
+
+		cancel()
+	}
+
+	// drain the operators simultaneously; Drain skips the per-worker pause done in bulk above
 	wg := sync.WaitGroup{}
 
 	om.operators.Range(func(key uuid.UUID, value operator.Operator) bool {
-		wg.Go(value.Cleanup)
+		wg.Go(value.Drain)
 		return true
 	})
 
 	wg.Wait()
+
+	// wait for any individually-removed operators that are still draining
+	om.drains.Wait()
+
+	// stop heartbeats only after every operator has finished draining, so workers stay
+	// registered until their in-flight tasks complete
+	om.stopHeartbeats()
+	<-om.doneHeartbeatCh
 
 	// close the channel
 	close(om.operatorsCh)
@@ -93,6 +156,7 @@ func (om *OperatorManager) HandleAction(ctx context.Context, operatorId uuid.UUI
 
 func (om *OperatorManager) pollOperators(ctx context.Context) {
 	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
 
 	for {
 		select {
@@ -103,55 +167,177 @@ func (om *OperatorManager) pollOperators(ctx context.Context) {
 			operators, err := om.repo.Operators().ClaimOperators(ctx, om.dispatcherId)
 
 			if err != nil {
+				// skip reconciliation entirely: a failed poll says nothing about which
+				// operators are still claimed, so it must not count toward teardown misses
 				om.l.Error().Err(err).Msgf("could not poll operators")
+				continue
 			}
 
-			om.setOperators(ctx, operators)
+			om.reconcileOperators(ctx, operators)
 		}
 	}
 }
 
-func (om *OperatorManager) setOperators(ctx context.Context, operators []*sqlcv1.V1Operator) {
-	for _, op := range operators {
-		var operator operator.Operator
-		var written bool
+// reconcileOperators treats the claim result as the desired state: it instantiates operators
+// which are newly claimed, tears down operators no longer in the claim result (an operator
+// assigned to this dispatcher cannot be claimed by another active dispatcher, so an absence
+// means it was deleted or this dispatcher lost it), and reports the resulting full active
+// set on operatorsCh.
+func (om *OperatorManager) reconcileOperators(ctx context.Context, claimed []*sqlcv1.V1Operator) {
+	claimedIds := make(map[uuid.UUID]struct{}, len(claimed))
 
-		if op.Kind == sqlcv1.V1OperatorKindHTTPAPI {
-			var ok bool
-			operator, ok = om.operators.Load(op.ID)
+	for _, op := range claimed {
+		claimedIds[op.ID] = struct{}{}
 
-			if !ok {
-				// The slot config may vary per operator, so the operator type derives it
-				// from its own config.
-				slotConfig, err := httpoperator.SlotConfig(op)
-
-				if err != nil {
-					om.l.Error().Err(err).Msgf("could not determine slot config for http operator: %s", err.Error())
-					continue
-				}
-
-				// Each operator instance gets its own freshly-created worker.
-				worker, err := om.repo.Operators().CreateOperatorWorker(ctx, om.dispatcherId, op, slotConfig)
-
-				if err != nil {
-					om.l.Error().Err(err).Msgf("could not create worker for http operator: %s", err.Error())
-					continue
-				}
-
-				operator, err = httpoperator.NewHTTPOperator(op, om.l, om.repo, om.taskEventWriter, om.enc, om.infraBlockedCIDRs, worker.ID)
-
-				if err != nil {
-					om.l.Error().Err(err).Msgf("could not construct http operator: %s", err.Error())
-					continue
-				}
-
-				written = true
-			}
+		if _, ok := om.operators.Load(op.ID); ok {
+			continue
 		}
 
-		if written {
-			om.operators.Store(op.ID, operator)
-			om.operatorsCh <- operator
+		newOperator := om.instantiateOperator(ctx, op)
+
+		if newOperator != nil {
+			om.operators.Store(op.ID, newOperator)
 		}
 	}
+
+	om.operators.Range(func(id uuid.UUID, op operator.Operator) bool {
+		if _, ok := claimedIds[id]; ok {
+			return true
+		}
+
+		om.teardownOperator(id, op)
+
+		return true
+	})
+
+	// report the full active set; the dispatcher reconciles its routing table against it.
+	// the resend on every poll (even when unchanged) is what lets the dispatcher self-heal.
+	select {
+	case om.operatorsCh <- om.activeOperators():
+	case <-ctx.Done():
+	}
+}
+
+// instantiateOperator constructs the operator for a newly-claimed row, creating a fresh
+// worker for this instance. Returns nil (after logging) if the operator could not be built.
+func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V1Operator) operator.Operator {
+	if op.Kind != sqlcv1.V1OperatorKindHTTPAPI {
+		return nil
+	}
+
+	// The slot config may vary per operator, so the operator type derives it
+	// from its own config.
+	slotConfig, err := httpoperator.SlotConfig(op)
+
+	if err != nil {
+		om.l.Error().Err(err).Msgf("could not determine slot config for http operator: %s", err.Error())
+		return nil
+	}
+
+	// Each operator instance gets its own freshly-created worker.
+	worker, err := om.repo.Operators().CreateOperatorWorker(ctx, om.dispatcherId, op, slotConfig)
+
+	if err != nil {
+		om.l.Error().Err(err).Msgf("could not create worker for http operator: %s", err.Error())
+		return nil
+	}
+
+	newOperator, err := httpoperator.NewHTTPOperator(op, om.l, om.repo, om.taskEventWriter, om.enc, om.infraBlockedCIDRs, worker.ID)
+
+	if err != nil {
+		om.l.Error().Err(err).Msgf("could not construct http operator: %s", err.Error())
+		return nil
+	}
+
+	return newOperator
+}
+
+// teardownOperator removes an operator that is no longer claimed by this dispatcher and
+// drains it in the background. The worker is registered as draining before the operator is
+// removed from the map so the heartbeat loop never sees a gap while tasks are in flight.
+func (om *OperatorManager) teardownOperator(id uuid.UUID, op operator.Operator) {
+	workerId := op.WorkerId()
+
+	om.mu.Lock()
+	om.draining[workerId] = struct{}{}
+	om.mu.Unlock()
+
+	om.operators.Delete(id)
+
+	om.l.Info().Msgf("operator %s is no longer claimed by this dispatcher, draining worker %s", id, workerId)
+
+	om.drains.Go(func() {
+		op.Cleanup()
+
+		om.mu.Lock()
+		delete(om.draining, workerId)
+		om.mu.Unlock()
+	})
+}
+
+func (om *OperatorManager) activeOperators() []operator.Operator {
+	active := make([]operator.Operator, 0)
+
+	om.operators.Range(func(_ uuid.UUID, op operator.Operator) bool {
+		active = append(active, op)
+		return true
+	})
+
+	return active
+}
+
+// runHeartbeats updates the heartbeat for every operator worker (active and draining) in a
+// single statement per tick. Its context is detached from the polling context's
+// cancellation because heartbeats must continue while operators drain during shutdown; it
+// is cancelled explicitly at the end of Cleanup.
+func (om *OperatorManager) runHeartbeats(ctx context.Context) {
+	t := time.NewTicker(4 * time.Second)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			close(om.doneHeartbeatCh)
+			return
+		case <-t.C:
+			workerIds := om.heartbeatWorkerIds()
+
+			if len(workerIds) == 0 {
+				continue
+			}
+
+			tickCtx, cancel := context.WithTimeout(ctx, heartbeatTimeout)
+
+			err := om.repo.Workers().UpdateWorkerHeartbeats(tickCtx, workerIds, time.Now().UTC())
+
+			cancel()
+
+			if err != nil {
+				om.l.Error().Err(err).Msgf("could not update operator worker heartbeats")
+			}
+		}
+	}
+}
+
+func (om *OperatorManager) heartbeatWorkerIds() []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{})
+
+	om.operators.Range(func(_ uuid.UUID, op operator.Operator) bool {
+		seen[op.WorkerId()] = struct{}{}
+		return true
+	})
+
+	om.mu.Lock()
+	for workerId := range om.draining {
+		seen[workerId] = struct{}{}
+	}
+	om.mu.Unlock()
+
+	workerIds := make([]uuid.UUID, 0, len(seen))
+
+	for workerId := range seen {
+		workerIds = append(workerIds, workerId)
+	}
+
+	return workerIds
 }

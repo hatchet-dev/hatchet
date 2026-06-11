@@ -184,6 +184,16 @@ func (h *HTTPOperator) Cleanup() {
 	h.SharedOperator.Cleanup()
 }
 
+// Drain stops the healthcheck poller and drains in-flight tasks without pausing the worker
+// (used for bulk teardown, where the caller pauses all operator workers in one query).
+func (h *HTTPOperator) Drain() {
+	if h.cancel != nil {
+		h.cancel()
+	}
+
+	h.SharedOperator.Drain()
+}
+
 // pollHealthcheck periodically polls the healthcheck endpoint to discover the actions the
 // endpoint handles, registering any changes with the dispatcher.
 func (h *HTTPOperator) pollHealthcheck(ctx context.Context) {

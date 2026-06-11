@@ -41,13 +41,11 @@ func newGRPCSubscribedWorker(
 }
 
 func newOperatorSubscribedWorker(
-	fin chan<- bool,
 	workerId uuid.UUID,
 	pubBuffer *msgqueue.MQPubBuffer,
 	operator operator.Operator,
 ) *subscribedWorker {
 	return &subscribedWorker{
-		finished:  fin,
 		workerId:  workerId,
 		pubBuffer: pubBuffer,
 		operator:  operator,

@@ -10,7 +10,7 @@ import (
 // TestRecordTaskDrainsOnCleanup verifies Cleanup blocks until every recorded task has been
 // released, and that RecordTask is a no-op once shutdown has begun.
 func TestRecordTaskDrainsOnCleanup(t *testing.T) {
-	s := &SharedOperator[struct{}]{cancel: func() {}}
+	s := &SharedOperator[struct{}]{}
 
 	release := s.RecordTask()
 
@@ -43,7 +43,7 @@ func TestRecordTaskDrainsOnCleanup(t *testing.T) {
 // TestReleaseIsIdempotent ensures calling release more than once does not over-decrement the
 // task counter (which would panic the WaitGroup).
 func TestReleaseIsIdempotent(t *testing.T) {
-	s := &SharedOperator[struct{}]{cancel: func() {}}
+	s := &SharedOperator[struct{}]{}
 
 	release := s.RecordTask()
 	release()
