@@ -381,6 +381,8 @@ class Hatchet:
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> dict[str, Any]:
+                    ## todo: pass conditions to here through assigned action, parse them,
+                    ## and then pass them into `_run_child_with_optional_conditions`
                     if not ctx._action.task_name_to_child_names:
                         raise RuntimeError(
                             "Durable workflow orchestrator was invoked without any child tasks. This likely means that the workflow was not properly registered with the worker, or that the workflow did not have any tasks. Please ensure that the workflow has tasks and that it is properly registered with the worker."
