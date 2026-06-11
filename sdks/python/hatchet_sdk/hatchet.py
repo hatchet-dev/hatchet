@@ -3,7 +3,7 @@ import warnings
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Concatenate, ParamSpec, overload
+from typing import Any, Concatenate, ParamSpec, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -43,15 +43,14 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.runnables.workflow import (
     BaseWorkflow,
     Standalone,
-    TriggerWorkflowOptions,
     Workflow,
-    WorkflowRunTriggerConfig,
 )
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
+from hatchet_sdk.types.trigger import TriggerWorkflowOptions, WorkflowRunTriggerConfig
 from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -326,7 +325,9 @@ class Hatchet:
                             concurrency=workflow.config.concurrency,
                             default_filters=workflow.config.default_filters,
                             default_additional_metadata=workflow.config.default_additional_metadata,
-                        )(task._fn)
+                        )(
+                            cast(Any, task._fn)
+                        )  # fixme: hack for typing
                     )
                     unpacked_workflows.append(st)
                     for p in task.parents:
@@ -337,6 +338,11 @@ class Hatchet:
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> None:
+                    if not ctx._action.task_name_to_child_names:
+                        raise RuntimeError(
+                            "Durable workflow orchestrator was invoked without any child tasks. This likely means that the workflow was not properly registered with the worker, or that the workflow did not have any tasks. Please ensure that the workflow has tasks and that it is properly registered with the worker."
+                        )
+
                     g = Graph()
 
                     ## stub for now
@@ -366,7 +372,9 @@ class Hatchet:
                             [
                                 WorkflowRunTriggerConfig(
                                     workflow_name=node.name,
-                                    input=input.model_dump_json(),  # note: this won't work with dataclasses, need a type adapter here somehow
+                                    input=ctx._input_validator_adapter.dump_json(
+                                        input
+                                    ).decode("utf-8"),
                                     options=TriggerWorkflowOptions(),
                                     dag_parent_workflow_run_ids=[
                                         node_to_workflow_run_id[p.name]
@@ -393,6 +401,7 @@ class Hatchet:
                                 for durable_spawn_result in durable_spawn_results
                             ],
                             return_exceptions=False,
+                            max_concurrency=20,
                         )
 
                         for i, node in enumerate(ordered_nodes):

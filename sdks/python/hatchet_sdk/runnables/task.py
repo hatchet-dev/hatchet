@@ -596,6 +596,7 @@ class Task(Generic[TWorkflowInput, R]):
             task_name=self.name,
             workflow_name=self._workflow.name,
             worker_labels=[],
+            input_validator_adapter=self._validators.workflow_input,
         )
 
     def mock_run(

@@ -533,6 +533,7 @@ class Runner:
                 durable_eviction_manager=self.durable_eviction_manager,
                 engine_version=self.engine_version,
                 worker_labels=self.worker_labels,
+                input_validator_adapter=task.validators.workflow_input,
             )
             if is_durable
             else Context(
@@ -549,6 +550,7 @@ class Runner:
                 task_name=task.name,
                 workflow_name=task.workflow.name,
                 worker_labels=self.worker_labels,
+                input_validator_adapter=task.validators.workflow_input,
             )
         )
 
