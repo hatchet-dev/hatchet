@@ -60,33 +60,33 @@ type ErrorRaisingInput struct {
 
 // Durable test workflow definitions and worker tasks
 var (
-	testDurableWorkflow         *hatchet.Workflow
-	testDurableTask             *hatchet.Task
-	testWaitForOrGroup1         *hatchet.Task
-	testWaitForOrGroup2         *hatchet.Task
-	testWaitForSleepTwice       *hatchet.StandaloneTask
-	testSpawnChildTask          *hatchet.StandaloneTask
-	testDurableWithSpawn            *hatchet.StandaloneTask
-	testDurableWithBulkSpawn        *hatchet.StandaloneTask
-	testErrorRaisingTask            *hatchet.StandaloneTask
-	testErrorRaisingDurableParent   *hatchet.StandaloneTask
-	testDurableWithLoopSpawn    *hatchet.StandaloneTask
-	testDurableSleepEventSpawn  *hatchet.StandaloneTask
-	testDurableNonDeterminism   *hatchet.StandaloneTask
-	testDurableReplayReset      *hatchet.StandaloneTask
-	testMemoTask                *hatchet.StandaloneTask
-	testMemoNowCaching          *hatchet.StandaloneTask
-	testDurableSpawnDAG         *hatchet.StandaloneTask
-	testDagChildWorkflow        *hatchet.Workflow
-	testEvictableSleep          *hatchet.StandaloneTask
-	testEvictableWaitForEvent   *hatchet.StandaloneTask
-	testEvictableChildSpawn     *hatchet.StandaloneTask
-	testEvictableChildBulkSpawn *hatchet.StandaloneTask
-	testMultipleEviction        *hatchet.StandaloneTask
-	testCapacityEvictableSleep  *hatchet.StandaloneTask
-	testNonEvictableSleep       *hatchet.StandaloneTask
-	testEvictionChildTask       *hatchet.StandaloneTask
-	testEvictionBulkChildTask   *hatchet.StandaloneTask
+	testDurableWorkflow           *hatchet.Workflow
+	testDurableTask               *hatchet.Task
+	testWaitForOrGroup1           *hatchet.Task
+	testWaitForOrGroup2           *hatchet.Task
+	testWaitForSleepTwice         *hatchet.StandaloneTask
+	testSpawnChildTask            *hatchet.StandaloneTask
+	testDurableWithSpawn          *hatchet.StandaloneTask
+	testDurableWithBulkSpawn      *hatchet.StandaloneTask
+	testErrorRaisingTask          *hatchet.StandaloneTask
+	testErrorRaisingDurableParent *hatchet.StandaloneTask
+	testDurableWithLoopSpawn      *hatchet.StandaloneTask
+	testDurableSleepEventSpawn    *hatchet.StandaloneTask
+	testDurableNonDeterminism     *hatchet.StandaloneTask
+	testDurableReplayReset        *hatchet.StandaloneTask
+	testMemoTask                  *hatchet.StandaloneTask
+	testMemoNowCaching            *hatchet.StandaloneTask
+	testDurableSpawnDAG           *hatchet.StandaloneTask
+	testDagChildWorkflow          *hatchet.Workflow
+	testEvictableSleep            *hatchet.StandaloneTask
+	testEvictableWaitForEvent     *hatchet.StandaloneTask
+	testEvictableChildSpawn       *hatchet.StandaloneTask
+	testEvictableChildBulkSpawn   *hatchet.StandaloneTask
+	testMultipleEviction          *hatchet.StandaloneTask
+	testCapacityEvictableSleep    *hatchet.StandaloneTask
+	testNonEvictableSleep         *hatchet.StandaloneTask
+	testEvictionChildTask         *hatchet.StandaloneTask
+	testEvictionBulkChildTask     *hatchet.StandaloneTask
 
 	// dag payload propagation test workflow
 	testDAGPayloadWorkflow *hatchet.Workflow
@@ -437,9 +437,9 @@ func registerAllWorkflows(client *hatchet.Client) {
 			}
 
 			return map[string]any{
-				"child_raised":          childRaised,
-				"child_error_str":       childErrorStr,
-				"child_run_external_id": ref.RunId,
+				"child_raised":           childRaised,
+				"child_error_str":        childErrorStr,
+				"child_run_external_id":  ref.RunId,
 				"parent_run_external_id": ctx.WorkflowRunId(),
 			}, nil
 		},
