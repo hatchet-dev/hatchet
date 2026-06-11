@@ -739,6 +739,14 @@ func sortByEventIndex(a, b *contracts.WorkflowEvent) int {
 		return 0
 	}
 
+	if a.EventIndex == nil {
+		return -1
+	}
+
+	if b.EventIndex == nil {
+		return 1
+	}
+
 	if *a.EventIndex < *b.EventIndex {
 		return -1
 	}
@@ -792,10 +800,12 @@ func (b *StreamEventBuffer) Events() <-chan *contracts.WorkflowEvent {
 	return b.eventsChan
 }
 
+// Close stops the buffer's background goroutines. The channels are deliberately not
+// closed: in-flight AddEvent/timeout sends race a close (send on a closed channel
+// panics even inside a select), and every sender and consumer already exits via
+// context cancellation.
 func (b *StreamEventBuffer) Close() {
 	b.cancel()
-	close(b.eventsChan)
-	close(b.timedOutEventProducer)
 }
 
 func (b *StreamEventBuffer) periodicCleanup() {
@@ -951,7 +961,14 @@ func (b *StreamEventBuffer) sendReadyEvents(stepRunId uuid.UUID) {
 		expectedIdx++
 	}
 
-	b.stepRunIdToWorkflowEvents[stepRunId] = events
+	if len(events) == 0 {
+		// delete rather than store an empty slice: processTimeoutEvents treats a present
+		// entry as "events still buffered" and would reset the expected index
+		delete(b.stepRunIdToWorkflowEvents, stepRunId)
+	} else {
+		b.stepRunIdToWorkflowEvents[stepRunId] = events
+	}
+
 	b.stepRunIdToExpectedIndex[stepRunId] = expectedIdx
 }
 

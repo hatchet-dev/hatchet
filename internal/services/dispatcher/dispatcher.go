@@ -995,11 +995,6 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 			continue
 		}
 
-		if !ok {
-			d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", msg.TaskId)
-			continue
-		}
-
 		workerIdToTasks[msg.WorkerId] = append(workerIdToTasks[msg.WorkerId], task)
 	}
 
