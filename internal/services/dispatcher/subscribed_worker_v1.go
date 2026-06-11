@@ -258,13 +258,45 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 	}
 
 	if len(taskNameToChildTaskNames) > 0 {
-		action.TaskNameToChildNames = make(map[string]*contracts.ChildTaskList, len(taskNameToChildTaskNames))
-		for taskName, childNames := range taskNameToChildTaskNames {
-			action.TaskNameToChildNames[taskName] = &contracts.ChildTaskList{
-				ChildTaskName: childNames,
-			}
-		}
+		action.WorkflowGraph = computeTopologicalLayers(taskNameToChildTaskNames)
 	}
 
 	return action
+}
+
+func computeTopologicalLayers(taskNameToChildTaskNames map[string][]string) []*contracts.WorkflowGraphLayer {
+	inDegree := make(map[string]int)
+
+	for parent, children := range taskNameToChildTaskNames {
+		if _, exists := inDegree[parent]; !exists {
+			inDegree[parent] = 0
+		}
+		for _, child := range children {
+			inDegree[child]++
+		}
+	}
+
+	var currentLayer []string
+	for name, degree := range inDegree {
+		if degree == 0 {
+			currentLayer = append(currentLayer, name)
+		}
+	}
+
+	var layers []*contracts.WorkflowGraphLayer
+	for len(currentLayer) > 0 {
+		layers = append(layers, &contracts.WorkflowGraphLayer{TaskNames: currentLayer})
+		var nextLayer []string
+		for _, node := range currentLayer {
+			for _, child := range taskNameToChildTaskNames[node] {
+				inDegree[child]--
+				if inDegree[child] == 0 {
+					nextLayer = append(nextLayer, child)
+				}
+			}
+		}
+		currentLayer = nextLayer
+	}
+
+	return layers
 }

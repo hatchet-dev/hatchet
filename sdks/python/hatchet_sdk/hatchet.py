@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, cast, overload
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
 
 from hatchet_sdk import Context, DurableContext
 from hatchet_sdk.client import Client
@@ -60,47 +60,6 @@ from hatchet_sdk.worker.worker import LifespanFn, Worker
 P = ParamSpec("P")
 
 
-class TaskWithDependencies(BaseModel):
-    name: str
-    child_task_names: list[str]
-
-
-class HatchetWorkflowShape(BaseModel):
-    tasks: list[TaskWithDependencies]
-
-
-class Node:
-    def __init__(self, name: str):
-        self.name = name
-        self.children: set[Node] = set()
-        self.parents: set[Node] = set()
-
-    def __repr__(self) -> str:
-        return f"Node({self.name}, children={[child.name for child in self.children]})"
-
-
-class Graph:
-    def __init__(self) -> None:
-        self.nodes: dict[str, Node] = {}
-
-    def add_edge(self, parent_name: str, child_name: str) -> None:
-        if parent_name not in self.nodes:
-            self.nodes[parent_name] = Node(parent_name)
-
-        if child_name not in self.nodes:
-            self.nodes[child_name] = Node(child_name)
-
-        parent_node = self.nodes[parent_name]
-        child_node = self.nodes[child_name]
-
-        parent_node.children.add(child_node)
-        child_node.parents.add(parent_node)
-
-    @property
-    def roots(self) -> set[Node]:
-        return {node for node in self.nodes.values() if len(node.parents) == 0}
-
-
 class Hatchet:
     """
     Main client for interacting with the Hatchet SDK.
@@ -136,6 +95,7 @@ class Hatchet:
             )
 
         self._client = client if client else Client(config=_config, debug=_debug)
+        self._spawn_lock = asyncio.Lock()
 
     @property
     def cel(self) -> CELClient:
@@ -338,21 +298,23 @@ class Hatchet:
                 async def _run_child_with_optional_conditions(
                     input: TWorkflowInput,
                     ctx: DurableContext,
-                    node: Node,
+                    node_name: str,
                     parent_run_ids: list[str],
                 ) -> tuple[str, str, dict[str, Any]]:
-                    durable_spawn_results = await ctx._spawn_children_no_wait(
-                        [
-                            WorkflowRunTriggerConfig(
-                                workflow_name=node.name,
-                                input=ctx._input_validator_adapter.dump_json(
-                                    input
-                                ).decode("utf-8"),
-                                options=TriggerWorkflowOptions(),
-                                dag_parent_workflow_run_ids=parent_run_ids,
-                            )
-                        ]
-                    )
+                    ## fixme: we shouldn't need a lock here probably, the engine should maybe know what to do about this
+                    async with self._spawn_lock:
+                        durable_spawn_results = await ctx._spawn_children_no_wait(
+                            [
+                                WorkflowRunTriggerConfig(
+                                    workflow_name=node_name,
+                                    input=ctx._input_validator_adapter.dump_json(
+                                        input
+                                    ).decode("utf-8"),
+                                    options=TriggerWorkflowOptions(),
+                                    dag_parent_workflow_run_ids=parent_run_ids,
+                                )
+                            ]
+                        )
 
                     if not durable_spawn_results:
                         raise RuntimeError(
@@ -366,10 +328,8 @@ class Hatchet:
 
                     spawn_result = durable_spawn_results[0]
 
-                    ## refactor this to just return the single result
-                    ## also handle waits here, then rework the main loop to call `gather` on these
                     return (
-                        node.name,
+                        node_name,
                         spawn_result.workflow_run_external_id,
                         await ctx._aio_result_for_spawned_child(
                             node_id=spawn_result.node_id,
@@ -381,65 +341,34 @@ class Hatchet:
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> dict[str, Any]:
-                    ## todo: pass conditions to here through assigned action, parse them,
-                    ## and then pass them into `_run_child_with_optional_conditions`
-                    if not ctx._action.task_name_to_child_names:
+                    if not ctx._action.workflow_graph:
                         raise RuntimeError(
                             "Durable workflow orchestrator was invoked without any child tasks. This likely means that the workflow was not properly registered with the worker, or that the workflow did not have any tasks. Please ensure that the workflow has tasks and that it is properly registered with the worker."
                         )
 
-                    g = Graph()
-
-                    ## stub for now
-                    orch_ctx = HatchetWorkflowShape(
-                        tasks=[
-                            TaskWithDependencies(name=t, child_task_names=c)
-                            for t, c in ctx._action.task_name_to_child_names.items()
-                        ]
-                    )
-
-                    for task in orch_ctx.tasks:
-                        for child in task.child_task_names:
-                            g.add_edge(task.name, child)
-
-                    nodes_to_run = g.roots
-                    # maps node name -> workflow_run_external_id of its completed run
-                    node_to_workflow_run_id: dict[str, str] = {}
+                    completed_run_ids: list[str] = []
                     task_name_to_output: dict[str, Any] = {}
 
-                    while nodes_to_run:
-                        ordered_nodes = list(nodes_to_run)
-                        ctx.log(
-                            "running the orchestrator, nodes to run: "
-                            + ", ".join(node.name for node in ordered_nodes)
+                    for layer in ctx._action.workflow_graph:
+                        ctx.log("running layer: " + ", ".join(layer))
+                        ## fixme: we technically don't need _every_ completed run here as a parent,
+                        ## just the ones defined on the node
+                        parent_run_ids = list(completed_run_ids)
+                        res = await asyncio.gather(
+                            *[
+                                _run_child_with_optional_conditions(
+                                    input=input,
+                                    ctx=ctx,
+                                    node_name=task_name,
+                                    parent_run_ids=parent_run_ids,
+                                )
+                                for task_name in layer
+                            ]
                         )
 
-                        children = [
-                            _run_child_with_optional_conditions(
-                                input=input,
-                                ctx=ctx,
-                                node=node,
-                                parent_run_ids=[
-                                    node_to_workflow_run_id[p.name]
-                                    for p in node.parents
-                                    if p.name in node_to_workflow_run_id
-                                ],
-                            )
-                            for node in ordered_nodes
-                        ]
-
-                        res = await asyncio.gather(*children)
-
                         for task_name, workflow_run_id, output in res:
-                            node_to_workflow_run_id[task_name] = workflow_run_id
+                            completed_run_ids.append(workflow_run_id)
                             task_name_to_output[task_name] = output
-
-                        nodes_to_run = {
-                            c
-                            for node in ordered_nodes
-                            for c in node.children
-                            if all(p.name in node_to_workflow_run_id for p in c.parents)
-                        }
 
                     return task_name_to_output
 

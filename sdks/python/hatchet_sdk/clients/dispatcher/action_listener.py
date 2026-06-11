@@ -229,10 +229,10 @@ class ActionListener:
                         or None,
                         triggering_event_external_id=assigned_action.triggering_event_external_id,
                         triggering_event_key=assigned_action.triggering_event_key,
-                        task_name_to_child_names={
-                            t: list(c.child_task_name)
-                            for t, c in assigned_action.task_name_to_child_names.items()
-                        },
+                        workflow_graph=[
+                            list(layer.task_names)
+                            for layer in assigned_action.workflow_graph
+                        ],
                     )
 
                     yield action

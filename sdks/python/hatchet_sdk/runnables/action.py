@@ -79,7 +79,7 @@ class Action(BaseModel):
 
     triggering_event_external_id: str | None = None
     triggering_event_key: str | None = None
-    task_name_to_child_names: dict[str, list[str]] | None = None
+    workflow_graph: list[list[str]] = Field(default_factory=list)
 
     def get_otel_attributes(self, config: "ClientConfig") -> dict[str, str | int]:
         try:
