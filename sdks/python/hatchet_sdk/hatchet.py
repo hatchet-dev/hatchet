@@ -337,7 +337,7 @@ class Hatchet:
 
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
-                ) -> None:
+                ) -> dict[str, Any]:
                     if not ctx._action.task_name_to_child_names:
                         raise RuntimeError(
                             "Durable workflow orchestrator was invoked without any child tasks. This likely means that the workflow was not properly registered with the worker, or that the workflow did not have any tasks. Please ensure that the workflow has tasks and that it is properly registered with the worker."
@@ -360,6 +360,7 @@ class Hatchet:
                     nodes_to_run = g.roots
                     # maps node name -> workflow_run_external_id of its completed run
                     node_to_workflow_run_id: dict[str, str] = {}
+                    task_name_to_output: dict[str, Any] = {}
 
                     while nodes_to_run:
                         ordered_nodes = list(nodes_to_run)
@@ -391,23 +392,42 @@ class Hatchet:
                                 "Failed to spawn durable child workflow: no run references returned"
                             )
 
-                        await gather_max_concurrency(
+                        async def _get_indexed_child_result(
+                            name: str,
+                            workflow_run_external_id: str,
+                            node_id: int,
+                            branch_id: int,
+                            workflow_name: str,
+                        ) -> tuple[str, str, dict[str, Any]]:
+                            result = await ctx._aio_result_for_spawned_child(
+                                node_id=node_id,
+                                branch_id=branch_id,
+                                workflow_name=workflow_name,
+                            )
+                            return name, workflow_run_external_id, result
+
+                        pairs = await gather_max_concurrency(
                             *[
-                                ctx._aio_result_for_spawned_child(
+                                _get_indexed_child_result(
+                                    name=node.name,
+                                    workflow_run_external_id=durable_spawn_result.workflow_run_external_id,
                                     node_id=durable_spawn_result.node_id,
                                     branch_id=durable_spawn_result.branch_id,
                                     workflow_name=durable_spawn_result.workflow_name,
                                 )
-                                for durable_spawn_result in durable_spawn_results
+                                for node, durable_spawn_result in zip(
+                                    ordered_nodes,
+                                    durable_spawn_results,
+                                    strict=True,
+                                )
                             ],
                             return_exceptions=False,
                             max_concurrency=20,
                         )
 
-                        for i, node in enumerate(ordered_nodes):
-                            node_to_workflow_run_id[node.name] = durable_spawn_results[
-                                i
-                            ].workflow_run_external_id
+                        for name, workflow_run_external_id, result in pairs:
+                            task_name_to_output[name] = result
+                            node_to_workflow_run_id[name] = workflow_run_external_id
 
                         nodes_to_run = {
                             c
@@ -415,6 +435,8 @@ class Hatchet:
                             for c in node.children
                             if all(p.name in node_to_workflow_run_id for p in c.parents)
                         }
+
+                    return task_name_to_output
 
                 dt = self.durable_task(name=workflow.name)(orchestrator)
                 dt._task_name_to_child_task_names = {
