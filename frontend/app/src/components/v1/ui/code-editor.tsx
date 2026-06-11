@@ -97,13 +97,14 @@ export function CodeEditor({
     configureJsonSchema,
   ]);
 
-  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
+  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : 'vs';
 
   return (
     <div
       className={cn(
         className,
         'relative h-fit w-full overflow-hidden rounded-lg',
+        'border border-border',
       )}
     >
       <Editor
@@ -127,7 +128,7 @@ export function CodeEditor({
           theme: editorTheme,
           autoDetectHighContrast: true,
           readOnly: !setCode,
-          scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
+          scrollbar: { vertical: 'hidden', horizontal: 'hidden', alwaysConsumeMouseWheel: false },
           showFoldingControls: language == 'json' ? 'always' : 'never',
           lineDecorationsWidth: 0,
           overviewRulerBorder: false,
