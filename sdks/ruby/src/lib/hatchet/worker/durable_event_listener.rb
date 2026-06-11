@@ -689,14 +689,12 @@ module Hatchet
 
       def parse_entry_completed(completed)
         payload = nil
-        unless completed.is_failure
-          if completed.payload && !completed.payload.empty?
-            begin
-              payload_json = completed.payload.dup.force_encoding("UTF-8")
-              payload = JSON.parse(payload_json)
-            rescue JSON::ParserError
-              payload = nil
-            end
+        if !completed.is_failure && completed.payload && !completed.payload.empty?
+          begin
+            payload_json = completed.payload.dup.force_encoding("UTF-8")
+            payload = JSON.parse(payload_json)
+          rescue JSON::ParserError
+            payload = nil
           end
         end
 
