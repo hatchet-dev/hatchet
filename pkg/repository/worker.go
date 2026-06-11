@@ -122,7 +122,7 @@ type WorkerRepository interface {
 
 	// UpdateWorker updates a worker in the
 	// It will only update the worker if there is no lock on the worker, else it will skip.
-	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) error
+	UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeatAt time.Time) (*sqlcv1.Worker, error)
 
 	// DeleteWorker removes the worker from the database
 	DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error
@@ -761,17 +761,17 @@ func (w *workerRepository) UpdateWorker(ctx context.Context, tenantId uuid.UUID,
 	return worker, nil
 }
 
-func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeat time.Time) error {
-	_, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatParams{
+func (w *workerRepository) UpdateWorkerHeartbeat(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID, lastHeartbeat time.Time) (*sqlcv1.Worker, error) {
+	worker, err := w.queries.UpdateWorkerHeartbeat(ctx, w.pool, sqlcv1.UpdateWorkerHeartbeatParams{
 		ID:              workerId,
 		LastHeartbeatAt: sqlchelpers.TimestampFromTime(lastHeartbeat),
 	})
 
 	if err != nil {
-		return fmt.Errorf("could not update worker heartbeat: %w", err)
+		return nil, fmt.Errorf("could not update worker heartbeat: %w", err)
 	}
 
-	return nil
+	return worker, nil
 }
 
 func (w *workerRepository) DeleteWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) error {

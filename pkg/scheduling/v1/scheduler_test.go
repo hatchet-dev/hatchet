@@ -213,7 +213,7 @@ func TestScheduler_AckNack(t *testing.T) {
 
 	s.ack([]int{123, 999})
 
-	require.True(t, sl.ackd)
+	require.True(t, sl.ackd.Load())
 	require.NotNil(t, sl.expiresAt)
 	require.Empty(t, s.unackedSlots)
 
@@ -224,8 +224,8 @@ func TestScheduler_AckNack(t *testing.T) {
 
 	s.nack([]int{777})
 
-	require.True(t, sl2.ackd)
-	require.False(t, sl2.used)
+	require.True(t, sl2.ackd.Load())
+	require.False(t, sl2.used.Load())
 	require.Empty(t, s.unackedSlots)
 }
 

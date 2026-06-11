@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,8 +37,8 @@ type slot struct {
 	additionalAcks  []func()
 	additionalNacks []func()
 	mu              sync.RWMutex
-	used            bool
-	ackd            bool
+	used            atomic.Bool
+	ackd            atomic.Bool
 }
 
 type assignedSlots struct {
@@ -106,14 +107,11 @@ func (s *slot) active() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return !s.used && s.expiresAt != nil && s.expiresAt.After(time.Now())
+	return !s.used.Load() && s.expiresAt != nil && s.expiresAt.After(time.Now())
 }
 
 func (s *slot) isUsed() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.used
+	return s.used.Load()
 }
 
 func (s *slot) expired() bool {
@@ -127,12 +125,12 @@ func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.used {
+	if s.used.Load() {
 		return false
 	}
 
-	s.used = true
-	s.ackd = false
+	s.used.Store(true)
+	s.ackd.Store(false)
 	s.additionalAcks = additionalAcks
 	s.additionalNacks = additionalNacks
 
@@ -143,7 +141,7 @@ func (s *slot) ack() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.ackd = true
+	s.ackd.Store(true)
 
 	for _, ack := range s.additionalAcks {
 		if ack != nil {
@@ -159,8 +157,8 @@ func (s *slot) nack() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.used = false
-	s.ackd = true
+	s.used.Store(false)
+	s.ackd.Store(true)
 
 	for _, nack := range s.additionalNacks {
 		if nack != nil {

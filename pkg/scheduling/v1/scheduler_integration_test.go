@@ -105,7 +105,8 @@ func createTenantDispatcherWorker(
 	require.NoError(t, err)
 
 	now := time.Now().UTC()
-	require.NoError(t, r.Workers().UpdateWorkerHeartbeat(ctx, tenantId, worker.ID, now))
+	_, err = r.Workers().UpdateWorkerHeartbeat(ctx, tenantId, worker.ID, now)
+	require.NoError(t, err)
 
 	isActive := true
 	isPaused := false

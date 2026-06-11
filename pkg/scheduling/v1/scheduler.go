@@ -7,13 +7,13 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -36,13 +36,14 @@ type Scheduler struct {
 	workersMu mutex
 	workers   map[uuid.UUID]*worker
 
-	assignedCount   int
-	assignedCountMu mutex
+	assignedCount   atomic.Int64
 
 	// unackedSlots are slots which have been assigned to a worker, but have not been flushed
 	// to the database yet. They negatively count towards a worker's available slot count.
 	unackedSlots map[int]*assignedSlots
 	unackedMu    mutex
+
+	wakeupReplenish chan struct{}
 
 	rl   *rateLimiter
 	exts *Extensions
@@ -52,19 +53,20 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
-		repo:            cf.repo.Assignment(),
-		tenantId:        tenantId,
-		l:               &l,
-		actions:         make(map[string]*action),
-		unackedSlots:    make(map[int]*assignedSlots),
-		rl:              rl,
-		actionsMu:       newRWMu(cf.l),
-		replenishMu:     newMu(cf.l),
-		workers:         map[uuid.UUID]*worker{},
-		workersMu:       newMu(cf.l),
-		assignedCountMu: newMu(cf.l),
-		unackedMu:       newMu(cf.l),
-		exts:            exts,
+		repo:             cf.repo.Assignment(),
+		tenantId:         tenantId,
+		l:                &l,
+		actions:          make(map[string]*action),
+		unackedSlots:     make(map[int]*assignedSlots),
+		wakeupReplenish:  make(chan struct{}, 1),
+		rl:               rl,
+		actionsMu:        newRWMu(cf.l),
+		replenishMu:      newMu(cf.l),
+		workers:          map[uuid.UUID]*worker{},
+		workersMu:        newMu(cf.l),
+		assignedCount:    atomic.Int64{},
+		unackedMu:        newMu(cf.l),
+		exts:             exts,
 	}
 }
 
@@ -109,10 +111,16 @@ func (s *Scheduler) setWorkers(workers []*v1.ListActiveWorkersResult) {
 
 func (s *Scheduler) addWorker(newWorker *v1.ListActiveWorkersResult) {
 	s.workersMu.Lock()
-	defer s.workersMu.Unlock()
 
 	s.workers[newWorker.ID] = &worker{
 		ListActiveWorkersResult: newWorker,
+	}
+
+	s.workersMu.Unlock()
+
+	select {
+	case s.wakeupReplenish <- struct{}{}:
+	default:
 	}
 }
 
@@ -159,6 +167,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	for workerId := range workers {
 		workerIds = append(workerIds, workerId)
+	}
+
+	if len(workerIds) == 0 {
+		s.l.Debug().Ctx(ctx).Msg("skipping replenish because no workers")
+		return nil
 	}
 
 	start := time.Now()
@@ -522,41 +535,62 @@ func (s *Scheduler) loopReplenish(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			err := s.replenish(innerCtx, true)
-
-			if err != nil {
-				s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
-			}
-			cancel()
+		case <-s.wakeupReplenish:
 		}
 
+		innerCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		err := s.replenish(innerCtx, true)
+
+		if err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("error replenishing slots")
+		}
+		cancel()
 	}
 }
 
 func (s *Scheduler) loopSnapshot(ctx context.Context) {
-	ticker := randomticker.NewRandomTicker(10*time.Millisecond, 90*time.Millisecond)
-	defer ticker.Stop()
+	const fastMin = 10 * time.Millisecond
+	const fastMax = 90 * time.Millisecond
+	const idleInterval = 5 * time.Second
+
+	timer := time.NewTimer(fastMin)
+	defer timer.Stop()
 
 	count := 0
-	for {
+	idle := false
 
+	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			// require that 1 out of every 20 snapshots is taken
-			must := count%20 == 0
+		case <-timer.C:
+		}
 
-			in, ok := s.getSnapshotInput(must)
+		in, ok := s.getSnapshotInput(count%20 == 0)
 
-			if !ok {
-				continue
+		if !ok {
+			resetTimer(timer, fastMin)
+			continue
+		}
+
+		s.exts.ReportSnapshot(s.tenantId, in)
+		count++
+
+		s.workersMu.Lock()
+		noWorkers := len(s.workers) == 0
+		s.workersMu.Unlock()
+
+		if noWorkers {
+			if !idle {
+				idle = true
+				resetTimer(timer, idleInterval)
 			}
-
-			s.exts.ReportSnapshot(s.tenantId, in)
-
-			count++
+		} else {
+			if idle {
+				idle = false
+			}
+			jitter := time.Duration(rand.Int63n(int64(fastMax - fastMin)))
+			resetTimer(timer, fastMin+jitter)
 		}
 	}
 }
@@ -954,10 +988,7 @@ func (s *Scheduler) tryAssignSingleton(
 		return res, nil
 	}
 
-	s.assignedCountMu.Lock()
-	s.assignedCount++
-	res.ackId = s.assignedCount
-	s.assignedCountMu.Unlock()
+	res.ackId = int(s.assignedCount.Add(1))
 
 	s.unackedMu.Lock()
 	s.unackedSlots[res.ackId] = assignedSlot
@@ -1033,8 +1064,7 @@ func (s *Scheduler) tryAssign(
 		wg := sync.WaitGroup{}
 		startTotal := time.Now()
 
-		extensionResults := make([]*assignResults, 0)
-		extensionResultsMu := sync.Mutex{}
+		extensionResultsCh := make(chan *assignResults, len(actionIdToQueueItems)*2)
 
 		// process each action id in parallel
 		for actionId, qis := range actionIdToQueueItems {
@@ -1116,10 +1146,7 @@ func (s *Scheduler) tryAssign(
 						unassigned:        batchUnassigned,
 					}
 
-					extensionResultsMu.Lock()
-					extensionResults = append(extensionResults, r)
-					extensionResultsMu.Unlock()
-
+					extensionResultsCh <- r
 					resultsCh <- r
 
 					return nil
@@ -1131,7 +1158,16 @@ func (s *Scheduler) tryAssign(
 			}(actionId, qis)
 		}
 
-		wg.Wait()
+		go func() {
+			wg.Wait()
+			close(extensionResultsCh)
+		}()
+
+		extensionResults := make([]*assignResults, 0)
+		for r := range extensionResultsCh {
+			extensionResults = append(extensionResults, r)
+		}
+
 		span.End()
 		close(resultsCh)
 
@@ -1249,4 +1285,13 @@ func isTimedOut(qi *sqlcv1.V1QueueItem) bool {
 	isTimedOut := !scheduleTimeoutAt.IsZero() && scheduleTimeoutAt.Before(now)
 
 	return isTimedOut
+}
+
+func resetTimer(t *time.Timer, d time.Duration) {
+	t.Stop()
+	select {
+	case <-t.C:
+	default:
+	}
+	t.Reset(d)
 }

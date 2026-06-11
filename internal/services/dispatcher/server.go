@@ -225,12 +225,22 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 		s.workers.DeleteForSession(workerId, sessionId)
 	}()
 
-	// update the worker with a last heartbeat time every 5 seconds as long as the worker is connected
-	go func() {
-		timer := time.NewTicker(100 * time.Millisecond)
+	// send an immediate heartbeat on connect
+	now := time.Now().UTC()
+	_, err = s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
+		LastHeartbeatAt: &now,
+		IsActive:        v1.BoolPtr(true),
+	})
 
-		// set the last heartbeat to 6 seconds ago so the first heartbeat is sent immediately
-		lastHeartbeat := time.Now().UTC().Add(-6 * time.Second)
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat on connect", request.WorkerId)
+		}
+	}
+
+	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
+	go func() {
+		timer := time.NewTicker(4 * time.Second)
 		defer timer.Stop()
 
 		for {
@@ -242,24 +252,21 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 				s.l.Debug().Ctx(ctx).Msgf("closing stream for worker id: %s", request.WorkerId)
 				return
 			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(4 * time.Second).Before(now) {
-					s.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", request.WorkerId)
+				s.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", request.WorkerId)
 
-					_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
-						LastHeartbeatAt: &now,
-						IsActive:        v1.BoolPtr(true),
-					})
+				now := time.Now().UTC()
+				_, err := s.repov1.Workers().UpdateWorker(ctx, tenantId, workerId, &v1.UpdateWorkerOpts{
+					LastHeartbeatAt: &now,
+					IsActive:        v1.BoolPtr(true),
+				})
 
-					if err != nil {
-						if errors.Is(err, pgx.ErrNoRows) {
-							return
-						}
-
-						s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
+				if err != nil {
+					if errors.Is(err, pgx.ErrNoRows) {
 						return
 					}
 
-					lastHeartbeat = time.Now().UTC()
+					s.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", request.WorkerId)
+					return
 				}
 			}
 		}
@@ -410,11 +417,12 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		s.l.Warn().Ctx(ctx).Msgf("heartbeat time is greater than expected heartbeat interval")
 	}
 
-	worker, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenantId, workerId)
+	// combined: update heartbeat and return worker data in a single round-trip
+	worker, err := s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
 
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(telemetry_codes.Error, "could not get worker")
+		span.SetStatus(telemetry_codes.Error, "could not update worker heartbeat")
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, status.Errorf(codes.NotFound, "worker not found: %s", req.WorkerId)
 		}
@@ -427,19 +435,6 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 		span.RecordError(err)
 		span.SetStatus(telemetry_codes.Error, "worker stream is not active")
 		return nil, status.Errorf(codes.FailedPrecondition, "Heartbeat rejected: worker stream is not active: %s", req.WorkerId)
-	}
-
-	err = s.repov1.Workers().UpdateWorkerHeartbeat(ctx, tenantId, workerId, heartbeatAt)
-
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(telemetry_codes.Error, "could not update worker heartbeat")
-		if errors.Is(err, pgx.ErrNoRows) {
-			s.l.Error().Ctx(ctx).Msgf("could not update worker heartbeat: worker %s not found", req.WorkerId)
-			return nil, err
-		}
-
-		return nil, err
 	}
 
 	// if the worker doesn't have a previous heartbeat or hasn't heartbeat in 30 seconds, notify downstream components that a
