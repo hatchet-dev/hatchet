@@ -56,6 +56,8 @@ type CreateWorkflowVersionOpts struct {
 	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 
 	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
+
+	TaskNameToChildTaskNames map[string][]string `json:"taskNameToChildTaskNames,omitempty"`
 }
 
 type CreateConcurrencyOpts struct {
@@ -433,6 +435,17 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Valid: true,
 		}
 	}
+
+	if len(opts.TaskNameToChildTaskNames) > 0 {
+		taskNameToChildTaskNamesJson, err := json.Marshal(opts.TaskNameToChildTaskNames)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not marshal taskNameToChildTaskNames: %w", err)
+		}
+
+		createParams.TaskNameToChildTaskNames = taskNameToChildTaskNamesJson
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,

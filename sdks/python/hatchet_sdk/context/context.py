@@ -1018,6 +1018,7 @@ class DurableContext(Context):
                         workflow_name=c.workflow_name,
                         input=c.input,
                         run_workflow_opts=c.options,
+                        dag_parent_workflow_run_ids=c.dag_parent_workflow_run_ids,
                     )
                     for c in configs
                 ]
@@ -1057,6 +1058,18 @@ class DurableContext(Context):
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
+
+        if result.is_failure:
+            error = TaskRunError(
+                exc=result.error_message or "child workflow failed",
+                exc_type="ChildWorkflowError",
+                trace="",
+                task_run_external_id=None,
+            )
+            logger.error(
+                f"failed child workflow: {workflow_name}\n{error.serialize(include_metadata=False)}"
+            )
+            raise error
 
         return result.payload or {}
 

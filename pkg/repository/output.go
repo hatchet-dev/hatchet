@@ -168,6 +168,16 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 				if err := json.Unmarshal(entries[0], &event); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 				}
+				if event.IsFailure {
+					b, err := json.Marshal(map[string]any{
+						"is_failure":    true,
+						"error_message": event.ErrorMessage,
+					})
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal failure payload: %w", err)
+					}
+					return b, nil
+				}
 				return event.Output, nil
 			}
 		}
@@ -183,7 +193,16 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 				return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 			}
 
-			if len(event.Output) > 0 {
+			if event.IsFailure {
+				b, err := json.Marshal(map[string]any{
+					"is_failure":    true,
+					"error_message": event.ErrorMessage,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal failure payload: %w", err)
+				}
+				aggregated[key] = b
+			} else if len(event.Output) > 0 {
 				aggregated[key] = json.RawMessage(event.Output)
 			}
 		}

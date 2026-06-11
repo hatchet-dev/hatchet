@@ -92,6 +92,9 @@ enum RunStatus {
     EVICTED = 5;
 }
 
+message ChildTaskList {
+    repeated string child_task_name = 1;
+}
 
 // CreateWorkflowVersionRequest represents options to create a workflow version.
 message CreateWorkflowVersionRequest {
@@ -111,6 +114,7 @@ message CreateWorkflowVersionRequest {
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
     repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
     optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
+    map<string, ChildTaskList> task_name_to_child_names = 15;
 }
 
 

@@ -3,6 +3,7 @@ import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
+from collections import defaultdict
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -42,9 +43,9 @@ from hatchet_sdk.runnables.types import (
 from hatchet_sdk.runnables.workflow import (
     BaseWorkflow,
     Standalone,
+    TriggerWorkflowOptions,
     Workflow,
     WorkflowRunTriggerConfig,
-    TriggerWorkflowOptions,
 )
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
@@ -292,6 +293,8 @@ class Hatchet:
                 )
 
             if isinstance(workflow, Workflow):
+                task_name_to_child_task_names: dict[str, set[str]] = defaultdict(set)
+
                 for task in workflow.tasks:
                     st = (
                         self.durable_task(
@@ -302,7 +305,8 @@ class Hatchet:
                             on_crons=workflow.config.on_crons,
                             version=workflow.config.version,
                             sticky=workflow.config.sticky,
-                            default_priority=workflow.config.default_priority,
+                            default_priority=workflow.config.default_priority
+                            or Priority.LOW,
                             concurrency=workflow.config.concurrency,
                             default_filters=workflow.config.default_filters,
                             default_additional_metadata=workflow.config.default_additional_metadata,
@@ -316,18 +320,27 @@ class Hatchet:
                             on_crons=workflow.config.on_crons,
                             version=workflow.config.version,
                             sticky=workflow.config.sticky,
-                            default_priority=workflow.config.default_priority,
+                            default_priority=workflow.config.default_priority
+                            or Priority.LOW,
                             concurrency=workflow.config.concurrency,
                             default_filters=workflow.config.default_filters,
                             default_additional_metadata=workflow.config.default_additional_metadata,
                         )(task._fn)
                     )
                     unpacked_workflows.append(st)
+                    for p in task.parents:
+                        task_name_to_child_task_names[p.name] = (
+                            task_name_to_child_task_names[p.name].union({task.name})
+                        )
 
                 async def orchestrator(
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> None:
                     g = Graph()
+                    # task_name_to_child_names: dict[str, list[str]] = {}
+
+                    # for task in workflow.tasks:
+                    #     task_name_to_child_names[task.name] = []
 
                     ## stub for now
                     orch_ctx = HatchetWorkflowShape(
@@ -349,20 +362,30 @@ class Hatchet:
                             g.add_edge(task.name, child)
 
                     nodes_to_run = g.roots
+                    # maps node name -> workflow_run_external_id of its completed run
+                    node_to_workflow_run_id: dict[str, str] = {}
+
                     while nodes_to_run:
+                        ordered_nodes = list(nodes_to_run)
                         ctx.log(
                             "running the orchestrator, nodes to run: "
-                            + ", ".join(node.name for node in nodes_to_run)
+                            + ", ".join(node.name for node in ordered_nodes)
                         )
 
                         durable_spawn_results = await ctx._spawn_children_no_wait(
                             [
                                 WorkflowRunTriggerConfig(
                                     workflow_name=node.name,
-                                    input=input.model_dump_json(),
+                                    input=input.model_dump_json(),  # note: this won't work with dataclasses, need a type adapter here somehow
                                     options=TriggerWorkflowOptions(),
+                                    dag_parent_workflow_run_ids=[
+                                        node_to_workflow_run_id[p.name]
+                                        for p in node.parents
+                                        if p.name in node_to_workflow_run_id
+                                    ]
+                                    or None,
                                 )
-                                for node in nodes_to_run
+                                for node in ordered_nodes
                             ]
                         )
                         if not durable_spawn_results:
@@ -372,7 +395,7 @@ class Hatchet:
 
                         import asyncio
 
-                        results = await asyncio.gather(
+                        await asyncio.gather(
                             *[
                                 ctx._aio_result_for_spawned_child(
                                     node_id=durable_spawn_result.node_id,
@@ -384,18 +407,23 @@ class Hatchet:
                             return_exceptions=False,
                         )
 
-                        print("results", results)
+                        for i, node in enumerate(ordered_nodes):
+                            node_to_workflow_run_id[node.name] = durable_spawn_results[
+                                i
+                            ].workflow_run_external_id
 
                         nodes_to_run = {
                             c
-                            for node in nodes_to_run
+                            for node in ordered_nodes
                             for c in node.children
                             if node and node.children
                         }
 
-                dt = self.durable_task(name=workflow.name + "_orchestrator")(
-                    orchestrator
-                )
+                dt = self.durable_task(name=workflow.name)(orchestrator)
+                dt._task_name_to_child_task_names = {
+                    parent: list(children)
+                    for parent, children in task_name_to_child_task_names.items()
+                }
 
                 unpacked_workflows.append(dt)
             elif isinstance(workflow, Standalone):

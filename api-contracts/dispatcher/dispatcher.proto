@@ -126,6 +126,12 @@ enum ActionType {
     START_GET_GROUP_KEY = 2;
 }
 
+// fixme: remove duplicate
+message ChildTaskList {
+    repeated string child_task_name = 1;
+}
+
+
 message AssignedAction {
     // the tenant id
     string tenant_id = 1;
@@ -195,6 +201,8 @@ message AssignedAction {
 
     // (optional) the key of the event that triggered this workflow run (if any)
     optional string triggering_event_key = 23;
+
+    map<string, ChildTaskList> task_name_to_child_names = 24;
 }
 
 message WorkerListenRequest {

@@ -635,7 +635,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData, nil)
+						opt.Input = m.newTaskInput(input, matchData, nil, nil)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:
 						opt.InitialState = sqlcv1.V1TaskInitialStateCANCELLED
@@ -657,7 +657,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					switch matchData.Action() {
 					case sqlcv1.V1MatchConditionActionQUEUE:
-						opt.Input = m.newTaskInput(input, matchData, nil)
+						opt.Input = m.newTaskInput(input, matchData, nil, nil)
 						opt.DesiredWorkerId = m.DesiredWorkerId(opt.Input)
 						opt.InitialState = sqlcv1.V1TaskInitialStateQUEUED
 					case sqlcv1.V1MatchConditionActionCANCEL:

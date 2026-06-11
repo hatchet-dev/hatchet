@@ -71,6 +71,9 @@ type TriggerTaskData struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
+
+	// (optional) workflow run external IDs of parent tasks in a durable DAG orchestration
+	DagParentWorkflowRunIds []string `json:"dag_parent_workflow_run_ids,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -586,6 +589,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
+	dagParentWorkflowRunIds   []string
 }
 
 type createCoreUserEventOpts struct {
@@ -1017,7 +1021,7 @@ func (r *sharedRepository) triggerWorkflows(
 						ExternalId:                taskExternalId,
 						WorkflowRunId:             tuple.externalId,
 						StepId:                    step.ID,
-						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload),
+						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentWorkflowRunIds),
 						AdditionalMetadata:        tuple.additionalMetadata,
 						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
 						DesiredWorkerId:           tuple.desiredWorkerId,
@@ -2361,6 +2365,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				dagParentWorkflowRunIds: opt.DagParentWorkflowRunIds,
 			})
 		}
 	}
@@ -2467,7 +2472,54 @@ func (r *sharedRepository) NewTriggerTaskData(
 		)
 	}
 
+	if len(req.DagParentWorkflowRunIds) > 0 {
+		t.DagParentWorkflowRunIds = req.DagParentWorkflowRunIds
+	}
+
 	return t, nil
+}
+
+func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Context, tenantId uuid.UUID, parentTaskExternalIds []uuid.UUID) (map[string]json.RawMessage, error) {
+	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, r.pool, parentTaskExternalIds)
+	if err != nil {
+		return nil, err
+	}
+
+	retrieveOpts := make([]RetrievePayloadOpts, 0, len(rows))
+	retrieveOptToRow := make(map[RetrievePayloadOpts]*sqlcv1.ListTaskOutputEventIdsByTaskRunExternalIdsRow, len(rows))
+
+	for _, row := range rows {
+		opt := RetrievePayloadOpts{
+			Id:         row.TaskEventID,
+			InsertedAt: row.TaskEventInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   tenantId,
+			ExternalId: row.OutputEventExternalID,
+		}
+		retrieveOpts = append(retrieveOpts, opt)
+		retrieveOptToRow[opt] = row
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
+	}
+
+	result := make(map[string]json.RawMessage, len(rows))
+
+	for _, payload := range payloads {
+		e, err := newTaskEventFromBytes(payload)
+		if err != nil {
+			r.l.Warn().Ctx(ctx).Msgf("failed to parse parent task output: %v", err)
+			continue
+		}
+
+		if e.IsCompleted() {
+			result[e.StepReadableID] = json.RawMessage(e.Output)
+		}
+	}
+
+	return result, nil
 }
 
 func injectParentIDs(additionalMetadata []byte, parentWorkflowRunID, parentStepRunID uuid.UUID) []byte {

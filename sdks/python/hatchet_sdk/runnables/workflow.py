@@ -32,7 +32,10 @@ from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateWorkflowVersionRequest,
 )
-from hatchet_sdk.contracts.v1.workflows_pb2 import StickyStrategy as StickyStrategyProto
+from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    StickyStrategy as StickyStrategyProto,
+    ChildTaskList,
+)
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
 from hatchet_sdk.rate_limit import RateLimit
@@ -155,6 +158,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._on_failure_task: Task[TWorkflowInput, Any] | None = None
         self._on_success_task: Task[TWorkflowInput, Any] | None = None
         self._client = client
+        self._task_name_to_child_task_names: dict[str, list[str]] = {}
 
     @property
     def config(self) -> WorkflowConfig:
@@ -246,6 +250,8 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             except Exception:
                 json_schema = None
 
+        print(self._task_name_to_child_task_names)
+
         return CreateWorkflowVersionRequest(
             name=name,
             description=self._config.description,
@@ -264,6 +270,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
+            task_name_to_child_names={
+                task_name: ChildTaskList(child_task_name=child_names)
+                for task_name, child_names in self._task_name_to_child_task_names.items()
+            },
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:

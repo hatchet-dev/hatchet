@@ -1086,6 +1086,7 @@ CREATE TABLE
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
+        "taskNameToChildTaskNames" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

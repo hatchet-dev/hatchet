@@ -260,13 +260,15 @@ func (d *DispatcherImpl) populateTaskData(
 	}
 
 	for _, task := range bulkDatas {
-		input, ok := inputs[v1.RetrievePayloadOpts{
+		payloadKey := v1.RetrievePayloadOpts{
 			Id:         task.ID,
 			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
 			TenantId:   task.TenantID,
 			ExternalId: task.ExternalID,
-		}]
+		}
+
+		input, ok := inputs[payloadKey]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
@@ -274,27 +276,57 @@ func (d *DispatcherImpl) populateTaskData(
 			input = task.Input
 		}
 
-		if parentData, ok := parentDataMap[task.ID]; ok {
-			currInput := &v1.V1StepRunData{}
+		currInput := &v1.V1StepRunData{}
 
-			if input != nil {
-				err := json.Unmarshal(input, currInput)
+		if input != nil {
+			if err := json.Unmarshal(input, currInput); err != nil {
+				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
+				continue
+			}
+		}
 
+		if len(currInput.DagParentWorkflowRunIds) > 0 {
+			parentExternalIds := make([]uuid.UUID, 0, len(currInput.DagParentWorkflowRunIds))
+
+			for _, idStr := range currInput.DagParentWorkflowRunIds {
+				id, err := uuid.Parse(idStr)
 				if err != nil {
-					d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal input")
+					d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to parse dag parent workflow run id: %s", idStr)
 					continue
 				}
+
+				parentExternalIds = append(parentExternalIds, id)
 			}
 
+			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, parentExternalIds)
+
+			if err != nil {
+				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to look up dag parent outputs")
+			} else {
+				parents := make(map[string]map[string]interface{})
+
+				for stepReadableId, rawOutput := range dagParentOutputs {
+					outputMap := make(map[string]interface{})
+
+					if err := json.Unmarshal(rawOutput, &outputMap); err != nil {
+						d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to unmarshal dag parent output for %s", stepReadableId)
+						continue
+					}
+
+					parents[stepReadableId] = outputMap
+				}
+
+				currInput.Parents = parents
+				inputs[payloadKey] = currInput.Bytes()
+			}
+		} else if parentData, ok := parentDataMap[task.ID]; ok {
 			readableIdToData := make(map[string]map[string]interface{})
 
 			for _, outputEvent := range parentData {
 				outputMap := make(map[string]interface{})
 
 				if len(outputEvent.Output) > 0 {
-					err := json.Unmarshal(outputEvent.Output, &outputMap)
-
-					if err != nil {
+					if err := json.Unmarshal(outputEvent.Output, &outputMap); err != nil {
 						d.l.Warn().Ctx(ctx).Err(err).Msg("failed to unmarshal output")
 						continue
 					}
@@ -304,14 +336,7 @@ func (d *DispatcherImpl) populateTaskData(
 			}
 
 			currInput.Parents = readableIdToData
-
-			inputs[v1.RetrievePayloadOpts{
-				Id:         task.ID,
-				InsertedAt: task.InsertedAt,
-				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				TenantId:   task.TenantID,
-				ExternalId: task.ExternalID,
-			}] = currInput.Bytes()
+			inputs[payloadKey] = currInput.Bytes()
 		}
 	}
 

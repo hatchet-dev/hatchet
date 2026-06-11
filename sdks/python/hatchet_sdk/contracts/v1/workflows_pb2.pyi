@@ -153,8 +153,21 @@ class BranchDurableTaskResponse(_message.Message):
     branch_id: int
     def __init__(self, task_external_id: _Optional[str] = ..., node_id: _Optional[int] = ..., branch_id: _Optional[int] = ...) -> None: ...
 
+class ChildTaskList(_message.Message):
+    __slots__ = ("child_task_name",)
+    CHILD_TASK_NAME_FIELD_NUMBER: _ClassVar[int]
+    child_task_name: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, child_task_name: _Optional[_Iterable[str]] = ...) -> None: ...
+
 class CreateWorkflowVersionRequest(_message.Message):
-    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema")
+    __slots__ = ("name", "description", "version", "event_triggers", "cron_triggers", "tasks", "concurrency", "cron_input", "on_failure_task", "sticky", "default_priority", "concurrency_arr", "default_filters", "input_json_schema", "task_name_to_child_names")
+    class TaskNameToChildNamesEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: ChildTaskList
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[ChildTaskList, _Mapping]] = ...) -> None: ...
     NAME_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     VERSION_FIELD_NUMBER: _ClassVar[int]
@@ -169,6 +182,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     CONCURRENCY_ARR_FIELD_NUMBER: _ClassVar[int]
     DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
     INPUT_JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
+    TASK_NAME_TO_CHILD_NAMES_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -183,7 +197,8 @@ class CreateWorkflowVersionRequest(_message.Message):
     concurrency_arr: _containers.RepeatedCompositeFieldContainer[Concurrency]
     default_filters: _containers.RepeatedCompositeFieldContainer[DefaultFilter]
     input_json_schema: bytes
-    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ...) -> None: ...
+    task_name_to_child_names: _containers.MessageMap[str, ChildTaskList]
+    def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ..., task_name_to_child_names: _Optional[_Mapping[str, ChildTaskList]] = ...) -> None: ...
 
 class DefaultFilter(_message.Message):
     __slots__ = ("expression", "scope", "payload")

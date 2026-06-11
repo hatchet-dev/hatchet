@@ -31,6 +31,7 @@ class WorkflowRunTriggerConfig(BaseModel):
     input: str | None
     options: TriggerWorkflowOptions
     key: str | None = None
+    dag_parent_workflow_run_ids: list[str] | None = None
 
 
 class PushEventOptions(BaseModel):

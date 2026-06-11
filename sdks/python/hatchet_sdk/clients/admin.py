@@ -183,6 +183,7 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
+        dag_parent_workflow_run_ids: list[str] | None = None,
     ) -> trigger_protos.TriggerWorkflowRequest:
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
 
@@ -219,6 +220,7 @@ class AdminClient:
             desired_worker_id=_options.desired_worker_id,
             priority=_options.priority,
             desired_worker_labels=desired_worker_labels,
+            dag_parent_workflow_run_ids=dag_parent_workflow_run_ids or [],
         )
 
     def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
@@ -364,6 +366,7 @@ class AdminClient:
         workflow_name: str,
         input: str | None,
         options: TriggerWorkflowOptions,
+        dag_parent_workflow_run_ids: list[str] | None = None,
     ) -> trigger_protos.TriggerWorkflowRequest:
         workflow_run_id = ctx_workflow_run_id.get()
         step_run_id = ctx_step_run_id.get()
@@ -401,7 +404,9 @@ class AdminClient:
 
         workflow_name = self.config.apply_namespace(workflow_name, namespace)
 
-        return self._prepare_workflow_request(workflow_name, input, trigger_options)
+        return self._prepare_workflow_request(
+            workflow_name, input, trigger_options, dag_parent_workflow_run_ids
+        )
 
     def run_workflow(
         self,
