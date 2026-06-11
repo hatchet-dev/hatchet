@@ -856,7 +856,7 @@ WITH inputs AS (
         is_satisfied = true,
         satisfied_at = COALESCE(satisfied_at, NOW()),
         child_task_is_failure = inputs.child_task_is_failure,
-        child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN inputs.child_task_error_message ELSE NULL END
+        child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN NULLIF(inputs.child_task_error_message, '') ELSE NULL END
     FROM inputs
     WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
       AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
