@@ -30,11 +30,11 @@ from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.conditions import Condition, OrGroup
 from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
+    ChildTaskList,
     CreateWorkflowVersionRequest,
 )
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     StickyStrategy as StickyStrategyProto,
-    ChildTaskList,
 )
 from hatchet_sdk.contracts.workflows_pb2 import WorkflowVersion
 from hatchet_sdk.labels import DesiredWorkerLabel
@@ -249,8 +249,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 ).encode("utf-8")
             except Exception:
                 json_schema = None
-
-        print(self._task_name_to_child_task_names)
 
         return CreateWorkflowVersionRequest(
             name=name,

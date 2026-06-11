@@ -224,6 +224,8 @@ type WorkflowRepository interface {
 
 	GetWorkflowVersionById(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 
+	GetWorkflowVersionsByIds(ctx context.Context, tenantId uuid.UUID, workflowVersionIds []uuid.UUID) ([]*sqlcv1.GetWorkflowVersionForEngineRow, error)
+
 	// DeleteWorkflow deletes a workflow for a given tenant.
 	DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error)
 
@@ -1242,6 +1244,13 @@ func (r *workflowRepository) GetWorkflowVersionById(ctx context.Context, tenantI
 	}
 
 	return versions[0], nil
+}
+
+func (r *workflowRepository) GetWorkflowVersionsByIds(ctx context.Context, tenantId uuid.UUID, workflowVersionIds []uuid.UUID) ([]*sqlcv1.GetWorkflowVersionForEngineRow, error) {
+	return r.queries.GetWorkflowVersionForEngine(ctx, r.pool, sqlcv1.GetWorkflowVersionForEngineParams{
+		Tenantid: tenantId,
+		Ids:      workflowVersionIds,
+	})
 }
 
 func (r *workflowRepository) DeleteWorkflow(ctx context.Context, tenantId uuid.UUID, workflowId uuid.UUID) (*sqlcv1.Workflow, error) {

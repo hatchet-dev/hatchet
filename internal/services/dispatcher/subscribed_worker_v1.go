@@ -14,7 +14,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
-	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -22,8 +21,7 @@ import (
 func (worker *subscribedWorker) StartTaskFromBulk(
 	ctx context.Context,
 	tenantId uuid.UUID,
-	task *v1.V1TaskWithPayload,
-	durableInvocationCount *int32,
+	task *V1TaskWithPayloadAndInvocationCount,
 ) error {
 	if ctx.Err() != nil {
 		return fmt.Errorf("context done before starting task: %w", ctx.Err())
@@ -38,7 +36,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount, durableInvocationCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount, task.InvocationCount, task.TaskNameToChildTaskNames)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -158,7 +156,7 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, retryCount, nil)
+	action := populateAssignedAction(tenantId, task, retryCount, nil, nil)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -208,7 +206,7 @@ func (worker *subscribedWorker) CancelTask(
 	return nil
 }
 
-func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32, invocationCount *int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32, invocationCount *int32, taskNameToChildTaskNames map[string][]string) *contracts.AssignedAction {
 	workflowId := task.WorkflowID.String()
 	workflowVersionId := task.WorkflowVersionID.String()
 
@@ -257,6 +255,15 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 	if task.TriggeringEventKey.Valid {
 		triggeringEventKey := task.TriggeringEventKey.String
 		action.TriggeringEventKey = &triggeringEventKey
+	}
+
+	if len(taskNameToChildTaskNames) > 0 {
+		action.TaskNameToChildNames = make(map[string]*contracts.ChildTaskList, len(taskNameToChildTaskNames))
+		for taskName, childNames := range taskNameToChildTaskNames {
+			action.TaskNameToChildNames[taskName] = &contracts.ChildTaskList{
+				ChildTaskName: childNames,
+			}
+		}
 	}
 
 	return action

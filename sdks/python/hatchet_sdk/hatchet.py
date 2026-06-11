@@ -1,9 +1,9 @@
 import logging
 import warnings
+from collections import defaultdict
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Concatenate, ParamSpec, overload
-from collections import defaultdict
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -52,6 +52,7 @@ from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
 from hatchet_sdk.types.sticky import StickyStrategy
+from hatchet_sdk.utils.aio import gather_max_concurrency
 from hatchet_sdk.utils.slots import normalize_slot_config, resolve_worker_slot_config
 from hatchet_sdk.utils.timedelta_to_expression import Duration
 from hatchet_sdk.utils.typing import CoroutineLike, JSONSerializableMapping
@@ -337,23 +338,12 @@ class Hatchet:
                     input: TWorkflowInput, ctx: DurableContext
                 ) -> None:
                     g = Graph()
-                    # task_name_to_child_names: dict[str, list[str]] = {}
-
-                    # for task in workflow.tasks:
-                    #     task_name_to_child_names[task.name] = []
 
                     ## stub for now
                     orch_ctx = HatchetWorkflowShape(
                         tasks=[
-                            TaskWithDependencies(
-                                name="step1", child_task_names=["step2", "step3"]
-                            ),
-                            TaskWithDependencies(
-                                name="step2", child_task_names=["step4"]
-                            ),
-                            TaskWithDependencies(
-                                name="step3", child_task_names=["step4"]
-                            ),
+                            TaskWithDependencies(name=t, child_task_names=c)
+                            for t, c in ctx._action.task_name_to_child_names.items()
                         ]
                     )
 
@@ -393,9 +383,7 @@ class Hatchet:
                                 "Failed to spawn durable child workflow: no run references returned"
                             )
 
-                        import asyncio
-
-                        await asyncio.gather(
+                        await gather_max_concurrency(
                             *[
                                 ctx._aio_result_for_spawned_child(
                                     node_id=durable_spawn_result.node_id,
@@ -416,7 +404,7 @@ class Hatchet:
                             c
                             for node in ordered_nodes
                             for c in node.children
-                            if node and node.children
+                            if all(p.name in node_to_workflow_run_id for p in c.parents)
                         }
 
                 dt = self.durable_task(name=workflow.name)(orchestrator)

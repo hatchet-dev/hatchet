@@ -156,6 +156,39 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 		}
 	}
 
+	localVersionIdSet := make(map[uuid.UUID]struct{})
+	for _, assigned := range tasks {
+		localVersionIdSet[assigned.Task.WorkflowVersionID] = struct{}{}
+	}
+
+	localVersionIds := make([]uuid.UUID, 0, len(localVersionIdSet))
+	for id := range localVersionIdSet {
+		localVersionIds = append(localVersionIds, id)
+	}
+
+	localWorkflowVersions, wvErr := d.repov1.Workflows().GetWorkflowVersionsByIds(ctx, tenantId, localVersionIds)
+	if wvErr != nil {
+		d.l.Warn().Ctx(ctx).Err(wvErr).Msg("could not fetch workflow versions for taskNameToChildTaskNames")
+	} else {
+		localVersionToChildMap := make(map[uuid.UUID]map[string][]string)
+		for _, wv := range localWorkflowVersions {
+			if len(wv.WorkflowVersion.TaskNameToChildTaskNames) == 0 {
+				continue
+			}
+			var m map[string][]string
+			if err := json.Unmarshal(wv.WorkflowVersion.TaskNameToChildTaskNames, &m); err != nil {
+				d.l.Warn().Ctx(ctx).Err(err).Msgf("could not unmarshal taskNameToChildTaskNames for version %s", wv.WorkflowVersion.ID)
+				continue
+			}
+			localVersionToChildMap[wv.WorkflowVersion.ID] = m
+		}
+		for _, data := range taskIdToData {
+			if m, ok := localVersionToChildMap[data.V1Task.WorkflowVersionID]; ok {
+				data.TaskNameToChildTaskNames = m
+			}
+		}
+	}
+
 	// this is one of the core differences from handleTaskBulkAssignedTask: we run this synchronously
 	// so that we continue to use an optimistic scheduling semaphore slot until all tasks have been sent
 	// to the worker
@@ -170,7 +203,8 @@ func (d *DispatcherImpl) HandleLocalAssignments(ctx context.Context, tenantId, w
 
 type V1TaskWithPayloadAndInvocationCount struct {
 	*v1.V1TaskWithPayload
-	InvocationCount *int32 // only used for durable tasks
+	InvocationCount          *int32 // only used for durable tasks
+	TaskNameToChildTaskNames map[string][]string
 }
 
 func (d *DispatcherImpl) populateTaskData(
@@ -363,11 +397,44 @@ func (d *DispatcherImpl) populateTaskData(
 		}]
 
 		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
-			&v1.V1TaskWithPayload{
+			V1TaskWithPayload: &v1.V1TaskWithPayload{
 				V1Task:  task,
 				Payload: input,
 			},
-			invocationCount,
+			InvocationCount: invocationCount,
+		}
+	}
+
+	versionIdSet := make(map[uuid.UUID]struct{})
+	for _, task := range bulkDatas {
+		versionIdSet[task.WorkflowVersionID] = struct{}{}
+	}
+
+	versionIds := make([]uuid.UUID, 0, len(versionIdSet))
+	for id := range versionIdSet {
+		versionIds = append(versionIds, id)
+	}
+
+	workflowVersions, wvErr := d.repov1.Workflows().GetWorkflowVersionsByIds(ctx, tenantId, versionIds)
+	if wvErr != nil {
+		d.l.Warn().Ctx(ctx).Err(wvErr).Msg("could not fetch workflow versions for taskNameToChildTaskNames")
+	} else {
+		versionToChildMap := make(map[uuid.UUID]map[string][]string)
+		for _, wv := range workflowVersions {
+			if len(wv.WorkflowVersion.TaskNameToChildTaskNames) == 0 {
+				continue
+			}
+			var m map[string][]string
+			if err := json.Unmarshal(wv.WorkflowVersion.TaskNameToChildTaskNames, &m); err != nil {
+				d.l.Warn().Ctx(ctx).Err(err).Msgf("could not unmarshal taskNameToChildTaskNames for version %s", wv.WorkflowVersion.ID)
+				continue
+			}
+			versionToChildMap[wv.WorkflowVersion.ID] = m
+		}
+		for _, data := range taskIdToData {
+			if m, ok := versionToChildMap[data.V1Task.WorkflowVersionID]; ok {
+				data.TaskNameToChildTaskNames = m
+			}
 		}
 	}
 
@@ -409,7 +476,7 @@ func (d *DispatcherImpl) sendTasksToWorker(
 			var success bool
 
 			for i, w := range workers {
-				err := w.StartTaskFromBulk(ctx, tenantId, task.V1TaskWithPayload, task.InvocationCount)
+				err := w.StartTaskFromBulk(ctx, tenantId, task)
 
 				if err != nil {
 					multiErr = multierror.Append(

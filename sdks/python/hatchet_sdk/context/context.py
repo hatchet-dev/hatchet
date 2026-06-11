@@ -116,6 +116,7 @@ class Context:
         task_name: str,
         workflow_name: str,
         worker_labels: list[WorkerLabel],
+        input_validator_adapter: TypeAdapter[Any],
     ):
         self._worker = worker
 
@@ -142,6 +143,7 @@ class Context:
         self._workflow_name = workflow_name
         self._task_name = task_name
         self._worker_labels = worker_labels
+        self._input_validator_adapter = input_validator_adapter
 
     @property
     def worker(self) -> WorkerContext:
@@ -759,6 +761,7 @@ class DurableContext(Context):
         task_name: str,
         workflow_name: str,
         worker_labels: list[WorkerLabel],
+        input_validator_adapter: TypeAdapter[Any],
         durable_eviction_manager: DurableEvictionManager | None = None,
         engine_version: str | None = None,
     ):
@@ -776,6 +779,7 @@ class DurableContext(Context):
             task_name,
             workflow_name,
             worker_labels,
+            input_validator_adapter,
         )
 
         self._wait_index = 0
