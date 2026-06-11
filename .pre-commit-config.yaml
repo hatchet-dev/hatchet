@@ -14,7 +14,7 @@ repos:
       - id: check-yaml
         exclude: (^examples/|^cmd/hatchet-cli/cli/templates/)
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.8.0
+    rev: v2.12.2
     hooks:
       - id: golangci-lint
         args: ["--config=.golangci.yml", "--allow-parallel-runners"]

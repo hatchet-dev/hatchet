@@ -87,6 +87,7 @@ V1WebhookGetDeleteReceiveUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+    summary: Delete a webhook
     tags:
       - Webhook
   post:
@@ -114,18 +115,18 @@ V1WebhookGetDeleteReceiveUpdate:
       description: Any payload in any format
       required: false
       content:
-      text/plain:
-        schema:
-          type: string
+        text/plain:
+          schema:
+            type: string
     responses:
-      '200':
-        description: 'Success with response payload'
+      "200":
+        description: "Success with response payload"
         content:
           application/json:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/V1WebhookResponse"
-      '204':
-        description: 'Success with no response payload'
+      "204":
+        description: "Success with no response payload"
       "400":
         content:
           application/json:
@@ -196,7 +197,6 @@ V1WebhookGetDeleteReceiveUpdate:
     summary: Update a webhook
     tags:
       - Webhook
-
 
 V1WebhookListCreate:
   get:

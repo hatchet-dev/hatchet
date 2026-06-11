@@ -33,3 +33,13 @@ func TestSignature(t *testing.T) {
 		})
 	}
 }
+
+func TestVerify(t *testing.T) {
+	sig, err := Sign("hello world", "secret")
+	assert.NoError(t, err)
+
+	assert.True(t, Verify("hello world", "secret", sig))
+	assert.False(t, Verify("hello world", "secret", "deadbeef"))
+	assert.False(t, Verify("hello world", "wrong-secret", sig))
+	assert.False(t, Verify("tampered", "secret", sig))
+}

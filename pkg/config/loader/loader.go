@@ -783,6 +783,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.AllowedOrigins = getStrArr(cf.Runtime.AllowedOriginsString)
 	}
 
+	if cf.Runtime.OperatorInfraBlockedCIDRsString != "" {
+		cf.Runtime.OperatorInfraBlockedCIDRs = getStrArr(cf.Runtime.OperatorInfraBlockedCIDRsString)
+	}
+
 	if cf.Runtime.Monitoring.TLSRootCAFile == "" {
 		cf.Runtime.Monitoring.TLSRootCAFile = cf.TLS.TLSRootCAFile
 	}

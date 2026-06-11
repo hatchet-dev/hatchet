@@ -18,6 +18,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/go-connections v0.7.0
 	github.com/docker/go-sdk/context v0.1.0-alpha013
+	github.com/doyensec/safeurl v0.2.4
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.24.0
 	github.com/fatih/color v1.19.0

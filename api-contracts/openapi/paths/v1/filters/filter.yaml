@@ -92,6 +92,7 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+    summary: Delete a filter
     tags:
       - Filter
   patch:
@@ -149,6 +150,7 @@ V1FilterGetDeleteUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Not found
+    summary: Update a filter
     tags:
       - Filter
 

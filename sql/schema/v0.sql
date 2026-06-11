@@ -858,6 +858,7 @@ CREATE TABLE "Worker" (
     "isPaused" BOOLEAN NOT NULL DEFAULT false,
     "type" "WorkerType" NOT NULL DEFAULT 'SELFHOSTED',
     "webhookId" UUID,
+    "operatorId" UUID,
     "language" "WorkerSDKS",
     "languageVersion" TEXT,
     "os" TEXT,
