@@ -101,13 +101,7 @@ func TestSubBufferFlushesWhenFull(t *testing.T) {
 // TestMsgIdBufferMemoryLeak verifies that the semaphore releaser reuses timers
 // and doesn't create unbounded goroutines or memory leaks
 func TestMsgIdBufferMemoryLeak(t *testing.T) {
-	// The flush loop reads up to SUB_BUFFER_SIZE messages. Set it to match the
-	// bufferSize below so throughput is independent of the global default.
 	const testBufSize = 100
-	origSize := SUB_BUFFER_SIZE
-	SUB_BUFFER_SIZE = testBufSize
-	defer func() { SUB_BUFFER_SIZE = origSize }()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

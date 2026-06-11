@@ -10,19 +10,19 @@ import (
 // nolint: staticcheck
 func init() {
 	if v := os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			PUB_FLUSH_INTERVAL = d
 			SUB_FLUSH_INTERVAL = d
 		}
 	}
 	if v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			PUB_BUFFER_SIZE = n
 			SUB_BUFFER_SIZE = n
 		}
 	}
 	if v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			PUB_MAX_CONCURRENCY = n
 			SUB_MAX_CONCURRENCY = n
 		}
@@ -93,6 +93,7 @@ func (c *bufferCore) startFlusher(ctx context.Context, flush func()) {
 func (c *bufferCore) startSemaphoreReleaser(ctx context.Context, bufLen func() int, flush func()) {
 	go func() {
 		timer := time.NewTimer(0)
+		<-timer.C // drain initial tick so the first Reset doesn't wake immediately
 		defer timer.Stop()
 
 		for {
@@ -107,8 +108,20 @@ func (c *bufferCore) startSemaphoreReleaser(ctx context.Context, bufLen func() i
 					case <-timer.C:
 					case <-c.capacityRelease: // buffer hit capacity mid-interval
 						wasEarlyRelease = true
+						if !timer.Stop() {
+							select {
+							case <-timer.C:
+							default:
+							}
+						}
 					case <-ctx.Done():
-						return
+					return
+					}
+				} else {
+					select {
+					case <-c.capacityRelease:
+						wasEarlyRelease = true
+					default:
 					}
 				}
 				<-c.semaphore

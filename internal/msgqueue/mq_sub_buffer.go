@@ -173,16 +173,18 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
-	// Signal early flush if the channel is already at capacity — the send below may block.
-	if len(msgBuf.msgIdBufferCh) >= msgBuf.bufferSize {
+	// Signal early flush if the send would block due to capacity.
+	select {
+	case msgBuf.msgIdBufferCh <- msgWithResult:
+		// sent without blocking
+	default:
 		select {
 		case msgBuf.capacityRelease <- struct{}{}:
 		default:
 		}
+		// this places some backpressure on the consumer if buffers are full
+		msgBuf.msgIdBufferCh <- msgWithResult
 	}
-
-	// this places some backpressure on the consumer if buffers are full
-	msgBuf.msgIdBufferCh <- msgWithResult
 	msgBuf.notifier <- struct{}{}
 
 	// wait for the message to be processed
