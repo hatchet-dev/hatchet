@@ -17,7 +17,10 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/manager"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -47,6 +50,7 @@ type DispatcherImpl struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
+	om                                  *manager.OperatorManager
 
 	dispatcherId uuid.UUID
 	workers      *workers
@@ -134,6 +138,8 @@ type DispatcherOpts struct {
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
 	version                             string
+	enc                                 encryption.EncryptionService
+	infraBlockedCIDRs                   []string
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -192,6 +198,18 @@ func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 func WithCache(cache cache.Cacheable) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.cache = cache
+	}
+}
+
+func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.enc = enc
+	}
+}
+
+func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.infraBlockedCIDRs = cidrs
 	}
 }
 
@@ -265,6 +283,8 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
+	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs)
+
 	return &DispatcherImpl{
 		mqv1:                                opts.mqv1,
 		pubBuffer:                           pubBuffer,
@@ -283,6 +303,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
+		om:                                  om,
 	}, nil
 }
 
@@ -314,6 +335,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	d.s.Start()
+
+	operatorCh := d.om.Start(ctx, d)
+
+	go d.listenForOperators(ctx, operatorCh)
 
 	wg := sync.WaitGroup{}
 
@@ -387,6 +412,24 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+// TODO: each operator should come with a sessionId and we should receive an array of operators, and
+// then remove the ones which are no longer in the reported set of active operators.
+func (d *DispatcherImpl) listenForOperators(ctx context.Context, ch <-chan operator.Operator) {
+	for o := range ch {
+		workerId := o.WorkerId()
+
+		d.workers.Add(
+			workerId,
+			uuid.NewString(),
+			newOperatorSubscribedWorker(make(chan bool),
+				workerId,
+				d.pubBuffer,
+				o,
+			),
+		)
+	}
 }
 
 func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {

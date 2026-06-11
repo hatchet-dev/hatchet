@@ -29,12 +29,12 @@ type DispatcherServiceImpl struct {
 	dispatcherId  uuid.UUID
 
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
-	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
-	repo               v1.Repository
-	mq                 msgqueue.MessageQueue
-	v                  validator.Validator
-	analytics          analytics.Analytics
-	l                  *zerolog.Logger
+
+	repo      v1.Repository
+	mq        msgqueue.MessageQueue
+	v         validator.Validator
+	analytics analytics.Analytics
+	l         *zerolog.Logger
 }
 
 type DispatcherServiceOpt func(*DispatcherServiceOpts)

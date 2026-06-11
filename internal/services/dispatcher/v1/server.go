@@ -18,6 +18,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -331,6 +332,9 @@ type durableTaskInvocation struct {
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
 	workerId uuid.UUID
+
+	// optional: if this durable task invocation is backed by an operator
+	operator operator.Operator
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -357,7 +361,6 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		for taskId := range registeredTasks {
 			d.durableInvocations.Delete(taskId)
 		}
-		d.workerInvocations.Delete(invocation.workerId)
 	}()
 
 	registerTask := func(externalIdStr string) {
@@ -440,7 +443,6 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Register)
 
 	invocation.workerId = workerId
-	d.workerInvocations.Store(workerId, invocation)
 
 	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
 	if err != nil {
