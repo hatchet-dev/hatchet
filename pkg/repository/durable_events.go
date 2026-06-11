@@ -28,7 +28,10 @@ type TaskExternalIdNodeIdBranchId struct {
 }
 
 type SatisfiedEventWithPayload struct {
-	Result          []byte
+	Result []byte
+	// SatisfiedOrder is the position of this entry in the per-log satisfaction
+	// order. Nil for legacy entries satisfied before satisfied_order existed.
+	SatisfiedOrder  *int64
 	BranchID        int64
 	NodeID          int64
 	InvocationCount int32
@@ -75,6 +78,7 @@ type IngestMemoResult struct {
 
 type IngestTriggerRunsEntry struct {
 	ResultPayload         []byte
+	SatisfiedOrder        *int64
 	NodeId                int64
 	BranchId              int64
 	WorkflowRunExternalId uuid.UUID
@@ -91,6 +95,7 @@ type IngestTriggerRunsResult struct {
 
 type IngestWaitForResult struct {
 	ResultPayload   []byte
+	SatisfiedOrder  *int64
 	NodeId          int64
 	BranchId        int64
 	InvocationCount int32
@@ -526,6 +531,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			BranchID:        row.BranchID,
 			InvocationCount: row.InvocationCount,
 			Result:          payload,
+			SatisfiedOrder:  satisfiedOrderPtr(row.SatisfiedOrder),
 		})
 	}
 
@@ -534,6 +540,15 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
+}
+
+// satisfiedOrderPtr converts a nullable satisfied_order column value to a *int64.
+func satisfiedOrderPtr(v pgtype.Int8) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	order := v.Int64
+	return &order
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
@@ -1216,6 +1231,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				AlreadyExisted:        entry.AlreadyExisted,
 				ResultPayload:         entry.ResultPayload,
 				WorkflowRunExternalId: workflowRunExternalId,
+				SatisfiedOrder:        satisfiedOrderPtr(entry.Entry.SatisfiedOrder),
 			}
 		}
 
@@ -1412,6 +1428,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			BranchId:        le.Entry.BranchID,
 			AlreadyExisted:  le.AlreadyExisted,
 			ResultPayload:   le.ResultPayload,
+			SatisfiedOrder:  satisfiedOrderPtr(le.Entry.SatisfiedOrder),
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {
@@ -1567,6 +1584,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 				NodeId:          initialWaitForResult.NodeId,
 				BranchId:        initialWaitForResult.BranchId,
 				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+				SatisfiedOrder:  entry.SatisfiedOrder,
 			}, nil
 		}
 	}

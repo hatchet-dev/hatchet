@@ -452,6 +452,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.BranchId,
 			payload.NodeId,
 			payload.Payload,
+			payload.SatisfiedOrder,
 		)
 
 		if err != nil {

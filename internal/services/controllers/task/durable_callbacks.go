@@ -76,6 +76,7 @@ func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context
 			cb.BranchId,
 			cb.NodeId,
 			cb.Data,
+			cb.SatisfiedOrder,
 		)
 		if err != nil {
 			tc.l.Error().Err(err).Msgf("failed to create callback completed message for task %s node %d", cb.DurableTaskExternalId, cb.NodeId)

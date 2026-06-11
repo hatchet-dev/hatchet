@@ -77,12 +77,14 @@ class DurableTaskEventWaitForAckResponse(_message.Message):
     def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
-    __slots__ = ("ref", "payload")
+    __slots__ = ("ref", "payload", "satisfied_order")
     REF_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    SATISFIED_ORDER_FIELD_NUMBER: _ClassVar[int]
     ref: DurableEventLogEntryRef
     payload: bytes
-    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ...) -> None: ...
+    satisfied_order: int
+    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ..., satisfied_order: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "reason")

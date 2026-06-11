@@ -528,6 +528,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 					entry.BranchId,
 					entry.NodeId,
 					entry.ResultPayload,
+					entry.SatisfiedOrder,
 				); err != nil {
 					return fmt.Errorf("failed to deliver callback completion for node %d: %w", entry.NodeId, err)
 				}
@@ -536,12 +537,16 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
+			// NOTE: memo entries are never stamped with a satisfied_order: their results
+			// travel synchronously on the MemoAck, so an ordered release would stall the
+			// completion sequence on entries the worker never awaits.
 			if err := d.DeliverDurableEventLogEntryCompletion(
 				taskExtId,
 				result.MemoResult.InvocationCount,
 				result.MemoResult.BranchId,
 				result.MemoResult.NodeId,
 				result.MemoResult.ResultPayload,
+				nil,
 			); err != nil {
 				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err)
 			}
@@ -555,6 +560,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 				result.WaitForResult.BranchId,
 				result.WaitForResult.NodeId,
 				result.WaitForResult.ResultPayload,
+				result.WaitForResult.SatisfiedOrder,
 			); err != nil {
 				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.WaitForResult.NodeId, err)
 			}
@@ -1058,13 +1064,14 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 					BranchId:              cb.BranchID,
 					NodeId:                cb.NodeID,
 				},
-				Payload: cb.Result,
+				Payload:        cb.Result,
+				SatisfiedOrder: cb.SatisfiedOrder,
 			},
 		},
 	})
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
@@ -1079,7 +1086,8 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 					BranchId:              branchId,
 					NodeId:                nodeId,
 				},
-				Payload: payload,
+				Payload:        payload,
+				SatisfiedOrder: satisfiedOrder,
 			},
 		},
 	})

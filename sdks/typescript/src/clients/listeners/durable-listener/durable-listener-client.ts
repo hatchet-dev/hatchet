@@ -99,6 +99,16 @@ const DEFAULT_RECONNECT_INTERVAL = 3000;
 const EVICTION_ACK_TIMEOUT_MS = 30_000;
 const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
 
+// How long the ordered-release gate stays closed waiting for a woken
+// continuation to park (register its next awaited entry) before being forced
+// open with a warning.
+const DEFAULT_PARK_TIMEOUT_MS = 5_000;
+
+// How long a hole in the satisfied-order sequence may persist (while later
+// completions are held) before the invocation's waiters are failed with a
+// non-determinism error.
+const DEFAULT_GAP_TIMEOUT_MS = 60_000;
+
 export interface DurableTaskRunAckEntryResult {
   nodeId: number;
   branchId: number;
@@ -204,6 +214,28 @@ interface Deferred<T> {
   reject: (reason: unknown) => void;
 }
 
+/**
+ * Serializes the release of ordered entryCompleted responses for a single
+ * durable task invocation. Completions are released to user code in
+ * satisfiedOrder; after a release wakes a parked continuation, further
+ * releases are held until that continuation parks again (registers its next
+ * awaited entry), or the park timeout elapses.
+ */
+interface OrderedReleaseGate {
+  held: Map<number, { key: PendingCallbackKey; result: DurableTaskEventLogEntryResult }>;
+  /** highest satisfied order released so far */
+  released: number;
+  /**
+   * continuations woken by a gated release which have not yet parked; the
+   * gate is open iff wakes === 0
+   */
+  wakes: number;
+  /** when wakes last transitioned from zero, for the park timeout */
+  wakeSince: number;
+  /** when the gate first became blocked on a missing order, or null */
+  gapSince: number | null;
+}
+
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
@@ -237,6 +269,11 @@ export class DurableListenerClient {
     10_000
   );
   private _pendingEvictionAcks = new Map<PendingEvictionAckKey, Deferred<void>>();
+
+  // Ordered-release gates keyed by `${taskExternalId}:${invocationCount}`.
+  private _gates = new Map<PendingEventAckKey, OrderedReleaseGate>();
+  private _parkTimeoutMs = DEFAULT_PARK_TIMEOUT_MS;
+  private _gapTimeoutMs = DEFAULT_GAP_TIMEOUT_MS;
 
   private _receiveAbort: AbortController | undefined;
   private _statusInterval: ReturnType<typeof setInterval> | undefined;
@@ -370,6 +407,7 @@ export class DurableListenerClient {
       clearInterval(this._statusInterval);
     }
     this._statusInterval = setInterval(() => {
+      this._sweepGates();
       this._pollWorkerStatus();
     }, WORKER_STATUS_POLL_INTERVAL_MS);
   }
@@ -416,6 +454,7 @@ export class DurableListenerClient {
     }
     this._pendingCallbacks.clear();
     this._bufferedCompletions.clear();
+    this._gates.clear();
   }
 
   private _handleResponse(response: DurableTaskResponse): void {
@@ -480,12 +519,17 @@ export class DurableListenerClient {
         ref?.nodeId ?? 0
       );
       const result = eventLogEntryResultFromProto(completed);
-      const pending = this._pendingCallbacks.get(key);
-      if (pending) {
-        pending.resolve(result);
-        this._pendingCallbacks.delete(key);
+
+      if (completed.satisfiedOrder !== undefined) {
+        this._handleOrderedCompletion(
+          ackKey(ref?.durableTaskExternalId ?? '', ref?.invocationCount ?? 0),
+          completed.satisfiedOrder,
+          key,
+          result
+        );
       } else {
-        this._bufferedCompletions.set(key, result);
+        // legacy completion with no satisfied order: release immediately
+        this._deliverCompletion(key, result);
       }
     } else if (response.evictionAck) {
       const ack = response.evictionAck;
@@ -548,6 +592,161 @@ export class DurableListenerClient {
         pendingEv.reject(exc);
         this._pendingEvictionAcks.delete(eEvKey);
       }
+    }
+  }
+
+  /**
+   * Hands a completion to a registered waiter, or buffers it for late
+   * registration. Returns true if a parked continuation was woken.
+   */
+  private _deliverCompletion(
+    key: PendingCallbackKey,
+    result: DurableTaskEventLogEntryResult
+  ): boolean {
+    const pending = this._pendingCallbacks.get(key);
+    if (pending) {
+      pending.resolve(result);
+      this._pendingCallbacks.delete(key);
+      return true;
+    }
+
+    this._bufferedCompletions.set(key, result);
+    return false;
+  }
+
+  private _handleOrderedCompletion(
+    gateKey: PendingEventAckKey,
+    order: number,
+    completedKey: PendingCallbackKey,
+    result: DurableTaskEventLogEntryResult
+  ): void {
+    let gate = this._gates.get(gateKey);
+    if (!gate) {
+      gate = { held: new Map(), released: 0, wakes: 0, wakeSince: 0, gapSince: null };
+      this._gates.set(gateKey, gate);
+    }
+
+    if (order <= gate.released) {
+      // re-delivery of an already-released completion (e.g. after reconnect):
+      // bypass the gate
+      this._deliverCompletion(completedKey, result);
+      return;
+    }
+
+    gate.held.set(order, { key: completedKey, result });
+    this._pumpGate(gate);
+  }
+
+  /** Releases contiguously ordered completions while the gate is open. */
+  private _pumpGate(gate: OrderedReleaseGate): void {
+    while (gate.wakes === 0 && gate.held.has(gate.released + 1)) {
+      const { key, result } = gate.held.get(gate.released + 1)!;
+      gate.held.delete(gate.released + 1);
+
+      gate.released += 1;
+
+      if (this._deliverCompletion(key, result)) {
+        // the release woke a parked continuation: hold further releases until
+        // it parks again
+
+        gate.wakes += 1;
+
+        gate.wakeSince = Date.now();
+      }
+      // if nobody was waiting, the completion was buffered for a continuation
+      // that is still running; keep pumping so a parked continuation awaiting
+      // a later order is not deadlocked
+    }
+
+    if (gate.held.size > 0 && gate.wakes === 0) {
+      if (gate.gapSince === null) {
+        gate.gapSince = Date.now();
+      }
+    } else {
+      gate.gapSince = null;
+    }
+  }
+
+  /**
+   * A continuation of the given invocation parked (registered its next awaited
+   * entry without a buffered result): opens the gate for the next ordered
+   * release.
+   */
+  private _notifyParked(gateKey: PendingEventAckKey): void {
+    const gate = this._gates.get(gateKey);
+    if (!gate) return;
+
+    if (gate.wakes > 0) {
+      gate.wakes -= 1;
+    }
+
+    this._pumpGate(gate);
+  }
+
+  /** Enforces the park and gap timeouts on all ordered-release gates. */
+  private _sweepGates(): void {
+    const now = Date.now();
+
+    for (const [gateKey, gate] of this._gates) {
+      if (gate.wakes > 0 && now - gate.wakeSince > this._parkTimeoutMs) {
+        this.logger.warn(
+          `durable task ${gateKey}: continuation did not park within ${this._parkTimeoutMs}ms ` +
+            'after a gated release; forcing the completion gate open. durable task code should ' +
+            'not perform unrecorded blocking work between durable operations'
+        );
+        gate.wakes = 0;
+        this._pumpGate(gate);
+      }
+
+      if (
+        gate.held.size > 0 &&
+        gate.wakes === 0 &&
+        gate.gapSince !== null &&
+        now - gate.gapSince > this._gapTimeoutMs
+      ) {
+        const sepIdx = gateKey.lastIndexOf(':');
+        const taskExternalId = gateKey.slice(0, sepIdx);
+        const invocationCount = parseInt(gateKey.slice(sepIdx + 1), 10);
+        const missingOrder = gate.released + 1;
+
+        const exc = new NonDeterminismError(
+          taskExternalId,
+          invocationCount,
+          missingOrder,
+          `completion with satisfied order ${missingOrder} was never delivered while later ` +
+            `completions [${[...gate.held.keys()].sort((a, b) => a - b).join(', ')}] arrived; ` +
+            'the recorded history likely diverged from the current code'
+        );
+        this.logger.error(exc.message);
+
+        this._gates.delete(gateKey);
+        this._failInvocationWaiters(taskExternalId, invocationCount, exc);
+      }
+    }
+  }
+
+  /**
+   * Delivers an error to every pending callback and event ack belonging to the
+   * given invocation.
+   */
+  private _failInvocationWaiters(
+    durableTaskExternalId: string,
+    invocationCount: number,
+    exc: Error
+  ): void {
+    for (const [k, d] of this._pendingCallbacks) {
+      const parts = k.split(':');
+      if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) === invocationCount) {
+        d.reject(exc);
+        this._pendingCallbacks.delete(k);
+      }
+    }
+
+    const eAckKey = ackKey(durableTaskExternalId, invocationCount);
+    const pendingAck = this._pendingEventAcks.get(eAckKey);
+    if (pendingAck) {
+      pendingAck.reject(exc);
+      this._pendingEventAcks.delete(eAckKey);
     }
   }
 
@@ -631,12 +830,19 @@ export class DurableListenerClient {
 
     const early = this._bufferedCompletions.get(key);
     if (early) {
+      // the registering continuation picks up a buffered result and keeps
+      // running: it never parked, so the ordered-release gate is untouched
       this._bufferedCompletions.delete(key);
       return early;
     }
 
     if (!this._pendingCallbacks.has(key)) {
       this._pendingCallbacks.set(key, deferred<DurableTaskEventLogEntryResult>());
+
+      // the continuation is now parked awaiting this entry: open the gate for
+      // the next ordered release
+      this._notifyParked(ackKey(durableTaskExternalId, invocationCount));
+
       this._pollWorkerStatus();
     }
 
@@ -700,6 +906,13 @@ export class DurableListenerClient {
       const parts = k.split(':');
       if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
         this._bufferedCompletions.delete(k);
+      }
+    }
+
+    for (const k of this._gates.keys()) {
+      const parts = k.split(':');
+      if (parts[0] === durableTaskExternalId && parseInt(parts[1], 10) <= invocationCount) {
+        this._gates.delete(k);
       }
     }
   }
