@@ -784,7 +784,11 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				BranchId:              branchId.Int64,
 			}
 
-			isFailure, errorMessage := ExtractFailureFromMatchData(match.McAggregatedData)
+			isFailure, errorMessage, extractErr := ExtractFailureFromMatchData(match.McAggregatedData)
+
+			if extractErr != nil {
+				return nil, fmt.Errorf("failed to extract failure information from match data for durable task with external id %s, durable task id %d and durable task inserted at %s: %w", *durableTaskExternalId, durableTaskId.Int64, durableTaskInsertedAt.Time, extractErr)
+			}
 
 			cb := SatisfiedEntry{
 				DurableTaskExternalId: *durableTaskExternalId,

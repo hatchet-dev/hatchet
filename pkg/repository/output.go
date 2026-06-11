@@ -200,10 +200,10 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("no entries found in match data")
 }
 
-func ExtractFailureFromMatchData(data []byte) (bool, *string) {
+func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {
-		return false, nil
+		return false, nil, err
 	}
 
 	for _, keyMap := range outer {
@@ -216,9 +216,9 @@ func ExtractFailureFromMatchData(data []byte) (bool, *string) {
 				continue
 			}
 			if event.IsFailure {
-				return true, &event.ErrorMessage
+				return true, &event.ErrorMessage, nil
 			}
 		}
 	}
-	return false, nil
+	return false, nil, nil
 }

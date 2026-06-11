@@ -1242,7 +1242,7 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
             { signal: this.abortController.signal }
           );
           if (result.isFailure) {
-            throw new HatchetError(result.errorMessage ?? 'child task failed');
+            throw new HatchetError(result.errorMessage || 'child task failed');
           }
           return (result.payload || {}) as P;
         })
