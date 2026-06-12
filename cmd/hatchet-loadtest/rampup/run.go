@@ -18,7 +18,7 @@ func getConcurrencyKey(ctx worker.HatchetContext) (string, error) {
 	return "my-key", nil
 }
 
-func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64, executionTimes chan<- time.Duration) (int64, int64) {
+func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptableDuration time.Duration, hook chan<- time.Duration, executedCh chan<- int64, executionTimes chan<- time.Duration, registered chan<- error) (int64, int64) {
 	c, err := client.New(
 		client.WithLogLevel("warn"), // nolint: staticcheck
 	)
@@ -103,7 +103,14 @@ func run(ctx context.Context, delay time.Duration, concurrency int, maxAcceptabl
 	)
 
 	if err != nil {
-		panic(err)
+		registered <- fmt.Errorf("error registering workflow: %w", err)
+		return 0, 0
+	}
+
+	registered <- nil
+
+	if ctx.Err() != nil {
+		return 0, 0
 	}
 
 	cleanup, err := w.Start()
