@@ -838,10 +838,12 @@ WITH tenants AS (
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
         AND
             (
-                -- if the retry count is greater than the latest retry count, update the status
+                -- a newer retry count always wins, even when the readable status is
+                -- unchanged: latest_retry_count must advance or a replay's terminal
+                -- status at the new retry count is swallowed, letting late queueing
+                -- events at that retry count regress the status afterwards
                 (
                     tu.retry_count > t.latest_retry_count
-                    AND tu.max_readable_status != t.readable_status
                 ) OR
                 -- if the retry count is equal to the latest retry count, update the status if the priority is higher
                 (
@@ -945,10 +947,12 @@ WITH inputs AS (
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
         (
-            -- If the retry count is greater than the latest retry count, update the status
+            -- A newer retry count always wins, even when the readable status is
+            -- unchanged: latest_retry_count must advance or a replay's terminal
+            -- status at the new retry count is swallowed, letting late queueing
+            -- events at that retry count regress the status afterwards
             (
                 i.retry_count > t.latest_retry_count
-                AND i.readable_status != t.readable_status
             ) OR
             -- If the retry count is equal, only update if the new status has higher priority
             (
