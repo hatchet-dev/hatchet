@@ -6,6 +6,7 @@ from uuid import uuid4
 import json
 from typing import cast
 from random import shuffle
+from datetime import datetime, timedelta, timezone
 
 from examples.durable.worker import (
     EVENT_KEY,
@@ -34,7 +35,8 @@ from examples.durable.worker import (
     error_raising_task,
     ErrorRaisingTaskInput,
 )
-from hatchet_sdk import Hatchet, RunStatus
+from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 
 from examples.test_utils import wait_for_running_status
 
@@ -454,17 +456,50 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
-    error_msg = f"error in child task {str(uuid4())}"
+    test_run_id = str(uuid4())
+    error_msg = f"error in child task {test_run_id}"
     res = await error_raising_durable_parent.aio_run(
-        input=ErrorRaisingTaskInput(error_message=error_msg)
+        input=ErrorRaisingTaskInput(error_message=error_msg),
+        additional_metadata={"test_run_id": test_run_id},
     )
 
     assert res.child_raised
     assert res.child_error_str is not None
     assert error_msg in res.child_error_str
 
-    child = await hatchet.runs.aio_get_details(res.child_run_external_id)
-    parent = await hatchet.runs.aio_get_details(res.parent_run_external_id)
+    runs: V1TaskSummaryList | None = None
 
-    assert parent.status == RunStatus.COMPLETED
-    assert child.status == RunStatus.FAILED
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=10),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) < 2:
+            await asyncio.sleep(1)
+            continue
+
+        if any(
+            r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs.rows
+        ):
+            await asyncio.sleep(1)
+            continue
+
+        break
+
+    assert runs
+    assert len(runs.rows) == 2
+
+    child = next(
+        (r for r in runs.rows if error_raising_task.name in (r.workflow_name or "")),
+        None,
+    )
+    parent = next(
+        (r for r in runs.rows if durable_replay_reset.name in (r.workflow_name or "")),
+        None,
+    )
+
+    assert parent
+    assert child
+    assert parent.status == V1TaskStatus.COMPLETED
+    assert child.status == V1TaskStatus.FAILED

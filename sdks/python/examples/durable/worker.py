@@ -515,8 +515,6 @@ class ErrorRaisingTaskInput(BaseModel):
 class ErrorRaisingTaskOutput(BaseModel):
     child_raised: bool
     child_error_str: str | None
-    child_run_external_id: str
-    parent_run_external_id: str
 
 
 @hatchet.task(input_validator=ErrorRaisingTaskInput)
@@ -528,15 +526,15 @@ async def error_raising_task(input: ErrorRaisingTaskInput, ctx: Context) -> None
 async def error_raising_durable_parent(
     input: ErrorRaisingTaskInput, ctx: DurableContext
 ) -> ErrorRaisingTaskOutput:
-    ref = await error_raising_task.aio_run(
-        input=input,
-        wait_for_result=False,
-    )
+    child_raised = False
+    child_error_str = None
 
     try:
-        await ref.aio_result()
-        child_raised = False
-        child_error_str = None
+        await error_raising_task.aio_run(
+            input=input,
+            wait_for_result=True,
+            additional_metadata=ctx.additional_metadata,
+        )
     except Exception as e:
         child_raised = True
         child_error_str = str(e)
@@ -544,8 +542,6 @@ async def error_raising_durable_parent(
     return ErrorRaisingTaskOutput(
         child_raised=child_raised,
         child_error_str=child_error_str,
-        child_run_external_id=ref.workflow_run_id,
-        parent_run_external_id=ctx.workflow_run_id,
     )
 
 
