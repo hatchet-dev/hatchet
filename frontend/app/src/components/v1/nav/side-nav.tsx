@@ -30,6 +30,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect
 } from 'react';
 
 interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -67,6 +68,8 @@ export type SideNavSection = {
   items: SideNavItem[];
 };
 
+const savedScrollTop = { current: 0 };
+
 export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
     sidebarOpen,
@@ -76,8 +79,6 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setCollapsed: setStoredCollapsed,
     expandedWidth: storedExpandedWidth,
     setExpandedWidth: setStoredExpandedWidth,
-    scrollPosition,
-    setScrollPosition,
   } = useSidebar();
   const { tenantId } = useTenantDetails();
   const navigate = useNavigate();
@@ -92,7 +93,6 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const [showResizeToggle, setShowResizeToggle] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onNavLinkClick = useCallback(() => {
     if (isWide) {
@@ -250,17 +250,17 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     [tenantId],
   );
 
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = savedScrollTop.current;
+    }
+  }, []);
+
   const toggleCollapsed = useCallback(() => {
     setStoredCollapsed(!storedCollapsed);
     setLiveWidth(null);
     setIsResizing(false);
   }, [setStoredCollapsed, storedCollapsed]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollPosition;
-    }
-  }, [scrollPosition]);
 
   if (sidebarOpen === 'closed') {
     return null;
@@ -468,12 +468,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
               ref={scrollRef}
               data-cy="v1-sidebar-scroll"
               onScroll={() => {
-                if (scrollSaveTimer.current) {
-                  clearTimeout(scrollSaveTimer.current);
-                }
-                scrollSaveTimer.current = setTimeout(() => {
-                  setScrollPosition(scrollRef.current?.scrollTop ?? 0);
-                }, 100);
+                savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
               }}
               className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
