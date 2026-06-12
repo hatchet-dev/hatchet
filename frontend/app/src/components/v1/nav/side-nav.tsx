@@ -76,7 +76,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setCollapsed: setStoredCollapsed,
     expandedWidth: storedExpandedWidth,
     setExpandedWidth: setStoredExpandedWidth,
-    scrollPosition, 
+    scrollPosition,
     setScrollPosition,
   } = useSidebar();
   const { tenantId } = useTenantDetails();
@@ -255,17 +255,16 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setLiveWidth(null);
     setIsResizing(false);
   }, [setStoredCollapsed, storedCollapsed]);
-  
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollPosition;
     }
-  }, []);
+  }, [scrollPosition]);
 
   if (sidebarOpen === 'closed') {
     return null;
   }
-
 
   return (
     <div
@@ -468,12 +467,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             <div
               ref={scrollRef}
               data-cy="v1-sidebar-scroll"
-                onScroll={() => {
-                  if (scrollSaveTimer.current) clearTimeout(scrollSaveTimer.current);
-                  scrollSaveTimer.current = setTimeout(() => {
-                    setScrollPosition(scrollRef.current?.scrollTop ?? 0);
-                  }, 100);
-                }}
+              onScroll={() => {
+                if (scrollSaveTimer.current) {
+                  clearTimeout(scrollSaveTimer.current);
+                }
+                scrollSaveTimer.current = setTimeout(() => {
+                  setScrollPosition(scrollRef.current?.scrollTop ?? 0);
+                }, 100);
+              }}
               className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
               <div className="px-4 py-4">
