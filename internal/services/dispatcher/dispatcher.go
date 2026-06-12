@@ -452,6 +452,8 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.BranchId,
 			payload.NodeId,
 			payload.Payload,
+			payload.ChildTaskIsFailure,
+			payload.ChildTaskErrorMessage,
 		)
 
 		if err != nil {
