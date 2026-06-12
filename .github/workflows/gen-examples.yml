@@ -60,7 +60,7 @@ jobs:
           git config --local user.name "GitHub Action"
           BRANCH_NAME="regenerate-examples-${{ github.sha }}"
           git checkout -b "$BRANCH_NAME"
-          git add examples/
+          git add -u && git add examples/
           git commit -m "chore: regenerate examples"
           git push origin "$BRANCH_NAME"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
