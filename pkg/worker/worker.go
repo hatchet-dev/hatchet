@@ -141,12 +141,6 @@ type Worker struct {
 	id *string
 
 	panicHandler func(ctx HatchetContext, recovered any)
-
-	// batchFns maps actionId → BatchWrappedFn for batch task processing.
-	batchFns sync.Map
-
-	// batchStates maps batchId → *batchGroupState for in-flight batch tracking.
-	batchStates sync.Map
 }
 
 // Deprecated: WorkerOpt is an internal type used by the new Go SDK.
@@ -467,17 +461,6 @@ func (w *Worker) On(t triggerConverter, workflow workflowConverter) error {
 	return svc.(*Service).On(t, workflow)
 }
 
-// RegisterBatchAction registers a batch action function for the given action ID.
-// When a batch step run arrives, the worker buffers it and calls fn with all items once the batch is ready.
-func (w *Worker) RegisterBatchAction(actionId string, fn BatchWrappedFn) error {
-	w.batchFns.Store(actionId, fn)
-
-	// Register a regular action whose sole job is to enqueue this item and wait for the batch result.
-	return w.RegisterAction(actionId, func(ctx HatchetContext) (interface{}, error) {
-		return w.handleBatchItem(ctx, actionId)
-	})
-}
-
 // Deprecated: RegisterAction is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of calling this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 //
@@ -679,12 +662,6 @@ func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Actio
 		return w.cancelStepRun(ctx, assignedAction)
 	case client.ActionTypeStartGetGroupKey:
 		return w.startGetGroupKey(ctx, assignedAction)
-	case client.ActionTypeStartBatch:
-		if assignedAction.BatchId == nil || assignedAction.BatchStart == nil {
-			return fmt.Errorf("START_BATCH action missing batch ID or batch start payload")
-		}
-		w.handleStartBatch(assignedAction.ActionId, *assignedAction.BatchId, assignedAction.BatchStart.ExpectedSize)
-		return nil
 	default:
 		return fmt.Errorf("unknown action type: %s", assignedAction.ActionType)
 	}

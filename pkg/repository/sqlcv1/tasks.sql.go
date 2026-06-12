@@ -1840,7 +1840,12 @@ type ListTaskRuntimesParams struct {
 }
 
 func (q *Queries) ListTaskRuntimes(ctx context.Context, db DBTX, arg ListTaskRuntimesParams) ([]*V1TaskRuntime, error) {
-	rows, err := db.Query(ctx, listTaskRuntimes, arg.Tenantid, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
+	rows, err := db.Query(ctx, listTaskRuntimes,
+		arg.Tenantid,
+		arg.Taskids,
+		arg.Taskinsertedats,
+		arg.Taskretrycounts,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -1909,20 +1914,9 @@ SELECT
     t.concurrency_strategy_ids,
     t.concurrency_keys,
     t.retry_backoff_factor,
-    t.retry_max_backoff,
-    tr.batch_id AS runtime_batch_id,
-    tr.batch_size AS runtime_batch_size,
-    tr.batch_index AS runtime_batch_index,
-    tr.worker_id AS runtime_worker_id,
-    tr.timeout_at AS runtime_timeout_at
+    t.retry_max_backoff
 FROM
     v1_task t
-LEFT JOIN
-    v1_task_runtime tr ON tr.task_id = t.id
-    AND tr.task_inserted_at = t.inserted_at
-    AND tr.retry_count = t.retry_count
-    AND tr.tenant_id = t.tenant_id
-    AND t.batch_key IS NOT NULL
 WHERE
     t.tenant_id = $1::uuid
     AND t.id = ANY($2::bigint[])
@@ -1971,11 +1965,6 @@ type ListTasksRow struct {
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
-	RuntimeBatchID               *uuid.UUID         `json:"runtime_batch_id"`
-	RuntimeBatchSize             pgtype.Int4        `json:"runtime_batch_size"`
-	RuntimeBatchIndex            pgtype.Int4        `json:"runtime_batch_index"`
-	RuntimeWorkerID              *uuid.UUID         `json:"runtime_worker_id"`
-	RuntimeTimeoutAt             pgtype.Timestamp   `json:"runtime_timeout_at"`
 }
 
 func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) ([]*ListTasksRow, error) {
@@ -2025,11 +2014,6 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.ConcurrencyKeys,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
-			&i.RuntimeBatchID,
-			&i.RuntimeBatchSize,
-			&i.RuntimeBatchIndex,
-			&i.RuntimeWorkerID,
-			&i.RuntimeTimeoutAt,
 		); err != nil {
 			return nil, err
 		}

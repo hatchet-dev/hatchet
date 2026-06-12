@@ -127,12 +127,6 @@ type HatchetContext interface {
 	TriggeringEventId() *string
 
 	TriggeringEventKey() *string
-
-	// BatchId returns the batch ID if this step run is part of a batch task, or nil otherwise.
-	BatchId() *string
-
-	// BatchIndex returns the index of this item within the batch, or nil if not a batch item.
-	BatchIndex() *int32
 }
 
 // DurableEvictionHook observes waiting state transitions for a durable run so an
@@ -416,14 +410,6 @@ func (h *hatchetContext) DurableTaskInvocationCount() int32 {
 		return *h.a.DurableTaskInvocationCount
 	}
 	return 0
-}
-
-func (h *hatchetContext) BatchId() *string {
-	return h.a.BatchId
-}
-
-func (h *hatchetContext) BatchIndex() *int32 {
-	return h.a.BatchIndex
 }
 
 func (h *hatchetContext) SetDurableEvictionHook(hook DurableEvictionHook) {

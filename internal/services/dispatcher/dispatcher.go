@@ -509,8 +509,8 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		// load the step runs from the database
 		taskIds := make([]int64, 0)
 
-		for _, ids := range innerMsg.WorkerIdToTaskIds {
-			taskIds = append(taskIds, ids...)
+		for _, tasks := range innerMsg.WorkerIdToTaskIds {
+			taskIds = append(taskIds, tasks...)
 		}
 
 		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIds)
@@ -520,13 +520,11 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			continue
 		}
 
-		for workerId, ids := range innerMsg.WorkerIdToTaskIds {
-			if len(ids) == 0 {
-				continue
-			}
+		for workerId, taskIds := range innerMsg.WorkerIdToTaskIds {
+			workerId := workerId
 
 			outerEg.Go(func() error {
-				return d.sendTasksToWorker(ctx, requeue, msg.TenantID, workerId, ids, taskIdToData)
+				return d.sendTasksToWorker(ctx, requeue, msg.TenantID, workerId, taskIds, taskIdToData)
 			})
 		}
 	}
@@ -680,12 +678,7 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
-	bulkV1Tasks := make([]*sqlcv1.V1Task, len(bulkDatas))
-	for i, task := range bulkDatas {
-		bulkV1Tasks[i] = task
-	}
-
-	parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, tenantId, bulkV1Tasks)
+	parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, tenantId, bulkDatas)
 
 	if err != nil {
 		for _, task := range bulkDatas {
@@ -1144,10 +1137,7 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 		task, ok := taskIdsToTasks[msg.TaskId]
 
 		if !ok {
-			d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", msg.TaskId)
-			continue
-		}
-		if task == nil {
+			d.l.Warn().Ctx(ctx).Msgf("task %d not found", msg.TaskId)
 			continue
 		}
 
