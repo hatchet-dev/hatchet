@@ -1,6 +1,4 @@
 import asyncio
-import time
-from uuid import uuid4
 
 import pytest
 
@@ -8,6 +6,7 @@ from examples.concurrency_cancel_in_progress.worker import (
     WorkflowInput,
     concurrency_cancel_in_progress_workflow,
 )
+from examples.test_utils import poll_for_runs
 from hatchet_sdk import Hatchet, V1TaskStatus, WorkflowRunRef
 
 
@@ -31,11 +30,13 @@ async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
         except Exception:
             continue
 
-    ## wait for the olap repo to catch up
-    await asyncio.sleep(5)
-
     runs = sorted(
-        hatchet.runs.list(additional_metadata={"test_run_id": test_run_id}),
+        await poll_for_runs(
+            hatchet,
+            expected_count=10,
+            additional_metadata={"test_run_id": test_run_id},
+            statuses=[V1TaskStatus.COMPLETED, V1TaskStatus.CANCELLED],
+        ),
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )
 

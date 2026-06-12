@@ -1,9 +1,7 @@
-import asyncio
-from uuid import uuid4
-
 import pytest
 
 from examples.fanout_sync.worker import ParentInput, sync_fanout_parent
+from examples.test_utils import poll_for_runs
 from hatchet_sdk import Hatchet
 
 
@@ -26,9 +24,10 @@ async def test_additional_metadata_propagation_sync(
     )
 
     await ref.aio_result()
-    await asyncio.sleep(1)
 
-    runs = await hatchet.runs.aio_list(
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=1,
         parent_task_external_id=ref.workflow_run_id,
         additional_metadata={"test_run_id": test_run_id},
     )

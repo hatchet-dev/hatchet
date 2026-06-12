@@ -16,6 +16,7 @@ from examples.events.worker import (
     EventWorkflowInput,
     event_workflow,
 )
+from examples.test_utils import poll_for_runs
 from hatchet_sdk.clients.events import (
     BulkPushEventWithMetadata,
     Event,
@@ -102,21 +103,21 @@ async def fetch_runs_for_event(
 async def wait_for_result(
     hatchet: Hatchet, events: list[Event]
 ) -> dict[ProcessedEvent, list[V1TaskSummary]]:
-    await asyncio.sleep(3)
-
     since = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
-
-    persisted = (await hatchet.event.aio_list(limit=100, since=since)) or []
-
-    assert {e.event_id for e in events}.issubset({e.metadata.id for e in persisted})
+    event_ids = {e.event_id for e in events}
 
     iters = 0
     while True:
         print("waiting for event runs to complete - iteration", iters)
-        if iters > 10:
+        if iters > 20:
             raise TimeoutError("Timed out waiting for event runs to complete.")
 
         iters += 1
+
+        persisted = (await hatchet.event.aio_list(limit=100, since=since)) or []
+        if not event_ids.issubset({e.metadata.id for e in persisted}):
+            await asyncio.sleep(1)
+            continue
 
         event_runs = await asyncio.gather(
             *[fetch_runs_for_event(hatchet, event) for event in events]
@@ -563,7 +564,12 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
                 ],
             )
 
-            await asyncio.sleep(15)
+            await poll_for_runs(
+                hatchet,
+                expected_count=100,
+                additional_metadata={"test_run_id": test_run_id},
+                timeout=60.0,
+            )
 
             for event in events:
                 runs = await hatchet.runs.aio_list(

@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -72,8 +71,6 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
             )
         )
     )
-
-    await asyncio.sleep(20)
 
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)

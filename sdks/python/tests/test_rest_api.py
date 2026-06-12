@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 import tenacity
 from tenacity import stop_after_attempt, wait_exponential
@@ -35,7 +33,7 @@ async def test_list_runs(hatchet: Hatchet) -> None:
 async def test_get_run(hatchet: Hatchet) -> None:
     dag_ref = await dag_workflow.aio_run(wait_for_result=False)
 
-    await asyncio.sleep(5)
+    await dag_ref.aio_result()
 
     run = await hatchet.runs.aio_get(dag_ref.workflow_run_id)
 

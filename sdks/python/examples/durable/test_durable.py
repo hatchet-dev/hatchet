@@ -38,7 +38,7 @@ from examples.durable.worker import (
 from hatchet_sdk import Hatchet, V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
-from examples.test_utils import wait_for_running_status
+from examples.test_utils import wait_for_replay, wait_for_running_status
 
 TIMING_TOLERANCE = 1.0
 
@@ -162,7 +162,7 @@ async def test_durable_child_key_dedup_replay(hatchet: Hatchet) -> None:
     assert result.child_3_output == result.child_1_output
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
-    await asyncio.sleep(5)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     replayed_result = await ref.aio_result()
 
@@ -278,9 +278,9 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
     await hatchet.runs.aio_reset_durable_task(
         ref.workflow_run_id, node_id=reset_from_node_id, branch_id=1
     )
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     start = time.time()
-    await asyncio.sleep(1)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -298,9 +298,9 @@ async def test_durable_branching_off_branch(hatchet: Hatchet) -> None:
         node_id=reset_from_node_id,
         branch_id=2,
     )
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     start = time.time()
-    await asyncio.sleep(1)
     reset_result = await ref.aio_result()
     reset_elapsed = time.time() - start
 
@@ -439,8 +439,7 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
     assert all(singleton.has_both_child_outputs for singleton in result.results)
 
     await hatchet.runs.aio_replay(ref.workflow_run_id)
-
-    await asyncio.sleep(5)
+    await wait_for_replay(hatchet, ref.workflow_run_id)
 
     replayed_result = await ref.aio_result()
 
