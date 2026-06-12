@@ -175,6 +175,7 @@ exclude = [
     "hatchet_sdk/clients/rest/configuration.py",
     "hatchet_sdk/clients/rest/exceptions.py",
     "hatchet_sdk/clients/rest/rest.py",
+    "hatchet_sdk/clients/rest/api_response.py",
     "hatchet_sdk/v0/*",
     "apply_patches.py",
     "site/*",
