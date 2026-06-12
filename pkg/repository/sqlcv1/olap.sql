@@ -838,10 +838,16 @@ WITH tenants AS (
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
         AND
             (
-                -- a newer retry count always wins, even when the readable status is
-                -- unchanged: latest_retry_count must advance or a replay's terminal
-                -- status at the new retry count is swallowed, letting late queueing
-                -- events at that retry count regress the status afterwards
+                -- A newer retry count must always apply, even when the readable
+                -- status is unchanged, because this is the only chance to record it:
+                -- the deleted_events CTE below removes every processed event from
+                -- v1_task_events_olap_tmp regardless of whether this UPDATE matched,
+                -- so an event rejected here is never seen again. If a same-status
+                -- event from a newer retry were rejected (a replayed task's COMPLETED
+                -- at retry N ingested before its QUEUED/ASSIGNED events),
+                -- latest_retry_count would stay stale, and the late QUEUED/ASSIGNED
+                -- events at retry N would later pass this branch and leave the task
+                -- stuck at RUNNING.
                 (
                     tu.retry_count > t.latest_retry_count
                 ) OR
@@ -947,10 +953,15 @@ WITH inputs AS (
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
         (
-            -- A newer retry count always wins, even when the readable status is
-            -- unchanged: latest_retry_count must advance or a replay's terminal
-            -- status at the new retry count is swallowed, letting late queueing
-            -- events at that retry count regress the status afterwards
+            -- A newer retry count must always apply, even when the readable
+            -- status is unchanged, because this is the only chance to record it:
+            -- the message this batch came from is acked once the transaction
+            -- commits, regardless of whether this update matched, so an event
+            -- rejected here is never seen again. If a same-status event from a
+            -- newer retry were rejected (a replayed task's COMPLETED at retry N
+            -- ingested before its QUEUED/ASSIGNED events), latest_retry_count
+            -- would stay stale, and the late QUEUED/ASSIGNED events at retry N
+            -- would later pass this branch and leave the task stuck at RUNNING.
             (
                 i.retry_count > t.latest_retry_count
             ) OR
