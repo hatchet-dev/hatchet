@@ -39,6 +39,7 @@ import {
   OrganizationPaymentMethodList,
   OrganizationTenant,
   OrganizationTenantResourceLimitsList,
+  OrganizationUsageSummary,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
@@ -1199,6 +1200,26 @@ export class Api<
   ) =>
     this.request<OrganizationTenantResourceLimitsList, APIErrors | APIError>({
       path: `/api/v1/control-plane/billing/organizations/${organization}/tenant-resource-limits`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the daily per-tenant usage summary for the current billing period of an organization
+   *
+   * @tags Organization
+   * @name OrganizationUsageSummaryGet
+   * @summary Get the usage summary for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/usage-summary
+   * @secure
+   */
+  organizationUsageSummaryGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationUsageSummary, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/usage-summary`,
       method: "GET",
       secure: true,
       format: "json",

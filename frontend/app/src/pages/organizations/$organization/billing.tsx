@@ -2,6 +2,7 @@ import { usePylon } from '@/components/support-chat';
 import {
   Subscription,
   SubscriptionHistory,
+  UsageSummary,
 } from '@/components/v1/cloud/billing';
 import { resolveSubscriptionPlanCode } from '@/components/v1/cloud/billing/subscription-plan-code';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
@@ -193,6 +194,25 @@ function OrganizationBillingContent() {
     refetchInterval: isSyncing ? SYNC_POLL_INTERVAL_MS : false,
   });
 
+  // When an upgrade surface routes here with the #plan-selector hash, bring the
+  // plan selector into view once billing data has rendered the section.
+  useEffect(() => {
+    if (!billingState.isSuccess) {
+      return;
+    }
+    if (window.location.hash !== '#plan-selector') {
+      return;
+    }
+
+    const raf = requestAnimationFrame(() => {
+      document
+        .getElementById('plan-selector')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [billingState.isSuccess]);
+
   const activePlanCode = resolveSubscriptionPlanCode(
     billingState.data?.currentSubscription,
     null,
@@ -252,6 +272,20 @@ function OrganizationBillingContent() {
   });
 
   const organizationTenants = tenantResourceLimits.data?.tenants ?? [];
+
+  const usageSummary = useQuery({
+    ...queries.controlPlane.usageSummary(organization),
+    enabled: isCloudEnabled && !!cloud?.canBill,
+    retry: (failureCount, error) => {
+      const status = getApiErrorStatus(error);
+      return status !== 401 && status !== 403 && failureCount < 3;
+    },
+  });
+
+  const activePlan = useMemo(
+    () => billingState.data?.plans?.find((p) => p.planCode === activePlanCode),
+    [billingState.data?.plans, activePlanCode],
+  );
 
   if (billingState.isError) {
     const status = getApiErrorStatus(billingState.error);
@@ -324,6 +358,15 @@ function OrganizationBillingContent() {
         upcoming={billingState.data?.upcomingSubscription}
         plans={billingState.data?.plans}
         coupons={billingState.data?.coupons}
+        usageSlot={
+          !usageSummary.isError ? (
+            <UsageSummary
+              summary={usageSummary.data}
+              plan={activePlan}
+              isLoading={usageSummary.isLoading}
+            />
+          ) : null
+        }
       />
 
       {tenantResourceLimits.isLoading || organizationTenants.length > 0 ? (

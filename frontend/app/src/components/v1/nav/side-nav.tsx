@@ -60,12 +60,24 @@ export type SideNavItem = {
     }
 );
 
+export type SideNavDivider = {
+  key: string;
+  name: string;
+  type: 'divider';
+};
+
+export type SideNavEntry = SideNavItem | SideNavDivider;
+
 export type SideNavSection = {
   key: string;
   title: string;
   itemsClassName: string;
-  items: SideNavItem[];
+  items: SideNavEntry[];
 };
+
+function isSideNavDivider(item: SideNavEntry): item is SideNavDivider {
+  return 'type' in item && item.type === 'divider';
+}
 
 export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
@@ -346,6 +358,10 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                     )}
 
                     {section.items.map((item) => {
+                      if (isSideNavDivider(item)) {
+                        return null;
+                      }
+
                       const itemParams = item.params ?? commonParams;
                       const displayAsActiveWhenThisRouteIsMatched =
                         item.displayAsActiveWhenThisRouteIsMatched ??
@@ -467,6 +483,17 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
 
                     <div className={section.itemsClassName}>
                       {section.items.map((item) => {
+                        if (isSideNavDivider(item)) {
+                          return (
+                            <div
+                              key={item.key}
+                              className="px-2 pt-2 text-[10px] font-mono uppercase tracking-widest text-muted-foreground/70"
+                            >
+                              {item.name}
+                            </div>
+                          );
+                        }
+
                         const itemParams = item.params ?? commonParams;
                         return 'onClick' in item ? (
                           <SidebarButtonPrimaryAction

@@ -6,22 +6,11 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Alert, AlertDescription, AlertTitle } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/v1/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/v1/ui/card';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { queries } from '@/lib/api';
@@ -43,42 +32,7 @@ interface SubscriptionProps {
   upcoming?: OrganizationBillingStateSubscription;
   plans?: SubscriptionPlan[];
   coupons?: Coupon[];
-}
-
-function formatCurrency(cents: number, period?: string) {
-  const monthly = period === 'yearly' ? cents / 100 / 12 : cents / 100;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(monthly);
-}
-
-function formatPlanName(planCode?: string, plan?: string) {
-  const value = planCode || plan;
-  if (!value) {
-    return 'Unknown plan';
-  }
-
-  return value
-    .split('_')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function formatPeriod(period?: string) {
-  if (!period) {
-    return 'Active subscription';
-  }
-
-  return `${period.charAt(0).toUpperCase() + period.slice(1)} billing`;
-}
-
-function isLegacySubscriptionPlan(plan?: SubscriptionPlanCode) {
-  return (
-    plan === SubscriptionPlanCode.Starter ||
-    plan === SubscriptionPlanCode.Growth
-  );
+  usageSlot?: React.ReactNode;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,6 +77,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
   upcoming,
   plans,
   coupons,
+  usageSlot,
 }) => {
   const [loading, setLoading] = useState<string>();
   const [showAnnual, setShowAnnual] = useState<boolean>(false);
@@ -293,40 +248,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
     [plans, activePlanCode],
   );
 
-  const formattedEndDate = useMemo(() => {
-    if (!active?.endsAt) {
-      return null;
-    }
-    const date = new Date(active.endsAt);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  }, [active?.endsAt]);
-
-  const currentPlanSummary = useMemo(() => {
-    if (!active?.plan) {
-      return null;
-    }
-    const plan = plans?.find((p) => p.planCode === activePlanCode);
-
-    if (plan) {
-      return {
-        name: plan.name,
-        amountCents: plan.amountCents,
-        period: plan.period,
-        legacy: !!plan.legacy,
-      };
-    }
-
-    return {
-      name: formatPlanName(activePlanCode, active.plan),
-      period: active.period,
-      legacy: isLegacySubscriptionPlan(active.plan),
-    };
-  }, [active, activePlanCode, plans]);
-
   const enterpriseContactUrl = useMemo(() => {
     const baseUrl = 'https://cal.com/team/hatchet/website-demo';
     if (!tenant) {
@@ -423,17 +344,28 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 {portalLoading ? <Spinner /> : 'Manage Billing'}
               </Button>
             </div>
+            {usageSlot && <div className="mt-6">{usageSlot}</div>}
           </div>
         ) : (
           <>
-            <h3 className="flex flex-row items-center gap-2 text-xl font-semibold leading-tight text-foreground">
-              Subscription
-              {coupons?.map((coupon, i) => (
-                <Badge key={`c${i}`} variant="successful">
-                  {coupon.name} coupon applied
-                </Badge>
-              ))}
-            </h3>
+            <div className="flex flex-row items-center justify-between gap-4">
+              <h3 className="flex flex-row items-center gap-2 text-xl font-semibold leading-tight text-foreground">
+                Subscription
+                {coupons?.map((coupon, i) => (
+                  <Badge key={`c${i}`} variant="successful">
+                    {coupon.name} coupon applied
+                  </Badge>
+                ))}
+              </h3>
+              <Button
+                onClick={manageClicked}
+                variant="outline"
+                size="sm"
+                disabled={portalLoading}
+              >
+                {portalLoading ? <Spinner /> : 'Manage Billing'}
+              </Button>
+            </div>
 
             <Separator className="my-4" />
 
@@ -466,75 +398,6 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                     </div>
                   </div>
                 </CardHeader>
-              </Card>
-            )}
-
-            {currentPlanSummary && (
-              <Card
-                variant="light"
-                className="mb-6 bg-transparent ring-1 ring-border/50 border-none"
-              >
-                <CardHeader className="p-4 border-b border-border/50 flex flex-row items-center justify-between">
-                  <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground">
-                    Current Plan
-                  </CardTitle>
-                  <Button
-                    onClick={manageClicked}
-                    variant="outline"
-                    size="sm"
-                    disabled={portalLoading}
-                  >
-                    {portalLoading ? <Spinner /> : 'Manage Billing'}
-                  </Button>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-semibold text-foreground">
-                          {currentPlanSummary.name}
-                        </span>
-                        {currentPlanSummary.legacy && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <Badge variant="queued">Legacy</Badge>
-                              </TooltipTrigger>
-                              <TooltipContent side="right">
-                                You're on a legacy plan which is no longer
-                                offered. Contact us if you have any questions.
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </div>
-                      {formattedEndDate && (
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          Service ends on {formattedEndDate}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      {typeof currentPlanSummary.amountCents === 'number' ? (
-                        <>
-                          <span className="text-2xl font-bold text-foreground">
-                            {formatCurrency(
-                              currentPlanSummary.amountCents,
-                              currentPlanSummary.period,
-                            )}
-                          </span>
-                          <span className="text-sm text-muted-foreground ml-1">
-                            / month
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">
-                          {formatPeriod(currentPlanSummary.period)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
               </Card>
             )}
 
@@ -578,8 +441,13 @@ export const Subscription: React.FC<SubscriptionProps> = ({
               </Card>
             )}
 
-            <div className="flex flex-row items-center justify-between mb-4">
-              <p className="text-sm text-muted-foreground">
+            {usageSlot && <div className="mb-6">{usageSlot}</div>}
+
+            <div
+              id="plan-selector"
+              className="flex flex-row items-center justify-between mb-4 scroll-mt-20"
+            >
+              <p className="text-md text-muted-foreground">
                 For plan details, visit{' '}
                 <a
                   href="https://hatchet.run/pricing"

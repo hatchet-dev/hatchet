@@ -1,3 +1,4 @@
+import { UpgradeRequiredCard } from '@/components/v1/cloud/billing/upgrade-required';
 import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
@@ -8,6 +9,7 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { useOrganizationEntitlements } from '@/hooks/use-organization-entitlements';
 import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
@@ -17,6 +19,7 @@ import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -39,6 +42,9 @@ export const OrganizationInviteMemberModal = ({
   onCreated,
 }: OrganizationInviteMemberModalProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [limitReached, setLimitReached] = useState(false);
+
+  const { canInviteUser } = useOrganizationEntitlements(organizationId);
 
   const { handleApiError } = useApiError({
     setFieldErrors,
@@ -74,11 +80,20 @@ export const OrganizationInviteMemberModal = ({
       queryClient.invalidateQueries({
         queryKey: ['organization-invites:list', organizationId],
       });
+      queryClient.invalidateQueries({
+        queryKey: ['organization:entitlements:get', organizationId],
+      });
       reset();
       onCreated(request);
       onClose();
     },
-    onError: handleApiError,
+    onError: (error) => {
+      if (error instanceof AxiosError && error.response?.status === 403) {
+        setLimitReached(true);
+        return;
+      }
+      handleApiError(error as AxiosError);
+    },
   });
 
   const emailError = errors.email?.message?.toString() || fieldErrors?.email;
@@ -87,6 +102,31 @@ export const OrganizationInviteMemberModal = ({
     reset();
     setFieldErrors({});
   }, [reset]);
+
+  const showUpgrade = limitReached || !canInviteUser;
+
+  if (showUpgrade) {
+    return (
+      <Dialog open onOpenChange={(open) => !open && onClose()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlusIcon className="h-5 w-5" />
+              Invite Member
+            </DialogTitle>
+            <DialogDescription>
+              Invite a new member to {organizationName}
+            </DialogDescription>
+          </DialogHeader>
+          <UpgradeRequiredCard
+            resource="users"
+            organizationId={organizationId}
+            onNavigate={onClose}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
