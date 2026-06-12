@@ -553,6 +553,13 @@ func (l *DurableTaskListener) WaitForCallback(
 		if completed == nil {
 			return nil, fmt.Errorf("durable callback missing entry_completed for task %s", taskExternalID)
 		}
+		if completed.GetIsFailure() {
+			msg := completed.GetErrorMessage()
+			if msg == "" {
+				msg = "child task failed"
+			}
+			return nil, fmt.Errorf("%s", msg)
+		}
 		return completed.GetPayload(), nil
 	}
 }
