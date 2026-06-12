@@ -173,8 +173,6 @@ type SatisfiedEntry struct {
 	DurableTaskId         int64
 	NodeId                int64
 	BranchId              int64
-	// SatisfiedOrder is the position of this entry in the per-log satisfaction
-	// order. Nil for entries satisfied before satisfied_order existed.
 	SatisfiedOrder        *int64
 	InvocationCount       int32
 	DurableTaskExternalId uuid.UUID
@@ -1529,9 +1527,6 @@ func getDurableSleepEventKey(sleepId int64) string {
 	return fmt.Sprintf("sleep-%d", sleepId)
 }
 
-// sortedUniqueLogFileRefs deduplicates and sorts (durable_task_id, inserted_at)
-// pairs so concurrent transactions acquire log file row locks in a consistent
-// order.
 func sortedUniqueLogFileRefs(taskIds []int64, insertedAts []pgtype.Timestamptz) ([]int64, []pgtype.Timestamptz) {
 	type ref struct {
 		insertedAt pgtype.Timestamptz

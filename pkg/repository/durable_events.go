@@ -28,9 +28,7 @@ type TaskExternalIdNodeIdBranchId struct {
 }
 
 type SatisfiedEventWithPayload struct {
-	Result []byte
-	// SatisfiedOrder is the position of this entry in the per-log satisfaction
-	// order. Nil for legacy entries satisfied before satisfied_order existed.
+	Result          []byte
 	SatisfiedOrder  *int64
 	BranchID        int64
 	NodeID          int64
@@ -542,7 +540,6 @@ func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
 }
 
-// satisfiedOrderPtr converts a nullable satisfied_order column value to a *int64.
 func satisfiedOrderPtr(v pgtype.Int8) *int64 {
 	if !v.Valid {
 		return nil
