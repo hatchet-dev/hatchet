@@ -77,7 +77,16 @@ tasks:
   sync-changelog:
     desc: Sync released changes from CHANGELOG.md into Hatchet docs
     silent: true
-    cmd: bash ./hack/docs/sync-changelog.sh
+    vars:
+      CHANGELOGS:
+        map:
+          platform: 'CHANGELOG.md'
+          python: 'sdks/python/CHANGELOG.md'
+          typescript: 'sdks/typescript/CHANGELOG.md'
+          ruby: 'sdks/ruby/src/CHANGELOG.md'
+    cmd:
+        for: { var: CHANGELOGS }
+        cmd: bash ./hack/docs/sync-changelog.sh {{.ITEM}} frontend/docs/pages/reference/changelog/{{.KEY}}.mdx
   pre:
     aliases: [fmt]
     cmds:
