@@ -2928,9 +2928,6 @@ type V1WebhookListParams struct {
 	WebhookNames *[]string `form:"webhookNames,omitempty" json:"webhookNames,omitempty"`
 }
 
-// V1WebhookReceiveTextBody defines parameters for V1WebhookReceive.
-type V1WebhookReceiveTextBody = string
-
 // V1WorkflowRunListParams defines parameters for V1WorkflowRunList.
 type V1WorkflowRunListParams struct {
 	// Offset The number to skip
@@ -3326,9 +3323,6 @@ type V1WebhookCreateJSONRequestBody = V1CreateWebhookRequest
 
 // V1WebhookUpdateJSONRequestBody defines body for V1WebhookUpdate for application/json ContentType.
 type V1WebhookUpdateJSONRequestBody = V1UpdateWebhookRequest
-
-// V1WebhookReceiveTextRequestBody defines body for V1WebhookReceive for text/plain ContentType.
-type V1WebhookReceiveTextRequestBody = V1WebhookReceiveTextBody
 
 // V1WorkflowRunCreateJSONRequestBody defines body for V1WorkflowRunCreate for application/json ContentType.
 type V1WorkflowRunCreateJSONRequestBody = V1TriggerWorkflowRunRequest
@@ -3749,8 +3743,6 @@ type ClientInterface interface {
 
 	// V1WebhookReceiveWithBody request with any body
 	V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	V1WebhookReceiveWithTextBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookReceiveTextRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// V1WorkflowRunList request
 	V1WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4813,18 +4805,6 @@ func (c *Client) V1WebhookUpdate(ctx context.Context, tenant openapi_types.UUID,
 
 func (c *Client) V1WebhookReceiveWithBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1WebhookReceiveRequestWithBody(c.Server, tenant, v1Webhook, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) V1WebhookReceiveWithTextBody(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookReceiveTextRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewV1WebhookReceiveRequestWithTextBody(c.Server, tenant, v1Webhook, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9220,13 +9200,6 @@ func NewV1WebhookUpdateRequestWithBody(server string, tenant openapi_types.UUID,
 	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
-}
-
-// NewV1WebhookReceiveRequestWithTextBody calls the generic V1WebhookReceive builder with text/plain body
-func NewV1WebhookReceiveRequestWithTextBody(server string, tenant openapi_types.UUID, v1Webhook string, body V1WebhookReceiveTextRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	bodyReader = strings.NewReader(string(body))
-	return NewV1WebhookReceiveRequestWithBody(server, tenant, v1Webhook, "text/plain", bodyReader)
 }
 
 // NewV1WebhookReceiveRequestWithBody generates requests for V1WebhookReceive with any type of body
@@ -15018,8 +14991,6 @@ type ClientWithResponsesInterface interface {
 	// V1WebhookReceiveWithBodyWithResponse request with any body
 	V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error)
 
-	V1WebhookReceiveWithTextBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookReceiveTextRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error)
-
 	// V1WorkflowRunListWithResponse request
 	V1WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1WorkflowRunListParams, reqEditors ...RequestEditorFn) (*V1WorkflowRunListResponse, error)
 
@@ -19498,14 +19469,6 @@ func (c *ClientWithResponses) V1WebhookUpdateWithResponse(ctx context.Context, t
 // V1WebhookReceiveWithBodyWithResponse request with arbitrary body returning *V1WebhookReceiveResponse
 func (c *ClientWithResponses) V1WebhookReceiveWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error) {
 	rsp, err := c.V1WebhookReceiveWithBody(ctx, tenant, v1Webhook, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseV1WebhookReceiveResponse(rsp)
-}
-
-func (c *ClientWithResponses) V1WebhookReceiveWithTextBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, v1Webhook string, body V1WebhookReceiveTextRequestBody, reqEditors ...RequestEditorFn) (*V1WebhookReceiveResponse, error) {
-	rsp, err := c.V1WebhookReceiveWithTextBody(ctx, tenant, v1Webhook, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

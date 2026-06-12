@@ -115,9 +115,9 @@ V1WebhookGetDeleteReceiveUpdate:
       description: Any payload in any format
       required: false
       content:
-        text/plain:
-          schema:
-            type: string
+      text/plain:
+        schema:
+          type: string
     responses:
       "200":
         description: "Success with response payload"

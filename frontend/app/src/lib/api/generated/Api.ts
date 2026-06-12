@@ -1264,14 +1264,13 @@ export class Api<
   v1WebhookReceive = Object.assign((
     tenant: string,
     v1Webhook: string,
-    data?: EventKey,
+    data?: any,
     params: RequestParams = {},
   ) =>
     this.request<V1WebhookResponse, APIErrors>({
       path: `/api/v1/stable/tenants/${tenant}/webhooks/${v1Webhook}`,
       method: "POST",
       body: data,
-      type: ContentType.Text,
       format: "json",
       ...params,
       xResources: ["tenant", "v1-webhook"],
