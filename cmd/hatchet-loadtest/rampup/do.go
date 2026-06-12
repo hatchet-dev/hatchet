@@ -23,7 +23,8 @@ type taskTracker struct {
 func do(duration time.Duration, startEventsPerSecond, amount int, increase, delay, wait, maxAcceptableDuration, maxAcceptableSchedule time.Duration, includeDroppedEvents bool, concurrency int) error {
 	l.Debug().Msgf("testing with duration=%s, amount=%d, increase=%d, delay=%s, wait=%s, concurrency=%d", duration, amount, increase, delay, wait, concurrency)
 
-	ctx, cancel := context.WithTimeout(context.Background(), duration+10*time.Second+wait+5*time.Second)
+	registrationTimeout := 60 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), registrationTimeout+duration+10*time.Second+wait+5*time.Second)
 	defer cancel()
 
 	after := 10 * time.Second
@@ -144,9 +145,14 @@ func do(duration time.Duration, startEventsPerSecond, amount int, increase, dela
 		}
 	}()
 
+	registered := make(chan error, 1)
 	go func() {
-		run(ctx, delay, concurrency, maxAcceptableDuration, hook, executed, executionTimes)
+		run(ctx, delay, concurrency, maxAcceptableDuration, hook, executed, executionTimes, registered)
 	}()
+
+	if err := waitForRegistration(registered, registrationTimeout); err != nil {
+		panic(fmt.Errorf("workflow registration failed within %s: %w", registrationTimeout, err))
+	}
 
 	emitted := emit(ctx, startEventsPerSecond, amount, increase, duration, maxAcceptableSchedule, hook, scheduled, scheduledTimes)
 

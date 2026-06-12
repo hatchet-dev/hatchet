@@ -134,7 +134,7 @@ func TestLoadCLI(t *testing.T) {
 				Duration:                 240 * time.Second,
 				Events:                   10,
 				Delay:                    0 * time.Second,
-				WorkerDelay:              120 * time.Second, // will write 1200 events before the worker is ready
+				WorkerDelay:              120 * time.Second, // will write about 1100 events before the worker is ready
 				Wait:                     120 * time.Second,
 				Concurrency:              0,
 				Slots:                    100,
