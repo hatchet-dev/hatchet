@@ -40,7 +40,7 @@
     "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json"
   },
   "keywords": [
-    "typescrpt",
+    "typescript",
     "hatchet",
     "workflow",
     "orchestration",
