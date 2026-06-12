@@ -14,6 +14,7 @@ from examples.concurrency_workflow_level.worker import (
     WorkflowInput,
     concurrency_workflow_level_workflow,
 )
+from examples.test_utils import poll_for_runs
 from hatchet_sdk import Hatchet
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
@@ -90,12 +91,13 @@ async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) ->
 
     assert workflow.name == concurrency_workflow_level_workflow.name
 
-    runs = await hatchet.runs.aio_list(
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=100,
         workflow_ids=[workflow.metadata.id],
         additional_metadata={
             "test_run_id": test_run_id,
         },
-        limit=1_000,
     )
 
     sorted_runs = sorted(

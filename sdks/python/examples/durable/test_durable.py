@@ -38,7 +38,7 @@ from examples.durable.worker import (
 from hatchet_sdk import Hatchet, V1TaskStatus
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
-from examples.test_utils import wait_for_replay, wait_for_running_status
+from examples.test_utils import poll_for_runs, wait_for_replay, wait_for_running_status
 
 TIMING_TOLERANCE = 1.0
 
@@ -465,23 +465,11 @@ async def test_durable_error_on_error_in_child(
     assert res.child_error_str is not None
     assert error_msg in res.child_error_str
 
-    runs: list[V1TaskSummary] | None = None
-
-    for _ in range(15):
-        runs = await hatchet.runs.aio_list(
-            since=datetime.now(timezone.utc) - timedelta(minutes=10),
-            additional_metadata={"test_run_id": test_run_id},
-        )
-
-        if len(runs) < 2:
-            await asyncio.sleep(1)
-            continue
-
-        if any(r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs):
-            await asyncio.sleep(1)
-            continue
-
-        break
+    runs = await poll_for_runs(
+        hatchet,
+        expected_count=2,
+        additional_metadata={"test_run_id": test_run_id},
+    )
 
     assert runs
     assert len(runs) == 2

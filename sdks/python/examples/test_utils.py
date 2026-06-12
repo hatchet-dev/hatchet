@@ -13,7 +13,6 @@ from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 async def wait_for_running_status(
     hatchet: Hatchet, run_id: str, timeout: float = 60.0
 ) -> None:
-    """Poll until the workflow run reaches RUNNING status or timeout is exceeded."""
     interval = 0.5
     max_iters = int(timeout / interval)
     for _ in range(max_iters):
@@ -35,11 +34,6 @@ async def poll_for_runs(
     timeout: float = 60.0,
     interval: float = 0.5,
 ) -> list[V1TaskSummary]:
-    """Poll aio_list until at least expected_count runs appear and all are in terminal states.
-
-    Designed for the "OLAP catch-up" pattern where the workflow has already completed
-    (aio_result() returned) but the list endpoint hasn't reflected the final state yet.
-    """
     terminal = statuses or [
         V1TaskStatus.COMPLETED,
         V1TaskStatus.FAILED,
@@ -62,12 +56,6 @@ async def poll_for_runs(
 
 
 async def wait_for_replay(hatchet: Hatchet, run_id: str, timeout: float = 30.0) -> None:
-    """Poll until a replayed run transitions away from COMPLETED (i.e. replay has started).
-
-    aio_replay() schedules the replay asynchronously; calling aio_result() immediately
-    after can return the stale completed result. Use this to wait until the run is
-    back in RUNNING/QUEUED before awaiting the new result.
-    """
     interval = 0.25
     max_iters = int(timeout / interval)
     for _ in range(max_iters):
