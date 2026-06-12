@@ -14,6 +14,7 @@ type SidebarState = 'open' | 'closed';
 const SIDEBAR_WIDTH_LEGACY_KEY = 'v1SidebarWidth';
 const SIDEBAR_WIDTH_EXPANDED_KEY = 'v1SidebarWidthExpanded';
 const SIDEBAR_COLLAPSED_KEY = 'v1SidebarCollapsed';
+const SIDEBAR_SCROLL_KEY = 'v1SidebarScroll';
 
 // Tailwind's `md` breakpoint (px). Used to decide when the v1 sidebar is a persistent column.
 const WIDE_BREAKPOINT_PX = 768;
@@ -44,6 +45,8 @@ type SidebarProviderState = {
   toggleCollapsed: () => void;
   expandedWidth: number;
   setExpandedWidth: (width: number) => void;
+  scrollPosition: number;
+  setScrollPosition: (pos: number) => void;
 };
 
 const initialState: SidebarProviderState = {
@@ -57,6 +60,8 @@ const initialState: SidebarProviderState = {
   toggleCollapsed: () => null,
   expandedWidth: DEFAULT_EXPANDED_SIDEBAR_WIDTH,
   setExpandedWidth: () => null,
+  scrollPosition: 0,
+  setScrollPosition: () => null,
 };
 
 const SidebarProviderContext =
@@ -116,6 +121,11 @@ export function SidebarProvider({
     setCollapsed(!collapsed);
   }, [collapsed, setCollapsed]);
 
+  const [scrollPosition, setScrollPosition] = useLocalStorageState(
+    SIDEBAR_SCROLL_KEY,
+    0,
+  );
+
   useEffect(() => {
     const handleResize = () => {
       setIsWide(window.innerWidth >= WIDE_BREAKPOINT_PX);
@@ -158,6 +168,8 @@ export function SidebarProvider({
         toggleCollapsed,
         expandedWidth,
         setExpandedWidth,
+        scrollPosition,
+        setScrollPosition,
       }}
     >
       {children}

@@ -76,6 +76,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setCollapsed: setStoredCollapsed,
     expandedWidth: storedExpandedWidth,
     setExpandedWidth: setStoredExpandedWidth,
+    scrollPosition, 
+    setScrollPosition,
   } = useSidebar();
   const { tenantId } = useTenantDetails();
   const navigate = useNavigate();
@@ -89,6 +91,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const didDragRef = useRef(false);
   const [showResizeToggle, setShowResizeToggle] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onNavLinkClick = useCallback(() => {
     if (isWide) {
@@ -251,10 +255,17 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     setLiveWidth(null);
     setIsResizing(false);
   }, [setStoredCollapsed, storedCollapsed]);
+  
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollPosition;
+    }
+  }, []);
 
   if (sidebarOpen === 'closed') {
     return null;
   }
+
 
   return (
     <div
@@ -455,7 +466,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           <>
             {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
             <div
+              ref={scrollRef}
               data-cy="v1-sidebar-scroll"
+                onScroll={() => {
+                  if (scrollSaveTimer.current) clearTimeout(scrollSaveTimer.current);
+                  scrollSaveTimer.current = setTimeout(() => {
+                    setScrollPosition(scrollRef.current?.scrollTop ?? 0);
+                  }, 100);
+                }}
               className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
               <div className="px-4 py-4">
