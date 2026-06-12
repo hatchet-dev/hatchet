@@ -128,7 +128,7 @@ export function CodeEditor({
           theme: editorTheme,
           autoDetectHighContrast: true,
           readOnly: !setCode,
-          scrollbar: { vertical: 'hidden', horizontal: 'hidden', alwaysConsumeMouseWheel: false },
+          scrollbar: { vertical: 'hidden', horizontal: 'hidden', },
           showFoldingControls: language == 'json' ? 'always' : 'never',
           lineDecorationsWidth: 0,
           overviewRulerBorder: false,
