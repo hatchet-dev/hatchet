@@ -182,12 +182,8 @@ class RunsClient(BaseRestClient):
         :param workflow_run_id: The ID of the workflow run to retrieve details for.
         :return: The task status
         """
-        with self.client() as client:
-            v1_workflow_run_get_status = tenacity_retry(
-                self._wra(client).v1_workflow_run_get_status,
-                self.client_config.tenacity,
-            )
-            return v1_workflow_run_get_status(workflow_run_id)
+        details = self.get_details(workflow_run_id)
+        return details.status.to_v1_task_status()
 
     async def aio_get_status(self, workflow_run_id: str) -> V1TaskStatus:
         """
