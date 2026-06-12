@@ -1,3 +1,4 @@
+import { useTheme } from '@/components/hooks/use-theme';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { User } from '@/lib/api';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -37,7 +38,7 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
   children,
 }) => {
   const { meta } = useApiMeta();
-
+  const { currentlyVisibleTheme } = useTheme();
   const { tenant } = useTenantDetails();
 
   const APP_ID = useMemo(() => {
@@ -80,6 +81,14 @@ const SupportChat: React.FC<PropsWithChildren & SupportChatProps> = ({
       tenant_id: tenant?.metadata?.id,
     });
   }, [user, APP_ID, tenant]);
+
+  useEffect(() => {
+    if (!APP_ID) {
+      return;
+    }
+
+    (window as any).Pylon?.('setTheme', currentlyVisibleTheme);
+  }, [APP_ID, currentlyVisibleTheme]);
 
   return children;
 };
