@@ -27,25 +27,25 @@ const heartbeatTimeout = 5 * time.Second
 const bulkPauseTimeout = 30 * time.Second
 
 type OperatorManager struct {
-	repo              repository.Repository
-	enc               encryption.EncryptionService
-	taskEventWriter   operator.TaskEventWriter
-	l                 *zerolog.Logger
-	operatorsCh       chan []operator.Operator
-	donePollingCh     chan struct{}
-	doneHeartbeatCh   chan struct{}
-	cleanup           func()
-	stopHeartbeats    func()
-	operators         syncx.Map[uuid.UUID, operator.Operator]
-	infraBlockedCIDRs []string
+	repo            repository.Repository
+	enc             encryption.EncryptionService
+	taskEventWriter operator.TaskEventWriter
+	l               *zerolog.Logger
+	operatorsCh     chan []operator.Operator
+	donePollingCh   chan struct{}
+	doneHeartbeatCh chan struct{}
+	cleanup         func()
+	stopHeartbeats  func()
+	operators       syncx.Map[uuid.UUID, operator.Operator]
 
 	// draining holds worker IDs of operators that are draining in-flight tasks; they must
 	// keep receiving heartbeats until the drain completes. mu guards it (poll loop adds,
 	// per-operator drain goroutines remove, heartbeat loop reads).
 	draining map[uuid.UUID]struct{}
 
-	dispatcherId uuid.UUID
-	mu           sync.Mutex
+	infraBlockedCIDRs []string
+	dispatcherId      uuid.UUID
+	mu                sync.Mutex
 
 	// drains tracks in-flight per-operator drain goroutines so Cleanup can await them.
 	drains sync.WaitGroup
