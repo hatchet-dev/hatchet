@@ -1316,9 +1316,8 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 		return fmt.Errorf("could not list tasks for dead lettered bulk assigned message: %w", err)
 	}
 
-	for _, _task := range toFail {
+	for _, task := range toFail {
 		tenantId := msg.TenantID
-		task := _task.Task
 
 		msg, err := tasktypes.FailedTaskMessage(
 			tenantId,

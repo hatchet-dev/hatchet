@@ -1803,6 +1803,74 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 	return items, nil
 }
 
+const listTaskRuntimes = `-- name: ListTaskRuntimes :many
+WITH inputs AS (
+    SELECT
+        UNNEST($2::bigint[]) AS task_id,
+        UNNEST($3::timestamptz[]) AS task_inserted_at,
+        UNNEST($4::integer[]) AS retry_count
+)
+SELECT
+    tr.task_id,
+    tr.task_inserted_at,
+    tr.retry_count,
+    tr.worker_id,
+    tr.batch_id,
+    tr.batch_size,
+    tr.batch_index,
+    tr.batch_key,
+    tr.tenant_id,
+    tr.timeout_at,
+    tr.evicted_at
+FROM
+    v1_task_runtime tr
+JOIN
+    inputs i ON tr.task_id = i.task_id
+    AND tr.task_inserted_at = i.task_inserted_at
+    AND tr.retry_count = i.retry_count
+WHERE
+    tr.tenant_id = $1::uuid
+`
+
+type ListTaskRuntimesParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+func (q *Queries) ListTaskRuntimes(ctx context.Context, db DBTX, arg ListTaskRuntimesParams) ([]*V1TaskRuntime, error) {
+	rows, err := db.Query(ctx, listTaskRuntimes, arg.Tenantid, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1TaskRuntime
+	for rows.Next() {
+		var i V1TaskRuntime
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.WorkerID,
+			&i.BatchID,
+			&i.BatchSize,
+			&i.BatchIndex,
+			&i.BatchKey,
+			&i.TenantID,
+			&i.TimeoutAt,
+			&i.EvictedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasks = `-- name: ListTasks :many
 SELECT
     t.id,

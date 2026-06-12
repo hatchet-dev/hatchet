@@ -167,8 +167,8 @@ async def child_batch(inp: dict[str, SimpleInput], context: Context) -> dict[str
     batch_max_size=10,
     batch_max_interval=timedelta(seconds=10),
     input_validator=SimpleInput,
-    broadcast_output=True,
-    execution_timeout=timedelta(seconds=30)
+    broadcast_output=False,
+    execution_timeout=timedelta(seconds=60)
 )
 async def batch_child_spawn(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
     return {

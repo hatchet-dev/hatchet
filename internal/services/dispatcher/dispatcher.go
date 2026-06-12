@@ -647,7 +647,7 @@ func (d *DispatcherImpl) populateTaskData(
 
 	if err != nil {
 		for _, task := range bulkDatas {
-			requeue(task.Task)
+			requeue(task)
 		}
 
 		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk list step run data:")
@@ -657,10 +657,10 @@ func (d *DispatcherImpl) populateTaskData(
 	getInvocationCountOpts := make([]v1.IdInsertedAt, 0)
 
 	for _, task := range bulkDatas {
-		if task.Task.IsDurable.Valid && task.Task.IsDurable.Bool {
+		if task.IsDurable.Valid && task.IsDurable.Bool {
 			getInvocationCountOpts = append(getInvocationCountOpts, v1.IdInsertedAt{
-				ID:         task.Task.ID,
-				InsertedAt: task.Task.InsertedAt,
+				ID:         task.ID,
+				InsertedAt: task.InsertedAt,
 			})
 		}
 	}
@@ -672,7 +672,7 @@ func (d *DispatcherImpl) populateTaskData(
 
 		if err != nil {
 			for _, task := range bulkDatas {
-				requeue(task.Task)
+				requeue(task)
 			}
 
 			d.l.Error().Err(err).Msgf("could not get durable task invocation counts for %d tasks", len(getInvocationCountOpts))
@@ -682,14 +682,14 @@ func (d *DispatcherImpl) populateTaskData(
 
 	bulkV1Tasks := make([]*sqlcv1.V1Task, len(bulkDatas))
 	for i, task := range bulkDatas {
-		bulkV1Tasks[i] = task.Task
+		bulkV1Tasks[i] = task
 	}
 
 	parentDataMap, err := d.repov1.Tasks().ListTaskParentOutputs(ctx, tenantId, bulkV1Tasks)
 
 	if err != nil {
 		for _, task := range bulkDatas {
-			requeue(task.Task)
+			requeue(task)
 		}
 
 		d.l.Error().Ctx(ctx).Err(err).Msgf("could not list parent data for %d tasks", len(bulkDatas))
@@ -700,11 +700,11 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for i, task := range bulkDatas {
 		retrievePayloadOpts[i] = v1.RetrievePayloadOpts{
-			Id:         task.Task.ID,
-			InsertedAt: task.Task.InsertedAt,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.Task.TenantID,
-			ExternalId: task.Task.ExternalID,
+			TenantId:   task.TenantID,
+			ExternalId: task.ExternalID,
 		}
 	}
 
@@ -716,7 +716,7 @@ func (d *DispatcherImpl) populateTaskData(
 	// The tasks will eventually fail but the extra retries are wasteful.
 	if err != nil {
 		for _, task := range bulkDatas {
-			requeue(task.Task)
+			requeue(task)
 		}
 
 		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
@@ -730,20 +730,20 @@ func (d *DispatcherImpl) populateTaskData(
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
-			Id:         task.Task.ID,
-			InsertedAt: task.Task.InsertedAt,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.Task.TenantID,
-			ExternalId: task.Task.ExternalID,
+			TenantId:   task.TenantID,
+			ExternalId: task.ExternalID,
 		}]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
-			input = task.Task.Input
+			input = task.Input
 		}
 
-		if parentData, ok := parentDataMap[task.Task.ID]; ok {
+		if parentData, ok := parentDataMap[task.ID]; ok {
 			currInput := &v1.V1StepRunData{}
 
 			if input != nil {
@@ -775,41 +775,48 @@ func (d *DispatcherImpl) populateTaskData(
 			currInput.Parents = readableIdToData
 
 			inputs[v1.RetrievePayloadOpts{
-				Id:         task.Task.ID,
-				InsertedAt: task.Task.InsertedAt,
+				Id:         task.ID,
+				InsertedAt: task.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-				TenantId:   task.Task.TenantID,
-				ExternalId: task.Task.ExternalID,
+				TenantId:   task.TenantID,
+				ExternalId: task.ExternalID,
 			}] = currInput.Bytes()
 		}
+	}
+
+	runtimes, err := d.repov1.Tasks().ListTaskRuntimes(ctx, tenantId, bulkDatas)
+
+	if err != nil {
+		d.l.Warn().Ctx(ctx).Err(err).Msgf("could not bulk fetch runtimes for %d tasks", len(bulkDatas))
+		runtimes = make(map[int64]*sqlcv1.V1TaskRuntime)
 	}
 
 	taskIdToData := make(map[int64]*V1TaskWithPayloadAndInvocationCount)
 
 	for _, task := range bulkDatas {
 		input, ok := inputs[v1.RetrievePayloadOpts{
-			Id:         task.Task.ID,
-			InsertedAt: task.Task.InsertedAt,
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKINPUT,
-			TenantId:   task.Task.TenantID,
-			ExternalId: task.Task.ExternalID,
+			TenantId:   task.TenantID,
+			ExternalId: task.ExternalID,
 		}]
 
 		if !ok {
 			// If the input wasn't found in the payload store,
 			// fall back to the input stored on the task itself.
-			input = task.Task.Input
+			input = task.Input
 		}
 
 		invocationCount := invocationCounts[v1.IdInsertedAt{
-			ID:         task.Task.ID,
-			InsertedAt: task.Task.InsertedAt,
+			ID:         task.ID,
+			InsertedAt: task.InsertedAt,
 		}]
 
-		taskIdToData[task.Task.ID] = &V1TaskWithPayloadAndInvocationCount{
+		taskIdToData[task.ID] = &V1TaskWithPayloadAndInvocationCount{
 			&v1.V1TaskWithPayload{
-				V1Task:  task.Task,
-				Runtime: task.Runtime,
+				V1Task:  task,
+				Runtime: runtimes[task.ID],
 				Payload: input,
 			},
 			invocationCount,
@@ -1120,10 +1127,10 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 		return fmt.Errorf("could not list tasks: %w", err)
 	}
 
-	taskIdsToTasks := make(map[int64]*v1.TaskWithRuntime)
+	taskIdsToTasks := make(map[int64]*sqlcv1.V1Task)
 
 	for _, task := range tasks {
-		taskIdsToTasks[task.Task.ID] = task
+		taskIdsToTasks[task.ID] = task
 	}
 
 	// group by worker id
@@ -1134,17 +1141,17 @@ func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.
 			workerIdToTasks[msg.WorkerId] = []*sqlcv1.V1Task{}
 		}
 
-		taskWithRuntime, ok := taskIdsToTasks[msg.TaskId]
+		task, ok := taskIdsToTasks[msg.TaskId]
 
 		if !ok {
 			d.l.Warn().Ctx(ctx).Msgf("task %d not found in retry counts", msg.TaskId)
 			continue
 		}
-		if taskWithRuntime == nil {
+		if task == nil {
 			continue
 		}
 
-		workerIdToTasks[msg.WorkerId] = append(workerIdToTasks[msg.WorkerId], taskWithRuntime.Task)
+		workerIdToTasks[msg.WorkerId] = append(workerIdToTasks[msg.WorkerId], task)
 	}
 
 	var multiErr error

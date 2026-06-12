@@ -169,11 +169,6 @@ type TaskBatchAssignment struct {
 	BatchIndex     int
 }
 
-type TaskWithRuntime struct {
-	Task    *sqlcv1.V1Task
-	Runtime *sqlcv1.V1TaskRuntime
-}
-
 type CompleteTaskOpts struct {
 	*TaskIdInsertedAtRetryCount
 
@@ -273,7 +268,9 @@ type TaskRepository interface {
 
 	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error)
 
-	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*TaskWithRuntime, error)
+	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error)
+
+	ListTaskRuntimes(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64]*sqlcv1.V1TaskRuntime, error)
 
 	ListTaskMetas(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.ListTaskMetasRow, error)
 
@@ -1216,11 +1213,11 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	}, nil
 }
 
-func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*TaskWithRuntime, error) {
+func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	return r.listTasks(ctx, r.pool, tenantId, tasks)
 }
 
-func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []int64) ([]*TaskWithRuntime, error) {
+func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	rows, err := r.queries.ListTasks(ctx, dbtx, sqlcv1.ListTasksParams{
 		Tenantid: tenantId,
 		Ids:      tasks,
@@ -1229,7 +1226,7 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 		return nil, err
 	}
 
-	result := make([]*TaskWithRuntime, 0, len(rows))
+	result := make([]*sqlcv1.V1Task, 0, len(rows))
 
 	for _, row := range rows {
 		if row == nil {
@@ -1276,24 +1273,36 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 			RetryMaxBackoff:              row.RetryMaxBackoff,
 		}
 
-		var runtime *sqlcv1.V1TaskRuntime
+		result = append(result, task)
+	}
 
-		runtime = &sqlcv1.V1TaskRuntime{
-			TaskID:         row.ID,
-			TaskInsertedAt: row.InsertedAt,
-			RetryCount:     row.RetryCount,
-			WorkerID:       row.RuntimeWorkerID,
-			BatchID:        row.RuntimeBatchID,
-			BatchSize:      row.RuntimeBatchSize,
-			BatchIndex:     row.RuntimeBatchIndex,
-			TenantID:       row.TenantID,
-			TimeoutAt:      row.RuntimeTimeoutAt,
-		}
+	return result, nil
+}
 
-		result = append(result, &TaskWithRuntime{
-			Task:    task,
-			Runtime: runtime,
-		})
+func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64]*sqlcv1.V1TaskRuntime, error) {
+	taskIds := make([]int64, 0, len(tasks))
+	insertedAts := make([]pgtype.Timestamptz, 0, len(tasks))
+	retryCounts := make([]int32, 0, len(tasks))
+
+	for _, t := range tasks {
+		taskIds = append(taskIds, t.ID)
+		insertedAts = append(insertedAts, t.InsertedAt)
+		retryCounts = append(retryCounts, t.RetryCount)
+	}
+
+	rows, err := r.queries.ListTaskRuntimes(ctx, r.pool, sqlcv1.ListTaskRuntimesParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: insertedAts,
+		Taskretrycounts: retryCounts,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[int64]*sqlcv1.V1TaskRuntime, len(rows))
+	for _, row := range rows {
+		result[row.TaskID] = row
 	}
 
 	return result, nil

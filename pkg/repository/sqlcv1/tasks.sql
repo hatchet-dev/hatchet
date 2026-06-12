@@ -1507,6 +1507,35 @@ WHERE
     )
 ;
 
+-- name: ListTaskRuntimes :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS retry_count
+)
+SELECT
+    tr.task_id,
+    tr.task_inserted_at,
+    tr.retry_count,
+    tr.worker_id,
+    tr.batch_id,
+    tr.batch_size,
+    tr.batch_index,
+    tr.batch_key,
+    tr.tenant_id,
+    tr.timeout_at,
+    tr.evicted_at
+FROM
+    v1_task_runtime tr
+JOIN
+    inputs i ON tr.task_id = i.task_id
+    AND tr.task_inserted_at = i.task_inserted_at
+    AND tr.retry_count = i.retry_count
+WHERE
+    tr.tenant_id = @tenantId::uuid
+;
+
 -- name: CreateEventToRuns :many
 WITH input AS (
     SELECT
