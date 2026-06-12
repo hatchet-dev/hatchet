@@ -3,7 +3,7 @@
 set -eo pipefail
 
 echo "\nLinting with ruff"
-poetry run ruff check . --fix
+poetry run ruff check . --fix --unsafe-fixes
 
 echo "Formatting with black"
 poetry run black . --color
