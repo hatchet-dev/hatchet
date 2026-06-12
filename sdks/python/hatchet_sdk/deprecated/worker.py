@@ -177,7 +177,6 @@ def _legacy_start_action_listener(
                 action_queue,
                 event_queue,
                 worker._handle_kill,
-                worker._config.debug,
                 worker._labels,
                 worker._worker_id_queue,
                 worker._stop_listener_event,
