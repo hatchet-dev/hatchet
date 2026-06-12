@@ -145,7 +145,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: avgThreshold,
+				AverageDurationThreshold: 45 * time.Second, // includes intentional queue wait from WorkerDelay
 			},
 		},
 		{
