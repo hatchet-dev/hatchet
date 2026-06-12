@@ -362,9 +362,9 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 
     result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    assert (
-        result.elapsed < 1 + TIMING_TOLERANCE
-    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    assert result.elapsed < 1 + TIMING_TOLERANCE, (
+        "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    )
     assert result.event.order == "first"
 
 
@@ -495,7 +495,11 @@ async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
         None,
     )
     parent = next(
-        (r for r in runs.rows if durable_replay_reset.name in (r.workflow_name or "")),
+        (
+            r
+            for r in runs.rows
+            if error_raising_durable_parent.name in (r.workflow_name or "")
+        ),
         None,
     )
 
