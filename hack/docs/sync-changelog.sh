@@ -23,4 +23,9 @@ DESTINATION="$2"
     }
     release
   ' "${SOURCE}"
-} > "${DESTINATION}"
+} |
+  # NOTE: collapse blank-line runs and drop trailing blanks so the output is
+  # prettier-stable; the pre-commit hook compares it byte-for-byte against the
+  # committed (prettier-formatted) mdx without running fmt-docs afterwards.
+  awk 'NF { if (pending) print ""; pending = 0; print; next } { pending = 1 }' \
+  > "${DESTINATION}"
