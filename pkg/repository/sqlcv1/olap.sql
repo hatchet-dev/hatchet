@@ -2398,7 +2398,12 @@ FROM statuses_from_events s
 WHERE
     (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
     AND (
-        (s.retry_count > t.latest_retry_count AND s.status != t.readable_status)
+        -- A newer retry count always applies, even when the readable status is
+        -- unchanged — same rationale as the guards in UpdateTaskStatuses and
+        -- UpdateTaskStatusesFromMQ: requiring the status to differ would skip
+        -- the latest_retry_count advance when the event history's newest retry
+        -- ends in the status the row already has.
+        (s.retry_count > t.latest_retry_count)
         OR (s.retry_count = t.latest_retry_count AND v1_status_to_priority(s.status) > v1_status_to_priority(t.readable_status))
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
