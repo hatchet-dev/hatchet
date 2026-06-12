@@ -286,8 +286,7 @@ def test_run_id() -> str:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_event_engine_behavior(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_event_engine_behavior(hatchet: Hatchet, test_run_id: str) -> None:
     events = [
         bpi(
             test_run_id=test_run_id,

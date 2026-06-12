@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator, Generator
 from subprocess import Popen
 from typing import cast
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -15,6 +16,11 @@ from tests.worker_fixture import get_free_port, hatchet_worker
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def hatchet() -> AsyncGenerator[Hatchet, None]:
     yield Hatchet()
+
+
+@pytest.fixture(scope="function")
+def test_run_id() -> str:
+    return str(uuid4())
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")

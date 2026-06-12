@@ -14,14 +14,12 @@ from hatchet_sdk import Hatchet, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_payload_replay_bug(hatchet: Hatchet) -> None:
+async def test_payload_replay_bug(hatchet: Hatchet, test_run_id: str) -> None:
     """
     Tests the case where a task is initially inserted in a non-queued state (e.g. cancelled),
     but then is replayed. The task should initially have a null payload, but on replay the payload
     should be updated.
     """
-
-    test_run_id = str(uuid4())
 
     ref = await payload_initial_cancel_bug_workflow.aio_run(
         input=Input(random_number=42),

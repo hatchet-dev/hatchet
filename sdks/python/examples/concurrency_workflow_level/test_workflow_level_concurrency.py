@@ -52,9 +52,7 @@ class RunMetadata(BaseModel):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_workflow_level_concurrency(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
-
+async def test_workflow_level_concurrency(hatchet: Hatchet, test_run_id: str) -> None:
     run_refs = await concurrency_workflow_level_workflow.aio_run_many(
         [
             concurrency_workflow_level_workflow.create_bulk_run_item(

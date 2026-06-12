@@ -16,9 +16,9 @@ def test_run() -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_additional_metadata_propagation_sync(hatchet: Hatchet) -> None:
-    test_run_id = uuid4().hex
-
+async def test_additional_metadata_propagation_sync(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     ref = await sync_fanout_parent.aio_run(
         ParentInput(n=2),
         additional_metadata={"test_run_id": test_run_id},

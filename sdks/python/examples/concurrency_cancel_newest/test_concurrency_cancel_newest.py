@@ -12,8 +12,7 @@ from hatchet_sdk import Hatchet, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     to_run = await concurrency_cancel_newest_workflow.aio_run(
         WorkflowInput(group="A"),
         additional_metadata={

@@ -453,8 +453,9 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_durable_error_on_error_in_child(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     error_msg = f"error in child task {test_run_id}"
     res = await error_raising_durable_parent.aio_run(
         input=ErrorRaisingTaskInput(error_message=error_msg),

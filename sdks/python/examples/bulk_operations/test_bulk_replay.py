@@ -12,14 +12,12 @@ from examples.bulk_operations.worker import (
     bulk_replay_test_3,
 )
 from hatchet_sdk import BulkCancelReplayOpts, Hatchet, RunFilter
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_bulk_replay(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     n = 100
     test_start = datetime.now(tz=timezone.utc)
     with pytest.raises(Exception):

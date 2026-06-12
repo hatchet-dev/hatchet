@@ -12,8 +12,7 @@ from hatchet_sdk import Hatchet, V1TaskStatus, WorkflowRunRef
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     refs: list[WorkflowRunRef] = []
 
     for i in range(10):
