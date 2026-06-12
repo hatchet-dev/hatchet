@@ -112,7 +112,7 @@ type ConfigFileOperations struct {
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
 
 	// OLAPMQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
-	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"2000"`
+	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"100"`
 }
 
 type TaskOperationLimitsConfigFile struct {
@@ -205,6 +205,9 @@ type ConfigFileRuntime struct {
 
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
+
+	// GRPCShutdownTimeout is the maximum time to wait for the grpc server to drain in-flight requests and streams on graceful shutdown before forcing a hard stop
+	GRPCShutdownTimeout time.Duration `mapstructure:"grpcShutdownTimeout" json:"grpcShutdownTimeout,omitempty" default:"10s"`
 
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
@@ -536,7 +539,7 @@ type RabbitMQConfigFile struct {
 	CompressionEnabled     bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
 	CompressionThreshold   int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
 	EnableMessageRejection bool   `mapstructure:"enableMessageRejection" json:"enableMessageRejection,omitempty" default:"false"`
-	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"5"`
+	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"1000"`
 }
 
 type ConfigFileEmail struct {
@@ -740,6 +743,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.grpcShutdownTimeout", "SERVER_GRPC_SHUTDOWN_TIMEOUT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")

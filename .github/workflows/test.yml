@@ -33,7 +33,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -63,7 +63,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Go deps
         run: go mod download
@@ -89,7 +89,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -136,7 +136,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -268,7 +268,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -406,7 +406,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -450,7 +450,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -496,10 +496,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
-
-      - name: Go deps
-        run: go mod download
+          go-version: "1.26"
 
       - name: Compose
         run: docker compose up -d
@@ -526,20 +523,55 @@ jobs:
       - name: Start engine
         run: |
           go run ./cmd/hatchet-engine --config ./generated > /tmp/engine.log 2>&1 &
-          echo $! > /tmp/engine.pid
-          echo "Waiting 30s for engine to start..."
-          sleep 30
+          ENGINE_PID=$!
+          echo $ENGINE_PID > /tmp/engine.pid
+
+          echo "Waiting for engine gRPC port 7077..."
+          for _ in {1..60}; do
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Engine exited before becoming ready:"
+              tail -50 /tmp/engine.log
+              exit 1
+            fi
+
+            if nc -z localhost 7077; then
+              echo "Engine is accepting connections on port 7077"
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "Timed out waiting for engine gRPC port 7077"
+          tail -50 /tmp/engine.log
+          exit 1
 
       - name: Run load test with migrations
         run: |
           HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
           HATCHET_CLIENT_TLS_STRATEGY=none \
           HATCHET_CLIENT_HOST_PORT=localhost:7077 \
-          go run ./cmd/hatchet-loadtest loadtest -e 10 -d 240s -w 60s -s 100 > /tmp/loadtest.log 2>&1 &
+          go run ./cmd/hatchet-loadtest loadtest -e 10 -d 240s -w 60s -s 100 \
+            --registrationTimeout 20s > /tmp/loadtest.log 2>&1 &
           LOADTEST_PID=$!
           echo $LOADTEST_PID > /tmp/loadtest.pid
 
+          (
+            while kill -0 "$LOADTEST_PID" 2>/dev/null; do
+              ENGINE_PID=$(cat /tmp/engine.pid)
+              if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+                echo "Engine died during load test:"
+                tail -50 /tmp/engine.log
+                kill "$LOADTEST_PID" 2>/dev/null || true
+                exit 1
+              fi
+              sleep 5
+            done
+          ) &
+          WATCHER=$!
+
           echo "Waiting 30s for load test to get started..."
+          # Keep this above the 20s registration timeout so PutWorkflow must succeed on the N-1 schema.
           sleep 30
 
           echo "Applying last migration..."
@@ -555,14 +587,32 @@ jobs:
           echo "Re-migration successful"
 
           echo "Waiting for load test to complete..."
-          if ! wait $LOADTEST_PID; then
+          set +e
+          wait $LOADTEST_PID
+          LOADTEST_RC=$?
+          set -e
+
+          kill "$WATCHER" 2>/dev/null || true
+          wait "$WATCHER" 2>/dev/null || true
+
+          if [ "$LOADTEST_RC" -ne 0 ]; then
             echo "=== Load test logs ==="
             cat /tmp/loadtest.log
             echo "=== Engine logs ==="
             cat /tmp/engine.log
-            exit 1
+            exit "$LOADTEST_RC"
           fi
           echo "Load test passed"
+
+      - name: Upload load-online-migrate logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: load-online-migrate-logs
+          path: |
+            /tmp/engine.log
+            /tmp/loadtest.log
+          if-no-files-found: ignore
 
       - name: Teardown
         if: always()
@@ -592,7 +642,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -686,7 +736,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
