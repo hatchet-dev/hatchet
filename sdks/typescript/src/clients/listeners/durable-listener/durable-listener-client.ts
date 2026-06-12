@@ -34,6 +34,11 @@ import { TriggerWorkflowRequest } from '@hatchet/protoc/v1/shared/trigger';
 import { NonDeterminismError } from '@hatchet/util/errors/non-determinism-error';
 import { createAbortError, bindAbortSignalHandler } from '@hatchet/util/abort-error';
 import sleep from '@hatchet/util/sleep';
+import {
+  DEFAULT_GAP_TIMEOUT_MS,
+  DEFAULT_PARK_TIMEOUT_MS,
+  OrderedReleaseGate,
+} from './durable-ordered-release';
 
 class TTLMap<K, V> {
   private cache = new Map<K, { value: V; expiresAt: number }>();
@@ -98,16 +103,6 @@ class TTLMap<K, V> {
 const DEFAULT_RECONNECT_INTERVAL = 3000;
 const EVICTION_ACK_TIMEOUT_MS = 30_000;
 const WORKER_STATUS_POLL_INTERVAL_MS = 1000;
-
-// How long the ordered-release gate stays closed waiting for a woken
-// continuation to park (register its next awaited entry) before being forced
-// open with a warning.
-const DEFAULT_PARK_TIMEOUT_MS = 5_000;
-
-// How long a hole in the satisfied-order sequence may persist (while later
-// completions are held) before the invocation's waiters are failed with a
-// non-determinism error.
-const DEFAULT_GAP_TIMEOUT_MS = 60_000;
 
 export interface DurableTaskRunAckEntryResult {
   nodeId: number;
@@ -190,7 +185,7 @@ type BranchId = number;
 type NodeId = number;
 
 type PendingEventAckKey = `${TaskExternalId}:${InvocationCount}`;
-type PendingCallbackKey = `${TaskExternalId}:${InvocationCount}:${BranchId}:${NodeId}`;
+export type PendingCallbackKey = `${TaskExternalId}:${InvocationCount}:${BranchId}:${NodeId}`;
 type PendingEvictionAckKey = `${TaskExternalId}:${InvocationCount}`;
 
 function ackKey(taskExtId: string, invocationCount: number): PendingEventAckKey {
@@ -212,28 +207,6 @@ interface Deferred<T> {
   promise: Promise<T>;
   resolve: (value: T) => void;
   reject: (reason: unknown) => void;
-}
-
-/**
- * Serializes the release of ordered entryCompleted responses for a single
- * durable task invocation. Completions are released to user code in
- * satisfiedOrder; after a release wakes a parked continuation, further
- * releases are held until that continuation parks again (registers its next
- * awaited entry), or the park timeout elapses.
- */
-interface OrderedReleaseGate {
-  held: Map<number, { key: PendingCallbackKey; result: DurableTaskEventLogEntryResult }>;
-  /** highest satisfied order released so far */
-  released: number;
-  /**
-   * continuations woken by a gated release which have not yet parked; the
-   * gate is open iff wakes === 0
-   */
-  wakes: number;
-  /** when wakes last transitioned from zero, for the park timeout */
-  wakeSince: number;
-  /** when the gate first became blocked on a missing order, or null */
-  gapSince: number | null;
 }
 
 function deferred<T>(): Deferred<T> {

@@ -3,7 +3,7 @@ import json
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Annotated, Literal, cast
 
@@ -13,6 +13,11 @@ from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
+)
+from hatchet_sdk.clients.listeners.durable_ordered_release import (
+    DEFAULT_GAP_TIMEOUT_S,
+    DEFAULT_PARK_TIMEOUT_S,
+    OrderedReleaseGate,
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -41,16 +46,6 @@ from hatchet_sdk.utils.cache import TTLCache
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
 DEFAULT_RECONNECT_INTERVAL = 3  # seconds
-
-# How long the ordered-release gate stays closed waiting for a woken
-# continuation to park (register its next awaited entry) before being forced
-# open with a warning.
-DEFAULT_PARK_TIMEOUT_S = 5.0
-
-# How long a hole in the satisfied-order sequence may persist (while later
-# completions are held) before the invocation's waiters are failed with a
-# non-determinism error.
-DEFAULT_GAP_TIMEOUT_S = 60.0
 
 
 @dataclass(frozen=True)
@@ -156,33 +151,6 @@ PendingEventAck = tuple[TaskExternalId, InvocationCount]
 PendingEvictionAck = tuple[TaskExternalId, InvocationCount]
 
 
-@dataclass
-class _OrderedReleaseGate:
-    """Serializes the release of ordered entry_completed responses for a single
-    durable task invocation. Completions are released to user code in
-    satisfied_order; after a release wakes a parked continuation, further
-    releases are held until that continuation parks again (registers its next
-    awaited entry), or the park timeout elapses."""
-
-    held: dict[int, tuple[PendingCallback, "DurableTaskEventLogEntryResult"]] = field(
-        default_factory=dict
-    )
-
-    #: highest satisfied order released so far
-    released: int = 0
-
-    #: continuations woken by a gated release which have not yet parked; the
-    #: gate is open iff wakes == 0
-    wakes: int = 0
-
-    #: when wakes last transitioned from zero (monotonic), for the park timeout
-    wake_since: float = 0.0
-
-    #: when the gate first became blocked on a missing order (monotonic), or
-    #: None when not blocked
-    gap_since: float | None = None
-
-
 class DurableEventListener:
     def __init__(
         self,
@@ -220,8 +188,8 @@ class DurableEventListener:
         ] = TTLCache(ttl=timedelta(seconds=10))
 
         # Ordered-release gates keyed by (task external id, invocation count).
-        # See _OrderedReleaseGate.
-        self._gates: dict[PendingEventAck, _OrderedReleaseGate] = {}
+        # See OrderedReleaseGate.
+        self._gates: dict[PendingEventAck, OrderedReleaseGate] = {}
         self._park_timeout_s = DEFAULT_PARK_TIMEOUT_S
         self._gap_timeout_s = DEFAULT_GAP_TIMEOUT_S
 
@@ -578,7 +546,7 @@ class DurableEventListener:
         result: DurableTaskEventLogEntryResult,
     ) -> None:
         gate_key: PendingEventAck = (completed_key[0], completed_key[1])
-        gate = self._gates.setdefault(gate_key, _OrderedReleaseGate())
+        gate = self._gates.setdefault(gate_key, OrderedReleaseGate())
 
         if order <= gate.released:
             # re-delivery of an already-released completion (e.g. after
@@ -589,7 +557,7 @@ class DurableEventListener:
         gate.held[order] = (completed_key, result)
         self._pump_gate(gate)
 
-    def _pump_gate(self, gate: _OrderedReleaseGate) -> None:
+    def _pump_gate(self, gate: OrderedReleaseGate) -> None:
         """Release contiguously ordered completions while the gate is open."""
         while gate.wakes == 0 and (gate.released + 1) in gate.held:
             completed_key, result = gate.held.pop(gate.released + 1)
