@@ -1,0 +1,28 @@
+module Hatchet
+  module WorkerRuntime
+    module DurableOrderedRelease
+      DEFAULT_PARK_TIMEOUT_SECONDS: Float
+      DEFAULT_GAP_TIMEOUT_SECONDS: Float
+
+      class OrderedReleaseGate < Struct[untyped]
+        attr_accessor held: Hash[Integer, [Array[untyped], Hash[Symbol, untyped]]]
+        attr_accessor released: Integer
+        attr_accessor wakes: Integer
+        attr_accessor wake_since: Float?
+        attr_accessor gap_since: Float?
+      end
+
+      def notify_invocation_quiesced: (String durable_task_external_id, Integer invocation_count) -> void
+
+      private
+
+      def deliver_completion: (Array[untyped] key, Hash[Symbol, untyped] result) -> bool
+      def handle_ordered_completion: (Array[untyped] gate_key, Integer order, Array[untyped] key, Hash[Symbol, untyped] result) -> void
+      def pump_gate: (Array[untyped] gate_key, OrderedReleaseGate gate) -> void
+      def notify_parked: (Array[untyped] gate_key) -> void
+      def sweep_gates: () -> void
+      def fail_invocation_waiters: (Array[untyped] gate_key, Exception exc) -> void
+      def monotonic_now: () -> Float
+    end
+  end
+end

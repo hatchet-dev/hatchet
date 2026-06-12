@@ -343,9 +343,16 @@ module Hatchet
       end
 
       def cleanup_action(action_key)
-        @contexts_mu.synchronize do
-          @contexts.delete(action_key)
+        ctx = @contexts_mu.synchronize do
           @task_threads.delete(action_key)
+          @contexts.delete(action_key)
+        end
+
+        # the durable task function returned: open the ordered-release gate so
+        # buffered completions are not held for a continuation that no longer
+        # exists.
+        if @durable_event_listener && ctx.is_a?(DurableContext)
+          @durable_event_listener.notify_invocation_quiesced(ctx.step_run_id, ctx.invocation_count || 1)
         end
 
         @eviction_manager&.unregister_run(action_key)
