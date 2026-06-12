@@ -553,7 +553,11 @@ func TestDurableErrorOnErrorInChild(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, rest.V1TaskStatusFAILED, *childStatus)
 
-	parentStatus, err := sharedClient.Runs().GetStatus(ctx, parentRunID)
-	require.NoError(t, err)
-	assert.Equal(t, rest.V1TaskStatusCOMPLETED, *parentStatus)
+	pollUntil(t, ctx, func() (bool, error) {
+		parentStatus, err := sharedClient.Runs().GetStatus(ctx, parentRunID)
+		if err != nil {
+			return false, err
+		}
+		return *parentStatus == rest.V1TaskStatusCOMPLETED, nil
+	})
 }
