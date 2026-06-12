@@ -35,8 +35,8 @@ from examples.durable.worker import (
     error_raising_task,
     ErrorRaisingTaskInput,
 )
-from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk import Hatchet, V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 
 from examples.test_utils import wait_for_running_status
 
@@ -465,7 +465,7 @@ async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
     assert res.child_error_str is not None
     assert error_msg in res.child_error_str
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] | None = None
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -473,29 +473,27 @@ async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) < 2:
+        if len(runs) < 2:
             await asyncio.sleep(1)
             continue
 
-        if any(
-            r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs.rows
-        ):
+        if any(r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs):
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs
-    assert len(runs.rows) == 2
+    assert len(runs) == 2
 
     child = next(
-        (r for r in runs.rows if error_raising_task.name in (r.workflow_name or "")),
+        (r for r in runs if error_raising_task.name in (r.workflow_name or "")),
         None,
     )
     parent = next(
         (
             r
-            for r in runs.rows
+            for r in runs
             if error_raising_durable_parent.name in (r.workflow_name or "")
         ),
         None,

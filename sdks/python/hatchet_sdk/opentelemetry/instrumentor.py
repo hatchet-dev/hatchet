@@ -630,9 +630,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         attributes = {
             OTelAttribute.WORKFLOW_NAME: config.workflow_name,
             OTelAttribute.ACTION_PAYLOAD: config.input,
-            OTelAttribute.PARENT_ID: config.options.parent_id,
-            OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
-            OTelAttribute.CHILD_INDEX: config.options.child_index,
             OTelAttribute.CHILD_KEY: config.options.child_key,
             OTelAttribute.NAMESPACE: config.options.namespace,
             OTelAttribute.ADDITIONAL_METADATA: json.dumps(
@@ -641,7 +638,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             OTelAttribute.PRIORITY: config.options.priority,
             OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
             OTelAttribute.STICKY: config.options.sticky,
-            OTelAttribute.KEY: config.options.key,
         }
         return {
             "instrumentor": "hatchet",

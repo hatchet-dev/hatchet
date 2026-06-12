@@ -27,14 +27,13 @@ from hatchet_sdk.exceptions import (
     LifespanSetupError,
     LoopAlreadyRunningError,
 )
+from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.types.labels import WorkerLabel
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
-from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
@@ -143,6 +142,7 @@ class Worker:
             workflow_run_listener=self._workflow_listener_client,
             workflow_run_event_listener=self._listener_client,
         )
+        self._workers_client = WorkersClient(self._config)
 
     @property
     def name(self) -> str:
@@ -531,7 +531,7 @@ class Worker:
             logger.warning("could not read worker_id; skipping pause")
             return
         logger.info("pausing task assignment...")
-        await self._client.workers.aio_pause(worker_id)
+        await self._workers_client.aio_pause(worker_id)
         logger.info("task assignment paused")
 
     def _stop_listener_action_loops(self) -> None:

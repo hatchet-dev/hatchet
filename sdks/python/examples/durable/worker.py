@@ -81,7 +81,7 @@ class DurableSpawnManyDagsResult(BaseModel):
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
 async def durable_spawn_many_dags(
-    input: EmptyModel, ctx: DurableContext
+    input: None, ctx: DurableContext
 ) -> DurableSpawnManyDagsResult:
     results = await dag_child_workflow.aio_run_many(
         [
