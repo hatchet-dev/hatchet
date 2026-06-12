@@ -63,7 +63,7 @@ class WorkerActionRunLoopManager:
     def start(self) -> None:
         self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
-    async def aio_start(self, retry_count: int = 1) -> None:
+    async def aio_start(self) -> None:
         if self.config.disable_log_capture:
             await self._async_start()
         else:

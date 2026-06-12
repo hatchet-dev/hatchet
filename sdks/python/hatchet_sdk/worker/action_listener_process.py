@@ -209,7 +209,7 @@ class WorkerActionListenerProcess:
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
-    async def _health_handler(self, request: Request) -> Response:
+    async def _health_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 
@@ -218,7 +218,7 @@ class WorkerActionListenerProcess:
 
         return web.json_response(response, status=200 if ok else 503)
 
-    async def _metrics_handler(self, request: Request) -> Response:
+    async def _metrics_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 

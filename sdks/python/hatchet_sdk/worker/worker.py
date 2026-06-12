@@ -300,15 +300,7 @@ class Worker:
                     self._loop.stop()
                 raise e
 
-        # Healthcheck server is started inside the spawned action-listener process
-        # (non-durable preferred) to avoid being affected by the main worker loop.
-        healthcheck_port = self._config.healthcheck.port
-        enable_health_server = self._config.healthcheck.enabled
-
-        self._action_listener_process = self._start_action_listener(
-            enable_health_server=enable_health_server,
-            healthcheck_port=healthcheck_port,
-        )
+        self._action_listener_process = self._start_action_listener()
         self._action_runner = self._run_action_runner(lifespan_context=lifespan_context)
 
         if self._loop:
@@ -378,12 +370,7 @@ class Worker:
             logger.exception("error during lifespan cleanup")
             raise LifespanSetupError("An error occurred during lifespan cleanup") from e
 
-    def _start_action_listener(
-        self,
-        *,
-        enable_health_server: bool = False,
-        healthcheck_port: int = 8001,
-    ) -> multiprocessing.context.SpawnProcess:
+    def _start_action_listener(self) -> multiprocessing.context.SpawnProcess:
         try:
             process = self._ctx.Process(
                 target=worker_action_listener_process,
@@ -455,13 +442,13 @@ class Worker:
         )
         signal.signal(signal.SIGQUIT, self._handle_force_quit_signal)
 
-    def _handle_exit_signal(self, signum: int, frame: FrameType | None) -> None:
+    def _handle_exit_signal(self, signum: int, _frame: FrameType | None) -> None:
         sig_name = "SIGTERM" if signum == signal.SIGTERM else "SIGINT"
         logger.info(f"received signal {sig_name}...")
         if self._loop:
             self._loop.create_task(self.exit_gracefully())
 
-    def _handle_force_quit_signal(self, signum: int, frame: FrameType | None) -> None:
+    def _handle_force_quit_signal(self, signum: int, _frame: FrameType | None) -> None:
         signal_received = signal.Signals(signum).name
         logger.info(f"received {signal_received}...")
         if self._loop:

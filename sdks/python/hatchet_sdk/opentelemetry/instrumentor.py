@@ -374,7 +374,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def instrumentation_dependencies(self) -> Collection[str]:
         return ()
 
-    def _instrument(self, **kwargs: InstrumentKwargs) -> None:
+    def _instrument(self, **_kwargs: InstrumentKwargs) -> None:
         self._tracer = get_tracer(__name__, hatchet_sdk_version, self.tracer_provider)
         self._meter = get_meter(__name__, hatchet_sdk_version, self.meter_provider)
 
@@ -473,7 +473,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_handle_start_step_run(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
-        instance: Runner,
+        _instance: Runner,
         args: tuple[Action],
         kwargs: Any,
     ) -> Exception | None:
@@ -510,7 +510,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_handle_cancel_action(
         self,
         wrapped: Callable[[Action], Coroutine[None, None, None]],
-        instance: Runner,
+        _instance: Runner,
         args: tuple[Action],
         kwargs: Any,
     ) -> None:
@@ -529,7 +529,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_push_event(
         self,
         wrapped: Callable[..., Event],
-        instance: EventClient,
+        _instance: EventClient,
         args: tuple[
             str,
             JSONSerializableMapping,
@@ -588,7 +588,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     def _wrap_bulk_push_event(
         self,
         wrapped: Callable[[list[BulkPushEventWithMetadata]], list[Event]],
-        instance: EventClient,
+        _instance: EventClient,
         args: tuple[list[BulkPushEventWithMetadata],],
         kwargs: dict[str, list[BulkPushEventWithMetadata]],
     ) -> list[Event]:
@@ -716,7 +716,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [str, str | None, TriggerWorkflowOptions],
             WorkflowRunRef,
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[str, str | None, TriggerWorkflowOptions],
         kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
@@ -772,7 +772,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [str, str | None, TriggerWorkflowOptions],
             Coroutine[None, None, WorkflowRunRef],
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[str, str | None, TriggerWorkflowOptions],
         kwargs: dict[str, str | None | TriggerWorkflowOptions],
     ) -> WorkflowRunRef:
@@ -833,7 +833,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             ],
             v0_workflow_protos.WorkflowVersion,
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[
             str,
             list[datetime],
@@ -899,7 +899,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [list[WorkflowRunTriggerConfig]],
             list[WorkflowRunRef],
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
@@ -935,7 +935,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             [list[WorkflowRunTriggerConfig]],
             Coroutine[None, None, list[WorkflowRunRef]],
         ],
-        instance: AdminClient,
+        _instance: AdminClient,
         args: tuple[list[WorkflowRunTriggerConfig],],
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
@@ -1064,7 +1064,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 span.set_status(StatusCode.ERROR, str(e))
                 raise
 
-    def _uninstrument(self, **kwargs: InstrumentKwargs) -> None:
+    def _uninstrument(self, **_kwargs: InstrumentKwargs) -> None:
         self.tracer_provider = NoOpTracerProvider()
         self.meter_provider = NoOpMeterProvider()
 

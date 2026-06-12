@@ -282,9 +282,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
-        sticky: bool = False,
-        desired_worker_id: str | None = None,
-        desired_worker_labels: list[DesiredWorkerLabel] | None = None,
     ) -> ScheduleTriggerWorkflowOptions:
         return ScheduleTriggerWorkflowOptions(
             child_key=child_key,

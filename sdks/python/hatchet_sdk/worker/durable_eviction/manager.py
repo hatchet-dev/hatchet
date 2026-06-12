@@ -102,7 +102,7 @@ class DurableEvictionManager:
         )
 
     def mark_active(self, key: ActionKey) -> None:
-        self._cache.mark_active(key, now=self._now())
+        self._cache.mark_active(key)
 
     def _evict_run(self, key: ActionKey) -> None:
         self._cancel_local(key)

@@ -159,7 +159,7 @@ select = [
     "PERF",
     "T201",
 ]
-ignore = ["E501", "N806", "B008", "ARG001", "ARG002", "RET503", "FIX", "RET506"]
+ignore = ["E501", "RET503", "FIX", "B008"]
 exclude = [
     "examples/*",
     "docs/*",

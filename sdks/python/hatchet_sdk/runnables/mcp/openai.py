@@ -21,7 +21,7 @@ def task_to_openai_mcp(
     description: str,
     **kwargs: Any,
 ) -> FunctionTool:
-    async def handler(ctx: ToolContext[Any], input: str) -> str:
+    async def handler(_ctx: ToolContext[Any], input: str) -> str:
         loaded_input = typing.cast(dict[str, Any], json.loads(input))
         res = await runnable.aio_run(loaded_input)
         return runnable.output_validator.dump_json(res).decode("utf-8")
@@ -41,7 +41,7 @@ def workflow_to_openai_mcp(
     description: str,
     **kwargs: Any,
 ) -> FunctionTool:
-    async def handler(ctx: ToolContext[Any], input: str) -> str:
+    async def handler(_ctx: ToolContext[Any], input: str) -> str:
         loaded_input = typing.cast(dict[str, Any], json.loads(input))
         res = await runnable.aio_run(loaded_input)
         return json.dumps(res)

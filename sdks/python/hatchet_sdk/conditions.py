@@ -75,7 +75,7 @@ class SleepCondition(Condition):
 
         self.duration = duration
 
-    def to_proto(self, config: ClientConfig) -> SleepMatchCondition:
+    def to_proto(self, _config: ClientConfig) -> SleepMatchCondition:
         return SleepMatchCondition(
             base=self.base.to_proto(),
             sleep_for=timedelta_to_expr(self.duration),
@@ -134,7 +134,7 @@ class ParentCondition(Condition):
 
         self.parent = parent
 
-    def to_proto(self, config: ClientConfig) -> ParentOverrideMatchCondition:
+    def to_proto(self, _config: ClientConfig) -> ParentOverrideMatchCondition:
         return ParentOverrideMatchCondition(
             base=self.base.to_proto(),
             parent_readable_id=self.parent.name,

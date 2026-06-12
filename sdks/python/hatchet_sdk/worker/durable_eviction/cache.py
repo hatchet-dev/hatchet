@@ -92,7 +92,7 @@ class DurableEvictionCache:
         rec.wait_kind = wait_kind
         rec.wait_resource_id = resource_id
 
-    def mark_active(self, key: ActionKey, now: datetime) -> None:
+    def mark_active(self, key: ActionKey) -> None:
         rec = self._runs.get(key)
         if not rec:
             return

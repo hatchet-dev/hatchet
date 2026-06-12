@@ -360,14 +360,11 @@ class Context:
         """
         return self._exit_flag
 
-    def log(
-        self, line: str | JSONSerializableMapping, raise_on_error: bool = False
-    ) -> None:
+    def log(self, line: str | JSONSerializableMapping) -> None:
         """
         Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.
 
         :param line: The line to log. Can be a string or a JSON serializable mapping.
-        :param raise_on_error: If True, will raise an exception if the log fails. Defaults to False.
         :return: None
         """
 
@@ -390,18 +387,15 @@ class Context:
             )
         )
 
-    async def aio_log(
-        self, line: str | JSONSerializableMapping, raise_on_error: bool = False
-    ) -> None:
+    async def aio_log(self, line: str | JSONSerializableMapping) -> None:
         """
         Log a line to the Hatchet API. This will send the log line to the Hatchet API and return immediately.
 
         :param line: The line to log. Can be a string or a JSON serializable mapping.
-        :param raise_on_error: If True, will raise an exception if the log fails. Defaults to False.
         :return: None
         """
 
-        await asyncio.to_thread(self.log, line, raise_on_error)
+        await asyncio.to_thread(self.log, line)
 
     def release_slot(self) -> None:
         """
