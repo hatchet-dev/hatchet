@@ -103,6 +103,18 @@ func seedReplayTask(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl,
 		workerId:   uuid.New(),
 	}
 
+	createReplayTask(t, ctx, repo, f)
+
+	return f
+}
+
+// createReplayTask writes the fixture task through CreateTasks. Calling it
+// again for the same fixture simulates a redelivered CreateTasks message:
+// the insert is ON CONFLICT DO NOTHING and ReconcileTaskStatusesFromEvents
+// runs over the task's full event history.
+func createReplayTask(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl, f replayStatusFixture) {
+	t.Helper()
+
 	task := &V1TaskWithPayload{
 		V1Task: &sqlcv1.V1Task{
 			ID:                 f.taskId,
@@ -129,8 +141,6 @@ func seedReplayTask(t *testing.T, ctx context.Context, repo *OLAPRepositoryImpl,
 	_, locksNotAcquired, err := repo.CreateTasks(ctx, f.tenantId, []*V1TaskWithPayload{task})
 	require.NoError(t, err)
 	require.Empty(t, locksNotAcquired)
-
-	return f
 }
 
 func (f replayStatusFixture) event(eventType sqlcv1.V1EventTypeOlap, status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.CreateTaskEventsOLAPParams {
@@ -301,5 +311,41 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 		}
 
 		runReplayStatusScenario(t, ctx, pool, f, applyBatch)
+	})
+
+	// ReconcileTaskStatusesFromEvents carries the same guard but aggregates
+	// over the task's full event history rather than one batch, so the
+	// stuck-RUNNING mode cannot occur — only the stale-retry-count mode can.
+	t.Run("reconcile_path", func(t *testing.T) {
+		f := seedReplayTask(t, ctx, repo, 3)
+		batches := replayEventBatches(f)
+
+		eventExternalIdToWorkflowRunId := map[uuid.UUID]uuid.UUID{f.externalId: f.externalId}
+		_, locksNotAcquired, err := repo.CreateTaskEvents(ctx, f.tenantId, batches[0], eventExternalIdToWorkflowRunId)
+		require.NoError(t, err)
+		require.Empty(t, locksNotAcquired)
+		assertOLAPTaskStatus(t, ctx, pool, f, "COMPLETED", 1)
+
+		// Write the replay's events (retry 2) into the events table without
+		// going through a status-update path, mimicking events whose inline
+		// status update did not reach this row.
+		for _, batch := range [][]sqlcv1.CreateTaskEventsOLAPParams{batches[1], batches[2]} {
+			for _, e := range batch {
+				_, err := pool.Exec(ctx, `
+					INSERT INTO v1_task_events_olap (
+						tenant_id, task_id, task_inserted_at, event_type, workflow_id, readable_status, retry_count, worker_id
+					) VALUES ($1, $2, $3, $4::v1_event_type_olap, $5, $6::v1_readable_status_olap, $7, $8)
+				`, e.TenantID, e.TaskID, e.TaskInsertedAt, string(e.EventType), e.WorkflowID, string(e.ReadableStatus), e.RetryCount, e.WorkerID)
+				require.NoError(t, err)
+			}
+		}
+
+		// A redelivered CreateTasks message reconciles the row against the
+		// event history: retry 2's highest-priority status is COMPLETED, the
+		// same readable status the row already has, so only latest_retry_count
+		// needs to advance.
+		createReplayTask(t, ctx, repo, f)
+		assertOLAPTaskStatus(t, ctx, pool, f, "COMPLETED", 2)
+		assertOLAPRunStatus(t, ctx, pool, f, "COMPLETED")
 	})
 }
