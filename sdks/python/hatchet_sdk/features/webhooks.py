@@ -25,13 +25,15 @@ from hatchet_sdk.clients.rest.models.v1_update_webhook_request import (
 from hatchet_sdk.clients.rest.models.v1_webhook_api_key_auth import V1WebhookAPIKeyAuth
 from hatchet_sdk.clients.rest.models.v1_webhook_auth_type import V1WebhookAuthType
 from hatchet_sdk.clients.rest.models.v1_webhook_basic_auth import V1WebhookBasicAuth
+from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import (
+    V1WebhookHMACAuth,  # noqa: TC001
+)
 from hatchet_sdk.clients.rest.tenacity_utils import tenacity_retry
 from hatchet_sdk.clients.v1.api_client import BaseRestClient
 
 if TYPE_CHECKING:
     from hatchet_sdk.clients.rest.api_client import ApiClient
     from hatchet_sdk.clients.rest.models.v1_webhook import V1Webhook
-    from hatchet_sdk.clients.rest.models.v1_webhook_hmac_auth import V1WebhookHMACAuth
     from hatchet_sdk.clients.rest.models.v1_webhook_source_name import (
         V1WebhookSourceName,
     )
