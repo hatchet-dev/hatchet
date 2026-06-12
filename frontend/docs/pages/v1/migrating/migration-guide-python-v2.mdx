@@ -209,8 +209,8 @@ runs = await hatchet.runs.aio_list(since=..., until=...)
 
 The `event_timestamp` field and its deprecated camelCase aliases (`eventTimestamp`, `additionalMetadata`) have been removed from the `Event` class. Use the snake_case fields directly:
 
-| V1                          | V2                       |
-| --------------------------- | ------------------------ |
-| `event.event_timestamp`     | `event.seen_at`          |
-| `event.eventTimestamp`      | `event.seen_at`          |
-| `event.additionalMetadata`  | `event.additional_metadata` |
+| V1                         | V2                          |
+| -------------------------- | --------------------------- |
+| `event.event_timestamp`    | `event.seen_at`             |
+| `event.eventTimestamp`     | `event.seen_at`             |
+| `event.additionalMetadata` | `event.additional_metadata` |
