@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from pytest import FixtureRequest
 
 from hatchet_sdk import Hatchet
 from hatchet_sdk.deprecated.deprecation import semver_less_than
@@ -18,7 +17,7 @@ async def hatchet() -> AsyncGenerator[Hatchet, None]:
     yield Hatchet()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def test_run_id() -> str:
     return str(uuid4())
 
@@ -35,7 +34,7 @@ async def supports_durable_eviction(engine_version: str | None) -> bool:
     return not semver_less_than(engine_version, MinEngineVersion.DURABLE_EVICTION)
 
 
-@pytest.fixture()
+@pytest.fixture
 def _skip_unless_durable_eviction(supports_durable_eviction: bool) -> None:
     if not supports_durable_eviction:
         pytest.skip(
@@ -50,7 +49,7 @@ async def supports_observability(engine_version: str | None) -> bool:
     return not semver_less_than(engine_version, MinEngineVersion.OBSERVABILITY)
 
 
-@pytest.fixture()
+@pytest.fixture
 def _skip_unless_observability(supports_observability: bool) -> None:
     if not supports_observability:
         pytest.skip(
@@ -67,14 +66,16 @@ def worker() -> Generator[Popen[bytes], None, None]:
 
 
 def _on_demand_worker_fixture(
-    request: FixtureRequest,
+    request: pytest.FixtureRequest,
 ) -> Generator[Popen[bytes], None, None]:
-    command = cast(list[str], request.param)
+    command = cast("list[str]", request.param)
 
     with hatchet_worker(command, get_free_port()) as proc:
         yield proc
 
 
-@pytest.fixture()
-def on_demand_worker(request: FixtureRequest) -> Generator[Popen[bytes], None, None]:
+@pytest.fixture
+def on_demand_worker(
+    request: pytest.FixtureRequest,
+) -> Generator[Popen[bytes], None, None]:
     yield from _on_demand_worker_fixture(request)

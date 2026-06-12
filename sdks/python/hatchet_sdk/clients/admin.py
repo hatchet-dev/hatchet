@@ -132,7 +132,7 @@ class AdminClient:
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-    ):
+    ) -> None:
         self.config = config
         self.token = config.token
         self.namespace = config.namespace
@@ -304,7 +304,7 @@ class AdminClient:
 
         put_workflow = tenacity_retry(self.client.PutWorkflow, self.config.tenacity)
         return cast(
-            workflow_protos.CreateWorkflowVersionResponse,
+            "workflow_protos.CreateWorkflowVersionResponse",
             put_workflow(
                 workflow,
                 metadata=create_authorization_header(self.token),
@@ -356,7 +356,7 @@ class AdminClient:
             )
 
             return cast(
-                v0_workflow_protos.WorkflowVersion,
+                "v0_workflow_protos.WorkflowVersion",
                 schedule_workflow(
                     request,
                     metadata=create_authorization_header(self.token),
@@ -414,7 +414,7 @@ class AdminClient:
 
         try:
             resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
+                "v0_workflow_protos.TriggerWorkflowResponse",
                 trigger_workflow(
                     request,
                     metadata=create_authorization_header(self.token),
@@ -445,7 +445,7 @@ class AdminClient:
 
         try:
             resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
+                "v0_workflow_protos.TriggerWorkflowResponse",
                 await asyncio.to_thread(
                     trigger_workflow,
                     request,
@@ -492,7 +492,7 @@ class AdminClient:
             )
 
             resp = cast(
-                v0_workflow_protos.BulkTriggerWorkflowResponse,
+                "v0_workflow_protos.BulkTriggerWorkflowResponse",
                 bulk_trigger_workflow(
                     bulk_request,
                     metadata=create_authorization_header(self.token),
@@ -538,7 +538,7 @@ class AdminClient:
             )
 
             resp = cast(
-                v0_workflow_protos.BulkTriggerWorkflowResponse,
+                "v0_workflow_protos.BulkTriggerWorkflowResponse",
                 await asyncio.to_thread(
                     bulk_trigger_workflow,
                     bulk_request,
@@ -578,7 +578,7 @@ class AdminClient:
         )
 
         response = cast(
-            workflow_protos.GetRunDetailsResponse,
+            "workflow_protos.GetRunDetailsResponse",
             get_run_payloads(
                 workflow_protos.GetRunDetailsRequest(external_id=external_id),
                 metadata=create_authorization_header(self.token),

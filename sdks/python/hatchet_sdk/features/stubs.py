@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class StubsClient:
-    def __init__(self, client: "Hatchet"):
+    def __init__(self, client: "Hatchet") -> None:
         self.client = client
 
     @overload
@@ -97,7 +97,7 @@ class StubsClient:
         | Standalone[None, None]
         | Standalone[TWorkflowInput, None]
     ):
-        def mock_func(input: Any, ctx: Context) -> Any:
+        def mock_func(input: Any, ctx: Context) -> Any:  # noqa: ANN401
             raise NotImplementedError(
                 "This is a stub function and should not be called directly."
             )

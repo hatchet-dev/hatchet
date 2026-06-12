@@ -41,7 +41,7 @@ async def legacy_get_action_listener(
         proto_labels[key] = WorkerLabels(str_value=str(value))
 
     response = cast(
-        WorkerRegisterResponse,
+        "WorkerRegisterResponse",
         await aio_client.Register(  # type: ignore[misc]
             WorkerRegisterRequest(
                 worker_name=worker_name,

@@ -19,7 +19,7 @@ class WorkflowRunRef:
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
         admin_client: "AdminClient",
-    ):
+    ) -> None:
         self._workflow_run_id = workflow_run_id
         self._workflow_run_listener = workflow_run_listener
         self._workflow_run_event_listener = workflow_run_event_listener

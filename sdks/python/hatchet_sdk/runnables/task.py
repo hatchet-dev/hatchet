@@ -74,19 +74,27 @@ T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
 
 
-def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
+def is_async_context_manager(
+    obj: Any,  # noqa: ANN401
+) -> TypeGuard[AbstractAsyncContextManager[Any]]:
     """Type guard to check if an object is an async context manager."""
     return hasattr(obj, "__aenter__") and hasattr(obj, "__aexit__")
 
 
-def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
+def is_sync_context_manager(
+    obj: Any,  # noqa: ANN401
+) -> TypeGuard[AbstractContextManager[Any]]:
     """Type guard to check if an object is a sync context manager."""
     return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
 
 class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
     def __call__(
-        self, input: TWorkflowInput_contra, ctx: Context, *args: Any, **kwargs: Any
+        self,
+        input: TWorkflowInput_contra,
+        ctx: Context,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
     ) -> (
         T_co
         | CoroutineLike[T_co]
@@ -162,7 +170,7 @@ class Task(Generic[TWorkflowInput, R]):
         self._slot_requests = slot_requests
 
         self._fn = _fn
-        self._is_async_function = is_async_fn(self._fn)  # type: ignore
+        self._is_async_function = is_async_fn(self._fn)  # type: ignore[arg-type]
 
         if is_durable and not self._is_async_function:
             raise TypeError("Durable tasks must be async functions.")
@@ -369,9 +377,8 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_sync_fn(self._fn):  # type: ignore
-            return self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
-
+        if is_sync_fn(self._fn):  # type: ignore[arg-type]
+            return self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type]
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
     async def aio_call(
@@ -385,8 +392,8 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_async_fn(self._fn):  # type: ignore
-            return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+        if is_async_fn(self._fn):  # type: ignore[arg-type]
+            return await self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type]
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
@@ -468,7 +475,7 @@ class Task(Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan_context: Any = None,
+        lifespan_context: Any = None,  # noqa: ANN401
     ) -> Context | DurableContext:
         from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
 
@@ -528,7 +535,7 @@ class Task(Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -564,7 +571,7 @@ class Task(Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -600,8 +607,8 @@ class Task(Generic[TWorkflowInput, R]):
 
     @property
     def output_validator(self) -> TypeAdapter[R]:
-        return cast(TypeAdapter[R], self._validators.step_output)
+        return cast("TypeAdapter[R]", self._validators.step_output)
 
     @property
     def output_validator_type(self) -> type[R]:
-        return cast(type[R], self._validators.step_output._type)
+        return cast("type[R]", self._validators.step_output._type)

@@ -155,7 +155,7 @@ class DurableEventListener:
         config: ClientConfig,
         admin_client: AdminClient,
         on_server_evict: Callable[[str, int], None] | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.token = config.token
         self.admin_client = admin_client
@@ -208,7 +208,7 @@ class DurableEventListener:
         self._request_queue = asyncio.Queue()
 
         self._stream = cast(
-            grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse],
+            "grpc.aio.StreamStreamCall[DurableTaskRequest, DurableTaskResponse]",
             self._stub.DurableTask(
                 self._request_iterator(),  # type: ignore[arg-type]
                 metadata=create_authorization_header(self.token),

@@ -123,7 +123,11 @@ class _HatchetAttributeSpanProcessor(BatchSpanProcessor):
     created within a step run context, so that child spans are queryable
     by the same attributes (e.g. hatchet.step_run_id) as the parent."""
 
-    def __init__(self, span_exporter: SpanExporter, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        span_exporter: SpanExporter,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> None:
         super().__init__(span_exporter, **kwargs)
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
@@ -314,7 +318,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         schedule_delay_millis: int | None = None,
         max_export_batch_size: int | None = None,
         max_queue_size: int | None = None,
-    ):
+    ) -> None:
         self.config = config or ClientConfig()
 
         self._bsp_kwargs: dict[str, Any] = {}
@@ -475,11 +479,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         wrapped: Callable[[Action], Coroutine[None, None, Exception | None]],
         _instance: Runner,
         args: tuple[Action],
-        kwargs: Any,
+        kwargs: Any,  # noqa: ANN401
     ) -> Exception | None:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        action = cast(Action, params[0])
+        action = cast("Action", params[0])
 
         traceparent = _parse_carrier_from_metadata(action.additional_metadata)
         span_name = "hatchet.start_step_run"
@@ -512,7 +516,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         wrapped: Callable[[Action], Coroutine[None, None, None]],
         _instance: Runner,
         args: tuple[Action],
-        kwargs: Any,
+        kwargs: Any,  # noqa: ANN401
     ) -> None:
         action = args[0]
 
@@ -544,11 +548,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        event_key = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
-        additional_metadata = cast(JSONSerializableMapping | None, params[2])
-        priority = cast(Priority | None, params[3])
-        scope = cast(str | None, params[4])
+        event_key = cast("str", params[0])
+        payload = cast("JSONSerializableMapping", params[1])
+        additional_metadata = cast("JSONSerializableMapping | None", params[2])
+        priority = cast("Priority | None", params[3])
+        scope = cast("str | None", params[4])
 
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
@@ -594,7 +598,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
+        bulk_events = cast("list[BulkPushEventWithMetadata]", params[0])
 
         num_bulk_events = len(bulk_events)
         unique_event_keys = {event.key for event in bulk_events}
@@ -722,10 +726,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        workflow_name = cast(str, params[0])
-        payload = cast(str | None, params[1])
+        workflow_name = cast("str", params[0])
+        payload = cast("str | None", params[1])
         options = cast(
-            TriggerWorkflowOptions,
+            "TriggerWorkflowOptions",
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
         )
 
@@ -778,10 +782,10 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> WorkflowRunRef:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        workflow_name = cast(str, params[0])
-        payload = cast(str | None, params[1])
+        workflow_name = cast("str", params[0])
+        payload = cast("str | None", params[1])
         options = cast(
-            TriggerWorkflowOptions,
+            "TriggerWorkflowOptions",
             params[2] if len(params) > 2 else TriggerWorkflowOptions(),
         )
 
@@ -847,11 +851,11 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> v0_workflow_protos.WorkflowVersion:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        workflow_name = cast(str, params[0])
-        schedules = cast(list[datetime], params[1])
-        input = cast(str | None, params[2])
+        workflow_name = cast("str", params[0])
+        schedules = cast("list[datetime]", params[1])
+        input = cast("str | None", params[2])
         options = cast(
-            ScheduleTriggerWorkflowOptions,
+            "ScheduleTriggerWorkflowOptions",
             params[3] if len(params) > 3 else ScheduleTriggerWorkflowOptions(),
         )
 
@@ -904,7 +908,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
         params = self.extract_bound_args(wrapped, args, kwargs)
-        workflow_run_configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        workflow_run_configs = cast("list[WorkflowRunTriggerConfig]", params[0])
 
         num_workflows = len(workflow_run_configs)
         unique_workflow_names = {
@@ -940,7 +944,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         kwargs: dict[str, list[WorkflowRunTriggerConfig]],
     ) -> list[WorkflowRunRef]:
         params = self.extract_bound_args(wrapped, args, kwargs)
-        workflow_run_configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        workflow_run_configs = cast("list[WorkflowRunTriggerConfig]", params[0])
         num_workflows = len(workflow_run_configs)
         unique_workflow_names = {
             config.workflow_name for config in workflow_run_configs
@@ -973,7 +977,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> dict[str, Any]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        signal_key = cast(str, params[0])
+        signal_key = cast("str", params[0])
         conditions = params[1:]
 
         traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
@@ -1012,7 +1016,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     ) -> list[DurableSpawnResult]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        configs = cast(list[WorkflowRunTriggerConfig], params[0])
+        configs = cast("list[WorkflowRunTriggerConfig]", params[0])
 
         traceparent = _parse_carrier_from_metadata(instance._action.additional_metadata)
 

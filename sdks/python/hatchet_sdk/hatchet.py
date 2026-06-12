@@ -62,7 +62,7 @@ class Hatchet:
     def __init__(
         self,
         config: ClientConfig | None = None,
-    ):
+    ) -> None:
         self._config = config or ClientConfig()
 
         if self._config.debug:

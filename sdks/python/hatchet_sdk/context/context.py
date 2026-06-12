@@ -3,22 +3,12 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
 
-from hatchet_sdk.clients.admin import (
-    AdminClient,
-    WorkflowRunTriggerConfig,
-)
-from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
-    Action,
-    DispatcherClient,
-)
-from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DurableEventListener,
     DurableTaskEventMemoAck,
@@ -28,9 +18,6 @@ from hatchet_sdk.clients.listeners.durable_event_listener import (
     RunChildEvent,
     RunChildrenEvent,
     WaitForEvent,
-)
-from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
-    PreEvictionDurableEventListener,
 )
 from hatchet_sdk.conditions import (
     Condition,
@@ -44,7 +31,6 @@ from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
-from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.types import (
     R,
@@ -65,7 +51,6 @@ from hatchet_sdk.utils.typing import (
 from hatchet_sdk.worker.durable_eviction.instrumentation import (
     aio_durable_eviction_wait,
 )
-from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, LogRecord
 
 PMemo = ParamSpec("PMemo")
@@ -74,7 +59,23 @@ TMemo = TypeVar("TMemo", bound=ValidTaskReturnType)
 TEvent = TypeVar("TEvent")
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from hatchet_sdk.clients.admin import (
+        AdminClient,
+        WorkflowRunTriggerConfig,
+    )
+    from hatchet_sdk.clients.dispatcher.dispatcher import (  # type: ignore[attr-defined]
+        Action,
+        DispatcherClient,
+    )
+    from hatchet_sdk.clients.events import EventClient
+    from hatchet_sdk.clients.listeners.legacy.pre_eviction_durable_event_listener import (
+        PreEvictionDurableEventListener,
+    )
+    from hatchet_sdk.features.runs import RunsClient
     from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 
 
 TPayload = TypeVar("TPayload", bound=BaseModel | DataclassInstance | dict[str, Any])
@@ -151,7 +152,11 @@ def _parse_wait_for_payload(
     return results
 
 
-def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> bytes:
+def _compute_memo_key(
+    task_run_external_id: str,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> bytes:
     h = hashlib.sha256()
     h.update(task_run_external_id.encode())
     h.update(json.dumps(args, default=str, sort_keys=True).encode())
@@ -170,13 +175,13 @@ class Context:
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
         runs_client: RunsClient,
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         log_sender: AsyncLogSender,
         max_attempts: int,
         task_name: str,
         workflow_name: str,
         worker_labels: list[WorkerLabel],
-    ):
+    ) -> None:
 
         self._data = action.action_payload
 
@@ -261,19 +266,18 @@ class Context:
         :return: The output of the parent task, validated against the task's validators.
         :raises ValueError: If the task was skipped or if the step output for the task is not found.
         """
-        from hatchet_sdk.runnables.types import R
         from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 
         if self.was_skipped(task):
             raise ValueError(f"{task.name} was skipped")
 
         try:
-            parent_step_data = cast(R, self._data.parents[task.name])
+            parent_step_data = cast("R", self._data.parents[task.name])
         except KeyError as e:
             raise ValueError(f"Step output for '{task.name}' not found") from e
 
         return cast(
-            R,
+            "R",
             task._validators.step_output.validate_python(
                 parent_step_data, context=HATCHET_PYDANTIC_SENTINEL
             ),
@@ -302,7 +306,7 @@ class Context:
         return self._input
 
     @property
-    def lifespan(self) -> Any:
+    def lifespan(self) -> Any:  # noqa: ANN401
         """
         The worker lifespan, if it exists. You can read about lifespans in [the docs](https://docs.hatchet.run/home/lifespans).
 
@@ -623,7 +627,7 @@ class DurableContext(Context):
             DurableEventListener | PreEvictionDurableEventListener | None
         ),
         runs_client: RunsClient,
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         log_sender: AsyncLogSender,
         max_attempts: int,
         task_name: str,
@@ -631,7 +635,7 @@ class DurableContext(Context):
         worker_labels: list[WorkerLabel],
         durable_eviction_manager: DurableEvictionManager | None = None,
         engine_version: str | None = None,
-    ):
+    ) -> None:
         super().__init__(
             action,
             dispatcher_client,
@@ -851,7 +855,7 @@ class DurableContext(Context):
             )
             return EventWaitResult(key=event_result.key, payload=validated)
 
-        return cast(EventWaitResult[dict[str, Any]], event_result)
+        return cast("EventWaitResult[dict[str, Any]]", event_result)
 
     ## IMPORTANT: This method is instrumented by HatchetInstrumentor._wrap_spawn_children_no_wait.
     ## Keep the signature in sync with the instrumentor wrapper.

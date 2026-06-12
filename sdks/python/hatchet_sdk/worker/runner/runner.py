@@ -6,10 +6,9 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import is_dataclass
 from enum import Enum
-from multiprocessing import Queue
 from textwrap import dedent
 from threading import Thread, current_thread
-from typing import Any, Literal, cast, overload
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from pydantic import BaseModel, TypeAdapter
 
@@ -61,7 +60,6 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
@@ -76,6 +74,11 @@ from hatchet_sdk.worker.runner.utils.capture_logs import (
     ContextVarToCopyStr,
     copy_context_vars,
 )
+
+if TYPE_CHECKING:
+    from multiprocessing import Queue
+
+    from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
 
 try:
     from opentelemetry import context as otel_context
@@ -102,10 +105,10 @@ class Runner:
         handle_kill: bool,
         action_registry: dict[str, Task[TWorkflowInput, R]],
         labels: list[WorkerLabel],
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         log_sender: AsyncLogSender,
         engine_version: str | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.engine_version = engine_version
 
@@ -613,7 +616,7 @@ class Runner:
             if not thread.is_alive():
                 return
 
-            ident = cast(int, thread.ident)
+            ident = cast("int", thread.ident)
 
             logger.info(f"forcefully terminating thread {ident}")
 
@@ -664,7 +667,9 @@ class Runner:
             self.cleanup_run_id(key)
 
     def serialize_output(
-        self, validator: TypeAdapter[TaskPayloadForInternalUse], output: Any
+        self,
+        validator: TypeAdapter[TaskPayloadForInternalUse],
+        output: Any,  # noqa: ANN401
     ) -> str | None:
         if not output:
             return None

@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict
 
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.worker.durable_eviction.cache import (
     DurableEvictionCache,
     DurableRunRecord,
     EvictionCause,
     _build_eviction_reason,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from hatchet_sdk.runnables.action import ActionKey
+    from hatchet_sdk.runnables.eviction import EvictionPolicy
 
 
 class DurableEvictionConfig(BaseModel):

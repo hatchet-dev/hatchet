@@ -11,24 +11,25 @@ this module provides the old worker start flow which:
 from __future__ import annotations
 
 import asyncio
-import multiprocessing.context
 import os
 import sys
-from multiprocessing import Queue
 from typing import TYPE_CHECKING, Any
 
 from hatchet_sdk.deprecated.action_listener_process import (
     legacy_worker_action_listener_process,
 )
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.contextvars import task_count
-from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
-from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.run_loop_manager import WorkerActionRunLoopManager
 
 if TYPE_CHECKING:
+    import multiprocessing.context
+    from multiprocessing import Queue
+
+    from hatchet_sdk.runnables.action import Action
+    from hatchet_sdk.runnables.task import Task
+    from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
+    from hatchet_sdk.worker.action_listener_process import ActionEvent
     from hatchet_sdk.worker.worker import Worker
 
 
@@ -199,7 +200,7 @@ def _legacy_run_action_runner(
     max_runs: int,
     action_queue: Queue[Any],
     event_queue: Queue[Any],
-    lifespan_context: Any | None,
+    lifespan_context: Any | None,  # noqa: ANN401
 ) -> WorkerActionRunLoopManager:
     if worker._loop:
         return WorkerActionRunLoopManager(

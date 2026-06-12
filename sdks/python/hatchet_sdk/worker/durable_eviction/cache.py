@@ -1,14 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 from typing_extensions import assert_never
 
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.runnables.eviction import EvictionPolicy
+
+if TYPE_CHECKING:
+    from datetime import datetime, timedelta
+
+    from hatchet_sdk.runnables.action import ActionKey
+    from hatchet_sdk.runnables.eviction import EvictionPolicy
 
 
 class EvictionCause(str, Enum):

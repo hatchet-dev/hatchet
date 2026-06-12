@@ -18,7 +18,7 @@ def task_to_claude_mcp(
     runnable: "Standalone[TWorkflowInput, R]",
     input_schema: dict[str, Any],
     description: str,
-    **kwargs: Any,
+    **kwargs: Any,  # noqa: ANN401
 ) -> SdkMcpTool[TWorkflowInput]:
     async def handler(input: TWorkflowInput) -> dict[str, Any]:
         res = await runnable.aio_run(input)
@@ -44,7 +44,7 @@ def workflow_to_claude_mcp(
     runnable: "Workflow[TWorkflowInput]",
     input_schema: dict[str, Any],
     description: str,
-    **kwargs: Any,
+    **kwargs: Any,  # noqa: ANN401
 ) -> SdkMcpTool[TWorkflowInput]:
     async def handler(input: TWorkflowInput) -> dict[str, Any]:
         res = await runnable.aio_run(input)

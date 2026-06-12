@@ -1,7 +1,6 @@
 import asyncio
 import logging
-from multiprocessing import Queue
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.config import ClientConfig
@@ -10,9 +9,13 @@ from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
-from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, capture_logs
+
+if TYPE_CHECKING:
+    from multiprocessing import Queue
+
+    from hatchet_sdk.worker.action_listener_process import ActionEvent
 
 T = TypeVar("T")
 
@@ -30,7 +33,7 @@ class WorkerActionRunLoopManager:
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
         labels: list[WorkerLabel],
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         engine_version: str | None = None,
     ) -> None:
         self.name = name

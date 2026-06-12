@@ -70,7 +70,7 @@ class RunEventListener:
         config: ClientConfig,
         workflow_run_id: str | None = None,
         additional_meta_kv: tuple[str, str] | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.stop_signal = False
 
@@ -138,14 +138,11 @@ class RunEventListener:
                     break
                 elif e.code() == grpc.StatusCode.UNAVAILABLE:
                     # Retry logic
-                    # logger.info("Could not connect to Hatchet, retrying...")
                     listener = await self.retry_subscribe()
                 elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-                    # logger.info("Deadline exceeded, retrying subscription")
                     continue
                 else:
                     # Unknown error, report and break
-                    # logger.error(f"Failed to receive message: {e}")
                     break
                 # Raise StopAsyncIteration to properly end the generator
 
@@ -163,7 +160,7 @@ class RunEventListener:
 
                 if self.workflow_run_id is not None:
                     return cast(
-                        AsyncGenerator[WorkflowEvent, None],
+                        "AsyncGenerator[WorkflowEvent, None]",
                         self.client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
                                 workflow_run_id=self.workflow_run_id,
@@ -173,7 +170,7 @@ class RunEventListener:
                     )
                 if self.additional_meta_kv is not None:
                     return cast(
-                        AsyncGenerator[WorkflowEvent, None],
+                        "AsyncGenerator[WorkflowEvent, None]",
                         self.client.SubscribeToWorkflowEvents(
                             SubscribeToWorkflowEventsRequest(
                                 additional_meta_key=self.additional_meta_kv[0],
@@ -194,7 +191,7 @@ class RunEventListener:
 
 
 class RunEventListenerClient:
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         self.config = config
 
     def stream(self, workflow_run_id: str) -> RunEventListener:

@@ -153,7 +153,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def service_name(self) -> str:
         return self._client.config.apply_namespace(self._config.name.lower())
 
-    def _create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
+    def create_action_name(self, step: Task[TWorkflowInput, Any]) -> str:
         return self.service_name + ":" + step.name
 
     def _is_leaf_task(self, task: Task[TWorkflowInput, Any]) -> bool:
@@ -240,10 +240,10 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
         if self._config.input_validator is None:
-            return cast(TWorkflowInput, None)
+            return cast("TWorkflowInput", None)
 
         return cast(
-            TWorkflowInput,
+            "TWorkflowInput",
             self._config.input_validator.validate_python(
                 ctx._workflow_input, context=HATCHET_PYDANTIC_SENTINEL
             ),
@@ -295,13 +295,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def input_validator(self) -> TypeAdapter[TWorkflowInput] | None:
         if self._config.input_validator is None:
             return None
-        return cast(TypeAdapter[TWorkflowInput], self._config.input_validator)
+        return cast("TypeAdapter[TWorkflowInput]", self._config.input_validator)
 
     @property
     def input_validator_type(self) -> type[TWorkflowInput] | None:
         if self._config.input_validator is None:
             return None
-        return cast(type[TWorkflowInput], self._config.input_validator._type)
+        return cast("type[TWorkflowInput]", self._config.input_validator._type)
 
     @property
     def tasks(self) -> list[Task[TWorkflowInput, Any]]:
@@ -324,7 +324,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     def create_bulk_run_item(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
@@ -374,7 +374,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             return {}
 
         return cast(
-            JSONSerializableMapping,
+            "JSONSerializableMapping",
             self._config.input_validator.dump_python(
                 input,  # type: ignore[arg-type]
                 mode="json",
@@ -560,7 +560,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -592,7 +592,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     async def aio_schedule(
         self,
         run_at: datetime,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | None = None,
@@ -621,7 +621,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | Priority | None = None,
     ) -> CronWorkflows:
@@ -649,7 +649,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self,
         cron_name: str,
         expression: str,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         additional_metadata: JSONSerializableMapping | None = None,
         priority: int | Priority | None = None,
     ) -> CronWorkflows:
@@ -693,13 +693,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def mcp_tool(
         self,
         provider: Literal[MCPProvider.CLAUDE],
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> "SdkMcpTool[TWorkflowInput]": ...
     @overload
     def mcp_tool(
         self,
         provider: Literal[MCPProvider.OPENAI],
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ANN401
     ) -> "FunctionTool": ...
     def mcp_tool(
         self,
@@ -829,7 +829,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     def run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -902,7 +902,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1529,7 +1529,7 @@ class TaskRunRef(Generic[TWorkflowInput, R]):
         self,
         standalone: "Standalone[TWorkflowInput, R]",
         workflow_run_ref: WorkflowRunRef,
-    ):
+    ) -> None:
         self._s = standalone
         self._wrr = workflow_run_ref
 
@@ -1594,7 +1594,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         output = result.get(self._task.name) or result or {}
 
         return cast(
-            R,
+            "R",
             self._output_validator.validate_python(
                 output, context=HATCHET_PYDANTIC_SENTINEL
             ),
@@ -1629,7 +1629,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     def run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1709,7 +1709,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     async def aio_run(
         self,
-        input: TWorkflowInput = cast(TWorkflowInput, None),
+        input: TWorkflowInput = cast("TWorkflowInput", None),
         wait_for_result: bool = True,
         child_key: str | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
@@ -1871,7 +1871,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -1904,7 +1904,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -1974,8 +1974,8 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
 
     @property
     def output_validator(self) -> TypeAdapter[R]:
-        return cast(TypeAdapter[R], self._output_validator)
+        return cast("TypeAdapter[R]", self._output_validator)
 
     @property
     def output_validator_type(self) -> type[R]:
-        return cast(type[R], self._output_validator._type)
+        return cast("type[R]", self._output_validator._type)

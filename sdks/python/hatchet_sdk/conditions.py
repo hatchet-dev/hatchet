@@ -52,7 +52,7 @@ class BaseCondition(BaseModel):
 
 
 class Condition(ABC):
-    def __init__(self, base: BaseCondition):
+    def __init__(self, base: BaseCondition) -> None:
         self.base = base
 
     @abstractmethod

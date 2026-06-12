@@ -93,7 +93,7 @@ class Event(BaseModel):
 
 
 class EventClient(BaseRestClient):
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         super().__init__(config)
 
         conn = new_conn(config, False)
@@ -167,7 +167,7 @@ class EventClient(BaseRestClient):
         )
 
         response = cast(
-            EventProto,
+            "EventProto",
             push_event(request, metadata=create_authorization_header(self.token)),
         )
         return Event.from_proto(response)
@@ -217,7 +217,7 @@ class EventClient(BaseRestClient):
         )
 
         response = cast(
-            EventsProto,
+            "EventsProto",
             bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
         )
         return [Event.from_proto(event) for event in response.events]

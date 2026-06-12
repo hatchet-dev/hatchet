@@ -3,20 +3,17 @@
 import asyncio
 import contextlib
 import logging
-import multiprocessing.synchronize
 import signal
 import time
 from datetime import timedelta
-from multiprocessing import Queue
+from typing import TYPE_CHECKING
 
 import grpc
 from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
-from grpc.aio import UnaryUnaryCall
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
@@ -43,6 +40,14 @@ from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     HealthStatus,
 )
+
+if TYPE_CHECKING:
+    import multiprocessing.synchronize
+    from multiprocessing import Queue
+
+    from grpc.aio import UnaryUnaryCall
+
+    from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 
 ACTION_EVENT_RETRY_COUNT = 5
 
