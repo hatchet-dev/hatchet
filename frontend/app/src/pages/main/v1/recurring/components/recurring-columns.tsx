@@ -18,6 +18,7 @@ export const CronColumn = {
   name: 'Name',
   workflow: 'Workflow',
   metadata: 'Metadata',
+  input: 'Input',
   createdAt: 'Created At',
   actions: 'Actions',
   enabled: 'Enabled',
@@ -32,6 +33,7 @@ const timezoneKey: CronColumnKeys = 'timezone';
 const nameKey: CronColumnKeys = 'name';
 export const workflowKey: CronColumnKeys = 'workflow';
 export const metadataKey: CronColumnKeys = 'metadata';
+export const inputKey: CronColumnKeys = 'input';
 const createdAtKey: CronColumnKeys = 'createdAt';
 const actionsKey: CronColumnKeys = 'actions';
 
@@ -39,6 +41,7 @@ export const columns = ({
   tenantId,
   onDeleteClick,
   onEnableClick,
+  onTriggerClick,
   selectedJobId,
   setSelectedJobId,
   isUpdatePending,
@@ -47,6 +50,7 @@ export const columns = ({
   tenantId: string;
   onDeleteClick: (row: CronWorkflows) => void;
   onEnableClick: (row: CronWorkflows) => void;
+  onTriggerClick: (row: CronWorkflows) => void;
   selectedJobId: string | null;
   setSelectedJobId: (jobId: string | null) => void;
   isUpdatePending: boolean;
@@ -151,6 +155,35 @@ export const columns = ({
       enableSorting: false,
     },
     {
+      accessorKey: inputKey,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={CronColumn.input} />
+      ),
+      cell: ({ row }) => {
+        if (!row.original.input) {
+          return <div></div>;
+        }
+
+        return (
+          <AdditionalMetadata
+            metadata={row.original.input}
+            // this is a hack so the keys don't collide and we can use the metadata popover
+            // for both the input and the metadata
+            isOpen={selectedJobId === `${row.original.metadata.id}:input`}
+            onOpenChange={(open) => {
+              if (open) {
+                setSelectedJobId(`${row.original.metadata.id}:input`);
+              } else {
+                setSelectedJobId(null);
+              }
+            }}
+            title="Input"
+          />
+        );
+      },
+      enableSorting: false,
+    },
+    {
       accessorKey: createdAtKey,
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={CronColumn.createdAt} />
@@ -191,12 +224,8 @@ export const columns = ({
             row={row.original}
             actions={[
               {
-                label: 'Delete',
-                onClick: () => onDeleteClick(row.original),
-                disabled:
-                  row.original.method !== 'API'
-                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
-                    : undefined,
+                label: 'Trigger Now',
+                onClick: () => onTriggerClick(row.original),
               },
               {
                 label: row.original.enabled ? 'Disable' : 'Enable',
@@ -204,6 +233,14 @@ export const columns = ({
                 disabled:
                   isUpdatePending && updatingCronId === row.original.metadata.id
                     ? 'Update in progress'
+                    : undefined,
+              },
+              {
+                label: 'Delete',
+                onClick: () => onDeleteClick(row.original),
+                disabled:
+                  row.original.method !== 'API'
+                    ? 'This cron was created via a code definition. Delete it from the code definition instead.'
                     : undefined,
               },
             ]}

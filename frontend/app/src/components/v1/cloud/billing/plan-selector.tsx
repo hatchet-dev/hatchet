@@ -7,12 +7,13 @@ import {
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Spinner } from '@/components/v1/ui/loading';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import {
   Coupon,
   SubscriptionPlan,
   SubscriptionPlanFeatureGroup,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
@@ -68,9 +69,11 @@ export function PlanSelector({
   selectLabel,
   coupons,
 }: PlanSelectorProps) {
+  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
   const activeCoupon = coupons?.[0];
   const plansQuery = useQuery({
-    ...queries.cloud.subscriptionPlans(),
+    ...queries.controlPlane.subscriptionPlans(),
+    enabled: isControlPlaneEnabled && !!controlPlaneMeta?.canBill,
   });
 
   const plans = plansQuery.data?.plans;

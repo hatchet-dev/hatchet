@@ -22,19 +22,31 @@ from hatchet_sdk.exceptions import NonDeterminismError
 hatchet = Hatchet()
 
 
-dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
+class DagChildWorkflowInput(BaseModel):
+    child_index: int = 0
+    sleep_1_duration: int = 1
+    sleep_2_duration: int = 5
+
+
+dag_child_workflow = hatchet.workflow(
+    name="dag-child-workflow", input_validator=DagChildWorkflowInput
+)
 
 
 @dag_child_workflow.task()
-async def dag_child_1(input: None, ctx: Context) -> dict[str, str]:
-    await asyncio.sleep(1)
-    return {"result": "child1"}
+async def dag_child_1(
+    input: DagChildWorkflowInput, ctx: Context
+) -> dict[str, str | int]:
+    await asyncio.sleep(input.sleep_1_duration)
+    return {"result": "child1", "child_index": input.child_index}
 
 
 @dag_child_workflow.task(parents=[dag_child_1])
-async def dag_child_2(input: None, ctx: Context) -> dict[str, str]:
-    await asyncio.sleep(5)
-    return {"result": "child2"}
+async def dag_child_2(
+    input: DagChildWorkflowInput, ctx: Context
+) -> dict[str, str | int]:
+    await asyncio.sleep(input.sleep_2_duration)
+    return {"result": "child2", "child_index": input.child_index}
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
@@ -56,6 +68,45 @@ async def durable_spawn_dag(input: None, ctx: DurableContext) -> dict[str, Any]:
         "spawn_duration": spawn_duration,
         "spawn_result": spawn_result,
     }
+
+
+class DurableSpawnManyDagsResultSingleton(BaseModel):
+    has_both_child_outputs: bool
+    child_index: int
+
+
+class DurableSpawnManyDagsResult(BaseModel):
+    results: list[DurableSpawnManyDagsResultSingleton]
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
+async def durable_spawn_many_dags(
+    input: EmptyModel, ctx: DurableContext
+) -> DurableSpawnManyDagsResult:
+    results = await dag_child_workflow.aio_run_many(
+        [
+            dag_child_workflow.create_bulk_run_item(
+                input=DagChildWorkflowInput(
+                    sleep_1_duration=0,
+                    sleep_2_duration=0,
+                    child_index=i,
+                )
+            )
+            for i in range(20)
+        ]
+    )
+
+    return DurableSpawnManyDagsResult(
+        results=[
+            DurableSpawnManyDagsResultSingleton(
+                has_both_child_outputs=(
+                    "dag_child_1" in result and "dag_child_2" in result
+                ),
+                child_index=result["dag_child_1"]["child_index"],
+            )
+            for result in results
+        ]
+    )
 
 
 # > Create a durable workflow
@@ -465,6 +516,43 @@ async def memo_task(input: MemoInput, ctx: DurableContext) -> MemoResult:
     return MemoResult(message=res.message, duration=time.time() - start)
 
 
+class ErrorRaisingTaskInput(BaseModel):
+    error_message: str
+
+
+class ErrorRaisingTaskOutput(BaseModel):
+    child_raised: bool
+    child_error_str: str | None
+
+
+@hatchet.task(input_validator=ErrorRaisingTaskInput)
+async def error_raising_task(input: ErrorRaisingTaskInput, ctx: Context) -> None:
+    raise ValueError(input.error_message)
+
+
+@hatchet.durable_task(input_validator=ErrorRaisingTaskInput)
+async def error_raising_durable_parent(
+    input: ErrorRaisingTaskInput, ctx: DurableContext
+) -> ErrorRaisingTaskOutput:
+    child_raised = False
+    child_error_str = None
+
+    try:
+        await error_raising_task.aio_run(
+            input=input,
+            wait_for_result=True,
+            additional_metadata=ctx.additional_metadata,
+        )
+    except Exception as e:
+        child_raised = True
+        child_error_str = str(e)
+
+    return ErrorRaisingTaskOutput(
+        child_raised=child_raised,
+        child_error_str=child_error_str,
+    )
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
@@ -482,6 +570,9 @@ def main() -> None:
             wait_for_event_lookback,
             wait_for_or_event_lookback,
             wait_for_two_events_second_pushed_first,
+            durable_spawn_many_dags,
+            error_raising_durable_parent,
+            error_raising_task,
         ],
     )
     worker.start()

@@ -5,6 +5,28 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.8] - 2026-06-12
+
+### Fixed
+
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
+
+## [1.33.7] - 2026-06-09
+
+### Added
+
+- Added an `individual_run_spans_for_bulk_run` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`run_workflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
+
+### Fixed
+
+- Fixed a bug where synchronous log calls via `asyncio.to_thread` (or other threads) could block workers.
+
+## [1.33.6] - 2026-05-27
+
+### Changed
+
+- Refactored worker graceful shutdown to prevent in-flight tasks from being killed.
+
 ## [1.33.5] - 2026-05-12
 
 ### Security

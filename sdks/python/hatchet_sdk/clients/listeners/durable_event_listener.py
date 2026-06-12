@@ -115,17 +115,21 @@ class DurableTaskEventLogEntryResult(BaseModel):
     durable_task_external_id: str
     node_id: int
     payload: JSONSerializableMapping | None
+    is_failure: bool = False
+    error_message: str | None = None
 
     @classmethod
     def from_proto(cls, proto: DurableTaskEventLogEntryCompletedResponse) -> Self:
         payload: JSONSerializableMapping | None = None
-        if proto.payload:
+        if not proto.is_failure and proto.payload:
             payload = json.loads(proto.payload.decode("utf-8"))
 
         return cls(
             durable_task_external_id=proto.ref.durable_task_external_id,
             node_id=proto.ref.node_id,
             payload=payload,
+            is_failure=proto.is_failure,
+            error_message=proto.error_message or None,
         )
 
 

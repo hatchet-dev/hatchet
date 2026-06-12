@@ -89,7 +89,7 @@ func emit(ctx context.Context, namespace string, amountPerSecond int, duration t
 						if ctx.Err() != nil {
 							return
 						}
-						panic(fmt.Errorf("error pushing event: %w", err))
+						panic(fmt.Errorf("error pushing event after exhausting gRPC retries — engine unreachable, check engine logs: %w", err))
 					}
 
 					atomic.AddInt64(&pushed, 1)

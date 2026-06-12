@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"hash/fnv"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -23,6 +26,18 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
+
+var ErrPartitionLockConflict = errors.New("partition DDL could not acquire lock due to concurrent table operation")
+
+func isLockNotAvailable(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.LockNotAvailable
+}
+
+func isPendingDetach(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ObjectNotInPrerequisiteState && strings.Contains(pgErr.Message, "already pending detach")
+}
 
 type CreateTaskOpts struct {
 	// (required) the external id
@@ -328,51 +343,78 @@ func (r *TaskRepositoryImpl) EnsureTablePartitionsExist(ctx context.Context) (bo
 }
 
 func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
-	const PARTITION_LOCK_OFFSET = 9000000000000000000
-	const partitionLockKey = PARTITION_LOCK_OFFSET + 1
+	const leaseKey = "v1_task_partitions"
 
-	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
-	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
-	// so they cannot go through pgbouncer when it's configured.
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.ddlPool, r.l, 600000) // 10 minutes
+	leases, err := r.acquirePartitionLease(ctx, r.ddlPool, leaseKey)
 	if err != nil {
-		return fmt.Errorf("failed to prepare transaction: %w", err)
-	}
-	defer rollback()
-
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, partitionLockKey)
-	if err != nil {
-		return fmt.Errorf("failed to try advisory lock for partition operations: %w", err)
+		return fmt.Errorf("failed to acquire partition lease: %w", err)
 	}
 
-	if !acquired {
+	if len(leases) == 0 {
 		r.l.Debug().Ctx(ctx).Msg("partition operations already running on another controller instance, skipping")
 		return nil
 	}
 
-	r.l.Debug().Ctx(ctx).Msg("acquired advisory lock for partition operations")
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if releaseErr := r.releasePartitionLease(releaseCtx, r.ddlPool, leases); releaseErr != nil {
+			r.l.Warn().Ctx(ctx).Err(releaseErr).Msg("failed to release partition lease")
+		}
+	}()
 
 	today := time.Now().UTC()
 	tomorrow := today.AddDate(0, 0, 1)
 	removeBefore := today.Add(-1 * r.taskRetentionPeriod)
 
-	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
+	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
+	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
+	// so they cannot go through pgbouncer when it's configured.
+	ddlConn, release, err := sqlchelpers.AcquireConnectionWithStatementTimeout(ctx, r.ddlPool, r.l, 30*60*1000) // nolint:govet
+	if err != nil {
+		r.l.Error().Err(err).Msg("failed to acquire connection from ddlPool")
+	}
+	releaseCreateConn := func() {
+		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		defer release()
+		if _, resetErr := ddlConn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+			r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+		}
+	}
+
+	if _, err = ddlConn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+		releaseCreateConn()
+		return fmt.Errorf("failed to set lock_timeout: %w", err)
+	}
+
+	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
 		Time:  today,
 		Valid: true,
 	})
 
 	if err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
 		return err
 	}
 
-	err = r.queries.CreatePartitions(ctx, r.ddlPool, pgtype.Date{
+	err = r.queries.CreatePartitions(ctx, ddlConn, pgtype.Date{
 		Time:  tomorrow,
 		Valid: true,
 	})
 
 	if err != nil {
+		releaseCreateConn()
+		if isLockNotAvailable(err) {
+			return ErrPartitionLockConflict
+		}
 		return err
 	}
+
+	releaseCreateConn()
 
 	partitions, err := r.queries.ListPartitionsBeforeDate(ctx, r.ddlPool, pgtype.Date{
 		Time:  removeBefore,
@@ -396,15 +438,45 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return err
 		}
 
+		// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
+		// the setting doesn't bleed into subsequent users of the same ddlPool connection.
+		releaseConn := func() {
+			resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+			}
+			release()
+		}
+
+		// Set a short lock_timeout so we fail fast rather than blocking behind ANALYZE.
+		if _, err = conn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+			releaseConn()
+			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
+		}
+
 		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
 		_, err = conn.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
-		if err != nil {
-			release()
+		if err != nil && !isPendingDetach(err) {
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
+		} else if isPendingDetach(err) {
+			_, err = conn.Exec(
+				ctx,
+				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
+			)
+
+			if err != nil {
+				releaseConn()
+				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
+			}
 		}
 
 		_, err = conn.Exec(
@@ -413,16 +485,21 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		)
 
 		if err != nil {
-			release()
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
 		}
 
-		release()
+		releaseConn()
 	}
 
-	err = commit(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+	if err = r.queries.DeleteOldPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
+		Time:  removeBefore,
+		Valid: true,
+	}); err != nil {
+		return fmt.Errorf("failed to delete old payload offloaded block index rows: %w", err)
 	}
 
 	return nil
@@ -758,6 +835,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	defer span.End()
 
 	tasks := make([]TaskIdInsertedAtRetryCount, len(failureOpts))
+	errorMessageByTaskKey := make(map[string]string, len(failureOpts))
 	appFailureTaskIds := make([]int64, 0)
 	appFailureTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	appFailureTaskRetryCounts := make([]int32, 0)
@@ -769,6 +847,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 	for i, failureOpt := range failureOpts {
 		tasks[i] = *failureOpt.TaskIdInsertedAtRetryCount
+		errorMessageByTaskKey[fmt.Sprintf("%d:%d", failureOpt.Id, failureOpt.RetryCount)] = failureOpt.ErrorMessage
 
 		if failureOpt.IsAppError {
 			appFailureTaskIds = append(appFailureTaskIds, failureOpt.Id)
@@ -865,7 +944,8 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewFailedTaskOutputEvent(releasedTask, failureOpts[i].ErrorMessage).Bytes()
+		errMsg := errorMessageByTaskKey[fmt.Sprintf("%d:%d", releasedTask.ID, releasedTask.RetryCount)]
+		out := NewFailedTaskOutputEvent(releasedTask, errMsg).Bytes()
 
 		outputs[i] = out
 	}

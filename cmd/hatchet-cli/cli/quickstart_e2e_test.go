@@ -143,8 +143,18 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 		return fmt.Errorf("timeout waiting for pre-commands to complete")
 	}
 
-	// Wait 5 seconds for the worker to fully start, then trigger the workflow
+	// Wait 5 seconds for the worker to fully start
 	time.Sleep(5 * time.Second)
+
+	// Validate that there are no worker runner errors
+	select {
+	case err := <-errChan:
+		if err != nil {
+			return fmt.Errorf("worker exited during startup: %w", err)
+		}
+		return fmt.Errorf("worker exited unexpectedly during startup (no error)")
+	default:
+	}
 
 	// Trigger the "simple" workflow if it exists in the config
 	if len(workerConfig.Triggers) > 0 {
@@ -159,12 +169,12 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 		if simpleTrigger != nil {
 			t.Logf("Triggering workflow using command: %s", simpleTrigger.Command)
 			triggerCtx, triggerCancel := context.WithTimeout(ctx, 30*time.Second)
-			if err := executeTriggerCommand(triggerCtx, simpleTrigger.Command, profile); err != nil {
-				t.Logf("Warning: failed to trigger workflow: %v", err)
-			} else {
-				t.Log("Successfully triggered workflow")
-			}
+			err := executeTriggerCommand(triggerCtx, simpleTrigger.Command, profile)
 			triggerCancel()
+			if err != nil {
+				return fmt.Errorf("failed to trigger workflow: %w", err)
+			}
+			t.Log("Successfully triggered workflow")
 		}
 	}
 
@@ -176,14 +186,13 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 	select {
 	case err := <-errChan:
 		if err != nil {
-			return err
+			return fmt.Errorf("worker process error: %w", err)
 		}
-	case <-time.After(2 * time.Second):
-		// Worker process should have stopped by now
-		t.Log("Worker process cleanup timeout - continuing anyway")
+	case <-time.After(5 * time.Second):
+		t.Log("Worker process cleanup timeout after cancel")
 	}
 
-	t.Log("Worker ran successfully and workflow was triggered")
+	t.Log("Worker ran successfully")
 	return nil
 }
 

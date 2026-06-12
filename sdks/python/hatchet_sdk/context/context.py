@@ -918,6 +918,9 @@ class DurableContext(Context):
                 invocation_count=self.invocation_count,
             )
 
+        if result.is_failure:
+            raise TaskRunError.deserialize(result.error_message or "child task failed")
+
         return result.payload or {}
 
     async def _ensure_stream_started(self) -> None:

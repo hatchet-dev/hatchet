@@ -237,9 +237,10 @@ func (ns NullJobRunStatus) Value() (driver.Value, error) {
 type LeaseKind string
 
 const (
-	LeaseKindWORKER              LeaseKind = "WORKER"
-	LeaseKindQUEUE               LeaseKind = "QUEUE"
-	LeaseKindCONCURRENCYSTRATEGY LeaseKind = "CONCURRENCY_STRATEGY"
+	LeaseKindWORKER                    LeaseKind = "WORKER"
+	LeaseKindQUEUE                     LeaseKind = "QUEUE"
+	LeaseKindCONCURRENCYSTRATEGY       LeaseKind = "CONCURRENCY_STRATEGY"
+	LeaseKindTABLEPARTITIONMAINTENANCE LeaseKind = "TABLE_PARTITION_MAINTENANCE"
 )
 
 func (e *LeaseKind) Scan(src interface{}) error {
@@ -3171,6 +3172,8 @@ type V1DurableEventLogEntry struct {
 	ExternalID              uuid.UUID             `json:"external_id"`
 	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
 	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
 	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
 	ID                      int64                 `json:"id"`
 	DurableTaskID           int64                 `json:"durable_task_id"`
@@ -3432,18 +3435,17 @@ type V1Payload struct {
 }
 
 type V1PayloadCutoverJobOffset struct {
-	Key                      pgtype.Date        `json:"key"`
-	IsCompleted              bool               `json:"is_completed"`
-	LeaseProcessID           uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt           pgtype.Timestamptz `json:"lease_expires_at"`
-	LastTenantID             uuid.UUID          `json:"last_tenant_id"`
-	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
-	LastID                   int64              `json:"last_id"`
-	LastType                 V1PayloadType      `json:"last_type"`
-	LastExternalID           uuid.UUID          `json:"last_external_id"`
-	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
-	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
-	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
+	Key            pgtype.Date        `json:"key"`
+	IsCompleted    bool               `json:"is_completed"`
+	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	LastExternalID uuid.UUID          `json:"last_external_id"`
+}
+
+type V1PayloadOffloadedBlockIndex struct {
+	PayloadInsertedAtDate pgtype.Date `json:"payload_inserted_at_date"`
+	BlockExternalIDRange  UUIDRange   `json:"block_external_id_range"`
+	IndexFileKey          string      `json:"index_file_key"`
 }
 
 type V1PayloadsOlap struct {
@@ -3457,16 +3459,17 @@ type V1PayloadsOlap struct {
 }
 
 type V1PayloadsOlapCutoverJobOffset struct {
-	Key                      pgtype.Date        `json:"key"`
-	IsCompleted              bool               `json:"is_completed"`
-	LeaseProcessID           uuid.UUID          `json:"lease_process_id"`
-	LeaseExpiresAt           pgtype.Timestamptz `json:"lease_expires_at"`
-	LastTenantID             uuid.UUID          `json:"last_tenant_id"`
-	LastExternalID           uuid.UUID          `json:"last_external_id"`
-	LastInsertedAt           pgtype.Timestamptz `json:"last_inserted_at"`
-	FinalSourceTableRowCount pgtype.Int8        `json:"final_source_table_row_count"`
-	FinalTargetTableRowCount pgtype.Int8        `json:"final_target_table_row_count"`
-	FinalRowCountDiff        pgtype.Int8        `json:"final_row_count_diff"`
+	Key            pgtype.Date        `json:"key"`
+	IsCompleted    bool               `json:"is_completed"`
+	LeaseProcessID uuid.UUID          `json:"lease_process_id"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	LastExternalID uuid.UUID          `json:"last_external_id"`
+}
+
+type V1PayloadsOlapOffloadedBlockIndex struct {
+	PayloadInsertedAtDate pgtype.Date `json:"payload_inserted_at_date"`
+	BlockExternalIDRange  UUIDRange   `json:"block_external_id_range"`
+	IndexFileKey          string      `json:"index_file_key"`
 }
 
 type V1Queue struct {

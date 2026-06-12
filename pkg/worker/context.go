@@ -570,6 +570,17 @@ func (h *hatchetContext) CurChildIndex() int {
 	return h.i
 }
 
+// Deprecated: NextChildIndex is an internal method used by the new Go SDK.
+// Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
+func (h *hatchetContext) NextChildIndex() int {
+	h.indexMu.Lock()
+	defer h.indexMu.Unlock()
+
+	childIndex := h.i
+	h.i++
+	return childIndex
+}
+
 // Deprecated: IncChildIndex is an internal method used by the new Go SDK.
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) IncChildIndex() {

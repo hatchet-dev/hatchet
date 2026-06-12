@@ -1,4 +1,6 @@
 # > Agent
+from typing import Any
+
 import httpx
 from pydantic import BaseModel
 
@@ -8,6 +10,7 @@ from hatchet_sdk.runnables.workflow import MCPProvider
 hatchet = Hatchet()
 
 
+# > Models
 class TemperatureCoords(BaseModel):
     latitude: float
     longitude: float
@@ -22,6 +25,10 @@ class TemperatureContent(BaseModel):
     text: str
 
 
+# !!
+
+
+# > Workflow definition
 get_temperature_workflow = hatchet.workflow(
     name="get_temperature",
     input_validator=TemperatureInput,
@@ -51,6 +58,7 @@ async def get_temperature(input: TemperatureInput, ctx: Context) -> TemperatureC
 # !!
 
 
+# > Standalone task
 @hatchet.task(
     input_validator=TemperatureInput,
     description="Get the current temperature at a location",
@@ -75,16 +83,24 @@ async def get_temperature_standalone(
     )
 
 
-# You can use a workflow
-temperature_tool_claude = get_temperature_workflow.mcp_tool(MCPProvider.CLAUDE)
+# !!
 
-temperature_tool_openai = get_temperature_workflow.mcp_tool(
-    MCPProvider.OPENAI,
-)
 
-# Or a standalone task
-temperature_tool_claude = get_temperature_standalone.mcp_tool(MCPProvider.CLAUDE)
+# > Create MCP tools
+def create_temperature_workflow_tool_claude() -> Any:
+    return get_temperature_workflow.mcp_tool(MCPProvider.CLAUDE)
 
-temperature_tool_openai = get_temperature_standalone.mcp_tool(
-    MCPProvider.OPENAI,
-)
+
+def create_temperature_workflow_tool_openai() -> Any:
+    return get_temperature_workflow.mcp_tool(MCPProvider.OPENAI)
+
+
+def create_temperature_task_tool_claude() -> Any:
+    return get_temperature_standalone.mcp_tool(MCPProvider.CLAUDE)
+
+
+def create_temperature_task_tool_openai() -> Any:
+    return get_temperature_standalone.mcp_tool(MCPProvider.OPENAI)
+
+
+# !!

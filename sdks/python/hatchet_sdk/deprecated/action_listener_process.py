@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+import multiprocessing.synchronize
 import signal
 import time
 from datetime import timedelta
@@ -16,7 +17,6 @@ from grpc.aio import UnaryUnaryCall
 from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
-from hatchet_sdk.clients.rest.models.update_worker_request import UpdateWorkerRequest
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
@@ -60,6 +60,8 @@ class LegacyWorkerActionListenerProcess:
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
         labels: list[WorkerLabel],
+        worker_id_queue: "Queue[str]",
+        stop_event: "multiprocessing.synchronize.Event",
     ) -> None:
         self.name = name
         self.actions = actions
@@ -69,6 +71,8 @@ class LegacyWorkerActionListenerProcess:
         self.event_queue = event_queue
         self.labels = labels
         self.handle_kill = handle_kill
+        self.worker_id_queue = worker_id_queue
+        self._stop_event = stop_event
 
         self._health_runner: web.AppRunner | None = None
         self._listener_health_gauge: Gauge | None = None
@@ -83,6 +87,7 @@ class LegacyWorkerActionListenerProcess:
         self.killing = False
         self.action_loop_task: asyncio.Task[None] | None = None
         self.event_send_loop_task: asyncio.Task[None] | None = None
+        self._stop_event_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
         self.step_action_events: set[
             asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
@@ -93,15 +98,8 @@ class LegacyWorkerActionListenerProcess:
 
         self._workers_client = WorkersClient(self.config)
         loop = asyncio.get_event_loop()
-        loop.add_signal_handler(
-            signal.SIGINT, lambda: asyncio.create_task(self.pause_task_assignment())
-        )
-        loop.add_signal_handler(
-            signal.SIGTERM, lambda: asyncio.create_task(self.pause_task_assignment())
-        )
-        loop.add_signal_handler(
-            signal.SIGQUIT, lambda: asyncio.create_task(self.exit_gracefully())
-        )
+        loop.add_signal_handler(signal.SIGINT, lambda: None)
+        loop.add_signal_handler(signal.SIGTERM, lambda: None)
 
         if self.config.healthcheck.enabled:
             self._listener_health_gauge = Gauge(
@@ -257,14 +255,27 @@ class LegacyWorkerActionListenerProcess:
         finally:
             self._health_runner = None
 
-    async def pause_task_assignment(self) -> None:
-        if self.listener is None:
-            raise ValueError("listener not started")
+    async def _wait_for_stop_event(self) -> None:
+        """Wait for the parent to set the shared stop event, then stop the action loop."""
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._stop_event.wait)
+        await self._stop_action_loop()
 
-        await self._workers_client.aio_update(
-            worker_id=self.listener.worker_id,
-            opts=UpdateWorkerRequest(isPaused=True),
-        )
+    async def _stop_action_loop(self) -> None:
+        """Stop the gRPC action stream and close the health server.
+
+        Does NOT touch the event_send_loop — that loop stays alive until the
+        parent worker puts STOP_LOOP in the event_queue (after tasks finish).
+        """
+        if self.killing:
+            return
+        self.killing = True
+        if self.listener is not None:
+            self.listener.stop_signal = True
+        await self.stop_health_server()
+        if self.listener is not None:
+            self.listener.cleanup()
+        logger.info("action listener closed")
 
     async def start(self, retry_attempt: int = 0) -> None:
         if retry_attempt > 5:
@@ -288,6 +299,8 @@ class LegacyWorkerActionListenerProcess:
             )
 
             logger.debug(f"acquired action listener: {self.listener.worker_id}")
+            # Publish the worker_id so the parent can call the pause API directly.
+            self.worker_id_queue.put(self.listener.worker_id)
         except grpc.RpcError:
             logger.exception("could not start action listener")
             return
@@ -295,6 +308,7 @@ class LegacyWorkerActionListenerProcess:
         self.action_loop_task = asyncio.create_task(self.start_action_loop())
         self.event_send_loop_task = asyncio.create_task(self.start_event_send_loop())
         self.blocked_main_loop = asyncio.create_task(self.start_blocked_main_loop())
+        self._stop_event_task = asyncio.create_task(self._wait_for_stop_event())
 
     async def _get_event(self) -> ActionEvent | STOP_LOOP_TYPE:
         loop = asyncio.get_running_loop()
@@ -445,26 +459,7 @@ class LegacyWorkerActionListenerProcess:
         self.event_queue.put(STOP_LOOP)
 
     async def exit_gracefully(self) -> None:
-        if self.listener:
-            self.listener.stop_signal = True
-
-        if self.listener is not None:
-            try:
-                await self.pause_task_assignment()
-            except Exception:
-                logger.debug("failed to pause task assignment during graceful exit")
-
-        if self.killing:
-            return
-
-        logger.debug("closing action listener...")
-
-        await self.cleanup()
-
-        while not self.event_queue.empty():
-            pass
-
-        logger.info("action listener closed")
+        await self._stop_action_loop()
 
     def exit_forcefully(self) -> None:
         asyncio.run(self.cleanup())
@@ -480,6 +475,8 @@ def legacy_worker_action_listener_process(
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
     labels: list[WorkerLabel],
+    worker_id_queue: "Queue[str]",
+    stop_event: "multiprocessing.synchronize.Event",
 ) -> None:
     async def run() -> None:
         process = LegacyWorkerActionListenerProcess(
@@ -491,10 +488,26 @@ def legacy_worker_action_listener_process(
             event_queue=event_queue,
             handle_kill=handle_kill,
             labels=labels,
+            worker_id_queue=worker_id_queue,
+            stop_event=stop_event,
         )
         await process.start_health_server()
         await process.start()
-        while not process.killing:  # noqa: ASYNC110
-            await asyncio.sleep(0.1)
+
+        # Stay alive until the parent puts STOP_LOOP in event_queue (after tasks finish).
+        if process.event_send_loop_task is not None:
+            await process.event_send_loop_task
+
+        # Drain any in-flight send_event tasks before exiting.
+        if process.step_action_events:
+            await asyncio.gather(
+                *list(process.step_action_events), return_exceptions=True
+            )
+
+        for task in [process.action_loop_task, process.blocked_main_loop]:
+            if task is not None and not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     asyncio.run(run())

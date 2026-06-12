@@ -158,6 +158,7 @@ type workflowConfig struct {
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
+	defaultFilters  []types.DefaultFilter
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -258,6 +259,7 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		Concurrency:    config.concurrency,
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,
+		DefaultFilters: config.defaultFilters,
 	}
 
 	if config.defaultPriority != nil {
@@ -284,7 +286,6 @@ type taskConfig struct {
 	scheduleTimeout        time.Duration
 	onCron                 []string
 	onEvents               []string
-	defaultFilters         []types.DefaultFilter
 	concurrency            []*types.Concurrency
 	rateLimits             []*types.RateLimit
 	isDurable              bool
@@ -340,9 +341,9 @@ func WithEvents(events ...string) TaskOption {
 	}
 }
 
-// WithFilters sets default filters for event-triggered tasks.
-func WithFilters(filters ...types.DefaultFilter) TaskOption {
-	return func(config *taskConfig) {
+// WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks.
+func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
+	return func(config *workflowConfig) {
 		config.defaultFilters = filters
 	}
 }
@@ -635,14 +636,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 		return nil, err
 	}
 
-	result, err := workflowRunRef.v0Workflow.Result()
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-		return nil, err
-	}
-
-	workflowResult, err := result.Results()
+	workflowResult, err := workflowRunRef.Result()
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
@@ -650,7 +644,7 @@ func (w *Workflow) Run(ctx context.Context, input any, opts ...RunOptFunc) (*Wor
 	}
 
 	span.SetStatus(codes.Ok, "")
-	return &WorkflowResult{result: workflowResult, RunId: workflowRunRef.RunId}, nil
+	return workflowResult, nil
 }
 
 // RunNoWait executes the workflow with the provided input without waiting for completion.
@@ -709,6 +703,17 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 
 	hCtx, ok := ctx.(Context)
 	if ok {
+		durableRef, handled, durableErr := runDurableChildWorkflowIfSupported(ctx, w.declaration.Name(), input, runOpts)
+		if handled {
+			if durableErr != nil {
+				span.SetStatus(codes.Error, durableErr.Error())
+				span.RecordError(durableErr)
+				return nil, durableErr
+			}
+			span.SetAttributes(attribute.String(hatchetotel.AttrChildWorkflowRunID, durableRef.RunId))
+			return durableRef, nil
+		}
+
 		v0Workflow, err = hCtx.SpawnWorkflow(w.declaration.Name(), input, &worker.SpawnWorkflowOpts{
 			Key:                 runOpts.Key,
 			Sticky:              runOpts.Sticky,
@@ -734,7 +739,12 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 // RunMany executes multiple workflow instances with different inputs.
 func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]WorkflowRunRef, error) {
 	tracer := otel.Tracer("github.com/hatchet-dev/hatchet/sdks/go")
-	ctx, span := tracer.Start(ctx, hatchetotel.SpanRunWorkflows,
+	originalCtx := ctx
+	otelCtx := ctx
+	if hCtx, ok := ctx.(Context); ok {
+		otelCtx = hCtx.GetContext()
+	}
+	otelCtx, span := tracer.Start(otelCtx, hatchetotel.SpanRunWorkflows,
 		trace.WithSpanKind(trace.SpanKindProducer),
 		trace.WithAttributes(
 			attribute.String(hatchetotel.AttrInstrumentor, hatchetotel.AttrInstrumentorValue),
@@ -743,6 +753,16 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		),
 	)
 	defer span.End()
+
+	if durableRefs, handled, err := runManyDurableChildWorkflows(originalCtx, otelCtx, w.declaration.Name(), inputs); handled {
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			return durableRefs, err
+		}
+
+		span.SetStatus(codes.Ok, "")
+		return durableRefs, nil
+	}
 
 	var workflowRefs []WorkflowRunRef
 
@@ -756,7 +776,7 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 		go func() {
 			defer wg.Done()
 
-			workflowRef, err := w.RunNoWait(ctx, input.Input, input.Opts...)
+			workflowRef, err := w.RunNoWait(originalCtx, input.Input, input.Opts...)
 			if err != nil {
 				errsMutex.Lock()
 				errs = append(errs, err)

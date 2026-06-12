@@ -28,6 +28,15 @@ export const OpenTelemetryConfigSchema = z.object({
    * e.g., "hatchet.start_step_run.my_task" instead of "hatchet.start_step_run"
    */
   includeTaskNameInSpanName: z.boolean().optional().default(false),
+
+  /**
+   * If true, a child `hatchet.run_workflow` span is created for each item in a
+   * bulk run (`runWorkflows`), nested under the parent `hatchet.run_workflows`
+   * span, and each item's traceparent points at its own span. Defaults to false
+   * to preserve the existing span structure for downstream OpenTelemetry
+   * collectors.
+   */
+  individualRunSpansForBulkRun: z.boolean().optional().default(false),
 });
 
 export type OpenTelemetryConfig = z.infer<typeof OpenTelemetryConfigSchema>;
@@ -54,6 +63,18 @@ export const ClientConfigSchema = z.object({
   middleware: TaskMiddlewareSchema,
   cancellation_grace_period: DurationMsSchema.optional().default(1000),
   cancellation_warning_threshold: DurationMsSchema.optional().default(300),
+  grpc_max_recv_message_length: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(4 * 1024 * 1024),
+  grpc_max_send_message_length: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .default(4 * 1024 * 1024),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
@@ -127,10 +148,15 @@ type ClientConfigInferred = z.infer<typeof ClientConfigSchema>;
 
 export type ClientConfig = Omit<
   ClientConfigInferred,
-  'cancellation_grace_period' | 'cancellation_warning_threshold'
+  | 'cancellation_grace_period'
+  | 'cancellation_warning_threshold'
+  | 'grpc_max_recv_message_length'
+  | 'grpc_max_send_message_length'
 > & {
   cancellation_grace_period?: number;
   cancellation_warning_threshold?: number;
+  grpc_max_recv_message_length?: number;
+  grpc_max_send_message_length?: number;
 } & {
   credentials?: ChannelCredentials;
 } & {

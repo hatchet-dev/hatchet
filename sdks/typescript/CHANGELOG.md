@@ -5,6 +5,48 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.1] - 2026-06-12
+
+### Fixed
+
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
+
+## [1.24.0] - 2026-06-11
+
+### Added
+
+- Added a `getDetails` method to `hatchet.runs` to retrieve task details.
+
+
+## [1.23.1] - 2026-06-09
+
+### Added
+
+- Added an `individualRunSpansForBulkRun` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`runWorkflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
+
+### Fixed
+
+- `WorkflowsClient.get()` now finds the exact workflow name match from list results instead of taking the first result, preventing incorrect workflow ID resolution when a name prefix-match returns multiple workflows.
+
+## [1.23.0] - 2026-05-27
+
+### Added
+
+- Fixes `cancellation_grace_period` and `cancellation_warning_threshold` not being propagated from client config to Hatchet config.
+- Adds `grpc_max_recv_message_length` and `grpc_max_send_message_length` to client config, also configurable via env vars. Defaults to 4MB.
+
+### Fixed
+
+- SDK import deprecation warnings to route via `process.emitWarning` with code `HATCHET_V0_REMOVED`.
+- `EventClient.BulkPush` call uses `options` argument as fallback when no `input` is present.
+
+## [1.22.4] - 2026-05-22
+
+### Fixed
+
+- Bumped `@anthropic-ai/claude-agent-sdk` to `^0.3.148` so Claude agent SDK integrations resolve the correct Linux native binary on glibc systems.
+- Updated the TypeScript Claude agent example to load the ESM-only Claude Agent SDK dynamically.
+
 ## [1.22.3] - 2026-05-18
 
 ### Fixed

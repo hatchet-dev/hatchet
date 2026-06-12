@@ -1766,16 +1766,24 @@ CREATE TABLE v1_payload_cutover_job_offset (
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
     lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
-    last_id BIGINT NOT NULL DEFAULT 0,
-    last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT',
-    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-
-    final_source_table_row_count BIGINT,
-    final_target_table_row_count BIGINT,
-    final_row_count_diff BIGINT
+    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID
 );
+
+CREATE EXTENSION btree_gist;
+
+CREATE TYPE uuidrange AS RANGE (
+    SUBTYPE = UUID
+);
+
+CREATE TABLE v1_payload_offloaded_block_index (
+    payload_inserted_at_date DATE NOT NULL,
+    block_external_id_range uuidrange NOT NULL,
+    index_file_key TEXT NOT NULL,
+    CONSTRAINT v1_payload_offloaded_block_index_date_range_excl
+        EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
+);
+
+CREATE UNIQUE INDEX v1_payload_offloaded_block_index_uq_index_key ON v1_payload_offloaded_block_index (index_file_key);
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
@@ -2326,6 +2334,8 @@ CREATE TABLE v1_durable_event_log_entry (
     result_payload_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     -- Only set for RUN entries; holds the external_id of the child task that was spawned.
     child_task_external_id UUID,
+    child_task_is_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    child_task_error_message TEXT,
 
     -- The id and inserted_at of the durable task which created this entry
     -- The inserted_at time of this event from a DB clock perspective.
