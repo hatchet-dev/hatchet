@@ -3215,6 +3215,8 @@ type V1DurableEventLogEntry struct {
 	ExternalID              uuid.UUID             `json:"external_id"`
 	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
 	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
 	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
 	ID                      int64                 `json:"id"`
 	DurableTaskID           int64                 `json:"durable_task_id"`

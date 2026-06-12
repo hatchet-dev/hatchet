@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.23.0",
+  "version": "1.24.1",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -39,8 +39,22 @@
     "generate-docs": "ts-node docs/generate.ts",
     "exec": "npx dotenv -- ts-node -r tsconfig-paths/register --project tsconfig.json"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "typescript",
+    "hatchet",
+    "workflow",
+    "orchestration",
+    "background-tasks",
+    "job-queue",
+    "task-scheduling"
+  ],
+  "author": "Hatchet <contact@hatchet.run>",
+  "contributors": [
+    "Alexander Belanger <alexander@hatchet.run>",
+    "Matt Kaye <matt@hatchet.run>",
+    "Gabe Ruttner <gabe@hatchet.run>",
+    "Mohammed Nafees <nafees@hatchet.run>"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1042.0",

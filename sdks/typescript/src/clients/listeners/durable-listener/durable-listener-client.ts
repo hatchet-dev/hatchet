@@ -139,19 +139,23 @@ export interface DurableTaskEventLogEntryResult {
   durableTaskExternalId: string;
   nodeId: number;
   payload: Record<string, unknown> | undefined;
+  isFailure: boolean;
+  errorMessage: string | undefined;
 }
 
 function eventLogEntryResultFromProto(
   proto: DurableTaskEventLogEntryCompletedResponse
 ): DurableTaskEventLogEntryResult {
   let payload: Record<string, unknown> | undefined;
-  if (proto.payload && proto.payload.length > 0) {
+  if (!proto.isFailure && proto.payload && proto.payload.length > 0) {
     payload = JSON.parse(new TextDecoder().decode(proto.payload));
   }
   return {
     durableTaskExternalId: proto.ref?.durableTaskExternalId ?? '',
     nodeId: proto.ref?.nodeId ?? 0,
     payload,
+    isFailure: proto.isFailure,
+    errorMessage: proto.errorMessage,
   };
 }
 

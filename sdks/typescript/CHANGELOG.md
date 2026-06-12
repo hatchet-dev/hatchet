@@ -5,7 +5,24 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.24.1] - 2026-06-12
+
+### Fixed
+
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
+
+## [1.24.0] - 2026-06-11
+
+### Added
+
+- Added a `getDetails` method to `hatchet.runs` to retrieve task details.
+
+
+## [1.23.1] - 2026-06-09
+
+### Added
+
+- Added an `individualRunSpansForBulkRun` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`runWorkflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
 
 ### Fixed
 
