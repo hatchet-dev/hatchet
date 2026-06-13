@@ -383,7 +383,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	if _, err = ddlConn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+	if _, err = ddlConn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
 		releaseCreateConn()
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
@@ -449,8 +449,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			release()
 		}
 
-		// Set a short lock_timeout so we fail fast rather than blocking behind ANALYZE.
-		if _, err = conn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+		if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
 			releaseConn()
 			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
 		}
