@@ -109,6 +109,8 @@ roles:
       - TenantResourcePolicyGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
+      - UserUpdateOidcOauthStart
+      - UserUpdateOidcOauthCallback
       - SlackWebhookDelete
       - V1CelDebug
       - V1WorkflowRunGetTimings
