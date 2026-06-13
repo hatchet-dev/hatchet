@@ -117,9 +117,7 @@ function AccountDropdown({ user }: { user?: User }) {
               >
                 <option.icon className="mr-2 size-4" />
                 {option.label}
-                {theme === option.value && (
-                  <Check className="ml-auto size-4" />
-                )}
+                {theme === option.value && <Check className="ml-auto size-4" />}
               </DropdownMenuItem>
             ))}
           </DropdownMenuSubContent>
