@@ -83,9 +83,12 @@ func (u *UserService) upsertOIDCUserFromToken(ctx context.Context, config *serve
 		return nil, err
 	}
 
-	if !claims.EmailVerified {
-		return nil, fmt.Errorf("OIDC provider did not verify the email address")
-	}
+	// Consistent with the Google/GitHub handlers, an unverified email is not
+	// rejected here — the user is created and the application's verify-email gate
+	// handles it. SetEmailVerified (SERVER_AUTH_SET_EMAIL_VERIFIED) auto-verifies,
+	// the same instance-wide setting other providers honor. This also covers
+	// providers that don't emit email_verified at all (e.g. Microsoft Entra ID).
+	emailVerified := claims.EmailVerified || config.Auth.ConfigFile.SetEmailVerified
 
 	expiresAt := tok.Expiry
 
@@ -117,7 +120,7 @@ func (u *UserService) upsertOIDCUserFromToken(ctx context.Context, config *serve
 	switch err {
 	case nil:
 		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
-			EmailVerified: v1.BoolPtr(claims.EmailVerified),
+			EmailVerified: v1.BoolPtr(emailVerified),
 			Name:          v1.StringPtr(claims.Name),
 			OAuth:         oauthOpts,
 		})
@@ -132,7 +135,7 @@ func (u *UserService) upsertOIDCUserFromToken(ctx context.Context, config *serve
 
 		user, err = u.config.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 			Email:         claims.Email,
-			EmailVerified: v1.BoolPtr(claims.EmailVerified),
+			EmailVerified: v1.BoolPtr(emailVerified),
 			Name:          v1.StringPtr(claims.Name),
 			OAuth:         oauthOpts,
 		})
