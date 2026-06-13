@@ -30,7 +30,7 @@ import React, {
   useMemo,
   useRef,
   useState,
-  useLayoutEffect
+  useLayoutEffect,
 } from 'react';
 
 interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
