@@ -16,6 +16,7 @@ require (
 	github.com/charmbracelet/log v1.0.0
 	github.com/cockroachdb/errors v1.14.0
 	github.com/containerd/errdefs v1.0.0
+	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/creasty/defaults v1.11.0
 	github.com/docker/go-sdk/context v0.1.0-alpha013
 	github.com/doyensec/safeurl v0.2.5
@@ -25,6 +26,7 @@ require (
 	github.com/getkin/kin-openapi v0.151.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-co-op/gocron/v2 v2.22.0
+	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/google/go-github/v57 v57.0.0
 	github.com/google/jsonschema-go v0.4.3
 	github.com/gorilla/securecookie v1.1.2
@@ -135,7 +137,6 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v0.2.1 // indirect
-	github.com/coreos/go-oidc/v3 v3.18.0 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
@@ -149,7 +150,6 @@ require (
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
