@@ -268,6 +268,13 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_AUTH_GITHUB_CLIENT_ID` ⚠️      | GitHub auth client ID (required if GitHub auth enabled)     |                                  |
 | `SERVER_AUTH_GITHUB_CLIENT_SECRET` ⚠️  | GitHub auth client secret (required if GitHub auth enabled) |                                  |
 | `SERVER_AUTH_GITHUB_SCOPES`            | GitHub auth scopes                                          | `["read:user", "user:email"]`    |
+| `SERVER_AUTH_OIDC_ENABLED`             | Whether generic OIDC auth is enabled                        | `false`                          |
+| `SERVER_AUTH_OIDC_CLIENT_ID` ⚠️        | OIDC client ID (required if OIDC auth enabled)              |                                  |
+| `SERVER_AUTH_OIDC_CLIENT_SECRET` ⚠️    | OIDC client secret (required if OIDC auth enabled)          |                                  |
+| `SERVER_AUTH_OIDC_ISSUER_URL` ⚠️       | OIDC issuer URL used for discovery (required if OIDC auth enabled) |                            |
+| `SERVER_AUTH_OIDC_SCOPES`              | OIDC auth scopes                                            | `["openid", "profile", "email"]` |
+
+The OIDC provider works with any OIDC-compliant identity provider (Keycloak, Authentik, Dex, Okta, Azure AD, etc.). The issuer URL is the base URL from which the provider's `/.well-known/openid-configuration` is discovered — e.g. `https://auth.example.com/realms/my-realm` for Keycloak. The redirect URI to register with the provider is `${SERVER_URL}/api/v1/users/oidc/callback`.
 
 ## Task Queue Configuration
 
