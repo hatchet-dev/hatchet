@@ -124,6 +124,7 @@ enum ActionType {
     START_STEP_RUN = 0;
     CANCEL_STEP_RUN = 1;
     START_GET_GROUP_KEY = 2;
+    START_BATCH = 3;
 }
 
 message AssignedAction {
@@ -195,6 +196,27 @@ message AssignedAction {
 
     // (optional) the key of the event that triggered this workflow run (if any)
     optional string triggering_event_key = 23;
+
+    // (optional) the batch identifier if this task is part of a batch
+    optional string batchId = 24;
+
+    // (optional) the total number of tasks in the batch
+    optional int32 batchSize = 25;
+
+    // (optional) the index of the task within the batch
+    optional int32 batchIndex = 26;
+
+    // (optional) payload for starting a batch execution
+    optional BatchStartPayload batchStartPayload = 27;
+
+    // (optional) the partition key used for batching
+    optional string batchKey = 28;
+}
+
+message BatchStartPayload {
+    string triggerReason = 1;
+    google.protobuf.Timestamp triggerTime = 2;
+    int32 expectedSize = 3;
 }
 
 message WorkerListenRequest {

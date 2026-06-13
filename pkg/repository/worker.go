@@ -358,13 +358,13 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 
 	if len(recordsFromActionHashes) > 0 {
 		for _, record := range recordsFromActionHashes {
-			workerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
+			actionWorkerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
 
 			if !ok {
 				continue
 			}
 
-			for _, workerIdUuid := range workerIds {
+			for _, workerIdUuid := range actionWorkerIds {
 				workerId := workerIdUuid.String()
 				if _, ok := workerIdToActionIds[workerId]; !ok {
 					workerIdToActionIds[workerId] = make([]string, 0)

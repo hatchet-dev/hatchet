@@ -13,6 +13,9 @@ type Cacheable interface {
 	// Get gets a value from the cache with the given key
 	Get(key string) (interface{}, bool)
 
+	// Delete removes a value from the cache with the given key
+	Delete(key string)
+
 	// Stop stops the cache and clears any goroutines
 	Stop()
 }
@@ -28,6 +31,10 @@ func (c *Cache) Set(key string, value interface{}) {
 
 func (c *Cache) Get(key string) (interface{}, bool) {
 	return c.cache.Get(key)
+}
+
+func (c *Cache) Delete(key string) {
+	c.cache.Remove(key)
 }
 
 func (c *Cache) Stop() {

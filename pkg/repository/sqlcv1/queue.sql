@@ -50,6 +50,7 @@ WHERE
     AND w."isActive" = true
     AND w."isPaused" = false;
 
+
 -- name: ListQueues :many
 SELECT
     *
@@ -199,6 +200,7 @@ WITH input AS (
         t.retry_count,
         i.worker_id,
         t.tenant_id,
+        t.batch_key,
         t.step_id,
         CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout) AS timeout_at,
         t.is_durable
@@ -208,6 +210,15 @@ WITH input AS (
         input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
     WHERE
         t.inserted_at >= @minTaskInsertedAt::timestamptz
+        AND NOT EXISTS (
+            SELECT 1
+            FROM v1_task_event e
+            WHERE
+                e.task_id = t.id
+                AND e.task_inserted_at = t.inserted_at
+                AND e.retry_count = t.retry_count
+                AND e.event_type = 'CANCELLED'::v1_task_event_type
+        )
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (
@@ -216,6 +227,7 @@ WITH input AS (
         retry_count,
         worker_id,
         tenant_id,
+        batch_key,
         timeout_at
     )
     SELECT
@@ -224,6 +236,7 @@ WITH input AS (
         t.retry_count,
         t.worker_id,
         @tenantId::uuid,
+        t.batch_key,
         t.timeout_at
     FROM
         updated_tasks t
@@ -231,8 +244,9 @@ WITH input AS (
     SET
         evicted_at = NULL,
         worker_id = EXCLUDED.worker_id,
-        timeout_at = EXCLUDED.timeout_at
-    WHERE v1_task_runtime.evicted_at IS NOT NULL
+        timeout_at = EXCLUDED.timeout_at,
+        batch_key = EXCLUDED.batch_key
+WHERE v1_task_runtime.evicted_at IS NOT NULL
     -- only return the task ids that were successfully assigned
     RETURNING task_id, task_inserted_at, retry_count, worker_id
 ), slot_requests AS (
@@ -283,6 +297,41 @@ JOIN
     updated_tasks ut ON (asr.task_id, asr.task_inserted_at, asr.retry_count) = (ut.id, ut.inserted_at, ut.retry_count)
 ;
 
+-- name: InsertBufferedTaskRuntimes :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::bigint[]) AS task_id,
+        UNNEST(@taskInsertedAts::timestamptz[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::integer[]) AS task_retry_count
+)
+INSERT INTO v1_task_runtime (
+    task_id,
+    task_inserted_at,
+    retry_count,
+    worker_id,
+    tenant_id,
+    timeout_at,
+    batch_key
+)
+SELECT
+    input.task_id,
+    input.task_inserted_at,
+    input.task_retry_count,
+    NULL,
+    @tenantId::uuid,
+    CURRENT_TIMESTAMP + convert_duration_to_interval(t.step_timeout),
+    t.batch_key
+FROM
+    input
+JOIN
+    v1_task t ON t.id = input.task_id AND t.inserted_at = input.task_inserted_at
+ON CONFLICT (task_id, task_inserted_at, retry_count) DO UPDATE
+SET
+    timeout_at = EXCLUDED.timeout_at,
+    batch_key = EXCLUDED.batch_key
+WHERE
+    v1_task_runtime.worker_id IS NULL;
+
 -- name: GetDesiredLabels :many
 SELECT
     "key",
@@ -296,6 +345,17 @@ FROM
     "StepDesiredWorkerLabel"
 WHERE
     "stepId" = ANY(@stepIds::uuid[]);
+
+-- name: ListStepsWithBatchConfig :many
+SELECT
+    s."id" AS step_id
+FROM
+    "Step" s
+JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
+WHERE
+    s."id" = ANY(@stepIds::uuid[])
+    AND sbc."batchMaxSize" >= 1;
 
 -- name: GetStepSlotRequests :many
 SELECT
@@ -370,7 +430,8 @@ WITH input AS (
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
 )
 INSERT INTO v1_rate_limited_queue_items (
     requeue_after,
@@ -389,7 +450,8 @@ INSERT INTO v1_rate_limited_queue_items (
     sticky,
     desired_worker_id,
     retry_count,
-    desired_worker_label
+    desired_worker_label,
+    batch_key
 )
 SELECT
     i.requeue_after,
@@ -408,7 +470,8 @@ SELECT
     sticky,
     desired_worker_id,
     retry_count,
-    desired_worker_label
+    desired_worker_label,
+    batch_key
 FROM moved_items
 JOIN input i ON moved_items.id = i.id
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -432,7 +495,8 @@ WITH ready_items AS (
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM
         v1_rate_limited_queue_items
     WHERE
@@ -461,7 +525,8 @@ WITH ready_items AS (
         priority,
         sticky,
         desired_worker_id,
-        retry_count
+        retry_count,
+        batch_key
 )
 INSERT INTO v1_queue_item (
     tenant_id,
@@ -479,7 +544,8 @@ INSERT INTO v1_queue_item (
     sticky,
     desired_worker_id,
     retry_count,
-    desired_worker_label
+    desired_worker_label,
+    batch_key
 )
 SELECT
     tenant_id,
@@ -497,7 +563,8 @@ SELECT
     sticky,
     desired_worker_id,
     retry_count,
-    desired_worker_label
+    desired_worker_label,
+    batch_key
 FROM ready_items
 ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
 RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
@@ -582,6 +649,241 @@ WHERE (task_id, task_inserted_at) IN (
     SELECT task_id, task_inserted_at
     FROM locked_qis
 );
+
+-- name: ListBatchedQueueItemsForBatch :many
+SELECT
+    id,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key,
+    inserted_at,
+    payload_size
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = @tenantId::uuid
+    AND step_id = @stepId::uuid
+    AND batch_key = @batchKey::text
+    AND (
+        sqlc.narg('afterId')::bigint IS NULL
+        OR id > sqlc.narg('afterId')::bigint
+    )
+ORDER BY
+    priority DESC,
+    id ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 1000);
+
+-- name: ListDistinctBatchResources :many
+SELECT
+    b.step_id,
+    b.batch_key,
+    MIN(b.inserted_at)::timestamptz AS oldest_item_at,
+    COUNT(*) AS pending_count,
+    COALESCE(MAX(sbc."batchMaxSize"), -1)::integer AS batch_max_size,
+    COALESCE(MAX(sbc."batchMaxInterval"), -1)::integer AS batch_max_interval,
+    COALESCE(MAX(sbc."batchGroupMaxRuns"), -1)::integer AS batch_group_max_runs
+FROM
+    v1_batched_queue_item b
+JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = b.step_id
+WHERE
+    b.tenant_id = @tenantId::uuid
+GROUP BY
+    b.step_id,
+    b.batch_key
+ORDER BY
+    oldest_item_at ASC;
+
+-- name: MoveQueueItemsToBatchedQueue :many
+WITH locked_qis AS (
+    SELECT
+        qi.*
+    FROM
+        v1_queue_item qi
+    JOIN
+        "StepBatchConfig" sbc ON sbc."stepId" = qi.step_id
+    WHERE
+        qi.id = ANY(@ids::bigint[])
+        AND sbc."batchMaxSize" >= 1
+    ORDER BY
+        qi.id ASC
+    FOR UPDATE
+), inserted AS (
+    INSERT INTO v1_batched_queue_item (
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key,
+        inserted_at,
+        payload_size
+    )
+    SELECT
+        lqi.tenant_id,
+        lqi.queue,
+        lqi.task_id,
+        lqi.task_inserted_at,
+        lqi.external_id,
+        lqi.action_id,
+        lqi.step_id,
+        lqi.workflow_id,
+        lqi.workflow_run_id,
+        lqi.schedule_timeout_at,
+        lqi.step_timeout,
+        lqi.priority,
+        lqi.sticky,
+        lqi.desired_worker_id,
+        lqi.retry_count,
+        COALESCE(BTRIM(lqi.batch_key), ''),
+        CURRENT_TIMESTAMP,
+        COALESCE(OCTET_LENGTH(t.input::text), 0)
+    FROM
+        locked_qis lqi
+    LEFT JOIN v1_task t ON t.id = lqi.task_id AND t.inserted_at = lqi.task_inserted_at
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    RETURNING task_id
+), deleted AS (
+    DELETE FROM v1_queue_item
+    WHERE id IN (SELECT id FROM locked_qis)
+    RETURNING id
+)
+SELECT id FROM deleted;
+
+-- name: DeleteBatchedQueueItems :exec
+DELETE FROM
+    v1_batched_queue_item
+WHERE
+    id = ANY(@ids::bigint[]);
+
+-- name: ListBatchedQueueItemsToTimeout :many
+SELECT
+    bqi.id,
+    bqi.tenant_id,
+    bqi.queue,
+    bqi.task_id,
+    bqi.task_inserted_at,
+    bqi.external_id,
+    bqi.action_id,
+    bqi.step_id,
+    bqi.workflow_id,
+    bqi.workflow_run_id,
+    bqi.schedule_timeout_at,
+    bqi.step_timeout,
+    bqi.priority,
+    bqi.sticky,
+    bqi.desired_worker_id,
+    bqi.retry_count,
+    bqi.batch_key
+FROM
+    v1_batched_queue_item bqi
+LEFT JOIN
+    v1_task_runtime tr ON (
+        tr.task_id = bqi.task_id
+        AND tr.task_inserted_at = bqi.task_inserted_at
+        AND tr.retry_count = bqi.retry_count
+    )
+WHERE
+    bqi.tenant_id = @tenantId::uuid
+    AND bqi.schedule_timeout_at <= NOW()
+    AND tr.task_id IS NULL  -- Only timeout tasks that are NOT already running
+ORDER BY
+    bqi.id ASC
+LIMIT
+    COALESCE(sqlc.narg('limit')::integer, 1000);
+
+-- name: ListExistingBatchedQueueItemIds :many
+SELECT
+    id
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = @tenantId::uuid
+    AND id = ANY(@ids::bigint[]);
+
+-- name: MoveBatchedQueueItems :many
+WITH moved_items AS (
+    DELETE FROM v1_batched_queue_item
+    WHERE id = ANY(@ids::bigint[])
+    RETURNING
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key
+)
+INSERT INTO v1_queue_item (
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key
+)
+SELECT
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key
+FROM moved_items
+RETURNING id, tenant_id, task_id, task_inserted_at, retry_count;
 
 -- name: ReactivateInactiveQueuesWithItems :execresult
 -- Reactivates queues that have been marked inactive (last_active > 1 day ago)

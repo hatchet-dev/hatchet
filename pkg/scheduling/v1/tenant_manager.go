@@ -2,6 +2,8 @@ package v1
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,10 +56,14 @@ type tenantManager struct {
 	workersCh     notifierCh[*v1.ListActiveWorkersResult]
 	queuesCh      notifierCh[string]
 	concurrencyCh notifierCh[*sqlcv1.V1StepConcurrency]
+	batchesCh     chan []*sqlcv1.ListDistinctBatchResourcesRow
 
 	concurrencyResultsCh chan *ConcurrencyResults
 
 	resultsCh chan *QueueResults
+
+	batchSchedulers   map[string]*BatchScheduler
+	batchSchedulersMu sync.Mutex
 
 	cleanup func()
 }
@@ -67,7 +73,7 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 
 	rl := newRateLimiter(cf, tenantIdUUID)
 	s := newScheduler(cf, tenantIdUUID, rl, exts)
-	leaseManager, workersCh, queuesCh, concurrencyCh := newLeaseManager(cf, tenantIdUUID)
+	leaseManager, workersCh, queuesCh, concurrencyCh, batchesCh := newLeaseManager(cf, tenantIdUUID)
 
 	strategyIdsToParentIds, _ := lru.New[int64, int64](1000)
 	parentIdsToStrategyIds, _ := lru.New[int64, []int64](1000)
@@ -88,6 +94,8 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 		parentIdsToStrategyIds:        parentIdsToStrategyIds,
 		concurrencyAdvisoryLock:       timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
 		concurrencyParentAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
+		batchSchedulers:               make(map[string]*BatchScheduler),
+		batchesCh:                     batchesCh,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -96,6 +104,7 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 	go t.listenForWorkerLeases(ctx)
 	go t.listenForQueueLeases(ctx)
 	go t.listenForConcurrencyLeases(ctx)
+	go t.listenForBatchLeases(ctx)
 
 	leaseManager.start(ctx)
 	s.start(ctx)
@@ -120,6 +129,22 @@ func (t *tenantManager) Cleanup() error {
 	}
 
 	t.rl.cleanup()
+
+	t.batchSchedulersMu.Lock()
+
+	for key, scheduler := range t.batchSchedulers {
+		if err := scheduler.Cleanup(cleanupCtx); err != nil {
+			t.cf.l.Error().
+				Err(err).
+				Str("tenant_id", t.tenantId.String()).
+				Str("batch_resource", key).
+				Msg("failed to cleanup batch scheduler during tenant cleanup")
+		}
+
+		delete(t.batchSchedulers, key)
+	}
+
+	t.batchSchedulersMu.Unlock()
 
 	return err
 }
@@ -182,6 +207,22 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 			} else {
 				t.setConcurrencyStrategies(msg.items)
 			}
+		}
+	}
+}
+
+func (t *tenantManager) listenForBatchLeases(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case batches, ok := <-t.batchesCh:
+			if !ok {
+				return
+			}
+			t.replenish(ctx)
+
+			t.setBatchSchedulers(ctx, batches)
 		}
 	}
 }
@@ -280,6 +321,124 @@ func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrenc
 	}
 
 	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+}
+
+func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv1.ListDistinctBatchResourcesRow) {
+	desired := make(map[string]*sqlcv1.ListDistinctBatchResourcesRow, len(batches))
+
+	for _, row := range batches {
+		if row == nil || row.BatchKey == "" {
+			continue
+		}
+
+		key := batchResourceKey(row.StepID, row.BatchKey)
+		desired[key] = row
+	}
+
+	t.batchSchedulersMu.Lock()
+	defer t.batchSchedulersMu.Unlock()
+
+	for key, scheduler := range t.batchSchedulers {
+		// If the scheduler self-stopped due to idleness, remove it so it can be recreated
+		// if/when new batched queue items appear.
+		if scheduler != nil && scheduler.ctx != nil && scheduler.ctx.Err() != nil {
+			if err := scheduler.Cleanup(ctx); err != nil {
+				t.cf.l.Error().
+					Err(err).
+					Str("tenant_id", t.tenantId.String()).
+					Str("batch_resource", key).
+					Msg("failed to cleanup stopped batch scheduler")
+			}
+
+			delete(t.batchSchedulers, key)
+			continue
+		}
+
+		if _, ok := desired[key]; ok {
+			continue
+		}
+
+		if err := scheduler.Cleanup(ctx); err != nil {
+			t.cf.l.Error().
+				Err(err).
+				Str("tenant_id", t.tenantId.String()).
+				Str("batch_resource", key).
+				Msg("failed to cleanup batch scheduler")
+		}
+
+		delete(t.batchSchedulers, key)
+	}
+
+	for key, row := range desired {
+		if _, ok := t.batchSchedulers[key]; ok {
+			continue
+		}
+
+		reserveFunc := func(ctx context.Context, req *BatchReservationRequest) (bool, error) {
+			if req == nil || t.cf.taskRepo == nil {
+				return true, nil
+			}
+
+			if req.MaxRuns <= 0 || strings.TrimSpace(req.BatchKey) == "" {
+				return true, nil
+			}
+
+			if strings.TrimSpace(req.BatchID) == "" {
+				return false, fmt.Errorf("batch id required for reservation")
+			}
+
+			stepID := req.StepID.String()
+
+			tenantID := strings.TrimSpace(req.TenantID)
+			if tenantID == "" {
+				tenantID = t.tenantId.String()
+			}
+
+			return t.cf.taskRepo.ReserveTaskBatchRun(
+				ctx,
+				tenantID,
+				stepID,
+				req.ActionID,
+				req.BatchKey,
+				req.BatchID,
+				req.MaxRuns,
+			)
+		}
+
+		sched := newBatchScheduler(
+			t.cf,
+			t.tenantId,
+			row,
+			t.cf.repo.QueueFactory(),
+			t.scheduler,
+			func(res *QueueResults) {
+				if res == nil {
+					return
+				}
+
+				select {
+				case t.resultsCh <- res:
+				default:
+					// Ensure we don't block indefinitely; fall back to goroutine.
+					go func() {
+						t.resultsCh <- res
+					}()
+				}
+			},
+			reserveFunc,
+		)
+		if sched == nil {
+			continue
+		}
+
+		sched.Start(ctx)
+
+		t.batchSchedulers[key] = sched
+	}
+}
+
+func batchResourceKey(stepID uuid.UUID, batchKey string) string {
+	return fmt.Sprintf("%s:%s", stepID.String(), batchKey)
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -12,6 +13,7 @@ type SchedulerRepository interface {
 	Concurrency() ConcurrencyRepository
 	Lease() LeaseRepository
 	QueueFactory() QueueFactoryRepository
+	BatchQueue() BatchQueueFactoryRepository
 	RateLimit() RateLimitRepository
 	Assignment() AssignmentRepository
 	Optimistic() OptimisticSchedulingRepository
@@ -40,6 +42,7 @@ type QueueRepository interface {
 	RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error)
 	GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error)
 	GetStepSlotRequests(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID]map[string]int32, error)
+	GetStepBatchConfigs(ctx context.Context, stepIds []uuid.UUID) (map[string]bool, error)
 	Cleanup()
 }
 
@@ -65,6 +68,7 @@ type schedulerRepository struct {
 	lease        LeaseRepository
 	queueFactory QueueFactoryRepository
 	rateLimit    RateLimitRepository
+	batchQueue   BatchQueueFactoryRepository
 	assignment   AssignmentRepository
 	optimistic   OptimisticSchedulingRepository
 }
@@ -75,6 +79,7 @@ func newSchedulerRepository(shared *sharedRepository) *schedulerRepository {
 		lease:        newLeaseRepository(shared),
 		queueFactory: newQueueFactoryRepository(shared),
 		rateLimit:    newRateLimitRepository(shared),
+		batchQueue:   newBatchQueueFactoryRepository(shared),
 		assignment:   newAssignmentRepository(shared),
 		optimistic:   newOptimisticSchedulingRepository(shared),
 	}
@@ -102,4 +107,34 @@ func (d *schedulerRepository) Assignment() AssignmentRepository {
 
 func (d *schedulerRepository) Optimistic() OptimisticSchedulingRepository {
 	return d.optimistic
+}
+
+type BatchQueueFactoryRepository interface {
+	NewBatchQueue(tenantId uuid.UUID) BatchQueueRepository
+}
+
+type BatchQueueRepository interface {
+	ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error)
+	ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, batchKey string, afterId pgtype.Int8, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error)
+	ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error)
+	DeleteBatchedQueueItems(ctx context.Context, ids []int64) error
+	MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error)
+	CommitAssignments(ctx context.Context, assignments []*BatchAssignment) ([]*BatchAssignment, error)
+}
+
+type BatchAssignment struct {
+	BatchQueueItemID int64
+	TaskID           int64
+	TaskInsertedAt   pgtype.Timestamptz
+	RetryCount       int32
+	WorkerID         uuid.UUID
+
+	BatchID  string
+	StepID   uuid.UUID
+	ActionID string
+	BatchKey string
+}
+
+func (d *schedulerRepository) BatchQueue() BatchQueueFactoryRepository {
+	return d.batchQueue
 }

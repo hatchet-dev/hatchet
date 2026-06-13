@@ -137,7 +137,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 	var actualDashboardPort, actualGrpcPort int
 
 	// Build options for RunHatchetLite
-	allOpts := append(opts,
+	opts = append(opts,
 		docker.WithCreateTokenCallback(func(tok string) {
 			token = tok
 		}),
@@ -147,7 +147,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 		}),
 	)
 
-	err = dockerDriver.RunHatchetLite(cmd.Context(), allOpts...)
+	err = dockerDriver.RunHatchetLite(cmd.Context(), opts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not start hatchet-lite container: %w", err)
 	}

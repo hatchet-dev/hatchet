@@ -52,7 +52,8 @@ SELECT
     w."id" as "workflowId",
     COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
-    COUNT(sc.id) as "concurrencyCount"
+    COUNT(sc.id) as "concurrencyCount",
+    sbc."batchGroupKey" AS "batchGroupKey"
 FROM
     "Step" s
 JOIN
@@ -65,13 +66,15 @@ LEFT JOIN
     v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
 LEFT JOIN
     "StepExpression" se ON se."stepId" = s."id"
+LEFT JOIN
+    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
 WHERE
     s."id" = ANY(@ids::uuid[])
     AND w."tenantId" = @tenantId::uuid
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id", wv."sticky";
+    s."id", wv."id", w."name", w."id", wv."sticky", sbc."batchGroupKey";
 
 -- name: ListStepExpressions :many
 SELECT
@@ -305,6 +308,28 @@ INSERT INTO "Step" (
     sqlc.narg('retryMaxBackoff'),
     coalesce(sqlc.narg('isDurable')::boolean, false)
 ) RETURNING *;
+
+-- name: CreateStepBatchConfig :exec
+INSERT INTO "StepBatchConfig" (
+    "stepId",
+    "batchMaxSize",
+    "batchMaxInterval",
+    "batchGroupKey",
+    "batchGroupMaxRuns",
+    "broadcastOutput"
+) VALUES (
+    @stepId::uuid,
+    @batchMaxSize::integer,
+    sqlc.narg('batchMaxInterval')::integer,
+    sqlc.narg('batchGroupKey')::text,
+    sqlc.narg('batchGroupMaxRuns')::integer,
+    @broadcastOutput::boolean
+) ON CONFLICT ("stepId") DO UPDATE SET
+    "batchMaxSize" = EXCLUDED."batchMaxSize",
+    "batchMaxInterval" = EXCLUDED."batchMaxInterval",
+    "batchGroupKey" = EXCLUDED."batchGroupKey",
+    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns",
+    "broadcastOutput" = EXCLUDED."broadcastOutput";
 
 -- name: CreateStepSlotRequests :exec
 INSERT INTO v1_step_slot_request (

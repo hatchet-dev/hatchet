@@ -80,9 +80,9 @@ func (m RetrieveFromExternalMethod) String() string {
 }
 
 type RetrieveFromExternalOpts struct {
-	Method      RetrieveFromExternalMethod
 	ByKey       *RetrieveFromExternalByKeyOpt
 	ByIndexFile *RetrieveFromExternalByIndexFileOpt
+	Method      RetrieveFromExternalMethod
 }
 
 type PayloadLocation string
@@ -91,9 +91,9 @@ type ExternalIndexFileLocationKey string
 
 type CreateIndexBlockOpts struct {
 	PartitionDate             PartitionDate
+	IndexFileKey              string
 	BlockLowerExternalIdBound uuid.UUID
 	BlockUpperExternalIdBound uuid.UUID
-	IndexFileKey              string
 }
 
 type ExternalStore interface {
@@ -355,9 +355,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			var retrieveFromExternalOpt RetrieveFromExternalOpts
-
-			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+			var retrieveFromExternalOpt RetrieveFromExternalOpts = RetrieveFromExternalOpts{
 				Method: RetrieveFromExternalByKey,
 				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}

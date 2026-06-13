@@ -1891,7 +1891,7 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 
 		eventsForStatusUpdate = append(eventsForStatusUpdate, event)
 
-		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond)
+		dummyInsertedAt := time.Now().Add(time.Duration(rand.Intn(2*300+1)-300) * time.Millisecond) //nolint
 
 		payloadsToWrite = append(payloadsToWrite, StoreOLAPPayloadOpts{
 			ExternalId: event.ExternalID,
@@ -3090,8 +3090,8 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 type ReadOLAPPayloadOpts struct {
-	ExternalId uuid.UUID
 	InsertedAt pgtype.Timestamptz
+	ExternalId uuid.UUID
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error) {
@@ -3135,9 +3135,7 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 			externalIdToPayload[payload.ExternalID] = payload.InlineContent
 		} else {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			var retrieveFromExternalOpt RetrieveFromExternalOpts
-
-			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+			var retrieveFromExternalOpt RetrieveFromExternalOpts = RetrieveFromExternalOpts{
 				Method: RetrieveFromExternalByKey,
 				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}

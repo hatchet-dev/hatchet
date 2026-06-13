@@ -34,7 +34,7 @@ CREATE TYPE "JobRunStatus" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY', 'TABLE_PARTITION_MAINTENANCE');
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY', 'TABLE_PARTITION_MAINTENANCE', 'BATCH');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
@@ -457,6 +457,16 @@ CREATE TABLE "Step" (
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "StepBatchConfig" (
+    "stepId" UUID NOT NULL,
+    "batchMaxSize" INTEGER NOT NULL,
+    "batchMaxInterval" INTEGER,
+    "batchGroupKey" TEXT,
+    "batchGroupMaxRuns" INTEGER,
+    CONSTRAINT "StepBatchConfig_pkey" PRIMARY KEY ("stepId"),
+    CONSTRAINT "StepBatchConfig_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable

@@ -1174,6 +1174,37 @@ func getCreateTaskOpts(tasks []*contracts.CreateTaskOpts, kind string) ([]v1.Cre
 				})
 			}
 		}
+
+		if stepCp.Batch != nil {
+
+			defaultBatchMaxInterval := int32(1000)
+			defaultBatchGroupKey := "'default'"
+			defaultBatchGroupMaxRuns := int32(100)
+
+			steps[j].BatchConfig = &v1.StepBatchConfig{
+				BatchMaxSize:      stepCp.Batch.BatchMaxSize,
+				BatchMaxInterval:  &defaultBatchMaxInterval,
+				BatchGroupKey:     &defaultBatchGroupKey,
+				BatchGroupMaxRuns: &defaultBatchGroupMaxRuns,
+			}
+
+			if stepCp.Batch.BatchMaxIntervalMs != nil {
+				steps[j].BatchConfig.BatchMaxInterval = stepCp.Batch.BatchMaxIntervalMs
+			}
+
+			if stepCp.Batch.BatchGroupKey != nil && *stepCp.Batch.BatchGroupKey != "" {
+				steps[j].BatchConfig.BatchGroupKey = stepCp.Batch.BatchGroupKey
+			}
+
+			if stepCp.Batch.BatchGroupMaxRuns != nil {
+				steps[j].BatchConfig.BatchGroupMaxRuns = stepCp.Batch.BatchGroupMaxRuns
+			}
+
+			if stepCp.Batch.BroadcastOutput != nil {
+				steps[j].BatchConfig.BroadcastOutput = *stepCp.Batch.BroadcastOutput
+			}
+
+		}
 	}
 
 	// Check if parents are in the map

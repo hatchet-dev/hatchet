@@ -79,7 +79,7 @@ class DispatcherClient:
         response = cast(
             WorkerRegisterResponse,
             # fixme: figure out how to get typing right here
-            await self.aio_client.Register(  # type: ignore[misc]
+            await self.aio_client.Register(
                 WorkerRegisterRequest(
                     worker_name=worker_name,
                     actions=actions,
@@ -120,7 +120,7 @@ class DispatcherClient:
         try:
             response = cast(
                 GetVersionResponse,
-                await self.aio_client.GetVersion(  # type: ignore[misc]
+                await self.aio_client.GetVersion(  # type: ignore
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
                     metadata=create_authorization_header(self.token),
@@ -200,7 +200,7 @@ class DispatcherClient:
         return cast(
             grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
             # fixme: figure out how to get typing right here
-            await send(  # type: ignore[misc]
+            await send(
                 event,
                 metadata=create_authorization_header(self.token),
             ),
@@ -274,7 +274,7 @@ class DispatcherClient:
                 worker_labels[key] = WorkerLabels(str_value=str(value))
 
         # fixme: figure out how to get typing right here
-        await self.aio_client.UpsertWorkerLabels(  # type: ignore[misc]
+        await self.aio_client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),

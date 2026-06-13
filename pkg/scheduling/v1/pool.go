@@ -15,7 +15,8 @@ import (
 )
 
 type sharedConfig struct {
-	repo v1.SchedulerRepository
+	repo     v1.SchedulerRepository
+	taskRepo v1.TaskRepository
 
 	l *zerolog.Logger
 
@@ -41,6 +42,8 @@ type SchedulingPool struct {
 	tenants syncx.Map[uuid.UUID, *tenantManager]
 	setMu   mutex
 
+	batchCoordinators sync.Map
+
 	cf *sharedConfig
 
 	resultsCh chan *QueueResults
@@ -53,11 +56,7 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
-	l *zerolog.Logger,
-	singleQueueLimit int,
-	schedulerConcurrencyRateLimit int,
-	schedulerConcurrencyPollingMinInterval time.Duration,
-	schedulerConcurrencyPollingMaxInterval time.Duration,
+	taskRepo v1.TaskRepository, l *zerolog.Logger, singleQueueLimit int, schedulerConcurrencyRateLimit int, schedulerConcurrencyPollingMinInterval time.Duration, schedulerConcurrencyPollingMaxInterval time.Duration,
 	schedulerCheckActiveMinInterval time.Duration,
 	schedulerCheckActiveMaxInterval time.Duration,
 	schedulerAdvisoryLockTimeout time.Duration,
@@ -72,6 +71,7 @@ func NewSchedulingPool(
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
+			taskRepo:                               taskRepo,
 			l:                                      l,
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
@@ -225,6 +225,10 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 		if storeIfNotFound {
 			tm = newTenantManager(p.cf, tenantId, p.resultsCh, p.concurrencyResultsCh, p.Extensions)
 			p.tenants.Store(tenantId, tm)
+
+			if coord, has := p.batchCoordinators.Load(tenantId); has {
+				tm.scheduler.SetBatchCoordinator(coord.(BatchCoordinator))
+			}
 		} else {
 			return nil
 		}
@@ -286,4 +290,16 @@ func (p *SchedulingPool) RunOptimisticSchedulingFromEvents(ctx context.Context, 
 	}
 
 	return tm.runOptimisticSchedulingFromEvents(ctx, opts, localWorkerIds)
+}
+
+func (p *SchedulingPool) SetBatchCoordinator(tenantId uuid.UUID, coord BatchCoordinator) {
+	if coord != nil {
+		p.batchCoordinators.Store(tenantId, coord)
+	} else {
+		p.batchCoordinators.Delete(tenantId)
+	}
+
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
+		tm.scheduler.SetBatchCoordinator(coord)
+	}
 }
