@@ -45,18 +45,47 @@ func sampleDurableFn(_ DurableContext, _ any) (any, error) { return nil, nil }
 
 // WithCron and WithEvents on standalone tasks should appear in the registration request.
 
-func TestNewStandaloneTask_WithCron(t *testing.T) {
-	c := newTestClient()
-	task := c.NewStandaloneTask("cron-task", sampleTaskFn, WithCron("*/5 * * * *"))
-	req, _, _, _ := task.Dump()
-	assert.Equal(t, []string{"*/5 * * * *"}, req.CronTriggers)
-}
+func TestNewStandaloneTask_Triggers(t *testing.T) {
+	tests := []struct {
+		name       string
+		taskName   string
+		options    []StandaloneTaskOption
+		wantCron   []string
+		wantEvents []string
+	}{
+		{
+			name:     "with cron",
+			taskName: "cron-task",
+			options:  []StandaloneTaskOption{WithCron("*/5 * * * *")},
+			wantCron: []string{"*/5 * * * *"},
+		},
+		{
+			name:       "with events",
+			taskName:   "event-task",
+			options:    []StandaloneTaskOption{WithEvents("user:created")},
+			wantEvents: []string{"user:created"},
+		},
+		{
+			name:     "multiple crons",
+			taskName: "multi-cron",
+			options:  []StandaloneTaskOption{WithCron("*/5 * * * *", "0 0 * * *")},
+			wantCron: []string{"*/5 * * * *", "0 0 * * *"},
+		},
+		{
+			name:     "no triggers",
+			taskName: "plain",
+		},
+	}
 
-func TestNewStandaloneTask_WithEvents(t *testing.T) {
-	c := newTestClient()
-	task := c.NewStandaloneTask("event-task", sampleTaskFn, WithEvents("user:created"))
-	req, _, _, _ := task.Dump()
-	assert.Equal(t, []string{"user:created"}, req.EventTriggers)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newTestClient()
+			task := c.NewStandaloneTask(tt.taskName, sampleTaskFn, tt.options...)
+			req, _, _, _ := task.Dump()
+			assert.Equal(t, tt.wantCron, req.CronTriggers)
+			assert.Equal(t, tt.wantEvents, req.EventTriggers)
+		})
+	}
 }
 
 func TestNewStandaloneDurableTask_WithCron(t *testing.T) {
@@ -64,19 +93,4 @@ func TestNewStandaloneDurableTask_WithCron(t *testing.T) {
 	task := c.NewStandaloneDurableTask("durable-cron", sampleDurableFn, WithCron("0 0 * * *"))
 	req, _, _, _ := task.Dump()
 	assert.Equal(t, []string{"0 0 * * *"}, req.CronTriggers)
-}
-
-func TestNewStandaloneTask_MultipleCrons(t *testing.T) {
-	c := newTestClient()
-	task := c.NewStandaloneTask("multi-cron", sampleTaskFn, WithCron("*/5 * * * *", "0 0 * * *"))
-	req, _, _, _ := task.Dump()
-	assert.Equal(t, []string{"*/5 * * * *", "0 0 * * *"}, req.CronTriggers)
-}
-
-func TestNewStandaloneTask_NoTriggers(t *testing.T) {
-	c := newTestClient()
-	task := c.NewStandaloneTask("plain", sampleTaskFn)
-	req, _, _, _ := task.Dump()
-	assert.Empty(t, req.CronTriggers)
-	assert.Empty(t, req.EventTriggers)
 }
