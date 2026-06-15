@@ -12,18 +12,18 @@ importers:
   .:
     dependencies:
       '@hatchet-dev/typescript-sdk':
-        specifier: 1.24.1
-        version: 1.24.1(@grpc/grpc-js@1.14.4)(zod@4.4.3)
+        specifier: 1.22.3
+        version: 1.22.3(@grpc/grpc-js@1.14.4)(zod@3.25.76)
       zod:
-        specifier: ^4.4.3
-        version: 4.4.3
+        specifier: ^3.25.0
+        version: 3.25.76
     devDependencies:
       '@types/node':
-        specifier: ^25.9.3
-        version: 25.9.3
+        specifier: ^22.19.19
+        version: 22.19.21
       typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -39,17 +39,17 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@hatchet-dev/typescript-sdk@1.24.1':
-    resolution: {integrity: sha512-J+x3OTmMKkDW25oRL8QrMTNjlt0iiGBiR8eaOhJivLA04tZf58OcKiv5hpSWiSIeQNcwyyrE3Z2Mp/eRsNiaGw==}
+  '@hatchet-dev/typescript-sdk@1.22.3':
+    resolution: {integrity: sha512-nkNkB6hdEcNvuVF2AP6Pgi2MSqSezog4IecdIqUq+jYdQgy2KmsChPyeLJ0U5g7K0y7gZ2nc5RKPUUln1C+tyg==}
     peerDependencies:
-      '@anthropic-ai/claude-agent-sdk': ^0.3.148
+      '@anthropic-ai/claude-agent-sdk': ^0.2.87
       '@grpc/grpc-js': ^1.14.3
       '@modelcontextprotocol/sdk': ^1.29.0
-      '@openai/agents': 0.11.6
+      '@openai/agents': 0.8.5
       '@opentelemetry/api': ^1.9.0
       '@opentelemetry/core': ^2.0.0
-      '@opentelemetry/exporter-trace-otlp-grpc': ^0.218.0
-      '@opentelemetry/instrumentation': ^0.218.0
+      '@opentelemetry/exporter-trace-otlp-grpc': ^0.215.0
+      '@opentelemetry/instrumentation': ^0.215.0
       '@opentelemetry/sdk-trace-base': ^2.0.0
       prom-client: ^15.1.3
       zod: ^3.25.0 || ^4.0.0
@@ -105,8 +105,8 @@ packages:
   '@protobufjs/utf8@1.1.1':
     resolution: {integrity: sha512-oOAWABowe8EAbMyWKM0tYDKi8Yaox52D+HWZhAIJqQXbqe0xI/GV7FhLWqlEKreMkfDjshR5FKgi3mnle0h6Eg==}
 
-  '@types/node@25.9.3':
-    resolution: {integrity: sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg==}
+  '@types/node@22.19.21':
+    resolution: {integrity: sha512-VMeFBSCKQKmm2swI2kW51SFusDqekC6q9trBCvJ/JliDchFSuoYYKN7yVNjPthP1HKZcx3U1gI/wTcEBjEFKTA==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -326,13 +326,13 @@ packages:
   ts-error@1.0.6:
     resolution: {integrity: sha512-tLJxacIQUM82IR7JO1UUkKlYuUTmoY9HBJAmNWFzheSlDS5SPMcNIepejHJa4BpPQLAcbRhRf3GDJzyj6rbKvA==}
 
-  typescript@6.0.3:
-    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
 
-  undici-types@7.24.6:
-    resolution: {integrity: sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg==}
+  undici-types@6.21.0:
+    resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
   wrap-ansi@7.0.0:
     resolution: {integrity: sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==}
@@ -360,8 +360,8 @@ packages:
     peerDependencies:
       zod: ^3.25.28 || ^4
 
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
 snapshots:
 
@@ -379,7 +379,7 @@ snapshots:
       protobufjs: 7.6.4
       yargs: 17.7.2
 
-  '@hatchet-dev/typescript-sdk@1.24.1(@grpc/grpc-js@1.14.4)(zod@4.4.3)':
+  '@hatchet-dev/typescript-sdk@1.22.3(@grpc/grpc-js@1.14.4)(zod@3.25.76)':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
       '@types/qs': 6.15.1
@@ -392,8 +392,8 @@ snapshots:
       qs: 6.15.2
       semver: 7.8.4
       yaml: 2.9.0
-      zod: 4.4.3
-      zod-to-json-schema: 3.25.2(zod@4.4.3)
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     optionalDependencies:
       '@grpc/grpc-js': 1.14.4
     transitivePeerDependencies:
@@ -422,9 +422,9 @@ snapshots:
 
   '@protobufjs/utf8@1.1.1': {}
 
-  '@types/node@25.9.3':
+  '@types/node@22.19.21':
     dependencies:
-      undici-types: 7.24.6
+      undici-types: 6.21.0
 
   '@types/qs@6.15.1': {}
 
@@ -601,7 +601,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.3
+      '@types/node': 22.19.21
       long: 5.3.2
 
   proxy-from-env@2.1.0: {}
@@ -654,9 +654,9 @@ snapshots:
 
   ts-error@1.0.6: {}
 
-  typescript@6.0.3: {}
+  typescript@5.9.3: {}
 
-  undici-types@7.24.6: {}
+  undici-types@6.21.0: {}
 
   wrap-ansi@7.0.0:
     dependencies:
@@ -680,8 +680,8 @@ snapshots:
       y18n: 5.0.8
       yargs-parser: 21.1.1
 
-  zod-to-json-schema@3.25.2(zod@4.4.3):
+  zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
-      zod: 4.4.3
+      zod: 3.25.76
 
-  zod@4.4.3: {}
+  zod@3.25.76: {}
