@@ -302,3 +302,39 @@ func TestStreamBuffer_NoIndexSent(t *testing.T) {
 		t.Fatal("Expected event was not received")
 	}
 }
+
+// A timeout scheduled while events were buffered must not reset the expected index
+// after the buffer has fully drained; otherwise the next out-of-order event is
+// treated as a fresh start and released immediately instead of being buffered.
+func TestStreamBuffer_StaleTimeoutDoesNotResetExpectedIndex(t *testing.T) {
+	buffer := NewStreamEventBuffer(100 * time.Millisecond)
+	defer buffer.Close()
+
+	ix0, ix1, ix3 := int64(0), int64(1), int64(3)
+
+	// out-of-order: index 1 buffers and schedules a timeout
+	buffer.AddEvent(genEvent("second", false, &ix1))
+
+	// index 0 arrives: both drain, expected index advances to 2
+	buffer.AddEvent(genEvent("first", false, &ix0))
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-buffer.Events():
+		case <-time.After(1 * time.Second):
+			t.Fatal("Expected drained event was not received")
+		}
+	}
+
+	// let the stale timeout fire against the fully drained buffer
+	time.Sleep(200 * time.Millisecond)
+
+	// index 3 is still out of order (2 is missing) and must be buffered, not released
+	buffer.AddEvent(genEvent("fourth", false, &ix3))
+
+	select {
+	case e := <-buffer.Events():
+		t.Fatalf("event %s was released immediately; expected index was reset by a stale timeout", e.EventPayload)
+	case <-time.After(50 * time.Millisecond):
+	}
+}

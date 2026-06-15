@@ -63,7 +63,7 @@ export function SupportSection() {
             <ul className="space-y-2">
               <li>
                 <a
-                  href="https://hatchet.run/discord"
+                  href="https://docs.hatchet.run"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-sm text-primary/70 hover:underline hover:text-primary"

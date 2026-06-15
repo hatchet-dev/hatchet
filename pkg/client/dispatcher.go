@@ -514,8 +514,6 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 	retries := 0
 
 	for retries < DefaultActionListenerRetryCount {
-		time.Sleep(DefaultActionListenerRetryInterval)
-
 		var err error
 		var listenClient dispatchercontracts.Dispatcher_ListenClient
 
@@ -532,6 +530,7 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 		if err != nil {
 			retries++
 			a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker")
+			time.Sleep(DefaultActionListenerRetryInterval)
 			continue
 		}
 

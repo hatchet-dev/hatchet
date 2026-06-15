@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,53 +13,21 @@ import (
 // nolint: staticcheck
 var (
 	SUB_FLUSH_INTERVAL  = 10 * time.Millisecond
-	SUB_BUFFER_SIZE     = 1000
+	SUB_BUFFER_SIZE     = 10
 	SUB_MAX_CONCURRENCY = 10
 )
-
-func init() {
-	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
-		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
-			SUB_FLUSH_INTERVAL = v
-		}
-	}
-
-	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
-		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
-
-		maxSize, err := strconv.Atoi(v)
-
-		if err == nil {
-			SUB_BUFFER_SIZE = maxSize
-		}
-	}
-
-	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
-		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
-
-		maxConcurrency, err := strconv.Atoi(v)
-
-		if err == nil {
-			SUB_MAX_CONCURRENCY = maxConcurrency
-		}
-	}
-}
 
 type DstFunc func(tenantId uuid.UUID, msgId string, payloads [][]byte) error
 
 func JSONConvert[T any](payloads [][]byte) []*T {
 	ret := make([]*T, 0)
-
 	for _, p := range payloads {
 		var t T
-
 		if err := json.Unmarshal(p, &t); err != nil {
 			return nil
 		}
-
 		ret = append(ret, &t)
 	}
-
 	return ret
 }
 
@@ -76,8 +42,7 @@ const (
 // to the task handler as necessary.
 type MQSubBuffer struct {
 	queue Queue
-
-	mq MessageQueue
+	mq    MessageQueue
 
 	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
 	buffers syncx.Map[string, *msgIdBuffer]
@@ -107,21 +72,15 @@ type mqSubBufferOpts struct {
 type mqSubBufferOptFunc func(*mqSubBufferOpts)
 
 func WithKind(kind SubBufferKind) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.kind = kind
-	}
+	return func(opts *mqSubBufferOpts) { opts.kind = kind }
 }
 
 func WithFlushInterval(flushInterval time.Duration) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.flushInterval = flushInterval
-	}
+	return func(opts *mqSubBufferOpts) { opts.flushInterval = flushInterval }
 }
 
 func WithBufferSize(bufferSize int) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.bufferSize = bufferSize
-	}
+	return func(opts *mqSubBufferOpts) { opts.bufferSize = bufferSize }
 }
 
 // WithMaxFlushBytes caps the total payload bytes drained into a single flush
@@ -135,17 +94,11 @@ func WithMaxFlushBytes(maxFlushBytes int) mqSubBufferOptFunc {
 }
 
 func WithMaxConcurrency(maxConcurrency int) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.maxConcurrency = maxConcurrency
-	}
+	return func(opts *mqSubBufferOpts) { opts.maxConcurrency = maxConcurrency }
 }
 
-// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
-// waiting on the flush interval timer.
 func WithDisableImmediateFlush(disableImmediateFlush bool) mqSubBufferOptFunc {
-	return func(opts *mqSubBufferOpts) {
-		opts.disableImmediateFlush = disableImmediateFlush
-	}
+	return func(opts *mqSubBufferOpts) { opts.disableImmediateFlush = disableImmediateFlush }
 }
 
 func defaultMQSubBufferOpts() *mqSubBufferOpts {
@@ -159,11 +112,9 @@ func defaultMQSubBufferOpts() *mqSubBufferOpts {
 
 func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc, fs ...mqSubBufferOptFunc) *MQSubBuffer {
 	opts := defaultMQSubBufferOpts()
-
 	for _, f := range fs {
 		f(opts)
 	}
-
 	return &MQSubBuffer{
 		queue:                 queue,
 		mq:                    mq,
@@ -201,11 +152,9 @@ func (m *MQSubBuffer) Start() (func() error, error) {
 
 	cleanup := func() error {
 		defer cancel()
-
 		if err := cleanupQueue(); err != nil {
 			return fmt.Errorf("could not cleanup message queue listener: %w", err)
 		}
-
 		return nil
 	}
 
@@ -235,8 +184,18 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxFlushBytes, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
-	// this places some backpressure on the consumer if buffers are full
-	msgBuf.msgIdBufferCh <- msgWithResult
+	// Signal early flush if the send would block due to capacity.
+	select {
+	case msgBuf.msgIdBufferCh <- msgWithResult:
+		// sent without blocking
+	default:
+		select {
+		case msgBuf.capacityRelease <- struct{}{}:
+		default:
+		}
+		// this places some backpressure on the consumer if buffers are full
+		msgBuf.msgIdBufferCh <- msgWithResult
+	}
 	msgBuf.notifier <- struct{}{}
 
 	// wait for the message to be processed
@@ -255,25 +214,12 @@ func getKey(tenantId uuid.UUID, msgId string) string {
 }
 
 type msgIdBuffer struct {
-	tenantId uuid.UUID
-	msgId    string
+	bufferCore
 
+	tenantId      uuid.UUID
+	msgId         string
 	msgIdBufferCh chan *msgWithResultCh
-	notifier      chan struct{}
-
-	// "Immediate flush" means that if we haven't flushed yet, we can flush immediately without
-	// waiting on the timer.
-	disableImmediateFlush bool
-
-	semaphore        chan struct{}
-	semaphoreRelease chan time.Duration
-
-	dst DstFunc
-
-	flushInterval time.Duration
-
-	// bufferSize bounds the number of messages drained into a single flush.
-	bufferSize int
+	dst           DstFunc
 
 	// maxFlushBytes bounds the total payload bytes drained into a single flush.
 	// A value <= 0 disables the byte cap (count-only flushing).
@@ -282,63 +228,16 @@ type msgIdBuffer struct {
 
 func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxFlushBytes, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
-		tenantId:              tenantID,
-		msgId:                 msgID,
-		msgIdBufferCh:         make(chan *msgWithResultCh, bufferSize),
-		notifier:              make(chan struct{}),
-		dst:                   dst,
-		disableImmediateFlush: disableImmediateFlush,
-		semaphore:             make(chan struct{}, maxConcurrency),
-		semaphoreRelease:      make(chan time.Duration, maxConcurrency),
-		flushInterval:         flushInterval,
-		bufferSize:            bufferSize,
-		maxFlushBytes:         maxFlushBytes,
+		bufferCore:    newBufferCore(flushInterval, bufferSize, maxConcurrency, disableImmediateFlush, false),
+		tenantId:      tenantID,
+		msgId:         msgID,
+		msgIdBufferCh: make(chan *msgWithResultCh, bufferSize),
+		dst:           dst,
+		maxFlushBytes: maxFlushBytes,
 	}
-
-	b.startFlusher(ctx)
-	b.startSemaphoreReleaser(ctx)
-
+	b.startFlusher(ctx, b.flush)
+	b.startSemaphoreReleaser(ctx, func() int { return len(b.msgIdBufferCh) }, b.flush)
 	return b
-}
-
-func (m *msgIdBuffer) startFlusher(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(m.flushInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				go m.flush()
-			case <-m.notifier:
-				if !m.disableImmediateFlush {
-					go m.flush()
-				}
-			}
-		}
-	}()
-}
-
-func (m *msgIdBuffer) startSemaphoreReleaser(ctx context.Context) {
-	go func() {
-		timer := time.NewTimer(0)
-		defer timer.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case delay := <-m.semaphoreRelease:
-				if delay > 0 {
-					timer.Reset(delay)
-					<-timer.C
-				}
-				<-m.semaphore
-			}
-		}
-	}()
 }
 
 func (m *msgIdBuffer) flush() {
@@ -349,60 +248,71 @@ func (m *msgIdBuffer) flush() {
 	}
 
 	startedFlush := time.Now()
-
 	defer func() {
 		go func() {
-			delay := m.flushInterval - time.Since(startedFlush)
-			m.semaphoreRelease <- delay
+			m.semaphoreRelease <- m.flushInterval - time.Since(startedFlush)
 		}()
 	}()
 
-	msgsWithResultCh := make([]*msgWithResultCh, 0)
-	payloads := make([][]byte, 0)
+	// drainForFlush uses the instance bufferSize (fixing the earlier bug where the
+	// global SUB_BUFFER_SIZE was used regardless of configuration) and additionally
+	// caps the flush by total payload bytes when maxFlushBytes is set, so a single
+	// bulk DB write can't inline an unbounded amount of data.
+	drained := m.drainForFlush()
 
-	totalBytes := 0
-
-	// Drain up to bufferSize messages, but stop early once the accumulated
-	// payload bytes reach maxFlushBytes so a single flush (and therefore the
-	// downstream bulk DB write) can't carry an unbounded amount of data. At
-	// least one message is always taken so an oversized message still drains.
-	for i := 0; i < m.bufferSize; i++ {
-		select {
-		case msg := <-m.msgIdBufferCh:
-			msgsWithResultCh = append(msgsWithResultCh, msg)
-
-			payloads = append(payloads, msg.msg.Payloads...)
-
-			for _, p := range msg.msg.Payloads {
-				totalBytes += len(p)
-			}
-
-			if m.maxFlushBytes > 0 && totalBytes >= m.maxFlushBytes {
-				i = m.bufferSize
-			}
-		default:
-			i = m.bufferSize
-		}
+	payloads := make([][]byte, 0, len(drained))
+	for _, item := range drained {
+		payloads = append(payloads, item.msg.Payloads...)
 	}
 
 	if len(payloads) == 0 {
-		for _, msg := range msgsWithResultCh {
-			close(msg.result)
+		for _, item := range drained {
+			close(item.result)
 		}
-
 		return
 	}
 
 	err := m.dst(m.tenantId, m.msgId, payloads)
 
 	if err != nil {
-		// write err to all the message channels
-		for _, msg := range msgsWithResultCh {
-			msg.result <- err
+		for _, item := range drained {
+			item.result <- err
 		}
 	}
 
-	for _, msg := range msgsWithResultCh {
-		close(msg.result)
+	for _, item := range drained {
+		close(item.result)
 	}
+}
+
+// drainForFlush reads up to bufferSize messages from the buffer without
+// blocking. When maxFlushBytes > 0 it stops early once the accumulated payload
+// bytes reach the cap, always taking at least one message so a message whose
+// payload alone exceeds the cap can still drain.
+func (m *msgIdBuffer) drainForFlush() []*msgWithResultCh {
+	if m.maxFlushBytes <= 0 {
+		return drainN(m.msgIdBufferCh, m.bufferSize)
+	}
+
+	items := make([]*msgWithResultCh, 0, m.bufferSize)
+	totalBytes := 0
+
+	for i := 0; i < m.bufferSize; i++ {
+		select {
+		case item := <-m.msgIdBufferCh:
+			items = append(items, item)
+
+			for _, p := range item.msg.Payloads {
+				totalBytes += len(p)
+			}
+
+			if totalBytes >= m.maxFlushBytes {
+				return items
+			}
+		default:
+			return items
+		}
+	}
+
+	return items
 }
