@@ -90,6 +90,7 @@ type MQSubBuffer struct {
 
 	flushInterval         time.Duration
 	bufferSize            int
+	maxFlushBytes         int
 	maxConcurrency        int
 	disableImmediateFlush bool
 }
@@ -98,6 +99,7 @@ type mqSubBufferOpts struct {
 	kind                  SubBufferKind
 	flushInterval         time.Duration
 	bufferSize            int
+	maxFlushBytes         int
 	maxConcurrency        int
 	disableImmediateFlush bool
 }
@@ -119,6 +121,16 @@ func WithFlushInterval(flushInterval time.Duration) mqSubBufferOptFunc {
 func WithBufferSize(bufferSize int) mqSubBufferOptFunc {
 	return func(opts *mqSubBufferOpts) {
 		opts.bufferSize = bufferSize
+	}
+}
+
+// WithMaxFlushBytes caps the total payload bytes drained into a single flush
+// (i.e. a single destination call / bulk DB write). A value <= 0 disables the
+// byte cap and the buffer flushes purely by count (bufferSize). At least one
+// message is always taken per flush so an oversized message can still drain.
+func WithMaxFlushBytes(maxFlushBytes int) mqSubBufferOptFunc {
+	return func(opts *mqSubBufferOpts) {
+		opts.maxFlushBytes = maxFlushBytes
 	}
 }
 
@@ -159,6 +171,7 @@ func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc, fs ...mqSubBuffer
 		kind:                  opts.kind,
 		flushInterval:         opts.flushInterval,
 		bufferSize:            opts.bufferSize,
+		maxFlushBytes:         opts.maxFlushBytes,
 		maxConcurrency:        opts.maxConcurrency,
 		disableImmediateFlush: opts.disableImmediateFlush,
 	}
@@ -219,7 +232,7 @@ func (m *MQSubBuffer) handleMsg(ctx context.Context, msg *Message) error {
 	msgBuf, ok := m.buffers.Load(k)
 
 	if !ok {
-		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxConcurrency, m.disableImmediateFlush))
+		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDBuffer(ctx, msg.TenantID, msg.ID, m.dst, m.flushInterval, m.bufferSize, m.maxFlushBytes, m.maxConcurrency, m.disableImmediateFlush))
 	}
 
 	// this places some backpressure on the consumer if buffers are full
@@ -258,9 +271,16 @@ type msgIdBuffer struct {
 	dst DstFunc
 
 	flushInterval time.Duration
+
+	// bufferSize bounds the number of messages drained into a single flush.
+	bufferSize int
+
+	// maxFlushBytes bounds the total payload bytes drained into a single flush.
+	// A value <= 0 disables the byte cap (count-only flushing).
+	maxFlushBytes int
 }
 
-func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
+func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst DstFunc, flushInterval time.Duration, bufferSize, maxFlushBytes, maxConcurrency int, disableImmediateFlush bool) *msgIdBuffer {
 	b := &msgIdBuffer{
 		tenantId:              tenantID,
 		msgId:                 msgID,
@@ -271,6 +291,8 @@ func newMsgIDBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, dst D
 		semaphore:             make(chan struct{}, maxConcurrency),
 		semaphoreRelease:      make(chan time.Duration, maxConcurrency),
 		flushInterval:         flushInterval,
+		bufferSize:            bufferSize,
+		maxFlushBytes:         maxFlushBytes,
 	}
 
 	b.startFlusher(ctx)
@@ -338,15 +360,28 @@ func (m *msgIdBuffer) flush() {
 	msgsWithResultCh := make([]*msgWithResultCh, 0)
 	payloads := make([][]byte, 0)
 
-	// read all messages currently in the buffer
-	for i := 0; i < SUB_BUFFER_SIZE; i++ {
+	totalBytes := 0
+
+	// Drain up to bufferSize messages, but stop early once the accumulated
+	// payload bytes reach maxFlushBytes so a single flush (and therefore the
+	// downstream bulk DB write) can't carry an unbounded amount of data. At
+	// least one message is always taken so an oversized message still drains.
+	for i := 0; i < m.bufferSize; i++ {
 		select {
 		case msg := <-m.msgIdBufferCh:
 			msgsWithResultCh = append(msgsWithResultCh, msg)
 
 			payloads = append(payloads, msg.msg.Payloads...)
+
+			for _, p := range msg.msg.Payloads {
+				totalBytes += len(p)
+			}
+
+			if m.maxFlushBytes > 0 && totalBytes >= m.maxFlushBytes {
+				i = m.bufferSize
+			}
 		default:
-			i = SUB_BUFFER_SIZE
+			i = m.bufferSize
 		}
 	}
 

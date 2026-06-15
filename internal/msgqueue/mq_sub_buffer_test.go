@@ -28,7 +28,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	}
 
 	// Create a buffer
-	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 10, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 0, 10, false)
 
 	// Force GC and get baseline
 	runtime.GC()
@@ -107,7 +107,7 @@ func TestSemaphoreReleaserReusesTimer(t *testing.T) {
 		return nil
 	}
 
-	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 10, 3, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 10, 0, 3, false)
 
 	// Trigger multiple rapid flushes
 	for i := 0; i < 20; i++ {
@@ -139,7 +139,7 @@ func TestBufferCleanupOnContextCancel(t *testing.T) {
 		return nil
 	}
 
-	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 10, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 0, 10, false)
 
 	// Get baseline goroutine count
 	runtime.GC()
@@ -202,7 +202,7 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 		return nil
 	}
 
-	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 100, maxConcurrency, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 100, 0, maxConcurrency, false)
 
 	// Send many messages rapidly
 	for i := 0; i < 50; i++ {
@@ -224,4 +224,145 @@ func TestConcurrentFlushesRateLimited(t *testing.T) {
 	}
 
 	t.Logf("Max concurrent flushes observed: %d (limit: %d)", maxConcurrent, maxConcurrency)
+}
+
+// waitForPayloads blocks until got >= want or the timeout elapses.
+func waitForPayloads(t *testing.T, mu *sync.Mutex, got *int, want int, timeout time.Duration) {
+	t.Helper()
+
+	deadline := time.After(timeout)
+
+	for {
+		mu.Lock()
+		cur := *got
+		mu.Unlock()
+
+		if cur >= want {
+			return
+		}
+
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for payloads: got %d/%d", cur, want)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+}
+
+// TestFlushRespectsMaxBytes verifies that maxFlushBytes bounds the total
+// payload bytes drained into a single flush (i.e. a single dst/bulk-write call)
+// while the count cap (bufferSize) is intentionally left high.
+func TestFlushRespectsMaxBytes(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const payloadSize = 1024
+	const maxFlushBytes = 4096
+
+	var mu sync.Mutex
+	var flushSizes []int
+	var totalPayloads int
+
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
+		size := 0
+		for _, p := range payloads {
+			size += len(p)
+		}
+
+		mu.Lock()
+		flushSizes = append(flushSizes, size)
+		totalPayloads += len(payloads)
+		mu.Unlock()
+
+		return nil
+	}
+
+	// bufferSize is large so the byte cap (not the count cap) bounds each flush.
+	// maxConcurrency=1 serializes flushes so per-flush sizes are deterministic.
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 1000, maxFlushBytes, 1, false)
+
+	const numMessages = 40
+	for i := 0; i < numMessages; i++ {
+		msg := &msgWithResultCh{
+			msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{make([]byte, payloadSize)}},
+			result: make(chan error, 1),
+		}
+		buf.msgIdBufferCh <- msg
+		buf.notifier <- struct{}{}
+	}
+
+	waitForPayloads(t, &mu, &totalPayloads, numMessages, 2*time.Second)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if totalPayloads != numMessages {
+		t.Errorf("expected %d payloads processed, got %d", numMessages, totalPayloads)
+	}
+
+	for i, size := range flushSizes {
+		if size > maxFlushBytes {
+			t.Errorf("flush %d carried %d bytes, exceeds cap %d", i, size, maxFlushBytes)
+		}
+	}
+
+	t.Logf("flushes=%d sizes=%v", len(flushSizes), flushSizes)
+}
+
+// TestFlushTakesAtLeastOneOversizedMessage verifies that a message whose payload
+// alone exceeds maxFlushBytes still drains (one per flush) rather than wedging
+// the buffer.
+func TestFlushTakesAtLeastOneOversizedMessage(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	const payloadSize = 4096
+	const maxFlushBytes = 512 // smaller than a single payload
+
+	var mu sync.Mutex
+	var flushSizes []int
+	var totalPayloads int
+
+	dst := func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
+		size := 0
+		for _, p := range payloads {
+			size += len(p)
+		}
+
+		mu.Lock()
+		flushSizes = append(flushSizes, size)
+		totalPayloads += len(payloads)
+		mu.Unlock()
+
+		return nil
+	}
+
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 5*time.Millisecond, 1000, maxFlushBytes, 1, false)
+
+	const numMessages = 5
+	for i := 0; i < numMessages; i++ {
+		msg := &msgWithResultCh{
+			msg:    &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{make([]byte, payloadSize)}},
+			result: make(chan error, 1),
+		}
+		buf.msgIdBufferCh <- msg
+		buf.notifier <- struct{}{}
+	}
+
+	waitForPayloads(t, &mu, &totalPayloads, numMessages, 2*time.Second)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if totalPayloads != numMessages {
+		t.Errorf("expected %d payloads processed, got %d", numMessages, totalPayloads)
+	}
+
+	for i, size := range flushSizes {
+		if size != payloadSize {
+			t.Errorf("flush %d carried %d bytes, expected exactly one %d-byte message", i, size, payloadSize)
+		}
+	}
+
+	t.Logf("flushes=%d sizes=%v", len(flushSizes), flushSizes)
 }

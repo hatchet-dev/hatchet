@@ -62,6 +62,7 @@ type TasksControllerImpl struct {
 	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
 	replayEnabled                         bool
 	analyzeCronInterval                   time.Duration
+	completionMaxFlushBytes               int
 	signaler                              *signal.OLAPSignaler
 	tw                                    *trigger.TriggerWriter
 }
@@ -69,18 +70,19 @@ type TasksControllerImpl struct {
 type TasksControllerOpt func(*TasksControllerOpts)
 
 type TasksControllerOpts struct {
-	mq                  msgqueue.MessageQueue
-	l                   *zerolog.Logger
-	repov1              v1.Repository
-	dv                  datautils.DataDecoderValidator
-	alerter             hatcheterrors.Alerter
-	p                   *partition.Partition
-	queueLogger         *zerolog.Logger
-	pgxStatsLogger      *zerolog.Logger
-	opsPoolJitter       time.Duration
-	opsPoolPollInterval time.Duration
-	replayEnabled       bool
-	analyzeCronInterval time.Duration
+	mq                      msgqueue.MessageQueue
+	l                       *zerolog.Logger
+	repov1                  v1.Repository
+	dv                      datautils.DataDecoderValidator
+	alerter                 hatcheterrors.Alerter
+	p                       *partition.Partition
+	queueLogger             *zerolog.Logger
+	pgxStatsLogger          *zerolog.Logger
+	opsPoolJitter           time.Duration
+	opsPoolPollInterval     time.Duration
+	replayEnabled           bool
+	analyzeCronInterval     time.Duration
+	completionMaxFlushBytes int
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -172,6 +174,15 @@ func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
 	}
 }
 
+// WithCompletionMaxFlushBytes caps the total payload bytes drained into a
+// single task-completion flush (one bulk DB write). A value <= 0 disables the
+// byte cap and the completion buffer flushes purely by count.
+func WithCompletionMaxFlushBytes(maxFlushBytes int) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.completionMaxFlushBytes = maxFlushBytes
+	}
+}
+
 func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts := defaultTasksControllerOpts()
 
@@ -209,23 +220,24 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0)
 
 	t := &TasksControllerImpl{
-		mq:                  opts.mq,
-		pubBuffer:           pubBuffer,
-		l:                   opts.l,
-		queueLogger:         opts.queueLogger,
-		pgxStatsLogger:      opts.pgxStatsLogger,
-		repov1:              opts.repov1,
-		dv:                  opts.dv,
-		s:                   s,
-		a:                   a,
-		p:                   opts.p,
-		celParser:           cel.NewCELParser(),
-		opsPoolJitter:       opts.opsPoolJitter,
-		opsPoolPollInterval: opts.opsPoolPollInterval,
-		replayEnabled:       opts.replayEnabled,
-		analyzeCronInterval: opts.analyzeCronInterval,
-		signaler:            signaler,
-		tw:                  tw,
+		mq:                      opts.mq,
+		pubBuffer:               pubBuffer,
+		l:                       opts.l,
+		queueLogger:             opts.queueLogger,
+		pgxStatsLogger:          opts.pgxStatsLogger,
+		repov1:                  opts.repov1,
+		dv:                      opts.dv,
+		s:                       s,
+		a:                       a,
+		p:                       opts.p,
+		celParser:               cel.NewCELParser(),
+		opsPoolJitter:           opts.opsPoolJitter,
+		opsPoolPollInterval:     opts.opsPoolPollInterval,
+		replayEnabled:           opts.replayEnabled,
+		analyzeCronInterval:     opts.analyzeCronInterval,
+		completionMaxFlushBytes: opts.completionMaxFlushBytes,
+		signaler:                signaler,
+		tw:                      tw,
 	}
 
 	jitter := t.opsPoolJitter
@@ -280,7 +292,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 }
 
 func (tc *TasksControllerImpl) Start() (func() error, error) {
-	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.TASK_PROCESSING_QUEUE, tc.mq, tc.handleBufferedMsgs)
+	mqBuffer := msgqueue.NewMQSubBuffer(msgqueue.TASK_PROCESSING_QUEUE, tc.mq, tc.handleBufferedMsgs, msgqueue.WithMaxFlushBytes(tc.completionMaxFlushBytes))
 
 	tc.s.Start()
 
