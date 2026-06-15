@@ -288,11 +288,14 @@ type ConfigFileRuntime struct {
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
 
 	// TaskCompletionMaxFlushBytes caps the total payload bytes drained into a
-	// single task-completion flush (one bulk DB write). It bounds per-statement
+	// single task-completion flush (one bulk DB write), bounding per-statement
 	// memory so a burst of large task outputs can't blow up a Postgres backend.
 	// The completion buffer still flushes by count first; whichever cap is hit
-	// first wins. A value <= 0 disables the byte cap (count-only flushing).
-	TaskCompletionMaxFlushBytes int `mapstructure:"taskCompletionMaxFlushBytes" json:"taskCompletionMaxFlushBytes,omitempty" default:"4194304"`
+	// first wins. The default is a loose backstop (64 MiB) -- well above normal
+	// flush sizes but below the per-backend allocation that has caused OOMs --
+	// rather than a tight throttle, since there was previously no byte limit at
+	// all. A value <= 0 disables the byte cap (count-only flushing).
+	TaskCompletionMaxFlushBytes int `mapstructure:"taskCompletionMaxFlushBytes" json:"taskCompletionMaxFlushBytes,omitempty" default:"67108864"`
 
 	// AllowedOrigins is a list of origin patterns permitted for CORS requests.
 	// Patterns may include wildcards, e.g. "https://*.hatchet.run".
