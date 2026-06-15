@@ -206,6 +206,19 @@ func (s *Scheduler) Start() (func() error, error) {
 		return nil, fmt.Errorf("could not schedule tenant set queues: %w", err)
 	}
 
+	_, err = s.s.NewJob(
+		gocron.DurationJob(5*time.Minute),
+		gocron.NewTask(
+			s.runDeactivateStaleStepConcurrency(ctx),
+		),
+		gocron.WithSingletonMode(gocron.LimitModeReschedule),
+	)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("could not schedule stale step concurrency deactivation: %w", err)
+	}
+
 	s.s.Start()
 
 	postAck := func(task *msgqueue.Message) error {
@@ -401,6 +414,23 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 		}
 
 		s.pool.SetTenants(tenants)
+	}
+}
+
+func (s *Scheduler) runDeactivateStaleStepConcurrency(ctx context.Context) func() {
+	return func() {
+		tenants, err := s.repov1.Tenant().ListTenantsBySchedulerPartition(ctx, s.p.GetSchedulerPartitionId())
+
+		if err != nil {
+			s.l.Err(err).Ctx(ctx).Msg("could not list tenants for stale step concurrency deactivation")
+			return
+		}
+
+		for _, tenant := range tenants {
+			if err := s.repov1.Scheduler().Concurrency().DeactivateStaleStepConcurrency(ctx, tenant.ID); err != nil {
+				s.l.Err(err).Ctx(ctx).Str("tenantId", tenant.ID.String()).Msg("could not deactivate stale step concurrency")
+			}
+		}
 	}
 }
 
