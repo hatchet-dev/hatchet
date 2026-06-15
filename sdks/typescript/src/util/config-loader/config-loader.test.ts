@@ -1,9 +1,13 @@
+import { ChannelCredentials } from 'nice-grpc';
 import { ConfigLoader } from './config-loader';
+import { HatchetClient } from '@hatchet/v1';
 
 describe('ConfigLoader', () => {
   beforeEach(() => {
     // Clear env vars that might leak from other tests
     delete process.env.HATCHET_CLIENT_TLS_STRATEGY;
+    delete process.env.HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH;
+    delete process.env.HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH;
 
     process.env.HATCHET_CLIENT_TOKEN =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJncnBjX2Jyb2FkY2FzdF9hZGRyZXNzIjoiMTI3LjAuMC4xOjgwODAiLCJzZXJ2ZXJfdXJsIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwIiwic3ViIjoiNzA3ZDA4NTUtODBhYi00ZTFmLWExNTYtZjFjNDU0NmNiZjUyIn0K.abcdef';
@@ -14,6 +18,8 @@ describe('ConfigLoader', () => {
     process.env.HATCHET_CLIENT_TLS_SERVER_NAME = 'TLS_SERVER_NAME';
     process.env.HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED = 'true';
     process.env.HATCHET_CLIENT_WORKER_HEALTHCHECK_PORT = '8001';
+    process.env.HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH = String(8 * 1024 * 1024);
+    process.env.HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH = String(16 * 1024 * 1024);
   });
 
   it('should load from environment variables', () => {
@@ -40,8 +46,25 @@ describe('ConfigLoader', () => {
       otel: {
         excludedAttributes: [],
         includeTaskNameInSpanName: false,
+        individualRunSpansForBulkRun: false,
       },
+      grpc_max_recv_message_length: 8 * 1024 * 1024,
+      grpc_max_send_message_length: 16 * 1024 * 1024,
     });
+  });
+
+  it('should throw on a malformed grpc max recv message length env var', () => {
+    process.env.HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH = '4mb';
+    expect(() => ConfigLoader.loadClientConfig()).toThrow(
+      /HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH.*"4mb".*positive integer/
+    );
+  });
+
+  it('should throw on a malformed grpc max send message length env var', () => {
+    process.env.HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH = '4mb';
+    expect(() => ConfigLoader.loadClientConfig()).toThrow(
+      /HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH.*"4mb".*positive integer/
+    );
   });
 
   it('should throw an error if the file is not found', () => {
@@ -97,7 +120,24 @@ describe('ConfigLoader', () => {
         excludedAttributes: ['additional_metadata'],
         includeTaskNameInSpanName: true,
       },
+      grpc_max_recv_message_length: 8 * 1024 * 1024,
+      grpc_max_send_message_length: 16 * 1024 * 1024,
     });
+  });
+
+  it('should propagate overrides', () => {
+    const client = HatchetClient.init(
+      { cancellation_grace_period: 60_000, cancellation_warning_threshold: 10_000 },
+      { credentials: ChannelCredentials.createInsecure() }
+    );
+    expect(client.config.cancellation_grace_period).toEqual(60_000);
+    expect(client.config.cancellation_warning_threshold).toEqual(10_000);
+  });
+
+  it('should use default cancellation values when not overridden', () => {
+    const client = HatchetClient.init({}, { credentials: ChannelCredentials.createInsecure() });
+    expect(client.config.cancellation_grace_period).toEqual(1000);
+    expect(client.config.cancellation_warning_threshold).toEqual(300);
   });
 
   xit('should attempt to load the root .hatchet.yaml config', () => {

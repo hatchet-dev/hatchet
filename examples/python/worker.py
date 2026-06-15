@@ -47,6 +47,10 @@ from examples.durable.worker import (
     wait_for_event_lookback,
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
+    durable_child_key_dedup_replay,
+    durable_spawn_many_dags,
+    error_raising_task,
+    error_raising_durable_parent,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -94,6 +98,10 @@ from examples.opentelemetry_instrumentation.worker import (
     otel_workflow,
     otel_simple_task,
     otel_spawn_parent,
+)
+from examples.bug_tests.durable_child_key_duplicate_child.worker import (
+    durable_parent_child_key_bug,
+    child_child_key_bug,
 )
 from hatchet_sdk import Hatchet
 
@@ -185,6 +193,12 @@ def main() -> None:
             generate_reply,
             escalate_ticket,
             welcome_email,
+            durable_parent_child_key_bug,
+            child_child_key_bug,
+            durable_child_key_dedup_replay,
+            durable_spawn_many_dags,
+            error_raising_durable_parent,
+            error_raising_task,
         ],
         lifespan=lifespan,
     )

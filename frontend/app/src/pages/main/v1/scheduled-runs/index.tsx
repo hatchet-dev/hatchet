@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
@@ -61,7 +62,10 @@ export default function ScheduledRunsTable({
     useState<string | null>(null);
 
   const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
+    useLocalStorageState<VisibilityState>(
+      'hatchet:columns:scheduled-runs',
+      initColumnVisibility,
+    );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const {
@@ -81,6 +85,7 @@ export default function ScheduledRunsTable({
     selectedWorkflowIds,
     selectedStatuses,
     selectedMetadata,
+    triggerNow,
   } = useScheduledRuns({
     key: 'table',
     workflowId,
@@ -142,6 +147,7 @@ export default function ScheduledRunsTable({
         onRescheduleClick: (row) => {
           setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
         },
+        onTriggerClick: (row) => triggerNow(row.metadata.id),
         selectedAdditionalMetaJobId,
         handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
         onRowClick: (row) => {

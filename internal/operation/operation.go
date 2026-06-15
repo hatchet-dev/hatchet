@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -130,6 +131,7 @@ func (o *SerialOperation) RunOrContinue(l *zerolog.Logger) {
 
 func (o *SerialOperation) Run(l *zerolog.Logger) {
 	if !o.setRunning(true, l) {
+		l.Info().Msg(fmt.Sprintf("SerialOperation %s skipped because it is already running, last run: %s ", o.operationId, o.lastRun))
 		return
 	}
 

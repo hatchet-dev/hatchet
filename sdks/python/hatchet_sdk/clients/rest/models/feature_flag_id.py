@@ -28,6 +28,8 @@ class FeatureFlagId(str, Enum):
     TENANT_MINUS_LOG_MINUS_WORKFLOW_MINUS_FILTER_MINUS_ENABLED = (
         "tenant-log-workflow-filter-enabled"
     )
+    TRACE_MINUS_MINIMAP_MINUS_ENABLED = "trace-minimap-enabled"
+    ORGANIZATION_MINUS_SSO_MINUS_ENABLED = "organization-sso-enabled"
 
     @classmethod
     def from_json(cls, json_str: str) -> Self:

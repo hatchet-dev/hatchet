@@ -390,6 +390,8 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
+        -- evicted tasks are not eligible for timeout
+        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT
@@ -431,6 +433,7 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
+    FOR UPDATE OF runtime SKIP LOCKED
 )
 SELECT
     v1_task.id,
@@ -477,7 +480,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    t.external_id,
+    t.external_id as task_external_id,
     e.*
 FROM
     v1_lookup_table l
@@ -512,7 +515,8 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.inserted_at
+        e.inserted_at,
+        e.external_id
     FROM
         v1_task_event e
     JOIN
@@ -527,7 +531,8 @@ SELECT
 	e.id,
     e.inserted_at,
 	e.event_key,
-	e.data
+	e.data,
+    e.external_id
 FROM
 	events_to_lock e
 WHERE
@@ -731,7 +736,8 @@ WITH input AS (
         t.workflow_id,
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
-        e.data AS output
+        e.data AS output,
+        e.external_id AS output_event_external_id
     FROM
         v1_task t1
     JOIN
@@ -765,7 +771,8 @@ SELECT
     task_outputs.task_event_id,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
-    task_outputs.output
+    task_outputs.output,
+    task_outputs.output_event_external_id
 FROM
     task_outputs
 JOIN

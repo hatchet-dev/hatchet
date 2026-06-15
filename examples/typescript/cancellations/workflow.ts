@@ -21,16 +21,16 @@ export const cancellation = hatchet.task({
 // > Abort Signal
 export const abortSignal = hatchet.task({
   name: 'abort-signal',
-  fn: async (_, { abortController }) => {
+  fn: async (_, ctx) => {
     try {
       const response = await axios.get('https://api.example.com/data', {
-        signal: abortController.signal,
+        signal: ctx.abortController.signal,
       });
       // Handle the response
     } catch (error) {
       if (axios.isCancel(error)) {
         // Request was canceled
-        console.log('Request canceled');
+        ctx.logger.info('Request canceled');
       } else {
         // Handle other errors
       }

@@ -15,6 +15,7 @@ import (
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -161,6 +162,21 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		conn.TypeMap().RegisterType(t)
+
+		if uuidType, ok := conn.TypeMap().TypeForName("uuid"); ok {
+			var uuidrangeOID uint32
+			err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID)
+			if err != nil && err != pgx.ErrNoRows {
+				return fmt.Errorf("loading uuidrange oid: %w", err)
+			}
+			if err == nil {
+				conn.TypeMap().RegisterType(&pgtype.Type{
+					Name:  "uuidrange",
+					OID:   uuidrangeOID,
+					Codec: &pgtype.RangeCodec{ElementType: uuidType},
+				})
+			}
+		}
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
 
@@ -326,7 +342,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ExternalCutoverBatchSize:             scf.PayloadStore.ExternalCutoverBatchSize,
 		ExternalCutoverNumConcurrentOffloads: scf.PayloadStore.ExternalCutoverNumConcurrentOffloads,
 		InlineStoreTTL:                       &inlineStoreTTL,
-		EnableImmediateOffloads:              scf.PayloadStore.EnableImmediateOffloads,
+		EnableWindowSizeOptimization:         scf.PayloadStore.EnableWindowSizeOptimization,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
@@ -814,6 +830,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
+		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
 }
 

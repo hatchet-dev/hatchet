@@ -64,6 +64,12 @@ export enum WorkerType {
   WEBHOOK = "WEBHOOK",
 }
 
+export enum WorkerStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  PAUSED = "PAUSED",
+}
+
 export enum WorkflowRunOrderByField {
   CreatedAt = "createdAt",
   StartedAt = "startedAt",
@@ -1873,6 +1879,16 @@ export interface ScheduledWorkflowsList {
   pagination?: PaginationResponse;
 }
 
+export interface TriggerRunResult {
+  /**
+   * The external ID of the triggered workflow run
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  externalId: string;
+}
+
 export interface UpdateScheduledWorkflowRunRequest {
   /** @format date-time */
   triggerAt: string;
@@ -2410,7 +2426,7 @@ export interface Worker {
   /** The recent step runs for the worker. */
   recentStepRuns?: RecentStepRuns[];
   /** The status of the worker. */
-  status?: "ACTIVE" | "INACTIVE" | "PAUSED";
+  status?: WorkerStatus;
   /** Slot availability and limits for this worker (slot_type -> { available, limit }). */
   slotConfig?: Record<string, WorkerSlotConfig>;
   /**

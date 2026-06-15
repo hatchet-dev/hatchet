@@ -2,6 +2,7 @@ import asyncio
 import functools
 import logging
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from io import StringIO
 from typing import Any, Literal, ParamSpec, TypeVar
@@ -130,8 +131,11 @@ class AsyncLogSender:
         self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](
             maxsize=event_client.client_config.log_queue_size
         )
+        self._owner_loop: asyncio.AbstractEventLoop | None = None
 
     async def consume(self) -> None:
+        self._owner_loop = asyncio.get_running_loop()
+
         while True:
             record = await self.q.get()
 
@@ -150,6 +154,26 @@ class AsyncLogSender:
                 logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
+        owner_loop = self._owner_loop
+
+        if owner_loop is None:
+            self._enqueue_or_drop(record)
+            return
+
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+
+        if running_loop is owner_loop:
+            self._enqueue_or_drop(record)
+            return
+
+        with suppress(RuntimeError):
+            # The owner loop may already be closed during worker shutdown.
+            owner_loop.call_soon_threadsafe(self._enqueue_or_drop, record)
+
+    def _enqueue_or_drop(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
         try:
             self.q.put_nowait(record)
         except asyncio.QueueFull:

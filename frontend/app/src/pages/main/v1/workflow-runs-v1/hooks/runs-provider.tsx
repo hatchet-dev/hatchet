@@ -7,10 +7,23 @@ import { useMetrics } from './use-metrics';
 import { useRuns } from './use-runs';
 import { useRunsTableFilters } from './use-runs-table-filters';
 import { useToolbarFilters } from './use-toolbar-filters';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { V1TaskRunMetrics, V1TaskSummary } from '@/lib/api';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { PaginationState, Updater } from '@tanstack/react-table';
-import { createContext, useContext, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
+
+const ALWAYS_HIDDEN_RUN_COLUMNS: VisibilityState = {
+  parentTaskExternalId: false,
+  flattenDAGs: false,
+  runningFilter: false,
+};
 
 type DisplayProps = {
   hideMetrics?: boolean;
@@ -36,6 +49,10 @@ type RunsProviderProps = {
   filterVisibility?: Record<string, boolean>;
   display?: DisplayProps;
   runFilters?: RunFilteringProps;
+  // When provided, column visibility is persisted to localStorage under
+  // `hatchet:columns:<persistColumnVisibilityKey>`. Use a stable key — avoid
+  // embedding per-row IDs to prevent unbounded localStorage growth.
+  persistColumnVisibilityKey?: string;
 };
 
 type RunsContextType = {
@@ -85,6 +102,7 @@ export const RunsProvider = ({
   filterVisibility = {},
   display,
   runFilters,
+  persistColumnVisibilityKey,
 }: RunsProviderProps) => {
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [selectedActionType, setSelectedActionType] =
@@ -94,12 +112,46 @@ export const RunsProvider = ({
   const [showQueueMetrics, setShowQueueMetrics] = useState(false);
   const [showTriggerWorkflow, setShowTriggerWorkflow] = useState(false);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    ...initColumnVisibility,
-    parentTaskExternalId: false, // Always hidden, used for filtering only
-    flattenDAGs: false, // Always hidden, used for filtering only
-    runningFilter: false, // Always hidden, used for filtering only
-  });
+  const initialVisibility: VisibilityState = useMemo(
+    () => ({
+      ...initColumnVisibility,
+      ...ALWAYS_HIDDEN_RUN_COLUMNS,
+    }),
+    [initColumnVisibility],
+  );
+
+  const [persistedVisibility, setPersistedVisibility] =
+    useLocalStorageState<VisibilityState>(
+      `hatchet:columns:${persistColumnVisibilityKey ?? '__none__'}`,
+      initialVisibility,
+    );
+  const [transientVisibility, setTransientVisibility] =
+    useState<VisibilityState>(initialVisibility);
+
+  const columnVisibility: VisibilityState = useMemo(
+    () =>
+      persistColumnVisibilityKey
+        ? { ...persistedVisibility, ...ALWAYS_HIDDEN_RUN_COLUMNS }
+        : transientVisibility,
+    [persistColumnVisibilityKey, persistedVisibility, transientVisibility],
+  );
+
+  const setColumnVisibility = useCallback(
+    (updater: Updater<VisibilityState>) => {
+      if (persistColumnVisibilityKey) {
+        setPersistedVisibility((prev) => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          return { ...next, ...ALWAYS_HIDDEN_RUN_COLUMNS };
+        });
+      } else {
+        setTransientVisibility((prev) => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          return { ...next, ...ALWAYS_HIDDEN_RUN_COLUMNS };
+        });
+      }
+    },
+    [persistColumnVisibilityKey, setPersistedVisibility],
+  );
 
   const {
     workflowId,

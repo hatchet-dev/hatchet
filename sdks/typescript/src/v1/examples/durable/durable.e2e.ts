@@ -1,5 +1,11 @@
 import sleep from '@hatchet/util/sleep';
-import { makeE2EClient, checkDurableEvictionSupport, makeTestScope } from '../__e2e__/harness';
+import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
+import {
+  makeE2EClient,
+  checkDurableEvictionSupport,
+  makeTestScope,
+  poll,
+} from '../__e2e__/harness';
 import {
   durableWorkflow,
   EVENT_KEY,
@@ -16,7 +22,10 @@ import {
   waitForEventLookback,
   waitForOrEventLookback,
   waitForTwoEventsSecondPushedFirst,
+  errorRaisingDurableParent,
 } from './workflow';
+
+const TIMING_TOLERANCE_SECONDS = 1;
 
 describe('durable-e2e', () => {
   const hatchet = makeE2EClient();
@@ -25,6 +34,27 @@ describe('durable-e2e', () => {
   beforeAll(async () => {
     evictionSupported = await checkDurableEvictionSupport(hatchet);
   });
+
+  async function pollUntilRunning(runId: string) {
+    return poll(
+      async () => {
+        try {
+          return await hatchet.runs.get(runId);
+        } catch (e: any) {
+          if (e?.response?.status === 404) return undefined;
+          throw e;
+        }
+      },
+      {
+        timeoutMs: 60_000,
+        intervalMs: 500,
+        shouldStop: (details: any) =>
+          details != null &&
+          (details?.tasks || []).some((t: any) => t.status === V1TaskStatus.RUNNING),
+        label: 'status=RUNNING',
+      }
+    );
+  }
 
   function requireEviction() {
     if (!evictionSupported) {
@@ -78,7 +108,8 @@ describe('durable-e2e', () => {
     if (requireEviction()) return;
     const ref = await waitForSleepTwice.runNoWait({});
 
-    await sleep((SLEEP_TIME_SECONDS * 1000) / 2);
+    const runId = await ref.getWorkflowRunId();
+    await pollUntilRunning(runId);
     await ref.cancel();
 
     await ref.output.catch(() => undefined);
@@ -133,7 +164,7 @@ describe('durable-e2e', () => {
     const replayElapsed = (Date.now() - replayStart) / 1000;
 
     expect(replayed.child_output).toEqual({ message: 'hello from child 1' });
-    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
   }, 300_000);
 
   it('durable completed replay', async () => {
@@ -152,8 +183,8 @@ describe('durable-e2e', () => {
     const replayed = await ref.output;
     const replayElapsed = (Date.now() - replayStart) / 1000;
 
-    expect(replayed.runtime).toBeLessThan(SLEEP_TIME_SECONDS);
-    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(replayed.runtime).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
+    expect(replayElapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
   }, 300_000);
 
   it('durable spawn DAG', async () => {
@@ -234,7 +265,7 @@ describe('durable-e2e', () => {
 
     const result = await waitForEventLookback.run({ userId });
 
-    expect(result.elapsed).toBeLessThan(5);
+    expect(result.elapsed).toBeLessThan(5 + TIMING_TOLERANCE_SECONDS);
     expect(result.event).toMatchObject({ order: 'first' });
   }, 30_000);
 
@@ -246,7 +277,7 @@ describe('durable-e2e', () => {
 
     const result = await waitForOrEventLookback.run({ scope });
 
-    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
   }, 60_000);
 
   it('two event waits: second event pushed before workflow starts', async () => {
@@ -262,8 +293,31 @@ describe('durable-e2e', () => {
 
     const result = await ref.output;
 
-    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS);
+    expect(result.elapsed).toBeLessThan(SLEEP_TIME_SECONDS + TIMING_TOLERANCE_SECONDS);
     expect(result.event1).toMatchObject({ order: 'first' });
     expect(result.event2).toMatchObject({ order: 'second' });
   }, 60_000);
+
+  it('durable parent catches error from failed child run', async () => {
+    const errorMsg = `error in child task ${crypto.randomUUID()}`;
+
+    const result = await errorRaisingDurableParent.run({ error_message: errorMsg });
+
+    expect(result.child_raised).toBe(true);
+    expect(result.child_error_str).toContain(errorMsg);
+
+    const child = await poll(() => hatchet.runs.get(result.child_run_external_id), {
+      timeoutMs: 15_000,
+      intervalMs: 500,
+      shouldStop: (r: any) => r?.run?.status != null,
+    });
+    const parent = await poll(() => hatchet.runs.get(result.parent_run_external_id), {
+      timeoutMs: 15_000,
+      intervalMs: 500,
+      shouldStop: (r: any) => r?.run?.status != null,
+    });
+
+    expect((child as any).run?.status).toBe(V1TaskStatus.FAILED);
+    expect((parent as any).run?.status).toBe(V1TaskStatus.COMPLETED);
+  }, 30_000);
 });

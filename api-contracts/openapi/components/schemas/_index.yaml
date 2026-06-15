@@ -202,6 +202,8 @@ ScheduledWorkflowsBulkUpdateRequest:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkUpdateRequest"
 ScheduledWorkflowsBulkUpdateResponse:
   $ref: "./workflow_run.yaml#/ScheduledWorkflowsBulkUpdateResponse"
+TriggerRunResult:
+  $ref: "./workflow_run.yaml#/TriggerRunResult"
 CronWorkflows:
   $ref: "./workflow_run.yaml#/CronWorkflows"
 CronWorkflowsList:
@@ -252,6 +254,8 @@ WorkerRuntimeInfo:
   $ref: "./worker.yaml#/WorkerRuntimeInfo"
 WorkerRuntimeSDKs:
   $ref: "./worker.yaml#/WorkerRuntimeSDKs"
+WorkerStatus:
+  $ref: "./worker.yaml#/WorkerStatus"
 WorkerList:
   $ref: "./worker.yaml#/WorkerList"
 SemaphoreSlots:

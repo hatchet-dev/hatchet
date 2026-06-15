@@ -51,6 +51,14 @@ type CallbackResult struct {
 	Err  error
 }
 
+// TriggerRunAckEntry describes a child workflow spawned through the durable task
+// event log.
+type TriggerRunAckEntry struct {
+	WorkflowRunID string
+	NodeID        int64
+	BranchID      int64
+}
+
 // NonDeterminismError is returned by the engine when a durable task replay detects
 // a non-deterministic mutation (e.g. branching differently from the prior run).
 type NonDeterminismError struct {
@@ -75,7 +83,7 @@ type ServerEvictCallback func(taskExternalID string, invocationCount int32, reas
 type DurableTaskListener struct {
 	onServerEvict         ServerEvictCallback
 	pendingEvictionAcks   map[PendingAckKey]chan error
-	l                     *zerolog.Logger
+	l                     zerolog.Logger
 	connectFn             func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error)
 	cancel                context.CancelFunc
 	requestQueue          chan *v1.DurableTaskRequest
@@ -120,9 +128,14 @@ func NewDurableTaskListener(
 	l *zerolog.Logger,
 	opts ...DurableTaskListenerOpt,
 ) *DurableTaskListener {
+	logger := zerolog.Nop()
+	if l != nil {
+		logger = *l
+	}
+
 	dtl := &DurableTaskListener{
 		workerID:            workerID,
-		l:                   l,
+		l:                   logger,
 		reconnectInterval:   defaultReconnectInterval,
 		evictionAckTTL:      evictionAckTimeout,
 		connectFn:           connectFn,
@@ -323,9 +336,7 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 			if isCancelled(ctx) {
 				return
 			}
-			if l.l != nil {
-				l.l.Error().Err(err).Msg("DurableTaskListener: connection failed, retrying")
-			}
+			l.l.Error().Err(err).Msg("DurableTaskListener: connection failed, retrying")
 			time.Sleep(l.reconnectInterval)
 			continue
 		}
@@ -340,9 +351,7 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 				return
 			}
 			l.failPendingAcks(fmt.Errorf("connection reset: %w", err))
-			if l.l != nil {
-				l.l.Warn().Err(err).Msg("DurableTaskListener: stream ended, reconnecting")
-			}
+			l.l.Warn().Err(err).Msg("DurableTaskListener: stream ended, reconnecting")
 			time.Sleep(l.reconnectInterval)
 			continue
 		}
@@ -370,9 +379,7 @@ func (l *DurableTaskListener) handleStream(ctx context.Context, stream v1.V1Disp
 		return fmt.Errorf("failed to register worker on durable task stream: %w", err)
 	}
 
-	if l.l != nil {
-		l.l.Debug().Str("worker_id", l.workerID).Msg("DurableTaskListener: registered worker on stream")
-	}
+	l.l.Debug().Str("worker_id", l.workerID).Msg("DurableTaskListener: registered worker on stream")
 
 	streamCtx, cancelStream := context.WithCancel(ctx)
 	defer cancelStream()
@@ -464,6 +471,99 @@ func (l *DurableTaskListener) removePendingCallback(key PendingCallbackKey) {
 	delete(l.pendingCallbacks, key)
 }
 
+func (l *DurableTaskListener) SendTriggerRunsRequest(
+	ctx context.Context,
+	taskExternalID string,
+	invocationCount int32,
+	triggerOpts []*v1.TriggerWorkflowRequest,
+) ([]TriggerRunAckEntry, error) {
+	ackKey := PendingAckKey{TaskID: taskExternalID, SignalKey: int64(invocationCount)}
+	ackCh := l.AddPendingEventAck(ackKey)
+
+	l.l.Debug().
+		Str("step_run_id", taskExternalID).
+		Int32("invocation_count", invocationCount).
+		Int("children", len(triggerOpts)).
+		Msg("DurableTaskListener: sending trigger_runs request")
+
+	l.SendRequest(&v1.DurableTaskRequest{
+		Message: &v1.DurableTaskRequest_TriggerRuns{
+			TriggerRuns: &v1.DurableTaskTriggerRunsRequest{
+				InvocationCount:       invocationCount,
+				DurableTaskExternalId: taskExternalID,
+				TriggerOpts:           triggerOpts,
+			},
+		},
+	})
+
+	select {
+	case <-ctx.Done():
+		l.removePendingEventAck(ackKey)
+		return nil, ctx.Err()
+	case ack := <-ackCh:
+		if ack.Err != nil {
+			return nil, ack.Err
+		}
+
+		triggerAck := ack.Resp.GetTriggerRunsAck()
+		if triggerAck == nil {
+			return nil, fmt.Errorf("trigger_runs ack missing for task %s invocation %d", taskExternalID, invocationCount)
+		}
+
+		runEntries := triggerAck.GetRunEntries()
+		entries := make([]TriggerRunAckEntry, 0, len(runEntries))
+		for _, entry := range runEntries {
+			entries = append(entries, TriggerRunAckEntry{
+				NodeID:        entry.GetNodeId(),
+				BranchID:      entry.GetBranchId(),
+				WorkflowRunID: entry.GetWorkflowRunExternalId(),
+			})
+		}
+
+		return entries, nil
+	}
+}
+
+// WaitForCallback waits for a durable event-log entry to complete and returns
+// the raw JSON payload recorded by the engine.
+func (l *DurableTaskListener) WaitForCallback(
+	ctx context.Context,
+	taskExternalID string,
+	invocationCount int32,
+	branchID int64,
+	nodeID int64,
+) ([]byte, error) {
+	cbKey := PendingCallbackKey{
+		TaskID:    taskExternalID,
+		SignalKey: int64(invocationCount),
+		BranchID:  branchID,
+		NodeID:    nodeID,
+	}
+	cbCh := l.AddPendingCallback(cbKey)
+
+	select {
+	case <-ctx.Done():
+		l.removePendingCallback(cbKey)
+		return nil, ctx.Err()
+	case result := <-cbCh:
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		completed := result.Resp.GetEntryCompleted()
+		if completed == nil {
+			return nil, fmt.Errorf("durable callback missing entry_completed for task %s", taskExternalID)
+		}
+		if completed.GetIsFailure() {
+			msg := completed.GetErrorMessage()
+			if msg == "" {
+				msg = "child task failed"
+			}
+			return nil, fmt.Errorf("%s", msg)
+		}
+		return completed.GetPayload(), nil
+	}
+}
+
 // SendWaitForRequest registers a durable wait-for on the engine over the bidi DurableTask
 // stream. It mirrors the Python SDK's `listener.send_event(WaitForEvent(...))` + wait-for-callback
 // flow: the listener first sends a WaitFor request and blocks for the WaitForAck (which carries
@@ -485,12 +585,10 @@ func (l *DurableTaskListener) SendWaitForRequest(
 		labelPtr = &label
 	}
 
-	if l.l != nil {
-		l.l.Debug().
-			Str("step_run_id", taskExternalID).
-			Int32("invocation_count", invocationCount).
-			Msg("DurableTaskListener: sending wait_for request")
-	}
+	l.l.Debug().
+		Str("step_run_id", taskExternalID).
+		Int32("invocation_count", invocationCount).
+		Msg("DurableTaskListener: sending wait_for request")
 
 	l.SendRequest(&v1.DurableTaskRequest{
 		Message: &v1.DurableTaskRequest_WaitFor{
@@ -521,28 +619,7 @@ func (l *DurableTaskListener) SendWaitForRequest(
 	}
 	ref := waitAck.GetRef()
 
-	cbKey := PendingCallbackKey{
-		TaskID:    taskExternalID,
-		SignalKey: int64(invocationCount),
-		BranchID:  ref.GetBranchId(),
-		NodeID:    ref.GetNodeId(),
-	}
-	cbCh := l.AddPendingCallback(cbKey)
-
-	select {
-	case <-ctx.Done():
-		l.removePendingCallback(cbKey)
-		return nil, ctx.Err()
-	case result := <-cbCh:
-		if result.Err != nil {
-			return nil, result.Err
-		}
-		completed := result.Resp.GetEntryCompleted()
-		if completed == nil {
-			return nil, fmt.Errorf("wait_for completion missing entry_completed for task %s", taskExternalID)
-		}
-		return completed.GetPayload(), nil
-	}
+	return l.WaitForCallback(ctx, taskExternalID, invocationCount, ref.GetBranchId(), ref.GetNodeId())
 }
 
 // MemoAckResult is what SendMemoRequest returns on a successful ack: the server-assigned
@@ -689,13 +766,11 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 		invCount := evict.GetInvocationCount()
 		reason := evict.GetReason()
 
-		if l.l != nil {
-			l.l.Info().
-				Str("task_id", taskID).
-				Int32("invocation_count", invCount).
-				Str("reason", reason).
-				Msg("DurableTaskListener: received server eviction notice")
-		}
+		l.l.Info().
+			Str("task_id", taskID).
+			Int32("invocation_count", invCount).
+			Str("reason", reason).
+			Msg("DurableTaskListener: received server eviction notice")
 
 		l.CleanupTaskState(taskID, invCount)
 
@@ -706,9 +781,7 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 			cb(taskID, invCount, reason)
 		}
 	default:
-		if l.l != nil {
-			l.l.Warn().Msg("DurableTaskListener: unknown response type")
-		}
+		l.l.Warn().Msg("DurableTaskListener: unknown response type")
 	}
 }
 

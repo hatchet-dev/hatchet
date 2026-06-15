@@ -6,7 +6,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ import (
 )
 
 func TestSessionStoreSave(t *testing.T) {
-	_ = os.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
+	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 
 	time.Sleep(10 * time.Second) // TODO temp hack for tenant non-upsert issue
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
@@ -41,6 +40,7 @@ func TestSessionStoreSave(t *testing.T) {
 }
 
 func TestSessionStoreLogoutClearsCookieWhenSessionRowMissing(t *testing.T) {
+	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		const cookieName = "hatchet"
 
@@ -57,7 +57,6 @@ func TestSessionStoreLogoutClearsCookieWhenSessionRowMissing(t *testing.T) {
 		}
 
 		session.Values["authenticated"] = true
-		session.Values["user_id"] = uuid.New().String()
 
 		rr := httptest.NewRecorder()
 		if err := ss.Save(req, rr, session); err != nil {
@@ -99,6 +98,7 @@ func TestSessionStoreLogoutClearsCookieWhenSessionRowMissing(t *testing.T) {
 }
 
 func TestSessionStoreGet(t *testing.T) {
+	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 	testutils.RunTestWithDatabase(t, func(conf *database.Layer) error {
 		const cookieName = "hatchet"
 

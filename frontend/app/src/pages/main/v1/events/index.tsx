@@ -20,6 +20,7 @@ import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Separator } from '@/components/v1/ui/separator';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Event, V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -56,11 +57,12 @@ export default function Events() {
     key: 'table',
   });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    [idKey]: false,
-    [EventColumn.payload]: false,
-    [scopeKey]: false,
-  });
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:events', {
+      [idKey]: false,
+      [EventColumn.payload]: false,
+      [scopeKey]: false,
+    });
 
   const tableColumns = columns({
     onRowClick: (row: V1Event) => {

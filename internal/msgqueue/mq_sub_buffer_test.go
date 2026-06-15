@@ -13,9 +13,95 @@ import (
 
 var testTenantID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
+// TestSubBufferFlushesWhenFull verifies that when the channel is at capacity the
+// capacityRelease mechanism breaks the post-flush interval wait and triggers an
+// immediate second flush, without waiting the full 10s interval.
+func TestSubBufferFlushesWhenFull(t *testing.T) {
+	const bufSize = 5
+	origSize := SUB_BUFFER_SIZE
+	origInterval := SUB_FLUSH_INTERVAL
+	SUB_BUFFER_SIZE = bufSize
+	SUB_FLUSH_INTERVAL = 10 * time.Second
+	defer func() {
+		SUB_BUFFER_SIZE = origSize
+		SUB_FLUSH_INTERVAL = origInterval
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// The first dst call blocks until firstFlushRelease is closed, holding the semaphore
+	// so we can fill the channel while it is locked.
+	firstFlushStarted := make(chan struct{})
+	firstFlushRelease := make(chan struct{})
+	flushed := make(chan [][]byte, bufSize+2)
+
+	var callCount atomic.Int32
+	dst := func(_ uuid.UUID, _ string, payloads [][]byte) error {
+		if callCount.Add(1) == 1 {
+			close(firstFlushStarted)
+			<-firstFlushRelease
+		}
+		flushed <- payloads
+		return nil
+	}
+
+	buf := NewMQSubBuffer(TASK_PROCESSING_QUEUE, &mockMessageQueue{}, dst,
+		WithFlushInterval(SUB_FLUSH_INTERVAL),
+		WithBufferSize(bufSize),
+		WithMaxConcurrency(1),
+	)
+
+	msg := &Message{TenantID: testTenantID, ID: "test-msg", Payloads: [][]byte{[]byte("p")}}
+
+	// Start a handleMsg that triggers flush1 and holds the semaphore inside dst.
+	go buf.handleMsg(ctx, msg) //nolint:errcheck
+	<-firstFlushStarted        // semaphore is now held
+
+	// Fill the channel to capacity. Each goroutine blocks on its result channel until flushed.
+	var wg sync.WaitGroup
+	for i := 0; i < bufSize; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = buf.handleMsg(ctx, msg)
+		}()
+	}
+
+	// Give the goroutines time to enqueue (channel capacity = bufSize, all sends non-blocking).
+	time.Sleep(50 * time.Millisecond)
+
+	// One more handleMsg finds the channel at capacity, writes to capacityRelease, then blocks.
+	var overflowWg sync.WaitGroup
+	overflowWg.Add(1)
+	go func() {
+		defer overflowWg.Done()
+		_ = buf.handleMsg(ctx, msg)
+	}()
+
+	// Release flush1. The semaphore releaser picks up the capacityRelease signal immediately
+	// and triggers flush2 without waiting the full 10s.
+	close(firstFlushRelease)
+	<-flushed // discard flush1's payload
+
+	// The bufSize buffered messages should complete via flush2, well within 2s.
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("sub buffer did not flush all messages within 2s; flush interval is 10s — capacityRelease did not trigger")
+	}
+}
+
 // TestMsgIdBufferMemoryLeak verifies that the semaphore releaser reuses timers
 // and doesn't create unbounded goroutines or memory leaks
 func TestMsgIdBufferMemoryLeak(t *testing.T) {
+	const testBufSize = 100
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -28,7 +114,7 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	}
 
 	// Create a buffer
-	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, 100, 10, false)
+	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, testBufSize, 10, false)
 
 	// Force GC and get baseline
 	runtime.GC()

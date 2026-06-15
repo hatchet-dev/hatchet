@@ -14,6 +14,7 @@ import {
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { Button } from '@/components/v1/ui/button';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { CronWorkflows } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
@@ -25,7 +26,8 @@ export default function CronsTable() {
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:recurring', {});
 
   const {
     crons,
@@ -44,6 +46,7 @@ export default function CronsTable() {
     updateCron,
     isUpdatePending,
     updatingCronId,
+    triggerNow,
   } = useCrons({
     key: 'table',
   });
@@ -75,13 +78,14 @@ export default function CronsTable() {
         tenantId,
         onDeleteClick: handleDeleteClick,
         onEnableClick,
+        onTriggerClick: (cron) => triggerNow(cron.metadata.id),
         selectedJobId,
         setSelectedJobId,
         isUpdatePending,
         updatingCronId,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tenantId, selectedJobId, isUpdatePending, updatingCronId],
+    [tenantId, selectedJobId, isUpdatePending, updatingCronId, triggerNow],
   );
 
   const filters: ToolbarFilters = [

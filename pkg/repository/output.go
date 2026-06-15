@@ -159,13 +159,40 @@ func newTaskEventFromBytes(b []byte) (*TaskOutputEvent, error) {
 }
 
 func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
+	// note: this is kind of an unfortunate method we need for durable execution in order to return
+	// the result payload of the child that was spawned from a durable task to the parent.
+	// it's confusing because in other places we use the task events on the SDK itself to aggregate
+	// the outputs of each child into a map, but here we do it on the engine. it'd be a good fixme for the future
+	// to consolidate the different ways we handle this kind of thing in different places to be more consistent.
+	// I (Matt) opted to do it this way in https://github.com/hatchet-dev/hatchet/pull/4008 to maintain
+	// backwards compatibility, and because it was the simplest bug fix for the issue we saw at the time.
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal match data: %w", err)
 	}
 
 	for _, keyMap := range outer {
-		for _, entries := range keyMap {
+		if len(keyMap) == 0 {
+			continue
+		}
+
+		if len(keyMap) == 1 {
+			// this is a special case: if the child is a DAG, we want to return the output
+			// of each task in the DAG keyed by the task name (below), but if it's a standalone task,
+			// we want to return the task's output directly without the extra nesting, so we have to handle this
+			// situation separately
+			if entries, ok := keyMap["output"]; ok && len(entries) > 0 {
+				var event TaskOutputEvent
+				if err := json.Unmarshal(entries[0], &event); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
+				}
+
+				return event.Output, nil
+			}
+		}
+
+		aggregated := make(map[string]json.RawMessage, len(keyMap))
+		for key, entries := range keyMap {
 			if len(entries) == 0 {
 				continue
 			}
@@ -175,9 +202,41 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 				return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 			}
 
-			return event.Output, nil
+			if len(event.Output) > 0 {
+				aggregated[key] = json.RawMessage(event.Output)
+			}
 		}
+
+		result, err := json.Marshal(aggregated)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal aggregated DAG output: %w", err)
+		}
+
+		return result, nil
 	}
 
 	return nil, fmt.Errorf("no entries found in match data")
+}
+
+func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
+	var outer map[string]map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &outer); err != nil {
+		return false, nil, err
+	}
+
+	for _, keyMap := range outer {
+		for _, entries := range keyMap {
+			if len(entries) == 0 {
+				continue
+			}
+			var event TaskOutputEvent
+			if err := json.Unmarshal(entries[0], &event); err != nil {
+				continue
+			}
+			if event.IsFailure {
+				return true, &event.ErrorMessage, nil
+			}
+		}
+	}
+	return false, nil, nil
 }

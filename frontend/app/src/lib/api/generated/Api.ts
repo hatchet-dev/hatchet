@@ -77,6 +77,7 @@ import {
   TenantQueueMetrics,
   TenantResourcePolicy,
   TenantStepRunQueueMetrics,
+  TriggerRunResult,
   TriggerWorkflowRunRequest,
   UpdateCronWorkflowTriggerRequest,
   UpdateScheduledWorkflowRunRequest,
@@ -135,6 +136,7 @@ import {
   WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
+  WorkerStatus,
   Workflow,
   WorkflowID,
   WorkflowKindList,
@@ -2710,6 +2712,28 @@ export class Api<
       xResources: ["tenant", "scheduled-workflow-run"],
     }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
   /**
+   * @description Trigger a scheduled workflow run immediately for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledTrigger
+   * @summary Trigger scheduled workflow run
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
+   * @secure
+   */
+  workflowScheduledTrigger = Object.assign((
+    tenant: string,
+    scheduledWorkflowRun: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TriggerRunResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
+      method: "POST",
+      secure: true,
+      format: "json",
+      ...params,
+      xResources: ["tenant", "scheduled-workflow-run"],
+    }), { resources: new Set<string>(["tenant", "scheduled-workflow-run"]) });
+  /**
    * @description Bulk delete scheduled workflow runs for a tenant
    *
    * @tags Workflow
@@ -2900,6 +2924,28 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+      xResources: ["tenant", "cron-workflow"],
+    }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
+  /**
+   * @description Trigger a cron workflow immediately for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronTrigger
+   * @summary Trigger cron job workflow run immediately
+   * @request POST:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
+   * @secure
+   */
+  workflowCronTrigger = Object.assign((
+    tenant: string,
+    cronWorkflow: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TriggerRunResult, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
+      method: "POST",
+      secure: true,
+      format: "json",
       ...params,
       xResources: ["tenant", "cron-workflow"],
     }), { resources: new Set<string>(["tenant", "cron-workflow"]) });
@@ -3536,10 +3582,28 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/worker
    * @secure
    */
-  workerList = Object.assign((tenant: string, params: RequestParams = {}) =>
+  workerList = Object.assign((
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** Filter by worker status */
+      statuses?: WorkerStatus[];
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<WorkerList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/worker`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -3745,10 +3809,18 @@ export class Api<
    * @request GET:/api/v1/tenants/{tenant}/task-stats
    * @secure
    */
-  tenantGetTaskStats = Object.assign((tenant: string, params: RequestParams = {}) =>
+  tenantGetTaskStats = Object.assign((
+    tenant: string,
+    query?: {
+      /** Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves. */
+      taskNames?: string[];
+    },
+    params: RequestParams = {},
+  ) =>
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

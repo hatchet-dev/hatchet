@@ -82,6 +82,7 @@ func (w *workersClientImpl) List(ctx context.Context) (*rest.WorkerList, error) 
 	resp, err := w.api.WorkerListWithResponse(
 		ctx,
 		w.tenantId,
+		nil,
 	)
 	if err != nil {
 		return nil, err
