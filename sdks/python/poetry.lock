@@ -3772,15 +3772,15 @@ types-webencodings = "*"
 
 [[package]]
 name = "types-protobuf"
-version = "6.32.1.20260221"
+version = "7.34.1.20260518"
 description = "Typing stubs for protobuf"
 optional = true
 python-versions = ">=3.10"
 groups = ["main"]
 markers = "extra == \"lint\""
 files = [
-    {file = "types_protobuf-6.32.1.20260221-py3-none-any.whl", hash = "sha256:da7cdd947975964a93c30bfbcc2c6841ee646b318d3816b033adc2c4eb6448e4"},
-    {file = "types_protobuf-6.32.1.20260221.tar.gz", hash = "sha256:6d5fb060a616bfb076cbb61b4b3c3969f5fc8bec5810f9a2f7e648ee5cbcbf6e"},
+    {file = "types_protobuf-7.34.1.20260518-py3-none-any.whl", hash = "sha256:a0a5337413347166439c0e07cbc26c6164d091401c6f01b1dfd8cdb966c4dd8f"},
+    {file = "types_protobuf-7.34.1.20260518.tar.gz", hash = "sha256:28cfaded25889cb83ebfb63cfb0a43628f0b6f3785767bec17287dc6468795f2"},
 ]
 
 [[package]]
@@ -4215,4 +4215,4 @@ test = ["boto3", "botocore", "psycopg", "pytest", "pytest-asyncio", "pytest-env"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "49acca2326482742de80346011f0f5245f72cd6f51870120b1690f84250a5903"
+content-hash = "b6bc564827bc2c71a076d48cc2ba2e3f3deae7aae2a386536c41ec1c9726034b"

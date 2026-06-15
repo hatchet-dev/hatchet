@@ -39,7 +39,7 @@ otel = [
 
 lint = [
     "mypy==1.20.0",
-    "types-protobuf>=5.28.3.20241030",
+    "types-protobuf>=7.34.1.20260518",
     "black==26.3.1",
     "click>=8.4.1",
     "types-psutil>=7.2.2.20260518",
