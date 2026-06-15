@@ -253,8 +253,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self._config.on_crons,
             tasks=tasks,
-            ## TODO: Fix this
-            cron_input=None,
+            cron_input=self._serialize_input(self._config.cron_input, target="string"),
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(
                 self._config.sticky, StickyStrategyProto

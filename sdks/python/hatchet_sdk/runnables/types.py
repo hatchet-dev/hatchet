@@ -96,6 +96,11 @@ class WorkflowConfig(BaseModel):
     version: str | None = None
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
+    # An instance of the workflow's input model, passed to runs triggered by the
+    # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
+    # type is generic per-workflow; it is serialized via `input_validator` in
+    # `BaseWorkflow.to_proto`.
+    cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
