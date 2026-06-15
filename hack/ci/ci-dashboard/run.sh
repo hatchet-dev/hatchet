@@ -2,11 +2,14 @@
 # Deterministic pipeline for the CI health dashboard. Runs every stage that needs
 # no LLM, then renders the issue body from whatever classifications already exist.
 #
-# Two modes:
+# Modes:
 #   bash run.sh            # LOCAL: collect -> parse -> aggregate -> wins -> render.
 #                          #   Writes out/issue.md only; never touches GitHub state.
-#   bash run.sh --publish  # PUBLISH: ...then create-or-update + pin the issue on
-#                          #   hatchet-dev/hatchet.
+#   bash run.sh --stage    # ...then copy out/issue.md -> staging/issue.md so it can
+#                          #   be committed; the publish GitHub Action (issues:write)
+#                          #   updates the dashboard issue on push of that file.
+#   bash run.sh --publish  # ...then update + pin the issue directly (needs a gh
+#                          #   token with issues:write, e.g. running locally as you).
 #
 # Classification of *new* failure signatures is the agent step (classify.py),
 # done between render and publish (see README.md).
@@ -24,8 +27,16 @@ uv run classify.py stats
 
 uv run render.py
 
-if [[ "${1:-}" == "--publish" ]]; then
-  uv run publish.py --publish
-else
-  echo "local mode: wrote out/issue.md (re-run with --publish to push to GitHub)"
-fi
+case "${1:-}" in
+  --stage)
+    mkdir -p staging
+    cp out/issue.md staging/issue.md
+    echo "staged: staging/issue.md (commit + push to trigger the publish workflow)"
+    ;;
+  --publish)
+    uv run publish.py --publish
+    ;;
+  *)
+    echo "local mode: wrote out/issue.md (--stage to commit a body for CI publish, --publish to push directly)"
+    ;;
+esac

@@ -150,7 +150,6 @@ def main() -> int:
     generated = analysis.get("generated_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
 
     parts = [
-        config.DASHBOARD_MARKER,
         f"# {config.DASHBOARD_TITLE}",
         "",
         f"_Window: last {analysis.get('window_days', config.WINDOW_DAYS)} days · "

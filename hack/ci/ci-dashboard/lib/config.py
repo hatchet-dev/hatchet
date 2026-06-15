@@ -19,8 +19,9 @@ META_FILE = CACHE_DIR / "meta.json"
 ANALYSIS_FILE = OUT_DIR / "analysis.json"
 ISSUE_FILE = OUT_DIR / "issue.md"
 
-# Issue identity: a hidden marker survives title edits.
-DASHBOARD_MARKER = "<!-- ci-health-dashboard:v1 -->"
+# The canonical dashboard issue. publish.py updates this exact issue in place
+# (override per-run with `publish.py --issue <n>`).
+DASHBOARD_ISSUE = 4204
 DASHBOARD_TITLE = "CI Health Dashboard"
 DASHBOARD_LABEL = "ci-health"
 

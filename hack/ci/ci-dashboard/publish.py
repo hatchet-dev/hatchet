@@ -2,16 +2,18 @@
 # requires-python = ">=3.11"
 # dependencies = []
 # ///
-"""Stage 6: publish out/issue.md to the pinned dashboard issue.
+"""Stage 6: publish out/issue.md to the canonical dashboard issue.
 
-Finds the dashboard issue by a hidden marker in its body, creates it if missing,
-updates its body, and pins it. Idempotent: re-running just updates the same issue.
+Updates a specific issue in place (config.DASHBOARD_ISSUE, default #4204) and
+pins it. Idempotent: re-running just overwrites the same issue body.
 
 Mutating actions require --publish. Without it, this is a dry run that only
 reports what it would do.
 
-    uv run publish.py            # dry run
-    uv run publish.py --publish  # create/update + pin
+    uv run publish.py                 # dry run against the canonical issue
+    uv run publish.py --publish       # update + pin #4204
+    uv run publish.py --publish --issue 1234            # target a different issue
+    uv run publish.py --publish --body-file staging/issue.md   # publish a staged body
 """
 
 from __future__ import annotations
@@ -23,20 +25,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import config, gh  # noqa: E402
-
-
-def _find_issue() -> int | None:
-    # Search the repo for an open issue whose body carries our marker.
-    q = f'repo:{config.REPO} is:issue is:open in:body "{config.DASHBOARD_MARKER}"'
-    res = gh.api_json(f"search/issues?q={gh_quote(q)}")
-    for item in res.get("items", []):
-        return item["number"]
-    return None
-
-
-def gh_quote(q: str) -> str:
-    from urllib.parse import quote
-    return quote(q, safe="")
 
 
 def _node_id(number: int) -> str:
@@ -56,36 +44,31 @@ def _pin(number: int) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--publish", action="store_true", help="actually create/update + pin the issue")
+    p.add_argument("--publish", action="store_true", help="actually update + pin the issue")
+    p.add_argument("--issue", type=int, default=config.DASHBOARD_ISSUE,
+                   help=f"issue number to update (default {config.DASHBOARD_ISSUE})")
+    p.add_argument("--body-file", type=Path, default=config.ISSUE_FILE,
+                   help=f"rendered issue body to publish (default {config.ISSUE_FILE})")
     args = p.parse_args()
 
-    if not config.ISSUE_FILE.exists():
-        print("publish: out/issue.md missing; run render.py first", file=sys.stderr)
+    body_file: Path = args.body_file
+    if not body_file.exists():
+        print(f"publish: {body_file} missing; run render.py (or run.sh --stage) first", file=sys.stderr)
         return 1
-    body = config.ISSUE_FILE.read_text()
+    body = body_file.read_text()
+    number = args.issue
 
-    number = _find_issue()
     if not args.publish:
-        action = f"update issue #{number}" if number else "create a new issue"
-        print(f"publish: DRY RUN. Would {action} and pin it. ({len(body)} bytes)")
+        print(f"publish: DRY RUN. Would update issue #{number} from {body_file} and pin it. "
+              f"({len(body)} bytes)")
+        print(f"publish: target -> https://github.com/{config.REPO}/issues/{number}")
         print("publish: re-run with --publish to apply.")
         return 0
 
-    if number:
-        gh._run([
-            "issue", "edit", str(number), "--repo", config.REPO, "--body-file", str(config.ISSUE_FILE)
-        ])
-        print(f"publish: updated issue #{number}")
-    else:
-        out = gh._run([
-            "issue", "create", "--repo", config.REPO,
-            "--title", config.DASHBOARD_TITLE,
-            "--label", config.DASHBOARD_LABEL,
-            "--body-file", str(config.ISSUE_FILE),
-        ])
-        number = int(out.strip().rstrip("/").split("/")[-1])
-        print(f"publish: created issue #{number}")
-
+    gh._run([
+        "issue", "edit", str(number), "--repo", config.REPO, "--body-file", str(body_file)
+    ])
+    print(f"publish: updated issue #{number}")
     _pin(number)
     print(f"publish: done -> https://github.com/{config.REPO}/issues/{number}")
     return 0

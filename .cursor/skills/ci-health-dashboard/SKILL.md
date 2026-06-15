@@ -21,13 +21,28 @@ when the request explicitly asks to publish.
 
 All commands run from `hack/ci/ci-dashboard/`.
 
+## Hard rules — do not improvise
+
+The dashboard lives in exactly one issue, **#4204**, and is published by one
+GitHub Actions workflow. If something blocks you, **stop and report** what failed;
+do not work around it. Specifically, NEVER:
+
+- create a GitHub issue (`gh issue create`) — the dashboard issue already exists;
+- "probe" or test permissions by creating throwaway issues/PRs;
+- open a workaround PR or add/modify workflows to get around a permission error;
+- publish to any issue other than #4204 (unless the user explicitly says so).
+
+A `Resource not accessible by integration (updateIssue)` error means the current
+token lacks `issues: write` (expected for the Cursor cloud token). That is normal —
+use the staging path below, which lets the GitHub Action do the write.
+
 ## Workflow
 
 ```
 - [ ] 1. bash run.sh            # pipeline + render (local); prints pending count
 - [ ] 2. classify new signatures (the agent step)  -- only if pending > 0
 - [ ] 3. uv run render.py       # fold the new causes into out/issue.md
-- [ ] 4. uv run publish.py --publish   -- ONLY if explicitly asked to publish
+- [ ] 4. publish -- ONLY if explicitly asked (see Publishing)
 ```
 
 ## The agent step: classification
@@ -64,19 +79,37 @@ Finish with `uv run classify.py stats` (expect `"pending": 0`), then re-render.
 
 ## Publishing
 
-Skip unless the request explicitly says to publish. When it does:
+Skip unless the request explicitly says to publish. The dashboard is always
+**[#4204](https://github.com/hatchet-dev/hatchet/issues/4204)** (`config.DASHBOARD_ISSUE`).
+There are two paths; the issue write itself is done by `publish.py`, which edits
+#4204 in place and pins it (never creates an issue).
+
+### Default path: stage + let CI publish (works without `issues: write`)
+
+This is the path for the Cursor automation / cloud agent, whose token cannot edit
+issues. Stage the rendered body and push it; the `Publish CI Health Dashboard`
+workflow (`.github/workflows/ci-health-dashboard-publish.yml`, which has
+`issues: write`) updates #4204 on push.
 
 ```bash
-uv run publish.py            # DRY RUN first — prints create vs update
-uv run publish.py --publish  # create first time, update + pin the same issue after
+bash run.sh --stage   # render + copy out/issue.md -> staging/issue.md
+git add staging/issue.md && git commit -m "chore(ci): refresh CI health dashboard" \
+  && git push origin HEAD:ci-health-dashboard
 ```
 
-The canonical dashboard issue is **[#4204](https://github.com/hatchet-dev/hatchet/issues/4204)**.
-`publish.py` finds it by the hidden `<!-- ci-health-dashboard:v1 -->` marker in the
-issue body, so it should resolve to #4204 automatically. Before `--publish`, confirm
-the dry run says `update issue #4204` — if it says "create a new issue" or a different
-number, stop and investigate (the marker was dropped from #4204, or a second open issue
-picked it up) instead of creating a duplicate.
+Then confirm the workflow run succeeded:
+`gh run list --repo hatchet-dev/hatchet --workflow ci-health-dashboard-publish.yml --limit 1`.
+If a cloud runtime can only open a PR (not push to the branch), say so and stop —
+publishing happens when that PR merges to `ci-health-dashboard`.
+
+### Direct path: only when your `gh` has `issues: write` (e.g. local, as yourself)
+
+```bash
+uv run publish.py            # DRY RUN — confirm it says "update issue #4204"
+uv run publish.py --publish  # edit + pin #4204 directly
+```
+
+Use `--issue <n>` only if the user explicitly asks for a different issue.
 
 ## Wins label
 
