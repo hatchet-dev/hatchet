@@ -71,6 +71,13 @@ uv run publish.py            # DRY RUN first — prints create vs update
 uv run publish.py --publish  # create first time, update + pin the same issue after
 ```
 
+The canonical dashboard issue is **[#4204](https://github.com/hatchet-dev/hatchet/issues/4204)**.
+`publish.py` finds it by the hidden `<!-- ci-health-dashboard:v1 -->` marker in the
+issue body, so it should resolve to #4204 automatically. Before `--publish`, confirm
+the dry run says `update issue #4204` — if it says "create a new issue" or a different
+number, stop and investigate (the marker was dropped from #4204, or a second open issue
+picked it up) instead of creating a duplicate.
+
 ## Wins label
 
 When a PR fixes a CI/test flake, label it so it shows up in the dashboard's wins
