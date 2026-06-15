@@ -361,7 +361,7 @@ export class DurableListenerClient {
 
       await new Promise<void>((resolve) => {
         this._requestNotify = resolve;
-        signal.addEventListener('abort', resolve, { once: true });
+        signal.addEventListener('abort', () => resolve(), { once: true });
       });
       this._requestNotify = undefined;
     }
