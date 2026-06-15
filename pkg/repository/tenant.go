@@ -664,14 +664,17 @@ func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Contex
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	// scope both timeouts to this transaction. SET LOCAL reverts them on
+	// COMMIT/ROLLBACK; a plain SET would persist for the lifetime of the
+	// pooled connection and leak to unrelated callers that later check it
+	// out (e.g. Heartbeat).
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
 	}
 
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -708,14 +711,17 @@ func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, p
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	// scope both timeouts to this transaction. SET LOCAL reverts them on
+	// COMMIT/ROLLBACK; a plain SET would persist for the lifetime of the
+	// pooled connection and leak to unrelated callers that later check it
+	// out (e.g. Heartbeat).
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
 	}
 
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -827,14 +833,17 @@ func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeouts to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	// scope both timeouts to this transaction. SET LOCAL reverts them on
+	// COMMIT/ROLLBACK; a plain SET would persist for the lifetime of the
+	// pooled connection and leak to unrelated callers that later check it
+	// out (e.g. Heartbeat).
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
 	}
 
-	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
+	_, err = tx.Exec(ctx, "SET LOCAL idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
