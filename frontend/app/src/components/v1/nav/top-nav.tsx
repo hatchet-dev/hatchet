@@ -18,6 +18,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
@@ -36,9 +39,11 @@ import {
   useParams,
 } from '@tanstack/react-router';
 import {
+  Check,
   ChevronDown,
   LogOut,
   Menu,
+  Monitor,
   Moon,
   Sun,
   UserCircle2,
@@ -50,17 +55,25 @@ interface TopNavProps {
   tenantMemberships: TenantMember[];
 }
 
+const THEME_OPTIONS = [
+  { value: 'light' as const, label: 'Light', icon: Sun },
+  { value: 'dark' as const, label: 'Dark', icon: Moon },
+  { value: 'system' as const, label: 'System', icon: Monitor },
+];
+
 function AccountDropdown({ user }: { user?: User }) {
   const [open, setOpen] = React.useState(false);
   const { logoutMutation } = useUserUniverse();
-  const { currentlyVisibleTheme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
 
   if (!user) {
     return null;
   }
 
   const displayName = user.name || user.email;
-  const nextThemeLabel = currentlyVisibleTheme === 'dark' ? 'Dark' : 'Light';
+  const activeThemeOption =
+    THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[2];
+  const ThemeIcon = activeThemeOption.icon;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -89,18 +102,26 @@ function AccountDropdown({ user }: { user?: User }) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="interactive"
-          onClick={toggleTheme}
-          className="cursor-pointer"
-        >
-          {currentlyVisibleTheme === 'dark' ? (
-            <Moon className="mr-2 size-4" />
-          ) : (
-            <Sun className="mr-2 size-4" />
-          )}
-          Theme: {nextThemeLabel}
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="cursor-pointer">
+            <ThemeIcon className="mr-2 size-4" />
+            Theme: {activeThemeOption.label}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {THEME_OPTIONS.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                variant="interactive"
+                className="cursor-pointer"
+                onClick={() => setTheme(option.value)}
+              >
+                <option.icon className="mr-2 size-4" />
+                {option.label}
+                {theme === option.value && <Check className="ml-auto size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="interactive"
