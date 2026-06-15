@@ -291,10 +291,10 @@ type ConfigFileRuntime struct {
 	// single task-completion flush (one bulk DB write), bounding per-statement
 	// memory so a burst of large task outputs can't blow up a Postgres backend.
 	// The completion buffer still flushes by count first; whichever cap is hit
-	// first wins. The default is a loose backstop (64 MiB) -- well above normal
-	// flush sizes but below the per-backend allocation that has caused OOMs --
-	// rather than a tight throttle, since there was previously no byte limit at
-	// all. A value <= 0 disables the byte cap (count-only flushing).
+	// first wins. The default is a loose backstop (64MB = 67108864 bytes) -- well
+	// above normal flush sizes but below the per-backend allocation that has
+	// caused OOMs -- rather than a tight throttle, since there was previously no
+	// byte limit at all. A value <= 0 disables the byte cap (count-only flushing).
 	TaskCompletionMaxFlushBytes int `mapstructure:"taskCompletionMaxFlushBytes" json:"taskCompletionMaxFlushBytes,omitempty" default:"67108864"`
 
 	// AllowedOrigins is a list of origin patterns permitted for CORS requests.
