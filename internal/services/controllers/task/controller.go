@@ -59,7 +59,8 @@ type TasksControllerImpl struct {
 	reassignTaskOperations                *operation.TenantOperationPool
 	retryTaskOperations                   *operation.TenantOperationPool
 	emitSleepOperations                   *operation.TenantOperationPool
-	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
+	evictExpiredIdempotencyKeysOperations         *operation.TenantOperationPool
+	deactivateStaleStepConcurrencyOperations      *operation.TenantOperationPool
 	replayEnabled                         bool
 	analyzeCronInterval                   time.Duration
 	signaler                              *signal.OLAPSignaler
@@ -276,6 +277,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
+	t.deactivateStaleStepConcurrencyOperations = operation.NewTenantOperationPool(opts.p, opts.l, "deactivate-stale-step-concurrency", timeout, "deactivate stale step concurrency", t.deactivateStaleStepConcurrency, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		15*time.Minute,
+		30*time.Minute,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
 	return t, nil
 }
 
@@ -391,6 +401,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.retryTaskOperations.Cleanup()
 		tc.emitSleepOperations.Cleanup()
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
+		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 
