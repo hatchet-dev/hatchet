@@ -120,7 +120,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
     subdir = ctx.value.example_path.rstrip("/").lstrip("/")
     base_path = ROOT + subdir
 
-    with open(filename, encoding="utf-8") as f:
+    with open(filename) as f:
         content = f.read()
 
     code_path = f"examples/{ctx.name.lower()}{filename.replace(base_path, '')}"
@@ -154,7 +154,7 @@ def parse_snippets(ctx: SDKParsingContext, filename: str) -> list[Snippet]:
 
 
 def process_example(ctx: SDKParsingContext, filename: str) -> ProcessedExample:
-    with open(filename, encoding="utf-8") as f:
+    with open(filename) as f:
         content = f.read()
         return ProcessedExample(
             context=ctx,
@@ -330,7 +330,7 @@ def write_doc_index_to_app() -> None:
     tree: dict[str, Any] = {}
 
     for filename in glob.iglob(path, recursive=True):
-        with open(filename, encoding="utf-8") as f:
+        with open(filename) as f:
             content = f.read().replace("export default ", "").strip().rstrip(";")
             parsed_meta = cast(
                 dict[str, Any], json.loads(content, cls=JavaScriptObjectDecoder)

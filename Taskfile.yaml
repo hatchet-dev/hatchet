@@ -209,7 +209,7 @@ tasks:
     deps: [venv]
     dir: frontend/snippets
     cmds:
-      - "source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - "source {{.ROOT_DIR}}/.venv/bin/activate && python -X utf8 generate.py"
       - task: sync-changelog
       - task: fmt
       - task: sync-agent-instructions
@@ -300,7 +300,7 @@ tasks:
   docs:
     deps: [venv]
     cmds:
-      - cmd: "cd frontend/snippets && source {{.ROOT_DIR}}/.venv/bin/activate && python generate.py"
+      - cmd: "cd frontend/snippets && source {{.ROOT_DIR}}/.venv/bin/activate && python -X utf8 generate.py"
       - task: sync-changelog
       - task: fmt-go
       - task: fmt-docs
