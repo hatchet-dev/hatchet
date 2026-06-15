@@ -664,8 +664,11 @@ func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Contex
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeout to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	// set tx timeout to 5 seconds to avoid deadlocks. SET LOCAL scopes this to
+	// the current transaction so it is reverted on COMMIT/ROLLBACK; a plain SET
+	// would persist for the lifetime of the pooled connection and leak the 5s
+	// timeout to unrelated callers that later check it out (e.g. Heartbeat).
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -702,8 +705,11 @@ func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, p
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeout to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	// set tx timeout to 5 seconds to avoid deadlocks. SET LOCAL scopes this to
+	// the current transaction so it is reverted on COMMIT/ROLLBACK; a plain SET
+	// would persist for the lifetime of the pooled connection and leak the 5s
+	// timeout to unrelated callers that later check it out (e.g. Heartbeat).
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -815,8 +821,11 @@ func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeout to 5 seconds to avoid deadlocks
-	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+	// set tx timeout to 5 seconds to avoid deadlocks. SET LOCAL scopes this to
+	// the current transaction so it is reverted on COMMIT/ROLLBACK; a plain SET
+	// would persist for the lifetime of the pooled connection and leak the 5s
+	// timeout to unrelated callers that later check it out (e.g. Heartbeat).
+	_, err = tx.Exec(ctx, "SET LOCAL statement_timeout=5000")
 
 	if err != nil {
 		return "", err
