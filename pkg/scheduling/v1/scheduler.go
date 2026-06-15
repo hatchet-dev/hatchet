@@ -52,18 +52,18 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
-		repo:            cf.repo.Assignment(),
-		tenantId:        tenantId,
-		l:               &l,
-		actions:         make(map[string]*action),
-		unackedSlots:    make(map[int]*assignedSlots),
-		rl:              rl,
-		actionsMu:       newRWMu(cf.l),
-		replenishMu:     newMu(cf.l),
-		workers:         map[uuid.UUID]*worker{},
-		workersMu: newMu(cf.l),
-		unackedMu: newMu(cf.l),
-		exts:            exts,
+		repo:         cf.repo.Assignment(),
+		tenantId:     tenantId,
+		l:            &l,
+		actions:      make(map[string]*action),
+		unackedSlots: make(map[int]*assignedSlots),
+		rl:           rl,
+		actionsMu:    newRWMu(cf.l),
+		replenishMu:  newMu(cf.l),
+		workers:      map[uuid.UUID]*worker{},
+		workersMu:    newMu(cf.l),
+		unackedMu:    newMu(cf.l),
+		exts:         exts,
 	}
 }
 
