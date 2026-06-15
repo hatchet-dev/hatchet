@@ -17,6 +17,7 @@ reports what it would do.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -31,6 +32,19 @@ def _find_issue() -> int | None:
     res = gh.api_json(f"search/issues?q={gh_quote(q)}")
     for item in res.get("items", []):
         return item["number"]
+
+    # GitHub issue search does not index HTML comments, so fall back to scanning
+    # open issues (newest first) for the marker in the body.
+    out = gh._run([
+        "issue", "list",
+        "--repo", config.REPO,
+        "--state", "open",
+        "--limit", "100",
+        "--json", "number,body",
+    ])
+    for item in json.loads(out):
+        if config.DASHBOARD_MARKER in item.get("body", ""):
+            return item["number"]
     return None
 
 

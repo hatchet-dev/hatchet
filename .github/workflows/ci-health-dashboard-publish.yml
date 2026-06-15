@@ -1,0 +1,23 @@
+name: Publish CI Health Dashboard
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Publish staged dashboard body
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd hack/ci/ci-dashboard
+          mkdir -p out
+          cp staging/issue.md out/issue.md
+          uv run publish.py --publish
