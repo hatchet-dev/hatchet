@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.9] - 2026-06-14
+
+### Fixed
+
+- Fixes a race condition in the durable event listener where an engine restart can cause the listener to get stuck because of the existence of two separate request queues that are not kept in sync, causing requests to hang indefinitely after being added to the old queue in some cases.
+
 ## [1.33.8] - 2026-06-12
 
 ### Fixed
