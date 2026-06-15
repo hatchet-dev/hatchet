@@ -404,7 +404,6 @@ func (s *Scheduler) runSetTenants(ctx context.Context) func() {
 	}
 }
 
-
 func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, res *v1.QueueResults) error {
 	ctx, span := telemetry.NewSpan(ctx, "schedule-step-runs")
 	defer span.End()
