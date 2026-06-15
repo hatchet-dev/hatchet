@@ -207,7 +207,7 @@ func (s *Scheduler) Start() (func() error, error) {
 	}
 
 	_, err = s.s.NewJob(
-		gocron.DurationJob(5*time.Minute),
+		gocron.DurationJob(15*time.Minute),
 		gocron.NewTask(
 			s.runDeactivateStaleStepConcurrency(ctx),
 		),
