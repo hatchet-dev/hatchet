@@ -14,7 +14,11 @@ import {
 } from '@/lib/outlet';
 import { OutletWithContext, useOutletContext } from '@/lib/router-helpers';
 import { useQueryClient } from '@tanstack/react-query';
-import { ReactNode, useEffect, useMemo } from 'react';
+import { ReactNode, useEffect, useMemo, useRef } from 'react';
+
+// How long (ms) prefetched data is considered fresh.
+// Within this window, hovering or revisiting a route will NOT trigger a new API call.
+const PREFETCH_STALE_TIME = 30_000; // 30 seconds
 
 export function MainShell({ children }: { children?: ReactNode }) {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
@@ -30,14 +34,43 @@ export function MainShell({ children }: { children?: ReactNode }) {
       : undefined
     : undefined;
 
+  // FIX (Level 3): Track the last tenantId we prefetched for.
+  // Without this, the effect re-runs and fires a fresh API request every time
+  // the component re-renders with the same tenantId (e.g. on hover-triggered
+  // re-renders caused by TanStack Router's preload="intent" on sidebar Links).
+  const lastPrefetchedTenantId = useRef<string | null>(null);
+
   useEffect(() => {
     if (!tenantId) {
       return;
     }
 
-    void queryClient.prefetchQuery(
-      queries.workflows.list(tenantId, { limit: 200 }),
+    // FIX (Level 3): Only prefetch if we haven't already prefetched for this tenant,
+    // OR if the query cache itself says the data is stale (older than PREFETCH_STALE_TIME).
+    // This prevents redundant network calls when the user hovers across nav items
+    // or when the component re-mounts without the tenantId actually changing.
+    const queryState = queryClient.getQueryState(
+      queries.workflows.list(tenantId, { limit: 200 }).queryKey,
     );
+
+    const isDataFresh =
+      queryState?.dataUpdatedAt != null &&
+      Date.now() - queryState.dataUpdatedAt < PREFETCH_STALE_TIME;
+
+    if (lastPrefetchedTenantId.current === tenantId && isDataFresh) {
+      // Data is still fresh for this tenant — skip the network call entirely.
+      return;
+    }
+
+    lastPrefetchedTenantId.current = tenantId;
+
+    void queryClient.prefetchQuery({
+      ...queries.workflows.list(tenantId, { limit: 200 }),
+      // FIX (Level 3): staleTime tells React Query: "if the cached data is younger
+      // than 30s, do NOT go to the network — serve from cache instead."
+      // Without this, every prefetchQuery call unconditionally hits the API.
+      staleTime: PREFETCH_STALE_TIME,
+    });
   }, [queryClient, tenantId]);
 
   const navSections = useMemo(
@@ -55,6 +88,7 @@ export function MainShell({ children }: { children?: ReactNode }) {
     user,
     memberships,
   });
+
   const content = !isUserUniverseLoaded ? (
     <Loading className="items-center justify-center" />
   ) : (
@@ -63,7 +97,12 @@ export function MainShell({ children }: { children?: ReactNode }) {
 
   return (
     <ThreeColumnLayout
-      sidebar={<SideNav navItems={navSections} />}
+      // FIX (Level 1): SideNav receives noPreload so every <Link> inside it
+      // renders with preload={false}. This stops TanStack Router from firing
+      // route loaders on mouseenter — which was the root cause of #4205.
+      // Navigation still works normally; only the speculative hover-prefetch
+      // is disabled for sidebar items specifically.
+      sidebar={<SideNav navItems={navSections} noPreload />}
       sidePanel={<SidePanel />}
       // mainClassName="overflow-auto"
       mainContainerType="inline-size"
