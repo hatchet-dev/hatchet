@@ -8,11 +8,8 @@ import tenacity
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
-from hatchet_sdk.clients.rest.tenacity_utils import (
-    tenacity_retry,
-    tenacity_should_retry,
-)
-from hatchet_sdk.config import ClientConfig, TenacityConfig, tenacity_before_sleep
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
+from hatchet_sdk.config import ClientConfig, tenacity_before_sleep
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
@@ -162,6 +159,13 @@ class DispatcherClient:
             logger.exception(message)
             return None
 
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        stop=tenacity.stop_after_attempt(20),
+        before_sleep=tenacity_before_sleep,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
     async def _try_send_step_action_event(
         self,
         action: Action,
@@ -170,8 +174,7 @@ class DispatcherClient:
         should_not_retry: bool,
     ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
         if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+            self.aio_client = DispatcherStub(new_conn(self.config, True))
 
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
@@ -190,21 +193,21 @@ class DispatcherClient:
             should_not_retry=should_not_retry,
         )
 
-        send = tenacity_retry(
-            self.aio_client.SendStepActionEvent,
-            TenacityConfig(
-                max_attempts=20,
-            ),
-        )
-
-        return cast(
-            grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-            # fixme: figure out how to get typing right here
-            await send(  # type: ignore[misc]
-                event,
-                metadata=create_authorization_header(self.token),
-            ),
-        )
+        try:
+            return cast(
+                grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
+                # fixme: figure out how to get typing right here
+                await self.aio_client.SendStepActionEvent(  # type: ignore[misc]
+                    event,
+                    metadata=create_authorization_header(self.token),
+                ),
+            )
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.UNAVAILABLE:
+                # resetting the client if we get `UNAVAILABLE` to try making
+                # a new connection on the next retry, to see if that helps recover
+                self.aio_client = None
+            raise
 
     def put_overrides_data(self, data: OverridesData) -> ActionEventResponse:
         client = self._get_or_create_client()
