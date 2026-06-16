@@ -7,6 +7,7 @@ import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
@@ -77,11 +78,7 @@ function MetricsScrapeConfig({ tenantId }: { tenantId: string }) {
     <div className="space-y-4">
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">Scrape URL</p>
-        <CodeHighlighter
-          language="text"
-          code={scrapeUrl}
-          wrapLines={false}
-        />
+        <CodeHighlighter language="text" code={scrapeUrl} wrapLines={false} />
         <p className="text-sm text-muted-foreground">
           Requests must be authenticated with a{' '}
           <Link
@@ -151,6 +148,12 @@ function MetricsEnabled({ tenantId }: { tenantId: string }) {
 }
 
 function MetricsSelfHostInstructions({ tenantId }: { tenantId: string }) {
+  const { meta } = useApiMeta();
+  const prometheusServerEnabled =
+    !!meta &&
+    'prometheusServerEnabled' in meta &&
+    !!meta.prometheusServerEnabled;
+
   return (
     <div>
       <SectionHeader
@@ -185,10 +188,14 @@ SERVER_PROMETHEUS_SERVER_TENANT_SCOPED=true`}
           for details.
         </p>
       </div>
-      <Separator className="my-6" />
-      <MetricsScrapeConfig tenantId={tenantId} />
-      <Separator className="my-6" />
-      <MetricsPreview tenantId={tenantId} />
+      {prometheusServerEnabled && (
+        <>
+          <Separator className="my-6" />
+          <MetricsScrapeConfig tenantId={tenantId} />
+          <Separator className="my-6" />
+          <MetricsPreview tenantId={tenantId} />
+        </>
+      )}
     </div>
   );
 }
