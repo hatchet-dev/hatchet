@@ -4,14 +4,14 @@ import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import useControlPlane from '@/hooks/use-control-plane';
-import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import api from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useParams } from '@tanstack/react-router';
 
 const CONFIG_DOCS_URL =
   'https://docs.hatchet.run/self-hosting/configuration-options';
@@ -32,7 +32,7 @@ function SectionHeader({
 }
 
 export function PrometheusMetricsSettings() {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
   const { organizationId } = useTenantDetails();
   const orgApi = useOrganizationApi();
