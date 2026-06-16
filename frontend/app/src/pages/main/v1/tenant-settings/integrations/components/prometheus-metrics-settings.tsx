@@ -61,18 +61,45 @@ export function PrometheusMetricsSettings() {
   return <MetricsSelfHostInstructions tenantId={tenantId} />;
 }
 
+function resolveTenantApiTarget(serverUrl?: string) {
+  // The tenant's API may live on a different host than the dashboard (e.g. a
+  // control-plane shard), so prefer the tenant's serverUrl and fall back to the
+  // current window location for self-hosted deployments where it is unset.
+  if (serverUrl) {
+    try {
+      const url = new URL(serverUrl);
+      return {
+        origin: url.origin,
+        host: url.host,
+        scheme: url.protocol.replace(':', ''),
+      };
+    } catch {
+      // Malformed serverUrl; fall through to window.location.
+    }
+  }
+
+  return {
+    origin: window.location.origin,
+    host: window.location.host,
+    scheme: window.location.protocol.replace(':', ''),
+  };
+}
+
 function MetricsScrapeConfig({ tenantId }: { tenantId: string }) {
-  const scrapeUrl = `${window.location.origin}/api/v1/tenants/${tenantId}/prometheus-metrics`;
+  const { tenant } = useTenantDetails();
+  const { origin, host, scheme } = resolveTenantApiTarget(tenant?.serverUrl);
+
+  const scrapeUrl = `${origin}/api/v1/tenants/${tenantId}/prometheus-metrics`;
   const scrapeConfig = `scrape_configs:
   - job_name: hatchet
-    scheme: ${window.location.protocol.replace(':', '')}
+    scheme: ${scheme}
     metrics_path: /api/v1/tenants/${tenantId}/prometheus-metrics
     authorization:
       type: Bearer
       credentials: <HATCHET_API_TOKEN>
     static_configs:
       - targets:
-          - ${window.location.host}`;
+          - ${host}`;
 
   return (
     <div className="space-y-4">
