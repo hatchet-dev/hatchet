@@ -19,13 +19,29 @@ from __future__ import annotations
 
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import cache, config  # noqa: E402
 from lib import signatures as sig  # noqa: E402
+
+
+def _parse_ts(ts: str) -> datetime | None:
+    if not ts:
+        return None
+    if ts.endswith("Z"):
+        ts = ts[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(ts)
+    except ValueError:
+        return None
+
+
+def _in_table_window(run: dict, cutoff: datetime) -> bool:
+    created = _parse_ts(run.get("created_at") or "")
+    return created is not None and created >= cutoff
 
 
 def _scope(run: dict) -> str:
@@ -61,6 +77,7 @@ def _flaky_label(runs_total: int, fails: int, recovered: int) -> str:
 def main() -> int:
     runs = [r for r in cache.iter_runs() if r.get("gating")]
     runs_by_id = {r["id"]: r for r in runs}
+    table_cutoff = datetime.now(timezone.utc) - timedelta(hours=config.TABLE_WINDOW_HOURS)
 
     # job-level accumulation, keyed by (workflow, stripped job name)
     jobs: dict[tuple, dict] = defaultdict(lambda: {
@@ -77,7 +94,9 @@ def main() -> int:
     for run in runs:
         scope = _scope(run)
         date = (run.get("created_at") or "")[:10]
-        workflow_runs[run["wf_name"]] += 1
+        in_table_window = _in_table_window(run, table_cutoff)
+        if in_table_window:
+            workflow_runs[run["wf_name"]] += 1
 
         # run-level totals + trend (independent of job detail, so clean successes
         # without fetched jobs still count toward denominators / pass rate)
@@ -87,6 +106,9 @@ def main() -> int:
             if run.get("conclusion") == "failure":
                 totals[f"{scope}_fail_runs"] += 1
                 trend[date][f"{scope}_fails"] += 1
+
+        if not in_table_window:
+            continue
 
         by_attempt = run.get("jobs_by_attempt") or {}
         if not by_attempt:
@@ -124,7 +146,7 @@ def main() -> int:
 
     for jf in cache.iter_job_failures():
         run = runs_by_id.get(jf["run_id"])
-        if run is None:
+        if run is None or not _in_table_window(run, table_cutoff):
             continue
         scope = _scope(run)
         jkey = (jf["workflow"], sig.strip_matrix(jf["job_name"]))
@@ -237,6 +259,7 @@ def main() -> int:
     analysis = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "window_days": config.WINDOW_DAYS,
+        "table_window_hours": config.TABLE_WINDOW_HOURS,
         "since": cache.load_meta().get("since"),
         "totals": {
             **totals,

@@ -148,11 +148,14 @@ def main() -> int:
     classifications = cache.load_classifications()
     totals = analysis.get("totals", {})
     generated = analysis.get("generated_at", datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+    window_days = analysis.get("window_days", config.WINDOW_DAYS)
+    table_hours = analysis.get("table_window_hours", config.TABLE_WINDOW_HOURS)
 
     parts = [
         f"# {config.DASHBOARD_TITLE}",
         "",
-        f"_Window: last {analysis.get('window_days', config.WINDOW_DAYS)} days · "
+        f"_Window: last {window_days} days (trend + pass rate) · "
+        f"tables: last {table_hours}h · "
         f"updated {generated} · auto-generated, do not edit by hand._",
         "",
         f"**Gating-CI pass rate** — PR: {_pct(totals.get('pr_pass_rate'))} "
@@ -164,11 +167,11 @@ def main() -> int:
         "",
         _mermaid_trend(analysis.get("trend", [])),
         "",
-        f"## Top {config.TOP_N} failing jobs",
+        f"## Top {config.TOP_N} failing jobs (last {table_hours}h)",
         "",
         _jobs_table(analysis.get("top_jobs", []), classifications),
         "",
-        f"## Top {config.TOP_N} failing tests",
+        f"## Top {config.TOP_N} failing tests (last {table_hours}h)",
         "",
         _tests_table(analysis.get("top_tests", []), classifications),
         "",
@@ -177,7 +180,8 @@ def main() -> int:
         _wins(analysis.get("wins", {})),
         "",
         "---",
-        f"_All counts cover the window above (last {analysis.get('window_days', config.WINDOW_DAYS)} days)._ "
+        f"_Trend and pass-rate totals cover the last {window_days} days; "
+        f"job/test tables cover the last {table_hours}h._ "
         "**fails** = gating runs where the job/test failed · "
         "**recovered** = failed on a first attempt but passed on re-run (a flakiness signal) · "
         "**runs** = total gating runs of that workflow · "
