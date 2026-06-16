@@ -934,6 +934,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
 	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
 	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
+	_ = v.BindEnv("prometheus.tenantScoped", "SERVER_PROMETHEUS_SERVER_TENANT_SCOPED")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")
