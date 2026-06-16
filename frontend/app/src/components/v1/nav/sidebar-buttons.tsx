@@ -15,6 +15,7 @@ type SidebarButtonPrimaryLinkProps = {
   icon: React.ReactNode;
   prefix?: string;
   collapsibleChildren?: React.ReactNode[];
+  noPreload?: boolean;
 };
 
 export type SidebarButtonPrimaryActionProps = Omit<ButtonProps, 'children'> & {
@@ -70,6 +71,7 @@ export function SidebarButtonPrimary(
     icon,
     prefix,
     collapsibleChildren = [],
+    noPreload,
   } = props;
 
   // `to` (and `prefix`) are TanStack route templates (e.g. `/tenants/$tenant/...`).
@@ -85,7 +87,7 @@ export function SidebarButtonPrimary(
     collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
 
   const primaryLink = (
-    <Link to={to} params={params} onClick={onNavLinkClick}>
+    <Link to={to} params={params} onClick={onNavLinkClick} preload={noPreload ? false : undefined}>
       <Button
         variant="ghost"
         className={cn(
@@ -117,12 +119,14 @@ export function SidebarButtonSecondary({
   params,
   name,
   prefix,
+  noPreload,
 }: {
   onNavLinkClick: () => void;
   to: string;
   params?: Record<string, string>;
   name: string;
   prefix?: string;
+  noPreload?: boolean;
 }) {
   const matchRoute = useMatchRoute();
   const hasPrefix = prefix
@@ -131,7 +135,7 @@ export function SidebarButtonSecondary({
   const selected = Boolean(matchRoute({ to, params })) || hasPrefix;
 
   return (
-    <Link to={to} params={params} onClick={onNavLinkClick}>
+    <Link to={to} params={params} onClick={onNavLinkClick} preload={noPreload ? false : undefined}>
       <Button
         variant="ghost"
         size="sm"

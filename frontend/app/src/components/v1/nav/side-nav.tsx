@@ -35,6 +35,7 @@ import React, {
 
 interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
+  noPreload?: boolean;
 }
 
 export type SideNavChild = {
@@ -70,7 +71,7 @@ export type SideNavSection = {
 
 const savedScrollTop = { current: 0 };
 
-export function SideNav({ className, navItems: navSections }: SideNavProps) {
+export function SideNav({ className, navItems: navSections, noPreload }: SideNavProps) {
   const {
     sidebarOpen,
     setSidebarOpen,
@@ -405,6 +406,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                     to={child.to}
                                     params={commonParams}
                                     onClick={onNavLinkClick}
+                                    preload={noPreload ? false : undefined}
                                   >
                                     {child.name}
                                   </Link>
@@ -508,6 +510,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                 }),
                               ),
                             })}
+                            noPreload={noPreload}
                             collapsibleChildren={
                               item.children?.map((child) => (
                                 <SidebarButtonSecondary
@@ -516,6 +519,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   to={child.to}
                                   params={commonParams}
                                   name={child.name}
+                                  noPreload={noPreload}
                                 />
                               )) ?? []
                             }
