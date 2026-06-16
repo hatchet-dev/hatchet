@@ -46,6 +46,7 @@ class DispatcherClient:
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
         self.aio_client: DispatcherStub | None = None
+        self.aio_channel: grpc.aio.Channel | None = None
         self.client: DispatcherStub | None = None
 
     def _get_or_create_client(self) -> DispatcherStub:
@@ -57,7 +58,8 @@ class DispatcherClient:
 
     def _get_or_create_aio_client(self) -> DispatcherStub:
         if self.aio_client is None:
-            self.aio_client = DispatcherStub(new_conn(self.config, True))
+            self.aio_channel = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(self.aio_channel)
 
         return self.aio_client
 
@@ -206,7 +208,10 @@ class DispatcherClient:
             if e.code() == grpc.StatusCode.UNAVAILABLE:
                 # resetting the client if we get `UNAVAILABLE` to try making
                 # a new connection on the next retry, to see if that helps recover
+                old_channel, self.aio_channel = self.aio_channel, None
                 self.aio_client = None
+                if old_channel is not None:
+                    await old_channel.close()
             raise
 
     def put_overrides_data(self, data: OverridesData) -> ActionEventResponse:
