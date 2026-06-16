@@ -193,7 +193,7 @@ class DispatcherClient:
         send = tenacity_retry(
             self.aio_client.SendStepActionEvent,
             TenacityConfig(
-                max_attempts=10,
+                max_attempts=20,
             ),
         )
 
