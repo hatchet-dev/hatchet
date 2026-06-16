@@ -154,3 +154,12 @@ DELETE FROM
 WHERE
     "id" = @id::uuid
 RETURNING *;
+
+-- name: CleanupExpiredUserSessions :execresult
+DELETE FROM "UserSession"
+WHERE "id" IN (
+    SELECT "id"
+    FROM "UserSession"
+    WHERE "expiresAt" < NOW()
+    LIMIT @batchSize::int
+);

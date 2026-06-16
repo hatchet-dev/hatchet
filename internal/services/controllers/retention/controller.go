@@ -21,30 +21,32 @@ type RetentionController interface {
 }
 
 type RetentionControllerImpl struct {
-	l               *zerolog.Logger
-	repo            v1.Repository
-	dv              datautils.DataDecoderValidator
-	s               gocron.Scheduler
-	tenantAlerter   *alerting.TenantAlertManager
-	a               *hatcheterrors.Wrapped
-	p               *partition.Partition
-	dataRetention   bool
-	workerRetention bool
-	queueRetention  bool
+	l                *zerolog.Logger
+	repo             v1.Repository
+	dv               datautils.DataDecoderValidator
+	s                gocron.Scheduler
+	tenantAlerter    *alerting.TenantAlertManager
+	a                *hatcheterrors.Wrapped
+	p                *partition.Partition
+	dataRetention    bool
+	workerRetention  bool
+	queueRetention   bool
+	sessionRetention bool
 }
 
 type RetentionControllerOpt func(*RetentionControllerOpts)
 
 type RetentionControllerOpts struct {
-	l               *zerolog.Logger
-	repo            v1.Repository
-	dv              datautils.DataDecoderValidator
-	ta              *alerting.TenantAlertManager
-	alerter         hatcheterrors.Alerter
-	p               *partition.Partition
-	dataRetention   bool
-	workerRetention bool
-	queueRetention  bool
+	l                *zerolog.Logger
+	repo             v1.Repository
+	dv               datautils.DataDecoderValidator
+	ta               *alerting.TenantAlertManager
+	alerter          hatcheterrors.Alerter
+	p                *partition.Partition
+	dataRetention    bool
+	workerRetention  bool
+	queueRetention   bool
+	sessionRetention bool
 }
 
 func defaultRetentionControllerOpts() *RetentionControllerOpts {
@@ -52,12 +54,13 @@ func defaultRetentionControllerOpts() *RetentionControllerOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &RetentionControllerOpts{
-		l:               &logger,
-		dv:              datautils.NewDataDecoderValidator(),
-		alerter:         alerter,
-		dataRetention:   true,
-		queueRetention:  true,
-		workerRetention: false,
+		l:                &logger,
+		dv:               datautils.NewDataDecoderValidator(),
+		alerter:          alerter,
+		dataRetention:    true,
+		queueRetention:   true,
+		workerRetention:  false,
+		sessionRetention: true,
 	}
 }
 
@@ -109,6 +112,12 @@ func WithWorkerRetention(b bool) RetentionControllerOpt {
 	}
 }
 
+func WithSessionRetention(b bool) RetentionControllerOpt {
+	return func(opts *RetentionControllerOpts) {
+		opts.sessionRetention = b
+	}
+}
+
 func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 	opts := defaultRetentionControllerOpts()
 
@@ -141,16 +150,17 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "retention-controller"})
 
 	return &RetentionControllerImpl{
-		l:               opts.l,
-		repo:            opts.repo,
-		dv:              opts.dv,
-		s:               s,
-		tenantAlerter:   opts.ta,
-		a:               a,
-		p:               opts.p,
-		dataRetention:   opts.dataRetention,
-		workerRetention: opts.workerRetention,
-		queueRetention:  opts.queueRetention,
+		l:                opts.l,
+		repo:             opts.repo,
+		dv:               opts.dv,
+		s:                s,
+		tenantAlerter:    opts.ta,
+		a:                a,
+		p:                opts.p,
+		dataRetention:    opts.dataRetention,
+		workerRetention:  opts.workerRetention,
+		queueRetention:   opts.queueRetention,
+		sessionRetention: opts.sessionRetention,
 	}, nil
 }
 
@@ -189,6 +199,23 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("could not set up runCleanupOldWorkers: %w", err)
+		}
+	}
+
+	if rc.sessionRetention {
+		sessionInterval := 24 * time.Hour
+
+		_, err := rc.s.NewJob(
+			gocron.DurationJob(sessionInterval),
+			gocron.NewTask(
+				rc.runCleanupExpiredUserSessions(ctx),
+			),
+			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		)
+
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("could not set up runCleanupExpiredUserSessions: %w", err)
 		}
 	}
 

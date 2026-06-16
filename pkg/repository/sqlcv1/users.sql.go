@@ -9,8 +9,23 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const cleanupExpiredUserSessions = `-- name: CleanupExpiredUserSessions :execresult
+DELETE FROM "UserSession"
+WHERE "id" IN (
+    SELECT "id"
+    FROM "UserSession"
+    WHERE "expiresAt" < NOW()
+    LIMIT $1::int
+)
+`
+
+func (q *Queries) CleanupExpiredUserSessions(ctx context.Context, db DBTX, batchsize int32) (pgconn.CommandTag, error) {
+	return db.Exec(ctx, cleanupExpiredUserSessions, batchsize)
+}
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO "User" (

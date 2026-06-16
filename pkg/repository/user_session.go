@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,6 +38,11 @@ type UserSessionRepository interface {
 	Update(ctx context.Context, sessionId uuid.UUID, opts *UpdateSessionOpts) (*sqlcv1.UserSession, error)
 	Delete(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
 	GetById(ctx context.Context, sessionId uuid.UUID) (*sqlcv1.UserSession, error)
+
+	// DeleteExpired removes up to batchSize expired sessions in a single bounded
+	// transaction. It returns true when a full batch was deleted, signalling the
+	// caller to invoke it again until the backlog is drained.
+	DeleteExpired(ctx context.Context, batchSize int32) (bool, error)
 }
 
 type userSessionRepository struct {
@@ -164,4 +170,25 @@ func (r *userSessionRepository) GetById(ctx context.Context, sessionId uuid.UUID
 		r.pool,
 		sessionId,
 	)
+}
+
+func (r *userSessionRepository) DeleteExpired(ctx context.Context, batchSize int32) (bool, error) {
+	const timeout = 1000 * 60 * 3 // 3 minutes
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, r.pool, r.l, timeout)
+	if err != nil {
+		return false, fmt.Errorf("error beginning transaction: %w", err)
+	}
+	defer rollback()
+
+	result, err := r.queries.CleanupExpiredUserSessions(ctx, tx, batchSize)
+	if err != nil {
+		return false, fmt.Errorf("error cleaning up expired user sessions: %w", err)
+	}
+
+	if err := commit(ctx); err != nil {
+		return false, fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return result.RowsAffected() == int64(batchSize), nil
 }
