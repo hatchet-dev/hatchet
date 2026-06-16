@@ -55,6 +55,12 @@ class DispatcherClient:
 
         return self.client
 
+    def _get_or_create_aio_client(self) -> DispatcherStub:
+        if self.aio_client is None:
+            self.aio_client = DispatcherStub(new_conn(self.config, True))
+
+        return self.aio_client
+
     async def get_action_listener(
         self,
         worker_name: str,
@@ -63,9 +69,7 @@ class DispatcherClient:
         slot_config: dict[str, int],
         labels: list[WorkerLabel],
     ) -> ActionListener:
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+        aio_client = self._get_or_create_aio_client()
 
         proto_labels: dict[str, WorkerLabels] = {
             label.key: label.to_proto() for label in labels if label.key is not None
@@ -76,7 +80,7 @@ class DispatcherClient:
         response = cast(
             WorkerRegisterResponse,
             # fixme: figure out how to get typing right here
-            await self.aio_client.Register(  # type: ignore[misc]
+            await aio_client.Register(  # type: ignore[misc]
                 WorkerRegisterRequest(
                     worker_name=worker_name,
                     actions=actions,
@@ -110,14 +114,12 @@ class DispatcherClient:
 
         Retries transient gRPC errors up to 3 times with exponential backoff.
         """
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+        aio_client = self._get_or_create_aio_client()
 
         try:
             response = cast(
                 GetVersionResponse,
-                await self.aio_client.GetVersion(  # type: ignore[misc]
+                await aio_client.GetVersion(  # type: ignore[misc]
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
                     metadata=create_authorization_header(self.token),
@@ -136,7 +138,7 @@ class DispatcherClient:
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
-    ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
+    ) -> ActionEventResponse | None:
         try:
             return await self._try_send_step_action_event(
                 action, event_type, payload, should_not_retry
@@ -172,9 +174,8 @@ class DispatcherClient:
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
-    ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
-        if not self.aio_client:
-            self.aio_client = DispatcherStub(new_conn(self.config, True))
+    ) -> ActionEventResponse:
+        aio_client = self._get_or_create_aio_client()
 
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
@@ -195,9 +196,8 @@ class DispatcherClient:
 
         try:
             return cast(
-                grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-                # fixme: figure out how to get typing right here
-                await self.aio_client.SendStepActionEvent(  # type: ignore[misc]
+                ActionEventResponse,
+                await aio_client.SendStepActionEvent(  # type: ignore[misc]
                     event,
                     metadata=create_authorization_header(self.token),
                 ),

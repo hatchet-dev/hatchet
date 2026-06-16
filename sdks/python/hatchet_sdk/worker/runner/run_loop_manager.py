@@ -110,9 +110,9 @@ class WorkerActionRunLoopManager:
         )
 
         logger.debug(
-            f"found the following actions registered: {list(self.action_registry.keys())}"
+            f"'{self.name}' found the following actions registered: {list(self.action_registry.keys())}"
         )
-        logger.info("runner started, waiting for tasks...")
+        logger.info(f"'{self.name}' started, waiting for tasks...")
         while not self.killing:
             action = await self._get_action()
             if action == STOP_LOOP:
