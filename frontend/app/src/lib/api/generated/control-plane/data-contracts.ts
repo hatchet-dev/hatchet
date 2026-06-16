@@ -30,6 +30,7 @@ export enum SubscriptionPlanCode {
   Free = "free",
   Starter = "starter",
   Growth = "growth",
+  Migration = "migration",
   Developer = "developer",
   Team = "team",
   Scale = "scale",
@@ -716,6 +717,8 @@ export interface Coupon {
 export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
+  /** @example false */
+  prometheusMetrics: boolean;
 }
 
 /**
