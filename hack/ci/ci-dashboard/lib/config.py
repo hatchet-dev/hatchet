@@ -4,6 +4,7 @@ from pathlib import Path
 
 REPO = "hatchet-dev/hatchet"
 WINDOW_DAYS = 14
+TABLE_WINDOW_HOURS = 24
 TOP_N = 10
 
 BASE_DIR = Path(__file__).resolve().parents[1]  # hack/ci/ci-dashboard/
