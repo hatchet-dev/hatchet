@@ -83,9 +83,16 @@ function MetricsScrapeConfig({ tenantId }: { tenantId: string }) {
           wrapLines={false}
         />
         <p className="text-sm text-muted-foreground">
-          Requests must be authenticated with a tenant API token (sent as a
-          Bearer token). Point your Prometheus instance or Grafana Agent at this
-          URL to federate this tenant's metrics.
+          Requests must be authenticated with a{' '}
+          <Link
+            to={appRoutes.tenantSettingsApiTokensRoute.to}
+            params={{ tenant: tenantId }}
+            className="underline"
+          >
+            tenant API token
+          </Link>{' '}
+          (sent as a Bearer token). Point your Prometheus instance or Grafana
+          Agent at this URL to federate this tenant's metrics.
         </p>
       </div>
       <div className="space-y-2">
