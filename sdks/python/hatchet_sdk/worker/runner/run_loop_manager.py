@@ -109,10 +109,10 @@ class WorkerActionRunLoopManager:
             engine_version=self.engine_version,
         )
 
-        logger.info("runner started, waiting for tasks...")
         logger.debug(
             f"found the following actions registered: {list(self.action_registry.keys())}"
         )
+        logger.info("runner started, waiting for tasks...")
         while not self.killing:
             action = await self._get_action()
             if action == STOP_LOOP:
