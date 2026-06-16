@@ -719,6 +719,8 @@ export interface OrganizationEntitlements {
   canSSO: boolean;
   /** @example false */
   prometheusMetrics: boolean;
+  /** @example false */
+  auditLogs: boolean;
 }
 
 /**
