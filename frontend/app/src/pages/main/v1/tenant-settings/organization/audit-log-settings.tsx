@@ -48,7 +48,7 @@ export function AuditLogSettings({ orgId }: { orgId: string }) {
 }
 
 function AuditLogRetrieval({ orgId }: { orgId: string }) {
-  const endpoint = `${window.location.origin}/api/v1/management/organizations/${orgId}/audit-logs`;
+  const endpoint = `${window.location.origin}/api/v1/control-plane/organizations/${orgId}/audit-logs`;
   const curlExample = `curl \\
   -H "Authorization: Bearer <MANAGEMENT_TOKEN>" \\
   "${endpoint}?limit=100"`;
