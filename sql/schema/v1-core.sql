@@ -481,8 +481,8 @@ CREATE TABLE v1_lookup_table (
     dag_id BIGINT,
     inserted_at TIMESTAMPTZ NOT NULL,
 
-    PRIMARY KEY (external_id)
-);
+    PRIMARY KEY (external_id, inserted_at)
+) PARTITION BY RANGE (inserted_at);
 
 CREATE TYPE v1_task_event_type AS ENUM (
     'COMPLETED',
@@ -1086,15 +1086,15 @@ CREATE TABLE v1_dag_to_task (
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
-);
+) PARTITION BY RANGE(dag_inserted_at);
 
 CREATE TABLE v1_dag_data (
     dag_id BIGINT NOT NULL,
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     input JSONB NOT NULL,
     additional_metadata JSONB,
-    CONSTRAINT v1_dag_input_pkey PRIMARY KEY (dag_id, dag_inserted_at)
-);
+    PRIMARY KEY (dag_id, dag_inserted_at)
+) PARTITION BY RANGE(dag_inserted_at);
 
 -- CreateTable
 CREATE TABLE v1_workflow_concurrency_slot (
@@ -1611,7 +1611,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -2163,7 +2163,7 @@ BEGIN
         id,
         inserted_at
     FROM new_table
-    ON CONFLICT (external_id) DO NOTHING;
+    ON CONFLICT (external_id, inserted_at) DO NOTHING;
 
     RETURN NULL;
 END;
@@ -2995,3 +2995,42 @@ AFTER UPDATE ON v1_concurrency_slot
 REFERENCING NEW TABLE AS new_table
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();
+CREATE OR REPLACE FUNCTION rename_partitions(
+    parent_table_name TEXT,
+    new_prefix TEXT
+)
+RETURNS TABLE(old_name TEXT, new_name TEXT)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    partition_record RECORD;
+    old_partition_name TEXT;
+    new_partition_name TEXT;
+    partition_suffix TEXT;
+BEGIN
+    FOR partition_record IN
+        SELECT c.relname AS partition_name
+        FROM pg_inherits i
+        JOIN pg_class c ON i.inhrelid = c.oid
+        JOIN pg_namespace n ON c.relnamespace = n.oid
+        JOIN pg_class parent ON i.inhparent = parent.oid
+        WHERE parent.relname = parent_table_name
+        ORDER BY c.relname
+    LOOP
+        old_partition_name := partition_record.partition_name;
+        partition_suffix := replace(old_partition_name, parent_table_name || '_', '');
+        new_partition_name := new_prefix || '_' || partition_suffix;
+
+        EXECUTE format('ALTER TABLE %I RENAME TO %I', old_partition_name, new_partition_name);
+        EXECUTE format('ALTER INDEX %I RENAME TO %I',
+            old_partition_name || '_pkey',
+            new_partition_name || '_pkey'
+        );
+
+        RETURN NEXT;
+        RAISE NOTICE 'Renamed: % -> %', old_partition_name, new_partition_name;
+    END LOOP;
+
+    RETURN;
+END;
+$$;
