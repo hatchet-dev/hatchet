@@ -74,23 +74,61 @@ type avgResult struct {
 	latencyResult LatencyResult
 }
 
-func do(config LoadTestConfig) error {
-	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
+type loadTestTiming struct {
+	registrationTimeout time.Duration
+	startupDelay        time.Duration
+	safetyBuffer        time.Duration
+	safetyTimeout       time.Duration
+	activeWindow        time.Duration
+}
 
-	after := 10 * time.Second
+type runResult struct {
+	executed int64
+	uniques  int64
+}
+
+func calculateLoadTestTiming(config LoadTestConfig) loadTestTiming {
 	registrationTimeout := config.RegistrationTimeout
 	if registrationTimeout == 0 {
 		registrationTimeout = 60 * time.Second
 	}
 
-	// The worker may intentionally be delayed (WorkerDelay) before it starts consuming tasks.
-	// The test timeout must include registration and this delay, otherwise we can cancel while work is still expected to complete.
-	timeout := registrationTimeout + config.WorkerDelay + after + config.Duration + config.Wait + 30*time.Second
+	startupDelay := 10 * time.Second
+	safetyBuffer := 30 * time.Second
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	return loadTestTiming{
+		registrationTimeout: registrationTimeout,
+		startupDelay:        startupDelay,
+		safetyBuffer:        safetyBuffer,
+		safetyTimeout:       registrationTimeout + config.WorkerDelay + startupDelay + config.Duration + config.Wait + safetyBuffer,
+		activeWindow:        startupDelay + config.Duration + config.Wait,
+	}
+}
 
-	ch := make(chan int64, 2)
+func waitOrDone(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func do(config LoadTestConfig) error {
+	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
+
+	timing := calculateLoadTestTiming(config)
+
+	safetyCtx, safetyCancel := context.WithTimeout(context.Background(), timing.safetyTimeout)
+	defer safetyCancel()
+
+	workerCtx, stopWorker := context.WithCancel(safetyCtx)
+	defer stopWorker()
+
+	ch := make(chan runResult, 1)
 	durations := make(chan executionEvent, config.Events)
 
 	// Compute running average for executed durations using a rolling average.
@@ -118,17 +156,18 @@ func do(config LoadTestConfig) error {
 	registered := make(chan error, 1)
 
 	go func() {
-		count, uniques := run(ctx, config, durations, registered)
+		count, uniques := run(workerCtx, config, durations, registered)
 		close(durations)
-		ch <- count
-		ch <- uniques
+		ch <- runResult{executed: count, uniques: uniques}
 	}()
 
-	if err := waitForRegistration(registered, registrationTimeout); err != nil {
-		return fmt.Errorf("❌ workflow registration failed within %s — engine must accept PutWorkflow on the current (pre-migration) schema: %w", registrationTimeout, err)
+	if err := waitForRegistration(registered, timing.registrationTimeout); err != nil {
+		return fmt.Errorf("❌ workflow registration failed within %s — engine must accept PutWorkflow on the current (pre-migration) schema: %w", timing.registrationTimeout, err)
 	}
 
-	time.Sleep(after)
+	if err := waitOrDone(safetyCtx, timing.startupDelay); err != nil {
+		return fmt.Errorf("LOADTEST_SAFETY_TIMEOUT: safety deadline reached during startup delay: activeWindow=%s safetyTimeout=%s: %w", timing.activeWindow, timing.safetyTimeout, err)
+	}
 
 	scheduled := make(chan time.Duration, config.Events)
 
@@ -153,11 +192,28 @@ func do(config LoadTestConfig) error {
 		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
-	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
+	emitted := emit(safetyCtx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
 	close(scheduled)
 
-	executed := <-ch
-	uniques := <-ch
+	if err := safetyCtx.Err(); err != nil {
+		return fmt.Errorf("LOADTEST_SAFETY_TIMEOUT: safety deadline reached while emitting events: pushed=%d activeWindow=%s safetyTimeout=%s: %w", emitted, timing.activeWindow, timing.safetyTimeout, err)
+	}
+
+	if err := waitOrDone(safetyCtx, config.Wait); err != nil {
+		return fmt.Errorf("LOADTEST_SAFETY_TIMEOUT: safety deadline reached while waiting for executions: pushed=%d wait=%s activeWindow=%s safetyTimeout=%s: %w", emitted, config.Wait, timing.activeWindow, timing.safetyTimeout, err)
+	}
+
+	stopWorker()
+
+	var result runResult
+	select {
+	case result = <-ch:
+	case <-safetyCtx.Done():
+		return fmt.Errorf("LOADTEST_SAFETY_TIMEOUT: worker did not stop before safety deadline: pushed=%d activeWindow=%s safetyTimeout=%s: %w", emitted, timing.activeWindow, timing.safetyTimeout, safetyCtx.Err())
+	}
+
+	executed := result.executed
+	uniques := result.uniques
 
 	finalDurationResult := <-durationsResult
 	finalScheduledResult := <-scheduledResult
@@ -230,7 +286,21 @@ func do(config LoadTestConfig) error {
 	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
 
 	if finalDurationResult.avg > thresholdWithTolerance {
-		return fmt.Errorf("❌ average duration per executed event is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", finalDurationResult.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+		return fmt.Errorf(
+			"LOADTEST_THRESHOLD_EXCEEDED: average duration per executed event exceeded threshold: observed=%s thresholdWithTolerance=%s threshold=%s tolerance=%s dagSteps=%d eventFanout=%d pushed=%d executed=%d uniques=%d eventsPerSecond=%d activeWindow=%s safetyTimeout=%s",
+			finalDurationResult.avg,
+			thresholdWithTolerance,
+			config.AverageDurationThreshold,
+			tolerance,
+			config.DagSteps,
+			config.EventFanout,
+			emitted,
+			executed,
+			uniques,
+			config.Events,
+			timing.activeWindow,
+			timing.safetyTimeout,
+		)
 	}
 
 	log.Printf("✅ success")

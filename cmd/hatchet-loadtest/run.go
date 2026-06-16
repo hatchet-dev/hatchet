@@ -186,7 +186,17 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 
 	if config.WorkerDelay > 0 {
 		l.Info().Msgf("waiting %s before starting the worker", config.WorkerDelay)
-		time.Sleep(config.WorkerDelay)
+		timer := time.NewTimer(config.WorkerDelay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return 0, 0
+		}
+	}
+
+	if ctx.Err() != nil {
+		return 0, 0
 	}
 
 	l.Info().Msg("starting worker now")
