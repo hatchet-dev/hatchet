@@ -85,7 +85,7 @@ export function SidebarButtonPrimary(
     collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
 
   const primaryLink = (
-    <Link to={to} params={params} onClick={onNavLinkClick}>
+    <Link to={to} params={params} preload={false} onClick={onNavLinkClick}>
       <Button
         variant="ghost"
         className={cn(
@@ -131,7 +131,7 @@ export function SidebarButtonSecondary({
   const selected = Boolean(matchRoute({ to, params })) || hasPrefix;
 
   return (
-    <Link to={to} params={params} onClick={onNavLinkClick}>
+    <Link to={to} params={params} preload={false} onClick={onNavLinkClick}>
       <Button
         variant="ghost"
         size="sm"

@@ -394,6 +394,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   <Link
                                     to={child.to}
                                     params={commonParams}
+                                    preload={false}
                                     onClick={onNavLinkClick}
                                   >
                                     {child.name}
