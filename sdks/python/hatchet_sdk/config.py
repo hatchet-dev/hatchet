@@ -1,5 +1,4 @@
 import json
-import warnings
 from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
@@ -183,17 +182,6 @@ class ClientConfig(BaseSettings):
     grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
-
-    @model_validator(mode="after")
-    def warn_deprecated_fields(self) -> "ClientConfig":
-        if "grpc_enable_fork_support" in self.model_fields_set:
-            warnings.warn(
-                "grpc_enable_fork_support has no effect when set programmatically. "
-                "Set the HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT env var before importing hatchet_sdk instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return self
 
     @model_validator(mode="after")
     def validate_token_and_tenant(self) -> "ClientConfig":
