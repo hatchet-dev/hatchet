@@ -75,6 +75,8 @@ import { CreateTokenModal } from '@/pages/organizations/$organization/components
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
 import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
+import { EditMemberTagsModal } from '@/pages/organizations/$organization/components/edit-member-tags-modal';
+import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
@@ -148,6 +150,10 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const canManageSso = isOrganizationOwner && schemes.includes('sso');
   const [memberToDelete, setMemberToDelete] =
     useState<OrganizationMember | null>(null);
+  const [memberToEditTags, setMemberToEditTags] =
+    useState<OrganizationMember | null>(null);
+  const [tenantToEditTags, setTenantToEditTags] =
+    useState<OrganizationTenantWithRegion | null>(null);
   const [showCreateTokenModal, setShowCreateTokenModal] = useState(false);
   const [tokenToDelete, setTokenToDelete] = useState<ManagementToken | null>(
     null,
@@ -362,6 +368,29 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
         <Badge variant="outline">{row.role}</Badge>
       ),
     },
+    ...(isOrganizationOwner && isControlPlaneEnabled
+      ? [
+          {
+            columnLabel: 'Tags',
+            cellRenderer: (row: OrganizationMember) => {
+              const tags = (row as unknown as { tags?: string[] }).tags;
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {tags && tags.length > 0 ? (
+                    tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </div>
+              );
+            },
+          },
+        ]
+      : []),
     ...(isOrganizationOwner
       ? [
           {
@@ -371,6 +400,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                 row={row}
                 currentUserEmail={currentUser?.email}
                 onDelete={setMemberToDelete}
+                onEditTags={isControlPlaneEnabled ? setMemberToEditTags : undefined}
               />
             ),
           },
@@ -813,6 +843,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
               expandedTenantIds={expandedTenantIds}
               setExpandedTenantIds={setExpandedTenantIds}
               onArchive={setTenantToArchive}
+              onEditTags={isControlPlaneEnabled && isOrganizationOwner ? setTenantToEditTags : undefined}
               defaultOrganizationId={orgId}
               canManageOrganization={isOrganizationOwner}
             />
@@ -1172,6 +1203,32 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
             }}
           />
         )}
+
+      {isOrganizationOwner && isControlPlaneEnabled && tenantToEditTags && (
+        <EditTenantTagsModal
+          open={!!tenantToEditTags}
+          onOpenChange={(open) => !open && setTenantToEditTags(null)}
+          organizationId={orgId}
+          tenantId={tenantToEditTags.id}
+          tenantName={tenantToEditTags.name || tenantToEditTags.id}
+          onSuccess={() =>
+            queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] })
+          }
+        />
+      )}
+
+      {isOrganizationOwner && isControlPlaneEnabled && memberToEditTags && (
+        <EditMemberTagsModal
+          open={!!memberToEditTags}
+          onOpenChange={(open) => !open && setMemberToEditTags(null)}
+          organizationId={orgId}
+          memberId={memberToEditTags.metadata.id}
+          memberEmail={memberToEditTags.email}
+          onSuccess={() =>
+            queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] })
+          }
+        />
+      )}
     </div>
   );
 }
@@ -1284,6 +1341,7 @@ function TenantsSection({
   expandedTenantIds,
   setExpandedTenantIds,
   onArchive,
+  onEditTags,
   defaultOrganizationId,
   canManageOrganization,
 }: {
@@ -1291,47 +1349,106 @@ function TenantsSection({
   expandedTenantIds: string[];
   setExpandedTenantIds: (tenantIds: string[]) => void;
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
+  onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
   defaultOrganizationId?: string;
   canManageOrganization: boolean;
 }) {
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const tenant of tenants) {
+      const tags = (tenant as unknown as { tags?: string[] }).tags;
+      tags?.forEach((t) => tagSet.add(t));
+    }
+    return Array.from(tagSet).sort();
+  }, [tenants]);
+
+  const filteredTenants = useMemo(() => {
+    if (selectedTags.length === 0) return tenants;
+    return tenants.filter((tenant) => {
+      const tags = (tenant as unknown as { tags?: string[] }).tags ?? [];
+      return selectedTags.every((t) => tags.includes(t));
+    });
+  }, [tenants, selectedTags]);
+
+  const toggleTag = (tag: string) =>
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+
   return (
     <>
-      {canManageOrganization && (
-        <div className="mb-4 flex justify-end">
-          <Button
-            onClick={() =>
-              globalEmitter.emit('create-new-tenant', {
-                defaultOrganizationId,
-              })
-            }
-          >
-            Add Tenant
-          </Button>
-        </div>
-      )}
-      {tenants.length ? (
+      <div className="mb-4 flex items-center justify-between gap-3">
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Filter by tag:</span>
+            {allTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => toggleTag(tag)}
+                className="focus:outline-none"
+              >
+                <Badge
+                  variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+                  className="cursor-pointer text-xs"
+                >
+                  {tag}
+                </Badge>
+              </button>
+            ))}
+            {selectedTags.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedTags([])}
+                className="text-xs text-muted-foreground hover:text-foreground focus:outline-none"
+              >
+                <XMarkIcon className="inline size-3" /> Clear
+              </button>
+            )}
+          </div>
+        )}
+        {canManageOrganization && (
+          <div className="ml-auto shrink-0">
+            <Button
+              onClick={() =>
+                globalEmitter.emit('create-new-tenant', {
+                  defaultOrganizationId,
+                })
+              }
+            >
+              Add Tenant
+            </Button>
+          </div>
+        )}
+      </div>
+      {filteredTenants.length ? (
         <Accordion
           type="multiple"
           value={expandedTenantIds}
           onValueChange={setExpandedTenantIds}
           className="space-y-3 rounded-md border bg-background p-3"
         >
-          {tenants.map((tenant, ix) => (
+          {filteredTenants.map((tenant, ix) => (
             <div key={tenant.id}>
               <TenantAccordionItem
                 key={tenant.id}
                 tenant={tenant}
                 isExpanded={expandedTenantIds.includes(tenant.id)}
                 onArchive={onArchive}
+                onEditTags={onEditTags}
                 canManageOrganization={canManageOrganization}
               />
-              {ix < tenants.length - 1 && <Separator className="my-4" />}
+              {ix < filteredTenants.length - 1 && (
+                <Separator className="my-4" />
+              )}
             </div>
           ))}
         </Accordion>
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          No tenants found.
+          {selectedTags.length > 0 ? 'No tenants match the selected tags.' : 'No tenants found.'}
         </div>
       )}
     </>
@@ -1342,11 +1459,13 @@ function TenantAccordionItem({
   tenant,
   isExpanded,
   onArchive,
+  onEditTags,
   canManageOrganization,
 }: {
   tenant: OrganizationTenantWithRegion;
   isExpanded: boolean;
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
+  onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
@@ -1380,6 +1499,13 @@ function TenantAccordionItem({
               {tenant.name || tenant.id}
             </p>
             <TenantRegionBadge region={tenant.region} />
+            {((tenant as unknown as { tags?: string[] }).tags ?? []).map(
+              (tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ),
+            )}
           </div>
         </AccordionTrigger>
 
@@ -1393,6 +1519,7 @@ function TenantAccordionItem({
           <TenantActions
             row={{ ...tenant, metadata: { id: tenant.id } }}
             onArchive={onArchive}
+            onEditTags={onEditTags}
             canManageOrganization={canManageOrganization}
           />
         </div>
@@ -1430,6 +1557,7 @@ function TenantAccordionItem({
               tenantId={tenant.id}
               members={tenantMembers}
               canManage={canManageTenantMembers}
+              canManageOrganization={canManageOrganization}
               onMembersChanged={() => membersQuery.refetch()}
             />
           ) : (
@@ -1454,11 +1582,13 @@ function TenantMemberList({
   tenantId,
   members,
   canManage,
+  canManageOrganization,
   onMembersChanged,
 }: {
   tenantId: string;
   members: TenantMember[];
   canManage: boolean;
+  canManageOrganization: boolean;
   onMembersChanged: () => void;
 }) {
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
@@ -1520,6 +1650,7 @@ function TenantMemberList({
         <TenantMemberUpdateDialog
           tenantId={tenantId}
           member={memberToEdit}
+          canManageOrganization={canManageOrganization}
           onClose={() => setMemberToEdit(null)}
           onSuccess={() => {
             setMemberToEdit(null);
@@ -1534,11 +1665,13 @@ function TenantMemberList({
 function TenantMemberUpdateDialog({
   tenantId,
   member,
+  canManageOrganization,
   onClose,
   onSuccess,
 }: {
   tenantId: string;
   member: TenantMember;
+  canManageOrganization: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -1557,7 +1690,7 @@ function TenantMemberUpdateDialog({
   });
 
   const handleSubmit = (data: { role: TenantMemberRole }) => {
-    if (member.role === TenantMemberRole.OWNER) {
+    if (member.role === TenantMemberRole.OWNER && !canManageOrganization) {
       toast({
         title: 'Error',
         description:
@@ -1577,6 +1710,7 @@ function TenantMemberUpdateDialog({
         onSubmit={handleSubmit}
         member={member}
         isCloudEnabled={true}
+        canSetOwnerRole={canManageOrganization}
       />
     </Dialog>
   );
@@ -1623,10 +1757,12 @@ function TenantInviteList({ invites }: { invites: TenantInvite[] }) {
 function TenantActions({
   row,
   onArchive,
+  onEditTags,
   canManageOrganization,
 }: {
   row: OrganizationTenantWithRegion & { metadata: { id: string } };
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
+  onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
 }) {
   const navigate = useNavigate();
@@ -1650,6 +1786,12 @@ function TenantActions({
           <ArrowRightIcon className="mr-2 size-4" />
           View Tenant
         </DropdownMenuItem>
+        {canManageOrganization && onEditTags && (
+          <DropdownMenuItem onClick={() => onEditTags(row)}>
+            <PencilSquareIcon className="mr-2 size-4" />
+            Edit Tags
+          </DropdownMenuItem>
+        )}
         {canManageOrganization && (
           <DropdownMenuItem
             onClick={() => onArchive({ id: row.id, status: row.status })}
@@ -1667,10 +1809,12 @@ function MemberActions({
   row,
   currentUserEmail,
   onDelete,
+  onEditTags,
 }: {
   row: OrganizationMember;
   currentUserEmail?: string;
   onDelete: (member: OrganizationMember) => void;
+  onEditTags?: (member: OrganizationMember) => void;
 }) {
   const isSelf = currentUserEmail === row.email;
 
@@ -1682,6 +1826,12 @@ function MemberActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {onEditTags && (
+          <DropdownMenuItem onClick={() => onEditTags(row)}>
+            <PencilSquareIcon className="mr-2 size-4" />
+            Edit Tags
+          </DropdownMenuItem>
+        )}
         {isSelf ? (
           <TooltipProvider>
             <Tooltip>

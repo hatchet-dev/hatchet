@@ -30,6 +30,7 @@ export enum SubscriptionPlanCode {
   Free = "free",
   Starter = "starter",
   Growth = "growth",
+  Migration = "migration",
   Developer = "developer",
   Team = "team",
   Scale = "scale",
@@ -72,6 +73,7 @@ export enum TenantStatusType {
 
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
+  MEMBER = "MEMBER",
 }
 
 export interface APIControlPlaneMetadata {
@@ -204,6 +206,8 @@ export interface OrganizationMember {
    * @format email
    */
   email: string;
+  /** Tags assigned to this org member that control which tenants they can access */
+  tags?: string[];
 }
 
 export interface OrganizationMemberList {
@@ -238,6 +242,8 @@ export interface OrganizationTenant {
   archivedAt?: string;
   /** Control-plane deployment location for this tenant. */
   region?: ShardRegionKey;
+  /** Tags applied to this tenant that control which org members can access it */
+  tags?: string[];
 }
 
 export interface OrganizationTenantList {
@@ -254,6 +260,8 @@ export interface CreateNewTenantForOrganizationRequest {
    * @example "aws:us-west-2"
    */
   region?: ShardRegionKey;
+  /** Optional tags to apply to the tenant. Management tokens can only create tenants with tags that are a subset of the token's own tags. */
+  tags?: string[];
 }
 
 export interface CreateManagementTokenRequest {
@@ -261,6 +269,8 @@ export interface CreateManagementTokenRequest {
   name: string;
   /** @default "30D" */
   duration?: ManagementTokenDuration;
+  /** Optional tags to scope this token. When set, the token can only access or create tenants whose tags are a subset of these tags. An empty or omitted list grants full access to the org. */
+  tags?: string[];
 }
 
 export interface CreateManagementTokenResponse {
@@ -281,6 +291,18 @@ export interface ManagementToken {
    * @format date-time
    */
   expiresAt?: string;
+  /** Tags that scope this token to a subset of tenants. Empty means full org access. */
+  tags?: string[];
+}
+
+export interface SetTagsRequest {
+  /** Full replacement list of tags. Passing an empty array removes all tags. */
+  tags: string[];
+}
+
+export interface TagList {
+  /** Current tags */
+  tags: string[];
 }
 
 export interface CreateOrganizationSsoDomainRequest {

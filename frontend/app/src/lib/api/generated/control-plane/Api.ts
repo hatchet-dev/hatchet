@@ -42,9 +42,11 @@ import {
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
+  SetTagsRequest,
   SsoConfig,
   SsoDomainArray,
   SubscriptionPlanList,
+  TagList,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
@@ -873,6 +875,96 @@ export class Api<
       path: `/api/v1/control-plane/organizations/${organization}/entitlements`,
       method: "GET",
       secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List the tags applied to a tenant
+   *
+   * @tags Management
+   * @name OrganizationTenantListTags
+   * @summary List Tenant Tags
+   * @request GET:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/tags
+   * @secure
+   */
+  organizationTenantListTags = (
+    organization: string,
+    tenant: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/tags`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Replace all tags on a tenant. Triggers a membership sync workflow to add or remove tenant members based on the new tags.
+   *
+   * @tags Management
+   * @name OrganizationTenantSetTags
+   * @summary Set Tenant Tags
+   * @request PUT:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/tags
+   * @secure
+   */
+  organizationTenantSetTags = (
+    organization: string,
+    tenant: string,
+    data: SetTagsRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/tags`,
+      method: "PUT",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List the tags applied to an org member
+   *
+   * @tags Management
+   * @name OrganizationMemberListTags
+   * @summary List Org Member Tags
+   * @request GET:/api/v1/control-plane/organizations/{organization}/members/{organization-member}/tags
+   * @secure
+   */
+  organizationMemberListTags = (
+    organization: string,
+    organizationMember: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/members/${organizationMember}/tags`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Replace all tags on an org member. Triggers a membership sync workflow to add or remove the member from tenants based on the new tags.
+   *
+   * @tags Management
+   * @name OrganizationMemberSetTags
+   * @summary Set Org Member Tags
+   * @request PUT:/api/v1/control-plane/organizations/{organization}/members/{organization-member}/tags
+   * @secure
+   */
+  organizationMemberSetTags = (
+    organization: string,
+    organizationMember: string,
+    data: SetTagsRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/members/${organizationMember}/tags`,
+      method: "PUT",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       format: "json",
       ...params,
     });

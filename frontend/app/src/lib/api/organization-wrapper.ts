@@ -271,6 +271,30 @@ export function useOrganizationApi() {
               : cloudApi.organizationInviteDelete(organizationInvite))
           ).data,
       }),
+
+      tenantTagsGetQuery: (organization: string, tenant: string) => ({
+        queryKey: ['organization-tenant:list:tags', organization, tenant] as const,
+        queryFn: async () =>
+          (await controlPlaneApi.organizationTenantListTags(organization, tenant)).data,
+      }),
+
+      tenantTagsSetMutation: (organization: string, tenant: string) => ({
+        mutationKey: ['organization-tenant:set:tags', organization, tenant] as const,
+        mutationFn: async (tags: string[]) =>
+          (await controlPlaneApi.organizationTenantSetTags(organization, tenant, { tags })).data,
+      }),
+
+      memberTagsGetQuery: (organization: string, member: string) => ({
+        queryKey: ['organization-member:list:tags', organization, member] as const,
+        queryFn: async () =>
+          (await controlPlaneApi.organizationMemberListTags(organization, member)).data,
+      }),
+
+      memberTagsSetMutation: (organization: string, member: string) => ({
+        mutationKey: ['organization-member:set:tags', organization, member] as const,
+        mutationFn: async (tags: string[]) =>
+          (await controlPlaneApi.organizationMemberSetTags(organization, member, { tags })).data,
+      }),
     }),
     [isControlPlaneEnabled],
   );

@@ -28,10 +28,12 @@ type NewTenantInputFormProps = {
         tenantName: string;
         organizationId: string;
         region?: string;
+        tags?: string[];
       }) => void;
       showRegionSelect?: boolean;
       availableShards?: OrganizationAvailableShard[];
       isShardsLoading?: boolean;
+      showTagsInput?: boolean;
     }
   | {
       isCloudEnabled: false;
@@ -42,6 +44,7 @@ type NewTenantInputFormProps = {
       showRegionSelect?: false;
       availableShards?: undefined;
       isShardsLoading?: false;
+      showTagsInput?: false;
     }
 );
 
@@ -97,11 +100,13 @@ export function NewTenantInputForm({
   showRegionSelect = false,
   availableShards = [],
   isShardsLoading = false,
+  showTagsInput = false,
 }: NewTenantInputFormProps) {
   const [tenantName, setTenantName] = useState(defaultTenantName);
   const [selectedDeploymentRegion, setSelectedDeploymentRegion] = useState<
     string | undefined
   >();
+  const [rawTags, setRawTags] = useState('');
 
   const shardKeys = useMemo(
     () => availableShards.map(shardDeploymentKey),
@@ -113,6 +118,11 @@ export function NewTenantInputForm({
       ? selectedDeploymentRegion
       : shardKeys[0];
 
+  const parsedTags = rawTags
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (isCloudEnabled) {
@@ -120,9 +130,8 @@ export function NewTenantInputForm({
       onSubmit({
         tenantName,
         organizationId,
-        ...(showRegionSelect && deploymentRegion
-          ? { region: deploymentRegion }
-          : {}),
+        ...(showRegionSelect && deploymentRegion ? { region: deploymentRegion } : {}),
+        ...(showTagsInput && parsedTags.length > 0 ? { tags: parsedTags } : {}),
       });
     } else {
       onSubmit({ tenantName });
@@ -180,6 +189,24 @@ export function NewTenantInputForm({
           required
         />
       </div>
+
+      {showTagsInput && (
+        <div className="grid gap-2">
+          <Label htmlFor="tenant-tags">Tags (optional)</Label>
+          <p className="text-sm text-muted-foreground">
+            Comma-separated tags. Members whose tags include all of these will
+            automatically get access to this tenant.
+          </p>
+          <Input
+            id="tenant-tags"
+            placeholder="e.g. prod, us-east"
+            type="text"
+            value={rawTags}
+            onChange={(e) => setRawTags(e.target.value)}
+            disabled={isSaving}
+          />
+        </div>
+      )}
 
       <Button
         type="submit"

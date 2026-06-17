@@ -48,6 +48,7 @@ export enum TenantStatusType {
 
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
+  MEMBER = "MEMBER",
 }
 
 export enum TemplateOptions {

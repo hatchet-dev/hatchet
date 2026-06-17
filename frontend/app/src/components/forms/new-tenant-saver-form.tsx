@@ -43,10 +43,12 @@ const useSaveTenant = ({
       tenantName,
       organizationId,
       region,
+      tags,
     }: {
       tenantName: string;
       organizationId?: string;
       region?: string;
+      tags?: string[];
     }) => {
       const slug = generateTenantSlug(tenantName);
       if (isCloudEnabled) {
@@ -60,6 +62,7 @@ const useSaveTenant = ({
             name: tenantName,
             slug,
             ...(isControlPlaneEnabled && region ? { region } : {}),
+            ...(isControlPlaneEnabled && tags && tags.length > 0 ? { tags } : {}),
           });
         return { type: 'cloud' as const, tenant, organizationId };
       } else {
@@ -143,6 +146,7 @@ export function NewTenantSaverForm({
       organizationId={selectedOrgId}
       onOrganizationIdChange={setSelectedOrgId}
       showRegionSelect={isControlPlaneEnabled}
+      showTagsInput={isControlPlaneEnabled}
       availableShards={shardsQuery.data?.rows}
       isShardsLoading={shardsQuery.isLoading}
       onSubmit={saveTenantMutation.mutate}
