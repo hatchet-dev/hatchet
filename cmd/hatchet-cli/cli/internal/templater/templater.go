@@ -2,7 +2,6 @@ package templater
 
 import (
 	"bytes"
-	"embed"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,11 +15,11 @@ type Data struct {
 	PackageManager string
 }
 
-// Process reads all files from the specified directory within the embedded filesystem,
+// Process reads all files from the specified directory within the provided filesystem,
 // executes them as text/templates with the provided data, and writes the results
 // to the destination directory, preserving the directory structure.
 // Files named POST_QUICKSTART.md are skipped and not copied to the destination.
-func Process(fsys embed.FS, srcDir, dstDir string, data Data) error {
+func Process(fsys fs.FS, srcDir, dstDir string, data Data) error {
 	// Get a sub-filesystem rooted at srcDir
 	subFS, err := fs.Sub(fsys, srcDir)
 	if err != nil {
@@ -77,7 +76,7 @@ func Process(fsys embed.FS, srcDir, dstDir string, data Data) error {
 //   - package manager directory: templates/LANG/PACKAGE_MANAGER/
 //
 // For languages with a single package manager (go), it falls back to the language root directory.
-func ProcessMultiSource(fsys embed.FS, language, packageManager, dstDir string, data Data) error {
+func ProcessMultiSource(fsys fs.FS, language, packageManager, dstDir string, data Data) error {
 	// For Go, use the old behavior (no shared directory)
 	if language == "go" {
 		return Process(fsys, "templates/go", dstDir, data)
@@ -102,7 +101,7 @@ func ProcessMultiSource(fsys embed.FS, language, packageManager, dstDir string, 
 
 // ProcessPostQuickstart reads and processes the POST_QUICKSTART.md file from the template directory.
 // Returns the processed content as a string, or empty string if the file doesn't exist.
-func ProcessPostQuickstart(fsys embed.FS, srcDir string, data Data) (string, error) {
+func ProcessPostQuickstart(fsys fs.FS, srcDir string, data Data) (string, error) {
 	// Get a sub-filesystem rooted at srcDir
 	subFS, err := fs.Sub(fsys, srcDir)
 	if err != nil {
@@ -137,7 +136,7 @@ func ProcessPostQuickstart(fsys embed.FS, srcDir string, data Data) (string, err
 // For languages with multiple package managers, it looks in templates/LANG/PACKAGE_MANAGER/.
 // For Go, it looks in the templates/go/ directory.
 // Returns the processed content as a string, or empty string if the file doesn't exist.
-func ProcessPostQuickstartMultiSource(fsys embed.FS, language, packageManager string, data Data) (string, error) {
+func ProcessPostQuickstartMultiSource(fsys fs.FS, language, packageManager string, data Data) (string, error) {
 	var srcDir string
 	if language == "go" {
 		srcDir = "templates/go"

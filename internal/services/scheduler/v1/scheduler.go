@@ -20,6 +20,7 @@ import (
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	repov1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -38,6 +39,7 @@ type SchedulerOpts struct {
 	p           *partition.Partition
 	queueLogger *zerolog.Logger
 	pool        *v1.SchedulingPool
+	promGate    *prometheus.Gate
 }
 
 func defaultSchedulerOpts() *SchedulerOpts {
@@ -103,6 +105,12 @@ func WithSchedulerPool(s *v1.SchedulingPool) SchedulerOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) SchedulerOpt {
+	return func(opts *SchedulerOpts) {
+		opts.promGate = gate
+	}
+}
+
 type Scheduler struct {
 	mq        msgqueue.MessageQueue
 	pubBuffer *msgqueue.MQPubBuffer
@@ -162,7 +170,7 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer, opts.promGate)
 
 	q := &Scheduler{
 		mq:                     opts.mq,

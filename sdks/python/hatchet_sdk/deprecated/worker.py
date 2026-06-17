@@ -45,7 +45,7 @@ async def legacy_aio_start(worker: Worker) -> None:
     main_pid = os.getpid()
 
     logger.info("------------------------------------------")
-    logger.info("STARTING HATCHET (legacy mode)...")
+    logger.info("starting hatchet (legacy mode)...")
     logger.debug(f"worker runtime starting on PID: {main_pid}")
 
     worker._status = WorkerStatus.STARTING

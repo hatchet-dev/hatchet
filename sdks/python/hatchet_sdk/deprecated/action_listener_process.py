@@ -18,7 +18,6 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
     ActionEventResponse,
-    StepActionEvent,
 )
 from hatchet_sdk.deprecated.dispatcher import legacy_get_action_listener
 from hatchet_sdk.features.workers import WorkersClient
@@ -94,9 +93,7 @@ class LegacyWorkerActionListenerProcess:
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
-        self.step_action_events: set[
-            asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
-        ] = set()
+        self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
 
         if self.config.debug:
             logger.setLevel(logging.DEBUG)

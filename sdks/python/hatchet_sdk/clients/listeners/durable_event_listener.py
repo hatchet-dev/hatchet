@@ -256,12 +256,13 @@ class DurableEventListener:
             await self._conn.close()
 
     async def _request_iterator(self) -> AsyncIterator[DurableTaskRequest]:
-        if not self._request_queue:
+        queue = self._request_queue
+        if queue is None:
             raise RuntimeError("Request queue not initialized")
 
         while self._running:
             with suppress(asyncio.TimeoutError):
-                yield await asyncio.wait_for(self._request_queue.get(), timeout=1.0)
+                yield await asyncio.wait_for(queue.get(), timeout=1.0)
 
     async def _send_loop(self) -> None:
         while self._running:

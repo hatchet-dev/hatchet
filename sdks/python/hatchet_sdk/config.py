@@ -179,7 +179,6 @@ class ClientConfig(BaseSettings):
     terminate_worker_after_num_tasks: int | None = None
     disable_log_capture: bool = False
     log_queue_size: int = 1000
-    grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
 

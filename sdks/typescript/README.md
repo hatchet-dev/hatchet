@@ -32,7 +32,7 @@ pnpm add @hatchet-dev/typescript-sdk
 
 ## Quick Start
 
-For examples of how to use the Hatchet TypeScript SDK, including worker setup and task execution, please see our [official documentation](https://docs.hatchet.run/home/setup).
+For examples of how to use the Hatchet TypeScript SDK, including worker setup and task execution, please see our [official documentation](https://docs.hatchet.run/v1).
 
 ## Features
 

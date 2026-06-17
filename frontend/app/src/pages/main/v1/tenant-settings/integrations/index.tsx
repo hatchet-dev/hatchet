@@ -20,6 +20,7 @@ import {
   CopyIngestURL,
   SNSActions,
 } from '../ingestors/components/sns-integrations-columns';
+import { PrometheusMetricsSettings } from './components/prometheus-metrics-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
@@ -77,6 +78,9 @@ export default function Integrations() {
             <TabsTrigger value="ingestors" variant="underlined">
               Ingestors
             </TabsTrigger>
+            <TabsTrigger value="metrics" variant="underlined">
+              Metrics
+            </TabsTrigger>
             {hasGithubIntegration && managedWorkerEnabled && (
               <TabsTrigger value="github" variant="underlined">
                 GitHub
@@ -94,6 +98,10 @@ export default function Integrations() {
 
           <TabsContent value="ingestors">
             <SNSIntegrationsList />
+          </TabsContent>
+
+          <TabsContent value="metrics">
+            <PrometheusMetricsSettings />
           </TabsContent>
 
           {hasGithubIntegration && (

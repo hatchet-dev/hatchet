@@ -1,3 +1,16 @@
+# ruff: noqa: E402
+
+import os
+
+# Must be set before grpc is imported anywhere — the C extension reads this at load
+# time and won't re-read it after. Disable by default; opt in via env var for
+# setups that genuinely need fork support (e.g. Gunicorn prefork).
+_fork_env = os.environ.get("HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT", "false").lower()
+_grpc_fork = _fork_env in ("true", "1", "yes")
+os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "true" if _grpc_fork else "false")
+if _grpc_fork:
+    os.environ.setdefault("GRPC_POLL_STRATEGY", "poll")
+
 from hatchet_sdk.clients.admin import (
     RunStatus,
 )

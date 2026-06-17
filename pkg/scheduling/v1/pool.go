@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -18,6 +19,8 @@ type sharedConfig struct {
 	repo v1.SchedulerRepository
 
 	l *zerolog.Logger
+
+	promGate *prometheus.Gate
 
 	singleQueueLimit int
 
@@ -63,6 +66,7 @@ func NewSchedulingPool(
 	schedulerAdvisoryLockTimeout time.Duration,
 	optimisticSchedulingEnabled bool,
 	optimisticSlots int,
+	promGate *prometheus.Gate,
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
@@ -73,6 +77,7 @@ func NewSchedulingPool(
 		cf: &sharedConfig{
 			repo:                                   repo,
 			l:                                      l,
+			promGate:                               promGate,
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
