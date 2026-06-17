@@ -44,8 +44,6 @@ if TYPE_CHECKING:
     import multiprocessing.synchronize
     from multiprocessing import Queue
 
-    from grpc.aio import UnaryUnaryCall
-
     from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 
 ACTION_EVENT_RETRY_COUNT = 5
