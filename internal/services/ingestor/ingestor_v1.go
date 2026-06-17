@@ -102,6 +102,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 		for _, event := range eventOpts {
 			opts = append(opts, v1.EventTriggerOpts{
 				ExternalId:            event.EventExternalId,
+				SeenAt:                event.EventSeenAt,
 				Key:                   event.EventKey,
 				Data:                  event.EventData,
 				AdditionalMetadata:    event.EventAdditionalMetadata,
@@ -154,6 +155,7 @@ func (i *IngestorImpl) ingest(ctx context.Context, tenant *sqlcv1.Tenant, eventO
 		for _, event := range eventOpts {
 			opts[event.EventExternalId] = v1.EventTriggerOpts{
 				ExternalId:            event.EventExternalId,
+				SeenAt:                event.EventSeenAt,
 				Key:                   event.EventKey,
 				Data:                  event.EventData,
 				AdditionalMetadata:    event.EventAdditionalMetadata,
@@ -269,8 +271,12 @@ func (i *IngestorImpl) ingestReplayedEventV1(ctx context.Context, tenant *sqlcv1
 func eventToPayload(tenantId uuid.UUID, key string, data, additionalMeta []byte, priority *int32, scope *string, triggeringWebhookName *string) tasktypes.UserEventTaskPayload {
 	eventId := uuid.New()
 
+	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
+	eventSeenAt := time.Now().UTC()
+
 	return tasktypes.UserEventTaskPayload{
 		EventExternalId:         eventId,
+		EventSeenAt:             eventSeenAt,
 		EventKey:                key,
 		EventData:               data,
 		EventAdditionalMetadata: additionalMeta,
