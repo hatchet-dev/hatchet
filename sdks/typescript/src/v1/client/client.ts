@@ -388,7 +388,7 @@ export class HatchetClient<
   async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
-    options: RunOpts
+    options: RunOpts = {}
   ): Promise<WorkflowRunRef<O>> {
     const name = getWorkflowName(workflow);
     return this.admin.runWorkflow<I, O>(name, input, options);

@@ -18,6 +18,7 @@ import {
   APIErrors,
   APIMetaAuth,
   APITokenList,
+  AuditLogList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
@@ -439,6 +440,61 @@ export class Api<
     this.request<OrganizationAvailableShardList, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List audit logs across the organization's tenants (federated across shards)
+   *
+   * @tags Management
+   * @name OrganizationListAuditLogs
+   * @summary List Audit Logs for Organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/audit-logs
+   * @secure
+   */
+  organizationListAuditLogs = (
+    organization: string,
+    query?: {
+      /**
+       * Optional tenant ID to scope results to a single tenant
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+      /**
+       * The maximum number of rows to return
+       * @format int32
+       * @min 1
+       * @max 1000
+       * @default 1000
+       */
+      limit?: number;
+      /**
+       * The number of rows to skip for pagination
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range (RFC3339)
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range (RFC3339)
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<AuditLogList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/audit-logs`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,

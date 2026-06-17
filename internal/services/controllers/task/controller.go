@@ -65,6 +65,7 @@ type TasksControllerImpl struct {
 	analyzeCronInterval                      time.Duration
 	signaler                                 *signal.OLAPSignaler
 	tw                                       *trigger.TriggerWriter
+	promGate                                 *prometheus.Gate
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -82,6 +83,7 @@ type TasksControllerOpts struct {
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
+	promGate            *prometheus.Gate
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -173,6 +175,12 @@ func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.promGate = gate
+	}
+}
+
 func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts := defaultTasksControllerOpts()
 
@@ -206,8 +214,8 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
@@ -227,6 +235,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		analyzeCronInterval: opts.analyzeCronInterval,
 		signaler:            signaler,
 		tw:                  tw,
+		promGate:            opts.promGate,
 	}
 
 	jitter := t.opsPoolJitter
@@ -492,9 +501,13 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	// instrumentation
+	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
+
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
-		prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
+		}
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -595,17 +608,23 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
 
+	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
+
 	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
-			prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
-		prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		}
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -745,9 +764,13 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	// instrumentation
+	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
+
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
-		prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+		}
 	}
 
 	return err
