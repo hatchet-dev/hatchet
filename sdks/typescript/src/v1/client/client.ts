@@ -119,12 +119,6 @@ export class HatchetClient<
 
   logger: Logger;
 
-  _isV1: boolean | undefined = true;
-
-  get isV1() {
-    return true;
-  }
-
   /**
    * Creates a new Hatchet client instance.
    * @param config - Optional configuration for the client
