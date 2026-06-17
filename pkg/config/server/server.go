@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -676,6 +677,8 @@ type ServerConfig struct {
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
 	Prometheus shared.PrometheusConfigFile
+
+	PrometheusGate *prometheus.Gate
 
 	Observability shared.ObservabilityConfigFile
 
