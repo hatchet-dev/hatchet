@@ -81,8 +81,14 @@ func (o *OLAPControllerImpl) runTaskPrometheusUpdateWorker() {
 					return err
 				}
 
+				tenantMetricsEnabled := o.promGate.Enabled(o.taskPrometheusWorkerCtx, tenantId)
+
 				for _, update := range tenantUpdates {
 					if update.isDAGTask {
+						continue
+					}
+
+					if !tenantMetricsEnabled {
 						continue
 					}
 
@@ -189,7 +195,13 @@ func (o *OLAPControllerImpl) runDAGPrometheusUpdateWorker() {
 					return err
 				}
 
+				tenantMetricsEnabled := o.promGate.Enabled(o.dagPrometheusWorkerCtx, tenantId)
+
 				for _, update := range tenantUpdates {
+					if !tenantMetricsEnabled {
+						continue
+					}
+
 					workflowName := workflowNames[update.workflowId]
 					if workflowName == "" {
 						continue

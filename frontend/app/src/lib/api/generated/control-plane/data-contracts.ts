@@ -10,6 +10,11 @@
  * ---------------------------------------------------------------
  */
 
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
+}
+
 export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
@@ -30,6 +35,7 @@ export enum SubscriptionPlanCode {
   Free = "free",
   Starter = "starter",
   Growth = "growth",
+  Migration = "migration",
   Developer = "developer",
   Team = "team",
   Scale = "scale",
@@ -716,6 +722,10 @@ export interface Coupon {
 export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
+  /** @example false */
+  prometheusMetrics: boolean;
+  /** @example false */
+  auditLogs: boolean;
 }
 
 /**
@@ -724,3 +734,44 @@ export interface OrganizationEntitlements {
  * @example "aws:us-west-2"
  */
 export type ShardRegionKey = string;
+
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
+}
