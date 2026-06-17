@@ -687,9 +687,16 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 	for eventExternalId, runs := range eventIdsToRuns {
 		opts := eventIdToOpts[eventExternalId]
 
+		// need this for backwards compat when we deploy this version
+		// can remove later
+		seenAt := opts.SeenAt
+		if seenAt.IsZero() {
+			seenAt = time.Now().UTC()
+		}
+
 		if len(runs) == 0 {
 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-				EventSeenAt:             opts.SeenAt,
+				EventSeenAt:             seenAt,
 				EventKey:                opts.Key,
 				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
@@ -704,7 +711,7 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 					MaybeRunId:              &run.Id,
 					MaybeRunInsertedAt:      &run.InsertedAt,
 					MaybeRunExternalId:      &runExtID,
-					EventSeenAt:             opts.SeenAt,
+					EventSeenAt:             seenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,
 					EventPayload:            opts.Data,
