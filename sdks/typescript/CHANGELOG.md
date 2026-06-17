@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.24.3] - 2026-06-17
 
 ### Removed
+
 - Removed the unused `_isV1` field and `isV1` getter from `HatchetClient`. The getter always returned a hardcoded value and was not referenced anywhere in the codebase.
 
 ## [1.24.2] - 2026-06-15
