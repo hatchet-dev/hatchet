@@ -23,7 +23,7 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 		}
 
 		if !enabled {
-			return gen.TenantGetPrometheusMetrics400JSONResponse(
+			return gen.TenantGetPrometheusMetrics403JSONResponse(
 				apierrors.NewAPIErrors("Prometheus metrics are not enabled for this tenant."),
 			), nil
 		}
