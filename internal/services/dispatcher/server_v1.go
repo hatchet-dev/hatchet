@@ -319,12 +319,29 @@ type durableTaskInvocation struct {
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
 	workerId uuid.UUID
+
+	registerMu      sync.Mutex
+	registeredTasks map[uuid.UUID]struct{}
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
 	s.sendMu.Lock()
 	defer s.sendMu.Unlock()
 	return s.server.Send(resp)
+}
+
+// register binds this invocation as the callback destination for taskExtId. It
+// must only be called after the authenticated tenant has been verified to own
+// the task (via a tenant-scoped GetTaskByExternalId lookup); registering before
+// that check would let one tenant receive another tenant's durable callbacks.
+func (s *durableTaskInvocation) register(d *DispatcherServiceImpl, taskExtId uuid.UUID) {
+	s.registerMu.Lock()
+	defer s.registerMu.Unlock()
+
+	if _, exists := s.registeredTasks[taskExtId]; !exists {
+		d.durableInvocations.Store(taskExtId, s)
+		s.registeredTasks[taskExtId] = struct{}{}
+	}
 }
 
 func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_DurableTaskServer) error {
@@ -338,31 +355,20 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 	defer deregister()
 
 	invocation := &durableTaskInvocation{
-		server:   server,
-		tenantId: tenantId,
-		l:        d.l,
+		server:          server,
+		tenantId:        tenantId,
+		l:               d.l,
+		registeredTasks: make(map[uuid.UUID]struct{}),
 	}
-
-	registeredTasks := make(map[uuid.UUID]struct{})
 
 	defer func() {
-		for taskId := range registeredTasks {
+		invocation.registerMu.Lock()
+		for taskId := range invocation.registeredTasks {
 			d.durableInvocations.Delete(taskId)
 		}
+		invocation.registerMu.Unlock()
 		d.workerInvocations.Delete(invocation.workerId)
 	}()
-
-	registerTask := func(externalIdStr string) {
-		taskExtId, err := uuid.Parse(externalIdStr)
-		if err != nil {
-			return
-		}
-
-		if _, exists := registeredTasks[taskExtId]; !exists {
-			d.durableInvocations.Store(taskExtId, invocation)
-			registeredTasks[taskExtId] = struct{}{}
-		}
-	}
 
 	type recvResult struct {
 		req *contracts.DurableTaskRequest
@@ -406,15 +412,6 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 				d.l.Error().Err(r.err).Msg("error receiving durable task request")
 				return r.err
-			}
-
-			switch msg := r.req.GetMessage().(type) {
-			case *contracts.DurableTaskRequest_Memo:
-				registerTask(msg.Memo.DurableTaskExternalId)
-			case *contracts.DurableTaskRequest_TriggerRuns:
-				registerTask(msg.TriggerRuns.DurableTaskExternalId)
-			case *contracts.DurableTaskRequest_WaitFor:
-				registerTask(msg.WaitFor.DurableTaskExternalId)
 			}
 
 			if err := d.handleDurableTaskRequest(ctx, invocation, r.req); err != nil {
@@ -588,6 +585,8 @@ func (d *DispatcherServiceImpl) handleMemo(
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
 
+	invocation.register(d, taskExternalId)
+
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        invocation.tenantId,
@@ -657,6 +656,8 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 	if err != nil {
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
+
+	invocation.register(d, taskExternalId)
 
 	triggerOpts := make([]*v1.WorkflowNameTriggerOpts, 0, len(req.TriggerOpts))
 	for _, triggerReq := range req.TriggerOpts {
@@ -755,6 +756,8 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 	if err != nil {
 		return status.Errorf(codes.NotFound, "task not found: %v", err)
 	}
+
+	invocation.register(d, taskExternalId)
 
 	var createConditionOpts []v1.CreateExternalSignalConditionOpt
 
