@@ -23,14 +23,16 @@ type OLAPSignaler struct {
 	repo      v1.Repository
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
+	promGate  *prometheus.Gate
 }
 
-func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer) *OLAPSignaler {
+func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, promGate *prometheus.Gate) *OLAPSignaler {
 	return &OLAPSignaler{
 		mq:        mq,
 		l:         l,
 		repo:      repo,
 		pubBuffer: pubBuffer,
+		promGate:  promGate,
 	}
 }
 
@@ -321,9 +323,13 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -384,11 +390,15 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.CancelledTasks.Inc()
-			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+				prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -450,11 +460,15 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.FailedTasks.Inc()
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+				prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -515,11 +529,15 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.SkippedTasks.Inc()
-			prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+				prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 

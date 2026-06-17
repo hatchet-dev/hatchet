@@ -22,6 +22,8 @@ type Queuer struct {
 	tenantId   uuid.UUID
 	queueName  string
 
+	promGate *prometheus.Gate
+
 	l *zerolog.Logger
 
 	s *Scheduler
@@ -70,6 +72,7 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		optimistic:    conf.repo.Optimistic(),
 		tenantId:      tenantId,
 		queueName:     queueName,
+		promGate:      conf.promGate,
 		l:             &queueLogger,
 		s:             s,
 		limit:         defaultLimit,
@@ -145,7 +148,9 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		q.l.Debug().Ctx(ctx).Msg("queue loop tick")
 
 		prometheus.QueueInvocations.Inc()
-		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
+		if q.promGate.Enabled(ctx, q.tenantId) {
+			prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
+		}
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
@@ -278,12 +283,16 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					q.l.Warn().Ctx(ctx).Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
 				}
 
+				tenantMetricsEnabled := q.promGate.Enabled(ctx, q.tenantId)
+
 				if numFlushed > 0 {
 					now := time.Now()
 
 					for _, assignedItem := range ar.assigned {
 						prometheus.AssignedTasks.Inc()
-						prometheus.TenantAssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
+						if tenantMetricsEnabled {
+							prometheus.TenantAssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
+						}
 
 						qi := assignedItem.QueueItem
 
@@ -295,25 +304,33 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						}
 
 						prometheus.QueuedToAssigned.Inc()
-						prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
+						if tenantMetricsEnabled {
+							prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
+						}
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
 						if timeInQueueSeconds > 0 {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
-							prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
+							if tenantMetricsEnabled {
+								prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
+							}
 						}
 					}
 				}
 
 				for range ar.schedulingTimedOut {
 					prometheus.SchedulingTimedOut.Inc()
-					prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
+					if tenantMetricsEnabled {
+						prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
+					}
 				}
 
 				for range ar.rateLimited {
 					prometheus.RateLimited.Inc()
-					prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
+					if tenantMetricsEnabled {
+						prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
+					}
 				}
 			}(r)
 		}
