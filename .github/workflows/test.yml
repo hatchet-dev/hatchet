@@ -480,6 +480,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
       SERVER_GRPC_PORT: "7077"
@@ -640,6 +641,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
     strategy:
       matrix:
         migrate-strategy: ["latest"]
