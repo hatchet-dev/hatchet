@@ -269,9 +269,7 @@ class DispatcherClient:
         worker_id: str | None,
         labels: dict[str, str | int],
     ) -> None:
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+        aio_client = self._get_or_create_aio_client()
 
         worker_labels = {}
 
@@ -282,7 +280,7 @@ class DispatcherClient:
                 worker_labels[key] = WorkerLabels(str_value=str(value))
 
         # fixme: figure out how to get typing right here
-        await self.aio_client.UpsertWorkerLabels(  # type: ignore[misc]
+        await aio_client.UpsertWorkerLabels(  # type: ignore[misc]
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),
