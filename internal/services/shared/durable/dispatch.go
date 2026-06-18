@@ -52,12 +52,12 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 
 			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, "callback satisfied while task evicted")
 			if err != nil {
-				l.Error().Err(err).Msgf("failed to create restore message for task %s", cb.DurableTaskExternalId)
+				l.Error().Err(err).Msgf("failed to create restore message for task %s", cb.DurableTaskExternalId.String())
 				continue
 			}
 
 			if err := mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); err != nil {
-				l.Error().Err(err).Msgf("failed to publish restore message for task %s", cb.DurableTaskExternalId)
+				l.Error().Err(err).Msgf("failed to publish restore message for task %s", cb.DurableTaskExternalId.String())
 			}
 			continue
 		}
@@ -79,7 +79,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 			cb.ChildTaskErrorMessage,
 		)
 		if err != nil {
-			l.Error().Err(err).Msgf("failed to create callback completed message for task %s node %d", cb.DurableTaskExternalId, cb.NodeId)
+			l.Error().Err(err).Msgf("failed to create callback completed message for task %s node %d", cb.DurableTaskExternalId.String(), cb.NodeId)
 			continue
 		}
 
@@ -89,7 +89,7 @@ func DispatchCallbacks(ctx context.Context, l *zerolog.Logger, mq msgqueue.Messa
 	for dispatcherId, msgs := range dispatcherToMsgs {
 		for _, m := range msgs {
 			if err := mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherId), m); err != nil {
-				l.Error().Err(err).Msgf("failed to send callback completed message to dispatcher %s", dispatcherId)
+				l.Error().Err(err).Msgf("failed to send callback completed message to dispatcher %s", dispatcherId.String())
 			}
 		}
 	}
