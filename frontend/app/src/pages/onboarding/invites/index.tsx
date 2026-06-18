@@ -270,6 +270,7 @@ export default function Invites() {
     tenantAssociatedWithLastAcceptedInvite,
     setTenantAssociatedWithLastAcceptedInvite,
   ] = useState<Tenant | null>(null);
+  const [orgInviteHasNoTenants, setOrgInviteHasNoTenants] = useState(false);
 
   const totalInvites = tenantInvites.length + orgInvites.length;
 
@@ -298,18 +299,29 @@ export default function Invites() {
       if (tenant) {
         setTenantAssociatedWithLastAcceptedInvite(tenant);
       }
-    } else if (isCloudEnabled && organizations) {
+    } else if (isCloudEnabled && organizations && tenantMemberships) {
       const organization = organizations.find(
         (org) => org.metadata.id === lastAcceptedInvite.organizationId,
       );
       if (organization) {
-        const tenant = getTenant(organization.tenants?.[0]?.id);
-        if (tenant) {
-          setTenantAssociatedWithLastAcceptedInvite(tenant);
+        // Find a tenant the user is actually a member of within this org.
+        // Don't use getTenant() here — the user may not be a member of the
+        // org's tenants even if those tenants exist (no catch-all tag).
+        const orgTenantIds = new Set(
+          (organization.tenants ?? []).map((t) => t.id),
+        );
+        const memberTenantInOrg = tenantMemberships.find(
+          (m) => m.tenant?.metadata.id && orgTenantIds.has(m.tenant.metadata.id),
+        );
+
+        if (memberTenantInOrg?.tenant) {
+          setTenantAssociatedWithLastAcceptedInvite(memberTenantInOrg.tenant);
+        } else {
+          setOrgInviteHasNoTenants(true);
         }
       }
     }
-  }, [lastAcceptedInvite, getTenant, isCloudEnabled, organizations]);
+  }, [lastAcceptedInvite, getTenant, isCloudEnabled, organizations, tenantMemberships]);
 
   const navigateIfAppropriate = useCallback(async () => {
     if (totalInvites > 0) {
@@ -328,6 +340,12 @@ export default function Invites() {
     if (tenantAssociatedWithLastAcceptedInvite) {
       // IMPLICIT NAVIGATION TO THE TENANT PAGE
       setTenant(tenantAssociatedWithLastAcceptedInvite);
+      return;
+    }
+
+    if (orgInviteHasNoTenants) {
+      navigate({ to: appRoutes.onboardingNoTenantsRoute.to });
+      return;
     }
   }, [
     lastAcceptedInvite,
@@ -336,6 +354,7 @@ export default function Invites() {
     invalidatePendingInvites,
     setTenant,
     tenantAssociatedWithLastAcceptedInvite,
+    orgInviteHasNoTenants,
   ]);
 
   useEffect(() => {

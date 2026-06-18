@@ -87,7 +87,7 @@ export function EditTenantTagsModal({
               disabled={setTagsMutation.isPending}
             />
             <p className="text-sm text-muted-foreground">
-              Comma-separated list of tags. Leave empty to allow all members
+              Comma-separated list of tags. Use "*" to allow all members
               access.
             </p>
           </div>

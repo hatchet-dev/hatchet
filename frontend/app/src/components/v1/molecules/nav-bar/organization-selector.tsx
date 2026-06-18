@@ -289,8 +289,15 @@ export function OrganizationSelector({
     isTenantArchivedInOrg,
   ]);
 
+  const hasNoTenant = memberships.length === 0 && organizations.length > 0;
   const triggerDisabled =
-    !isTenantLoaded || !isOrganizationsLoaded || memberships.length === 0;
+    !isTenantLoaded ||
+    !isOrganizationsLoaded ||
+    (memberships.length === 0 && organizations.length === 0);
+
+  const triggerLabel = hasNoTenant
+    ? (organizations.length === 1 ? organizations[0].name : 'Select organization')
+    : (tenant?.name ?? 'Loading tenant…');
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -312,9 +319,9 @@ export function OrganizationSelector({
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <BuildingOffice2Icon className="size-4 shrink-0" />
               <span className="min-w-0 flex-1 truncate">
-                {tenant?.name ?? 'Loading tenant…'}
+                {triggerLabel}
               </span>
-              <TenantRegionBadge region={tenant?.region} />
+              {!hasNoTenant && <TenantRegionBadge region={tenant?.region} />}
             </div>
             {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />

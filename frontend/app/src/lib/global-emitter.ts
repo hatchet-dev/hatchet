@@ -5,6 +5,7 @@ import makeEmitter from 'better-emitter';
 export const globalEmitter = makeEmitter<{
   'create-new-tenant': { defaultOrganizationId?: string };
   'create-tenant-invite': { tenantId: string };
+  'add-org-member-to-tenant': { tenantId: string; organizationId: string };
   'create-organization-invite': {
     organizationId: string;
     organizationName: string;

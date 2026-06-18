@@ -1,6 +1,7 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
@@ -96,6 +97,9 @@ function AuthenticatedInner() {
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
   >();
+  const [addOrgMemberToTenantModal, setAddOrgMemberToTenantModal] = useState<
+    { tenantId: string; organizationId: string } | undefined
+  >();
   const [showWelcome, setShowWelcome] = useState(false);
 
   const loaderData = useLoaderData({ from: '/' });
@@ -126,11 +130,15 @@ function AuthenticatedInner() {
   const isOnboardingCreateOrganizationPage = Boolean(
     matchRoute({ to: appRoutes.onboardingCreateOrganizationRoute.to }),
   );
+  const isOnboardingNoTenantsPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingNoTenantsRoute.to }),
+  );
   const isOnboardingPage =
     isOnboardingVerifyEmailPage ||
     isOnboardingInvitesPage ||
     isOnboardingCreateTenantPage ||
-    isOnboardingCreateOrganizationPage;
+    isOnboardingCreateOrganizationPage ||
+    isOnboardingNoTenantsPage;
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
@@ -273,6 +281,18 @@ function AuthenticatedInner() {
       return;
     } else if (
       okayToMakeOnboardingRedirectDecisions &&
+      isControlPlaneEnabled &&
+      organizations.length > 0 &&
+      tenantMemberships.length === 0
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingNoTenantsRoute.to,
+        replace: true,
+      });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
       tenantMemberships.length === 0
     ) {
       storeRedirectPath();
@@ -394,6 +414,17 @@ function AuthenticatedInner() {
         'create-organization-invite',
         ({ organizationId, organizationName }) => {
           setOrgInviteModal({ organizationId, organizationName });
+        },
+      ),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on(
+        'add-org-member-to-tenant',
+        ({ tenantId, organizationId }) => {
+          setAddOrgMemberToTenantModal({ tenantId, organizationId });
         },
       ),
     [],
@@ -564,6 +595,13 @@ function AuthenticatedInner() {
                 invite,
               });
             }}
+          />
+        )}
+        {addOrgMemberToTenantModal && (
+          <AddOrgMemberToTenantModal
+            organizationId={addOrgMemberToTenantModal.organizationId}
+            tenantId={addOrgMemberToTenantModal.tenantId}
+            onClose={() => setAddOrgMemberToTenantModal(undefined)}
           />
         )}
         <WelcomeModal

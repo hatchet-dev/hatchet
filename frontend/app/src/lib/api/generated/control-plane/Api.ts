@@ -13,11 +13,13 @@
 import {
   AcceptOrganizationInviteRequest,
   AcceptTenantInviteRequest,
+  AddOrgMembersToTenantRequest,
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
   APIMetaAuth,
   APITokenList,
+  AuditLogList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
@@ -441,6 +443,61 @@ export class Api<
     this.request<OrganizationAvailableShardList, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List audit logs across the organization's tenants (federated across shards)
+   *
+   * @tags Management
+   * @name OrganizationListAuditLogs
+   * @summary List Audit Logs for Organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/audit-logs
+   * @secure
+   */
+  organizationListAuditLogs = (
+    organization: string,
+    query?: {
+      /**
+       * Optional tenant ID to scope results to a single tenant
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+      /**
+       * The maximum number of rows to return
+       * @format int32
+       * @min 1
+       * @max 1000
+       * @default 1000
+       */
+      limit?: number;
+      /**
+       * The number of rows to skip for pagination
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range (RFC3339). When omitted, defaults to the current time.
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<AuditLogList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/audit-logs`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -966,6 +1023,29 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       format: "json",
+      ...params,
+    });
+  /**
+   * @description Directly add one or more org members to a tenant, bypassing tag matching. Only org OWNERs can call this endpoint. The memberships are marked explicit and will not be removed by tag sync.
+   *
+   * @tags Management
+   * @name OrganizationTenantMembersAdd
+   * @summary Add Org Members to Tenant
+   * @request POST:/api/v1/control-plane/organizations/{organization}/tenants/{tenant}/members
+   * @secure
+   */
+  organizationTenantMembersAdd = (
+    organization: string,
+    tenant: string,
+    data: AddOrgMembersToTenantRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/members`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
       ...params,
     });
   /**

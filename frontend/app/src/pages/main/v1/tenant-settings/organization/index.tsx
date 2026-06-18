@@ -1439,6 +1439,7 @@ function TenantsSection({
                 onArchive={onArchive}
                 onEditTags={onEditTags}
                 canManageOrganization={canManageOrganization}
+                organizationId={defaultOrganizationId}
               />
               {ix < filteredTenants.length - 1 && (
                 <Separator className="my-4" />
@@ -1461,12 +1462,14 @@ function TenantAccordionItem({
   onArchive,
   onEditTags,
   canManageOrganization,
+  organizationId,
 }: {
   tenant: OrganizationTenantWithRegion;
   isExpanded: boolean;
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
   onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
   canManageOrganization: boolean;
+  organizationId?: string;
 }) {
   const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
 
@@ -1529,7 +1532,18 @@ function TenantAccordionItem({
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Members</h4>
-            {canManageTenantMembers && (
+            {canManageOrganization && organizationId ? (
+              <Button
+                onClick={() =>
+                  globalEmitter.emit('add-org-member-to-tenant', {
+                    tenantId: tenant.id,
+                    organizationId,
+                  })
+                }
+              >
+                Add Member
+              </Button>
+            ) : canManageTenantMembers ? (
               <Button
                 onClick={() =>
                   globalEmitter.emit('create-tenant-invite', {
@@ -1539,7 +1553,7 @@ function TenantAccordionItem({
               >
                 Invite Member
               </Button>
-            )}
+            ) : null}
           </div>
 
           {membersQuery.isLoading ? (

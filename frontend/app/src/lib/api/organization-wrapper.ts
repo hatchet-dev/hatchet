@@ -29,6 +29,9 @@ type OrganizationInviteRejectRequest = Parameters<
 type OrganizationInviteCreateRequest = Parameters<
   typeof cloudApi.organizationInviteCreate
 >[1];
+type OrganizationTenantMembersAddRequest = Parameters<
+  typeof cloudApi.organizationTenantMembersAdd
+>[2];
 
 export function useOrganizationApi() {
   const { isControlPlaneEnabled } = useControlPlane();
@@ -294,6 +297,31 @@ export function useOrganizationApi() {
         mutationKey: ['organization-member:set:tags', organization, member] as const,
         mutationFn: async (tags: string[]) =>
           (await controlPlaneApi.organizationMemberSetTags(organization, member, { tags })).data,
+      }),
+
+      organizationTenantMembersAddMutation: (
+        organization: string,
+        tenant: string,
+      ) => ({
+        mutationKey: [
+          'organization-tenant:members:add',
+          organization,
+          tenant,
+        ] as const,
+        mutationFn: async (data: OrganizationTenantMembersAddRequest) =>
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.organizationTenantMembersAdd(
+                  organization,
+                  tenant,
+                  data,
+                )
+              : cloudApi.organizationTenantMembersAdd(
+                  organization,
+                  tenant,
+                  data,
+                ))
+          ).data,
       }),
     }),
     [isControlPlaneEnabled],

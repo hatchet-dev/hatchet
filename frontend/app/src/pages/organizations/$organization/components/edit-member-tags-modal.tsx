@@ -88,7 +88,7 @@ export function EditMemberTagsModal({
             />
             <p className="text-sm text-muted-foreground">
               Comma-separated list of tags. Leave empty to restrict this member
-              to untagged tenants only.
+              to tenants with the "*" tag only.
             </p>
           </div>
           <div className="flex justify-end gap-3">
