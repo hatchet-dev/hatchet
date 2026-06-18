@@ -27,6 +27,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatcheterrors "github.com/hatchet-dev/hatchet/pkg/errors"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
@@ -61,6 +62,7 @@ type OLAPControllerImpl struct {
 	dagPrometheusWorkerCancel    context.CancelFunc
 	statusUpdateBatchSizeLimits  v1.StatusUpdateBatchSizeLimits
 	mqQos                        int
+	promGate                     *prometheus.Gate
 }
 
 type OLAPControllerOpt func(*OLAPControllerOpts)
@@ -80,6 +82,7 @@ type OLAPControllerOpts struct {
 	analyzeCronInterval         time.Duration
 	statusUpdateBatchSizeLimits v1.StatusUpdateBatchSizeLimits
 	mqQos                       int
+	promGate                    *prometheus.Gate
 }
 
 func defaultOLAPControllerOpts() *OLAPControllerOpts {
@@ -189,6 +192,12 @@ func WithMaxRequeueCount(count int) OLAPControllerOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.promGate = gate
+	}
+}
+
 func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 	opts := defaultOLAPControllerOpts()
 
@@ -250,6 +259,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		dagPrometheusUpdateCh:       dagPrometheusUpdateCh,
 		statusUpdateBatchSizeLimits: opts.statusUpdateBatchSizeLimits,
 		mqQos:                       opts.mqQos,
+		promGate:                    opts.promGate,
 	}
 
 	// Default jitter value

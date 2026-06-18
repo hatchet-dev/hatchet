@@ -69,6 +69,7 @@ import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
+import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
@@ -809,6 +810,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                 SSO
               </TabsTrigger>
             )}
+            {isControlPlaneEnabled && (
+              <TabsTrigger value="audit-log" variant="underlined">
+                Audit Log
+              </TabsTrigger>
+            )}
             {isOrganizationOwner && isControlPlaneEnabled && (
               <TabsTrigger value="user-groups" variant="underlined">
                 User Groups
@@ -1118,6 +1124,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                   to get access.
                 </div>
               )}
+            </TabsContent>
+          )}
+          {isControlPlaneEnabled && (
+            <TabsContent value="audit-log">
+              <AuditLogSettings orgId={orgId} />
             </TabsContent>
           )}
 

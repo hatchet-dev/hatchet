@@ -5,6 +5,20 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.11] - 2026-06-18
+
+### Fixed
+
+- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with causes a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
+
+## [1.33.10] - 2026-06-16
+
+### Fixed
+
+- Properly suppresses gRPC fork support log lines on startup when fork support is disabled
+- Improves logging around worker startup and shutdown
+- Improves retry logic around sending step action events to the engine to better handle transient failures and avoid losing events
+
 ## [1.33.9] - 2026-06-14
 
 ### Fixed

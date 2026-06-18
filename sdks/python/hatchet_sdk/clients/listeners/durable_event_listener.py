@@ -602,6 +602,7 @@ class DurableEventListener:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
             await self._poll_worker_status()
+            return await future
 
         return await self._pending_callbacks[key]
 

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"sync"
 
 	"github.com/google/uuid"
@@ -13,12 +14,15 @@ type PrometheusExtension struct {
 	mu                     sync.RWMutex
 	tenants                map[uuid.UUID]*sqlcv1.Tenant
 	tenantIdToWorkerLabels map[uuid.UUID]map[WorkerPromLabels]struct{}
+
+	promGate *prometheus.Gate
 }
 
-func NewPrometheusExtension() *PrometheusExtension {
+func NewPrometheusExtension(promGate *prometheus.Gate) *PrometheusExtension {
 	return &PrometheusExtension{
 		tenants:                make(map[uuid.UUID]*sqlcv1.Tenant),
 		tenantIdToWorkerLabels: make(map[uuid.UUID]map[WorkerPromLabels]struct{}),
+		promGate:               promGate,
 	}
 }
 
@@ -41,6 +45,8 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *Snapshot
 	defer p.mu.Unlock()
 
 	tenantIdStr := tenantId.String()
+
+	tenantMetricsEnabled := p.promGate.Enabled(context.Background(), tenantId)
 
 	workerPromLabelsToSlotData := make(map[WorkerPromLabels]*SlotUtilization)
 
@@ -88,6 +94,10 @@ func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *Snapshot
 		// transient 0-slot state between worker registration and slot replenishment.
 		// Previous non-zero values are preserved until the worker is replenished or removed.
 		if usedSlots+availableSlots == 0 {
+			continue
+		}
+
+		if !tenantMetricsEnabled {
 			continue
 		}
 
