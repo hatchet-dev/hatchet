@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 ALTER TABLE "Worker" ADD COLUMN "operatorId" UUID;
 
-CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API');
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
 
 CREATE TABLE v1_operator (
     id UUID NOT NULL DEFAULT gen_random_uuid(),

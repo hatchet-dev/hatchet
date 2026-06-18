@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/dagoperator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/httpoperator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -221,16 +222,17 @@ func (om *OperatorManager) reconcileOperators(ctx context.Context, claimed []*sq
 // instantiateOperator constructs the operator for a newly-claimed row, creating a fresh
 // worker for this instance. Returns nil (after logging) if the operator could not be built.
 func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V1Operator) operator.Operator {
-	if op.Kind != sqlcv1.V1OperatorKindHTTPAPI {
+	// The slot config may vary per operator, so each operator type derives it from its own
+	// config.
+	slotConfig, err := slotConfigForKind(op)
+
+	if err != nil {
+		om.l.Error().Err(err).Msgf("could not determine slot config for operator: %s", err.Error())
 		return nil
 	}
 
-	// The slot config may vary per operator, so the operator type derives it
-	// from its own config.
-	slotConfig, err := httpoperator.SlotConfig(op)
-
-	if err != nil {
-		om.l.Error().Err(err).Msgf("could not determine slot config for http operator: %s", err.Error())
+	if slotConfig == nil {
+		// Unsupported kind; nothing to instantiate.
 		return nil
 	}
 
@@ -238,18 +240,45 @@ func (om *OperatorManager) instantiateOperator(ctx context.Context, op *sqlcv1.V
 	worker, err := om.repo.Operators().CreateOperatorWorker(ctx, om.dispatcherId, op, slotConfig)
 
 	if err != nil {
-		om.l.Error().Err(err).Msgf("could not create worker for http operator: %s", err.Error())
+		om.l.Error().Err(err).Msgf("could not create worker for operator: %s", err.Error())
 		return nil
 	}
 
-	newOperator, err := httpoperator.NewHTTPOperator(op, om.l, om.repo, om.taskEventWriter, om.enc, om.infraBlockedCIDRs, worker.ID)
+	switch op.Kind {
+	case sqlcv1.V1OperatorKindHTTPAPI:
+		newOperator, err := httpoperator.NewHTTPOperator(op, om.l, om.repo, om.taskEventWriter, om.enc, om.infraBlockedCIDRs, worker.ID)
 
-	if err != nil {
-		om.l.Error().Err(err).Msgf("could not construct http operator: %s", err.Error())
+		if err != nil {
+			om.l.Error().Err(err).Msgf("could not construct http operator: %s", err.Error())
+			return nil
+		}
+
+		return newOperator
+	case sqlcv1.V1OperatorKindDAG:
+		newOperator, err := dagoperator.NewDAGOperator(op, om.l, om.repo, om.taskEventWriter, worker.ID)
+
+		if err != nil {
+			om.l.Error().Err(err).Msgf("could not construct dag operator: %s", err.Error())
+			return nil
+		}
+
+		return newOperator
+	default:
 		return nil
 	}
+}
 
-	return newOperator
+// slotConfigForKind derives the worker slot config for an operator from its kind-specific
+// config. It returns (nil, nil) for unsupported kinds so the caller skips instantiation.
+func slotConfigForKind(op *sqlcv1.V1Operator) (map[string]int32, error) {
+	switch op.Kind {
+	case sqlcv1.V1OperatorKindHTTPAPI:
+		return httpoperator.SlotConfig(op)
+	case sqlcv1.V1OperatorKindDAG:
+		return dagoperator.SlotConfig(op)
+	default:
+		return nil, nil
+	}
 }
 
 // teardownOperator removes an operator that is no longer claimed by this dispatcher and

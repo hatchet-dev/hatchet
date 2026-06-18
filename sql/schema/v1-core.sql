@@ -2390,7 +2390,7 @@ CREATE TABLE v1_durable_event_log_branch_point (
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
 
-CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API');
+CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
 
 CREATE TABLE v1_operator (
     id UUID NOT NULL DEFAULT gen_random_uuid(),

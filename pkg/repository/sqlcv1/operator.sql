@@ -127,3 +127,16 @@ SET
     "actionHash" = @actionHash::bytea
 WHERE
     w."id" = @workerId::uuid;
+
+-- name: ListDAGWorkflowIdsForTenant :many
+-- Returns the ids of all DAG workflows for a tenant. The DAG operator registers these as
+-- worker actions so tasks for those workflows are routed to it.
+SELECT DISTINCT w."id"
+FROM "Workflow" w
+JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+WHERE
+    w."tenantId" = @tenantId::UUID
+    AND w."deletedAt" IS NULL
+    AND wv."deletedAt" IS NULL
+    AND wv."kind" = 'DAG'
+ORDER BY w."id";

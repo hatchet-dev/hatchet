@@ -265,6 +265,40 @@ func (q *Queries) GetOperator(ctx context.Context, db DBTX, id uuid.UUID) (*V1Op
 	return &i, err
 }
 
+const listDAGWorkflowIdsForTenant = `-- name: ListDAGWorkflowIdsForTenant :many
+SELECT DISTINCT w."id"
+FROM "Workflow" w
+JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+WHERE
+    w."tenantId" = $1::UUID
+    AND w."deletedAt" IS NULL
+    AND wv."deletedAt" IS NULL
+    AND wv."kind" = 'DAG'
+ORDER BY w."id"
+`
+
+// Returns the ids of all DAG workflows for a tenant. The DAG operator registers these as
+// worker actions so tasks for those workflows are routed to it.
+func (q *Queries) ListDAGWorkflowIdsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listDAGWorkflowIdsForTenant, tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOperators = `-- name: ListOperators :many
 SELECT id, tenant_id, name, kind, config, worker_id, created_at, updated_at
 FROM v1_operator

@@ -93,8 +93,27 @@ func (s *SharedOperator[T]) WorkerId() uuid.UUID {
 	return s.workerId
 }
 
+func (s *SharedOperator[T]) TenantId() uuid.UUID {
+	return s.tenantId
+}
+
 func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []string) error {
 	return s.repo.Operators().UpdateOperatorWorkerActions(ctx, s.tenantId, s.workerId, actions)
+}
+
+// RegisterDurableTask opens a channel-based durable-task session through the dispatcher,
+// injecting the tenant the dispatcher reads off the context (the same key sendStepActionEvent
+// uses). Operators that drive durable execution write requests to the returned channel and
+// read responses from it.
+func (s *SharedOperator[T]) RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error) {
+	if s.taskEventWriter == nil {
+		return nil, nil, fmt.Errorf("operator has no task event writer configured")
+	}
+
+	// the dispatcher reads the tenant off the context (see grpc auth middleware).
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck // key must match the dispatcher's
+
+	return s.taskEventWriter.RegisterDurableTask(ctx, externalId)
 }
 
 // SendStarted reports that the operator has started processing the assigned action.
