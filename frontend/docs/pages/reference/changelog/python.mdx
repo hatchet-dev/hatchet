@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with cases a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
+- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with causes a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
 
 ## v1.33.10 - 2026-06-16
 

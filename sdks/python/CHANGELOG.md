@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with cases a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
+- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with causes a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
 
 ## [1.33.10] - 2026-06-16
 
