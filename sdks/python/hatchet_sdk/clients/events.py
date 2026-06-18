@@ -5,6 +5,7 @@ import warnings
 from datetime import timezone
 from typing import cast
 
+import grpc.aio
 from google.protobuf import timestamp_pb2
 from pydantic import BaseModel, ConfigDict
 
@@ -26,6 +27,7 @@ from hatchet_sdk.contracts.events_pb2 import (
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
+    PutStreamEventResponse,
 )
 from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
@@ -117,15 +119,29 @@ class EventClient(BaseRestClient):
 
         conn = new_conn(config, False)
         self.events_service_client = EventsServiceStub(conn)
+        self.aio_events_service_client: EventsServiceStub | None = None
+        self.aio_events_service_channel: grpc.aio.Channel | None = None
 
         self.token = config.token
         self.namespace = config.namespace
+        self._retrying_aio_put_stream_event = tenacity_retry(
+            self._put_stream_event, self.client_config.tenacity
+        )
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
 
     def _ea(self, client: ApiClient) -> EventApi:
         return EventApi(client)
+
+    def _get_or_create_aio_events_service_client(self) -> EventsServiceStub:
+        if self.aio_events_service_client is None:
+            self.aio_events_service_channel = new_conn(self.client_config, True)
+            self.aio_events_service_client = EventsServiceStub(
+                self.aio_events_service_channel
+            )
+
+        return self.aio_events_service_client
 
     async def aio_push(
         self,
@@ -289,10 +305,9 @@ class EventClient(BaseRestClient):
 
         put_log(request, metadata=create_authorization_header(self.token))
 
-    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
-        put_stream_event = tenacity_retry(
-            self.events_service_client.PutStreamEvent, self.client_config.tenacity
-        )
+    def _create_put_stream_event_request(
+        self, data: str | bytes, step_run_id: str, index: int
+    ) -> PutStreamEventRequest:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -300,17 +315,43 @@ class EventClient(BaseRestClient):
         else:
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
-        request = PutStreamEventRequest(
+        return PutStreamEventRequest(
             task_run_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=data_bytes,
             event_index=index,
         )
 
+    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+        put_stream_event = tenacity_retry(
+            self.events_service_client.PutStreamEvent, self.client_config.tenacity
+        )
+        request = self._create_put_stream_event_request(data, step_run_id, index)
+
         try:
             put_stream_event(request, metadata=create_authorization_header(self.token))
         except Exception:
             raise
+
+    async def _put_stream_event(
+        self,
+        request: PutStreamEventRequest,
+        metadata: tuple[tuple[str, str]],
+    ) -> PutStreamEventResponse:
+        aio_events_service_client = self._get_or_create_aio_events_service_client()
+        return cast(
+            PutStreamEventResponse,
+            await aio_events_service_client.PutStreamEvent(  # type: ignore[misc]
+                request, metadata=metadata
+            ),
+        )
+
+    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+        request = self._create_put_stream_event_request(data, step_run_id, index)
+
+        await self._retrying_aio_put_stream_event(
+            request, create_authorization_header(self.token)
+        )
 
     async def aio_list(
         self,
