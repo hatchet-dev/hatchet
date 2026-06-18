@@ -70,12 +70,12 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
+import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
 import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
-import { EditMemberTagsModal } from '@/pages/organizations/$organization/components/edit-member-tags-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -149,8 +149,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const schemes = meta?.auth?.schemes || [];
   const canManageSso = isOrganizationOwner && schemes.includes('sso');
   const [memberToDelete, setMemberToDelete] =
-    useState<OrganizationMember | null>(null);
-  const [memberToEditTags, setMemberToEditTags] =
     useState<OrganizationMember | null>(null);
   const [tenantToEditTags, setTenantToEditTags] =
     useState<OrganizationTenantWithRegion | null>(null);
@@ -368,29 +366,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
         <Badge variant="outline">{row.role}</Badge>
       ),
     },
-    ...(isOrganizationOwner && isControlPlaneEnabled
-      ? [
-          {
-            columnLabel: 'Tags',
-            cellRenderer: (row: OrganizationMember) => {
-              const tags = (row as unknown as { tags?: string[] }).tags;
-              return (
-                <div className="flex flex-wrap gap-1">
-                  {tags && tags.length > 0 ? (
-                    tags.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
-                  )}
-                </div>
-              );
-            },
-          },
-        ]
-      : []),
     ...(isOrganizationOwner
       ? [
           {
@@ -400,7 +375,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                 row={row}
                 currentUserEmail={currentUser?.email}
                 onDelete={setMemberToDelete}
-                onEditTags={isControlPlaneEnabled ? setMemberToEditTags : undefined}
               />
             ),
           },
@@ -835,6 +809,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                 SSO
               </TabsTrigger>
             )}
+            {isOrganizationOwner && isControlPlaneEnabled && (
+              <TabsTrigger value="user-groups" variant="underlined">
+                User Groups
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="tenants">
@@ -1141,6 +1120,15 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
               )}
             </TabsContent>
           )}
+
+          {isOrganizationOwner && isControlPlaneEnabled && (
+            <TabsContent value="user-groups">
+              <UserGroupsTab
+                organizationId={orgId}
+                allOrgMembers={organization?.members ?? []}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
@@ -1217,18 +1205,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
         />
       )}
 
-      {isOrganizationOwner && isControlPlaneEnabled && memberToEditTags && (
-        <EditMemberTagsModal
-          open={!!memberToEditTags}
-          onOpenChange={(open) => !open && setMemberToEditTags(null)}
-          organizationId={orgId}
-          memberId={memberToEditTags.metadata.id}
-          memberEmail={memberToEditTags.email}
-          onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] })
-          }
-        />
-      )}
     </div>
   );
 }
@@ -1823,12 +1799,10 @@ function MemberActions({
   row,
   currentUserEmail,
   onDelete,
-  onEditTags,
 }: {
   row: OrganizationMember;
   currentUserEmail?: string;
   onDelete: (member: OrganizationMember) => void;
-  onEditTags?: (member: OrganizationMember) => void;
 }) {
   const isSelf = currentUserEmail === row.email;
 
@@ -1840,12 +1814,6 @@ function MemberActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {onEditTags && (
-          <DropdownMenuItem onClick={() => onEditTags(row)}>
-            <PencilSquareIcon className="mr-2 size-4" />
-            Edit Tags
-          </DropdownMenuItem>
-        )}
         {isSelf ? (
           <TooltipProvider>
             <Tooltip>

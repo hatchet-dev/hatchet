@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+export enum TenantMemberRoleType {
+  OWNER = "OWNER",
+  ADMIN = "ADMIN",
+  MEMBER = "MEMBER",
+}
+
 export enum AuditLogActorType {
   User = "user",
   ApiKey = "api_key",
@@ -801,4 +807,52 @@ export interface AuditLog {
 
 export interface AuditLogList {
   rows: AuditLog[];
+}
+
+export interface UserGroup {
+  metadata: APIResourceMeta;
+  /** Name of the user group */
+  name: string;
+  /** Tenant role granted to group members when synced to a matching tenant */
+  role: TenantMemberRoleType;
+  /** Tags that determine which tenants this group's members can access */
+  tags: string[];
+  /** Number of organization members in this group */
+  memberCount: number;
+}
+
+export interface UserGroupList {
+  rows: UserGroup[];
+}
+
+export interface CreateUserGroupRequest {
+  /**
+   * Name of the user group
+   * @minLength 1
+   */
+  name: string;
+  /** Tenant role to grant members when synced to a matching tenant */
+  role: TenantMemberRoleType;
+}
+
+export interface UpdateUserGroupRequest {
+  /**
+   * New name for the user group
+   * @minLength 1
+   */
+  name?: string;
+  /** New tenant role to grant members */
+  role?: TenantMemberRoleType;
+}
+
+export interface UserGroupMemberList {
+  rows: OrganizationMember[];
+}
+
+export interface AddUserGroupMemberRequest {
+  /**
+   * The organization member to add to the user group
+   * @format uuid
+   */
+  organizationMemberId: string;
 }

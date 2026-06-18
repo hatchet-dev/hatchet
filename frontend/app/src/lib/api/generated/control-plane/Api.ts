@@ -14,6 +14,7 @@ import {
   AcceptOrganizationInviteRequest,
   AcceptTenantInviteRequest,
   AddOrgMembersToTenantRequest,
+  AddUserGroupMemberRequest,
   APIControlPlaneMetadata,
   APIError,
   APIErrors,
@@ -29,6 +30,7 @@ import {
   CreateTenantAPITokenRequest,
   CreateTenantAPITokenResponse,
   CreateTenantInviteRequest,
+  CreateUserGroupRequest,
   ListAPIMetaIntegration,
   ManagementTokenList,
   Organization,
@@ -59,8 +61,12 @@ import {
   UpdateOrganizationSubscriptionResponse,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
+  UpdateUserGroupRequest,
   User,
   UserChangePasswordRequest,
+  UserGroup,
+  UserGroupList,
+  UserGroupMemberList,
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
@@ -1046,6 +1052,224 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description List all user groups for an organization
+   *
+   * @tags Management
+   * @name OrganizationUserGroupsList
+   * @summary List User Groups
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups
+   * @secure
+   */
+  organizationUserGroupsList = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroupList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Create a new user group for an organization
+   *
+   * @tags Management
+   * @name OrganizationUserGroupsCreate
+   * @summary Create User Group
+   * @request POST:/api/v1/control-plane/organizations/{organization}/user-groups
+   * @secure
+   */
+  organizationUserGroupsCreate = (
+    organization: string,
+    data: CreateUserGroupRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroup, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get a user group by ID
+   *
+   * @tags Management
+   * @name OrganizationUserGroupGet
+   * @summary Get User Group
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}
+   * @secure
+   */
+  organizationUserGroupGet = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroup, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update a user group's name or role
+   *
+   * @tags Management
+   * @name OrganizationUserGroupUpdate
+   * @summary Update User Group
+   * @request PATCH:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}
+   * @secure
+   */
+  organizationUserGroupUpdate = (
+    organization: string,
+    userGroup: string,
+    data: UpdateUserGroupRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroup, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Delete a user group. Triggers a membership sync to remove tag-based access granted by this group.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupDelete
+   * @summary Delete User Group
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}
+   * @secure
+   */
+  organizationUserGroupDelete = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}`,
+      method: "DELETE",
+      secure: true,
+      ...params,
+    });
+  /**
+   * @description List the tags applied to a user group
+   *
+   * @tags Management
+   * @name OrganizationUserGroupListTags
+   * @summary List User Group Tags
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/tags
+   * @secure
+   */
+  organizationUserGroupListTags = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/tags`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Replace all tags on a user group. Triggers a membership sync for all group members.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupSetTags
+   * @summary Set User Group Tags
+   * @request PUT:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/tags
+   * @secure
+   */
+  organizationUserGroupSetTags = (
+    organization: string,
+    userGroup: string,
+    data: SetTagsRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<TagList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/tags`,
+      method: "PUT",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List members of a user group
+   *
+   * @tags Management
+   * @name OrganizationUserGroupListMembers
+   * @summary List User Group Members
+   * @request GET:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/members
+   * @secure
+   */
+  organizationUserGroupListMembers = (
+    organization: string,
+    userGroup: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<UserGroupMemberList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/members`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Add an organization member to a user group. Triggers a membership sync for the added member.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupAddMember
+   * @summary Add Member to User Group
+   * @request POST:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/members
+   * @secure
+   */
+  organizationUserGroupAddMember = (
+    organization: string,
+    userGroup: string,
+    data: AddUserGroupMemberRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/members`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Remove an organization member from a user group. Triggers a membership sync for the removed member.
+   *
+   * @tags Management
+   * @name OrganizationUserGroupRemoveMember
+   * @summary Remove Member from User Group
+   * @request DELETE:/api/v1/control-plane/organizations/{organization}/user-groups/{user-group}/members/{organization-member}
+   * @secure
+   */
+  organizationUserGroupRemoveMember = (
+    organization: string,
+    userGroup: string,
+    organizationMember: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/user-groups/${userGroup}/members/${organizationMember}`,
+      method: "DELETE",
+      secure: true,
       ...params,
     });
   /**
