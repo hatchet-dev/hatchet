@@ -106,7 +106,7 @@ CREATE TABLE v1_dag_to_task_original (
     dag_inserted_at TIMESTAMPTZ NOT NULL,
     task_id BIGINT NOT NULL,
     task_inserted_at TIMESTAMPTZ NOT NULL,
-    CONSTRAINT v1_dag_to_task_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
+    CONSTRAINT v1_dag_to_task_original_pkey PRIMARY KEY (dag_id, dag_inserted_at, task_id, task_inserted_at)
 );
 
 INSERT INTO v1_dag_to_task_original
@@ -115,4 +115,5 @@ SELECT * FROM v1_dag_to_task;
 DROP TABLE v1_dag_to_task;
 
 ALTER TABLE v1_dag_to_task_original RENAME TO v1_dag_to_task;
+ALTER INDEX v1_dag_to_task_original_pkey RENAME TO v1_dag_to_task_pkey;
 -- +goose StatementEnd
