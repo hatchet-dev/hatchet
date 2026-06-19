@@ -1070,6 +1070,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 		opt := v1.EventTriggerOpts{
 			ExternalId:            msg.EventExternalId,
+			SeenAt:                msg.EventSeenAt,
 			Key:                   msg.EventKey,
 			Data:                  msg.EventData,
 			AdditionalMetadata:    msg.EventAdditionalMetadata,
