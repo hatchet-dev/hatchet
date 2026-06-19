@@ -1,51 +1,48 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-06-18T07:07:13Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-06-19T07:08:50Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 72% (1261/1744) · main: 46% (72/155)
+**Gating-CI pass rate** — PR: 73% (1229/1691) · main: 48% (73/151)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17]
+  x-axis [5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [69, 74, 77, 60, 68, 71, 74, 73, 71, 92, 80, 56, 75]
-  line "main" [40, 40, 36, 38, 40, 43, 0, 67, 50, 50, 56, 33, 54]
+  line "CI" [74, 77, 60, 68, 71, 74, 73, 71, 92, 79, 56, 75, 81]
+  line "main" [40, 36, 38, 40, 43, 0, 67, 50, 50, 56, 33, 54, 83]
 ```
 
-_X-axis = day of month (Jun 04 → Jun 17). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jun 05 → Jun 18). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `cypress` | frontend / app | 8 | 0 | 16 | 50% | flaky | PR | **unknown** — Cypress job failed but log parser only captured engine env setup noise |
-| 2 | `test` | python | 5 | 0 | 16 | 31% | flaky | PR | **infra/CI** — Python SDK worker did not become ready within the 25s CI startup budget |
-| 3 | `integration` | test | 5 | 0 | 19 | 26% | flaky | main + PR | **infra/CI** — TestMessageQueueIntegration fails immediately; MQ/service not ready in CI |
-| 4 | `old-engine-new-sdk` | typescript | 4 | 0 | 16 | 25% | flaky | PR | **product bug** — TypeScript durable e2e: child run status not FAILED as expected |
-| 5 | `e2e` | test | 4 | 0 | 19 | 21% | flaky | main + PR | **infra/CI** — e2e job timed out waiting for Hatchet engine/API readiness |
-| 6 | `load-pgbouncer` | test | 4 | 0 | 19 | 21% | flaky | main + PR | **timeout** — TestLoadCLI parent fails when DAG subtest exceeds its time budget |
-| 7 | `unit` | test | 3 | 0 | 19 | 16% | flaky | main + PR | **flaky test** — OLAP status-update replay test intermittently errors on mq_path subtest |
-| 8 | `test` | ruby | 2 | 0 | 4 | 50% | flaky | PR | **infra/CI** — Ruby events integration specs fail when Hatchet API is unreachable in CI |
-| 9 | `lint` | frontend / docs | 2 | 0 | 14 | 14% | flaky | PR | **unknown** — frontend/docs lint failed with generic exit code; no actionable lint output in sample |
-| 10 | `lint` | lint all | 2 | 0 | 23 | 9% | flaky | PR | **infra/CI** — pre-commit sync typescript changelog docs hook reported uncommitted drift |
+| 1 | `old-engine-new-sdk` | typescript | 2 | 0 | 6 | 33% | flaky | PR | **flaky test** — durable e2e child run still QUEUED when test expects FAILED status |
+| 2 | `old-engine-new-sdk` | python | 2 | 0 | 11 | 18% | flaky | PR | **flaky test** — same bulk_replay retry exhaustion in old-engine-new-sdk matrix job |
+| 3 | `generate` | test | 2 | 0 | 11 | 18% | flaky | PR | **infra/CI** — generate Check for diff step failed (codegen drift); sample line is unchanged file noise |
+| 4 | `old-engine-new-sdk` | ruby | 1 | 0 | 3 | 33% | flaky | PR | **unknown** — git fetch branch line noise; actual Pull release images failure not captured |
+| 5 | `lint` | frontend / app | 1 | 0 | 5 | 20% | flaky | PR | **infra/CI** — prettier/prettier lint gate failed on unformatted frontend code |
+| 6 | `cypress` | frontend / app | 1 | 0 | 5 | 20% | flaky | PR | **unknown** — set -x env trace noise; Cypress failure not captured in sample |
+| 7 | `api` | build | 1 | 0 | 9 | 11% | flaky | PR | **unknown** — docker apk install log noise; build failure not captured in sample |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `TestLoadCLI` | `load-pgbouncer` | 6 | 19 | 32% | flaky | main + PR | **timeout** — TestLoadCLI parent fails when DAG subtest exceeds its time budget |
-| 2 | `TestLoadCLI/test_with_DAG` | `load-pgbouncer` | 6 | 19 | 32% | flaky | main + PR | **timeout** — TestLoadCLI/test_with_DAG hit the ~400s subtest timeout in load-pgbouncer CI |
-| 3 | `(unparsed)` | `cypress` | 5 | 16 | 31% | flaky | PR | **unknown** — Cypress job failed but log parser only captured engine env setup noise |
-| 4 | `examples/conditions/test_conditions.py::test_waits` | `test` | 4 | 16 | 25% | flaky | PR | **infra/CI** — Python SDK worker did not become ready within the 25s CI startup budget |
-| 5 | `durable-e2e › durable parent catches error from failed child run` | `old-engine-new-sdk` | 4 | 16 | 25% | flaky | PR | **product bug** — TypeScript durable e2e: child run status not FAILED as expected |
-| 6 | `(unparsed)` | `e2e` | 4 | 19 | 21% | flaky | main + PR | **infra/CI** — e2e job timed out waiting for Hatchet engine/API readiness |
-| 7 | `TestMessageQueueIntegration` | `integration` | 4 | 19 | 21% | flaky | main + PR | **infra/CI** — TestMessageQueueIntegration fails immediately; MQ/service not ready in CI |
-| 8 | `examples/durable/test_durable.py::test_two_event_waits_second_pushed_first` | `test` | 3 | 16 | 19% | flaky | PR | **infra/CI** — Python SDK worker did not become ready within the 25s CI startup budget |
-| 9 | `examples/durable_eviction/test_durable_eviction.py::test_evictable_wait_for_event_restore` | `test` | 3 | 16 | 19% | flaky | PR | **infra/CI** — Python SDK worker did not become ready within the 25s CI startup budget |
-| 10 | `examples/dependency_injection/test_dependency_injection.py::test_di_workflows` | `test` | 3 | 16 | 19% | flaky | PR | **infra/CI** — Python SDK worker did not become ready within the 25s CI startup budget |
+| 1 | `(unparsed)` | `generate` | 2 | 11 | 18% | flaky | PR | **infra/CI** — generate Check for diff step failed (codegen drift); sample line is unchanged file noise |
+| 2 | `examples/bulk_operations/test_bulk_replay.py::test_bulk_replay` | `test` | 2 | 11 | 18% | flaky | main + PR | **flaky test** — test_bulk_replay exhausts tenacity retries waiting for replay completion |
+| 3 | `(unparsed)` | `old-engine-new-sdk` | 1 | 3 | 33% | flaky | PR | **unknown** — git fetch branch line noise; actual Pull release images failure not captured |
+| 4 | `(unparsed)` | `lint` | 1 | 5 | 20% | flaky | PR | **infra/CI** — prettier/prettier lint gate failed on unformatted frontend code |
+| 5 | `(unparsed)` | `cypress` | 1 | 5 | 20% | flaky | PR | **unknown** — set -x env trace noise; Cypress failure not captured in sample |
+| 6 | `durable-e2e › durable parent catches error from failed child run` | `old-engine-new-sdk` | 1 | 6 | 17% | flaky | PR | **flaky test** — durable e2e child run still QUEUED when test expects FAILED status |
+| 7 | `(unparsed)` | `old-engine-new-sdk` | 1 | 6 | 17% | flaky | PR | **unknown** — git fetch branch line noise; actual Pull release images failure not captured |
+| 8 | `(unparsed)` | `api` | 1 | 9 | 11% | flaky | PR | **unknown** — docker apk install log noise; build failure not captured in sample |
+| 9 | `TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff` | `load-deadlock` | 1 | 11 | 9% | flaky | PR | **flaky test** — durable events listener reconnect test fails under deadlock instrumentation timing |
+| 10 | `examples/bulk_operations/test_bulk_replay.py::test_bulk_replay` | `old-engine-new-sdk` | 1 | 11 | 9% | flaky | PR | **flaky test** — same bulk_replay retry exhaustion in old-engine-new-sdk matrix job |
 
 ## Recent CI-health wins (`ci-health`)
 
