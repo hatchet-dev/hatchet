@@ -1619,6 +1619,15 @@ function TenantMemberList({
           <RelativeDate date={member.metadata.createdAt} />
         ),
       },
+      {
+        columnLabel: 'Source',
+        cellRenderer: (member: TenantMember) =>
+          member.explicit ? (
+            <Badge variant="outline">Direct</Badge>
+          ) : (
+            <Badge variant="outline">Tags</Badge>
+          ),
+      },
       ...(canManage
         ? [
             {
@@ -1627,7 +1636,7 @@ function TenantMemberList({
                 <TenantMemberActions
                   member={member}
                   tenantId={tenantId}
-                  onEditRoleClick={setMemberToEdit}
+                  onEditRoleClick={member.explicit ? setMemberToEdit : () => {}}
                   onChangePasswordClick={() => {}}
                   onDeleteSuccess={onMembersChanged}
                 />

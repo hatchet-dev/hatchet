@@ -101,16 +101,20 @@ export function EditUserGroupModal({
   const currentMemberIds = new Set(currentMembers.map((m) => m.metadata.id));
   const availableToAdd = allOrgMembers.filter((m) => !currentMemberIds.has(m.metadata.id));
 
-  const handleSaveNameRole = () => {
-    updateMutation.mutate({ name: name.trim() || undefined, role });
-  };
-
-  const handleSaveTags = () => {
+  const handleSave = async () => {
     const tags = rawTags
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    tagsMutation.mutate(tags);
+    try {
+      await Promise.all([
+        updateMutation.mutateAsync({ name: name.trim() || undefined, role }),
+        tagsMutation.mutateAsync(tags),
+      ]);
+      onOpenChange(false);
+    } catch {
+      // errors already shown via onError toast handlers
+    }
   };
 
   return (
@@ -128,7 +132,7 @@ export function EditUserGroupModal({
                 id="edit-group-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                disabled={updateMutation.isPending}
+                disabled={updateMutation.isPending || tagsMutation.isPending}
               />
             </div>
             <div className="space-y-2">
@@ -136,7 +140,7 @@ export function EditUserGroupModal({
               <Select
                 value={role}
                 onValueChange={(v) => setRole(v as TenantMemberRoleType)}
-                disabled={updateMutation.isPending}
+                disabled={updateMutation.isPending || tagsMutation.isPending}
               >
                 <SelectTrigger id="edit-group-role">
                   <SelectValue />
@@ -148,15 +152,6 @@ export function EditUserGroupModal({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={handleSaveNameRole}
-                disabled={updateMutation.isPending}
-              >
-                {updateMutation.isPending ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
           </div>
 
           {/* Tags */}
@@ -167,21 +162,12 @@ export function EditUserGroupModal({
               value={rawTags}
               onChange={(e) => setRawTags(e.target.value)}
               placeholder="e.g. prod, us-east"
-              disabled={tagsMutation.isPending}
+              disabled={updateMutation.isPending || tagsMutation.isPending}
             />
             <p className="text-xs text-muted-foreground">
               Comma-separated. Members in this group get access to tenants whose
               tags are a subset of these tags.
             </p>
-            <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={handleSaveTags}
-                disabled={tagsMutation.isPending}
-              >
-                {tagsMutation.isPending ? 'Saving...' : 'Save Tags'}
-              </Button>
-            </div>
           </div>
 
           {/* Members */}
@@ -243,8 +229,11 @@ export function EditUserGroupModal({
           </div>
 
           <div className="flex justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Done
+            <Button
+              onClick={handleSave}
+              disabled={updateMutation.isPending || tagsMutation.isPending}
+            >
+              {updateMutation.isPending || tagsMutation.isPending ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </div>
