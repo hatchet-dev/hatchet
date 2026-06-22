@@ -27,6 +27,13 @@ func streamDecisionStopsReconnect(decision retry.StreamDecision) bool {
 	return decision == retry.StreamDecisionStop || decision == retry.StreamDecisionNoProgress
 }
 
+func sendListenerError(ctx context.Context, errCh chan<- error, err error) {
+	select {
+	case errCh <- err:
+	case <-ctx.Done():
+	}
+}
+
 func retryStreamConnectSync(
 	ctx context.Context,
 	isClosed func() bool,

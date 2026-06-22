@@ -1282,10 +1282,10 @@ func (m *mockWorkflowEventsClient) Recv() (*dispatchercontracts.WorkflowEvent, e
 	return event, nil
 }
 
-func (m *mockWorkflowEventsClient) CloseSend() error { return nil }
-func (m *mockWorkflowEventsClient) Header() (metadata.MD, error) { return nil, nil }
-func (m *mockWorkflowEventsClient) Trailer() metadata.MD { return nil }
-func (m *mockWorkflowEventsClient) Context() context.Context { return context.Background() }
+func (m *mockWorkflowEventsClient) CloseSend() error              { return nil }
+func (m *mockWorkflowEventsClient) Header() (metadata.MD, error)  { return nil, nil }
+func (m *mockWorkflowEventsClient) Trailer() metadata.MD          { return nil }
+func (m *mockWorkflowEventsClient) Context() context.Context      { return context.Background() }
 func (m *mockWorkflowEventsClient) SendMsg(msg interface{}) error { return nil }
 func (m *mockWorkflowEventsClient) RecvMsg(msg interface{}) error { return nil }
 

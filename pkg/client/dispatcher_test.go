@@ -31,10 +31,10 @@ func (m *mockListenV2Client) Recv() (*dispatchercontracts.AssignedAction, error)
 	return nil, io.EOF
 }
 
-func (m *mockListenV2Client) CloseSend() error { return nil }
-func (m *mockListenV2Client) Header() (metadata.MD, error) { return nil, nil }
-func (m *mockListenV2Client) Trailer() metadata.MD         { return nil }
-func (m *mockListenV2Client) Context() context.Context     { return context.Background() }
+func (m *mockListenV2Client) CloseSend() error              { return nil }
+func (m *mockListenV2Client) Header() (metadata.MD, error)  { return nil, nil }
+func (m *mockListenV2Client) Trailer() metadata.MD          { return nil }
+func (m *mockListenV2Client) Context() context.Context      { return context.Background() }
 func (m *mockListenV2Client) SendMsg(msg interface{}) error { return nil }
 func (m *mockListenV2Client) RecvMsg(msg interface{}) error { return nil }
 

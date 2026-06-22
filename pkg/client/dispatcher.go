@@ -329,7 +329,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 
 func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-chan error, error) {
 	ch := make(chan *Action)
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 
 	a.l.Debug().Ctx(ctx).Msgf("Starting to listen for actions")
 
@@ -419,7 +419,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					decision := classifyStreamRecvError(ctx, err, true)
 					switch decision {
 					case retry.StreamDecisionStop:
-						errCh <- err
+						sendListenerError(ctx, errCh, err)
 						close(ch)
 						close(errCh)
 
@@ -432,7 +432,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					case retry.StreamDecisionNoProgress:
 						consecutiveNoProgress++
 						if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-							errCh <- fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+							sendListenerError(ctx, errCh, fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err))
 							close(ch)
 							close(errCh)
 							return
@@ -466,7 +466,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				if subscribeErr != nil {
 					if a.listenerStrategy == ListenerStrategyV1 && status.Code(subscribeErr) == codes.Unimplemented {
 						a.l.Error().Ctx(ctx).Err(subscribeErr).Msg("Failed to resubscribe")
-						errCh <- fmt.Errorf("failed to resubscribe: %w", subscribeErr)
+						sendListenerError(ctx, errCh, fmt.Errorf("failed to resubscribe: %w", subscribeErr))
 						close(ch)
 						close(errCh)
 						return
@@ -475,7 +475,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					subscribeDecision := retry.ClassifyStreamError(ctx, subscribeErr)
 					if streamDecisionStopsReconnect(subscribeDecision) {
 						a.l.Error().Ctx(ctx).Err(subscribeErr).Msg("Failed to resubscribe")
-						errCh <- fmt.Errorf("failed to resubscribe: %w", subscribeErr)
+						sendListenerError(ctx, errCh, fmt.Errorf("failed to resubscribe: %w", subscribeErr))
 						close(ch)
 						close(errCh)
 						return
@@ -494,7 +494,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					}
 
 					if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-						errCh <- fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveNoProgress, subscribeErr)
+						sendListenerError(ctx, errCh, fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveNoProgress, subscribeErr))
 						close(ch)
 						close(errCh)
 						return

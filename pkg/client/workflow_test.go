@@ -4,8 +4,8 @@ package client
 
 import (
 	"context"
-	"testing"
 	"sync/atomic"
+	"testing"
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
