@@ -22,9 +22,6 @@ class FakeEventClient:
 
 
 async def test_log_forwarding_handler_enqueues_correct_record() -> None:
-    # Verify that LogForwardingHandler.emit() enqueues the right LogRecord.
-    # The consumer process is intentionally not started; we only test the
-    # publish side, which is entirely in-process and non-blocking.
     event_client = FakeEventClient()
     log_sender = AsyncLogSender(cast(EventClient, event_client))
 
