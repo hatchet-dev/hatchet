@@ -5,22 +5,28 @@ package client
 import (
 	grpcMetadata "google.golang.org/grpc/metadata"
 
+	"github.com/hatchet-dev/hatchet/internal/shutdown"
+
 	"context"
 )
 
 type contextLoader struct {
 	Token   string
 	extraMD map[string]string
+	shutSig *shutdown.Signaller
 }
 
-func newContextLoader(token string, extraMD map[string]string) *contextLoader {
+func newContextLoader(token string, extraMD map[string]string, shutSig *shutdown.Signaller) *contextLoader {
 	return &contextLoader{
 		Token:   token,
 		extraMD: extraMD,
+		shutSig: shutSig,
 	}
 }
 
 func (c *contextLoader) newContext(ctx context.Context) context.Context {
+	ctx, _ = c.shutSig.WithShutdown(ctx)
+
 	pairs := map[string]string{
 		"authorization": "Bearer " + c.Token,
 	}
