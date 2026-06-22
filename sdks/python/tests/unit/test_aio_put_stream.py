@@ -70,8 +70,7 @@ def _event_client(aio_stub: _FakeAioEventsServiceStub) -> EventClient:
     )
     client.token = "token"
     client.namespace = ""
-    client.aio_events_service_client = cast(EventsServiceStub, aio_stub)
-    client.aio_events_service_channel = None
+    client._aio_client = cast(EventsServiceStub, aio_stub)
     client._retrying_aio_put_stream_event = tenacity_retry(
         client._put_stream_event, client.client_config.tenacity
     )
