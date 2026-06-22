@@ -5,9 +5,7 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -418,7 +416,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					a.listenerStrategy = ListenerStrategyV1
 					consecutiveNoProgress++
 				} else {
-					decision := a.classifyRecvError(ctx, err)
+					decision := classifyStreamRecvError(ctx, err, true)
 					switch decision {
 					case retry.StreamDecisionStop:
 						errCh <- err
@@ -475,7 +473,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 					}
 
 					subscribeDecision := retry.ClassifyStreamError(ctx, subscribeErr)
-					if subscribeDecision == retry.StreamDecisionStop || subscribeDecision == retry.StreamDecisionNoProgress {
+					if streamDecisionStopsReconnect(subscribeDecision) {
 						a.l.Error().Ctx(ctx).Err(subscribeErr).Msg("Failed to resubscribe")
 						errCh <- fmt.Errorf("failed to resubscribe: %w", subscribeErr)
 						close(ch)
@@ -613,18 +611,6 @@ func streamErrorCode(err error) string {
 
 func shouldLogReconnectMilestone(attempt int) bool {
 	return attempt == 1 || attempt%5 == 0
-}
-
-func (a *actionListenerImpl) classifyRecvError(ctx context.Context, err error) retry.StreamDecision {
-	if errors.Is(err, io.EOF) {
-		if ctx.Err() != nil {
-			return retry.StreamDecisionStop
-		}
-
-		return retry.StreamDecisionRetry
-	}
-
-	return retry.ClassifyStreamError(ctx, err)
 }
 
 func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {

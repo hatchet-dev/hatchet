@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
@@ -150,78 +149,27 @@ func (w *DurableEventsListener) retryListenBackground(ctx context.Context) error
 }
 
 func (w *DurableEventsListener) doRetryListenSync(ctx context.Context) error {
-	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
-		if attempt > 0 {
-			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
-				return err
-			}
-		}
-
-		if w.isClosed() {
-			return errListenerClosed
-		}
-
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		err := w.connectAndReplayHandlers(ctx)
-		if err == nil {
-			return nil
-		}
-
-		decision := retry.ClassifyStreamError(ctx, err)
-		if decision == retry.StreamDecisionStop {
-			return err
-		}
-
-		w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (attempt %d/%d)", attempt+1, retry.StreamSyncMaxAttempts)
-	}
-
-	return fmt.Errorf("could not listen for durable events on the worker after %d retries", retry.StreamSyncMaxAttempts)
+	return retryStreamConnectSync(
+		ctx,
+		w.isClosed,
+		w.connectAndReplayHandlers,
+		func(err error, attempt int) {
+			w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (attempt %d/%d)", attempt, retry.StreamSyncMaxAttempts)
+		},
+		"could not listen for durable events on the worker after %d retries",
+	)
 }
 
 func (w *DurableEventsListener) doRetryListenBackground(ctx context.Context) error {
-	attempt := 0
-	consecutiveNoProgress := 0
-
-	for {
-		if attempt > 0 {
-			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
-				return err
-			}
-		}
-
-		if w.isClosed() {
-			return errListenerClosed
-		}
-
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		err := w.connectAndReplayHandlers(ctx)
-		if err == nil {
-			return nil
-		}
-
-		decision := retry.ClassifyStreamError(ctx, err)
-		switch decision {
-		case retry.StreamDecisionStop:
-			return err
-		case retry.StreamDecisionNoProgress:
-			consecutiveNoProgress++
-			if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-				return fmt.Errorf("could not resubscribe after %d consecutive no-progress errors: %w", consecutiveNoProgress, err)
-			}
-
-			return err
-		}
-
-		consecutiveNoProgress = 0
-		w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (background attempt %d)", attempt+1)
-		attempt++
-	}
+	return retryStreamConnectBackground(
+		ctx,
+		w.isClosed,
+		w.connectAndReplayHandlers,
+		func(err error, attempt int) {
+			w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (background attempt %d)", attempt)
+		},
+		"could not resubscribe after %d consecutive no-progress errors: %w",
+	)
 }
 
 func (w *DurableEventsListener) connectAndReplayHandlers(ctx context.Context) error {
@@ -446,18 +394,6 @@ func (l *DurableEventsListener) Listen(ctx context.Context) error {
 	return l.listen(ctx)
 }
 
-func (l *DurableEventsListener) classifyRecvError(ctx context.Context, err error) retry.StreamDecision {
-	if errors.Is(err, io.EOF) {
-		if !l.shouldReconnectOnEOF(ctx) {
-			return retry.StreamDecisionStop
-		}
-
-		return retry.StreamDecisionRetry
-	}
-
-	return retry.ClassifyStreamError(ctx, err)
-}
-
 func (l *DurableEventsListener) listen(ctx context.Context) error {
 	consecutiveNoProgress := 0
 	reconnectAttempt := 0
@@ -476,7 +412,7 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 		event, err := client.Recv()
 
 		if err != nil {
-			decision := l.classifyRecvError(ctx, err)
+			decision := classifyStreamRecvError(ctx, err, l.shouldReconnectOnEOF(ctx))
 
 			switch decision {
 			case retry.StreamDecisionStop:
@@ -511,7 +447,7 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 				}
 
 				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
-				if retryDecision == retry.StreamDecisionStop || retryDecision == retry.StreamDecisionNoProgress {
+				if streamDecisionStopsReconnect(retryDecision) {
 					return fmt.Errorf("failed to relisten: %w", retryErr)
 				}
 

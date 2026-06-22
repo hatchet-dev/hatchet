@@ -292,78 +292,27 @@ func (w *WorkflowRunsListener) retrySubscribeBackground(ctx context.Context) err
 }
 
 func (w *WorkflowRunsListener) doRetrySubscribeSync(ctx context.Context) error {
-	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
-		if attempt > 0 {
-			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
-				return err
-			}
-		}
-
-		if w.isClosed() {
-			return errListenerClosed
-		}
-
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		err := w.connectAndReplayHandlers(ctx)
-		if err == nil {
-			return nil
-		}
-
-		decision := retry.ClassifyStreamError(ctx, err)
-		if decision == retry.StreamDecisionStop {
-			return err
-		}
-
-		w.l.Error().Err(err).Msgf("could not resubscribe to the listener (attempt %d/%d)", attempt+1, retry.StreamSyncMaxAttempts)
-	}
-
-	return fmt.Errorf("could not subscribe to the worker after %d retries", retry.StreamSyncMaxAttempts)
+	return retryStreamConnectSync(
+		ctx,
+		w.isClosed,
+		w.connectAndReplayHandlers,
+		func(err error, attempt int) {
+			w.l.Error().Err(err).Msgf("could not resubscribe to the listener (attempt %d/%d)", attempt, retry.StreamSyncMaxAttempts)
+		},
+		"could not subscribe to the worker after %d retries",
+	)
 }
 
 func (w *WorkflowRunsListener) doRetrySubscribeBackground(ctx context.Context) error {
-	attempt := 0
-	consecutiveNoProgress := 0
-
-	for {
-		if attempt > 0 {
-			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
-				return err
-			}
-		}
-
-		if w.isClosed() {
-			return errListenerClosed
-		}
-
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		err := w.connectAndReplayHandlers(ctx)
-		if err == nil {
-			return nil
-		}
-
-		decision := retry.ClassifyStreamError(ctx, err)
-		switch decision {
-		case retry.StreamDecisionStop:
-			return err
-		case retry.StreamDecisionNoProgress:
-			consecutiveNoProgress++
-			if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-				return fmt.Errorf("could not resubscribe after %d consecutive no-progress errors: %w", consecutiveNoProgress, err)
-			}
-
-			return err
-		}
-
-		consecutiveNoProgress = 0
-		w.l.Error().Err(err).Msgf("could not resubscribe to the listener (background attempt %d)", attempt+1)
-		attempt++
-	}
+	return retryStreamConnectBackground(
+		ctx,
+		w.isClosed,
+		w.connectAndReplayHandlers,
+		func(err error, attempt int) {
+			w.l.Error().Err(err).Msgf("could not resubscribe to the listener (background attempt %d)", attempt)
+		},
+		"could not resubscribe after %d consecutive no-progress errors: %w",
+	)
 }
 
 func (w *WorkflowRunsListener) connectAndReplayHandlers(ctx context.Context) error {
@@ -534,18 +483,6 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 	return l.listen(ctx)
 }
 
-func (l *WorkflowRunsListener) classifyRecvError(ctx context.Context, err error) retry.StreamDecision {
-	if errors.Is(err, io.EOF) {
-		if !l.shouldReconnectOnEOF(ctx) {
-			return retry.StreamDecisionStop
-		}
-
-		return retry.StreamDecisionRetry
-	}
-
-	return retry.ClassifyStreamError(ctx, err)
-}
-
 func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 	consecutiveNoProgress := 0
 	reconnectAttempt := 0
@@ -564,7 +501,7 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 		event, err := client.Recv()
 
 		if err != nil {
-			decision := l.classifyRecvError(ctx, err)
+			decision := classifyStreamRecvError(ctx, err, l.shouldReconnectOnEOF(ctx))
 
 			switch decision {
 			case retry.StreamDecisionStop:
@@ -599,7 +536,7 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 				}
 
 				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
-				if retryDecision == retry.StreamDecisionStop || retryDecision == retry.StreamDecisionNoProgress {
+				if streamDecisionStopsReconnect(retryDecision) {
 					return fmt.Errorf("failed to resubscribe: %w", retryErr)
 				}
 
@@ -875,23 +812,12 @@ func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, ke
 			event, recvErr := stream.Recv()
 
 			if recvErr != nil {
-				if errors.Is(recvErr, io.EOF) {
-					if ctx.Err() != nil {
+				decision := classifyStreamRecvError(ctx, recvErr, true)
+				if decision == retry.StreamDecisionStop {
+					if errors.Is(recvErr, io.EOF) && ctx.Err() != nil {
 						return ctx.Err()
 					}
 
-					if reconnectAttempt > 0 {
-						if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
-							return sleepErr
-						}
-					}
-
-					reconnectAttempt++
-					break
-				}
-
-				decision := retry.ClassifyStreamError(ctx, recvErr)
-				if decision == retry.StreamDecisionStop {
 					return recvErr
 				}
 
