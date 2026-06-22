@@ -871,7 +871,18 @@ func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, ke
 
 			if recvErr != nil {
 				if errors.Is(recvErr, io.EOF) {
-					return nil
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+
+					if reconnectAttempt > 0 {
+						if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+							return sleepErr
+						}
+					}
+
+					reconnectAttempt++
+					break
 				}
 
 				decision := retry.ClassifyStreamError(ctx, recvErr)

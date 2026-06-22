@@ -1290,9 +1290,16 @@ func (m *mockWorkflowEventsClient) SendMsg(msg interface{}) error { return nil }
 func (m *mockWorkflowEventsClient) RecvMsg(msg interface{}) error { return nil }
 
 func TestStreamByAdditionalMetadataReconnects(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
 	logger := zerolog.Nop()
 	establishCalls := atomic.Int32{}
 	recvCh := make(chan *dispatchercontracts.WorkflowEvent, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	subscriber := &subscribeClientImpl{
 		client: &mockDispatcherClient{
@@ -1316,7 +1323,8 @@ func TestStreamByAdditionalMetadataReconnects(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- subscriber.StreamByAdditionalMetadata(context.Background(), "k", "v", func(event StreamEvent) error {
+		done <- subscriber.StreamByAdditionalMetadata(ctx, "k", "v", func(event StreamEvent) error {
+			cancel()
 			return nil
 		})
 	}()
@@ -1325,9 +1333,62 @@ func TestStreamByAdditionalMetadataReconnects(t *testing.T) {
 		EventType:    dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
 		EventPayload: "hello",
 	}
-	close(recvCh)
 
-	require.NoError(t, <-done)
+	err := <-done
+	require.ErrorIs(t, err, context.Canceled)
+	assert.GreaterOrEqual(t, establishCalls.Load(), int32(2))
+}
+
+func TestStreamByAdditionalMetadataReconnectsOnEOF(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	logger := zerolog.Nop()
+	establishCalls := atomic.Int32{}
+	handlerCalls := atomic.Int32{}
+	secondRecvCh := make(chan *dispatchercontracts.WorkflowEvent, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowEventsFn: func(ctx context.Context, in *dispatchercontracts.SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error) {
+				require.NotEmpty(t, opts)
+				call := establishCalls.Add(1)
+				if call == 1 {
+					return &mockWorkflowEventsClient{
+						recvFn: func() (*dispatchercontracts.WorkflowEvent, error) {
+							return nil, io.EOF
+						},
+					}, nil
+				}
+
+				return &mockWorkflowEventsClient{recvCh: secondRecvCh}, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- subscriber.StreamByAdditionalMetadata(ctx, "k", "v", func(event StreamEvent) error {
+			handlerCalls.Add(1)
+			cancel()
+			return nil
+		})
+	}()
+
+	secondRecvCh <- &dispatchercontracts.WorkflowEvent{
+		EventType:    dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
+		EventPayload: "hello",
+	}
+
+	err := <-done
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, int32(1), handlerCalls.Load())
 	assert.GreaterOrEqual(t, establishCalls.Load(), int32(2))
 }
 

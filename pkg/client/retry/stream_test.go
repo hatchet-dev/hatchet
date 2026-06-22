@@ -114,8 +114,6 @@ func TestStreamSyncMaxAttemptsValue(t *testing.T) {
 }
 
 func TestStreamSleepHookForTesting(t *testing.T) {
-	t.Parallel()
-
 	called := false
 	SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
 		called = true
