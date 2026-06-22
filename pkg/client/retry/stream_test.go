@@ -112,3 +112,18 @@ func TestStreamSyncMaxAttemptsValue(t *testing.T) {
 
 	require.Equal(t, 5, StreamSyncMaxAttempts)
 }
+
+func TestStreamSleepHookForTesting(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		called = true
+		assert.Equal(t, 2, attempt)
+		return nil
+	})
+	t.Cleanup(ResetStreamSleepHookForTesting)
+
+	require.NoError(t, SleepStreamBackoff(context.Background(), 2))
+	assert.True(t, called)
+}

@@ -1120,6 +1120,11 @@ func TestDoRetrySubscribeSyncStopsAtStreamSyncMaxAttempts(t *testing.T) {
 }
 
 func TestDoRetrySubscribeBackgroundContinuesPastSyncCap(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
 	logger := zerolog.Nop()
 	constructorCalls := atomic.Int32{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1324,4 +1329,99 @@ func TestStreamByAdditionalMetadataReconnects(t *testing.T) {
 
 	require.NoError(t, <-done)
 	assert.GreaterOrEqual(t, establishCalls.Load(), int32(2))
+}
+
+func TestSubscribeToWorkflowRunEventsRespectsCancelledContext(t *testing.T) {
+	logger := zerolog.Nop()
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				t.Fatal("constructor should not run when caller context is already cancelled")
+				return nil, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := subscriber.SubscribeToWorkflowRunEvents(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestSubscribeToWorkflowRunEventsPassesCallerContextToInitialSubscribe(t *testing.T) {
+	logger := zerolog.Nop()
+	callerCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				assert.NotEqual(t, context.Background(), ctx)
+				cancel()
+				select {
+				case <-ctx.Done():
+				case <-time.After(time.Second):
+					t.Fatal("constructor context was not cancelled with caller context")
+				}
+				return nil, status.Error(codes.Unavailable, "engine down")
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	_, err := subscriber.SubscribeToWorkflowRunEvents(callerCtx)
+	require.Error(t, err)
+}
+
+func TestSubscribeToWorkflowRunEventsRespectsDeadlineContext(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				constructorCalls.Add(1)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := subscriber.SubscribeToWorkflowRunEvents(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, int32(1), constructorCalls.Load())
+}
+
+func TestDoRetrySubscribeBackgroundStopsOnNoProgressError(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return nil, fmt.Errorf("plain subscribe error")
+		},
+		l: &logger,
+	}
+
+	err := listener.doRetrySubscribeBackground(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, int32(1), constructorCalls.Load())
 }

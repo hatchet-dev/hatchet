@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync/atomic"
 	"testing"
@@ -121,6 +122,11 @@ func newTestActionListener(listenClient dispatchercontracts.Dispatcher_ListenV2C
 }
 
 func TestWorkerActionsSurvivesMoreThanFiveTransientFailures(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
 	recvCalls := atomic.Int32{}
 	subscribeCalls := atomic.Int32{}
 
@@ -158,11 +164,33 @@ func TestWorkerActionsSurvivesMoreThanFiveTransientFailures(t *testing.T) {
 		assert.Equal(t, "action-1", action.ActionId)
 	case err := <-errCh:
 		t.Fatalf("unexpected terminal error: %v", err)
-	case <-time.After(15 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for action after prolonged transient failures")
 	}
 
 	assert.Greater(t, recvCalls.Load(), int32(DefaultActionListenerRetryCount))
+	assert.Greater(t, subscribeCalls.Load(), int32(0))
+}
+
+func TestWorkerRetrySubscribeStopsOnNoProgressError(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	constructorCalls := atomic.Int32{}
+
+	listener := newTestActionListener(&mockListenV2Client{})
+	listener.client = &mockWorkerDispatcherClient{
+		listenV2Fn: func(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenV2Client, error) {
+			constructorCalls.Add(1)
+			return nil, fmt.Errorf("plain subscribe error")
+		},
+	}
+
+	err := listener.retrySubscribe(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, int32(1), constructorCalls.Load())
 }
 
 func TestWorkerActionsFallsBackFromV2ToV1(t *testing.T) {

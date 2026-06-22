@@ -581,7 +581,8 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 		}
 
 		decision := retry.ClassifyStreamError(ctx, err)
-		if decision == retry.StreamDecisionStop {
+		switch decision {
+		case retry.StreamDecisionStop, retry.StreamDecisionNoProgress:
 			return err
 		}
 

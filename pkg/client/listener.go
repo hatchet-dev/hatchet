@@ -324,6 +324,7 @@ func (w *WorkflowRunsListener) doRetrySubscribeSync(ctx context.Context) error {
 
 func (w *WorkflowRunsListener) doRetrySubscribeBackground(ctx context.Context) error {
 	attempt := 0
+	consecutiveNoProgress := 0
 
 	for {
 		if attempt > 0 {
@@ -346,10 +347,19 @@ func (w *WorkflowRunsListener) doRetrySubscribeBackground(ctx context.Context) e
 		}
 
 		decision := retry.ClassifyStreamError(ctx, err)
-		if decision == retry.StreamDecisionStop {
+		switch decision {
+		case retry.StreamDecisionStop:
+			return err
+		case retry.StreamDecisionNoProgress:
+			consecutiveNoProgress++
+			if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+				return fmt.Errorf("could not resubscribe after %d consecutive no-progress errors: %w", consecutiveNoProgress, err)
+			}
+
 			return err
 		}
 
+		consecutiveNoProgress = 0
 		w.l.Error().Err(err).Msgf("could not resubscribe to the listener (background attempt %d)", attempt+1)
 		attempt++
 	}
@@ -907,11 +917,11 @@ func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, ke
 }
 
 func (r *subscribeClientImpl) SubscribeToWorkflowRunEvents(ctx context.Context) (*WorkflowRunsListener, error) {
-	return r.getWorkflowRunsListener(context.Background())
+	return r.getWorkflowRunsListener(ctx)
 }
 
 func (r *subscribeClientImpl) ListenForDurableEvents(ctx context.Context) (*DurableEventsListener, error) {
-	return r.getDurableEventsListener(context.Background())
+	return r.getDurableEventsListener(ctx)
 }
 
 func workflowEventToDeprecatedWorkflowEvent(event *dispatchercontracts.WorkflowEvent) (*workflowEvent, error) {

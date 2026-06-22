@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -527,4 +528,99 @@ func TestDurableListenPermanentErrorStops(t *testing.T) {
 
 	err := listener.Listen(context.Background())
 	require.Error(t, err)
+}
+
+func TestListenForDurableEventsRespectsCancelledContext(t *testing.T) {
+	logger := zerolog.Nop()
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				t.Fatal("constructor should not run when caller context is already cancelled")
+				return nil, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := subscriber.ListenForDurableEvents(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestListenForDurableEventsPassesCallerContextToInitialListen(t *testing.T) {
+	logger := zerolog.Nop()
+	callerCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				assert.NotEqual(t, context.Background(), ctx)
+				cancel()
+				select {
+				case <-ctx.Done():
+				case <-time.After(time.Second):
+					t.Fatal("constructor context was not cancelled with caller context")
+				}
+				return nil, status.Error(codes.Unavailable, "engine down")
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	_, err := subscriber.ListenForDurableEvents(callerCtx)
+	require.Error(t, err)
+}
+
+func TestListenForDurableEventsRespectsDeadlineContext(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				constructorCalls.Add(1)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := subscriber.ListenForDurableEvents(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, int32(1), constructorCalls.Load())
+}
+
+func TestDoRetryListenBackgroundStopsOnNoProgressError(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			constructorCalls.Add(1)
+			return nil, fmt.Errorf("plain listen error")
+		},
+		l: &logger,
+	}
+
+	err := listener.doRetryListenBackground(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, int32(1), constructorCalls.Load())
 }

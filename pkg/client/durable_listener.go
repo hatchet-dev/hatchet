@@ -182,6 +182,7 @@ func (w *DurableEventsListener) doRetryListenSync(ctx context.Context) error {
 
 func (w *DurableEventsListener) doRetryListenBackground(ctx context.Context) error {
 	attempt := 0
+	consecutiveNoProgress := 0
 
 	for {
 		if attempt > 0 {
@@ -204,10 +205,19 @@ func (w *DurableEventsListener) doRetryListenBackground(ctx context.Context) err
 		}
 
 		decision := retry.ClassifyStreamError(ctx, err)
-		if decision == retry.StreamDecisionStop {
+		switch decision {
+		case retry.StreamDecisionStop:
+			return err
+		case retry.StreamDecisionNoProgress:
+			consecutiveNoProgress++
+			if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+				return fmt.Errorf("could not resubscribe after %d consecutive no-progress errors: %w", consecutiveNoProgress, err)
+			}
+
 			return err
 		}
 
+		consecutiveNoProgress = 0
 		w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (background attempt %d)", attempt+1)
 		attempt++
 	}
