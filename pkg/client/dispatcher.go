@@ -5,7 +5,9 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"runtime"
 	"runtime/debug"
 	"time"
@@ -388,6 +390,7 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 	go func() {
 		consecutiveNoProgress := 0
 		reconnectAttempt := 0
+		degraded := false
 
 		for {
 			if ctx.Err() != nil {
@@ -408,11 +411,14 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			assignedAction, err := a.listenClient.Recv()
 
 			if err != nil {
+				enteringDegraded := false
+
 				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
 					a.l.Debug().Ctx(ctx).Msgf("Falling back to v1 listener strategy")
 					a.listenerStrategy = ListenerStrategyV1
+					consecutiveNoProgress++
 				} else {
-					decision := retry.ClassifyStreamError(ctx, err)
+					decision := a.classifyRecvError(ctx, err)
 					switch decision {
 					case retry.StreamDecisionStop:
 						errCh <- err
@@ -433,15 +439,22 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 							close(errCh)
 							return
 						}
-
-						errCh <- err
-						close(ch)
-						close(errCh)
-						return
+						enteringDegraded = true
+					default:
+						consecutiveNoProgress++
+						enteringDegraded = true
 					}
 				}
 
-				consecutiveNoProgress++
+				if enteringDegraded && !degraded {
+					degraded = true
+					a.l.Warn().Ctx(ctx).
+						Err(err).
+						Str("worker_id", a.workerId).
+						Str("listener_strategy", string(a.listenerStrategy)).
+						Str("error_code", streamErrorCode(err)).
+						Msg("action listener entering reconnect mode")
+				}
 
 				if reconnectAttempt > 0 {
 					if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
@@ -470,7 +483,17 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						return
 					}
 
-					a.l.Error().Ctx(ctx).Err(subscribeErr).Msgf("Failed to resubscribe (consecutive no-progress: %d/%d)", consecutiveNoProgress, maxConsecutiveStreamNoProgress)
+					if shouldLogReconnectMilestone(reconnectAttempt + 1) {
+						a.l.Warn().Ctx(ctx).
+							Err(subscribeErr).
+							Str("worker_id", a.workerId).
+							Str("listener_strategy", string(a.listenerStrategy)).
+							Str("error_code", streamErrorCode(subscribeErr)).
+							Int("reconnect_attempt", reconnectAttempt+1).
+							Int("consecutive_no_progress", consecutiveNoProgress).
+							Int("max_consecutive_no_progress", maxConsecutiveStreamNoProgress).
+							Msg("action listener reconnect attempt continuing")
+					}
 
 					if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
 						errCh <- fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveNoProgress, subscribeErr)
@@ -478,10 +501,32 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 						close(errCh)
 						return
 					}
+
+					reconnectAttempt++
+					continue
 				}
 
-				reconnectAttempt++
+				if degraded {
+					a.l.Info().Ctx(ctx).
+						Str("worker_id", a.workerId).
+						Str("listener_strategy", string(a.listenerStrategy)).
+						Str("recovery_source", "resubscribe").
+						Msg("action listener recovered from reconnect mode")
+					degraded = false
+				}
+
+				reconnectAttempt = 0
+				consecutiveNoProgress = 0
 				continue
+			}
+
+			if degraded {
+				a.l.Info().Ctx(ctx).
+					Str("worker_id", a.workerId).
+					Str("listener_strategy", string(a.listenerStrategy)).
+					Str("recovery_source", "recv").
+					Msg("action listener recovered from reconnect mode")
+				degraded = false
 			}
 
 			consecutiveNoProgress = 0
@@ -554,6 +599,34 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 	return ch, errCh, nil
 }
 
+func streamErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	if st, ok := status.FromError(err); ok {
+		return st.Code().String()
+	}
+
+	return "unknown"
+}
+
+func shouldLogReconnectMilestone(attempt int) bool {
+	return attempt == 1 || attempt%5 == 0
+}
+
+func (a *actionListenerImpl) classifyRecvError(ctx context.Context, err error) retry.StreamDecision {
+	if errors.Is(err, io.EOF) {
+		if ctx.Err() != nil {
+			return retry.StreamDecisionStop
+		}
+
+		return retry.StreamDecisionRetry
+	}
+
+	return retry.ClassifyStreamError(ctx, err)
+}
+
 func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 	attempt := 0
 
@@ -586,7 +659,15 @@ func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
 			return err
 		}
 
-		a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker (attempt %d)", attempt+1)
+		if shouldLogReconnectMilestone(attempt + 1) {
+			a.l.Warn().Ctx(ctx).
+				Err(err).
+				Str("worker_id", a.workerId).
+				Str("listener_strategy", string(a.listenerStrategy)).
+				Str("error_code", streamErrorCode(err)).
+				Int("reconnect_attempt", attempt+1).
+				Msg("action listener reconnect attempt continuing")
+		}
 
 		if err := retry.SleepStreamBackoff(ctx, attempt); err != nil {
 			return err

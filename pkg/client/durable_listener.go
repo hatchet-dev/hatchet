@@ -31,6 +31,7 @@ type DurableEventsListener struct {
 
 	reconnectSyncGroup       singleflight.Group
 	reconnectBackgroundGroup singleflight.Group
+	reconnectMu              sync.Mutex
 	listenMu                 sync.Mutex
 	listening                bool
 	closed                   bool
@@ -224,6 +225,9 @@ func (w *DurableEventsListener) doRetryListenBackground(ctx context.Context) err
 }
 
 func (w *DurableEventsListener) connectAndReplayHandlers(ctx context.Context) error {
+	w.reconnectMu.Lock()
+	defer w.reconnectMu.Unlock()
+
 	if w.isClosed() {
 		return errListenerClosed
 	}
@@ -482,14 +486,14 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
 					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
 				}
-
-				return nil
+			default:
+				consecutiveNoProgress++
 			}
-
-			consecutiveNoProgress++
 
 			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
 				client, generation = l.getClientSnapshot()
+				consecutiveNoProgress = 0
+				reconnectAttempt = 0
 				continue
 			}
 
@@ -522,7 +526,8 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 			}
 
 			client, generation = l.getClientSnapshot()
-			reconnectAttempt++
+			consecutiveNoProgress = 0
+			reconnectAttempt = 0
 			continue
 		}
 

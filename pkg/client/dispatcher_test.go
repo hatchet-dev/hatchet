@@ -315,3 +315,113 @@ func TestWorkerListenDisablesGrpcRetry(t *testing.T) {
 func TestWorkerRetrySubscribeUsesStreamSyncMaxAttemptsConstant(t *testing.T) {
 	require.Equal(t, 5, retry.StreamSyncMaxAttempts)
 }
+
+func TestWorkerActionsReconnectsOnEOFWhileContextActive(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	recvCalls := atomic.Int32{}
+	subscribeCalls := atomic.Int32{}
+
+	replacementClient := &mockListenV2Client{
+		recvFn: func() (*dispatchercontracts.AssignedAction, error) {
+			return &dispatchercontracts.AssignedAction{
+				ActionType: dispatchercontracts.ActionType_START_STEP_RUN,
+				ActionId:   "action-after-eof",
+			}, nil
+		},
+	}
+
+	streamClient := &mockListenV2Client{
+		recvFn: func() (*dispatchercontracts.AssignedAction, error) {
+			recvCalls.Add(1)
+			return nil, io.EOF
+		},
+	}
+
+	listener := newTestActionListener(streamClient)
+	listener.client = &mockWorkerDispatcherClient{
+		listenV2Fn: func(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenV2Client, error) {
+			require.NotEmpty(t, opts)
+			subscribeCalls.Add(1)
+			listener.listenClient = replacementClient
+			return replacementClient, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actions, errCh, err := listener.Actions(ctx)
+	require.NoError(t, err)
+
+	select {
+	case action := <-actions:
+		require.NotNil(t, action)
+		assert.Equal(t, "action-after-eof", action.ActionId)
+	case err := <-errCh:
+		t.Fatalf("unexpected terminal error: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for action after EOF reconnect")
+	}
+
+	assert.Equal(t, int32(1), recvCalls.Load())
+	assert.Equal(t, int32(1), subscribeCalls.Load())
+}
+
+func TestWorkerActionsRetriesNoProgressBeforeGivingUp(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	recvCalls := atomic.Int32{}
+	subscribeCalls := atomic.Int32{}
+
+	replacementClient := &mockListenV2Client{
+		recvFn: func() (*dispatchercontracts.AssignedAction, error) {
+			return &dispatchercontracts.AssignedAction{
+				ActionType: dispatchercontracts.ActionType_START_STEP_RUN,
+				ActionId:   "action-after-unknown",
+			}, nil
+		},
+	}
+
+	streamClient := &mockListenV2Client{
+		recvFn: func() (*dispatchercontracts.AssignedAction, error) {
+			recvCalls.Add(1)
+			return nil, status.Error(codes.Unknown, "transient unknown")
+		},
+	}
+
+	listener := newTestActionListener(streamClient)
+	listener.client = &mockWorkerDispatcherClient{
+		listenV2Fn: func(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenV2Client, error) {
+			require.NotEmpty(t, opts)
+			subscribeCalls.Add(1)
+			listener.listenClient = replacementClient
+			return replacementClient, nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	actions, errCh, err := listener.Actions(ctx)
+	require.NoError(t, err)
+
+	select {
+	case action := <-actions:
+		require.NotNil(t, action)
+		assert.Equal(t, "action-after-unknown", action.ActionId)
+	case err := <-errCh:
+		t.Fatalf("unexpected terminal error: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for action after no-progress retry")
+	}
+
+	assert.Equal(t, int32(1), recvCalls.Load())
+	assert.Equal(t, int32(1), subscribeCalls.Load())
+}

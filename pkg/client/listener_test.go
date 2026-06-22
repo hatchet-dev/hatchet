@@ -1486,3 +1486,118 @@ func TestDoRetrySubscribeBackgroundStopsOnNoProgressError(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, int32(1), constructorCalls.Load())
 }
+
+func TestReconnectSyncAndBackgroundSerializeConnect(t *testing.T) {
+	logger := zerolog.Nop()
+	releaseConstructor := make(chan struct{})
+	var concurrentConnect atomic.Int32
+	var maxConcurrent atomic.Int32
+
+	client := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			current := concurrentConnect.Add(1)
+			for {
+				prev := maxConcurrent.Load()
+				if current <= prev {
+					break
+				}
+				if maxConcurrent.CompareAndSwap(prev, current) {
+					break
+				}
+			}
+			defer concurrentConnect.Add(-1)
+
+			<-releaseConstructor
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	syncDone := make(chan error, 1)
+	backgroundDone := make(chan error, 1)
+
+	go func() {
+		syncDone <- listener.retrySubscribeSync(context.Background())
+	}()
+	go func() {
+		backgroundDone <- listener.retrySubscribeBackground(context.Background())
+	}()
+
+	require.Eventually(t, func() bool {
+		return concurrentConnect.Load() >= 1
+	}, time.Second, 10*time.Millisecond)
+
+	assert.Equal(t, int32(1), concurrentConnect.Load())
+	assert.Equal(t, int32(1), maxConcurrent.Load())
+
+	close(releaseConstructor)
+
+	require.NoError(t, <-syncDone)
+	require.NoError(t, <-backgroundDone)
+}
+
+func TestListenRetriesUnknownCodeBeforeGivingUp(t *testing.T) {
+	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
+		return nil
+	})
+	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+
+	logger := zerolog.Nop()
+	recvCalls := atomic.Int32{}
+	constructorCalls := atomic.Int32{}
+
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+
+	brokenClient := &mockSubscribeClient{
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			recvCalls.Add(1)
+			return nil, status.Error(codes.Unknown, "unknown stream error")
+		},
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return replacementClient, nil
+		},
+		client: brokenClient,
+		l:      &logger,
+	}
+
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error { return nil },
+		},
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	require.Eventually(t, func() bool {
+		return constructorCalls.Load() >= 1
+	}, time.Second, 10*time.Millisecond)
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	require.Eventually(t, func() bool {
+		return len(replacementClient.recvChan) == 0
+	}, time.Second, 10*time.Millisecond)
+
+	listener.handlers.Delete("run-1")
+	close(replacementClient.recvChan)
+
+	err := <-listenErr
+	assert.NoError(t, err)
+	assert.Equal(t, int32(1), recvCalls.Load())
+}
