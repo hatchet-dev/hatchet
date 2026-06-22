@@ -45,7 +45,7 @@ async def test_log_forwarding_handler_enqueues_correct_record() -> None:
 
         await asyncio.to_thread(log_from_worker_thread)
 
-        record = log_sender.q.get_nowait()
+        record = log_sender.q.get()
         assert isinstance(record, LogRecord)
         assert record.message == "hello from worker thread"
         assert record.step_run_id == "step-run-id"

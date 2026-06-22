@@ -1,8 +1,7 @@
-import contextlib
 import functools
 import logging
-import multiprocessing
-import multiprocessing.context
+import queue
+import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from io import StringIO
@@ -11,7 +10,6 @@ from typing import Any, Literal, ParamSpec, TypeVar
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import EventClient
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
@@ -129,38 +127,17 @@ class LogRecord:
 
 class AsyncLogSender:
     def __init__(self, event_client: EventClient):
-        self._config = event_client.client_config
-        self._ctx = multiprocessing.get_context("spawn")
-        self.q: multiprocessing.Queue[LogRecord | STOP_LOOP_TYPE] = self._ctx.Queue(
-            maxsize=self._config.log_queue_size
-        )
-        self._proc: multiprocessing.context.SpawnProcess | None = None
+        self._event_client = event_client
+        self.q: queue.SimpleQueue[LogRecord | STOP_LOOP_TYPE] = queue.SimpleQueue()
+        self._thread: threading.Thread | None = None
 
-    def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        self.q.put_nowait(record)
-
-    def consume(
-        self,
-        q: multiprocessing.Queue[LogRecord | STOP_LOOP_TYPE],
-        config: ClientConfig,
-    ) -> None:
-        import queue
-
-        from hatchet_sdk.clients.events import EventClient
-
-        client = EventClient(config)
-
+    def _consume(self) -> None:
         while True:
-            try:
-                record = q.get(timeout=1)
-            except queue.Empty:
-                # Parent may have died without sending STOP_LOOP; keep polling
-                # so we don't block forever on a dead queue.
-                continue
+            record = self.q.get()
             if record == STOP_LOOP:
                 break
             try:
-                client.log(
+                self._event_client.log(
                     message=record.message,
                     step_run_id=record.step_run_id,
                     level=record.level,
@@ -169,29 +146,19 @@ class AsyncLogSender:
             except Exception:
                 logger.exception("failed to send log to Hatchet")
 
+    def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
+        self.q.put(record)
+
     def start(self) -> None:
-        proc = self._ctx.Process(
-            target=self.consume,
-            args=(self.q, self._config),
-            daemon=True,
-        )
-        self._proc = proc
-        proc.start()
+        self._thread = threading.Thread(target=self._consume, daemon=True)
+        self._thread.start()
 
     def stop(self, timeout: float = 5.0) -> None:
-        proc = self._proc
-        if proc is None:
+        if self._thread is None:
             return
-        if proc.is_alive():
-            with contextlib.suppress(Exception):
-                self.q.put_nowait(STOP_LOOP)
-            proc.join(timeout)
-            if proc.is_alive():
-                proc.terminate()
-                proc.join(timeout)
-        self.q.close()
-        self.q.join_thread()
-        self._proc = None
+        self.q.put(STOP_LOOP)
+        self._thread.join(timeout)
+        self._thread = None
 
 
 class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
