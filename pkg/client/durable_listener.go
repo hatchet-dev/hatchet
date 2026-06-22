@@ -8,16 +8,14 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
 type DurableEvent *contracts.DurableEvent
@@ -31,10 +29,15 @@ type DurableEventsListener struct {
 	clientMu   sync.Mutex
 	generation uint64
 
-	reconnectGroup singleflight.Group
-	listenMu       sync.Mutex
-	listening      bool
-	closed         bool
+	reconnectSyncGroup       singleflight.Group
+	reconnectBackgroundGroup singleflight.Group
+	listenMu                 sync.Mutex
+	listening                bool
+	closed                   bool
+
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+	lifecycleOnce   sync.Once
 
 	l *zerolog.Logger
 
@@ -61,12 +64,16 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		return r.clientv1.ListenForDurableEvent(r.ctx.newContext(ctx), grpc_retry.Disable())
 	}
 
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+
 	w := &DurableEventsListener{
-		constructor: constructor,
-		l:           r.l,
+		constructor:     constructor,
+		l:               r.l,
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
 	}
 
-	err := w.retryListen(ctx)
+	err := w.retryListenSync(ctx)
 
 	if err != nil {
 		return nil, err
@@ -92,7 +99,7 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 		}()
 		defer w.stopListening()
 
-		err := w.listen(ctx)
+		err := w.listen(w.lifecycleContext())
 
 		if err != nil {
 			r.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")
@@ -102,7 +109,20 @@ func (r *subscribeClientImpl) getDurableEventsListener(
 	return w, nil
 }
 
-func (w *DurableEventsListener) retryListen(ctx context.Context) error {
+func (w *DurableEventsListener) initLifecycle() {
+	w.lifecycleOnce.Do(func() {
+		if w.lifecycleCtx == nil {
+			w.lifecycleCtx, w.lifecycleCancel = context.WithCancel(context.Background())
+		}
+	})
+}
+
+func (w *DurableEventsListener) lifecycleContext() context.Context {
+	w.initLifecycle()
+	return w.lifecycleCtx
+}
+
+func (w *DurableEventsListener) retryListenSync(ctx context.Context) error {
 	if w.isClosed() {
 		return errListenerClosed
 	}
@@ -111,81 +131,140 @@ func (w *DurableEventsListener) retryListen(ctx context.Context) error {
 		return err
 	}
 
-	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
-		return nil, w.doRetryListen(context.Background())
+	_, err, _ := w.reconnectSyncGroup.Do("reconnect", func() (interface{}, error) {
+		return nil, w.doRetryListenSync(ctx)
 	})
 	return err
 }
 
-func (w *DurableEventsListener) doRetryListen(ctx context.Context) error {
+func (w *DurableEventsListener) retryListenBackground(ctx context.Context) error {
 	if w.isClosed() {
 		return errListenerClosed
 	}
 
-	retries := 0
+	_, err, _ := w.reconnectBackgroundGroup.Do("reconnect", func() (interface{}, error) {
+		return nil, w.doRetryListenBackground(ctx)
+	})
+	return err
+}
 
-	for retries < DefaultActionListenerRetryCount {
-		if retries > 0 {
-			time.Sleep(DefaultActionListenerRetryInterval)
+func (w *DurableEventsListener) doRetryListenSync(ctx context.Context) error {
+	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
+		if attempt > 0 {
+			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
+				return err
+			}
 		}
 
 		if w.isClosed() {
 			return errListenerClosed
 		}
 
-		client, err := w.constructor(ctx)
-
-		if err != nil {
-			retries++
-			w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener")
-			continue
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 
-		var rangeErr error
-
-		w.handlers.Range(func(key, value interface{}) bool {
-			t := key.(listenTuple)
-
-			err := client.Send(&contracts.ListenForDurableEventRequest{
-				TaskId:    t.taskId,
-				SignalKey: t.signalKey,
-			})
-
-			if err != nil {
-				w.l.Error().Ctx(ctx).Err(err).Msgf("could not listen for durable events on the worker")
-				rangeErr = err
-				return false
-			}
-
-			return true
-		})
-
-		if rangeErr != nil {
-			if closeErr := client.CloseSend(); closeErr != nil {
-				w.l.Warn().Err(closeErr).Msg("failed to close durable event stream after replay failure")
-			}
-
-			retries++
-			continue
+		err := w.connectAndReplayHandlers(ctx)
+		if err == nil {
+			return nil
 		}
 
-		w.clientMu.Lock()
-		if w.isClosed() {
-			w.clientMu.Unlock()
-			if closeErr := client.CloseSend(); closeErr != nil {
-				w.l.Warn().Err(closeErr).Msg("failed to close durable event stream after listener closed")
-			}
-
-			return errListenerClosed
+		decision := retry.ClassifyStreamError(ctx, err)
+		if decision == retry.StreamDecisionStop {
+			return err
 		}
 
-		w.client = client
-		w.generation++
-		w.clientMu.Unlock()
-		return nil
+		w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (attempt %d/%d)", attempt+1, retry.StreamSyncMaxAttempts)
 	}
 
-	return fmt.Errorf("could not listen for durable events on the worker after %d retries", retries)
+	return fmt.Errorf("could not listen for durable events on the worker after %d retries", retry.StreamSyncMaxAttempts)
+}
+
+func (w *DurableEventsListener) doRetryListenBackground(ctx context.Context) error {
+	attempt := 0
+
+	for {
+		if attempt > 0 {
+			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
+				return err
+			}
+		}
+
+		if w.isClosed() {
+			return errListenerClosed
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		err := w.connectAndReplayHandlers(ctx)
+		if err == nil {
+			return nil
+		}
+
+		decision := retry.ClassifyStreamError(ctx, err)
+		if decision == retry.StreamDecisionStop {
+			return err
+		}
+
+		w.l.Error().Ctx(ctx).Err(err).Msgf("could not resubscribe to the durable event listener (background attempt %d)", attempt+1)
+		attempt++
+	}
+}
+
+func (w *DurableEventsListener) connectAndReplayHandlers(ctx context.Context) error {
+	if w.isClosed() {
+		return errListenerClosed
+	}
+
+	client, err := w.constructor(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	var rangeErr error
+
+	w.handlers.Range(func(key, value interface{}) bool {
+		t := key.(listenTuple)
+
+		err := client.Send(&contracts.ListenForDurableEventRequest{
+			TaskId:    t.taskId,
+			SignalKey: t.signalKey,
+		})
+
+		if err != nil {
+			w.l.Error().Ctx(ctx).Err(err).Msgf("could not listen for durable events on the worker")
+			rangeErr = err
+			return false
+		}
+
+		return true
+	})
+
+	if rangeErr != nil {
+		if closeErr := client.CloseSend(); closeErr != nil {
+			w.l.Warn().Err(closeErr).Msg("failed to close durable event stream after replay failure")
+		}
+
+		return rangeErr
+	}
+
+	w.clientMu.Lock()
+	if w.isClosed() {
+		w.clientMu.Unlock()
+		if closeErr := client.CloseSend(); closeErr != nil {
+			w.l.Warn().Err(closeErr).Msg("failed to close durable event stream after listener closed")
+		}
+
+		return errListenerClosed
+	}
+
+	w.client = client
+	w.generation++
+	w.clientMu.Unlock()
+	return nil
 }
 
 func (w *DurableEventsListener) getClientSnapshot() (contracts.V1Dispatcher_ListenForDurableEventClient, uint64) {
@@ -233,7 +312,7 @@ func (w *DurableEventsListener) ensureListening(ctx context.Context) error {
 		return nil
 	}
 
-	if err := w.retryListen(ctx); err != nil {
+	if err := w.retryListenSync(ctx); err != nil {
 		return err
 	}
 
@@ -248,7 +327,7 @@ func (w *DurableEventsListener) ensureListening(ctx context.Context) error {
 	go func() {
 		defer w.stopListening()
 
-		if err := w.listen(ctx); err != nil {
+		if err := w.listen(w.lifecycleContext()); err != nil {
 			w.l.Error().Ctx(ctx).Err(err).Msg("failed to listen for durable events")
 		}
 	}()
@@ -276,7 +355,7 @@ func (l *DurableEventsListener) AddSignal(
 	}
 
 	if !l.isListening() {
-		if err := l.ensureListening(context.Background()); err != nil {
+		if err := l.ensureListening(l.lifecycleContext()); err != nil {
 			return err
 		}
 	}
@@ -294,7 +373,7 @@ func (l *DurableEventsListener) AddSignal(
 
 	if err := l.retrySend(t); err != nil {
 		if !l.isListening() {
-			if listenErr := l.ensureListening(context.Background()); listenErr != nil {
+			if listenErr := l.ensureListening(l.lifecycleContext()); listenErr != nil {
 				return listenErr
 			}
 
@@ -304,11 +383,13 @@ func (l *DurableEventsListener) AddSignal(
 		return err
 	}
 
-	return l.ensureListening(context.Background())
+	return l.ensureListening(l.lifecycleContext())
 }
 
 func (l *DurableEventsListener) retrySend(t listenTuple) error {
-	for i := 0; i < DefaultActionListenerRetryCount; i++ {
+	ctx := l.lifecycleContext()
+
+	for i := 0; i < retry.StreamSyncMaxAttempts; i++ {
 		client, genBefore := l.getClientSnapshot()
 
 		if client == nil {
@@ -324,20 +405,22 @@ func (l *DurableEventsListener) retrySend(t listenTuple) error {
 			return nil
 		}
 
-		l.l.Warn().Err(err).Msgf("failed to send durable event subscription, attempt %d/%d", i+1, DefaultActionListenerRetryCount)
+		l.l.Warn().Err(err).Msgf("failed to send durable event subscription, attempt %d/%d", i+1, retry.StreamSyncMaxAttempts)
 
 		if _, genAfter := l.getClientSnapshot(); genAfter != genBefore {
 			continue
 		}
 
-		if retryErr := l.retryListen(context.Background()); retryErr != nil {
+		if retryErr := l.retryListenSync(ctx); retryErr != nil {
 			l.l.Error().Err(retryErr).Msg("failed to relisten after send failure")
 		}
 
-		time.Sleep(DefaultActionListenerRetryInterval)
+		if sleepErr := retry.SleepStreamBackoff(ctx, i); sleepErr != nil {
+			return sleepErr
+		}
 	}
 
-	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)
+	return fmt.Errorf("could not send to the worker after %d retries", retry.StreamSyncMaxAttempts)
 }
 
 func (l *DurableEventsListener) Listen(ctx context.Context) error {
@@ -349,9 +432,21 @@ func (l *DurableEventsListener) Listen(ctx context.Context) error {
 	return l.listen(ctx)
 }
 
+func (l *DurableEventsListener) classifyRecvError(ctx context.Context, err error) retry.StreamDecision {
+	if errors.Is(err, io.EOF) {
+		if !l.shouldReconnectOnEOF(ctx) {
+			return retry.StreamDecisionStop
+		}
+
+		return retry.StreamDecisionRetry
+	}
+
+	return retry.ClassifyStreamError(ctx, err)
+}
+
 func (l *DurableEventsListener) listen(ctx context.Context) error {
-	consecutiveErrors := 0
-	maxConsecutiveErrors := 10
+	consecutiveNoProgress := 0
+	reconnectAttempt := 0
 
 	client, generation := l.getClientSnapshot()
 	if client == nil {
@@ -367,49 +462,62 @@ func (l *DurableEventsListener) listen(ctx context.Context) error {
 		event, err := client.Recv()
 
 		if err != nil {
-			switch {
-			case errors.Is(err, io.EOF):
-				if !l.shouldReconnectOnEOF(ctx) {
-					return nil
-				}
-			case status.Code(err) == codes.Canceled:
+			decision := l.classifyRecvError(ctx, err)
+
+			switch decision {
+			case retry.StreamDecisionStop:
 				return nil
-			case status.Code(err) == codes.Unavailable:
-				l.l.Warn().Err(err).Msg("dispatcher is unavailable, retrying durable event listener after 1 second")
-				time.Sleep(1 * time.Second)
+			case retry.StreamDecisionNoProgress:
+				consecutiveNoProgress++
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+				}
+
+				return nil
 			}
 
-			consecutiveErrors++
+			consecutiveNoProgress++
 
 			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
 				client, generation = l.getClientSnapshot()
-				consecutiveErrors = 0
 				continue
 			}
 
-			retryErr := l.retryListen(ctx)
+			if reconnectAttempt > 0 {
+				if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+					return nil
+				}
+			}
+
+			retryErr := l.retryListenBackground(l.lifecycleContext())
 
 			if retryErr != nil {
 				if errors.Is(retryErr, errListenerClosed) {
 					return nil
 				}
 
-				l.l.Error().Err(retryErr).Msgf("failed to relisten (consecutive errors: %d/%d)", consecutiveErrors, maxConsecutiveErrors)
-
-				if consecutiveErrors >= maxConsecutiveErrors {
-					return fmt.Errorf("failed to relisten after %d consecutive errors: %w", consecutiveErrors, retryErr)
+				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
+				if retryDecision == retry.StreamDecisionStop || retryDecision == retry.StreamDecisionNoProgress {
+					return fmt.Errorf("failed to relisten: %w", retryErr)
 				}
 
-				time.Sleep(DefaultActionListenerRetryInterval)
+				l.l.Error().Err(retryErr).Msgf("failed to relisten (consecutive no-progress: %d/%d)", consecutiveNoProgress, maxConsecutiveStreamNoProgress)
+
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("failed to relisten after %d consecutive errors: %w", consecutiveNoProgress, retryErr)
+				}
+
+				reconnectAttempt++
 				continue
 			}
 
 			client, generation = l.getClientSnapshot()
-			consecutiveErrors = 0
+			reconnectAttempt++
 			continue
 		}
 
-		consecutiveErrors = 0
+		consecutiveNoProgress = 0
+		reconnectAttempt = 0
 
 		if err := l.handleEvent(event); err != nil {
 			return err
@@ -421,6 +529,15 @@ func (l *DurableEventsListener) Close() error {
 	l.listenMu.Lock()
 	l.closed = true
 	l.listenMu.Unlock()
+
+	if l.lifecycleCancel != nil {
+		l.lifecycleCancel()
+	} else {
+		l.initLifecycle()
+		if l.lifecycleCancel != nil {
+			l.lifecycleCancel()
+		}
+	}
 
 	return l.closeStream()
 }

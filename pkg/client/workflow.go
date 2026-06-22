@@ -91,9 +91,9 @@ func (r *WorkflowResult) Results() (interface{}, error) {
 // Result waits for the workflow run to complete and returns the results.
 //
 // Retry strategy (best-effort):
-// 1. This function retries AddWorkflowRun up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
-// 2. AddWorkflowRun calls retrySend which retries up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
-// 3. Each retrySend attempt calls retrySubscribe which itself retries up to DefaultActionListenerRetryCount times with DefaultActionListenerRetryInterval intervals
+// 1. This function retries AddWorkflowRun up to StreamSyncMaxAttempts times with stream backoff between attempts
+// 2. AddWorkflowRun uses bounded synchronous reconnect (StreamSyncMaxAttempts) for send and subscribe failures
+// 3. The background listen loop reconnects unboundedly while the listener remains open
 func (c *Workflow) Result() (*WorkflowResult, error) {
 	resChan := make(chan *WorkflowResult, 1)
 	sessionId := uuid.NewString()

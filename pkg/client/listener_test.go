@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
 // mockSubscribeClient implements dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
@@ -35,7 +36,8 @@ type mockSubscribeClient struct {
 }
 
 type mockDispatcherClient struct {
-	subscribeToWorkflowRunsFn func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
+	subscribeToWorkflowRunsFn   func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
+	subscribeToWorkflowEventsFn func(ctx context.Context, in *dispatchercontracts.SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error)
 }
 
 func (m *mockDispatcherClient) Register(ctx context.Context, in *dispatchercontracts.WorkerRegisterRequest, opts ...grpc.CallOption) (*dispatchercontracts.WorkerRegisterResponse, error) {
@@ -55,6 +57,10 @@ func (m *mockDispatcherClient) Heartbeat(ctx context.Context, in *dispatchercont
 }
 
 func (m *mockDispatcherClient) SubscribeToWorkflowEvents(ctx context.Context, in *dispatchercontracts.SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error) {
+	if m.subscribeToWorkflowEventsFn != nil {
+		return m.subscribeToWorkflowEventsFn(ctx, in, opts...)
+	}
+
 	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
@@ -360,7 +366,7 @@ func TestWorkflowRunsListenerReconnectDoesNotBlockClientSnapshot(t *testing.T) {
 
 	retryErr := make(chan error, 1)
 	go func() {
-		retryErr <- listener.retrySubscribe(context.Background())
+		retryErr <- listener.retrySubscribeBackground(context.Background())
 	}()
 
 	select {
@@ -423,8 +429,8 @@ func TestRetrySend_FailsAfterMaxRetries(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not send to the worker after", "error should indicate retry exhaustion")
 
 	// Verify multiple send attempts were made
-	assert.Equal(t, int32(DefaultActionListenerRetryCount), failingClient.sendCount.Load(),
-		"should have attempted send DefaultActionListenerRetryCount times")
+	assert.Equal(t, int32(retry.StreamSyncMaxAttempts), failingClient.sendCount.Load(),
+		"should have attempted send StreamSyncMaxAttempts times")
 }
 
 func TestRetrySend_SucceedsOnFirstAttempt(t *testing.T) {
@@ -764,7 +770,7 @@ func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 
 	// First client errors immediately on Recv
 	brokenClient := &mockSubscribeClient{
-		recvErr: fmt.Errorf("stream broken"),
+		recvErr: status.Error(codes.Unavailable, "stream broken"),
 	}
 
 	// Second client delivers an event then closes cleanly (EOF)
@@ -888,7 +894,7 @@ func TestRetrySubscribe_SingleflightCoalescesConcurrentCalls(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := listener.retrySubscribe(context.Background())
+			err := listener.retrySubscribeSync(context.Background())
 			assert.NoError(t, err)
 		}()
 	}
@@ -920,13 +926,13 @@ func TestRetrySubscribe_GenerationIncrements(t *testing.T) {
 	_, gen0 := listener.getClientSnapshot()
 	assert.Equal(t, uint64(0), gen0, "initial generation should be 0")
 
-	err := listener.retrySubscribe(context.Background())
+	err := listener.retrySubscribeSync(context.Background())
 	require.NoError(t, err)
 
 	_, gen1 := listener.getClientSnapshot()
 	assert.Equal(t, uint64(1), gen1, "generation should be 1 after first reconnect")
 
-	err = listener.retrySubscribe(context.Background())
+	err = listener.retrySubscribeSync(context.Background())
 	require.NoError(t, err)
 
 	_, gen2 := listener.getClientSnapshot()
@@ -1074,4 +1080,248 @@ func TestWorkflowRunEventToDeprecatedWorkflowRunEvent_WithResults(t *testing.T) 
 	require.NotNil(t, deprecated, "deprecated event should not be nil")
 	assert.Equal(t, "test-run-3", deprecated.WorkflowRunId)
 	assert.NotNil(t, deprecated.Results)
+}
+
+func TestAddWorkflowRunBoundedWhenEngineDown(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return nil, status.Error(codes.Unavailable, "engine down")
+		},
+		l: &logger,
+	}
+
+	err := listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.LessOrEqual(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts+1))
+}
+
+func TestDoRetrySubscribeSyncStopsAtStreamSyncMaxAttempts(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return nil, status.Error(codes.Unavailable, "still down")
+		},
+		l: &logger,
+	}
+
+	err := listener.doRetrySubscribeSync(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, int32(retry.StreamSyncMaxAttempts), constructorCalls.Load())
+}
+
+func TestDoRetrySubscribeBackgroundContinuesPastSyncCap(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			if constructorCalls.Add(1) >= retry.StreamSyncMaxAttempts+1 {
+				cancel()
+			}
+			return nil, status.Error(codes.Unavailable, "still down")
+		},
+		l: &logger,
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_ = listener.doRetrySubscribeBackground(ctx)
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(30 * time.Second):
+		t.Fatal("background reconnect did not continue past sync cap")
+	}
+
+	<-done
+	assert.Greater(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts))
+}
+
+func TestListenEOFWithoutHandlersDoesNotReconnect(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return &mockSubscribeClient{recvChan: make(chan *dispatchercontracts.WorkflowRunEvent)}, nil
+		},
+		client: &mockSubscribeClient{recvErr: io.EOF},
+		l:      &logger,
+	}
+
+	require.NoError(t, listener.Listen(context.Background()))
+	assert.Equal(t, int32(0), constructorCalls.Load())
+}
+
+func TestListenPermanentErrorStops(t *testing.T) {
+	logger := zerolog.Nop()
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return nil, status.Error(codes.PermissionDenied, "denied")
+		},
+		client: &mockSubscribeClient{
+			recvErr: status.Error(codes.Unavailable, "stream broken"),
+		},
+		l: &logger,
+	}
+
+	err := listener.Listen(context.Background())
+	require.Error(t, err)
+}
+
+func TestRetrySubscribeSyncReplaysHandlers(t *testing.T) {
+	logger := zerolog.Nop()
+	sendCount := atomic.Int32{}
+
+	client := &mockSubscribeClient{
+		sendFn: func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
+			sendCount.Add(1)
+			return nil
+		},
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		l: &logger,
+	}
+
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error { return nil },
+		},
+	})
+
+	require.NoError(t, listener.retrySubscribeSync(context.Background()))
+	assert.Equal(t, int32(1), sendCount.Load())
+}
+
+func TestRetrySendStaleGenerationSkipsReconnect(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	workingClient := &mockSubscribeClient{recvChan: make(chan *dispatchercontracts.WorkflowRunEvent)}
+	failingClient := &mockSubscribeClient{
+		sendErr:  status.Error(codes.Unavailable, "send failed"),
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return workingClient, nil
+		},
+		client: failingClient,
+		l:      &logger,
+	}
+
+	listener.clientMu.Lock()
+	listener.client = workingClient
+	listener.generation++
+	listener.clientMu.Unlock()
+
+	require.NoError(t, listener.retrySend("run-1"))
+	assert.Equal(t, int32(0), constructorCalls.Load())
+}
+
+func TestSubscribeToWorkflowRunsDisablesGrpcRetry(t *testing.T) {
+	logger := zerolog.Nop()
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				require.NotEmpty(t, opts)
+				return &mockSubscribeClient{recvChan: make(chan *dispatchercontracts.WorkflowRunEvent)}, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getWorkflowRunsListener(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, listener.Close())
+}
+
+type mockWorkflowEventsClient struct {
+	recvFn      func() (*dispatchercontracts.WorkflowEvent, error)
+	recvCh      chan *dispatchercontracts.WorkflowEvent
+	establishFn func(ctx context.Context, opts ...grpc.CallOption) error
+}
+
+func (m *mockWorkflowEventsClient) Recv() (*dispatchercontracts.WorkflowEvent, error) {
+	if m.recvFn != nil {
+		return m.recvFn()
+	}
+	event, ok := <-m.recvCh
+	if !ok {
+		return nil, io.EOF
+	}
+	return event, nil
+}
+
+func (m *mockWorkflowEventsClient) CloseSend() error { return nil }
+func (m *mockWorkflowEventsClient) Header() (metadata.MD, error) { return nil, nil }
+func (m *mockWorkflowEventsClient) Trailer() metadata.MD { return nil }
+func (m *mockWorkflowEventsClient) Context() context.Context { return context.Background() }
+func (m *mockWorkflowEventsClient) SendMsg(msg interface{}) error { return nil }
+func (m *mockWorkflowEventsClient) RecvMsg(msg interface{}) error { return nil }
+
+func TestStreamByAdditionalMetadataReconnects(t *testing.T) {
+	logger := zerolog.Nop()
+	establishCalls := atomic.Int32{}
+	recvCh := make(chan *dispatchercontracts.WorkflowEvent, 1)
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowEventsFn: func(ctx context.Context, in *dispatchercontracts.SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error) {
+				require.NotEmpty(t, opts)
+				call := establishCalls.Add(1)
+				if call == 1 {
+					return &mockWorkflowEventsClient{
+						recvFn: func() (*dispatchercontracts.WorkflowEvent, error) {
+							return nil, status.Error(codes.Unavailable, "stream broken")
+						},
+					}, nil
+				}
+
+				return &mockWorkflowEventsClient{recvCh: recvCh}, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- subscriber.StreamByAdditionalMetadata(context.Background(), "k", "v", func(event StreamEvent) error {
+			return nil
+		})
+	}()
+
+	recvCh <- &dispatchercontracts.WorkflowEvent{
+		EventType:    dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
+		EventPayload: "hello",
+	}
+	close(recvCh)
+
+	require.NoError(t, <-done)
+	assert.GreaterOrEqual(t, establishCalls.Load(), int32(2))
 }

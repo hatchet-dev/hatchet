@@ -20,6 +20,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -308,7 +309,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	// subscribe to the worker
 	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 		WorkerId: resp.WorkerId,
-	})
+	}, grpc_retry.Disable())
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not subscribe to the worker: %w", err)
@@ -385,49 +386,106 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 	}()
 
 	go func() {
-		retries := 0
+		consecutiveNoProgress := 0
+		reconnectAttempt := 0
 
-		for retries < DefaultActionListenerRetryCount {
+		for {
+			if ctx.Err() != nil {
+				a.l.Debug().Ctx(ctx).Msgf("Context cancelled, closing channel")
+
+				close(ch)
+				close(errCh)
+
+				err := a.listenClient.CloseSend()
+
+				if err != nil {
+					a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
+				}
+
+				return
+			}
+
 			assignedAction, err := a.listenClient.Recv()
 
 			if err != nil {
-				// if context is cancelled, unsubscribe and close the channel
-				if ctx.Err() != nil {
-					a.l.Debug().Ctx(ctx).Msgf("Context cancelled, closing channel")
-
-					defer close(ch)
-					defer close(errCh)
-
-					err := a.listenClient.CloseSend()
-
-					if err != nil {
-						a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
-					}
-
-					return
-				}
-
-				retries++
-
-				// if this is an unimplemented error, default to v1
 				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
 					a.l.Debug().Ctx(ctx).Msgf("Falling back to v1 listener strategy")
 					a.listenerStrategy = ListenerStrategyV1
+				} else {
+					decision := retry.ClassifyStreamError(ctx, err)
+					switch decision {
+					case retry.StreamDecisionStop:
+						errCh <- err
+						close(ch)
+						close(errCh)
+
+						closeErr := a.listenClient.CloseSend()
+						if closeErr != nil {
+							a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", closeErr)
+						}
+
+						return
+					case retry.StreamDecisionNoProgress:
+						consecutiveNoProgress++
+						if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+							errCh <- fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+							close(ch)
+							close(errCh)
+							return
+						}
+
+						errCh <- err
+						close(ch)
+						close(errCh)
+						return
+					}
 				}
 
-				err = a.retrySubscribe(ctx)
+				consecutiveNoProgress++
 
-				if err != nil {
-					a.l.Error().Ctx(ctx).Msgf("Failed to resubscribe: %v", err)
-					errCh <- fmt.Errorf("failed to resubscribe: %w", err)
+				if reconnectAttempt > 0 {
+					if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+						close(ch)
+						close(errCh)
+						return
+					}
 				}
 
-				time.Sleep(DefaultActionListenerRetryInterval)
+				subscribeErr := a.retrySubscribe(ctx)
+				if subscribeErr != nil {
+					if a.listenerStrategy == ListenerStrategyV1 && status.Code(subscribeErr) == codes.Unimplemented {
+						a.l.Error().Ctx(ctx).Err(subscribeErr).Msg("Failed to resubscribe")
+						errCh <- fmt.Errorf("failed to resubscribe: %w", subscribeErr)
+						close(ch)
+						close(errCh)
+						return
+					}
 
+					subscribeDecision := retry.ClassifyStreamError(ctx, subscribeErr)
+					if subscribeDecision == retry.StreamDecisionStop || subscribeDecision == retry.StreamDecisionNoProgress {
+						a.l.Error().Ctx(ctx).Err(subscribeErr).Msg("Failed to resubscribe")
+						errCh <- fmt.Errorf("failed to resubscribe: %w", subscribeErr)
+						close(ch)
+						close(errCh)
+						return
+					}
+
+					a.l.Error().Ctx(ctx).Err(subscribeErr).Msgf("Failed to resubscribe (consecutive no-progress: %d/%d)", consecutiveNoProgress, maxConsecutiveStreamNoProgress)
+
+					if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+						errCh <- fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveNoProgress, subscribeErr)
+						close(ch)
+						close(errCh)
+						return
+					}
+				}
+
+				reconnectAttempt++
 				continue
 			}
 
-			retries = 0
+			consecutiveNoProgress = 0
+			reconnectAttempt = 0
 
 			var actionType ActionType
 
@@ -450,14 +508,11 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 			var additionalMetadata map[string]string
 
 			if assignedAction.AdditionalMetadata != nil {
-				// Try to unmarshal as map[string]string first
 				var rawMap map[string]interface{}
 				if err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &rawMap); err != nil {
-					// If that fails, try to unmarshal as a single string
 					a.l.Error().Ctx(ctx).Err(err).Msgf("could not unmarshal additional metadata")
 					continue
 				} else {
-					// Only keep string values from the map
 					additionalMetadata = make(map[string]string)
 					for k, v := range rawMap {
 						if strVal, ok := v.(string); ok {
@@ -494,52 +549,50 @@ func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-cha
 				DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
 			}
 		}
-
-		errCh <- fmt.Errorf("could not subscribe to the worker after %d retries", retries)
-
-		defer close(ch)
-		defer close(errCh)
-
-		err := a.listenClient.CloseSend()
-
-		if err != nil {
-			a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
-		}
 	}()
 
 	return ch, errCh, nil
 }
 
 func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
-	retries := 0
+	attempt := 0
 
-	for retries < DefaultActionListenerRetryCount {
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		var err error
 		var listenClient dispatchercontracts.Dispatcher_ListenClient
 
 		if a.listenerStrategy == ListenerStrategyV1 {
 			listenClient, err = a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 				WorkerId: a.workerId,
-			})
+			}, grpc_retry.Disable())
 		} else if a.listenerStrategy == ListenerStrategyV2 {
 			listenClient, err = a.client.ListenV2(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 				WorkerId: a.workerId,
-			})
+			}, grpc_retry.Disable())
 		}
 
-		if err != nil {
-			retries++
-			a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker")
-			time.Sleep(DefaultActionListenerRetryInterval)
-			continue
+		if err == nil {
+			a.listenClient = listenClient
+			return nil
 		}
 
-		a.listenClient = listenClient
+		decision := retry.ClassifyStreamError(ctx, err)
+		if decision == retry.StreamDecisionStop {
+			return err
+		}
 
-		return nil
+		a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker (attempt %d)", attempt+1)
+
+		if err := retry.SleepStreamBackoff(ctx, attempt); err != nil {
+			return err
+		}
+
+		attempt++
 	}
-
-	return fmt.Errorf("could not subscribe to the worker after %d retries", retries)
 }
 
 func (a *actionListenerImpl) Unregister() error {

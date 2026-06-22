@@ -15,13 +15,14 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
+
+const maxConsecutiveStreamNoProgress = 10
 
 var errListenerClosed = errors.New("listener is closed")
 
@@ -104,15 +105,33 @@ type WorkflowRunsListener struct {
 	clientMu   sync.Mutex
 	generation uint64
 
-	reconnectGroup singleflight.Group
-	listenMu       sync.Mutex
-	listening      bool
-	closed         bool
+	reconnectSyncGroup       singleflight.Group
+	reconnectBackgroundGroup singleflight.Group
+	listenMu                 sync.Mutex
+	listening                bool
+	closed                   bool
+
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+	lifecycleOnce   sync.Once
 
 	l *zerolog.Logger
 
 	// map of workflow run ids to a list of handlers
 	handlers sync.Map
+}
+
+func (w *WorkflowRunsListener) initLifecycle() {
+	w.lifecycleOnce.Do(func() {
+		if w.lifecycleCtx == nil {
+			w.lifecycleCtx, w.lifecycleCancel = context.WithCancel(context.Background())
+		}
+	})
+}
+
+func (w *WorkflowRunsListener) lifecycleContext() context.Context {
+	w.initLifecycle()
+	return w.lifecycleCtx
 }
 
 func (r *subscribeClientImpl) getWorkflowRunsListener(
@@ -129,12 +148,16 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 		return r.client.SubscribeToWorkflowRuns(r.ctx.newContext(ctx), grpc_retry.Disable())
 	}
 
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+
 	w := &WorkflowRunsListener{
-		constructor: constructor,
-		l:           r.l,
+		constructor:     constructor,
+		l:               r.l,
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
 	}
 
-	err := w.retrySubscribe(ctx)
+	err := w.retrySubscribeSync(ctx)
 
 	if err != nil {
 		return nil, err
@@ -160,7 +183,7 @@ func (r *subscribeClientImpl) getWorkflowRunsListener(
 		}()
 		defer w.stopListening()
 
-		err := w.listen(ctx)
+		err := w.listen(w.lifecycleContext())
 
 		if err != nil {
 			r.l.Error().Err(err).Msg("failed to listen for workflow run events")
@@ -216,7 +239,7 @@ func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
 		return nil
 	}
 
-	if err := w.retrySubscribe(ctx); err != nil {
+	if err := w.retrySubscribeSync(ctx); err != nil {
 		return err
 	}
 
@@ -231,7 +254,7 @@ func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
 	go func() {
 		defer w.stopListening()
 
-		if err := w.listen(ctx); err != nil {
+		if err := w.listen(w.lifecycleContext()); err != nil {
 			w.l.Error().Err(err).Msg("failed to listen for workflow run events")
 		}
 	}()
@@ -239,9 +262,8 @@ func (w *WorkflowRunsListener) ensureListening(ctx context.Context) error {
 	return nil
 }
 
-// retrySubscribe coalesces concurrent reconnection attempts via singleflight.
-// Multiple goroutines calling this concurrently will share a single reconnection attempt.
-func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
+// retrySubscribeSync coalesces concurrent bounded reconnection attempts via singleflight.
+func (w *WorkflowRunsListener) retrySubscribeSync(ctx context.Context) error {
 	if w.isClosed() {
 		return errListenerClosed
 	}
@@ -250,80 +272,140 @@ func (w *WorkflowRunsListener) retrySubscribe(ctx context.Context) error {
 		return err
 	}
 
-	_, err, _ := w.reconnectGroup.Do("reconnect", func() (interface{}, error) {
-		return nil, w.doRetrySubscribe(context.Background())
+	_, err, _ := w.reconnectSyncGroup.Do("reconnect", func() (interface{}, error) {
+		return nil, w.doRetrySubscribeSync(ctx)
 	})
 	return err
 }
 
-func (w *WorkflowRunsListener) doRetrySubscribe(ctx context.Context) error {
+// retrySubscribeBackground coalesces concurrent unbounded reconnection attempts via singleflight.
+func (w *WorkflowRunsListener) retrySubscribeBackground(ctx context.Context) error {
 	if w.isClosed() {
 		return errListenerClosed
 	}
 
-	retries := 0
+	_, err, _ := w.reconnectBackgroundGroup.Do("reconnect", func() (interface{}, error) {
+		return nil, w.doRetrySubscribeBackground(ctx)
+	})
+	return err
+}
 
-	for retries < DefaultActionListenerRetryCount {
-		if retries > 0 {
-			time.Sleep(DefaultActionListenerRetryInterval)
+func (w *WorkflowRunsListener) doRetrySubscribeSync(ctx context.Context) error {
+	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
+		if attempt > 0 {
+			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
+				return err
+			}
 		}
 
 		if w.isClosed() {
 			return errListenerClosed
 		}
 
-		client, err := w.constructor(ctx)
-
-		if err != nil {
-			retries++
-			w.l.Error().Err(err).Msgf("could not resubscribe to the listener")
-			continue
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 
-		var rangeErr error
-
-		w.handlers.Range(func(key, value interface{}) bool {
-			workflowRunId := key.(string)
-
-			err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
-				WorkflowRunId: workflowRunId,
-			})
-
-			if err != nil {
-				w.l.Error().Err(err).Msgf("could not subscribe to the worker for workflow run id %s", workflowRunId)
-				rangeErr = err
-				return false
-			}
-
-			return true
-		})
-
-		if rangeErr != nil {
-			if closeErr := client.CloseSend(); closeErr != nil {
-				w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after replay failure")
-			}
-
-			retries++
-			continue
+		err := w.connectAndReplayHandlers(ctx)
+		if err == nil {
+			return nil
 		}
 
-		w.clientMu.Lock()
-		if w.isClosed() {
-			w.clientMu.Unlock()
-			if closeErr := client.CloseSend(); closeErr != nil {
-				w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listener closed")
-			}
-
-			return errListenerClosed
+		decision := retry.ClassifyStreamError(ctx, err)
+		if decision == retry.StreamDecisionStop {
+			return err
 		}
 
-		w.client = client
-		w.generation++
-		w.clientMu.Unlock()
-		return nil
+		w.l.Error().Err(err).Msgf("could not resubscribe to the listener (attempt %d/%d)", attempt+1, retry.StreamSyncMaxAttempts)
 	}
 
-	return fmt.Errorf("could not subscribe to the worker after %d retries", retries)
+	return fmt.Errorf("could not subscribe to the worker after %d retries", retry.StreamSyncMaxAttempts)
+}
+
+func (w *WorkflowRunsListener) doRetrySubscribeBackground(ctx context.Context) error {
+	attempt := 0
+
+	for {
+		if attempt > 0 {
+			if err := retry.SleepStreamBackoff(ctx, attempt-1); err != nil {
+				return err
+			}
+		}
+
+		if w.isClosed() {
+			return errListenerClosed
+		}
+
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
+		err := w.connectAndReplayHandlers(ctx)
+		if err == nil {
+			return nil
+		}
+
+		decision := retry.ClassifyStreamError(ctx, err)
+		if decision == retry.StreamDecisionStop {
+			return err
+		}
+
+		w.l.Error().Err(err).Msgf("could not resubscribe to the listener (background attempt %d)", attempt+1)
+		attempt++
+	}
+}
+
+func (w *WorkflowRunsListener) connectAndReplayHandlers(ctx context.Context) error {
+	if w.isClosed() {
+		return errListenerClosed
+	}
+
+	client, err := w.constructor(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	var rangeErr error
+
+	w.handlers.Range(func(key, value interface{}) bool {
+		workflowRunId := key.(string)
+
+		err := client.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{
+			WorkflowRunId: workflowRunId,
+		})
+
+		if err != nil {
+			w.l.Error().Err(err).Msgf("could not subscribe to the worker for workflow run id %s", workflowRunId)
+			rangeErr = err
+			return false
+		}
+
+		return true
+	})
+
+	if rangeErr != nil {
+		if closeErr := client.CloseSend(); closeErr != nil {
+			w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after replay failure")
+		}
+
+		return rangeErr
+	}
+
+	w.clientMu.Lock()
+	if w.isClosed() {
+		w.clientMu.Unlock()
+		if closeErr := client.CloseSend(); closeErr != nil {
+			w.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listener closed")
+		}
+
+		return errListenerClosed
+	}
+
+	w.client = client
+	w.generation++
+	w.clientMu.Unlock()
+	return nil
 }
 
 type threadSafeHandlers struct {
@@ -341,7 +423,7 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 	}
 
 	if !l.isListening() {
-		if err := l.ensureListening(context.Background()); err != nil {
+		if err := l.ensureListening(l.lifecycleContext()); err != nil {
 			return err
 		}
 	}
@@ -359,7 +441,7 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 
 	if err := l.retrySend(workflowRunId); err != nil {
 		if !l.isListening() {
-			if listenErr := l.ensureListening(context.Background()); listenErr != nil {
+			if listenErr := l.ensureListening(l.lifecycleContext()); listenErr != nil {
 				return listenErr
 			}
 
@@ -369,7 +451,7 @@ func (l *WorkflowRunsListener) AddWorkflowRun(
 		return err
 	}
 
-	return l.ensureListening(context.Background())
+	return l.ensureListening(l.lifecycleContext())
 }
 
 func (l *WorkflowRunsListener) RemoveWorkflowRun(
@@ -394,7 +476,9 @@ func (l *WorkflowRunsListener) RemoveWorkflowRun(
 }
 
 func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
-	for i := 0; i < DefaultActionListenerRetryCount; i++ {
+	ctx := l.lifecycleContext()
+
+	for i := 0; i < retry.StreamSyncMaxAttempts; i++ {
 		client, genBefore := l.getClientSnapshot()
 
 		if client == nil {
@@ -409,22 +493,22 @@ func (l *WorkflowRunsListener) retrySend(workflowRunId string) error {
 			return nil
 		}
 
-		l.l.Warn().Err(err).Msgf("failed to send workflow run subscription, attempt %d/%d", i+1, DefaultActionListenerRetryCount)
+		l.l.Warn().Err(err).Msgf("failed to send workflow run subscription, attempt %d/%d", i+1, retry.StreamSyncMaxAttempts)
 
-		// Check if someone else (e.g. Listen) already reconnected while we were sending.
-		// If so, skip the reconnect and retry the send on the new client immediately.
 		if _, genAfter := l.getClientSnapshot(); genAfter != genBefore {
 			continue
 		}
 
-		if retryErr := l.retrySubscribe(context.Background()); retryErr != nil {
+		if retryErr := l.retrySubscribeSync(ctx); retryErr != nil {
 			l.l.Error().Err(retryErr).Msg("failed to resubscribe after send failure")
 		}
 
-		time.Sleep(DefaultActionListenerRetryInterval)
+		if sleepErr := retry.SleepStreamBackoff(ctx, i); sleepErr != nil {
+			return sleepErr
+		}
 	}
 
-	return fmt.Errorf("could not send to the worker after %d retries", DefaultActionListenerRetryCount)
+	return fmt.Errorf("could not send to the worker after %d retries", retry.StreamSyncMaxAttempts)
 }
 
 func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
@@ -436,11 +520,22 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 	return l.listen(ctx)
 }
 
-func (l *WorkflowRunsListener) listen(ctx context.Context) error {
-	consecutiveErrors := 0
-	maxConsecutiveErrors := 10
+func (l *WorkflowRunsListener) classifyRecvError(ctx context.Context, err error) retry.StreamDecision {
+	if errors.Is(err, io.EOF) {
+		if !l.shouldReconnectOnEOF(ctx) {
+			return retry.StreamDecisionStop
+		}
 
-	// Take a snapshot of the client so we never hold the lock during a blocking Recv.
+		return retry.StreamDecisionRetry
+	}
+
+	return retry.ClassifyStreamError(ctx, err)
+}
+
+func (l *WorkflowRunsListener) listen(ctx context.Context) error {
+	consecutiveNoProgress := 0
+	reconnectAttempt := 0
+
 	client, generation := l.getClientSnapshot()
 	if client == nil {
 		return fmt.Errorf("client is not connected")
@@ -455,49 +550,62 @@ func (l *WorkflowRunsListener) listen(ctx context.Context) error {
 		event, err := client.Recv()
 
 		if err != nil {
-			switch {
-			case errors.Is(err, io.EOF):
-				if !l.shouldReconnectOnEOF(ctx) {
-					return nil
-				}
-			case status.Code(err) == codes.Canceled:
+			decision := l.classifyRecvError(ctx, err)
+
+			switch decision {
+			case retry.StreamDecisionStop:
 				return nil
-			case status.Code(err) == codes.Unavailable:
-				l.l.Warn().Err(err).Msg("dispatcher is unavailable, retrying subscribe after 1 second")
-				time.Sleep(1 * time.Second)
+			case retry.StreamDecisionNoProgress:
+				consecutiveNoProgress++
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+				}
+
+				return nil
 			}
 
-			consecutiveErrors++
+			consecutiveNoProgress++
 
 			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
 				client, generation = l.getClientSnapshot()
-				consecutiveErrors = 0
 				continue
 			}
 
-			retryErr := l.retrySubscribe(ctx)
+			if reconnectAttempt > 0 {
+				if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+					return nil
+				}
+			}
+
+			retryErr := l.retrySubscribeBackground(l.lifecycleContext())
 
 			if retryErr != nil {
 				if errors.Is(retryErr, errListenerClosed) {
 					return nil
 				}
 
-				l.l.Error().Err(retryErr).Msgf("failed to resubscribe (consecutive errors: %d/%d)", consecutiveErrors, maxConsecutiveErrors)
-
-				if consecutiveErrors >= maxConsecutiveErrors {
-					return fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveErrors, retryErr)
+				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
+				if retryDecision == retry.StreamDecisionStop || retryDecision == retry.StreamDecisionNoProgress {
+					return fmt.Errorf("failed to resubscribe: %w", retryErr)
 				}
 
-				time.Sleep(DefaultActionListenerRetryInterval)
+				l.l.Error().Err(retryErr).Msgf("failed to resubscribe (consecutive no-progress: %d/%d)", consecutiveNoProgress, maxConsecutiveStreamNoProgress)
+
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveNoProgress, retryErr)
+				}
+
+				reconnectAttempt++
 				continue
 			}
 
 			client, generation = l.getClientSnapshot()
-			consecutiveErrors = 0
+			reconnectAttempt++
 			continue
 		}
 
-		consecutiveErrors = 0
+		consecutiveNoProgress = 0
+		reconnectAttempt = 0
 
 		if err := l.handleWorkflowRun(event); err != nil {
 			return err
@@ -509,6 +617,15 @@ func (l *WorkflowRunsListener) Close() error {
 	l.listenMu.Lock()
 	l.closed = true
 	l.listenMu.Unlock()
+
+	if l.lifecycleCancel != nil {
+		l.lifecycleCancel()
+	} else {
+		l.initLifecycle()
+		if l.lifecycleCancel != nil {
+			l.lifecycleCancel()
+		}
+	}
 
 	return l.closeStream()
 }
@@ -695,34 +812,96 @@ func (r *subscribeClientImpl) Stream(ctx context.Context, workflowRunId string, 
 }
 
 func (r *subscribeClientImpl) StreamByAdditionalMetadata(ctx context.Context, key string, value string, handler StreamHandler) error {
-	stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
-		AdditionalMetaKey:   &key,
-		AdditionalMetaValue: &value,
-	})
-
-	if err != nil {
-		return err
-	}
+	consecutiveNoProgress := 0
+	reconnectAttempt := 0
 
 	for {
-		event, err := stream.Recv()
-
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-
-			return err
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
 
-		if event.EventType != dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+		stream, err := r.client.SubscribeToWorkflowEvents(r.ctx.newContext(ctx), &dispatchercontracts.SubscribeToWorkflowEventsRequest{
+			AdditionalMetaKey:   &key,
+			AdditionalMetaValue: &value,
+		}, grpc_retry.Disable())
+
+		if err != nil {
+			decision := retry.ClassifyStreamError(ctx, err)
+			if decision == retry.StreamDecisionStop {
+				return err
+			}
+
+			if decision == retry.StreamDecisionNoProgress {
+				consecutiveNoProgress++
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+				}
+
+				return err
+			}
+
+			consecutiveNoProgress++
+
+			if reconnectAttempt > 0 {
+				if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+					return sleepErr
+				}
+			}
+
+			reconnectAttempt++
 			continue
 		}
 
-		if err := handler(StreamEvent{
-			Message: []byte(event.EventPayload),
-		}); err != nil {
-			return err
+		for {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+
+			event, recvErr := stream.Recv()
+
+			if recvErr != nil {
+				if errors.Is(recvErr, io.EOF) {
+					return nil
+				}
+
+				decision := retry.ClassifyStreamError(ctx, recvErr)
+				if decision == retry.StreamDecisionStop {
+					return recvErr
+				}
+
+				if decision == retry.StreamDecisionNoProgress {
+					consecutiveNoProgress++
+					if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+						return fmt.Errorf("stream made no progress: %w", recvErr)
+					}
+
+					return recvErr
+				}
+
+				consecutiveNoProgress++
+
+				if reconnectAttempt > 0 {
+					if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+						return sleepErr
+					}
+				}
+
+				reconnectAttempt++
+				break
+			}
+
+			consecutiveNoProgress = 0
+			reconnectAttempt = 0
+
+			if event.EventType != dispatchercontracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM {
+				continue
+			}
+
+			if err := handler(StreamEvent{
+				Message: []byte(event.EventPayload),
+			}); err != nil {
+				return err
+			}
 		}
 	}
 }
