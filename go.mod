@@ -28,7 +28,7 @@ require (
 	github.com/gorilla/sessions v1.4.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/hatchet-dev/pgoutbox v0.1.0
+	github.com/hatchet-dev/pgoutbox v0.1.1
 	github.com/hatchet-dev/timediff v0.0.4
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb

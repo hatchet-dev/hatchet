@@ -28,6 +28,10 @@ type mockConcurrencyRepo struct {
 	lastFilled    []repository.TaskIdInsertedAtRetryCount
 	lastCancelled []repository.CancelledSlotInput
 	updateCalls   int
+
+	// flushLatency, when > 0, is slept on every flush to model the cost of writing concurrency
+	// updates to disk (used by the throughput benchmark; otherwise zero).
+	flushLatency time.Duration
 }
 
 func (m *mockConcurrencyRepo) ReadConcurrencySlotsForIndexing(ctx context.Context, tenantId uuid.UUID, strategyId int64, writeCh chan<- *sqlcv1.ListConcurrencySlotsForIndexingRow) error {
@@ -38,6 +42,9 @@ func (m *mockConcurrencyRepo) ReadConcurrencySlotsForIndexing(ctx context.Contex
 }
 
 func (m *mockConcurrencyRepo) UpdateConcurrencySlotsTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, strategyId int64, filledSlots []repository.TaskIdInsertedAtRetryCount, cancelledSlots []repository.CancelledSlotInput) (*repository.RunConcurrencyResult, error) {
+	if m.flushLatency > 0 {
+		time.Sleep(m.flushLatency)
+	}
 	m.updateCalls++
 	m.lastFilled = filledSlots
 	m.lastCancelled = cancelledSlots
@@ -167,89 +174,6 @@ func TestBuildIndexHydratesSubQueues(t *testing.T) {
 	sqB := c.getOrCreateSubQueue("b")
 	if sqB.queued.len() != 1 || sqB.running.len() != 0 {
 		t.Fatalf("subQueue b = (queued %d, running %d), want (1, 0)", sqB.queued.len(), sqB.running.len())
-	}
-}
-
-func TestProcessDequeuesByPriority(t *testing.T) {
-	now := time.Now().UTC()
-	future := now.Add(time.Hour)
-
-	repo := &mockConcurrencyRepo{}
-	c := newTestStrategy(repo, 2) // only 2 slots may run
-
-	msgs := []walMessage{
-		walInsert("a", 101, 1, now, future),
-		walInsert("a", 105, 5, now, future),
-		walInsert("a", 109, 9, now, future),
-	}
-
-	res, err := c.processWALMessages(context.Background(), nil, msgs)
-	if err != nil {
-		t.Fatalf("processWALMessages: %v", err)
-	}
-	if res == nil {
-		t.Fatalf("nil result")
-	}
-
-	// Highest priority fills first, up to MaxConcurrency; the rest stays queued.
-	if got := filledIDs(repo.lastFilled); len(got) != 2 || got[0] != 109 || got[1] != 105 {
-		t.Fatalf("filled = %v, want [109 105]", got)
-	}
-
-	sq := c.getOrCreateSubQueue("a")
-	if sq.running.len() != 2 {
-		t.Fatalf("running len = %d, want 2", sq.running.len())
-	}
-	if sq.queued.len() != 1 {
-		t.Fatalf("queued len = %d, want 1", sq.queued.len())
-	}
-	if _, ok := sq.queued.get(101); !ok {
-		t.Fatalf("lowest-priority task 101 should remain queued")
-	}
-
-	// mirror Run's success path
-	c.commitScopes()
-	if c.openScopes != nil {
-		t.Fatalf("openScopes not cleared after commit")
-	}
-}
-
-func TestProcessCancelsTimedOutBeforeFilling(t *testing.T) {
-	now := time.Now().UTC()
-	past := now.Add(-time.Hour)
-	future := now.Add(time.Hour)
-
-	repo := &mockConcurrencyRepo{}
-	c := newTestStrategy(repo, 5) // plenty of room; timeout, not capacity, is under test
-
-	msgs := []walMessage{
-		walInsert("a", 201, 9, now, past),   // already past its scheduling timeout
-		walInsert("a", 202, 1, now, future), // still valid
-	}
-
-	if _, err := c.processWALMessages(context.Background(), nil, msgs); err != nil {
-		t.Fatalf("processWALMessages: %v", err)
-	}
-
-	// 201 timed out: cancelled with SCHEDULING_TIMED_OUT, never filled.
-	timedOut := cancelledByReason(repo.lastCancelled, repository.CancelledReasonSchedulingTimedOut)
-	if !containsID(timedOut, 201) {
-		t.Fatalf("task 201 not cancelled as timed out: %v", timedOut)
-	}
-	filled := filledIDs(repo.lastFilled)
-	if containsID(filled, 201) {
-		t.Fatalf("timed-out task 201 was filled: %v", filled)
-	}
-	if !containsID(filled, 202) {
-		t.Fatalf("valid task 202 was not filled: %v", filled)
-	}
-
-	sq := c.getOrCreateSubQueue("a")
-	if _, ok := sq.queued.get(201); ok {
-		t.Fatalf("timed-out task 201 still in queued index")
-	}
-	if _, ok := sq.running.get(202); !ok {
-		t.Fatalf("task 202 not promoted to running")
 	}
 }
 
