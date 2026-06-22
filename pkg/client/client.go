@@ -9,18 +9,16 @@ import (
 	"net/http"
 	"time"
 
-	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	_ "google.golang.org/grpc/encoding/gzip" // Register gzip compression codec
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/status"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/loader"
 	"github.com/hatchet-dev/hatchet/pkg/client/rest"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 
 	cloudrest "github.com/hatchet-dev/hatchet/pkg/client/cloud/rest"
 
@@ -91,6 +89,7 @@ type ClientOpts struct {
 	token       string
 	namespace   string
 	noGrpcRetry bool
+	noRetry     bool
 	sharedMeta  map[string]string
 
 	cloudRegisterID *string
@@ -145,6 +144,7 @@ func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
 		cloudRegisterID:        clientConfig.CloudRegisterID,
 		runnableActions:        clientConfig.RunnableActions,
 		noGrpcRetry:            clientConfig.NoGrpcRetry,
+		noRetry:                clientConfig.NoRetry,
 		sharedMeta:             make(map[string]string),
 		presetWorkerLabels:     clientConfig.PresetWorkerLabels,
 		disableGzipCompression: clientConfig.DisableGzipCompression,
@@ -316,30 +316,9 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 		opts.l.Info().Msg("gzip compression disabled for gRPC client")
 	}
 
-	if !opts.noGrpcRetry {
-		retryOnCodes := []codes.Code{
-			codes.ResourceExhausted,
-			codes.DeadlineExceeded,
-			codes.FailedPrecondition,
-			codes.Internal,
-			codes.Unavailable,
-		}
-
-		retryOpts := []grpc_retry.CallOption{
-
-			grpc_retry.WithBackoff(grpc_retry.BackoffExponentialWithJitter(5*time.Second, 0.10)),
-			grpc_retry.WithMax(5),
-			grpc_retry.WithPerRetryTimeout(30 * time.Second),
-			grpc_retry.WithCodes(retryOnCodes...),
-			grpc_retry.WithOnRetryCallback(grpc_retry.OnRetryCallback(func(ctx context.Context, attempt uint, err error) {
-				if contains(retryOnCodes, status.Code(err)) {
-					opts.l.Debug().Msgf("grpc_retry attempt: %d, backoff for %v", attempt, err)
-				}
-			})),
-		}
-		grpcOpts = append(grpcOpts, grpc.WithChainStreamInterceptor(grpc_retry.StreamClientInterceptor(retryOpts...)))
-		grpcOpts = append(grpcOpts, grpc.WithChainUnaryInterceptor(grpc_retry.UnaryClientInterceptor(retryOpts...)))
-	}
+	grpcRetryEnabled := !opts.noRetry && !opts.noGrpcRetry
+	restRetryEnabled := !opts.noRetry
+	grpcOpts = append(grpcOpts, retry.GRPCDialOptions(opts.l, grpcRetryEnabled)...)
 
 	conn, err := grpc.NewClient(
 		opts.hostPort,
@@ -364,19 +343,26 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	dispatcher := newDispatcher(conn, shared, opts.presetWorkerLabels)
 	event := newEvent(conn, shared)
 
-	rest, err := rest.NewClientWithResponses(opts.serverURL, rest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+	authEditor := func(ctx context.Context, req *http.Request) error {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
 		return nil
-	}))
+	}
+
+	restOpts := []rest.ClientOption{rest.WithRequestEditorFn(authEditor)}
+	cloudRestOpts := []cloudrest.ClientOption{cloudrest.WithRequestEditorFn(authEditor)}
+	if restRetryEnabled {
+		restDoer := retry.NewRestDoer(&http.Client{})
+		restOpts = append(restOpts, rest.WithHTTPClient(restDoer))
+		cloudRestOpts = append(cloudRestOpts, cloudrest.WithHTTPClient(restDoer))
+	}
+
+	rest, err := rest.NewClientWithResponses(opts.serverURL, restOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create rest client: %w", err)
 	}
 
-	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudrest.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", opts.token))
-		return nil
-	}))
+	cloudrest, err := cloudrest.NewClientWithResponses(opts.serverURL, cloudRestOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not create cloud REST client: %w", err)
@@ -482,13 +468,4 @@ func initWorkflows(fl filesLoaderFunc, adminClient AdminClient) error {
 	}
 
 	return nil
-}
-
-func contains(codes []codes.Code, code codes.Code) bool {
-	for _, c := range codes {
-		if c == code {
-			return true
-		}
-	}
-	return false
 }
