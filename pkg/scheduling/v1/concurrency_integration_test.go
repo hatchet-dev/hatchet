@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -18,25 +19,27 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1/concurrency"
 )
 
 // concurrencyTestSetup holds the common state for concurrency integration tests.
 type concurrencyTestSetup struct {
-	tenantId        uuid.UUID
-	strategy        *sqlcv1.V1StepConcurrency
-	concurrencyRepo repo.ConcurrencyRepository
+	tenantId          uuid.UUID
+	strategy          *sqlcv1.V1StepConcurrency
+	concurrencyRepo   repo.ConcurrencyRepository
+	workflowId        uuid.UUID
+	workflowVersionId uuid.UUID
 }
 
-// setupStepConcurrencyTest creates a tenant, workflow with a single step-level concurrency
-// strategy, and inserts numTasks tasks. Returns the setup needed to call RunConcurrencyStrategy.
-func setupStepConcurrencyTest(
+// setupStepConcurrencyStrategy creates a tenant and a workflow with a single step-level concurrency
+// strategy, but inserts no tasks. Use createConcurrencyTasks to add tasks afterwards.
+func setupStepConcurrencyStrategy(
 	t *testing.T,
 	ctx context.Context,
 	conf *database.Layer,
 	name string,
 	strategyType string,
 	maxRuns int32,
-	numTasks int,
 ) *concurrencyTestSetup {
 	t.Helper()
 
@@ -71,9 +74,6 @@ func setupStepConcurrencyTest(
 	})
 	require.NoError(t, err)
 
-	workflowId := wfVersion.WorkflowVersion.WorkflowId
-	workflowVersionId := wfVersion.WorkflowVersion.ID
-
 	strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
 	require.NoError(t, err)
 	require.Len(t, strategies, 1)
@@ -83,14 +83,31 @@ func setupStepConcurrencyTest(
 	require.Equal(t, maxRuns, strat.MaxConcurrency)
 	require.False(t, strat.ParentStrategyID.Valid, "step-level concurrency should have no parent")
 
+	return &concurrencyTestSetup{
+		tenantId:          tenantId,
+		strategy:          strat,
+		concurrencyRepo:   r.Scheduler().Concurrency(),
+		workflowId:        wfVersion.WorkflowVersion.WorkflowId,
+		workflowVersionId: wfVersion.WorkflowVersion.ID,
+	}
+}
+
+// createConcurrencyTasks inserts numTasks queued tasks that share a single concurrency key against
+// the setup's strategy. The v1_concurrency_slot insert trigger emits the WAL the in-memory index
+// consumes.
+func createConcurrencyTasks(t *testing.T, ctx context.Context, conf *database.Layer, s *concurrencyTestSetup, numTasks int) {
+	t.Helper()
+
+	queries := sqlcv1.New()
+
 	taskParams := newCreateTasksParams(numTasks)
 	for i := 0; i < numTasks; i++ {
-		taskParams.Tenantids[i] = tenantId
+		taskParams.Tenantids[i] = s.tenantId
 		taskParams.Queues[i] = "default"
 		taskParams.Actionids[i] = "test:run"
-		taskParams.Stepids[i] = strat.StepID
+		taskParams.Stepids[i] = s.strategy.StepID
 		taskParams.Stepreadableids[i] = "my-task"
-		taskParams.Workflowids[i] = workflowId
+		taskParams.Workflowids[i] = s.workflowId
 		taskParams.Scheduletimeouts[i] = "5m"
 		taskParams.Priorities[i] = 1
 		taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
@@ -100,21 +117,33 @@ func setupStepConcurrencyTest(
 		taskParams.Additionalmetadatas[i] = []byte(`{}`)
 		taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
 		taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{{}}
-		taskParams.ConcurrencyStrategyIds[i] = []int64{strat.ID}
+		taskParams.ConcurrencyStrategyIds[i] = []int64{s.strategy.ID}
 		taskParams.ConcurrencyKeys[i] = []string{"test-key"}
-		taskParams.WorkflowVersionIds[i] = workflowVersionId
+		taskParams.WorkflowVersionIds[i] = s.workflowVersionId
 		taskParams.WorkflowRunIds[i] = uuid.New()
 	}
 
 	tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
 	require.NoError(t, err)
 	require.Len(t, tasks, numTasks)
+}
 
-	return &concurrencyTestSetup{
-		tenantId:        tenantId,
-		strategy:        strat,
-		concurrencyRepo: r.Scheduler().Concurrency(),
-	}
+// setupStepConcurrencyTest creates a tenant, workflow with a single step-level concurrency
+// strategy, and inserts numTasks tasks. Returns the setup needed to call RunConcurrencyStrategy.
+func setupStepConcurrencyTest(
+	t *testing.T,
+	ctx context.Context,
+	conf *database.Layer,
+	name string,
+	strategyType string,
+	maxRuns int32,
+	numTasks int,
+) *concurrencyTestSetup {
+	t.Helper()
+
+	s := setupStepConcurrencyStrategy(t, ctx, conf, name, strategyType, maxRuns)
+	createConcurrencyTasks(t, ctx, conf, s, numTasks)
+	return s
 }
 
 // newCreateTasksParams allocates a CreateTasksParams with all slices pre-sized to n.
@@ -210,6 +239,88 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Queued, 2, "CANCEL_IN_PROGRESS should queue maxRuns newest tasks")
 		require.Len(t, res.Cancelled, 3, "CANCEL_IN_PROGRESS should cancel excess oldest tasks")
+
+		return nil
+	})
+}
+
+// TestConcurrency_CancelInProgress_InMemory exercises the new outbox-backed in-memory index for
+// CANCEL_IN_PROGRESS: it keeps the best maxRuns slots under the comparator (priority, then
+// inserted_at, then taskId) running and cancels the rest with CONCURRENCY_LIMIT. With equal-priority
+// tasks this comes down to maxRuns running and the remainder cancelled.
+func TestConcurrency_CancelInProgress_InMemory(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		// create the strategy first, with no tasks yet
+		s := setupStepConcurrencyStrategy(t, ctx, conf, "cip-inmem-test", "CANCEL_IN_PROGRESS", 2)
+
+		l := zerolog.Nop()
+		outbox := newTestOutbox(t, conf)
+		cs := concurrency.NewConcurrencyStrategy(ctx, s.concurrencyRepo, s.strategy, outbox, &l)
+
+		// The first Run blocks until the async index build finishes (against the currently-empty slot
+		// table) and drains any pending WAL. Running it before inserting tasks guarantees the build
+		// completes first, so the subsequent INSERT WAL messages are processed fresh rather than
+		// double-counted against an index that already hydrated them.
+		_, err := cs.Run(ctx)
+		require.NoError(t, err)
+
+		// now insert 5 tasks sharing one concurrency key; the insert trigger emits INSERT WAL.
+		createConcurrencyTasks(t, ctx, conf, s, 5)
+
+		// drain the WAL through the in-memory CANCEL_IN_PROGRESS decide step.
+		res, err := cs.Run(ctx)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 2, "CANCEL_IN_PROGRESS in-memory should queue maxRuns tasks")
+		require.Len(t, res.Cancelled, 3, "CANCEL_IN_PROGRESS in-memory should cancel the excess tasks")
+		for _, c := range res.Cancelled {
+			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason,
+				"excess tasks should be cancelled with CONCURRENCY_LIMIT")
+		}
+
+		return nil
+	})
+}
+
+// TestConcurrency_CancelNewest_InMemory exercises the new outbox-backed in-memory index for
+// CANCEL_NEWEST: it fills maxRuns slots from the queued backlog (priority, then inserted_at, then
+// taskId) and cancels the rest with CONCURRENCY_LIMIT, never preempting running work. With
+// equal-priority tasks this comes down to maxRuns running and the remainder cancelled.
+func TestConcurrency_CancelNewest_InMemory(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		// create the strategy first, with no tasks yet
+		s := setupStepConcurrencyStrategy(t, ctx, conf, "cn-inmem-test", "CANCEL_NEWEST", 2)
+
+		l := zerolog.Nop()
+		outbox := newTestOutbox(t, conf)
+		cs := concurrency.NewConcurrencyStrategy(ctx, s.concurrencyRepo, s.strategy, outbox, &l)
+
+		// The first Run blocks until the async index build finishes (against the currently-empty slot
+		// table) and drains any pending WAL. Running it before inserting tasks guarantees the build
+		// completes first, so the subsequent INSERT WAL messages are processed fresh rather than
+		// double-counted against an index that already hydrated them.
+		_, err := cs.Run(ctx)
+		require.NoError(t, err)
+
+		// now insert 5 tasks sharing one concurrency key; the insert trigger emits INSERT WAL.
+		createConcurrencyTasks(t, ctx, conf, s, 5)
+
+		// drain the WAL through the in-memory CANCEL_NEWEST decide step.
+		res, err := cs.Run(ctx)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 2, "CANCEL_NEWEST in-memory should queue maxRuns tasks")
+		require.Len(t, res.Cancelled, 3, "CANCEL_NEWEST in-memory should cancel the excess tasks")
+		for _, c := range res.Cancelled {
+			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason,
+				"excess tasks should be cancelled with CONCURRENCY_LIMIT")
+		}
 
 		return nil
 	})
@@ -368,8 +479,13 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 
 		l := zerolog.Nop()
+		// the outbox table and v1_concurrency_slot triggers are provided by migrations; mirror
+		// production by disabling pgoutbox's auto-migration.
+		outbox, err := pgoutbox.NewOutbox(conf.Pool, pgoutbox.WithAutoMigrate(false))
+		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			outbox,
 			&l,
 			100,
 			20,

@@ -261,6 +261,79 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const listConcurrencySlotsForIndexing = `-- name: ListConcurrencySlotsForIndexing :many
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    key,
+    priority,
+    tenant_id,
+    strategy_id,
+    is_filled,
+    schedule_timeout_at
+FROM v1_concurrency_slot
+WHERE tenant_id = $1::UUID
+AND strategy_id = $2::BIGINT
+ORDER BY tenant_id, strategy_id ASC, key ASC, sort_id ASC
+LIMIT $4::int
+OFFSET $3::int
+`
+
+type ListConcurrencySlotsForIndexingParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	Offset     int32     `json:"offset"`
+	Limit      int32     `json:"limit"`
+}
+
+type ListConcurrencySlotsForIndexingRow struct {
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount    int32              `json:"task_retry_count"`
+	Key               string             `json:"key"`
+	Priority          int32              `json:"priority"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	StrategyID        int64              `json:"strategy_id"`
+	IsFilled          bool               `json:"is_filled"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+}
+
+func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, arg ListConcurrencySlotsForIndexingParams) ([]*ListConcurrencySlotsForIndexingRow, error) {
+	rows, err := db.Query(ctx, listConcurrencySlotsForIndexing,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListConcurrencySlotsForIndexingRow
+	for rows.Next() {
+		var i ListConcurrencySlotsForIndexingRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.Key,
+			&i.Priority,
+			&i.TenantID,
+			&i.StrategyID,
+			&i.IsFilled,
+			&i.ScheduleTimeoutAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConcurrencyStrategiesByStepId = `-- name: ListConcurrencyStrategiesByStepId :many
 SELECT
     id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
@@ -1293,4 +1366,55 @@ func (q *Queries) TryAdvisoryLockMany(ctx context.Context, db DBTX, keys []int64
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateConcurrencySlotIsFilled = `-- name: UpdateConcurrencySlotIsFilled :one
+UPDATE v1_concurrency_slot
+SET is_filled = $1
+WHERE task_id = $2
+  AND task_inserted_at = $3
+  AND task_retry_count = $4
+  AND strategy_id = $5
+RETURNING sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+`
+
+type UpdateConcurrencySlotIsFilledParams struct {
+	IsFilled       bool               `json:"is_filled"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount int32              `json:"task_retry_count"`
+	StrategyID     int64              `json:"strategy_id"`
+}
+
+func (q *Queries) UpdateConcurrencySlotIsFilled(ctx context.Context, db DBTX, arg UpdateConcurrencySlotIsFilledParams) (*V1ConcurrencySlot, error) {
+	row := db.QueryRow(ctx, updateConcurrencySlotIsFilled,
+		arg.IsFilled,
+		arg.TaskID,
+		arg.TaskInsertedAt,
+		arg.TaskRetryCount,
+		arg.StrategyID,
+	)
+	var i V1ConcurrencySlot
+	err := row.Scan(
+		&i.SortID,
+		&i.TaskID,
+		&i.TaskInsertedAt,
+		&i.TaskRetryCount,
+		&i.ExternalID,
+		&i.TenantID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
+		&i.StrategyID,
+		&i.ParentStrategyID,
+		&i.Priority,
+		&i.Key,
+		&i.IsFilled,
+		&i.NextParentStrategyIds,
+		&i.NextStrategyIds,
+		&i.NextKeys,
+		&i.QueueToNotify,
+		&i.ScheduleTimeoutAt,
+	)
+	return &i, err
 }

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hatchet-dev/pgoutbox"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
@@ -256,6 +258,11 @@ func runMigrationsImpl(ctx context.Context, opts ...RunMigrationsOpt) error {
 	}
 	goose.SetBaseFS(fsys)
 
+	// Run the pgoutbox migrations before applying the full migration set.
+	if outboxErr := runOutboxMigration(ctx, rawURL); outboxErr != nil {
+		return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "apply pgoutbox migrations", outboxErr)
+	}
+
 	switch {
 	case options.upToPenultimate:
 		migrations, err := listMigrations()
@@ -278,6 +285,22 @@ func runMigrationsImpl(ctx context.Context, opts ...RunMigrationsOpt) error {
 		if err != nil {
 			return migratediag.PhaseError(databaseEnvVar, phaseName, dsn, "apply migrations", err)
 		}
+	}
+
+	return nil
+}
+
+// runOutboxMigration runs the embedded pgoutbox migrations against the database
+// at rawURL before the goose migrations are applied.
+func runOutboxMigration(ctx context.Context, rawURL string) error {
+	pool, err := pgxpool.New(ctx, rawURL)
+	if err != nil {
+		return fmt.Errorf("failed to open pgoutbox pool: %w", err)
+	}
+	defer pool.Close()
+
+	if err := pgoutbox.Migrate(ctx, pool); err != nil {
+		return fmt.Errorf("failed to run pgoutbox migrations: %w", err)
 	}
 
 	return nil

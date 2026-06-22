@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -730,8 +731,25 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
 
+	// Dedicated pool for the concurrency outbox. It must be separate from the main pool: the
+	// outbox holds a transaction open while flushing (which itself calls UpdateConcurrencySlots
+	// and needs another connection), so sharing the main pool risks deadlock under saturation.
+	outboxPoolConfig := dc.Pool.Config().Copy()
+	concurrencyOutboxPool, err := pgxpool.NewWithConfig(context.Background(), outboxPoolConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox pool: %w", err)
+	}
+
+	// The outbox table is owned by a hatchet migration, so we disable pgoutbox's auto-migration.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(concurrencyOutboxPool, pgoutbox.WithAutoMigrate(false))
+	if err != nil {
+		concurrencyOutboxPool.Close()
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
+	}
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
@@ -757,6 +775,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
+
+		concurrencyOutboxPool.Close()
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}

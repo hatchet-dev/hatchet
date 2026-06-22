@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -677,5 +678,72 @@ func (q *Queries) RunChildCancelNewest(ctx context.Context, db DBTX, arg RunChil
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	return items, nil
+}
+
+func (q *Queries) UpdateConcurrencySlotIsFilledBatch(ctx context.Context, db DBTX, args []UpdateConcurrencySlotIsFilledParams) ([]*V1ConcurrencySlot, error) {
+	batch := &pgx.Batch{}
+
+	// callbacks queued via res.Query run serially while br.Close() drains the
+	// batch, so appending to this shared slice needs no synchronization.
+	items := make([]*V1ConcurrencySlot, 0, len(args))
+	var scanErr error
+
+	for _, arg := range args {
+		res := batch.Queue(updateConcurrencySlotIsFilled,
+			arg.IsFilled,
+			arg.TaskID,
+			arg.TaskInsertedAt,
+			arg.TaskRetryCount,
+			arg.StrategyID,
+		)
+
+		res.Query(func(rows pgx.Rows) error {
+			defer rows.Close()
+
+			for rows.Next() {
+				var i V1ConcurrencySlot
+				if err := rows.Scan(
+					&i.SortID,
+					&i.TaskID,
+					&i.TaskInsertedAt,
+					&i.TaskRetryCount,
+					&i.ExternalID,
+					&i.TenantID,
+					&i.WorkflowID,
+					&i.WorkflowVersionID,
+					&i.WorkflowRunID,
+					&i.StrategyID,
+					&i.ParentStrategyID,
+					&i.Priority,
+					&i.Key,
+					&i.IsFilled,
+					&i.NextParentStrategyIds,
+					&i.NextStrategyIds,
+					&i.NextKeys,
+					&i.QueueToNotify,
+					&i.ScheduleTimeoutAt,
+				); err != nil {
+					scanErr = err
+					return err
+				}
+
+				items = append(items, &i)
+			}
+
+			return rows.Err()
+		})
+	}
+
+	br := db.SendBatch(ctx, batch)
+
+	if err := br.Close(); err != nil {
+		return nil, err
+	}
+
+	if scanErr != nil {
+		return nil, scanErr
+	}
+
 	return items, nil
 }

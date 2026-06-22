@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/syncx"
@@ -17,6 +18,8 @@ import (
 
 type sharedConfig struct {
 	repo v1.SchedulerRepository
+
+	outbox pgoutbox.Outbox
 
 	l *zerolog.Logger
 
@@ -56,6 +59,7 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
 	singleQueueLimit int,
 	schedulerConcurrencyRateLimit int,
@@ -76,6 +80,7 @@ func NewSchedulingPool(
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
+			outbox:                                 outbox,
 			l:                                      l,
 			promGate:                               promGate,
 			singleQueueLimit:                       singleQueueLimit,

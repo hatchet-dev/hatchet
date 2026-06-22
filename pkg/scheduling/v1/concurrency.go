@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1/concurrency"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -28,6 +29,9 @@ type ConcurrencyManager struct {
 	l *zerolog.Logger
 
 	strategy *sqlcv1.V1StepConcurrency
+
+	// concurrencyStrategy is the in-memory index + outbox-based approach
+	concurrencyStrategy *concurrency.ConcurrencyStrategy
 
 	tenantId uuid.UUID
 
@@ -63,9 +67,21 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// we only use the new in-memory index for non-parent strategies
+	var concurrencyStrategy *concurrency.ConcurrencyStrategy
+	if !strategy.ParentStrategyID.Valid &&
+		(strategy.Strategy == sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN ||
+			strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS ||
+			strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELNEWEST) {
+		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
+	}
+
 	c := &ConcurrencyManager{
 		repo:                   repo,
 		strategy:               strategy,
+		concurrencyStrategy:    concurrencyStrategy,
 		tenantId:               tenantId,
 		l:                      &l,
 		notifyConcurrencyCh:    notifyConcurrencyCh,
@@ -80,7 +96,6 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 		advisoryParentLock:     advisoryParentLock,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	cleanupMu := sync.Mutex{}
 	c.cleanup = func() {
 		cleanupMu.Lock()
@@ -163,7 +178,8 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
-		if !c.rateLimiter.Allow() {
+		// only use the rateLimiter on the old polling path
+		if c.concurrencyStrategy == nil && !c.rateLimiter.Allow() {
 			span.End()
 			c.l.Debug().Ctx(ctx).Msgf("rate limit exceeded for strategy %d", c.strategy.ID)
 			continue
@@ -178,7 +194,14 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			continue
 		}
 		start := time.Now()
-		results, err := c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
+
+		var results *v1.RunConcurrencyResult
+		var err error
+		if c.concurrencyStrategy != nil {
+			results, err = c.concurrencyStrategy.Run(ctx)
+		} else {
+			results, err = c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
+		}
 		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()

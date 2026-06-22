@@ -822,3 +822,30 @@ UPDATE v1_step_concurrency sc
 SET is_active = FALSE
 FROM tenant_step_concurrencies
 WHERE sc.id = tenant_step_concurrencies.id;
+
+-- name: ListConcurrencySlotsForIndexing :many
+SELECT
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    key,
+    priority,
+    tenant_id,
+    strategy_id,
+    is_filled,
+    schedule_timeout_at
+FROM v1_concurrency_slot
+WHERE tenant_id = @tenantId::UUID
+AND strategy_id = @strategyId::BIGINT
+ORDER BY tenant_id, strategy_id ASC, key ASC, sort_id ASC
+LIMIT sqlc.arg('limit')::int
+OFFSET sqlc.arg('offset')::int;
+
+-- name: UpdateConcurrencySlotIsFilled :one
+UPDATE v1_concurrency_slot
+SET is_filled = $1
+WHERE task_id = $2
+  AND task_inserted_at = $3
+  AND task_retry_count = $4
+  AND strategy_id = $5
+RETURNING *;
