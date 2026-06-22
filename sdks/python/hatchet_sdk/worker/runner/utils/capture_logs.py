@@ -1,8 +1,9 @@
-import asyncio
+import contextlib
 import functools
 import logging
+import multiprocessing
+import multiprocessing.context
 from collections.abc import Awaitable, Callable
-from contextlib import suppress
 from dataclasses import dataclass
 from io import StringIO
 from typing import Any, Literal, ParamSpec, TypeVar
@@ -10,6 +11,7 @@ from typing import Any, Literal, ParamSpec, TypeVar
 from pydantic import BaseModel, Field
 
 from hatchet_sdk.clients.events import EventClient
+from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
@@ -127,24 +129,38 @@ class LogRecord:
 
 class AsyncLogSender:
     def __init__(self, event_client: EventClient):
-        self.event_client = event_client
-        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](
-            maxsize=event_client.client_config.log_queue_size
+        self._config = event_client.client_config
+        self._ctx = multiprocessing.get_context("spawn")
+        self.q: multiprocessing.Queue[LogRecord | STOP_LOOP_TYPE] = self._ctx.Queue(
+            maxsize=self._config.log_queue_size
         )
-        self._owner_loop: asyncio.AbstractEventLoop | None = None
+        self._proc: multiprocessing.context.SpawnProcess | None = None
 
-    async def consume(self) -> None:
-        self._owner_loop = asyncio.get_running_loop()
+    def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
+        self.q.put_nowait(record)
+
+    def consume(
+        self,
+        q: multiprocessing.Queue[LogRecord | STOP_LOOP_TYPE],
+        config: ClientConfig,
+    ) -> None:
+        import queue
+
+        from hatchet_sdk.clients.events import EventClient
+
+        client = EventClient(config)
 
         while True:
-            record = await self.q.get()
-
+            try:
+                record = q.get(timeout=1)
+            except queue.Empty:
+                # Parent may have died without sending STOP_LOOP; keep polling
+                # so we don't block forever on a dead queue.
+                continue
             if record == STOP_LOOP:
                 break
-
             try:
-                await asyncio.to_thread(
-                    self.event_client.log,
+                client.log(
                     message=record.message,
                     step_run_id=record.step_run_id,
                     level=record.level,
@@ -153,31 +169,29 @@ class AsyncLogSender:
             except Exception:
                 logger.exception("failed to send log to Hatchet")
 
-    def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        owner_loop = self._owner_loop
+    def start(self) -> None:
+        proc = self._ctx.Process(
+            target=self.consume,
+            args=(self.q, self._config),
+            daemon=True,
+        )
+        self._proc = proc
+        proc.start()
 
-        if owner_loop is None:
-            self._enqueue_or_drop(record)
+    def stop(self, timeout: float = 5.0) -> None:
+        proc = self._proc
+        if proc is None:
             return
-
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-
-        if running_loop is owner_loop:
-            self._enqueue_or_drop(record)
-            return
-
-        with suppress(RuntimeError):
-            # The owner loop may already be closed during worker shutdown.
-            owner_loop.call_soon_threadsafe(self._enqueue_or_drop, record)
-
-    def _enqueue_or_drop(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        try:
-            self.q.put_nowait(record)
-        except asyncio.QueueFull:
-            logger.warning("log queue is full, dropping log message")
+        if proc.is_alive():
+            with contextlib.suppress(Exception):
+                self.q.put_nowait(STOP_LOOP)
+            proc.join(timeout)
+            if proc.is_alive():
+                proc.terminate()
+                proc.join(timeout)
+        self.q.close()
+        self.q.join_thread()
+        self._proc = None
 
 
 class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
