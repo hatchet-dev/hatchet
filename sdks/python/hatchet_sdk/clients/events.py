@@ -182,7 +182,7 @@ class EventClient(BaseRestClient):
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions = PushEventOptions(),
+        options: PushEventOptions | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
