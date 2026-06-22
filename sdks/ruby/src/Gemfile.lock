@@ -16,7 +16,7 @@ GEM
     ast (2.4.3)
     bigdecimal (4.1.2)
     cgi (0.5.1)
-    concurrent-ruby (1.3.6)
+    concurrent-ruby (1.3.7)
     date (3.5.1)
     diff-lcs (1.6.2)
     erb (4.0.4.1)
