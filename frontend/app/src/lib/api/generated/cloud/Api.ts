@@ -1342,6 +1342,6 @@ export class Api<
       secure: true,
       type: ContentType.Json,
       ...params,
-      xResources: ["organization", "tenant"],
-    }), { resources: new Set<string>(["organization", "tenant"]) });
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
 }

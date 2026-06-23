@@ -53,7 +53,7 @@ export function MemberActions({
   const isOwnerRole = member.role === 'OWNER';
 
   const canDeleteMember =
-    member.explicit &&
+    member.manuallyadded &&
     member.user.email !== user?.email &&
     meta?.allowInvites &&
     !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
@@ -61,7 +61,7 @@ export function MemberActions({
   const canChangePassword =
     member.user.email === user?.email && meta?.allowChangePassword;
 
-  const canEditRole = member.explicit && member.user.email !== user?.email;
+  const canEditRole = member.manuallyadded && member.user.email !== user?.email;
 
   return (
     <>
