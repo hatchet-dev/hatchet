@@ -265,6 +265,23 @@ func (q *Queries) GetOperator(ctx context.Context, db DBTX, id uuid.UUID) (*V1Op
 	return &i, err
 }
 
+const hasDAGOperatorForTenant = `-- name: HasDAGOperatorForTenant :one
+SELECT EXISTS(
+    SELECT 1
+    FROM v1_operator
+    WHERE
+        tenant_id = $1::UUID
+        AND kind = 'DAG'
+) AS has_operator
+`
+
+func (q *Queries) HasDAGOperatorForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) (bool, error) {
+	row := db.QueryRow(ctx, hasDAGOperatorForTenant, tenantid)
+	var has_operator bool
+	err := row.Scan(&has_operator)
+	return has_operator, err
+}
+
 const listDAGWorkflowIdsForTenant = `-- name: ListDAGWorkflowIdsForTenant :many
 SELECT DISTINCT w."id"
 FROM "Workflow" w

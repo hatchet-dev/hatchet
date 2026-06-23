@@ -203,6 +203,7 @@ type WorkflowRepository interface {
 	ListWorkflowNamesByIds(ctx context.Context, tenantId uuid.UUID, workflowIds []uuid.UUID) (map[uuid.UUID]string, error)
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
+	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
 
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -257,6 +258,13 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 	}
 
 	return workflowIdToNameMap, nil
+}
+
+func (r *workflowRepository) ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
+	return r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+		Ids:      []uuid.UUID{workflowVersionId},
+		Tenantid: tenantId,
+	})
 }
 
 type JobRunHasCycleError struct {

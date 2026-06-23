@@ -1585,6 +1585,70 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 	return items, nil
 }
 
+const listTaskOutputEventIdsByTaskRunExternalIds = `-- name: ListTaskOutputEventIdsByTaskRunExternalIds :many
+WITH task_outputs AS (
+    SELECT
+        lt.external_id AS task_run_external_id,
+        e.id AS task_event_id,
+        e.inserted_at AS task_event_inserted_at,
+        e.external_id AS output_event_external_id,
+        e.retry_count
+    FROM v1_lookup_table lt
+    JOIN v1_task_event e ON (lt.task_id, lt.inserted_at) = (e.task_id, e.task_inserted_at)
+    WHERE
+        lt.external_id = ANY($1::uuid[])
+        AND e.event_type = 'COMPLETED'
+), max_retry_counts AS (
+    SELECT
+        task_run_external_id,
+        MAX(retry_count) AS max_retry_count
+    FROM
+        task_outputs
+    GROUP BY
+        task_run_external_id
+)
+SELECT
+    o.task_run_external_id,
+    o.output_event_external_id,
+    o.task_event_id,
+    o.task_event_inserted_at
+FROM task_outputs o
+JOIN max_retry_counts mrc ON (o.task_run_external_id, o.retry_count) = (mrc.task_run_external_id, mrc.max_retry_count)
+`
+
+type ListTaskOutputEventIdsByTaskRunExternalIdsRow struct {
+	TaskRunExternalID     uuid.UUID          `json:"task_run_external_id"`
+	OutputEventExternalID uuid.UUID          `json:"output_event_external_id"`
+	TaskEventID           int64              `json:"task_event_id"`
+	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
+}
+
+// Lists the most recent completed event output for a list of tasks identified by workflow run id.
+func (q *Queries) ListTaskOutputEventIdsByTaskRunExternalIds(ctx context.Context, db DBTX, taskexternalids []uuid.UUID) ([]*ListTaskOutputEventIdsByTaskRunExternalIdsRow, error) {
+	rows, err := db.Query(ctx, listTaskOutputEventIdsByTaskRunExternalIds, taskexternalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTaskOutputEventIdsByTaskRunExternalIdsRow
+	for rows.Next() {
+		var i ListTaskOutputEventIdsByTaskRunExternalIdsRow
+		if err := rows.Scan(
+			&i.TaskRunExternalID,
+			&i.OutputEventExternalID,
+			&i.TaskEventID,
+			&i.TaskEventInsertedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskParentOutputs = `-- name: ListTaskParentOutputs :many
 WITH input AS (
     SELECT

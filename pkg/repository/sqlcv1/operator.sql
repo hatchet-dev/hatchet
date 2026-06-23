@@ -128,6 +128,15 @@ SET
 WHERE
     w."id" = @workerId::uuid;
 
+-- name: HasDAGOperatorForTenant :one
+SELECT EXISTS(
+    SELECT 1
+    FROM v1_operator
+    WHERE
+        tenant_id = @tenantId::UUID
+        AND kind = 'DAG'
+) AS has_operator;
+
 -- name: ListDAGWorkflowIdsForTenant :many
 -- Returns the ids of all DAG workflows for a tenant. The DAG operator registers these as
 -- worker actions so tasks for those workflows are routed to it.
