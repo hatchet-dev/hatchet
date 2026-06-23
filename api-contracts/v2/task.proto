@@ -174,7 +174,7 @@ message TaskRunEvent {
     string task_run_external_id = 1;
     string task_name = 2;
     TaskRunEventType event_type = 3;
-    google.protobuf.Timestamp occurred_at = 4;
+    google.protobuf.Timestamp seen_at = 4;
     optional bytes payload = 5; // (optional) the output on COMPLETED, the error on FAILED, the chunk on STREAM
     bool hangup = 6; // whether this is the last event for the subscription; the server will close the stream
     optional int32 retry_count = 7; // (optional) the retry attempt of the run for this event

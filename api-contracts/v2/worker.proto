@@ -64,7 +64,6 @@ message RegisterWorkerRequest {
     map<string, int32> slot_config = 3; // (required) slot capacity for this worker (slot_type -> units)
     map<string, WorkerLabel> labels = 4; // (optional) worker labels (i.e. state or other metadata)
     optional RuntimeInfo runtime_info = 5; // (optional) information about the worker's runtime environment
-    optional string webhook_id = 6; // (optional) the id of the webhook the worker is associated with
 }
 
 message RegisterWorkerResponse {
@@ -99,7 +98,7 @@ message TaskRunEventReport {
     string task_run_external_id = 1; // (required) the external id of the task run
     int32 retry_count = 2; // (required) the retry attempt being reported
     TaskRunEventType event_type = 3; // (required) the event type
-    google.protobuf.Timestamp occurred_at = 4; // (required) when the event occurred on the worker
+    google.protobuf.Timestamp seen_at = 4; // (required) when the event was seen
     optional bytes payload = 5; // (optional) the output on COMPLETED, the error on FAILED
     optional bool should_not_retry = 6; // (optional) if true on FAILED, the run will not be retried
 }

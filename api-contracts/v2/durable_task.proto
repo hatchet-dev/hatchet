@@ -95,11 +95,13 @@ message WaitForAck {
     EventLogEntryRef ref = 1;
 }
 
-// EntryCompleted notifies the worker that an awaited event log entry has a
-// result.
-message EntryCompleted {
+// DurableTaskEventLogEntryCompletedResponse notifies the worker that an awaited
+// event log entry has a result.
+message DurableTaskEventLogEntryCompletedResponse {
     EventLogEntryRef ref = 1;
     bytes payload = 2;
+    bool is_failure = 3;
+    optional string error_message = 4;
 }
 
 message EvictInvocationRequest {
@@ -164,7 +166,7 @@ message DurableSessionResponse {
         MemoAck memo_ack = 2;
         TriggerChildTaskRunsAck trigger_child_task_runs_ack = 3;
         WaitForAck wait_for_ack = 4;
-        EntryCompleted entry_completed = 5;
+        DurableTaskEventLogEntryCompletedResponse entry_completed = 5;
         DurableTaskError error = 6;
         EvictInvocationAck evict_invocation_ack = 7;
         ServerEvictNotice server_evict_notice = 8;

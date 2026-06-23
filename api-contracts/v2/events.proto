@@ -18,7 +18,7 @@ service EventService {
 message EventInput {
     string key = 1; // (required) the key for the event
     bytes payload = 2; // (optional) the payload for the event
-    google.protobuf.Timestamp occurred_at = 3; // (optional) when the event was generated, defaults to receipt time
+    google.protobuf.Timestamp seen_at = 3; // (optional) when the event was seen, defaults to receipt time
     optional bytes extra = 4; // (optional) extra user metadata for the event
     optional int32 priority = 5; // (optional) the priority for runs triggered by this event
     optional string scope = 6; // (optional) the filter scope, used for subsetting candidate filters at evaluation time
@@ -32,7 +32,7 @@ message Event {
     string event_external_id = 1; // the external id of the event
     string key = 2;
     bytes payload = 3;
-    google.protobuf.Timestamp occurred_at = 4;
+    google.protobuf.Timestamp seen_at = 4;
     optional bytes extra = 5;
     optional string scope = 6;
 }

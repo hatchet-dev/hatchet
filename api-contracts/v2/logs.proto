@@ -24,7 +24,7 @@ enum LogLevel {
 
 message Log {
     string task_run_external_id = 1; // (required) the external id of the task run
-    google.protobuf.Timestamp occurred_at = 2; // (required) when the log line was created
+    google.protobuf.Timestamp seen_at = 2; // (required) when the log line was seen
     string message = 3; // (required) the log line message
     optional LogLevel level = 4; // (optional) the log level, default INFO
     optional bytes extra = 5; // (optional) extra user metadata for the log line
@@ -39,7 +39,7 @@ message PutLogsResponse {}
 
 message StreamEvent {
     string task_run_external_id = 1; // (required) the external id of the task run
-    google.protobuf.Timestamp occurred_at = 2; // (required) when the stream event was created
+    google.protobuf.Timestamp seen_at = 2; // (required) when the stream event was seen
     bytes message = 3; // (required) the stream event chunk
     optional bytes extra = 4; // (optional) extra user metadata for the stream event
     optional int64 event_index = 5; // (optional) ordering index for the stream
