@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
+	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -201,8 +202,6 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 }
 
 // run opens a durable-task session for the assigned action and drives the DAG to completion.
-// The DAG graph itself is built by buildDAG; the orchestration loop (dagDurableTask) is
-// unchanged core logic.
 func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction) error {
 	// Report STARTED so the task is marked running. Best-effort: a failed report shouldn't
 	// prevent the actual work.
@@ -218,7 +217,7 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err))
 	}
 
-	tasks, err := buildDAG(action)
+	tasks, err := d.buildDAG(ctx, action)
 
 	if err != nil {
 		return d.fail(action, fmt.Errorf("could not build dag: %w", err))
@@ -230,17 +229,43 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 		return d.fail(action, fmt.Errorf("could not register durable task: %w", err))
 	}
 
-	// dagDurableTask runs the orchestration loop until the DAG completes or ctx is cancelled.
 	// Closing requestCh tears down the dispatcher-side session.
 	defer close(requestCh)
 
-	dagDurableTask(ctx, tasks, requestCh, responseCh)
-
-	if err := ctx.Err(); err != nil {
-		return d.fail(action, fmt.Errorf("dag did not complete: %w", err))
+	requestCh <- &v1contracts.DurableTaskRequest{
+		Message: &v1contracts.DurableTaskRequest_RegisterWorker{
+			RegisterWorker: &v1contracts.DurableTaskRequestRegisterWorker{
+				WorkerId: d.WorkerId().String(),
+			},
+		},
 	}
 
-	// The DAG completed. The dispatcher requires valid JSON output.
+	select {
+	case <-ctx.Done():
+		return d.fail(action, fmt.Errorf("context cancelled waiting for register worker ack: %w", ctx.Err()))
+	case ack, ok := <-responseCh:
+		if !ok {
+			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"))
+		}
+
+		aj, _ := json.MarshalIndent(ack, "", "  ")
+		fmt.Printf("dag operator register worker ack: %s\n", string(aj))
+	}
+
+	dagErr := dagDurableTask(
+		ctx,
+		tasks,
+		action.TaskRunExternalId,
+		action.GetDurableTaskInvocationCount(),
+		action.ActionPayload,
+		requestCh,
+		responseCh,
+	)
+
+	if dagErr != nil {
+		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr))
+	}
+
 	if err := d.SendCompleted(action, []byte("{}")); err != nil {
 		return fmt.Errorf("could not report task completion: %w", err)
 	}
@@ -259,9 +284,45 @@ func (d *DAGOperator) fail(action *contracts.AssignedAction, err error) error {
 	return err
 }
 
-// buildDAG constructs the task graph for an assigned action. Parsing the DAG definition out
-// of the action payload is part of the core DAG logic and is not yet implemented; this seam
-// keeps the operator plumbing wired up until that lands.
-func buildDAG(_ *contracts.AssignedAction) ([]*task, error) {
-	return nil, fmt.Errorf("buildDAG is not implemented yet")
+func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAction) ([]*task, error) {
+	versionIdStr := action.GetWorkflowVersionId()
+
+	if versionIdStr == "" {
+		return nil, fmt.Errorf("action is missing workflow_version_id")
+	}
+
+	versionId, err := uuid.Parse(versionIdStr)
+
+	if err != nil {
+		return nil, fmt.Errorf("invalid workflow_version_id %q: %w", versionIdStr, err)
+	}
+
+	steps, err := d.repo.Workflows().ListStepsByWorkflowVersionId(ctx, d.TenantId(), versionId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not list steps for workflow version %s: %w", versionId, err)
+	}
+
+	tasksByStepId := make(map[uuid.UUID]*task, len(steps))
+	tasks := make([]*task, 0, len(steps))
+
+	for i, s := range steps {
+		t := &task{
+			id:    s.ID,
+			name:  s.ReadableId.String,
+			index: int32(i), // nolint:gosec
+		}
+		tasksByStepId[s.ID] = t
+		tasks = append(tasks, t)
+	}
+
+	for i, s := range steps {
+		for _, parentId := range s.Parents {
+			if parent, ok := tasksByStepId[parentId]; ok {
+				tasks[i].parents = append(tasks[i].parents, parent)
+			}
+		}
+	}
+
+	return tasks, nil
 }
