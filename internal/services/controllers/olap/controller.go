@@ -39,6 +39,44 @@ type OLAPController interface {
 	Start(ctx context.Context) error
 }
 
+const (
+	// maxLockAttempts is the number of times we retry acquiring locks before
+	// republishing the remaining items to the message queue.
+	maxLockAttempts = 10
+
+	// requeueErrorLogThreshold is the requeue count at which republish logging
+	// escalates from warn to error level.
+	requeueErrorLogThreshold = 50
+)
+
+// maxRequeueCountOf returns the largest requeue count across items, used to decide
+// the log level when republishing items whose locks could not be acquired.
+func maxRequeueCountOf[T any](items []T, requeueCount func(T) int) int {
+	maxCount := 0
+	for _, item := range items {
+		if c := requeueCount(item); c > maxCount {
+			maxCount = c
+		}
+	}
+	return maxCount
+}
+
+// logRepublish emits the standard "failed to acquire locks" log line, escalating to
+// error level once items have been requeued many times.
+func (tc *OLAPControllerImpl) logRepublish(ctx context.Context, entity string, count, attempts, maxRequeueCount int) {
+	logger := tc.l.Warn()
+
+	if maxRequeueCount >= requeueErrorLogThreshold {
+		logger = tc.l.Error()
+	}
+
+	logger.Ctx(ctx).
+		Int("count", count).
+		Int("attempts", attempts).
+		Int("requeue_count", maxRequeueCount).
+		Msgf("failed to acquire locks for %s, republishing to MQ", entity)
+}
+
 type OLAPControllerImpl struct {
 	mq                           msgqueue.MessageQueue
 	l                            *zerolog.Logger
@@ -550,15 +588,9 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 
 	attempts := 0
 	for len(createTaskOpts) > 0 {
-		if attempts >= 10 {
-			maxRequeueCount := 0
-			for _, opt := range createTaskOpts {
-				if opt.RequeueCount > maxRequeueCount {
-					maxRequeueCount = opt.RequeueCount
-				}
-			}
-
-			tc.l.Error().Ctx(ctx).Int("count", len(createTaskOpts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for tasks, republishing to MQ")
+		if attempts >= maxLockAttempts {
+			maxRequeueCount := maxRequeueCountOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
+			tc.logRepublish(ctx, "tasks", len(createTaskOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
 
@@ -588,7 +620,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		createTaskOpts = failedOpts
 		tc.emitStandaloneTaskRootSpans(ctx, tenantId, extractCreatedTaskData(succeededOpts))
 
-		if len(failedOpts) > 0 && attempts < 10 {
+		if len(failedOpts) > 0 && attempts < maxLockAttempts {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
@@ -651,15 +683,9 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 
 	attempts := 0
 	for len(createDAGOpts) > 0 {
-		if attempts >= 10 {
-			maxRequeueCount := 0
-			for _, opt := range createDAGOpts {
-				if opt.RequeueCount > maxRequeueCount {
-					maxRequeueCount = opt.RequeueCount
-				}
-			}
-
-			tc.l.Error().Ctx(ctx).Int("count", len(createDAGOpts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for DAGs, republishing to MQ")
+		if attempts >= maxLockAttempts {
+			maxRequeueCount := maxRequeueCountOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
+			tc.logRepublish(ctx, "DAGs", len(createDAGOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
 
@@ -685,7 +711,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		createDAGOpts = failedOpts
 		tc.emitWorkflowRunRootSpans(ctx, tenantId, extractCreatedDAGData(succeededOpts))
 
-		if len(failedOpts) > 0 && attempts < 10 {
+		if len(failedOpts) > 0 && attempts < maxLockAttempts {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
@@ -1053,7 +1079,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 	attempts := 0
 	for len(opts) > 0 {
-		if attempts >= 10 {
+		if attempts >= maxLockAttempts {
 			maxRequeueCount := 0
 			for _, msg := range externalIdToMsg {
 				if msg.RequeueCount > maxRequeueCount {
@@ -1061,7 +1087,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 				}
 			}
 
-			tc.l.Error().Ctx(ctx).Int("count", len(opts)).Int("attempts", attempts).Int("requeue_count", maxRequeueCount).Msg("failed to acquire locks for monitoring events, republishing to MQ")
+			tc.logRepublish(ctx, "monitoring events", len(opts), attempts, maxRequeueCount)
 			return tc.republishMonitoringEvents(ctx, tenantId, opts, externalIdToMsg)
 		}
 
@@ -1125,7 +1151,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			tc.synthesizeEngineSpans(ctx, tenantId, spanEventsForSuccessfullyLockedRuns)
 		}
 
-		if len(remainingOpts) > 0 && attempts < 10 {
+		if len(remainingOpts) > 0 && attempts < maxLockAttempts {
 			tc.sleepWithBackoff(attempts)
 		}
 	}
