@@ -282,6 +282,7 @@ function AuthenticatedInner() {
     } else if (
       okayToMakeOnboardingRedirectDecisions &&
       isControlPlaneEnabled &&
+      organizations &&
       organizations.length > 0 &&
       tenantMemberships.length === 0
     ) {

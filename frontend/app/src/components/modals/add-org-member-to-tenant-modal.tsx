@@ -8,9 +8,11 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { Label } from '@/components/v1/ui/label';
+import { TenantMember } from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { AxiosError } from 'axios';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -46,7 +48,7 @@ export const AddOrgMemberToTenantModal = ({
   });
 
   const tenantMemberEmails = new Set(
-    (tenantMembersQuery.data?.rows ?? []).map((m) => m.user.email),
+    (tenantMembersQuery.data?.rows ?? []).map((m: TenantMember) => m.user.email),
   );
 
   const members = (orgQuery.data?.members ?? []).filter(
@@ -62,7 +64,7 @@ export const AddOrgMemberToTenantModal = ({
       onClose();
     },
     onError: (err) => {
-      handleApiError(err as Error);
+      handleApiError(err as AxiosError);
       setApiError('Failed to add members. Please try again.');
     },
   });

@@ -78,6 +78,7 @@ import { DeleteMemberModal } from '@/pages/organizations/$organization/component
 import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
+import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
@@ -1491,9 +1492,7 @@ function TenantAccordionItem({
             <TenantRegionBadge region={tenant.region} />
             {((tenant as unknown as { tags?: string[] }).tags ?? []).map(
               (tag) => (
-                <Badge key={tag} variant="secondary" className="text-xs">
-                  {tag}
-                </Badge>
+                <TagBadge key={tag} tag={tag} />
               ),
             )}
           </div>

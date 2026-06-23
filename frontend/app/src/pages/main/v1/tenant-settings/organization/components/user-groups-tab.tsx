@@ -1,4 +1,5 @@
 import { Badge } from '@/components/v1/ui/badge';
+import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { AxiosError } from 'axios';
 import { CreateUserGroupModal } from '@/pages/organizations/$organization/components/create-user-group-modal';
 import { EditUserGroupModal } from '@/pages/organizations/$organization/components/edit-user-group-modal';
 import {
@@ -64,9 +66,7 @@ export function UserGroupsTab({
         row.tags.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {row.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
+              <TagBadge key={tag} tag={tag} />
             ))}
           </div>
         ) : (
@@ -149,7 +149,7 @@ function UserGroupActions({
   organizationId: string;
   onEdit: (group: UserGroup) => void;
   onDeleted: () => void;
-  onError: (err: unknown) => void;
+  onError: (error: AxiosError) => void;
 }) {
   const orgApi = useOrganizationApi();
   const deleteMutation = useMutation({

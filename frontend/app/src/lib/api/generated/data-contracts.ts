@@ -1471,6 +1471,8 @@ export interface TenantMember {
   role: TenantMemberRole;
   /** The tenant associated with this tenant member. */
   tenant?: Tenant;
+  /** Whether the member was added directly (true) or via tag matching (false). */
+  explicit?: boolean;
 }
 
 export interface UserTenantMembershipsList {

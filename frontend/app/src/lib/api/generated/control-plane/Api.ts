@@ -488,12 +488,12 @@ export class Api<
        */
       offset?: number;
       /**
-       * The start of the time range (RFC3339)
+       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
        * @format date-time
        */
       since?: string;
       /**
-       * The end of the time range (RFC3339)
+       * The end of the time range (RFC3339). When omitted, defaults to the current time.
        * @format date-time
        */
       until?: string;
@@ -979,51 +979,6 @@ export class Api<
   ) =>
     this.request<TagList, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/tenants/${tenant}/tags`,
-      method: "PUT",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description List the tags applied to an org member
-   *
-   * @tags Management
-   * @name OrganizationMemberListTags
-   * @summary List Org Member Tags
-   * @request GET:/api/v1/control-plane/organizations/{organization}/members/{organization-member}/tags
-   * @secure
-   */
-  organizationMemberListTags = (
-    organization: string,
-    organizationMember: string,
-    params: RequestParams = {},
-  ) =>
-    this.request<TagList, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/members/${organizationMember}/tags`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-    });
-  /**
-   * @description Replace all tags on an org member. Triggers a membership sync workflow to add or remove the member from tenants based on the new tags.
-   *
-   * @tags Management
-   * @name OrganizationMemberSetTags
-   * @summary Set Org Member Tags
-   * @request PUT:/api/v1/control-plane/organizations/{organization}/members/{organization-member}/tags
-   * @secure
-   */
-  organizationMemberSetTags = (
-    organization: string,
-    organizationMember: string,
-    data: SetTagsRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<TagList, APIError>({
-      path: `/api/v1/control-plane/organizations/${organization}/members/${organizationMember}/tags`,
       method: "PUT",
       body: data,
       secure: true,
