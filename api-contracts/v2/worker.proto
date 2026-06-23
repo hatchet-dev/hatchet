@@ -83,8 +83,9 @@ message Heartbeat {
     google.protobuf.Timestamp sent_at = 1; // (required) the time the worker sent the heartbeat
 }
 
-// AssignmentAck acknowledges receipt of an assignment before the worker starts
-// running it.
+// AssignmentAck acknowledges receipt of an assignment. SDKs should send it
+// promptly after accepting the assignment, but do not need to block starting
+// execution on the ack write.
 message AssignmentAck {
     string task_run_external_id = 1; // (required) the external id of the acknowledged task run
     int32 retry_count = 2; // (required) the retry count of the acknowledged assignment
