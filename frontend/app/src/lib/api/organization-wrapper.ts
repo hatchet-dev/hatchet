@@ -287,18 +287,6 @@ export function useOrganizationApi() {
           (await controlPlaneApi.organizationTenantSetTags(organization, tenant, { tags })).data,
       }),
 
-      memberTagsGetQuery: (organization: string, member: string) => ({
-        queryKey: ['organization-member:list:tags', organization, member] as const,
-        queryFn: async () =>
-          (await controlPlaneApi.organizationMemberListTags(organization, member)).data,
-      }),
-
-      memberTagsSetMutation: (organization: string, member: string) => ({
-        mutationKey: ['organization-member:set:tags', organization, member] as const,
-        mutationFn: async (tags: string[]) =>
-          (await controlPlaneApi.organizationMemberSetTags(organization, member, { tags })).data,
-      }),
-
       // ── User Groups ─────────────────────────────────────────────────────────
 
       userGroupsListQuery: (organization: string) => ({
