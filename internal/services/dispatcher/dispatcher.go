@@ -8,6 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -639,6 +642,31 @@ type V1TaskWithPayloadAndInvocationCount struct {
 	InvocationCount *int32 // only used for durable tasks
 }
 
+// isS3NotFoundErr reports whether err (or any error it wraps) is an S3
+// "not found" response, i.e. a 404 / NoSuchKey. These are expected when a
+// payload was never written or has already been cleaned up.
+func isS3NotFoundErr(err error) bool {
+	var nsk *types.NoSuchKey
+	if errors.As(err, &nsk) {
+		return true
+	}
+
+	var respErr *smithyhttp.ResponseError
+	if errors.As(err, &respErr) && respErr.HTTPStatusCode() == 404 {
+		return true
+	}
+
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "NoSuchKey", "NotFound":
+			return true
+		}
+	}
+
+	return false
+}
+
 func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
@@ -716,7 +744,15 @@ func (d *DispatcherImpl) populateTaskData(
 			requeue(task)
 		}
 
-		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
+		// An S3 "not found" (404 / NoSuchKey) for a payload is an expected condition
+		// (e.g. the payload was never written or has been cleaned up), not an operational
+		// error, so we log it at warn level to avoid noisy error alerts.
+		evt := d.l.Error()
+		if isS3NotFoundErr(err) {
+			evt = d.l.Warn()
+		}
+
+		evt.Ctx(ctx).Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
 		return nil, err
 	}
 
