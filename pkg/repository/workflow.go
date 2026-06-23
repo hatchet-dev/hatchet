@@ -451,6 +451,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		return nil, err
 	}
 
+	if len(opts.Tasks) > 1 {
+		// dag-as-durable-task operator task
+		opts.Tasks = append(opts.Tasks, CreateStepOpts{
+			ReadableId: fmt.Sprintf("%s_orchestrator", opts.Name),
+			Action:     fmt.Sprintf("%s_orchestrator", opts.Name),
+			IsDurable:  true,
+			// todo: add retries, etc. here
+		})
+	}
+
 	_, err = r.createJobTx(ctx, tx, tenantId, workflowId, sqlcWorkflowVersion.ID, sqlcv1.JobKindDEFAULT, opts.Tasks)
 
 	if err != nil {

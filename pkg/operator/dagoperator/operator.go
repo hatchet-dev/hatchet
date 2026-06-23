@@ -243,13 +243,10 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 	select {
 	case <-ctx.Done():
 		return d.fail(action, fmt.Errorf("context cancelled waiting for register worker ack: %w", ctx.Err()))
-	case ack, ok := <-responseCh:
+	case _, ok := <-responseCh:
 		if !ok {
 			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"))
 		}
-
-		aj, _ := json.MarshalIndent(ack, "", "  ")
-		fmt.Printf("dag operator register worker ack: %s\n", string(aj))
 	}
 
 	dagErr := dagDurableTask(
@@ -306,20 +303,31 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 	tasksByStepId := make(map[uuid.UUID]*task, len(steps))
 	tasks := make([]*task, 0, len(steps))
 
-	for i, s := range steps {
+	taskIndex := 0
+	for _, s := range steps {
+		// this is the orchestrator
+		if s.ActionId == s.WorkflowId.String() {
+			continue
+		}
+
 		t := &task{
 			id:    s.ID,
 			name:  s.ReadableId.String,
-			index: int32(i), // nolint:gosec
+			index: int32(taskIndex), // nolint:gosec
 		}
 		tasksByStepId[s.ID] = t
 		tasks = append(tasks, t)
+		taskIndex++
 	}
 
-	for i, s := range steps {
+	for _, s := range steps {
+		t, ok := tasksByStepId[s.ID]
+		if !ok {
+			continue
+		}
 		for _, parentId := range s.Parents {
 			if parent, ok := tasksByStepId[parentId]; ok {
-				tasks[i].parents = append(tasks[i].parents, parent)
+				t.parents = append(t.parents, parent)
 			}
 		}
 	}

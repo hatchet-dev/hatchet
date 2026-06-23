@@ -68,7 +68,6 @@ func dagDurableTask(
 	}
 
 	for !d.isDone() {
-		fmt.Println("dag operator loop tick")
 		d.taskEmitter()
 
 		select {
@@ -83,15 +82,11 @@ func dagDurableTask(
 }
 
 func (d *dag) taskEmitter() {
-	fmt.Println("dag operator task emitter")
 	if d.err != nil {
 		return
 	}
 
 	for _, t := range d.tasks {
-		tj, _ := json.MarshalIndent(t, "", "  ")
-		fmt.Printf("dag operator task: %s\n", string(tj))
-
 		if t.isTriggered {
 			continue
 		}

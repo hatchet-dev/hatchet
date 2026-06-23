@@ -742,6 +742,18 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	// but might not in the future
 	actions, err := getActionsForTasks(req.Tasks)
 
+	hasDagOperator, err := a.repo.Operators().HasDAGOperator(ctx, tenantId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not check for DAG operator: %w", err)
+	}
+
+	if len(req.Tasks) > 1 && hasDagOperator {
+		// if it's a dag and the dag operator is enabled, then we'll have an additional task
+		// that's the orchestrator, and use the workflow's id to represent it
+		actions = append(actions, currWorkflow.WorkflowVersion.WorkflowId.String())
+	}
+
 	if tenant.SchedulerPartitionId.Valid && err == nil {
 		go func() {
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
