@@ -36,7 +36,9 @@ export function CreateUserGroupModal({
   const queryClient = useQueryClient();
   const { handleApiError } = useApiError({});
   const [name, setName] = useState('');
-  const [role, setRole] = useState<TenantMemberRoleType>(TenantMemberRoleType.MEMBER);
+  const [role, setRole] = useState<TenantMemberRoleType>(
+    TenantMemberRoleType.MEMBER,
+  );
 
   const createMutation = useMutation({
     ...orgApi.userGroupCreateMutation(organizationId),
@@ -83,9 +85,15 @@ export function CreateUserGroupModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={TenantMemberRoleType.MEMBER}>MEMBER</SelectItem>
-                <SelectItem value={TenantMemberRoleType.ADMIN}>ADMIN</SelectItem>
-                <SelectItem value={TenantMemberRoleType.OWNER}>OWNER</SelectItem>
+                <SelectItem value={TenantMemberRoleType.MEMBER}>
+                  MEMBER
+                </SelectItem>
+                <SelectItem value={TenantMemberRoleType.ADMIN}>
+                  ADMIN
+                </SelectItem>
+                <SelectItem value={TenantMemberRoleType.OWNER}>
+                  OWNER
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

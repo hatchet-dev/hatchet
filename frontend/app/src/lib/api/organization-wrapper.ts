@@ -276,15 +276,34 @@ export function useOrganizationApi() {
       }),
 
       tenantTagsGetQuery: (organization: string, tenant: string) => ({
-        queryKey: ['organization-tenant:list:tags', organization, tenant] as const,
+        queryKey: [
+          'organization-tenant:list:tags',
+          organization,
+          tenant,
+        ] as const,
         queryFn: async () =>
-          (await controlPlaneApi.organizationTenantListTags(organization, tenant)).data,
+          (
+            await controlPlaneApi.organizationTenantListTags(
+              organization,
+              tenant,
+            )
+          ).data,
       }),
 
       tenantTagsSetMutation: (organization: string, tenant: string) => ({
-        mutationKey: ['organization-tenant:set:tags', organization, tenant] as const,
+        mutationKey: [
+          'organization-tenant:set:tags',
+          organization,
+          tenant,
+        ] as const,
         mutationFn: async (tags: string[]) =>
-          (await controlPlaneApi.organizationTenantSetTags(organization, tenant, { tags })).data,
+          (
+            await controlPlaneApi.organizationTenantSetTags(
+              organization,
+              tenant,
+              { tags },
+            )
+          ).data,
       }),
 
       // ── User Groups ─────────────────────────────────────────────────────────
@@ -298,55 +317,133 @@ export function useOrganizationApi() {
       userGroupCreateMutation: (organization: string) => ({
         mutationKey: ['organization:user-groups:create', organization] as const,
         mutationFn: async (data: { name: string; role: string }) =>
-          (await controlPlaneApi.organizationUserGroupsCreate(organization, { name: data.name, role: data.role as import('@/lib/api/generated/control-plane/data-contracts').TenantMemberRoleType })).data,
+          (
+            await controlPlaneApi.organizationUserGroupsCreate(organization, {
+              name: data.name,
+              role: data.role as import('@/lib/api/generated/control-plane/data-contracts').TenantMemberRoleType,
+            })
+          ).data,
       }),
 
       userGroupGetQuery: (organization: string, userGroup: string) => ({
-        queryKey: ['organization:user-group:get', organization, userGroup] as const,
+        queryKey: [
+          'organization:user-group:get',
+          organization,
+          userGroup,
+        ] as const,
         queryFn: async () =>
-          (await controlPlaneApi.organizationUserGroupGet(organization, userGroup)).data,
+          (
+            await controlPlaneApi.organizationUserGroupGet(
+              organization,
+              userGroup,
+            )
+          ).data,
       }),
 
       userGroupUpdateMutation: (organization: string, userGroup: string) => ({
-        mutationKey: ['organization:user-group:update', organization, userGroup] as const,
+        mutationKey: [
+          'organization:user-group:update',
+          organization,
+          userGroup,
+        ] as const,
         mutationFn: async (data: { name?: string; role?: string }) =>
-          (await controlPlaneApi.organizationUserGroupUpdate(organization, userGroup, data as import('@/lib/api/generated/control-plane/data-contracts').UpdateUserGroupRequest)).data,
+          (
+            await controlPlaneApi.organizationUserGroupUpdate(
+              organization,
+              userGroup,
+              data as import('@/lib/api/generated/control-plane/data-contracts').UpdateUserGroupRequest,
+            )
+          ).data,
       }),
 
       userGroupDeleteMutation: (organization: string, userGroup: string) => ({
-        mutationKey: ['organization:user-group:delete', organization, userGroup] as const,
+        mutationKey: [
+          'organization:user-group:delete',
+          organization,
+          userGroup,
+        ] as const,
         mutationFn: async () =>
           controlPlaneApi.organizationUserGroupDelete(organization, userGroup),
       }),
 
       userGroupTagsGetQuery: (organization: string, userGroup: string) => ({
-        queryKey: ['organization:user-group:tags:get', organization, userGroup] as const,
+        queryKey: [
+          'organization:user-group:tags:get',
+          organization,
+          userGroup,
+        ] as const,
         queryFn: async () =>
-          (await controlPlaneApi.organizationUserGroupListTags(organization, userGroup)).data,
+          (
+            await controlPlaneApi.organizationUserGroupListTags(
+              organization,
+              userGroup,
+            )
+          ).data,
       }),
 
       userGroupTagsSetMutation: (organization: string, userGroup: string) => ({
-        mutationKey: ['organization:user-group:tags:set', organization, userGroup] as const,
+        mutationKey: [
+          'organization:user-group:tags:set',
+          organization,
+          userGroup,
+        ] as const,
         mutationFn: async (tags: string[]) =>
-          (await controlPlaneApi.organizationUserGroupSetTags(organization, userGroup, { tags })).data,
+          (
+            await controlPlaneApi.organizationUserGroupSetTags(
+              organization,
+              userGroup,
+              { tags },
+            )
+          ).data,
       }),
 
       userGroupMembersListQuery: (organization: string, userGroup: string) => ({
-        queryKey: ['organization:user-group:members:list', organization, userGroup] as const,
+        queryKey: [
+          'organization:user-group:members:list',
+          organization,
+          userGroup,
+        ] as const,
         queryFn: async () =>
-          (await controlPlaneApi.organizationUserGroupListMembers(organization, userGroup)).data,
+          (
+            await controlPlaneApi.organizationUserGroupListMembers(
+              organization,
+              userGroup,
+            )
+          ).data,
       }),
 
-      userGroupMemberAddMutation: (organization: string, userGroup: string) => ({
-        mutationKey: ['organization:user-group:members:add', organization, userGroup] as const,
+      userGroupMemberAddMutation: (
+        organization: string,
+        userGroup: string,
+      ) => ({
+        mutationKey: [
+          'organization:user-group:members:add',
+          organization,
+          userGroup,
+        ] as const,
         mutationFn: async (organizationMemberId: string) =>
-          controlPlaneApi.organizationUserGroupAddMember(organization, userGroup, { organizationMemberId }),
+          controlPlaneApi.organizationUserGroupAddMember(
+            organization,
+            userGroup,
+            { organizationMemberId },
+          ),
       }),
 
-      userGroupMemberRemoveMutation: (organization: string, userGroup: string) => ({
-        mutationKey: ['organization:user-group:members:remove', organization, userGroup] as const,
+      userGroupMemberRemoveMutation: (
+        organization: string,
+        userGroup: string,
+      ) => ({
+        mutationKey: [
+          'organization:user-group:members:remove',
+          organization,
+          userGroup,
+        ] as const,
         mutationFn: async (organizationMemberId: string) =>
-          controlPlaneApi.organizationUserGroupRemoveMember(organization, userGroup, organizationMemberId),
+          controlPlaneApi.organizationUserGroupRemoveMember(
+            organization,
+            userGroup,
+            organizationMemberId,
+          ),
       }),
 
       organizationTenantMembersAddMutation: (

@@ -65,8 +65,16 @@ export function EditUserGroupModal({
   });
 
   const invalidateGroup = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['organization:user-groups:list', organizationId] });
-    queryClient.invalidateQueries({ queryKey: ['organization:user-group:members:list', organizationId, groupId] });
+    queryClient.invalidateQueries({
+      queryKey: ['organization:user-groups:list', organizationId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: [
+        'organization:user-group:members:list',
+        organizationId,
+        groupId,
+      ],
+    });
   }, [queryClient, organizationId, groupId]);
 
   const updateMutation = useMutation({
@@ -84,7 +92,13 @@ export function EditUserGroupModal({
   const addMemberMutation = useMutation({
     ...orgApi.userGroupMemberAddMutation(organizationId, groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organization:user-group:members:list', organizationId, groupId] });
+      queryClient.invalidateQueries({
+        queryKey: [
+          'organization:user-group:members:list',
+          organizationId,
+          groupId,
+        ],
+      });
     },
     onError: handleApiError,
   });
@@ -92,14 +106,22 @@ export function EditUserGroupModal({
   const removeMemberMutation = useMutation({
     ...orgApi.userGroupMemberRemoveMutation(organizationId, groupId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organization:user-group:members:list', organizationId, groupId] });
+      queryClient.invalidateQueries({
+        queryKey: [
+          'organization:user-group:members:list',
+          organizationId,
+          groupId,
+        ],
+      });
     },
     onError: handleApiError,
   });
 
   const currentMembers = membersQuery.data?.rows ?? [];
   const currentMemberIds = new Set(currentMembers.map((m) => m.metadata.id));
-  const availableToAdd = allOrgMembers.filter((m) => !currentMemberIds.has(m.metadata.id));
+  const availableToAdd = allOrgMembers.filter(
+    (m) => !currentMemberIds.has(m.metadata.id),
+  );
 
   const handleSave = async () => {
     const tags = rawTags
@@ -146,9 +168,15 @@ export function EditUserGroupModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={TenantMemberRoleType.MEMBER}>MEMBER</SelectItem>
-                  <SelectItem value={TenantMemberRoleType.ADMIN}>ADMIN</SelectItem>
-                  <SelectItem value={TenantMemberRoleType.OWNER}>OWNER</SelectItem>
+                  <SelectItem value={TenantMemberRoleType.MEMBER}>
+                    MEMBER
+                  </SelectItem>
+                  <SelectItem value={TenantMemberRoleType.ADMIN}>
+                    ADMIN
+                  </SelectItem>
+                  <SelectItem value={TenantMemberRoleType.OWNER}>
+                    OWNER
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -233,7 +261,9 @@ export function EditUserGroupModal({
               onClick={handleSave}
               disabled={updateMutation.isPending || tagsMutation.isPending}
             >
-              {updateMutation.isPending || tagsMutation.isPending ? 'Saving...' : 'Save'}
+              {updateMutation.isPending || tagsMutation.isPending
+                ? 'Saving...'
+                : 'Save'}
             </Button>
           </div>
         </div>

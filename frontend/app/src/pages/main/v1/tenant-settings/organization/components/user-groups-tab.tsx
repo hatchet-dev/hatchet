@@ -1,5 +1,5 @@
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Badge } from '@/components/v1/ui/badge';
-import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -7,14 +7,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
   OrganizationMember,
   UserGroup,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
-import { AxiosError } from 'axios';
+import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { CreateUserGroupModal } from '@/pages/organizations/$organization/components/create-user-group-modal';
 import { EditUserGroupModal } from '@/pages/organizations/$organization/components/edit-user-group-modal';
 import {
@@ -23,6 +22,7 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useState } from 'react';
 
 interface UserGroupsTabProps {

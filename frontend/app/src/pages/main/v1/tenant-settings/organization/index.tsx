@@ -71,6 +71,7 @@ import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-set
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
+import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -78,7 +79,6 @@ import { DeleteMemberModal } from '@/pages/organizations/$organization/component
 import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
-import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
 import {
@@ -829,7 +829,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
               expandedTenantIds={expandedTenantIds}
               setExpandedTenantIds={setExpandedTenantIds}
               onArchive={setTenantToArchive}
-              onEditTags={isControlPlaneEnabled && isOrganizationOwner ? setTenantToEditTags : undefined}
+              onEditTags={
+                isControlPlaneEnabled && isOrganizationOwner
+                  ? setTenantToEditTags
+                  : undefined
+              }
               defaultOrganizationId={orgId}
               canManageOrganization={isOrganizationOwner}
             />
@@ -1212,11 +1216,12 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
           tenantId={tenantToEditTags.id}
           tenantName={tenantToEditTags.name || tenantToEditTags.id}
           onSuccess={() =>
-            queryClient.invalidateQueries({ queryKey: ['organization:get', orgId] })
+            queryClient.invalidateQueries({
+              queryKey: ['organization:get', orgId],
+            })
           }
         />
       )}
-
     </div>
   );
 }
@@ -1353,7 +1358,9 @@ function TenantsSection({
   }, [tenants]);
 
   const filteredTenants = useMemo(() => {
-    if (selectedTags.length === 0) return tenants;
+    if (selectedTags.length === 0) {
+      return tenants;
+    }
     return tenants.filter((tenant) => {
       const tags = (tenant as unknown as { tags?: string[] }).tags ?? [];
       return selectedTags.every((t) => tags.includes(t));
@@ -1370,7 +1377,9 @@ function TenantsSection({
       <div className="mb-4 flex items-center justify-between gap-3">
         {allTags.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Filter by tag:</span>
+            <span className="text-xs text-muted-foreground">
+              Filter by tag:
+            </span>
             {allTags.map((tag) => (
               <button
                 key={tag}
@@ -1437,7 +1446,9 @@ function TenantsSection({
         </Accordion>
       ) : (
         <div className="py-8 text-center text-sm text-muted-foreground">
-          {selectedTags.length > 0 ? 'No tenants match the selected tags.' : 'No tenants found.'}
+          {selectedTags.length > 0
+            ? 'No tenants match the selected tags.'
+            : 'No tenants found.'}
         </div>
       )}
     </>

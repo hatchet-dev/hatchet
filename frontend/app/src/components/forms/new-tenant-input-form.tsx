@@ -130,7 +130,9 @@ export function NewTenantInputForm({
       onSubmit({
         tenantName,
         organizationId,
-        ...(showRegionSelect && deploymentRegion ? { region: deploymentRegion } : {}),
+        ...(showRegionSelect && deploymentRegion
+          ? { region: deploymentRegion }
+          : {}),
         ...(showTagsInput && parsedTags.length > 0 ? { tags: parsedTags } : {}),
       });
     } else {

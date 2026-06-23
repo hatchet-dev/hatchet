@@ -296,7 +296,9 @@ export function OrganizationSelector({
     (memberships.length === 0 && organizations.length === 0);
 
   const triggerLabel = hasNoTenant
-    ? (organizations.length === 1 ? organizations[0].name : 'Select organization')
+    ? organizations.length === 1
+      ? organizations[0].name
+      : 'Select organization'
     : (tenant?.name ?? 'Loading tenant…');
 
   return (
@@ -318,9 +320,7 @@ export function OrganizationSelector({
           >
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <BuildingOffice2Icon className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">
-                {triggerLabel}
-              </span>
+              <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
               {!hasNoTenant && <TenantRegionBadge region={tenant?.region} />}
             </div>
             {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (

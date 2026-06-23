@@ -62,7 +62,9 @@ const useSaveTenant = ({
             name: tenantName,
             slug,
             ...(isControlPlaneEnabled && region ? { region } : {}),
-            ...(isControlPlaneEnabled && tags && tags.length > 0 ? { tags } : {}),
+            ...(isControlPlaneEnabled && tags && tags.length > 0
+              ? { tags }
+              : {}),
           });
         return { type: 'cloud' as const, tenant, organizationId };
       } else {

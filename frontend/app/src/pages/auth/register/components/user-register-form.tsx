@@ -5,8 +5,8 @@ import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
-import { Link } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 

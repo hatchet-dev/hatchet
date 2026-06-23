@@ -154,7 +154,11 @@ export function useOrganizations() {
       duration?: ManagementTokenDuration;
       tags?: string[];
     }) => {
-      const body: { name: string; duration?: ManagementTokenDuration; tags?: string[] } = {
+      const body: {
+        name: string;
+        duration?: ManagementTokenDuration;
+        tags?: string[];
+      } = {
         name: data.name,
       };
       if (data.duration != null) {

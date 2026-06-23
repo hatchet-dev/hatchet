@@ -1,6 +1,6 @@
+import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { Button } from '@/components/v1/ui/button';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { useUserUniverse } from '@/providers/user-universe';
 import queryClient from '@/query-client';

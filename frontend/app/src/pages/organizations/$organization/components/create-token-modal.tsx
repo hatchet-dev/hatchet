@@ -83,10 +83,16 @@ export function CreateTokenModal({
             .map((t) => t.trim())
             .filter(Boolean)
         : undefined;
-      handleCreateToken(organizationId, data.name, duration, (tokenData) => {
-        setCreatedToken(tokenData.token);
-        onSuccess();
-      }, tags);
+      handleCreateToken(
+        organizationId,
+        data.name,
+        duration,
+        (tokenData) => {
+          setCreatedToken(tokenData.token);
+          onSuccess();
+        },
+        tags,
+      );
     },
     [organizationId, handleCreateToken, onSuccess],
   );

@@ -12,9 +12,9 @@ import { TenantMember } from '@/lib/api';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
-import { AxiosError } from 'axios';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { useState } from 'react';
 
 type AddOrgMemberToTenantModalProps = {
@@ -48,7 +48,9 @@ export const AddOrgMemberToTenantModal = ({
   });
 
   const tenantMemberEmails = new Set(
-    (tenantMembersQuery.data?.rows ?? []).map((m: TenantMember) => m.user.email),
+    (tenantMembersQuery.data?.rows ?? []).map(
+      (m: TenantMember) => m.user.email,
+    ),
   );
 
   const members = (orgQuery.data?.members ?? []).filter(
@@ -78,7 +80,9 @@ export const AddOrgMemberToTenantModal = ({
   };
 
   const handleSubmit = () => {
-    if (selectedMemberIds.length === 0) return;
+    if (selectedMemberIds.length === 0) {
+      return;
+    }
     addMutation.mutate({ memberIds: selectedMemberIds });
   };
 
@@ -98,9 +102,7 @@ export const AddOrgMemberToTenantModal = ({
 
         <div className="space-y-4">
           {orgQuery.isLoading || tenantMembersQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">
-              Loading members...
-            </p>
+            <p className="text-sm text-muted-foreground">Loading members...</p>
           ) : members.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               All organization members are already in this tenant.
@@ -128,9 +130,7 @@ export const AddOrgMemberToTenantModal = ({
             </div>
           )}
 
-          {apiError && (
-            <p className="text-sm text-red-500">{apiError}</p>
-          )}
+          {apiError && <p className="text-sm text-red-500">{apiError}</p>}
 
           <div className="flex items-center justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
@@ -138,9 +138,7 @@ export const AddOrgMemberToTenantModal = ({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={
-                selectedMemberIds.length === 0 || addMutation.isPending
-              }
+              disabled={selectedMemberIds.length === 0 || addMutation.isPending}
             >
               {addMutation.isPending ? 'Adding...' : 'Add Members'}
             </Button>

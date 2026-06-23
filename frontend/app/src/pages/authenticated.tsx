@@ -389,6 +389,7 @@ function AuthenticatedInner() {
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
+    isControlPlaneEnabled,
     loaderData.isControlPlaneEnabled,
   ]);
 

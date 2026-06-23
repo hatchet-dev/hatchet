@@ -311,7 +311,8 @@ export default function Invites() {
           (organization.tenants ?? []).map((t) => t.id),
         );
         const memberTenantInOrg = tenantMemberships.find(
-          (m) => m.tenant?.metadata.id && orgTenantIds.has(m.tenant.metadata.id),
+          (m) =>
+            m.tenant?.metadata.id && orgTenantIds.has(m.tenant.metadata.id),
         );
 
         if (memberTenantInOrg?.tenant) {
@@ -321,7 +322,13 @@ export default function Invites() {
         }
       }
     }
-  }, [lastAcceptedInvite, getTenant, isCloudEnabled, organizations, tenantMemberships]);
+  }, [
+    lastAcceptedInvite,
+    getTenant,
+    isCloudEnabled,
+    organizations,
+    tenantMemberships,
+  ]);
 
   const navigateIfAppropriate = useCallback(async () => {
     if (totalInvites > 0) {

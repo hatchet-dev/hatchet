@@ -72,7 +72,10 @@ export const OrganizationInviteMemberModal = ({
     orgApi.organizationInviteCreateMutation(organizationId);
   const inviteMemberMutation = useMutation({
     ...orgInviteCreate,
-    mutationFn: async (data: { email: string; role: OrganizationMemberRoleType }) => {
+    mutationFn: async (data: {
+      email: string;
+      role: OrganizationMemberRoleType;
+    }) => {
       const request: CreateOrganizationInviteRequest = {
         inviteeEmail: data.email,
         role: data.role,
