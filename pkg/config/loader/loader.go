@@ -731,19 +731,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
 
-	// Dedicated pool for the concurrency outbox. It must be separate from the main pool: the
-	// outbox holds a transaction open while flushing (which itself calls UpdateConcurrencySlots
-	// and needs another connection), so sharing the main pool risks deadlock under saturation.
-	outboxPoolConfig := dc.Pool.Config().Copy()
-	concurrencyOutboxPool, err := pgxpool.NewWithConfig(context.Background(), outboxPoolConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not create concurrency outbox pool: %w", err)
-	}
+	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
+	// method which should be used instead of the non-scoped versions.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(dc.Pool, pgoutbox.WithAutoMigrate(false))
 
-	// The outbox table is owned by a hatchet migration, so we disable pgoutbox's auto-migration.
-	concurrencyOutbox, err := pgoutbox.NewOutbox(concurrencyOutboxPool, pgoutbox.WithAutoMigrate(false))
 	if err != nil {
-		concurrencyOutboxPool.Close()
 		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
 	}
 
@@ -775,8 +768,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
-
-		concurrencyOutboxPool.Close()
 
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)

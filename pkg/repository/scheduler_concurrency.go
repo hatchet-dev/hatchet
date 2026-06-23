@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -840,6 +841,11 @@ func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx con
 }
 
 func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.Context, tenantId uuid.UUID, strategyId int64, writeCh chan<- *sqlcv1.ListConcurrencySlotsForIndexingRow) error {
+	// we don't want to hold the transaction open if we're blocked on the write channel, so we use this
+	// context to escape the <- writeCh loop and close the tx
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
 	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, c.pool, c.l, 1000*60*5) // 5 minute timeout
 
 	if err != nil {
@@ -868,9 +874,9 @@ func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.
 
 		for _, slot := range slots {
 			select {
+			case <-ctx.Done():
+				return ctx.Err()
 			case writeCh <- slot:
-			default:
-				return fmt.Errorf("error writing to channel")
 			}
 		}
 

@@ -114,8 +114,6 @@ func NewConcurrencyStrategy(
 
 	go c.buildIndexLoop(ctx)
 
-	fmt.Printf("Started concurrency strategy: %d\n", strategy.ID)
-
 	return c
 }
 
