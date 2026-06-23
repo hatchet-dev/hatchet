@@ -121,17 +121,13 @@ async def test_redelivery_bypasses_gate() -> None:
     listener = make_listener()
 
     fut_1 = register(listener, "task", 1, 1, 1)
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=1)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=1))
     assert fut_1.done()
 
     # gate is closed (woken continuation hasn't parked), but a re-delivery of
     # order 1 is delivered immediately.
     fut_retry = register(listener, "task", 1, 1, 1)
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=1)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=1))
     assert fut_retry.done()
 
 
@@ -157,9 +153,7 @@ async def test_gap_timeout_fails_waiters() -> None:
     fut = register(listener, "task", 1, 1, 1)
 
     # order 2 arrives, order 1 never does (history diverged).
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=2)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=2))
     assert not fut.done()
 
     listener._sweep_gates()
@@ -178,14 +172,10 @@ async def test_park_timeout_forces_gate_open() -> None:
     fut_1 = register(listener, "task", 1, 1, 1)
     fut_2 = register(listener, "task", 1, 1, 2)
 
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=1)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=1))
     assert fut_1.done()
 
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 2, satisfied_order=2)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 2, satisfied_order=2))
     assert not fut_2.done()
 
     # the woken continuation never parks: park timeout forces the gate open.
@@ -196,9 +186,7 @@ async def test_park_timeout_forces_gate_open() -> None:
 async def test_cleanup_drops_gates() -> None:
     listener = make_listener()
 
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=2)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=2))
     assert listener._gates
 
     listener.cleanup_task_state("task", 1)
@@ -212,9 +200,7 @@ async def test_gates_scoped_per_invocation() -> None:
     fut_inv2 = register(listener, "task", 2, 1, 1)
 
     # invocation 1 is blocked on a gap.
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=2)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=2))
     assert not fut_inv1.done()
 
     # invocation 2's order 1 releases independently.

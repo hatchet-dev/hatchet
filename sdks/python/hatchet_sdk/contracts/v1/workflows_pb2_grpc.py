@@ -5,7 +5,7 @@ import warnings
 
 from hatchet_sdk.contracts.v1 import workflows_pb2 as v1_dot_workflows__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class AdminServiceStub(object):
+class AdminServiceStub:
     """AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
     """
 
@@ -67,7 +67,7 @@ class AdminServiceStub(object):
                 _registered_method=True)
 
 
-class AdminServiceServicer(object):
+class AdminServiceServicer:
     """AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
     """
 
@@ -148,7 +148,7 @@ def add_AdminServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class AdminService(object):
+class AdminService:
     """AdminService represents a set of RPCs for admin management of tasks, workflows, etc.
     """
 

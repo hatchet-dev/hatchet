@@ -5,7 +5,7 @@ import warnings
 
 from hatchet_sdk.contracts.v1 import dispatcher_pb2 as v1_dot_dispatcher__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class V1DispatcherStub(object):
+class V1DispatcherStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
@@ -51,7 +51,7 @@ class V1DispatcherStub(object):
                 _registered_method=True)
 
 
-class V1DispatcherServicer(object):
+class V1DispatcherServicer:
     """Missing associated documentation comment in .proto file."""
 
     def DurableTask(self, request_iterator, context):
@@ -99,7 +99,7 @@ def add_V1DispatcherServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class V1Dispatcher(object):
+class V1Dispatcher:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
