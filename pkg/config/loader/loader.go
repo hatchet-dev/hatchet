@@ -374,12 +374,22 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		Disconnect: func() error {
 			ch.Stop()
 
-			return cleanupV1()
+			err := cleanupV1()
+
+			if readReplicaPool != nil {
+				readReplicaPool.Close()
+			}
+
+			ddlPool.Close()
+			pool.Close()
+
+			return err
 		},
-		Pool:    pool,
-		DDLPool: ddlPool,
-		V1:      v1,
-		Seed:    cf.Seed,
+		Pool:            pool,
+		ReadReplicaPool: readReplicaPool,
+		DDLPool:         ddlPool,
+		V1:              v1,
+		Seed:            cf.Seed,
 	}, nil
 }
 
