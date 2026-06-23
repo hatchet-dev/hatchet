@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/timestamp.proto";
+
+// StreamService ingests stream events emitted by task runs.
+service StreamService {
+    // Bulk-first; a single stream event is a one-element batch.
+    rpc PutStreamEvents(PutStreamEventsRequest) returns (PutStreamEventsResponse) {}
+
+    // TODO design the subscription API
+}
+
+message StreamEvent {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    google.protobuf.Timestamp seen_at = 2; // (required) when the stream event was seen
+    bytes message = 3; // (required) the stream event chunk
+    optional bytes extra = 4; // (optional) extra user metadata for the stream event
+    optional int64 event_index = 5; // (optional) ordering index for the stream
+    optional int32 retry_count = 6; // (optional) the retry attempt of the task run
+}
+
+message PutStreamEventsRequest {
+    repeated StreamEvent events = 1;
+}
+
+message PutStreamEventsResponse {}

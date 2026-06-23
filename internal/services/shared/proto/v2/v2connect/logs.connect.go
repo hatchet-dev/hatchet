@@ -35,15 +35,11 @@ const (
 const (
 	// LogServicePutLogsProcedure is the fully-qualified name of the LogService's PutLogs RPC.
 	LogServicePutLogsProcedure = "/v2.LogService/PutLogs"
-	// LogServicePutStreamEventsProcedure is the fully-qualified name of the LogService's
-	// PutStreamEvents RPC.
-	LogServicePutStreamEventsProcedure = "/v2.LogService/PutStreamEvents"
 )
 
 // LogServiceClient is a client for the v2.LogService service.
 type LogServiceClient interface {
 	PutLogs(context.Context, *v2.PutLogsRequest) (*v2.PutLogsResponse, error)
-	PutStreamEvents(context.Context, *v2.PutStreamEventsRequest) (*v2.PutStreamEventsResponse, error)
 }
 
 // NewLogServiceClient constructs a client for the v2.LogService service. By default, it uses the
@@ -63,19 +59,12 @@ func NewLogServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(logServiceMethods.ByName("PutLogs")),
 			connect.WithClientOptions(opts...),
 		),
-		putStreamEvents: connect.NewClient[v2.PutStreamEventsRequest, v2.PutStreamEventsResponse](
-			httpClient,
-			baseURL+LogServicePutStreamEventsProcedure,
-			connect.WithSchema(logServiceMethods.ByName("PutStreamEvents")),
-			connect.WithClientOptions(opts...),
-		),
 	}
 }
 
 // logServiceClient implements LogServiceClient.
 type logServiceClient struct {
-	putLogs         *connect.Client[v2.PutLogsRequest, v2.PutLogsResponse]
-	putStreamEvents *connect.Client[v2.PutStreamEventsRequest, v2.PutStreamEventsResponse]
+	putLogs *connect.Client[v2.PutLogsRequest, v2.PutLogsResponse]
 }
 
 // PutLogs calls v2.LogService.PutLogs.
@@ -87,19 +76,9 @@ func (c *logServiceClient) PutLogs(ctx context.Context, req *v2.PutLogsRequest) 
 	return nil, err
 }
 
-// PutStreamEvents calls v2.LogService.PutStreamEvents.
-func (c *logServiceClient) PutStreamEvents(ctx context.Context, req *v2.PutStreamEventsRequest) (*v2.PutStreamEventsResponse, error) {
-	response, err := c.putStreamEvents.CallUnary(ctx, connect.NewRequest(req))
-	if response != nil {
-		return response.Msg, err
-	}
-	return nil, err
-}
-
 // LogServiceHandler is an implementation of the v2.LogService service.
 type LogServiceHandler interface {
 	PutLogs(context.Context, *v2.PutLogsRequest) (*v2.PutLogsResponse, error)
-	PutStreamEvents(context.Context, *v2.PutStreamEventsRequest) (*v2.PutStreamEventsResponse, error)
 }
 
 // NewLogServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -115,18 +94,10 @@ func NewLogServiceHandler(svc LogServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(logServiceMethods.ByName("PutLogs")),
 		connect.WithHandlerOptions(opts...),
 	)
-	logServicePutStreamEventsHandler := connect.NewUnaryHandlerSimple(
-		LogServicePutStreamEventsProcedure,
-		svc.PutStreamEvents,
-		connect.WithSchema(logServiceMethods.ByName("PutStreamEvents")),
-		connect.WithHandlerOptions(opts...),
-	)
 	return "/v2.LogService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case LogServicePutLogsProcedure:
 			logServicePutLogsHandler.ServeHTTP(w, r)
-		case LogServicePutStreamEventsProcedure:
-			logServicePutStreamEventsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -138,8 +109,4 @@ type UnimplementedLogServiceHandler struct{}
 
 func (UnimplementedLogServiceHandler) PutLogs(context.Context, *v2.PutLogsRequest) (*v2.PutLogsResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v2.LogService.PutLogs is not implemented"))
-}
-
-func (UnimplementedLogServiceHandler) PutStreamEvents(context.Context, *v2.PutStreamEventsRequest) (*v2.PutStreamEventsResponse, error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v2.LogService.PutStreamEvents is not implemented"))
 }

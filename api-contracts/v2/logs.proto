@@ -6,12 +6,9 @@ package v2;
 
 import "google/protobuf/timestamp.proto";
 
-// LogService ingests log lines and stream events emitted by task runs. Both
-// RPCs are bulk-first; a single put is a one-element batch.
+// LogService ingests log lines emitted by task runs.
 service LogService {
     rpc PutLogs(PutLogsRequest) returns (PutLogsResponse) {}
-
-    rpc PutStreamEvents(PutStreamEventsRequest) returns (PutStreamEventsResponse) {}
 }
 
 enum LogLevel {
@@ -36,18 +33,3 @@ message PutLogsRequest {
 }
 
 message PutLogsResponse {}
-
-message StreamEvent {
-    string task_run_external_id = 1; // (required) the external id of the task run
-    google.protobuf.Timestamp seen_at = 2; // (required) when the stream event was seen
-    bytes message = 3; // (required) the stream event chunk
-    optional bytes extra = 4; // (optional) extra user metadata for the stream event
-    optional int64 event_index = 5; // (optional) ordering index for the stream
-    optional int32 retry_count = 6; // (optional) the retry attempt of the task run
-}
-
-message PutStreamEventsRequest {
-    repeated StreamEvent events = 1;
-}
-
-message PutStreamEventsResponse {}

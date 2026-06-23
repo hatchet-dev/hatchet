@@ -42,7 +42,8 @@ protoc --proto_path=api-contracts \
     v2/worker.proto \
     v2/durable_task.proto \
     v2/events.proto \
-    v2/logs.proto
+    v2/logs.proto \
+    v2/streams.proto
 
 protoc --proto_path=api-contracts/dispatcher --go_out=./internal/services/dispatcher/contracts --go_opt=paths=source_relative \
     --go-grpc_out=./internal/services/dispatcher/contracts --go-grpc_opt=paths=source_relative \
