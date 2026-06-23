@@ -137,15 +137,14 @@ SELECT EXISTS(
         AND kind = 'DAG'
 ) AS has_operator;
 
--- name: ListDAGWorkflowIdsForTenant :many
--- Returns the ids of all DAG workflows for a tenant. The DAG operator registers these as
--- worker actions so tasks for those workflows are routed to it.
-SELECT DISTINCT w."id"
-FROM "Workflow" w
-JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+-- name: ListDAGOrchestrationActionsForTenant :many
+SELECT DISTINCT s."actionId"::text AS action
+FROM "Step" s
+JOIN "Job" j ON j."id" = s."jobId"
+JOIN "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
 WHERE
-    w."tenantId" = @tenantId::UUID
-    AND w."deletedAt" IS NULL
+    s."tenantId" = @tenantId::UUID
+    AND s."isDagOrchestrator" = true
+    AND s."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
-    AND wv."kind" = 'DAG'
-ORDER BY w."id";
+ORDER BY action;

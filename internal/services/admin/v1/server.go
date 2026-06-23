@@ -749,9 +749,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	}
 
 	if len(req.Tasks) > 1 && hasDagOperator {
-		// if it's a dag and the dag operator is enabled, then we'll have an additional task
-		// that's the orchestrator, and use the workflow's id to represent it
-		actions = append(actions, currWorkflow.WorkflowVersion.WorkflowId.String())
+		actions = append(actions, strings.ToLower(req.Name+"_orchestrator"))
 	}
 
 	if tenant.SchedulerPartitionId.Valid && err == nil {

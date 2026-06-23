@@ -2,6 +2,8 @@
 -- +goose StatementBegin
 ALTER TABLE "Worker" ADD COLUMN "operatorId" UUID;
 
+ALTER TABLE "Step" ADD COLUMN "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false;
+
 CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
 
 CREATE TABLE v1_operator (
@@ -19,6 +21,8 @@ CREATE TABLE v1_operator (
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE "Step" DROP COLUMN "isDagOrchestrator";
+
 DROP TABLE v1_operator;
 
 DROP TYPE v1_operator_kind;

@@ -2822,6 +2822,7 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
+	IsDagOrchestrator  bool             `json:"isDagOrchestrator"`
 }
 
 type StepDesiredWorkerLabel struct {

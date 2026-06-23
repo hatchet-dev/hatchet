@@ -54,7 +54,7 @@ func SlotConfig(op *sqlcv1.V1Operator) (map[string]int32, error) {
 		slots = defaultOperatorSlots
 	}
 
-	return map[string]int32{repository.SlotTypeDefault: int32(slots)}, nil
+	return map[string]int32{repository.SlotTypeDurable: int32(slots)}, nil
 }
 
 type DAGOperator struct {
@@ -140,17 +140,11 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 	pollCtx, cancel := context.WithTimeout(ctx, workflowPollTimeout)
 	defer cancel()
 
-	workflowIds, err := d.repo.Operators().ListDAGWorkflowIds(pollCtx, d.TenantId())
+	actions, err := d.repo.Operators().ListDAGOrchestrationActions(pollCtx, d.TenantId())
 
 	if err != nil {
-		d.Logger().Error().Err(err).Msg("could not list dag workflows for operator")
+		d.Logger().Error().Err(err).Msg("could not list dag orchestration actions for operator")
 		return
-	}
-
-	actions := make([]string, len(workflowIds))
-
-	for i, id := range workflowIds {
-		actions[i] = id.String()
 	}
 
 	if slicesEqualUnordered(actions, d.lastActions) {
@@ -305,8 +299,7 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 
 	taskIndex := 0
 	for _, s := range steps {
-		// this is the orchestrator
-		if s.ActionId == s.WorkflowId.String() {
+		if s.IsDagOrchestrator {
 			continue
 		}
 

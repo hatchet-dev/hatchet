@@ -282,33 +282,32 @@ func (q *Queries) HasDAGOperatorForTenant(ctx context.Context, db DBTX, tenantid
 	return has_operator, err
 }
 
-const listDAGWorkflowIdsForTenant = `-- name: ListDAGWorkflowIdsForTenant :many
-SELECT DISTINCT w."id"
-FROM "Workflow" w
-JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+const listDAGOrchestrationActionsForTenant = `-- name: ListDAGOrchestrationActionsForTenant :many
+SELECT DISTINCT s."actionId"::text AS action
+FROM "Step" s
+JOIN "Job" j ON j."id" = s."jobId"
+JOIN "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
 WHERE
-    w."tenantId" = $1::UUID
-    AND w."deletedAt" IS NULL
+    s."tenantId" = $1::UUID
+    AND s."isDagOrchestrator" = true
+    AND s."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
-    AND wv."kind" = 'DAG'
-ORDER BY w."id"
+ORDER BY action
 `
 
-// Returns the ids of all DAG workflows for a tenant. The DAG operator registers these as
-// worker actions so tasks for those workflows are routed to it.
-func (q *Queries) ListDAGWorkflowIdsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, listDAGWorkflowIdsForTenant, tenantid)
+func (q *Queries) ListDAGOrchestrationActionsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]string, error) {
+	rows, err := db.Query(ctx, listDAGOrchestrationActionsForTenant, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []string
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var action string
+		if err := rows.Scan(&action); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, action)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -287,7 +287,8 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable"
+    "isDurable",
+    "isDagOrchestrator"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -303,7 +304,8 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
-    coalesce(sqlc.narg('isDurable')::boolean, false)
+    coalesce(sqlc.narg('isDurable')::boolean, false),
+    coalesce(sqlc.narg('isDagOrchestrator')::boolean, false)
 ) RETURNING *;
 
 -- name: CreateStepSlotRequests :exec

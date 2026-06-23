@@ -709,8 +709,6 @@ func (r *sharedRepository) triggerWorkflows(
 	dagTaskOpts := make(map[uuid.UUID][]CreateTaskOpts)
 	nonDagTaskOpts := make([]CreateTaskOpts, 0)
 
-	dagOperatorTaskOpts := make(map[uuid.UUID]CreateTaskOpts)
-
 	// fixme: can probably cache this?
 	hasDAGOperator, err := r.queries.HasDAGOperatorForTenant(ctx, r.pool, tenantId)
 	if err != nil {
@@ -745,8 +743,7 @@ func (r *sharedRepository) triggerWorkflows(
 			continue
 		}
 
-		// Separate the orchestrator step (action_id == workflow_id) from regular user steps.
-		regularSteps := regularUserSteps(allSteps, tuple.workflowId)
+		regularSteps := regularUserSteps(allSteps)
 		isDag := len(regularSteps) > 1
 
 		for _, step := range regularSteps {
@@ -806,16 +803,13 @@ func (r *sharedRepository) triggerWorkflows(
 			continue
 		}
 
-		regularSteps := regularUserSteps(steps, tuple.workflowId)
+		regularSteps := regularUserSteps(steps)
 		isDag := len(regularSteps) > 1
 
 		if isDag && hasDAGOperator {
-			// Find the dedicated orchestrator step (action_id == workflow_id, is_durable == true)
-			// registered when the workflow was created, and route it to the DAG operator.
-			// note: this is probalby buggy, we might not be able to reuse ids like this
 			for _, s := range steps {
-				if s.ActionId == tuple.workflowId.String() {
-					dagOperatorTaskOpts[tuple.externalId] = CreateTaskOpts{
+				if s.IsDagOrchestrator {
+					nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
 						ExternalId:                tuple.externalId,
 						WorkflowRunId:             tuple.externalId,
 						StepId:                    s.ID,
@@ -831,7 +825,7 @@ func (r *sharedRepository) triggerWorkflows(
 						Priority:                  tuple.priority,
 						TriggeringEventExternalId: tuple.triggeringEventExternalId,
 						TriggeringEventKey:        tuple.triggeringEventKey,
-					}
+					})
 					break
 				}
 			}
@@ -1194,25 +1188,12 @@ func (r *sharedRepository) triggerWorkflows(
 			}
 		}
 
-		if isDag {
-			taskIds := dagToTaskIds[tuple.externalId]
-			taskStepReadableIds := dagToTaskReadableIds[tuple.externalId]
-
-			if hasDAGOperator {
-				// The operator path creates a single orchestration task whose external ID
-				// equals the DAG's own external ID. Record only that one task so that
-				// total_tasks = 1 and the OLAP status transitions to COMPLETED when the
-				// operator task finishes.
-				// note: this is buggy, I don't think we can reuse external ids like this
-				taskIds = []uuid.UUID{tuple.externalId}
-				taskStepReadableIds = []string{tuple.workflowName}
-			}
-
+		if isDag && !hasDAGOperator {
 			dagOpts = append(dagOpts, createDAGOpts{
 				ExternalId:           tuple.externalId,
 				Input:                tuple.input,
-				TaskIds:              taskIds,
-				TaskStepReadableIds:  taskStepReadableIds,
+				TaskIds:              dagToTaskIds[tuple.externalId],
+				TaskStepReadableIds:  dagToTaskReadableIds[tuple.externalId],
 				WorkflowId:           tuple.workflowId,
 				WorkflowVersionId:    tuple.workflowVersionId,
 				WorkflowName:         tuple.workflowName,
@@ -1234,13 +1215,6 @@ func (r *sharedRepository) triggerWorkflows(
 	createTaskOpts := nonDagTaskOpts
 
 	for _, dag := range dags {
-		if opt, ok := dagOperatorTaskOpts[dag.ExternalID]; ok {
-			opt.DagId = &dag.ID
-			opt.DagInsertedAt = dag.InsertedAt
-			createTaskOpts = append(createTaskOpts, opt)
-			continue
-		}
-
 		opts, ok := dagTaskOpts[dag.ExternalID]
 
 		if !ok {
@@ -1974,13 +1948,10 @@ func getParentOnFailureGroupMatches(createGroupId, parentExternalId uuid.UUID, p
 	}
 }
 
-// regularUserSteps filters out the synthetic orchestrator step (whose action_id equals the
-// workflow ID) so the rest of triggerWorkflows only sees real user-defined steps.
-func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow, workflowId uuid.UUID) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
-	workflowIdStr := workflowId.String()
+func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
 	out := make([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, 0, len(steps))
 	for _, s := range steps {
-		if s.ActionId != workflowIdStr {
+		if !s.IsDagOrchestrator {
 			out = append(out, s)
 		}
 	}

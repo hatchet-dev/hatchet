@@ -103,6 +103,9 @@ type CreateStepOpts struct {
 	// (optional) whether this step is durable
 	IsDurable bool `json:"isDurable,omitempty"`
 
+	// (optional) whether this step is the synthetic DAG orchestrator step
+	IsDagOrchestrator bool `json:"isDagOrchestrator,omitempty"`
+
 	// (optional) slot requests for this step (slot_type -> units)
 	SlotRequests map[string]int32 `json:"slotRequests,omitempty" validate:"omitempty,dive,keys,required,endkeys,gt=0"`
 
@@ -452,12 +455,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	if len(opts.Tasks) > 1 {
-		// dag-as-durable-task operator task
 		opts.Tasks = append(opts.Tasks, CreateStepOpts{
-			ReadableId: fmt.Sprintf("%s_orchestrator", opts.Name),
-			Action:     fmt.Sprintf("%s_orchestrator", opts.Name),
-			IsDurable:  true,
-			// todo: add retries, etc. here
+			ReadableId:        fmt.Sprintf("%s_orchestrator", opts.Name),
+			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
+			IsDurable:         true,
+			IsDagOrchestrator: true,
 		})
 	}
 
@@ -752,15 +754,16 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 
 		createStepParams := sqlcv1.CreateStepParams{
-			ID:             stepId,
-			Tenantid:       tenantId,
-			Jobid:          jobId,
-			Actionid:       stepOpts.Action,
-			Timeout:        timeout,
-			Readableid:     stepOpts.ReadableId,
-			CustomUserData: customUserData,
-			Retries:        retries,
-			IsDurable:      sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
+			ID:                stepId,
+			Tenantid:          tenantId,
+			Jobid:             jobId,
+			Actionid:          stepOpts.Action,
+			Timeout:           timeout,
+			Readableid:        stepOpts.ReadableId,
+			CustomUserData:    customUserData,
+			Retries:           retries,
+			IsDurable:         sqlchelpers.BoolFromBoolean(stepOpts.IsDurable),
+			IsDagOrchestrator: sqlchelpers.BoolFromBoolean(stepOpts.IsDagOrchestrator),
 		}
 
 		if stepOpts.ScheduleTimeout != nil {
