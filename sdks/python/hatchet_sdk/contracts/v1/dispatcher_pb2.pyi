@@ -1,5 +1,5 @@
-from hatchet_sdk.contracts.v1.shared import condition_pb2 as _condition_pb2
-from hatchet_sdk.contracts.v1.shared import trigger_pb2 as _trigger_pb2
+from v1.shared import condition_pb2 as _condition_pb2
+from v1.shared import trigger_pb2 as _trigger_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -58,7 +58,7 @@ class DurableTaskEventMemoAckResponse(_message.Message):
     ref: DurableEventLogEntryRef
     memo_already_existed: bool
     memo_result_payload: bytes
-    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., memo_already_existed: bool = ..., memo_result_payload: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., memo_already_existed: _Optional[bool] = ..., memo_result_payload: _Optional[bytes] = ...) -> None: ...
 
 class DurableTaskEventTriggerRunsAckResponse(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "run_entries")
@@ -77,14 +77,18 @@ class DurableTaskEventWaitForAckResponse(_message.Message):
     def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
-    __slots__ = ("ref", "payload", "satisfied_order")
+    __slots__ = ("ref", "payload", "is_failure", "error_message", "satisfied_order")
     REF_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    IS_FAILURE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     SATISFIED_ORDER_FIELD_NUMBER: _ClassVar[int]
     ref: DurableEventLogEntryRef
     payload: bytes
+    is_failure: bool
+    error_message: str
     satisfied_order: int
-    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ..., satisfied_order: _Optional[int] = ...) -> None: ...
+    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ..., is_failure: _Optional[bool] = ..., error_message: _Optional[str] = ..., satisfied_order: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "reason")

@@ -170,6 +170,8 @@ type GroupMatchCondition struct {
 type SatisfiedEntry struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	Data                  []byte
+	ChildTaskIsFailure    bool
+	ChildTaskErrorMessage *string
 	DurableTaskId         int64
 	NodeId                int64
 	BranchId              int64
@@ -762,6 +764,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	durableTaskNodeIds := make([]int64, 0)
 	durableTaskBranchIds := make([]int64, 0)
+	isFailures := make([]bool, 0)
+	errorMessages := make([]string, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
 	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
 
@@ -781,6 +785,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				BranchId:              branchId.Int64,
 			}
 
+			isFailure, errorMessage, extractErr := ExtractFailureFromMatchData(match.McAggregatedData)
+
+			if extractErr != nil {
+				return nil, fmt.Errorf("failed to extract failure information from match data for durable task with external id %s, durable task id %d and durable task inserted at %s: %w", *durableTaskExternalId, durableTaskId.Int64, durableTaskInsertedAt.Time, extractErr)
+			}
+
 			cb := SatisfiedEntry{
 				DurableTaskExternalId: *durableTaskExternalId,
 				DurableTaskId:         durableTaskId.Int64,
@@ -788,6 +798,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				NodeId:                nodeId.Int64,
 				BranchId:              branchId.Int64,
 				Data:                  match.McAggregatedData,
+				ChildTaskIsFailure:    isFailure,
+				ChildTaskErrorMessage: errorMessage,
 			}
 
 			idInsertedAtNodeIdToSatisfiedEntry[key] = cb
@@ -796,6 +808,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			durableTaskInsertedAts = append(durableTaskInsertedAts, durableTaskInsertedAt)
 			durableTaskNodeIds = append(durableTaskNodeIds, nodeId.Int64)
 			durableTaskBranchIds = append(durableTaskBranchIds, branchId.Int64)
+			isFailures = append(isFailures, isFailure)
+
+			errorMsgToInsert := ""
+			if errorMessage != nil {
+				errorMsgToInsert = *errorMessage
+			}
+
+			errorMessages = append(errorMessages, errorMsgToInsert)
 		}
 	}
 
@@ -820,6 +840,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		Branchids:              durableTaskBranchIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
+		Childtaskisfailures:    isFailures,
+		Childtaskerrormessages: errorMessages,
 	})
 
 	if err != nil {

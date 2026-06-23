@@ -3349,7 +3349,12 @@ FROM statuses_from_events s
 WHERE
     (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
     AND (
-        (s.retry_count > t.latest_retry_count AND s.status != t.readable_status)
+        -- A newer retry count always applies, even when the readable status is
+        -- unchanged — same rationale as the guards in UpdateTaskStatuses and
+        -- UpdateTaskStatusesFromMQ: requiring the status to differ would skip
+        -- the latest_retry_count advance when the event history's newest retry
+        -- ends in the status the row already has.
+        (s.retry_count > t.latest_retry_count)
         OR (s.retry_count = t.latest_retry_count AND v1_status_to_priority(s.status) > v1_status_to_priority(t.readable_status))
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
@@ -4007,10 +4012,18 @@ WITH tenants AS (
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
         AND
             (
-                -- if the retry count is greater than the latest retry count, update the status
+                -- A newer retry count must always apply, even when the readable
+                -- status is unchanged, because this is the only chance to record it:
+                -- the deleted_events CTE below removes every processed event from
+                -- v1_task_events_olap_tmp regardless of whether this UPDATE matched,
+                -- so an event rejected here is never seen again. If a same-status
+                -- event from a newer retry were rejected (a replayed task's COMPLETED
+                -- at retry N ingested before its QUEUED/ASSIGNED events),
+                -- latest_retry_count would stay stale, and the late QUEUED/ASSIGNED
+                -- events at retry N would later pass this branch and leave the task
+                -- stuck at RUNNING.
                 (
                     tu.retry_count > t.latest_retry_count
-                    AND tu.max_readable_status != t.readable_status
                 ) OR
                 -- if the retry count is equal to the latest retry count, update the status if the priority is higher
                 (
@@ -4169,10 +4182,17 @@ WITH inputs AS (
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
         (
-            -- If the retry count is greater than the latest retry count, update the status
+            -- A newer retry count must always apply, even when the readable
+            -- status is unchanged, because this is the only chance to record it:
+            -- the message this batch came from is acked once the transaction
+            -- commits, regardless of whether this update matched, so an event
+            -- rejected here is never seen again. If a same-status event from a
+            -- newer retry were rejected (a replayed task's COMPLETED at retry N
+            -- ingested before its QUEUED/ASSIGNED events), latest_retry_count
+            -- would stay stale, and the late QUEUED/ASSIGNED events at retry N
+            -- would later pass this branch and leave the task stuck at RUNNING.
             (
                 i.retry_count > t.latest_retry_count
-                AND i.readable_status != t.readable_status
             ) OR
             -- If the retry count is equal, only update if the new status has higher priority
             (

@@ -17,36 +17,30 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Use leases to protect concurrent partition creation (un-revert) by @juliusgeo in [#4051](https://github.com/hatchet-dev/hatchet/pull/4051)
 
-
 ## v0.87.12 - 2026-05-30
 
 ### Fixed
 - Re-enable external id dupe check, add flag to enable dynamic window size by @mrkaye97 in [#4050](https://github.com/hatchet-dev/hatchet/pull/4050)
-
 
 ## v0.87.11 - 2026-05-30
 
 ### Fixed
 - Remove external id check for now, it's too expensive by @mrkaye97 in [#4048](https://github.com/hatchet-dev/hatchet/pull/4048)
 
-
 ## v0.87.10 - 2026-05-30
 
 ### Fixed
 - Lengthen timeout for external id dupe check by @mrkaye97 in [#4047](https://github.com/hatchet-dev/hatchet/pull/4047)
-
 
 ## v0.87.9 - 2026-05-29
 
 ### Fixed
 - Migration order for partition leases by @juliusgeo in [#4046](https://github.com/hatchet-dev/hatchet/pull/4046)
 
-
 ## v0.87.8 - 2026-05-29
 
 ### Fixed
 - Use leases to protect concurrent partition creation by @juliusgeo in [#4044](https://github.com/hatchet-dev/hatchet/pull/4044)
-
 
 ## v0.87.7 - 2026-05-29
 
@@ -58,24 +52,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Sleep bug for anything over 59s by @darren-west in [#4012](https://github.com/hatchet-dev/hatchet/pull/4012)
 - Update quickstart template SDK versions by @BloggerBust in [#4025](https://github.com/hatchet-dev/hatchet/pull/4025)
 
-
 ## v0.87.6 - 2026-05-28
 
 ### Added
 - Index file-based payload offloads by @mrkaye97 in [#3979](https://github.com/hatchet-dev/hatchet/pull/3979)
-
 
 ## v0.87.3 - 2026-05-28
 
 ### Fixed
 - Go use durable listener for async results by @grutt in [#4019](https://github.com/hatchet-dev/hatchet/pull/4019)
 
-
 ## v0.87.1 - 2026-05-26
 
 ### Added
 - Move billing to control plane by @grutt in [#3982](https://github.com/hatchet-dev/hatchet/pull/3982)
-
 
 ## v0.86.32 - 2026-05-26
 
@@ -91,18 +81,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Hide github tab if managed workers are disabled by @mrkaye97 in [#3988](https://github.com/hatchet-dev/hatchet/pull/3988)
 
-
 ## v0.86.29 - 2026-05-22
 
 ### Fixed
 - Migration number by @mrkaye97 in [#3987](https://github.com/hatchet-dev/hatchet/pull/3987)
 
-
 ## v0.86.28 - 2026-05-22
 
 ### Fixed
 - A couple more migration performance issues by @mrkaye97 in [#3942](https://github.com/hatchet-dev/hatchet/pull/3942)
-
 
 ## v0.86.27 - 2026-05-22
 
@@ -115,18 +102,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Payload external id duplicates from durable child spawning by @mrkaye97 in [#3984](https://github.com/hatchet-dev/hatchet/pull/3984)
 
-
 ## v0.86.26 - 2026-05-21
 
 ### Fixed
 - Increase limit default to 10k by @mrkaye97 in [#3978](https://github.com/hatchet-dev/hatchet/pull/3978)
 
-
 ## v0.86.25 - 2026-05-20
 
 ### Fixed
 - Only run worker id action getter query when needed by @mrkaye97 in [#3976](https://github.com/hatchet-dev/hatchet/pull/3976)
-
 
 ## v0.86.24 - 2026-05-20
 
@@ -136,12 +120,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Correctly handle child key-based caching in durable task child spawning by @mrkaye97 in [#3955](https://github.com/hatchet-dev/hatchet/pull/3955)
 
-
 ## v0.86.23 - 2026-05-20
 
 ### Fixed
 - Attempt at improving worker actions query by @mrkaye97 in [#3774](https://github.com/hatchet-dev/hatchet/pull/3774)
-
 
 ## v0.86.22 - 2026-05-20
 
@@ -149,7 +131,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Entitlement check by @grutt in [#3969](https://github.com/hatchet-dev/hatchet/pull/3969)
 - Move workflow search bar to the top of workflows table by @abelanger5 in [#3967](https://github.com/hatchet-dev/hatchet/pull/3967)
 - Add Dockerfile for all SDK e2e tests, fix flaky e2e tests by @juliusgeo in [#3846](https://github.com/hatchet-dev/hatchet/pull/3846)
-
 
 ## v0.86.21 - 2026-05-19
 
@@ -159,12 +140,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Removed
 - Revert "feat: route frontend billing through control plane" by @grutt in [#3963](https://github.com/hatchet-dev/hatchet/pull/3963)
 
-
 ## v0.86.20 - 2026-05-19
 
 ### Changed
 - Use `externalId` for retrieving payloads by @mrkaye97 in [#3914](https://github.com/hatchet-dev/hatchet/pull/3914)
-
 
 ## v0.86.19 - 2026-05-19
 
@@ -182,48 +161,40 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Poll plan by @grutt
 - Dedicated state by @grutt
 
-
 ## v0.86.18 - 2026-05-14
 
 ### Fixed
 - New user flow on control plane deployment by @grutt in [#3891](https://github.com/hatchet-dev/hatchet/pull/3891)
-
 
 ## v0.86.17 - 2026-05-13
 
 ### Fixed
 - Separate transactions in payload migration by @mrkaye97 in [#3907](https://github.com/hatchet-dev/hatchet/pull/3907)
 
-
 ## v0.86.16 - 2026-05-13
 
 ### Added
 - Add error if counts don't match so we can debug by @mrkaye97 in [#3905](https://github.com/hatchet-dev/hatchet/pull/3905)
-
 
 ## v0.86.15 - 2026-05-13
 
 ### Added
 - Paginate through payloads by external id, not using the PK by @mrkaye97 in [#3883](https://github.com/hatchet-dev/hatchet/pull/3883)
 
-
 ## v0.86.14 - 2026-05-13
 
 ### Added
 - Control plane redirect by @grutt in [#3904](https://github.com/hatchet-dev/hatchet/pull/3904)
-
 
 ## v0.86.12 - 2026-05-12
 
 ### Fixed
 - Limit the number of re-pubs to be the max death count by @mrkaye97 in [#3899](https://github.com/hatchet-dev/hatchet/pull/3899)
 
-
 ## v0.86.10 - 2026-05-12
 
 ### Added
 - Add external id index to payloads tables by @mrkaye97 in [#3879](https://github.com/hatchet-dev/hatchet/pull/3879)
-
 
 ## v0.86.9 - 2026-05-12
 
@@ -236,19 +207,16 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Durable eviction / restore causing duplicate queue items by @mrkaye97 in [#3864](https://github.com/hatchet-dev/hatchet/pull/3864)
 
-
 ## v0.86.8 - 2026-05-11
 
 ### Fixed
 - Avoid invalid user FK in cookie test by @igor-kupczynski in [#3882](https://github.com/hatchet-dev/hatchet/pull/3882)
 - Occasional empty payloads on DAG task retries by @juliusgeo in [#3860](https://github.com/hatchet-dev/hatchet/pull/3860)
 
-
 ## v0.86.7 - 2026-05-11
 
 ### Fixed
 - Add backoff to sleeps by @mrkaye97 in [#3880](https://github.com/hatchet-dev/hatchet/pull/3880)
-
 
 ## v0.86.6 - 2026-05-11
 
@@ -258,12 +226,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Allow partial successes on status updates by @mrkaye97 in [#3861](https://github.com/hatchet-dev/hatchet/pull/3861)
 
-
 ## v0.86.5 - 2026-05-08
 
 ### Fixed
 - Use correct log out and invalidate stale cookies by @grutt in [#3858](https://github.com/hatchet-dev/hatchet/pull/3858)
-
 
 ## v0.86.4 - 2026-05-08
 
@@ -274,18 +240,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Durable wait mutex issue by @mrkaye97
 
-
 ## v0.86.1 - 2026-05-06
 
 ### Added
 - Add cols to offload table to track count diffs by @mrkaye97 in [#3841](https://github.com/hatchet-dev/hatchet/pull/3841)
 
-
 ## v0.85.10 - 2026-05-06
 
 ### Fixed
 - Merge issue? these definitely had been removed before... by @mrkaye97 in [#3839](https://github.com/hatchet-dev/hatchet/pull/3839)
-
 
 ## v0.85.9 - 2026-05-06
 
@@ -293,13 +256,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Remove dual writes into temp tables for status updates by @mrkaye97 in [#3829](https://github.com/hatchet-dev/hatchet/pull/3829)
 - Slow cold start when workflows are inactive > 1 day by @juliusgeo in [#3830](https://github.com/hatchet-dev/hatchet/pull/3830)
 
-
 ## v0.85.8 - 2026-05-06
 
 ### Fixed
 - Prune partitions in reconciliation query with min inserted at filter by @mrkaye97 in [#3838](https://github.com/hatchet-dev/hatchet/pull/3838)
 - Dedupe task ids before updating to assigned by @mrkaye97 in [#3818](https://github.com/hatchet-dev/hatchet/pull/3818)
-
 
 ## v0.85.7 - 2026-05-05
 
@@ -308,12 +269,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Improve performance of status metrics query via index usage + partition pruning by @mrkaye97 in [#3800](https://github.com/hatchet-dev/hatchet/pull/3800)
 - Improve transactional safety of payload offload reads and writes by @mrkaye97 in [#3814](https://github.com/hatchet-dev/hatchet/pull/3814)
 
-
 ## v0.85.6 - 2026-05-05
 
 ### Fixed
 - Payload external id dupe by @mrkaye97 in [#3824](https://github.com/hatchet-dev/hatchet/pull/3824)
-
 
 ## v0.85.5 - 2026-05-05
 
@@ -321,12 +280,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Direct task + dag status updates by @mrkaye97 in [#3554](https://github.com/hatchet-dev/hatchet/pull/3554)
 - Swap links to control plane by @grutt in [#3816](https://github.com/hatchet-dev/hatchet/pull/3816)
 
-
 ## v0.85.4 - 2026-05-04
 
 ### Fixed
 - Show tenant invite modal correctly by @mrkaye97 in [#3815](https://github.com/hatchet-dev/hatchet/pull/3815)
-
 
 ## v0.85.3 - 2026-05-02
 
@@ -334,18 +291,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Panic on trigger by @mrkaye97 in [#3803](https://github.com/hatchet-dev/hatchet/pull/3803)
 - Refresh token edge cases by @grutt in [#3802](https://github.com/hatchet-dev/hatchet/pull/3802)
 
-
 ## v0.85.2 - 2026-05-01
 
 ### Fixed
 - Wait for user universe by @grutt in [#3801](https://github.com/hatchet-dev/hatchet/pull/3801)
 
-
 ## v0.85.1 - 2026-05-01
 
 ### Fixed
 - Hoist org management / tenant management page by @mrkaye97 in [#3797](https://github.com/hatchet-dev/hatchet/pull/3797)
-
 
 ## v0.85.0 - 2026-05-01
 
@@ -358,7 +312,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Fixes for SSO UI layout by @juliusgeo in [#3793](https://github.com/hatchet-dev/hatchet/pull/3793)
 - Fix--control-plane-bash by @grutt in [#3781](https://github.com/hatchet-dev/hatchet/pull/3781)
 
-
 ## v0.83.61 - 2026-04-29
 
 ### Added
@@ -370,13 +323,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Workflow reschedule update fail by @jishnundth in [#3782](https://github.com/hatchet-dev/hatchet/pull/3782)
 
-
 ## v0.83.60 - 2026-04-28
 
 ### Fixed
 - Add cron job to deactivate stale step concurrency configs by @mrkaye97 in [#3775](https://github.com/hatchet-dev/hatchet/pull/3775)
 - Use `SimpleTable` for span attributes by @mrkaye97 in [#3778](https://github.com/hatchet-dev/hatchet/pull/3778)
-
 
 ## v0.83.59 - 2026-04-28
 
@@ -385,7 +336,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Attempt to fix deadlocks, part 1bn by @mrkaye97 in [#3776](https://github.com/hatchet-dev/hatchet/pull/3776)
-
 
 ## v0.83.57 - 2026-04-28
 
@@ -397,24 +347,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Don't drop index by @mrkaye97 in [#3765](https://github.com/hatchet-dev/hatchet/pull/3765)
 - Increase max password length to 64 and improve validation error message by @NathanDrake007 in [#3713](https://github.com/hatchet-dev/hatchet/pull/3713)
 
-
 ## v0.83.56 - 2026-04-28
 
 ### Fixed
 - Acquire locks right away by @mrkaye97 in [#3762](https://github.com/hatchet-dev/hatchet/pull/3762)
-
 
 ## v0.83.55 - 2026-04-28
 
 ### Fixed
 - Improve performance of cron schedule polling query by @mrkaye97 in [#3754](https://github.com/hatchet-dev/hatchet/pull/3754)
 
-
 ## v0.83.54 - 2026-04-27
 
 ### Fixed
 - Remove row count check, replace with threshold by @mrkaye97 in [#3756](https://github.com/hatchet-dev/hatchet/pull/3756)
-
 
 ## v0.83.53 - 2026-04-27
 
@@ -425,18 +371,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Trace view improvements by @mrkaye97 in [#3702](https://github.com/hatchet-dev/hatchet/pull/3702)
 
-
 ## v0.83.52 - 2026-04-27
 
 ### Fixed
 - Do nothing on conflict, and diff out existing rows by @mrkaye97 in [#3752](https://github.com/hatchet-dev/hatchet/pull/3752)
 
-
 ## v0.83.50 - 2026-04-27
 
 ### Fixed
 - Add exclusive lock, run analyze by @mrkaye97 in [#3739](https://github.com/hatchet-dev/hatchet/pull/3739)
-
 
 ## v0.83.49 - 2026-04-27
 
@@ -446,67 +389,56 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Add row count check before swapping by @mrkaye97 in [#3709](https://github.com/hatchet-dev/hatchet/pull/3709)
 
-
 ## v0.83.48 - 2026-04-24
 
 ### Fixed
 - Fetching state causing redirect loop on signup by @mrkaye97 in [#3708](https://github.com/hatchet-dev/hatchet/pull/3708)
-
 
 ## v0.83.47 - 2026-04-24
 
 ### Fixed
 - Broken migration by @mrkaye97 in [#3707](https://github.com/hatchet-dev/hatchet/pull/3707)
 
-
 ## v0.83.46 - 2026-04-24
 
 ### Fixed
 - Remove status partitioning on `v1_(runs|dags|tasks)_olap` by @mrkaye97 in [#3603](https://github.com/hatchet-dev/hatchet/pull/3603)
-
 
 ## v0.83.45 - 2026-04-24
 
 ### Fixed
 - Regen control plane api by @abelanger5 in [#3705](https://github.com/hatchet-dev/hatchet/pull/3705)
 
-
 ## v0.83.44 - 2026-04-24
 
 ### Changed
 - Make sure we call for durable task invocation only for durable tasks in the scheduler by @mnafees in [#3698](https://github.com/hatchet-dev/hatchet/pull/3698)
-
 
 ## v0.83.43 - 2026-04-24
 
 ### Added
 - Separate frontend and server url, pass the server url as part of the tenant by @abelanger5 in [#3697](https://github.com/hatchet-dev/hatchet/pull/3697)
 
-
 ## v0.83.42 - 2026-04-24
 
 ### Fixed
 - Couple more frontend + webhooks things by @mrkaye97 in [#3695](https://github.com/hatchet-dev/hatchet/pull/3695)
-
 
 ## v0.83.41 - 2026-04-23
 
 ### Fixed
 - Tailwind hell by @mrkaye97 in [#3693](https://github.com/hatchet-dev/hatchet/pull/3693)
 
-
 ## v0.83.40 - 2026-04-23
 
 ### Fixed
 - Couple more frontend bugs by @mrkaye97 in [#3692](https://github.com/hatchet-dev/hatchet/pull/3692)
-
 
 ## v0.83.39 - 2026-04-23
 
 ### Fixed
 - Return from delete query by @abelanger5 in [#3690](https://github.com/hatchet-dev/hatchet/pull/3690)
 - Validate tenant membership on V1DagListTasks by @abelanger5 in [#3691](https://github.com/hatchet-dev/hatchet/pull/3691)
-
 
 ## v0.83.38 - 2026-04-23
 
@@ -523,13 +455,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Heights of event log, etc. on the dag view by @mrkaye97 in [#3687](https://github.com/hatchet-dev/hatchet/pull/3687)
 - Significantly speed up event queries by @mrkaye97 in [#3688](https://github.com/hatchet-dev/hatchet/pull/3688)
 
-
 ## v0.83.37 - 2026-04-22
 
 ### Fixed
 - Collision on lastTenant key by @abelanger5 in [#3671](https://github.com/hatchet-dev/hatchet/pull/3671)
 - Use exchange token for getting plans by @abelanger5 in [#3668](https://github.com/hatchet-dev/hatchet/pull/3668)
-
 
 ## v0.83.36 - 2026-04-22
 
@@ -539,12 +469,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Webhook responses, event info on context, internal fix for labels matches by @mrkaye97 in [#3625](https://github.com/hatchet-dev/hatchet/pull/3625)
 
-
 ## v0.83.35 - 2026-04-22
 
 ### Removed
 - Revert "Remove "account" dropdown', add notifications dropdown " by @mrkaye97 in [#3664](https://github.com/hatchet-dev/hatchet/pull/3664)
-
 
 ## v0.83.34 - 2026-04-21
 
@@ -554,42 +482,35 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Removed
 - Remove "account" dropdown', add notifications dropdown by @TehShrike in [#3365](https://github.com/hatchet-dev/hatchet/pull/3365)
 
-
 ## v0.83.33 - 2026-04-21
 
 ### Fixed
 - Disable version info for control plane, add sync for tenant alerting settings by @abelanger5 in [#3659](https://github.com/hatchet-dev/hatchet/pull/3659)
-
 
 ## v0.83.32 - 2026-04-21
 
 ### Added
 - Durable execution frontend work and API improvements by @mrkaye97 in [#3639](https://github.com/hatchet-dev/hatchet/pull/3639)
 
-
 ## v0.83.31 - 2026-04-21
 
 ### Fixed
 - Use exchange token interceptor for cloud endpoints by @abelanger5 in [#3658](https://github.com/hatchet-dev/hatchet/pull/3658)
-
 
 ## v0.83.30 - 2026-04-21
 
 ### Fixed
 - Set cloud enabled when control plane is enabled by @abelanger5 in [#3657](https://github.com/hatchet-dev/hatchet/pull/3657)
 
-
 ## v0.83.29 - 2026-04-21
 
 ### Fixed
 - Fix control-plane logout bug, fix oauth redirect urls by @juliusgeo in [#3656](https://github.com/hatchet-dev/hatchet/pull/3656)
 
-
 ## v0.83.28 - 2026-04-21
 
 ### Changed
 - Conditionally use control-plane metadata endpoint by @juliusgeo in [#3654](https://github.com/hatchet-dev/hatchet/pull/3654)
-
 
 ## v0.83.27 - 2026-04-20
 
@@ -598,7 +519,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Infinite rerender bug and handle 403 better by @abelanger5 in [#3652](https://github.com/hatchet-dev/hatchet/pull/3652)
-
 
 ## v0.83.26 - 2026-04-20
 
@@ -611,12 +531,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Exchange token authz, remove n+1 tenant lookup for organizations, slack oauth casing by @abelanger5 in [#3631](https://github.com/hatchet-dev/hatchet/pull/3631)
 
-
 ## v0.83.25 - 2026-04-15
 
 ### Fixed
 - Configurable schedulerCheckActive Interval by @grutt in [#3624](https://github.com/hatchet-dev/hatchet/pull/3624)
-
 
 ## v0.83.24 - 2026-04-15
 
@@ -626,7 +544,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Empty parent task external id on olap dags and runs by @mrkaye97 in [#3605](https://github.com/hatchet-dev/hatchet/pull/3605)
 - Broken doc links by @mrkaye97 in [#3616](https://github.com/hatchet-dev/hatchet/pull/3616)
-
 
 ## v0.83.23 - 2026-04-13
 
@@ -639,7 +556,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Add healthcheck to harness engine startup by @gregfurman in [#3601](https://github.com/hatchet-dev/hatchet/pull/3601)
 
-
 ## v0.83.22 - 2026-04-10
 
 ### Removed
@@ -649,18 +565,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Worker labels not respected on retry by @mrkaye97 in [#3591](https://github.com/hatchet-dev/hatchet/pull/3591)
 - Run payloads job at midnight by @mrkaye97 in [#3578](https://github.com/hatchet-dev/hatchet/pull/3578)
 
-
 ## v0.83.18 - 2026-04-07
 
 ### Added
 - Wait for event with lookback window by @mrkaye97 in [#3442](https://github.com/hatchet-dev/hatchet/pull/3442)
 
-
 ## v0.83.17 - 2026-04-07
 
 ### Added
 - Feat--offers by @grutt in [#3511](https://github.com/hatchet-dev/hatchet/pull/3511)
-
 
 ## v0.83.15 - 2026-04-03
 
@@ -671,12 +584,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - OTel trace lookup insert deadlock by @mrkaye97 in [#3542](https://github.com/hatchet-dev/hatchet/pull/3542)
 
-
 ## v0.83.14 - 2026-04-03
 
 ### Fixed
 - Properly list workflows in dropdown by @mrkaye97 in [#3534](https://github.com/hatchet-dev/hatchet/pull/3534)
-
 
 ## v0.83.13 - 2026-04-03
 
@@ -687,30 +598,25 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix--dag-nesting by @grutt in [#3447](https://github.com/hatchet-dev/hatchet/pull/3447)
 
-
 ## v0.83.10 - 2026-04-01
 
 ### Fixed
 - No self-referencing spans by @grutt in [#3445](https://github.com/hatchet-dev/hatchet/pull/3445)
-
 
 ## v0.83.9 - 2026-04-01
 
 ### Fixed
 - Otel-bug-bash by @grutt in [#3389](https://github.com/hatchet-dev/hatchet/pull/3389)
 
-
 ## v0.83.8 - 2026-04-01
 
 ### Changed
 - Update management API swagger with audit logs endpoint by @mnafees in [#3414](https://github.com/hatchet-dev/hatchet/pull/3414)
 
-
 ## v0.83.7 - 2026-04-01
 
 ### Changed
 - Backend proxy for getting feature flags by @mrkaye97 in [#3437](https://github.com/hatchet-dev/hatchet/pull/3437)
-
 
 ## v0.83.5 - 2026-04-01
 
@@ -723,24 +629,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Flaky Cypress test by @mrkaye97 in [#3436](https://github.com/hatchet-dev/hatchet/pull/3436)
 
-
 ## v0.83.4 - 2026-03-26
 
 ### Added
 - Add more detailed logging to in memory advisory lock, configurable timeout by @juliusgeo in [#3408](https://github.com/hatchet-dev/hatchet/pull/3408)
-
 
 ## v0.83.3 - 2026-03-25
 
 ### Changed
 - (fix): Make sure sqlc generates TotalReads as int64 by @juliusgeo in [#3404](https://github.com/hatchet-dev/hatchet/pull/3404)
 
-
 ## v0.83.2 - 2026-03-25
 
 ### Added
 - Add in memory, keyed, locking queue to protect RunConcurrencyStrategy by @juliusgeo in [#3384](https://github.com/hatchet-dev/hatchet/pull/3384)
-
 
 ## v0.83.1 - 2026-03-25
 
@@ -753,7 +655,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Panic on lookup table create by @grutt in [#3385](https://github.com/hatchet-dev/hatchet/pull/3385)
 
-
 ## v0.83.0 - 2026-03-24
 
 ### Added
@@ -761,7 +662,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Changed
 - Get rid of jsonschema for security fix by @mnafees in [#3379](https://github.com/hatchet-dev/hatchet/pull/3379)
-
 
 ## v0.82.3 - 2026-03-23
 
@@ -771,19 +671,16 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Bump engine ver by @mrkaye97 in [#3373](https://github.com/hatchet-dev/hatchet/pull/3373)
 
-
 ## v0.82.2 - 2026-03-23
 
 ### Fixed
 - Write engine spans to lookup table by @grutt in [#3371](https://github.com/hatchet-dev/hatchet/pull/3371)
-
 
 ## v0.82.1 - 2026-03-23
 
 ### Changed
 - Move OTel tables to OLAP repo by @mnafees in [#3369](https://github.com/hatchet-dev/hatchet/pull/3369)
 - Don't flicker the runs table when refetching by @TehShrike in [#3367](https://github.com/hatchet-dev/hatchet/pull/3367)
-
 
 ## v0.82.0 - 2026-03-23
 
@@ -801,7 +698,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fallback when Tenant ID is zero UUID by @gregfurman in [#3349](https://github.com/hatchet-dev/hatchet/pull/3349)
 
-
 ## v0.81.2 - 2026-03-19
 
 ### Added
@@ -811,24 +707,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Only return non-archived tenants in TenantMember queries by @TehShrike in [#3317](https://github.com/hatchet-dev/hatchet/pull/3317)
 
-
 ## v0.81.0 - 2026-03-18
 
 ### Added
 - Tenant-scoped logs view by @abelanger5 in [#3307](https://github.com/hatchet-dev/hatchet/pull/3307)
-
 
 ## v0.80.10 - 2026-03-18
 
 ### Changed
 - Separate out partition cleanup helpers for visibility by @juliusgeo in [#3321](https://github.com/hatchet-dev/hatchet/pull/3321)
 
-
 ## v0.80.9 - 2026-03-18
 
 ### Fixed
 - Honor active docker context when DOCKER_HOST is unset by @BloggerBust in [#3251](https://github.com/hatchet-dev/hatchet/pull/3251)
-
 
 ## v0.80.8 - 2026-03-18
 
@@ -843,7 +735,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Cleanup orphaned metrics by @grutt in [#3300](https://github.com/hatchet-dev/hatchet/pull/3300)
 
-
 ## v0.80.4 - 2026-03-17
 
 ### Added
@@ -853,7 +744,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Enhance SQL query name extraction in otel tracer and fallback by @grutt in [#3277](https://github.com/hatchet-dev/hatchet/pull/3277)
 - Silence tenant alert error by @grutt in [#3298](https://github.com/hatchet-dev/hatchet/pull/3298)
 
-
 ## v0.80.3 - 2026-03-16
 
 ### Added
@@ -862,7 +752,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Remove join in currency queries by @grutt in [#3294](https://github.com/hatchet-dev/hatchet/pull/3294)
-
 
 ## v0.79.44 - 2026-03-15
 
@@ -877,13 +766,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Validate the presence of null unicode in output by @gregfurman in [#3164](https://github.com/hatchet-dev/hatchet/pull/3164)
 - Configure logger for Hatchet client by @gregfurman in [#3046](https://github.com/hatchet-dev/hatchet/pull/3046)
 
-
 ## v0.79.43 - 2026-03-13
 
 ### Fixed
 - Delete missing workers by @mrkaye97 in [#3273](https://github.com/hatchet-dev/hatchet/pull/3273)
 - Dont double count wf by @grutt in [#3270](https://github.com/hatchet-dev/hatchet/pull/3270)
-
 
 ## v0.79.41 - 2026-03-13
 
@@ -891,13 +778,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Attempt to fix deadlock in `PollScheduledWorkflows` by scoping `FOR UPDATE` lock by @mnafees in [#3261](https://github.com/hatchet-dev/hatchet/pull/3261)
 - Janky Fix: Extract input payloads for standalone tasks for dashboard by @mrkaye97 in [#3128](https://github.com/hatchet-dev/hatchet/pull/3128)
 
-
 ## v0.79.39 - 2026-03-13
 
 ### Fixed
 - Error on max aggregate keys by @grutt in [#3267](https://github.com/hatchet-dev/hatchet/pull/3267)
 - Otel config loader and trunc query name by @grutt in [#3266](https://github.com/hatchet-dev/hatchet/pull/3266)
-
 
 ## v0.79.38 - 2026-03-13
 
@@ -905,24 +790,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Analytics no set by @grutt in [#3264](https://github.com/hatchet-dev/hatchet/pull/3264)
 - Add user id to context on login by @grutt in [#3256](https://github.com/hatchet-dev/hatchet/pull/3256)
 
-
 ## v0.79.37 - 2026-03-12
 
 ### Fixed
 - Dont burry analytics properties by @grutt in [#3254](https://github.com/hatchet-dev/hatchet/pull/3254)
-
 
 ## v0.79.36 - 2026-03-12
 
 ### Added
 - Feat--consistent-analytics-events by @grutt in [#3239](https://github.com/hatchet-dev/hatchet/pull/3239)
 
-
 ## v0.79.35 - 2026-03-12
 
 ### Changed
 - Pool gzip writers to reduce RabbitMQ message compression allocations by @mnafees in [#3103](https://github.com/hatchet-dev/hatchet/pull/3103)
-
 
 ## v0.79.34 - 2026-03-12
 
@@ -936,7 +817,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Failure after cancellation by @grutt in [#3243](https://github.com/hatchet-dev/hatchet/pull/3243)
 - Fix owner invitation bug by @juliusgeo in [#3230](https://github.com/hatchet-dev/hatchet/pull/3230)
 
-
 ## v0.79.33 - 2026-03-10
 
 ### Changed
@@ -945,36 +825,30 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix frontend build issues with latest cloud API by @mnafees in [#3216](https://github.com/hatchet-dev/hatchet/pull/3216)
 
-
 ## v0.79.29 - 2026-03-07
 
 ### Added
 - Add callback support for tenant and tenant member updates by @abelanger5 in [#3201](https://github.com/hatchet-dev/hatchet/pull/3201)
-
 
 ## v0.79.23 - 2026-03-06
 
 ### Changed
 - Pause workflow query is deprecated so remove the option from the frontend by @mnafees in [#3183](https://github.com/hatchet-dev/hatchet/pull/3183)
 
-
 ## v0.79.17 - 2026-03-04
 
 ### Fixed
 - Go unexported type by @mrkaye97 in [#3160](https://github.com/hatchet-dev/hatchet/pull/3160)
-
 
 ## v0.79.16 - 2026-03-04
 
 ### Added
 - Add queue to update scheduled cron triggers on-demand by @juliusgeo in [#3149](https://github.com/hatchet-dev/hatchet/pull/3149)
 
-
 ## v0.79.15 - 2026-03-04
 
 ### Added
 - Dynamic worker label assign by @mrkaye97 in [#3137](https://github.com/hatchet-dev/hatchet/pull/3137)
-
 
 ## v0.79.14 - 2026-03-03
 
@@ -984,19 +858,16 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Enable loadtest with PgBouncer by @mnafees in [#3143](https://github.com/hatchet-dev/hatchet/pull/3143)
 
-
 ## v0.79.13 - 2026-03-02
 
 ### Added
 - User callback additional methods by @abelanger5 in [#3057](https://github.com/hatchet-dev/hatchet/pull/3057)
-
 
 ## v0.79.12 - 2026-02-28
 
 ### Fixed
 - More small tenant switching + z index issues by @mrkaye97 in [#3124](https://github.com/hatchet-dev/hatchet/pull/3124)
 - Rm z index for action dialog by @mrkaye97 in [#3120](https://github.com/hatchet-dev/hatchet/pull/3120)
-
 
 ## v0.79.11 - 2026-02-27
 
@@ -1006,12 +877,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Modals should appear above the mobile sidebar by @TehShrike in [#3114](https://github.com/hatchet-dev/hatchet/pull/3114)
 
-
 ## v0.79.10 - 2026-02-26
 
 ### Fixed
 - External ids by @mrkaye97 in [#3111](https://github.com/hatchet-dev/hatchet/pull/3111)
-
 
 ## v0.79.9 - 2026-02-26
 
@@ -1019,24 +888,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Add `ctx.WasSkipped` helper to the Go SDK by @mnafees in [#3094](https://github.com/hatchet-dev/hatchet/pull/3094)
 - Add credit balance query and display in subscription component by @grutt in [#3107](https://github.com/hatchet-dev/hatchet/pull/3107)
 
-
 ## v0.79.7 - 2026-02-25
 
 ### Changed
 - Non blocking ctx.Log with meaningful retries by @mnafees in [#3106](https://github.com/hatchet-dev/hatchet/pull/3106)
-
 
 ## v0.79.6 - 2026-02-25
 
 ### Changed
 - [Go] Feat: Details Getter by @mrkaye97 in [#3105](https://github.com/hatchet-dev/hatchet/pull/3105)
 
-
 ## v0.79.5 - 2026-02-24
 
 ### Added
 - Add env vars for max conn lifetime and idle time for pgx by @mnafees in [#3096](https://github.com/hatchet-dev/hatchet/pull/3096)
-
 
 ## v0.79.4 - 2026-02-24
 
@@ -1046,18 +911,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix cross-strategy slot contamination in chained concurrency gates by @mnafees in [#3089](https://github.com/hatchet-dev/hatchet/pull/3089)
 
-
 ## v0.79.3 - 2026-02-23
 
 ### Changed
 - Make sure to use 60 seconds timeout for PutWorkflowVersion by @mnafees in [#3085](https://github.com/hatchet-dev/hatchet/pull/3085)
 
-
 ## v0.79.2 - 2026-02-23
 
 ### Fixed
 - Move event log to a tab on the task run detail by @mrkaye97 in [#3067](https://github.com/hatchet-dev/hatchet/pull/3067)
-
 
 ## v0.79.1 - 2026-02-21
 
@@ -1068,18 +930,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Expand long logs on click instead of on hover by @mrkaye97 in [#3069](https://github.com/hatchet-dev/hatchet/pull/3069)
 - Input in transformer by @mrkaye97 in [#3070](https://github.com/hatchet-dev/hatchet/pull/3070)
 
-
 ## v0.79.0 - 2026-02-20
 
 ### Added
 - Runs commands by @abelanger5 in [#3058](https://github.com/hatchet-dev/hatchet/pull/3058)
 
-
 ## v0.78.30 - 2026-02-19
 
 ### Added
 - Add migration for worker slot config index by @grutt in [#3062](https://github.com/hatchet-dev/hatchet/pull/3062)
-
 
 ## v0.78.27 - 2026-02-18
 
@@ -1090,7 +949,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix--durable-slot-acquisition by @grutt in [#3048](https://github.com/hatchet-dev/hatchet/pull/3048)
 
-
 ## v0.78.26 - 2026-02-16
 
 ### Added
@@ -1099,7 +957,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Changed
 - Return event ID after successful webhook trigger by @mnafees in [#3039](https://github.com/hatchet-dev/hatchet/pull/3039)
-
 
 ## v0.78.25 - 2026-02-13
 
@@ -1110,7 +967,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - [hotfix] Corrected custom value meter for resource limit by @mnafees in [#3021](https://github.com/hatchet-dev/hatchet/pull/3021)
 - New `UpdateLimits` method for `TenantResourceLimit` table by @mnafees in [#2895](https://github.com/hatchet-dev/hatchet/pull/2895)
 
-
 ## v0.78.23 - 2026-02-13
 
 ### Changed
@@ -1120,36 +976,30 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - DAG height on TUI by @abelanger5 in [#3019](https://github.com/hatchet-dev/hatchet/pull/3019)
 - Remove null bytes from error message to prevent db crash by @mrkaye97 in [#3010](https://github.com/hatchet-dev/hatchet/pull/3010)
 
-
 ## v0.78.22 - 2026-02-11
 
 ### Changed
 - Truncate to first 10k characters of log line in Go SDK by @mnafees in [#2998](https://github.com/hatchet-dev/hatchet/pull/2998)
-
 
 ## v0.78.21 - 2026-02-11
 
 ### Added
 - Reduced cold starts for new workers and queues by @abelanger5 in [#2969](https://github.com/hatchet-dev/hatchet/pull/2969)
 
-
 ## v0.78.20 - 2026-02-11
 
 ### Added
 - Add support for Svix webhooks by @mnafees in [#2996](https://github.com/hatchet-dev/hatchet/pull/2996)
-
 
 ## v0.78.19 - 2026-02-11
 
 ### Added
 - Log on delayed heartbeat by @grutt in [#2994](https://github.com/hatchet-dev/hatchet/pull/2994)
 
-
 ## v0.78.18 - 2026-02-10
 
 ### Changed
 - Do not replay invalid tasks by @mnafees in [#2976](https://github.com/hatchet-dev/hatchet/pull/2976)
-
 
 ## v0.78.16 - 2026-02-10
 
@@ -1159,31 +1009,26 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Tasks marked as skipped in the UI by @mnafees in [#2978](https://github.com/hatchet-dev/hatchet/pull/2978)
 - Mark old v0 and generics-based v1 Go SDK methods as deprecated by @mnafees in [#2962](https://github.com/hatchet-dev/hatchet/pull/2962)
 
-
 ## v0.78.12 - 2026-02-05
 
 ### Fixed
 - Check `uuid.Nil` when creating or groups too by @mrkaye97 in [#2958](https://github.com/hatchet-dev/hatchet/pull/2958)
 - Wrapped types in the Go SDK by @abelanger5 in [#2957](https://github.com/hatchet-dev/hatchet/pull/2957)
 
-
 ## v0.78.11 - 2026-02-05
 
 ### Fixed
 - Always generate UUID for OrGroup by @mrkaye97 in [#2955](https://github.com/hatchet-dev/hatchet/pull/2955)
-
 
 ## v0.78.10 - 2026-02-05
 
 ### Fixed
 - More panics by @mrkaye97 in [#2945](https://github.com/hatchet-dev/hatchet/pull/2945)
 
-
 ## v0.78.9 - 2026-02-04
 
 ### Fixed
 - Make uuid optional for desired worker by @mrkaye97 in [#2946](https://github.com/hatchet-dev/hatchet/pull/2946)
-
 
 ## v0.78.8 - 2026-02-04
 
@@ -1193,42 +1038,35 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - UUID Panics by @mrkaye97 in [#2944](https://github.com/hatchet-dev/hatchet/pull/2944)
 
-
 ## v0.78.7 - 2026-02-04
 
 ### Added
 - Extend webhook support for scope_expression and payload by @jishnundth in [#2874](https://github.com/hatchet-dev/hatchet/pull/2874)
-
 
 ## v0.78.6 - 2026-02-04
 
 ### Fixed
 - Don't cast user id in session.Values by @mrkaye97 in [#2937](https://github.com/hatchet-dev/hatchet/pull/2937)
 
-
 ## v0.78.5 - 2026-02-04
 
 ### Fixed
 - Resource ID type by @mrkaye97 in [#2929](https://github.com/hatchet-dev/hatchet/pull/2929)
-
 
 ## v0.78.4 - 2026-02-04
 
 ### Changed
 - Use typed maps by @abelanger5 in [#2928](https://github.com/hatchet-dev/hatchet/pull/2928)
 
-
 ## v0.78.3 - 2026-02-03
 
 ### Fixed
 - Explicit use of tx in olap readPayloads by @abelanger5 in [#2925](https://github.com/hatchet-dev/hatchet/pull/2925)
 
-
 ## v0.78.2 - 2026-02-03
 
 ### Fixed
 - Startup for optimistic scheduler by @abelanger5 in [#2924](https://github.com/hatchet-dev/hatchet/pull/2924)
-
 
 ## v0.78.0 - 2026-02-03
 
@@ -1247,30 +1085,25 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Compute payload size correctly for pg_notify by @abelanger5 in [#2873](https://github.com/hatchet-dev/hatchet/pull/2873)
 - Orphaned inactive queues by @grutt in [#2893](https://github.com/hatchet-dev/hatchet/pull/2893)
 
-
 ## v0.77.37 - 2026-01-30
 
 ### Changed
 - Log Search Frontend, Part II by @mrkaye97 in [#2886](https://github.com/hatchet-dev/hatchet/pull/2886)
-
 
 ## v0.77.36 - 2026-01-29
 
 ### Changed
 - Make sure we query for pending invites in the create tenant page by @mnafees in [#2883](https://github.com/hatchet-dev/hatchet/pull/2883)
 
-
 ## v0.77.35 - 2026-01-29
 
 ### Added
 - Log Search Frontend, Part I by @mrkaye97 in [#2830](https://github.com/hatchet-dev/hatchet/pull/2830)
 
-
 ## v0.77.34 - 2026-01-29
 
 ### Fixed
 - Tenant resource limit resource col migration by @grutt in [#2885](https://github.com/hatchet-dev/hatchet/pull/2885)
-
 
 ## v0.77.33 - 2026-01-29
 
@@ -1282,31 +1115,26 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Typo by @grutt in [#2875](https://github.com/hatchet-dev/hatchet/pull/2875)
 - Big int alignment for cleanup function by @grutt in [#2877](https://github.com/hatchet-dev/hatchet/pull/2877)
 
-
 ## v0.77.32 - 2026-01-28
 
 ### Added
 - OTel Collector by @mrkaye97 in [#2863](https://github.com/hatchet-dev/hatchet/pull/2863)
-
 
 ## v0.77.30 - 2026-01-27
 
 ### Fixed
 - Make metrics in graph align with badge metrics by @mrkaye97 in [#2858](https://github.com/hatchet-dev/hatchet/pull/2858)
 
-
 ## v0.77.25 - 2026-01-26
 
 ### Removed
 - Revert "fix: make point metrics line up with badges " by @mrkaye97 in [#2857](https://github.com/hatchet-dev/hatchet/pull/2857)
-
 
 ## v0.77.24 - 2026-01-26
 
 ### Fixed
 - Fix with coalesce by @mnafees in [#2856](https://github.com/hatchet-dev/hatchet/pull/2856)
 - Make point metrics line up with badges by @mrkaye97 in [#2739](https://github.com/hatchet-dev/hatchet/pull/2739)
-
 
 ## v0.77.23 - 2026-01-26
 
@@ -1316,18 +1144,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - More tenant related repo methods by @mnafees in [#2854](https://github.com/hatchet-dev/hatchet/pull/2854)
 
-
 ## v0.77.21 - 2026-01-23
 
 ### Changed
 - [Go] Feat: Webhooks feature client for the Go SDK by @mrkaye97 in [#2792](https://github.com/hatchet-dev/hatchet/pull/2792)
 
-
 ## v0.77.16 - 2026-01-21
 
 ### Fixed
 - List concurrency strategies queries by @grutt in [#2838](https://github.com/hatchet-dev/hatchet/pull/2838)
-
 
 ## v0.77.13 - 2026-01-21
 
@@ -1341,30 +1166,25 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Flaky integration test by @grutt in [#2834](https://github.com/hatchet-dev/hatchet/pull/2834)
 
-
 ## v0.77.9 - 2026-01-21
 
 ### Changed
 - [hotfix] Indicate unauthorized access to billing page for non-owners by @mnafees in [#2833](https://github.com/hatchet-dev/hatchet/pull/2833)
-
 
 ## v0.77.5 - 2026-01-20
 
 ### Changed
 - Have log line lookups use external id by @abelanger5 in [#2822](https://github.com/hatchet-dev/hatchet/pull/2822)
 
-
 ## v0.77.1 - 2026-01-19
 
 ### Fixed
 - Fix naming of migration by @mnafees in [#2819](https://github.com/hatchet-dev/hatchet/pull/2819)
 
-
 ## v0.77.0 - 2026-01-19
 
 ### Changed
 - Billing changes by @mnafees in [#2643](https://github.com/hatchet-dev/hatchet/pull/2643)
-
 
 ## v0.75.4 - 2026-01-18
 
@@ -1374,12 +1194,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Typescript post-quickstart by @abelanger5 in [#2809](https://github.com/hatchet-dev/hatchet/pull/2809)
 
-
 ## v0.75.3 - 2026-01-16
 
 ### Fixed
 - Minor quickstart issues by @abelanger5 in [#2807](https://github.com/hatchet-dev/hatchet/pull/2807)
-
 
 ## v0.75.2 - 2026-01-16
 
@@ -1390,24 +1208,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - New onboarding flow by @mnafees in [#2757](https://github.com/hatchet-dev/hatchet/pull/2757)
 - Auth front-end changes by @sebastiangraz in [#2802](https://github.com/hatchet-dev/hatchet/pull/2802)
 
-
 ## v0.75.1 - 2026-01-15
 
 ### Changed
 - Small fixes/improvements to CLI logic by @abelanger5 in [#2793](https://github.com/hatchet-dev/hatchet/pull/2793)
-
 
 ## v0.75.0 - 2026-01-13
 
 ### Added
 - Hatchet cli by @abelanger5 in [#2701](https://github.com/hatchet-dev/hatchet/pull/2701)
 
-
 ## v0.74.14 - 2026-01-12
 
 ### Fixed
 - Concurrency display on workflow page by @mrkaye97 in [#2780](https://github.com/hatchet-dev/hatchet/pull/2780)
-
 
 ## v0.74.13 - 2026-01-12
 
@@ -1417,13 +1231,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Regression on v0 PutWorkflow for scheduling timeout by @abelanger5 in [#2779](https://github.com/hatchet-dev/hatchet/pull/2779)
 
-
 ## v0.74.12 - 2026-01-11
 
 ### Fixed
 - Statement timeout by @mrkaye97 in [#2774](https://github.com/hatchet-dev/hatchet/pull/2774)
 - Actually reconnect to postgres if conn fails. by @m-kostrzewa in [#2772](https://github.com/hatchet-dev/hatchet/pull/2772)
-
 
 ## v0.74.11 - 2026-01-10
 
@@ -1433,26 +1245,22 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Worker id by @mrkaye97 in [#2773](https://github.com/hatchet-dev/hatchet/pull/2773)
 
-
 ## v0.74.8 - 2026-01-08
 
 ### Fixed
 - Better error on deprecated endpoints by @abelanger5 in [#2763](https://github.com/hatchet-dev/hatchet/pull/2763)
 - Chunk and recursively retry too-large message sends by @mrkaye97 in [#2761](https://github.com/hatchet-dev/hatchet/pull/2761)
 
-
 ## v0.74.7 - 2026-01-07
 
 ### Fixed
 - Un-hard-code location by @mrkaye97 in [#2760](https://github.com/hatchet-dev/hatchet/pull/2760)
-
 
 ## v0.74.6 - 2026-01-07
 
 ### Fixed
 - Payload location issue by @mrkaye97 in [#2759](https://github.com/hatchet-dev/hatchet/pull/2759)
 - Child runs counts missing filter by @mrkaye97 in [#2744](https://github.com/hatchet-dev/hatchet/pull/2744)
-
 
 ## v0.74.5 - 2026-01-06
 
@@ -1462,12 +1270,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Removed
 - UI version removal by @abelanger5 in [#2756](https://github.com/hatchet-dev/hatchet/pull/2756)
 
-
 ## v0.74.4 - 2026-01-06
 
 ### Changed
 - Use try advisory for replat tasks by @mnafees in [#2755](https://github.com/hatchet-dev/hatchet/pull/2755)
-
 
 ## v0.74.3 - 2026-01-06
 
@@ -1478,12 +1284,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - More frontend work - table cleanup, worker detail page improvements, etc. by @mrkaye97 in [#2746](https://github.com/hatchet-dev/hatchet/pull/2746)
 
-
 ## v0.74.2 - 2025-12-31
 
 ### Changed
 - Consolidate repository methods by @abelanger5 in [#2730](https://github.com/hatchet-dev/hatchet/pull/2730)
-
 
 ## v0.74.1 - 2025-12-31
 
@@ -1496,12 +1300,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Frozen refetch state gets stuck by @mrkaye97 in [#2736](https://github.com/hatchet-dev/hatchet/pull/2736)
 - Remove action dropdown, fix a couple broken tooltips by @mrkaye97 in [#2737](https://github.com/hatchet-dev/hatchet/pull/2737)
 
-
 ## v0.73.110 - 2025-12-26
 
 ### Fixed
 - Layout by @mrkaye97 in [#2724](https://github.com/hatchet-dev/hatchet/pull/2724)
-
 
 ## v0.73.109 - 2025-12-26
 
@@ -1509,12 +1311,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Tenant invite accept flow by @mrkaye97 in [#2723](https://github.com/hatchet-dev/hatchet/pull/2723)
 - Goroutine to periodically extend lease during reconciliation by @mrkaye97 in [#2722](https://github.com/hatchet-dev/hatchet/pull/2722)
 
-
 ## v0.73.108 - 2025-12-26
 
 ### Fixed
 - Rename migration by @mrkaye97 in [#2721](https://github.com/hatchet-dev/hatchet/pull/2721)
-
 
 ## v0.73.107 - 2025-12-26
 
@@ -1530,7 +1330,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Static rate limits resetting to zero by @mrkaye97 in [#2714](https://github.com/hatchet-dev/hatchet/pull/2714)
 - Minor fe bugs and nits by @grutt in [#2711](https://github.com/hatchet-dev/hatchet/pull/2711)
 
-
 ## v0.73.106 - 2025-12-23
 
 ### Added
@@ -1545,7 +1344,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - WithToken should override environment variable by @abelanger5 in [#2706](https://github.com/hatchet-dev/hatchet/pull/2706)
 - Fix move fixture by @grutt in [#2705](https://github.com/hatchet-dev/hatchet/pull/2705)
 
-
 ## v0.73.104 - 2025-12-23
 
 ### Added
@@ -1556,12 +1354,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Fix  layout bugs by @grutt in [#2703](https://github.com/hatchet-dev/hatchet/pull/2703)
 - Dead alert links by @mrkaye97 in [#2688](https://github.com/hatchet-dev/hatchet/pull/2688)
 
-
 ## v0.73.103 - 2025-12-22
 
 ### Fixed
 - Dynamically-sized chunks on payload read by @mrkaye97 in [#2700](https://github.com/hatchet-dev/hatchet/pull/2700)
-
 
 ## v0.73.102 - 2025-12-22
 
@@ -1571,12 +1367,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Table name by @mrkaye97 in [#2697](https://github.com/hatchet-dev/hatchet/pull/2697)
 
-
 ## v0.73.101 - 2025-12-22
 
 ### Added
 - Hatchet Metrics Monitoring, I by @mrkaye97 in [#2480](https://github.com/hatchet-dev/hatchet/pull/2480)
-
 
 ## v0.73.99 - 2025-12-22
 
@@ -1584,7 +1378,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Last bits of payload job cleanup by @mrkaye97 in [#2690](https://github.com/hatchet-dev/hatchet/pull/2690)
 - Rare cases of duplicate writes causing stuck updates by @abelanger5 in [#2681](https://github.com/hatchet-dev/hatchet/pull/2681)
 - Filter + pagination state handling hack by @mrkaye97 in [#2682](https://github.com/hatchet-dev/hatchet/pull/2682)
-
 
 ## v0.73.98 - 2025-12-17
 
@@ -1594,55 +1387,46 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Remove inline button styles where possible by @mrkaye97 in [#2671](https://github.com/hatchet-dev/hatchet/pull/2671)
 
-
 ## v0.73.97 - 2025-12-16
 
 ### Fixed
 - Payload List Index Performance by @mrkaye97 in [#2669](https://github.com/hatchet-dev/hatchet/pull/2669)
 - Root redirect with last tenant atom by @mrkaye97 in [#2664](https://github.com/hatchet-dev/hatchet/pull/2664)
 
-
 ## v0.73.96 - 2025-12-15
 
 ### Fixed
 - Pagination by bounds by @mrkaye97 in [#2654](https://github.com/hatchet-dev/hatchet/pull/2654)
-
 
 ## v0.73.94 - 2025-12-11
 
 ### Changed
 - Write to S3 outside of goroutine by @mrkaye97 in [#2646](https://github.com/hatchet-dev/hatchet/pull/2646)
 
-
 ## v0.73.93 - 2025-12-11
 
 ### Fixed
 - OLAP Immediate Offloads by @mrkaye97 in [#2644](https://github.com/hatchet-dev/hatchet/pull/2644)
-
 
 ## v0.73.92 - 2025-12-11
 
 ### Added
 - Add oldest queued + running jobs to task stats by @mrkaye97 in [#2638](https://github.com/hatchet-dev/hatchet/pull/2638)
 
-
 ## v0.73.91 - 2025-12-10
 
 ### Added
 - Parallelize replication from PG -> External by @mrkaye97 in [#2637](https://github.com/hatchet-dev/hatchet/pull/2637)
-
 
 ## v0.73.90 - 2025-12-10
 
 ### Fixed
 - Global Lease for OLAP by @mrkaye97 in [#2635](https://github.com/hatchet-dev/hatchet/pull/2635)
 
-
 ## v0.73.89 - 2025-12-10
 
 ### Fixed
 - Query logic bug by @mrkaye97 in [#2631](https://github.com/hatchet-dev/hatchet/pull/2631)
-
 
 ## v0.73.88 - 2025-12-10
 
@@ -1652,18 +1436,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Don't reset offset if a new process acquires lease by @mrkaye97 in [#2628](https://github.com/hatchet-dev/hatchet/pull/2628)
 
-
 ## v0.73.87 - 2025-12-09
 
 ### Added
 - OLAP Payload Cutover Job by @mrkaye97 in [#2618](https://github.com/hatchet-dev/hatchet/pull/2618)
 
-
 ## v0.73.86 - 2025-12-08
 
 ### Changed
 - Simplify external store signature by @mrkaye97 in [#2616](https://github.com/hatchet-dev/hatchet/pull/2616)
-
 
 ## v0.73.85 - 2025-12-08
 
@@ -1673,30 +1454,25 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix slack challenge + interactive webhook by @sidpremkumar in [#2612](https://github.com/hatchet-dev/hatchet/pull/2612)
 
-
 ## v0.73.84 - 2025-12-08
 
 ### Added
 - Process all old partitions in a loop by @mrkaye97 in [#2613](https://github.com/hatchet-dev/hatchet/pull/2613)
-
 
 ## v0.73.83 - 2025-12-08
 
 ### Added
 - Add guide for downgrading versions by @mnafees in [#2588](https://github.com/hatchet-dev/hatchet/pull/2588)
 
-
 ## v0.73.82 - 2025-12-05
 
 ### Fixed
 - Add validation by @mrkaye97 in [#2610](https://github.com/hatchet-dev/hatchet/pull/2610)
 
-
 ## v0.73.81 - 2025-12-05
 
 ### Fixed
 - Leasing for payload job by @mrkaye97 in [#2609](https://github.com/hatchet-dev/hatchet/pull/2609)
-
 
 ## v0.73.80 - 2025-12-05
 
@@ -1710,7 +1486,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix double toast on sidebar by @sidpremkumar in [#2607](https://github.com/hatchet-dev/hatchet/pull/2607)
 
-
 ## v0.73.78 - 2025-12-03
 
 ### Changed
@@ -1721,12 +1496,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Don't trigger posthog Pageview on query param changes by @undrash in [#2598](https://github.com/hatchet-dev/hatchet/pull/2598)
 - Load shed on slow worker backlogs by @abelanger5 in [#2595](https://github.com/hatchet-dev/hatchet/pull/2595)
 
-
 ## v0.73.76 - 2025-12-02
 
 ### Fixed
 - Move check for large payloads to after json.Marshal by @abelanger5 in [#2594](https://github.com/hatchet-dev/hatchet/pull/2594)
-
 
 ## v0.73.75 - 2025-12-02
 
@@ -1734,12 +1507,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Ensure that slow worker doesn't interrupt dispatcher, guard large RabbitMQ pubs by @abelanger5 in [#2591](https://github.com/hatchet-dev/hatchet/pull/2591)
 - GetLatestWorkflowVersionForWorkflows by @grutt in [#2590](https://github.com/hatchet-dev/hatchet/pull/2590)
 
-
 ## v0.73.74 - 2025-11-28
 
 ### Added
 - Add sent to worker event in the dispatcher by @mrkaye97 in [#2584](https://github.com/hatchet-dev/hatchet/pull/2584)
-
 
 ## v0.73.73 - 2025-11-26
 
@@ -1748,7 +1519,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Noisy Payload Error by @mrkaye97 in [#2561](https://github.com/hatchet-dev/hatchet/pull/2561)
-
 
 ## v0.73.72 - 2025-11-26
 
@@ -1768,24 +1538,20 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - OLAP Task Event Dual Write Bug by @mrkaye97 in [#2572](https://github.com/hatchet-dev/hatchet/pull/2572)
 - Add whitespace-pre to log by @H01001000 in [#2555](https://github.com/hatchet-dev/hatchet/pull/2555)
 
-
 ## v0.73.71 - 2025-11-21
 
 ### Changed
 - Common pgxpool afterconnect method by @mnafees in [#2553](https://github.com/hatchet-dev/hatchet/pull/2553)
-
 
 ## v0.73.70 - 2025-11-20
 
 ### Changed
 - [Go SDK] Resubscribe and get a new listener stream when gRPC connections fail by @mnafees in [#2544](https://github.com/hatchet-dev/hatchet/pull/2544)
 
-
 ## v0.73.68 - 2025-11-18
 
 ### Fixed
 - Use sessionStorage instead of localStorage by @mrkaye97 in [#2541](https://github.com/hatchet-dev/hatchet/pull/2541)
-
 
 ## v0.73.67 - 2025-11-18
 
@@ -1795,7 +1561,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Small scheduler optimizations by @abelanger5 in [#2426](https://github.com/hatchet-dev/hatchet/pull/2426)
 
-
 ## v0.73.66 - 2025-11-17
 
 ### Added
@@ -1803,7 +1568,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Revert n+1 queries on the list API by @mrkaye97 in [#2531](https://github.com/hatchet-dev/hatchet/pull/2531)
-
 
 ## v0.73.65 - 2025-11-14
 
@@ -1817,12 +1581,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Log dupes by @mrkaye97 in [#2526](https://github.com/hatchet-dev/hatchet/pull/2526)
 - Fix nil error in `handleTaskBulkAssignedTask` by @mnafees in [#2427](https://github.com/hatchet-dev/hatchet/pull/2427)
 
-
 ## v0.73.64 - 2025-11-12
 
 ### Changed
 - [Go SDK] Case on worker labels for durable tasks by @mnafees in [#2511](https://github.com/hatchet-dev/hatchet/pull/2511)
-
 
 ## v0.73.63 - 2025-11-07
 
@@ -1832,12 +1594,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Immediate Payload Offloads OLAP Wiring by @mrkaye97 in [#2492](https://github.com/hatchet-dev/hatchet/pull/2492)
 
-
 ## v0.73.62 - 2025-11-07
 
 ### Changed
 - Pass labels to durable worker by @mnafees in [#2504](https://github.com/hatchet-dev/hatchet/pull/2504)
-
 
 ## v0.73.61 - 2025-11-06
 
@@ -1847,12 +1607,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Propagate parent id through to `V1TaskSummary` properly by @mrkaye97 in [#2496](https://github.com/hatchet-dev/hatchet/pull/2496)
 
-
 ## v0.73.60 - 2025-11-04
 
 ### Fixed
 - Deadlocks on trigger, olap prometheus background worker, otel improvements by @mnafees in [#2475](https://github.com/hatchet-dev/hatchet/pull/2475)
-
 
 ## v0.73.58 - 2025-11-02
 
@@ -1867,7 +1625,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Fix Go SDK cron inputs by @mnafees in [#2481](https://github.com/hatchet-dev/hatchet/pull/2481)
 - Include payload partitions in olap partitions to drop by @mrkaye97 in [#2472](https://github.com/hatchet-dev/hatchet/pull/2472)
 
-
 ## v0.73.56 - 2025-10-30
 
 ### Changed
@@ -1876,12 +1633,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Read payloads from payload store for event API by @mrkaye97 in [#2471](https://github.com/hatchet-dev/hatchet/pull/2471)
 
-
 ## v0.73.55 - 2025-10-30
 
 ### Fixed
 - Re-enable writes by @mrkaye97 in [#2469](https://github.com/hatchet-dev/hatchet/pull/2469)
-
 
 ## v0.73.54 - 2025-10-30
 
@@ -1891,30 +1646,25 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Don't send expiry alert on internal proxy tokens by @abelanger5 in [#2468](https://github.com/hatchet-dev/hatchet/pull/2468)
 
-
 ## v0.73.53 - 2025-10-30
 
 ### Changed
 - No need to check for partitions when updating them by @mnafees in [#2466](https://github.com/hatchet-dev/hatchet/pull/2466)
-
 
 ## v0.73.52 - 2025-10-30
 
 ### Changed
 - [hotfix] Meaningful casing for engine liveness and readiness probes by @mnafees in [#2465](https://github.com/hatchet-dev/hatchet/pull/2465)
 
-
 ## v0.73.51 - 2025-10-30
 
 ### Changed
 - Increase timeout and log more by @mnafees in [#2464](https://github.com/hatchet-dev/hatchet/pull/2464)
 
-
 ## v0.73.50 - 2025-10-30
 
 ### Changed
 - Do not run cleanup on `v1_workflow_concurrency_slot` by @mnafees in [#2463](https://github.com/hatchet-dev/hatchet/pull/2463)
-
 
 ## v0.73.49 - 2025-10-30
 
@@ -1927,12 +1677,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Reduce status update limits from 10k -> 1k by @abelanger5 in [#2462](https://github.com/hatchet-dev/hatchet/pull/2462)
 
-
 ## v0.73.47 - 2025-10-28
 
 ### Changed
 - [hotfix] Fix running task stats without concurrency keys by @mnafees in [#2452](https://github.com/hatchet-dev/hatchet/pull/2452)
-
 
 ## v0.73.46 - 2025-10-28
 
@@ -1943,7 +1691,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Fix confusing error by @mnafees in [#2447](https://github.com/hatchet-dev/hatchet/pull/2447)
-
 
 ## v0.73.45 - 2025-10-23
 
@@ -1956,30 +1703,25 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Payload performance by @abelanger5 in [#2441](https://github.com/hatchet-dev/hatchet/pull/2441)
 
-
 ## v0.73.44 - 2025-10-21
 
 ### Fixed
 - Move err check to before len check by @abelanger5 in [#2437](https://github.com/hatchet-dev/hatchet/pull/2437)
-
 
 ## v0.73.43 - 2025-10-20
 
 ### Added
 - OLAP Payloads by @mrkaye97 in [#2410](https://github.com/hatchet-dev/hatchet/pull/2410)
 
-
 ## v0.73.42 - 2025-10-17
 
 ### Fixed
 - Fix race condition in child spawn by @mnafees in [#2429](https://github.com/hatchet-dev/hatchet/pull/2429)
 
-
 ## v0.73.41 - 2025-10-16
 
 ### Fixed
 - Fix for Hatchet Lite to still properly fallback to using the `postgres` message queue kind by @mnafees in [#2392](https://github.com/hatchet-dev/hatchet/pull/2392)
-
 
 ## v0.73.40 - 2025-10-16
 
@@ -1991,12 +1733,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Fix OTel span attribute naming convention by @mnafees in [#2409](https://github.com/hatchet-dev/hatchet/pull/2409)
 - Swallow idempotency key error for scheduled runs by @mrkaye97 in [#2425](https://github.com/hatchet-dev/hatchet/pull/2425)
 
-
 ## [0.73.40-alpha.0] - 2025-10-15
 
 ### Fixed
 - Payload fallback for child runs by @mrkaye97 in [#2421](https://github.com/hatchet-dev/hatchet/pull/2421)
-
 
 ## v0.73.38 - 2025-10-15
 
@@ -2007,7 +1747,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Introduce vars to tune `ANALYZE` job gocron run intervals by @mnafees in [#2407](https://github.com/hatchet-dev/hatchet/pull/2407)
 - Use `UTC` for all pgx connections and check for database TZ by @mnafees in [#2398](https://github.com/hatchet-dev/hatchet/pull/2398)
-
 
 ## v0.73.35 - 2025-10-08
 
@@ -2022,7 +1761,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Optimize concurrency slot trigger method by @abelanger5 in [#2391](https://github.com/hatchet-dev/hatchet/pull/2391)
 
-
 ## v0.73.34 - 2025-10-03
 
 ### Changed
@@ -2032,12 +1770,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Payload fallbacks, WAL conflict handling, WAL eviction by @mrkaye97 in [#2372](https://github.com/hatchet-dev/hatchet/pull/2372)
 - Run analyze every 3 hours by @mrkaye97 in [#2380](https://github.com/hatchet-dev/hatchet/pull/2380)
 
-
 ## v0.73.33 - 2025-10-02
 
 ### Added
 - Add ApplyNamespace for BulkRunWorkflow by @icbd in [#2374](https://github.com/hatchet-dev/hatchet/pull/2374)
-
 
 ## v0.73.32 - 2025-09-30
 
@@ -2045,12 +1781,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Candidate Fix: WAL Write Dupes by @mrkaye97 in [#2369](https://github.com/hatchet-dev/hatchet/pull/2369)
 - Event payload max height, popover positioning by @mrkaye97 in [#2367](https://github.com/hatchet-dev/hatchet/pull/2367)
 
-
 ## v0.73.31 - 2025-09-30
 
 ### Fixed
 - Relax check constraint to allow null payloads by @mrkaye97 in [#2366](https://github.com/hatchet-dev/hatchet/pull/2366)
-
 
 ## v0.73.30 - 2025-09-30
 
@@ -2060,7 +1794,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Ignore tenants with deletedAt non null by @mnafees in [#2364](https://github.com/hatchet-dev/hatchet/pull/2364)
 
-
 ## v0.73.29 - 2025-09-29
 
 ### Changed
@@ -2068,7 +1801,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Disable inner scroll by @mrkaye97 in [#2362](https://github.com/hatchet-dev/hatchet/pull/2362)
-
 
 ## v0.73.28 - 2025-09-29
 
@@ -2078,36 +1810,30 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Use separate connections for pub and sub by @abelanger5 in [#2358](https://github.com/hatchet-dev/hatchet/pull/2358)
 
-
 ## v0.73.26 - 2025-09-26
 
 ### Fixed
 - Async start step run action event by @abelanger5 in [#2351](https://github.com/hatchet-dev/hatchet/pull/2351)
-
 
 ## v0.73.25 - 2025-09-26
 
 ### Changed
 - FE Polish, VI: Make badges dynamically sized, use slate instead of fuchsia for queued, display ms on dates by @mrkaye97 in [#2352](https://github.com/hatchet-dev/hatchet/pull/2352)
 
-
 ## v0.73.24 - 2025-09-26
 
 ### Fixed
 - Scope override by @mrkaye97 in [#2349](https://github.com/hatchet-dev/hatchet/pull/2349)
-
 
 ## v0.73.23 - 2025-09-26
 
 ### Fixed
 - Rename metrics queries, always refetch queue metrics, change default refetch interval, configurable WAL poll limit by @mrkaye97 in [#2346](https://github.com/hatchet-dev/hatchet/pull/2346)
 
-
 ## v0.73.22 - 2025-09-25
 
 ### Changed
 - Error log if we send >10mb message over the internal queue by @mrkaye97 in [#2345](https://github.com/hatchet-dev/hatchet/pull/2345)
-
 
 ## v0.73.21 - 2025-09-25
 
@@ -2117,7 +1843,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Improve DAG status updates by @abelanger5 in [#2343](https://github.com/hatchet-dev/hatchet/pull/2343)
 - Show legacy data by @mrkaye97 in [#2344](https://github.com/hatchet-dev/hatchet/pull/2344)
-
 
 ## v0.73.20 - 2025-09-24
 
@@ -2130,36 +1855,30 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Use `SplitN` instead of `Split` by @mrkaye97 in [#2336](https://github.com/hatchet-dev/hatchet/pull/2336)
 - Stable ordering for flattened tasks + child tasks by @mrkaye97 in [#2334](https://github.com/hatchet-dev/hatchet/pull/2334)
 
-
 ## v0.73.18 - 2025-09-23
 
 ### Fixed
 - Rogue effect hook, some more cleanup by @mrkaye97 in [#2329](https://github.com/hatchet-dev/hatchet/pull/2329)
-
 
 ## v0.73.17 - 2025-09-23
 
 ### Added
 - Add error level logs if we fall back to the task input for monitoring by @mrkaye97 in [#2328](https://github.com/hatchet-dev/hatchet/pull/2328)
 
-
 ## v0.73.16 - 2025-09-23
 
 ### Fixed
 - Frontend polish, Part II by @mrkaye97 in [#2327](https://github.com/hatchet-dev/hatchet/pull/2327)
-
 
 ## v0.73.15 - 2025-09-23
 
 ### Changed
 - Update docs to use Go SDK v1 by @mnafees in [#2313](https://github.com/hatchet-dev/hatchet/pull/2313)
 
-
 ## v0.73.14 - 2025-09-22
 
 ### Added
 - Show statuses of run filters with colors by @mrkaye97 in [#2325](https://github.com/hatchet-dev/hatchet/pull/2325)
-
 
 ## v0.73.13 - 2025-09-21
 
@@ -2172,42 +1891,35 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Skip locked on queue updates by @abelanger5 in [#2321](https://github.com/hatchet-dev/hatchet/pull/2321)
 
-
 ## v0.73.12 - 2025-09-19
 
 ### Fixed
 - Payload WAL dupes by @mrkaye97 in [#2319](https://github.com/hatchet-dev/hatchet/pull/2319)
-
 
 ## v0.73.11 - 2025-09-19
 
 ### Fixed
 - Update payload properly on replay by @mrkaye97 in [#2317](https://github.com/hatchet-dev/hatchet/pull/2317)
 
-
 ## v0.73.10 - 2025-09-18
 
 ### Fixed
 - Payloads OLAP backwards compat by @mrkaye97 in [#2316](https://github.com/hatchet-dev/hatchet/pull/2316)
-
 
 ## v0.73.9 - 2025-09-18
 
 ### Fixed
 - Event filtering edge case by @mrkaye97 in [#2311](https://github.com/hatchet-dev/hatchet/pull/2311)
 
-
 ## v0.73.8 - 2025-09-18
 
 ### Fixed
 - Fix seed default tenant slug by @mnafees in [#2315](https://github.com/hatchet-dev/hatchet/pull/2315)
 
-
 ## v0.73.7 - 2025-09-17
 
 ### Fixed
 - Empty state by @grutt in [#2310](https://github.com/hatchet-dev/hatchet/pull/2310)
-
 
 ## v0.73.6 - 2025-09-17
 
@@ -2217,12 +1929,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - DAG details rendering in side panel, backwards compatible event list API by @mrkaye97 in [#2309](https://github.com/hatchet-dev/hatchet/pull/2309)
 
-
 ## v0.73.4 - 2025-09-16
 
 ### Changed
 - Allow RabbitMQ to be used with Hatchet Lite by @mnafees in [#2128](https://github.com/hatchet-dev/hatchet/pull/2128)
-
 
 ## v0.73.3 - 2025-09-16
 
@@ -2233,18 +1943,15 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Fix `GetDetails` in `Runs` feature client of Go SDK v1 by @mnafees in [#2297](https://github.com/hatchet-dev/hatchet/pull/2297)
 - WAL partition poll function type by @mrkaye97 in [#2301](https://github.com/hatchet-dev/hatchet/pull/2301)
 
-
 ## v0.73.2 - 2025-09-15
 
 ### Added
 - Add organization by @mnafees in [#2299](https://github.com/hatchet-dev/hatchet/pull/2299)
 
-
 ## v0.73.1 - 2025-09-12
 
 ### Fixed
 - Revert partition pruning by @mrkaye97 in [#2295](https://github.com/hatchet-dev/hatchet/pull/2295)
-
 
 ## v0.73.0 - 2025-09-12
 
@@ -2259,13 +1966,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Scheduled runs race w/ idempotency key check by @mrkaye97 in [#2077](https://github.com/hatchet-dev/hatchet/pull/2077)
 
-
 ## v0.72.8 - 2025-09-11
 
 ### Added
 - Filters UI, Events page refactor, Misc. other fixes by @mrkaye97 in [#2276](https://github.com/hatchet-dev/hatchet/pull/2276)
 - Feat  improve auth error handling by @grutt in [#1893](https://github.com/hatchet-dev/hatchet/pull/1893)
-
 
 ## v0.72.4 - 2025-09-10
 
@@ -2273,13 +1978,11 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Do not show archived tenants anywhere by @mnafees in [#2280](https://github.com/hatchet-dev/hatchet/pull/2280)
 - Docs-in-app, Part I by @mrkaye97 in [#2183](https://github.com/hatchet-dev/hatchet/pull/2183)
 
-
 ## v0.72.3 - 2025-09-09
 
 ### Changed
 - Org UI feedback improvements by @mnafees in [#2275](https://github.com/hatchet-dev/hatchet/pull/2275)
 - Error out instead of panic by @mnafees in [#2274](https://github.com/hatchet-dev/hatchet/pull/2274)
-
 
 ## v0.72.2 - 2025-09-09
 
@@ -2292,7 +1995,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Fix custom auth casing by @mnafees in [#2268](https://github.com/hatchet-dev/hatchet/pull/2268)
 
-
 ## v0.72.1 - 2025-09-08
 
 ### Changed
@@ -2300,7 +2002,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Fix type names by @mnafees in [#2264](https://github.com/hatchet-dev/hatchet/pull/2264)
-
 
 ## v0.72.0 - 2025-09-05
 
@@ -2311,7 +2012,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Fixes for organization selector by @mnafees in [#2257](https://github.com/hatchet-dev/hatchet/pull/2257)
-
 
 ## v0.71.13 - 2025-09-02
 
@@ -2325,12 +2025,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Rm annoying loki logs by @mrkaye97 in [#2224](https://github.com/hatchet-dev/hatchet/pull/2224)
 - Remove rate limited items from in memory buffer by @abelanger5 in [#2207](https://github.com/hatchet-dev/hatchet/pull/2207)
 
-
 ## v0.71.10 - 2025-08-26
 
 ### Fixed
 - Remove `custom auth` by @mrkaye97 in [#2203](https://github.com/hatchet-dev/hatchet/pull/2203)
-
 
 ## v0.71.9 - 2025-08-26
 
@@ -2339,12 +2037,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Don't query database when flush is called concurrently by @abelanger5 in [#2202](https://github.com/hatchet-dev/hatchet/pull/2202)
 - Confusing error message by @abelanger5 in [#2199](https://github.com/hatchet-dev/hatchet/pull/2199)
 
-
 ## v0.71.8 - 2025-08-25
 
 ### Fixed
 - Child runs not rendering after one day, empty worker ids, additional meta filters not being applied to counts by @mrkaye97 in [#2196](https://github.com/hatchet-dev/hatchet/pull/2196)
-
 
 ## [0.71.8-alpha.0] - 2025-08-25
 
@@ -2353,7 +2049,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Match and cancel newest/in progress deadlocks by @abelanger5 in [#2190](https://github.com/hatchet-dev/hatchet/pull/2190)
-
 
 ## v0.71.7 - 2025-08-22
 
@@ -2364,7 +2059,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Changed
 - Re-enable refetch queue metrics, fix action button / dropdown state by @mrkaye97 in [#2182](https://github.com/hatchet-dev/hatchet/pull/2182)
 - Limit frequency of updates to rate limits by @abelanger5 in [#2173](https://github.com/hatchet-dev/hatchet/pull/2173)
-
 
 ## v0.71.4 - 2025-08-20
 
@@ -2381,7 +2075,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Auto-generate docs snippets and examples by @mrkaye97 in [#2139](https://github.com/hatchet-dev/hatchet/pull/2139)
 - Deadlocking on DAG concurrency by @mrkaye97 in [#2111](https://github.com/hatchet-dev/hatchet/pull/2111)
 
-
 ## v0.70.7 - 2025-08-14
 
 ### Added
@@ -2394,7 +2087,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Add back sync docs script by @mrkaye97 in [#2123](https://github.com/hatchet-dev/hatchet/pull/2123)
-
 
 ## v0.70.6 - 2025-08-12
 
@@ -2410,12 +2102,10 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 - Waterfall panic + query simplification by @mrkaye97 in [#2116](https://github.com/hatchet-dev/hatchet/pull/2116)
 - Don't wait for grpc stream send on rabbitmq loop by @abelanger5 in [#2115](https://github.com/hatchet-dev/hatchet/pull/2115)
 
-
 ## v0.70.5 - 2025-08-07
 
 ### Changed
 - Fail task tracing by @mrkaye97 in [#2101](https://github.com/hatchet-dev/hatchet/pull/2101)
-
 
 ## v0.70.4 - 2025-08-06
 
@@ -2425,7 +2115,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 ### Fixed
 - Call `PopulateTaskRunData` sequentially by @mrkaye97 in [#2097](https://github.com/hatchet-dev/hatchet/pull/2097)
 
-
 ## v0.70.3 - 2025-08-06
 
 ### Added
@@ -2433,7 +2122,6 @@ Hatchet v0.89.0 introduces a range of updates to the platform, consisting largel
 
 ### Fixed
 - Improve performance of `UpdateTasksToAssigned` by @mrkaye97 in [#2094](https://github.com/hatchet-dev/hatchet/pull/2094)
-
 
 ## v0.70.2 - 2025-08-06
 

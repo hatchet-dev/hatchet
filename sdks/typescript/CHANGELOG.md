@@ -5,11 +5,24 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.3] - 2026-06-17
+
+### Removed
+
+- Removed the unused `_isV1` field and `isV1` getter from `HatchetClient`. The getter always returned a hardcoded value and was not referenced anywhere in the codebase.
+
+## [1.24.2] - 2026-06-15
+
+### Fixed
+
+- Fixed a bug where the durable event listener's request iterator could survive a stream reconnect and drain items from the new queue into the dead stream, causing durable tasks to hang indefinitely after an engine restart. The iterator now captures its queue and abort signal at creation time and terminates cleanly when the connection is replaced.
+
 ## [1.24.1] - 2026-06-12
 
 ### Fixed
 
 - Fixed a bug where durable event completions could wake durable task continuations in a non-deterministic order during replay. The engine now stamps a per-task `satisfied_order` on durable event log entries, and the listener releases completions to user code strictly in that order (gated on the previously woken continuation parking again), so replays deterministically reproduce the original wake order instead of raising spurious non-determinism errors.
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
 
 ## [1.24.0] - 2026-06-11
 

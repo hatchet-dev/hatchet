@@ -55,12 +55,14 @@ message DurableTaskEventWaitForAckResponse {
 message DurableTaskEventLogEntryCompletedResponse {
     DurableEventLogEntryRef ref = 1;
     bytes payload = 2;
+    bool is_failure = 3;
+    optional string error_message = 4;
     // (optional) the position of this entry in the per-task satisfaction order.
     // SDKs release completions to user code in this order so that replays
     // deterministically reproduce the original wake order. Unset for entries
     // satisfied before ordering was introduced; such completions are released
     // immediately.
-    optional int64 satisfied_order = 3;
+    optional int64 satisfied_order = 5;
 }
 
 message DurableTaskEvictInvocationRequest {

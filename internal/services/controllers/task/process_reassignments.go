@@ -34,7 +34,9 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 	}
 
 	prometheus.ReassignedTasks.Add(float64(len(res.RetriedTasks)))
-	prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
+	if tc.promGate.Enabled(ctx, tenantIdUUID) {
+		prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
+	}
 
 	for _, task := range res.ReleasedTasks {
 		var workerId *uuid.UUID

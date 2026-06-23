@@ -2337,6 +2337,8 @@ CREATE TABLE v1_durable_event_log_entry (
     result_payload_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     -- Only set for RUN entries; holds the external_id of the child task that was spawned.
     child_task_external_id UUID,
+    child_task_is_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    child_task_error_message TEXT,
 
     -- The id and inserted_at of the durable task which created this entry
     -- The inserted_at time of this event from a DB clock perspective.
@@ -2396,3 +2398,16 @@ CREATE TABLE v1_durable_event_log_branch_point (
 
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
+CREATE TABLE tenant_entitlement (
+    tenant_id UUID NOT NULL,
+
+    audit_logs BOOLEAN NOT NULL DEFAULT FALSE,
+
+    prometheus_metrics BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT tenant_entitlement_pkey PRIMARY KEY (tenant_id)
+);

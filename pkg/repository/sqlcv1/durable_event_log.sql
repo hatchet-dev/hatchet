@@ -117,7 +117,9 @@ WITH inputs AS (
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
         UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at,
         UNNEST(@nodeIds::BIGINT[]) AS node_id,
-        UNNEST(@branchIds::BIGINT[]) AS branch_id
+        UNNEST(@branchIds::BIGINT[]) AS branch_id,
+        UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
+        UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
 ), to_stamp AS (
     SELECT
         e.durable_task_id,
@@ -136,7 +138,9 @@ WITH inputs AS (
     SET
         is_satisfied = true,
         satisfied_at = COALESCE(v1_durable_event_log_entry.satisfied_at, NOW()),
-        satisfied_order = COALESCE(v1_durable_event_log_entry.satisfied_order, slf.latest_satisfied_order + ts.stamp_offset)
+        satisfied_order = COALESCE(v1_durable_event_log_entry.satisfied_order, slf.latest_satisfied_order + ts.stamp_offset),
+        child_task_is_failure = inputs.child_task_is_failure,
+        child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN NULLIF(inputs.child_task_error_message, '') ELSE NULL END
     FROM inputs
     JOIN v1_durable_event_log_file slf ON (slf.durable_task_id, slf.durable_task_inserted_at) = (inputs.durable_task_id, inputs.durable_task_inserted_at)
     LEFT JOIN to_stamp ts ON (ts.durable_task_id, ts.durable_task_inserted_at, ts.branch_id, ts.node_id) = (inputs.durable_task_id, inputs.durable_task_inserted_at, inputs.branch_id, inputs.node_id)

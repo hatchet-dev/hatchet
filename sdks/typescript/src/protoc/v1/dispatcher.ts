@@ -85,6 +85,8 @@ export interface DurableTaskEventWaitForAckResponse {
 export interface DurableTaskEventLogEntryCompletedResponse {
   ref: DurableEventLogEntryRef | undefined;
   payload: Uint8Array;
+  isFailure: boolean;
+  errorMessage?: string | undefined;
   /**
    * (optional) the position of this entry in the per-task satisfaction order.
    * SDKs release completions to user code in this order so that replays
@@ -893,7 +895,13 @@ export const DurableTaskEventWaitForAckResponse: MessageFns<DurableTaskEventWait
 };
 
 function createBaseDurableTaskEventLogEntryCompletedResponse(): DurableTaskEventLogEntryCompletedResponse {
-  return { ref: undefined, payload: new Uint8Array(0), satisfiedOrder: undefined };
+  return {
+    ref: undefined,
+    payload: new Uint8Array(0),
+    isFailure: false,
+    errorMessage: undefined,
+    satisfiedOrder: undefined,
+  };
 }
 
 export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEventLogEntryCompletedResponse> =
@@ -908,8 +916,14 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
       if (message.payload.length !== 0) {
         writer.uint32(18).bytes(message.payload);
       }
+      if (message.isFailure !== false) {
+        writer.uint32(24).bool(message.isFailure);
+      }
+      if (message.errorMessage !== undefined) {
+        writer.uint32(34).string(message.errorMessage);
+      }
       if (message.satisfiedOrder !== undefined) {
-        writer.uint32(24).int64(message.satisfiedOrder);
+        writer.uint32(40).int64(message.satisfiedOrder);
       }
       return writer;
     },
@@ -945,6 +959,22 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
               break;
             }
 
+            message.isFailure = reader.bool();
+            continue;
+          }
+          case 4: {
+            if (tag !== 34) {
+              break;
+            }
+
+            message.errorMessage = reader.string();
+            continue;
+          }
+          case 5: {
+            if (tag !== 40) {
+              break;
+            }
+
             message.satisfiedOrder = longToNumber(reader.int64());
             continue;
           }
@@ -961,6 +991,16 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
       return {
         ref: isSet(object.ref) ? DurableEventLogEntryRef.fromJSON(object.ref) : undefined,
         payload: isSet(object.payload) ? bytesFromBase64(object.payload) : new Uint8Array(0),
+        isFailure: isSet(object.isFailure)
+          ? globalThis.Boolean(object.isFailure)
+          : isSet(object.is_failure)
+            ? globalThis.Boolean(object.is_failure)
+            : false,
+        errorMessage: isSet(object.errorMessage)
+          ? globalThis.String(object.errorMessage)
+          : isSet(object.error_message)
+            ? globalThis.String(object.error_message)
+            : undefined,
         satisfiedOrder: isSet(object.satisfiedOrder)
           ? globalThis.Number(object.satisfiedOrder)
           : isSet(object.satisfied_order)
@@ -976,6 +1016,12 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
       }
       if (message.payload.length !== 0) {
         obj.payload = base64FromBytes(message.payload);
+      }
+      if (message.isFailure !== false) {
+        obj.isFailure = message.isFailure;
+      }
+      if (message.errorMessage !== undefined) {
+        obj.errorMessage = message.errorMessage;
       }
       if (message.satisfiedOrder !== undefined) {
         obj.satisfiedOrder = Math.round(message.satisfiedOrder);
@@ -997,6 +1043,8 @@ export const DurableTaskEventLogEntryCompletedResponse: MessageFns<DurableTaskEv
           ? DurableEventLogEntryRef.fromPartial(object.ref)
           : undefined;
       message.payload = object.payload ?? new Uint8Array(0);
+      message.isFailure = object.isFailure ?? false;
+      message.errorMessage = object.errorMessage ?? undefined;
       message.satisfiedOrder = object.satisfiedOrder ?? undefined;
       return message;
     },
