@@ -1248,6 +1248,8 @@ type TenantInviteList struct {
 
 // TenantMember defines model for TenantMember.
 type TenantMember struct {
+	// Explicit Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
+	Explicit bool             `json:"explicit"`
 	Metadata APIResourceMeta  `json:"metadata"`
 	Role     TenantMemberRole `json:"role"`
 	Tenant   *Tenant          `json:"tenant,omitempty"`

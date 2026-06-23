@@ -1471,8 +1471,8 @@ export interface TenantMember {
   role: TenantMemberRole;
   /** The tenant associated with this tenant member. */
   tenant?: Tenant;
-  /** Whether the member was added directly (true) or via tag matching (false). */
-  explicit?: boolean;
+  /** Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed. */
+  explicit: boolean;
 }
 
 export interface UserTenantMembershipsList {
