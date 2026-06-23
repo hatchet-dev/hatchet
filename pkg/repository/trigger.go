@@ -25,6 +25,8 @@ import (
 type EventTriggerOpts struct {
 	ExternalId uuid.UUID
 
+	SeenAt time.Time
+
 	Key string
 
 	Data []byte

@@ -6,6 +6,7 @@ from uuid import uuid4
 import json
 from typing import cast
 from random import shuffle
+from datetime import datetime, timedelta, timezone
 
 from examples.durable.worker import (
     EVENT_KEY,
@@ -30,8 +31,12 @@ from examples.durable.worker import (
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
     durable_spawn_many_dags,
+    error_raising_durable_parent,
+    error_raising_task,
+    ErrorRaisingTaskInput,
 )
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 
 from examples.test_utils import wait_for_running_status
 
@@ -447,3 +452,58 @@ async def test_dag_spawn_returns_full_output(hatchet: Hatchet) -> None:
     assert all(
         singleton.has_both_child_outputs for singleton in replayed_result.results
     )
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_durable_error_on_error_in_child(hatchet: Hatchet) -> None:
+    test_run_id = str(uuid4())
+    error_msg = f"error in child task {test_run_id}"
+    res = await error_raising_durable_parent.aio_run(
+        input=ErrorRaisingTaskInput(error_message=error_msg),
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    assert res.child_raised
+    assert res.child_error_str is not None
+    assert error_msg in res.child_error_str
+
+    runs: V1TaskSummaryList | None = None
+
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=10),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) < 2:
+            await asyncio.sleep(1)
+            continue
+
+        if any(
+            r.status in [V1TaskStatus.QUEUED, V1TaskStatus.RUNNING] for r in runs.rows
+        ):
+            await asyncio.sleep(1)
+            continue
+
+        break
+
+    assert runs
+    assert len(runs.rows) == 2
+
+    child = next(
+        (r for r in runs.rows if error_raising_task.name in (r.workflow_name or "")),
+        None,
+    )
+    parent = next(
+        (
+            r
+            for r in runs.rows
+            if error_raising_durable_parent.name in (r.workflow_name or "")
+        ),
+        None,
+    )
+
+    assert parent
+    assert child
+    assert parent.status == V1TaskStatus.COMPLETED
+    assert child.status == V1TaskStatus.FAILED

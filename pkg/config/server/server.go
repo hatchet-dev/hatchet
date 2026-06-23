@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -112,7 +113,7 @@ type ConfigFileOperations struct {
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
 
 	// OLAPMQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
-	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"2000"`
+	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"100"`
 }
 
 type TaskOperationLimitsConfigFile struct {
@@ -550,7 +551,7 @@ type RabbitMQConfigFile struct {
 	CompressionEnabled     bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
 	CompressionThreshold   int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
 	EnableMessageRejection bool   `mapstructure:"enableMessageRejection" json:"enableMessageRejection,omitempty" default:"false"`
-	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"5"`
+	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"1000"`
 }
 
 type ConfigFileEmail struct {
@@ -687,6 +688,8 @@ type ServerConfig struct {
 	OpenTelemetry shared.OpenTelemetryConfigFile
 
 	Prometheus shared.PrometheusConfigFile
+
+	PrometheusGate *prometheus.Gate
 
 	Observability shared.ObservabilityConfigFile
 
@@ -946,6 +949,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
 	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
 	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
+	_ = v.BindEnv("prometheus.tenantScoped", "SERVER_PROMETHEUS_SERVER_TENANT_SCOPED")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")

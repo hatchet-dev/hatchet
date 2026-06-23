@@ -1354,6 +1354,11 @@ export interface APIMeta {
    * @example false
    */
   observabilityEnabled?: boolean;
+  /**
+   * whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+   * @example false
+   */
+  prometheusServerEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {

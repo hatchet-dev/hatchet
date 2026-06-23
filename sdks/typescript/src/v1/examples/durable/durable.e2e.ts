@@ -22,6 +22,7 @@ import {
   waitForEventLookback,
   waitForOrEventLookback,
   waitForTwoEventsSecondPushedFirst,
+  errorRaisingDurableParent,
 } from './workflow';
 
 const TIMING_TOLERANCE_SECONDS = 1;
@@ -296,4 +297,29 @@ describe('durable-e2e', () => {
     expect(result.event1).toMatchObject({ order: 'first' });
     expect(result.event2).toMatchObject({ order: 'second' });
   }, 60_000);
+
+  it('durable parent catches error from failed child run', async () => {
+    const errorMsg = `error in child task ${crypto.randomUUID()}`;
+
+    const result = await errorRaisingDurableParent.run({ error_message: errorMsg });
+
+    expect(result.child_raised).toBe(true);
+    expect(result.child_error_str).toContain(errorMsg);
+
+    const child = await poll(() => hatchet.runs.get(result.child_run_external_id), {
+      timeoutMs: 15_000,
+      intervalMs: 500,
+      shouldStop: (r: any) => r?.run?.status === V1TaskStatus.FAILED,
+      label: 'child run status=FAILED',
+    });
+    const parent = await poll(() => hatchet.runs.get(result.parent_run_external_id), {
+      timeoutMs: 15_000,
+      intervalMs: 500,
+      shouldStop: (r: any) => r?.run?.status === V1TaskStatus.COMPLETED,
+      label: 'parent run status=COMPLETED',
+    });
+
+    expect((child as any).run?.status).toBe(V1TaskStatus.FAILED);
+    expect((parent as any).run?.status).toBe(V1TaskStatus.COMPLETED);
+  }, 30_000);
 });

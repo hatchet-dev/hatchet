@@ -40,6 +40,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/smtp"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
@@ -727,6 +728,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
+	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
 		&queueLogger,
@@ -739,13 +742,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
+		promGate,
 	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
@@ -821,6 +825,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
+		PrometheusGate:         promGate,
 		Observability:          cf.Observability,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.FrontendURL, emailSvc),

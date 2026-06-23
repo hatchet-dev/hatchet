@@ -24,6 +24,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/operator/manager"
@@ -161,6 +162,7 @@ type DispatcherOpts struct {
 	enc                                 encryption.EncryptionService
 	infraBlockedCIDRs                   []string
 	dispatcherId                        uuid.UUID
+	promGate                            *prometheus.Gate
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -270,6 +272,12 @@ func WithAnalytics(a analytics.Analytics) DispatcherOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.promGate = gate
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -327,7 +335,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
 		om:                                  om,
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
 
@@ -535,6 +543,8 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 			payload.BranchId,
 			payload.NodeId,
 			payload.Payload,
+			payload.ChildTaskIsFailure,
+			payload.ChildTaskErrorMessage,
 		)
 
 		if err != nil {

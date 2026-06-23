@@ -26,6 +26,7 @@ type LoadTestConfig struct {
 	Wait                     time.Duration
 	Delay                    time.Duration
 	WorkerDelay              time.Duration
+	RegistrationTimeout      time.Duration
 	Slots                    int
 	FailureRate              float32
 	PayloadSize              string
@@ -74,6 +75,8 @@ func main() {
 	loadtest.Flags().DurationVarP(&config.Delay, "delay", "D", 0, "delay specifies the time to wait in each event to simulate slow tasks")
 	loadtest.Flags().DurationVarP(&config.Wait, "wait", "w", 10*time.Second, "wait specifies the total time to wait until events complete")
 	loadtest.Flags().DurationVarP(&config.WorkerDelay, "workerDelay", "p", 0*time.Second, "workerDelay specifies the time to wait before starting the worker")
+	// CI's load-online-migrate passes 20s: it must stay below that workflow's 30s pre-migration sleep so registration is forced to succeed against the N-1 schema.
+	loadtest.Flags().DurationVar(&config.RegistrationTimeout, "registrationTimeout", 60*time.Second, "registrationTimeout specifies the total time to wait for workflow registration before emitting events")
 	loadtest.Flags().IntVarP(&config.Slots, "slots", "s", 0, "slots specifies the number of slots to use in the worker")
 	loadtest.Flags().Float32VarP(&config.FailureRate, "failureRate", "f", 0, "failureRate specifies the rate of failure for the worker")
 	loadtest.Flags().StringVarP(&config.PayloadSize, "payloadSize", "P", "0kb", "payload specifies the size of the payload to send")

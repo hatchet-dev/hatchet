@@ -770,6 +770,7 @@ const createWorkflowTriggerCronRefForWorkflow = `-- name: CreateWorkflowTriggerC
 WITH latest_version AS (
     SELECT "id" FROM "WorkflowVersion"
     WHERE "workflowId" = $7::uuid
+        AND "deletedAt" IS NULL
     ORDER BY "order" DESC
     LIMIT 1
 ),

@@ -11,6 +11,7 @@ import (
 
 type UserEventTaskPayload struct {
 	EventExternalId         uuid.UUID `json:"event_id" validate:"required"`
+	EventSeenAt             time.Time `json:"event_seen_at" validate:"required"`
 	EventKey                string    `json:"event_key" validate:"required"`
 	EventData               []byte    `json:"event_data" validate:"required"`
 	EventAdditionalMetadata []byte    `json:"event_additional_metadata"`
