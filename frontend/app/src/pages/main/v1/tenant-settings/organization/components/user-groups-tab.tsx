@@ -45,7 +45,7 @@ export function UserGroupsTab({
     ...orgApi.userGroupsListQuery(organizationId),
   });
 
-  const groups = groupsQuery.data?.rows ?? [];
+  const groups = groupsQuery.data ?? [];
 
   const columns = [
     {

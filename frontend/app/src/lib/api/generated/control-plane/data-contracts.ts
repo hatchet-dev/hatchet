@@ -311,10 +311,8 @@ export interface SetTagsRequest {
   tags: string[];
 }
 
-export interface TagList {
-  /** Current tags */
-  tags: string[];
-}
+/** Current tags */
+export type TagList = string[];
 
 export interface CreateOrganizationSsoDomainRequest {
   /** @format uri */
@@ -821,9 +819,7 @@ export interface UserGroup {
   memberCount: number;
 }
 
-export interface UserGroupList {
-  rows: UserGroup[];
-}
+export type UserGroupList = UserGroup[];
 
 export interface CreateUserGroupRequest {
   /**

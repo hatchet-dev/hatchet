@@ -1646,7 +1646,9 @@ function TenantMemberList({
                 <TenantMemberActions
                   member={member}
                   tenantId={tenantId}
-                  onEditRoleClick={member.manuallyadded ? setMemberToEdit : () => {}}
+                  onEditRoleClick={
+                    member.manuallyadded ? setMemberToEdit : () => {}
+                  }
                   onChangePasswordClick={() => {}}
                   onDeleteSuccess={onMembersChanged}
                 />

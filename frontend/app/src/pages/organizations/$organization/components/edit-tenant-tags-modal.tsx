@@ -42,7 +42,7 @@ export function EditTenantTagsModal({
 
   useEffect(() => {
     if (tagsQuery.data) {
-      setRawInput(tagsQuery.data.tags.join(', '));
+      setRawInput(tagsQuery.data.join(', '));
     }
   }, [tagsQuery.data]);
 
