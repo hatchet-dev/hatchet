@@ -681,16 +681,35 @@ func (q *Queries) RunChildCancelNewest(ctx context.Context, db DBTX, arg RunChil
 	return items, nil
 }
 
-func (q *Queries) UpdateConcurrencySlotIsFilledBatch(ctx context.Context, db DBTX, args []UpdateConcurrencySlotIsFilledParams) ([]*V1ConcurrencySlot, error) {
+const updateConcurrencySlotIsFilledBatch = `-- name: UpdateConcurrencySlotIsFilledBatch :one
+UPDATE v1_concurrency_slot
+SET is_filled = $1
+WHERE task_id = $2
+  AND task_inserted_at = $3
+  AND task_retry_count = $4
+  AND strategy_id = $5
+RETURNING task_id, task_inserted_at, task_retry_count, next_parent_strategy_ids, next_strategy_ids, queue_to_notify
+`
+
+type UpdateConcurrencySlotIsFilledBatchRow struct {
+	TaskInsertedAt        pgtype.Timestamptz `json:"task_inserted_at"`
+	QueueToNotify         string             `json:"queue_to_notify"`
+	NextParentStrategyIds []pgtype.Int8      `json:"next_parent_strategy_ids"`
+	NextStrategyIds       []int64            `json:"next_strategy_ids"`
+	TaskID                int64              `json:"task_id"`
+	TaskRetryCount        int32              `json:"task_retry_count"`
+}
+
+func (q *Queries) UpdateConcurrencySlotIsFilledBatch(ctx context.Context, db DBTX, args []UpdateConcurrencySlotIsFilledParams) ([]*UpdateConcurrencySlotIsFilledBatchRow, error) {
 	batch := &pgx.Batch{}
 
 	// callbacks queued via res.Query run serially while br.Close() drains the
 	// batch, so appending to this shared slice needs no synchronization.
-	items := make([]*V1ConcurrencySlot, 0, len(args))
+	items := make([]*UpdateConcurrencySlotIsFilledBatchRow, 0, len(args))
 	var scanErr error
 
 	for _, arg := range args {
-		res := batch.Queue(updateConcurrencySlotIsFilled,
+		res := batch.Queue(updateConcurrencySlotIsFilledBatch,
 			arg.IsFilled,
 			arg.TaskID,
 			arg.TaskInsertedAt,
@@ -702,27 +721,14 @@ func (q *Queries) UpdateConcurrencySlotIsFilledBatch(ctx context.Context, db DBT
 			defer rows.Close()
 
 			for rows.Next() {
-				var i V1ConcurrencySlot
+				var i UpdateConcurrencySlotIsFilledBatchRow
 				if err := rows.Scan(
-					&i.SortID,
 					&i.TaskID,
 					&i.TaskInsertedAt,
 					&i.TaskRetryCount,
-					&i.ExternalID,
-					&i.TenantID,
-					&i.WorkflowID,
-					&i.WorkflowVersionID,
-					&i.WorkflowRunID,
-					&i.StrategyID,
-					&i.ParentStrategyID,
-					&i.Priority,
-					&i.Key,
-					&i.IsFilled,
 					&i.NextParentStrategyIds,
 					&i.NextStrategyIds,
-					&i.NextKeys,
 					&i.QueueToNotify,
-					&i.ScheduleTimeoutAt,
 				); err != nil {
 					scanErr = err
 					return err

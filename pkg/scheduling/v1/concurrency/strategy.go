@@ -31,11 +31,9 @@ type ConcurrencyStrategy struct {
 	// sub-queues are pruned after each batch (see pruneEmpty), so idle keys don't accumulate, but a
 	// large live backlog still grows this without limit - we eventually need a bounded or evicting
 	// strategy (e.g. spill to disk/db) for very high key cardinality. Not critical yet.
-	subQueues map[string]*subQueue
-	strategy  *sqlcv1.V1StepConcurrency
-	l         *zerolog.Logger
-	// compare is the slot ordering for this strategy, applied to every sub-queue it creates.
-	// Derived once from the strategy kind by comparatorForStrategy.
+	subQueues      map[string]*subQueue
+	strategy       *sqlcv1.V1StepConcurrency
+	l              *zerolog.Logger
 	compare        func(a, b slot) int
 	built          chan struct{}
 	topic          string
@@ -106,7 +104,7 @@ func NewConcurrencyStrategy(
 		strategy:  strategy,
 		repo:      repo,
 		l:         l,
-		compare:   comparatorForStrategy(strategy.Strategy),
+		compare:   priorityCompare,
 		outbox:    outbox,
 		topic:     fmt.Sprintf("%s.%d", strategy.TenantID, strategy.ID),
 		built:     make(chan struct{}),
@@ -115,6 +113,8 @@ func NewConcurrencyStrategy(
 	outbox.AddFlusher(c.topic, c)
 
 	go c.buildIndexLoop(ctx)
+
+	fmt.Printf("Started concurrency strategy: %d\n", strategy.ID)
 
 	return c
 }
@@ -420,15 +420,6 @@ func (c *ConcurrencyStrategy) processWALMessages(ctx context.Context, tx pgx.Tx,
 	defer c.buildingMu.Unlock()
 
 	return c.processStrategy(ctx, tx, messages, c.decide())
-}
-
-// comparatorForStrategy picks the slot ordering for a strategy kind. Every strategy fills in the same
-// order - priorityCompare (highest priority, then earliest, then lowest taskId = "should run first").
-// The strategies differ only in their decide step, not their ordering: GROUP_ROUND_ROBIN leaves the
-// rest queued, CANCEL_NEWEST cancels the rest, and CANCEL_IN_PROGRESS additionally preempts running
-// work. Kept as a per-strategy hook in case a future strategy needs a different ordering.
-func comparatorForStrategy(_ sqlcv1.V1ConcurrencyStrategy) func(a, b slot) int {
-	return priorityCompare
 }
 
 // decideFn runs after a sub-queue's WAL has been applied and timed-out queued slots evicted. It
