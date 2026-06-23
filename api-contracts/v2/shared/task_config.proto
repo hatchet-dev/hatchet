@@ -6,30 +6,32 @@ package v2;
 
 import "google/protobuf/duration.proto";
 
-enum RateLimitDuration {
-    RATE_LIMIT_DURATION_UNSPECIFIED = 0;
-    RATE_LIMIT_DURATION_SECOND = 1;
-    RATE_LIMIT_DURATION_MINUTE = 2;
-    RATE_LIMIT_DURATION_HOUR = 3;
-    RATE_LIMIT_DURATION_DAY = 4;
-    RATE_LIMIT_DURATION_WEEK = 5;
-    RATE_LIMIT_DURATION_MONTH = 6;
-    RATE_LIMIT_DURATION_YEAR = 7;
+enum RateLimitWindow {
+    RATE_LIMIT_WINDOW_UNSPECIFIED = 0;
+    RATE_LIMIT_WINDOW_SECOND = 1;
+    RATE_LIMIT_WINDOW_MINUTE = 2;
+    RATE_LIMIT_WINDOW_HOUR = 3;
+    RATE_LIMIT_WINDOW_DAY = 4;
+    RATE_LIMIT_WINDOW_WEEK = 5;
+    RATE_LIMIT_WINDOW_MONTH = 6;
+    RATE_LIMIT_WINDOW_YEAR = 7;
 }
 
-// RateLimit declares the rate limit a task consumes and how runs consume its
-// units. Limits are upserted when the task is registered: static keys declare
+// RateLimit declares the rate limit a task consumes and how runs count against
+// it. Limits are upserted when the task is registered: static keys declare
 // their total via limit, dynamic keys via limit_values_expression.
 message RateLimit {
     oneof key {
         string static_key = 1; // a static key for the rate limit
         string key_expression = 2; // a CEL expression for determining the rate limit key
     }
-    optional int32 limit = 3; // (optional) the total units available per window for a static key
-    optional int32 units = 4; // (optional) the number of units this task run consumes, default 1
-    optional string units_expression = 5; // (optional) a CEL expression for determining the number of units consumed
-    optional string limit_values_expression = 6; // (optional) a CEL expression for determining the total amount of rate limit units for a dynamic key
-    optional RateLimitDuration duration = 7; // (optional) the rate limit window, default MINUTE
+    optional int32 limit = 3; // (optional) the total count available per window for a static key
+    oneof consumed_count {
+        int32 count = 4; // the count this task run consumes, default 1
+        string count_expression = 5; // a CEL expression for determining the count consumed
+    }
+    optional string limit_values_expression = 6; // (optional) a CEL expression for determining the total count for a dynamic key
+    optional RateLimitWindow window = 7; // (optional) the rate limit window, default MINUTE
 }
 
 enum ConcurrencyLimitStrategy {
