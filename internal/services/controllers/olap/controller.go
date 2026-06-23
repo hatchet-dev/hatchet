@@ -19,6 +19,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/integrations/alerting"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
@@ -48,18 +49,6 @@ const (
 	// escalates from warn to error level.
 	requeueErrorLogThreshold = 50
 )
-
-// maxRequeueCountOf returns the largest requeue count across items, used to decide
-// the log level when republishing items whose locks could not be acquired.
-func maxRequeueCountOf[T any](items []T, requeueCount func(T) int) int {
-	maxCount := 0
-	for _, item := range items {
-		if c := requeueCount(item); c > maxCount {
-			maxCount = c
-		}
-	}
-	return maxCount
-}
 
 // logRepublish emits the standard "failed to acquire locks" log line, escalating to
 // error level once items have been requeued many times.
@@ -589,7 +578,7 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 	attempts := 0
 	for len(createTaskOpts) > 0 {
 		if attempts >= maxLockAttempts {
-			maxRequeueCount := maxRequeueCountOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
+			maxRequeueCount := listutils.MaxOf(createTaskOpts, func(o *tasktypes.CreatedTaskPayload) int { return o.RequeueCount })
 			tc.logRepublish(ctx, "tasks", len(createTaskOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedTasks(ctx, tenantId, createTaskOpts)
 		}
@@ -684,7 +673,7 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 	attempts := 0
 	for len(createDAGOpts) > 0 {
 		if attempts >= maxLockAttempts {
-			maxRequeueCount := maxRequeueCountOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
+			maxRequeueCount := listutils.MaxOf(createDAGOpts, func(o *tasktypes.CreatedDAGPayload) int { return o.RequeueCount })
 			tc.logRepublish(ctx, "DAGs", len(createDAGOpts), attempts, maxRequeueCount)
 			return tc.republishCreatedDAGs(ctx, tenantId, createDAGOpts)
 		}
