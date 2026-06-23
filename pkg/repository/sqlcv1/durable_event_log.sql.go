@@ -601,6 +601,66 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const listDurableEventLogEntriesBeforeNode = `-- name: ListDurableEventLogEntriesBeforeNode :many
+SELECT tenant_id, external_id, result_payload_external_id, child_task_external_id, inserted_at, id, durable_task_id, durable_task_inserted_at, kind, node_id, branch_id, idempotency_key, is_satisfied, satisfied_at, satisfied_order, user_message, wait_data
+FROM v1_durable_event_log_entry
+WHERE durable_task_id = $1::BIGINT
+  AND durable_task_inserted_at = $2::TIMESTAMPTZ
+  AND tenant_id = $3::UUID
+  AND node_id < $4::BIGINT
+ORDER BY node_id ASC, branch_id ASC
+`
+
+type ListDurableEventLogEntriesBeforeNodeParams struct {
+	Durabletaskid         int64              `json:"durabletaskid"`
+	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
+	Tenantid              uuid.UUID          `json:"tenantid"`
+	Nodeid                int64              `json:"nodeid"`
+}
+
+func (q *Queries) ListDurableEventLogEntriesBeforeNode(ctx context.Context, db DBTX, arg ListDurableEventLogEntriesBeforeNodeParams) ([]*V1DurableEventLogEntry, error) {
+	rows, err := db.Query(ctx, listDurableEventLogEntriesBeforeNode,
+		arg.Durabletaskid,
+		arg.Durabletaskinsertedat,
+		arg.Tenantid,
+		arg.Nodeid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1DurableEventLogEntry
+	for rows.Next() {
+		var i V1DurableEventLogEntry
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.ExternalID,
+			&i.ResultPayloadExternalID,
+			&i.ChildTaskExternalID,
+			&i.InsertedAt,
+			&i.ID,
+			&i.DurableTaskID,
+			&i.DurableTaskInsertedAt,
+			&i.Kind,
+			&i.NodeID,
+			&i.BranchID,
+			&i.IdempotencyKey,
+			&i.IsSatisfied,
+			&i.SatisfiedAt,
+			&i.SatisfiedOrder,
+			&i.UserMessage,
+			&i.WaitData,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDurableEventLogForTask = `-- name: ListDurableEventLogForTask :many
 SELECT e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data, t.external_id AS durable_task_external_id, t.display_name AS durable_task_display_name
 FROM v1_durable_event_log_entry e
@@ -992,9 +1052,10 @@ SET
     -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
     latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, COALESCE($1::BIGINT, v1_durable_event_log_file.latest_node_id)),
     latest_invocation_count = COALESCE($2::INTEGER, v1_durable_event_log_file.latest_invocation_count),
-    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id)
-WHERE durable_task_id = $4::BIGINT
-  AND durable_task_inserted_at = $5::TIMESTAMPTZ
+    latest_branch_id = COALESCE($3::BIGINT, v1_durable_event_log_file.latest_branch_id),
+    latest_satisfied_order = COALESCE($4::BIGINT, v1_durable_event_log_file.latest_satisfied_order)
+WHERE durable_task_id = $5::BIGINT
+  AND durable_task_inserted_at = $6::TIMESTAMPTZ
 RETURNING tenant_id, durable_task_id, durable_task_inserted_at, latest_invocation_count, latest_inserted_at, latest_node_id, latest_branch_id, latest_satisfied_order
 `
 
@@ -1002,6 +1063,7 @@ type UpdateLogFileParams struct {
 	NodeId                pgtype.Int8        `json:"nodeId"`
 	InvocationCount       pgtype.Int4        `json:"invocationCount"`
 	BranchId              pgtype.Int8        `json:"branchId"`
+	LatestSatisfiedOrder  pgtype.Int8        `json:"latestSatisfiedOrder"`
 	Durabletaskid         int64              `json:"durabletaskid"`
 	Durabletaskinsertedat pgtype.Timestamptz `json:"durabletaskinsertedat"`
 }
@@ -1011,6 +1073,7 @@ func (q *Queries) UpdateLogFile(ctx context.Context, db DBTX, arg UpdateLogFileP
 		arg.NodeId,
 		arg.InvocationCount,
 		arg.BranchId,
+		arg.LatestSatisfiedOrder,
 		arg.Durabletaskid,
 		arg.Durabletaskinsertedat,
 	)

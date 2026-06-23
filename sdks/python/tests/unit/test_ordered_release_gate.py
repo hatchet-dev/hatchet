@@ -142,9 +142,7 @@ async def test_legacy_completion_released_immediately() -> None:
     fut_legacy = register(listener, "task", 1, 1, 9)
 
     # ordered completion with a gap (order 2, order 1 missing): held.
-    await listener._handle_response(
-        entry_completed("task", 1, 1, 1, satisfied_order=2)
-    )
+    await listener._handle_response(entry_completed("task", 1, 1, 1, satisfied_order=2))
     assert not fut_ordered.done()
 
     # legacy completion with no satisfied_order: delivered immediately.
@@ -220,7 +218,5 @@ async def test_gates_scoped_per_invocation() -> None:
     assert not fut_inv1.done()
 
     # invocation 2's order 1 releases independently.
-    await listener._handle_response(
-        entry_completed("task", 2, 1, 1, satisfied_order=1)
-    )
+    await listener._handle_response(entry_completed("task", 2, 1, 1, satisfied_order=1))
     assert fut_inv2.done()

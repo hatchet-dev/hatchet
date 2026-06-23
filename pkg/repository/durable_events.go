@@ -1619,6 +1619,36 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	return r.registerSignalMatchConditions(ctx, tx, tenantId, createMatchOpts)
 }
 
+func (r *durableEventsRepository) latestSatisfiedOrderBeforeBranchPoint(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) (int64, error) {
+	entries, err := r.queries.ListDurableEventLogEntriesBeforeNode(ctx, tx, sqlcv1.ListDurableEventLogEntriesBeforeNodeParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Tenantid:              tenantId,
+		Nodeid:                nodeId,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to list durable event log entries before branch point: %w", err)
+	}
+
+	return latestSatisfiedOrderForBranchPrefix(entries, branchId, nextBranchIdToBranchPoint), nil
+}
+
+func latestSatisfiedOrderForBranchPrefix(entries []*sqlcv1.V1DurableEventLogEntry, branchId int64, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
+	var latest int64
+
+	for _, entry := range entries {
+		if entry.BranchID != resolveBranchForNode(entry.NodeID, branchId, nextBranchIdToBranchPoint) {
+			continue
+		}
+
+		if entry.SatisfiedOrder.Valid && entry.SatisfiedOrder.Int64 > latest {
+			latest = entry.SatisfiedOrder.Int64
+		}
+	}
+
+	return latest
+}
+
 func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error {
 	task, err := r.GetTaskByExternalId(ctx, opts.TenantId, opts.TaskExternalId, false)
 	if err != nil {
@@ -1686,9 +1716,21 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 	newBranchId := logFile.LatestBranchID + 1
 	zero := int64(0)
 
+	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list log branch points: %w", err)
+	}
+
+	latestSatisfiedOrder, err := r.latestSatisfiedOrderBeforeBranchPoint(ctx, tx, tenantId, nodeId, branchId, task, nextBranchIdToBranchPoint)
+	if err != nil {
+		return nil, err
+	}
+
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		BranchId:              sqlchelpers.ToBigInt(&newBranchId),
-		NodeId:                sqlchelpers.ToBigInt(&zero),
+		BranchId:             sqlchelpers.ToBigInt(&newBranchId),
+		NodeId:               sqlchelpers.ToBigInt(&zero),
+		LatestSatisfiedOrder: sqlchelpers.ToBigInt(&latestSatisfiedOrder),
+
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 	})
