@@ -5,11 +5,16 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.1] - 2026-06-12
+## [0.3.2] - 2026-06-23
 
 ### Fixed
 
 - Fixed a bug where durable event completions could wake durable task continuations in a non-deterministic order during replay. The engine now stamps a per-task `satisfied_order` on durable event log entries, and the worker releases completions to user code strictly in that order (gated on the previously woken continuation parking again), so replays deterministically reproduce the original wake order instead of raising spurious non-determinism errors.
+
+## [0.3.1] - 2026-06-12
+
+### Fixed
+
 - Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
 
 ## [0.3.0] - 2026-04-28

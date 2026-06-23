@@ -7,10 +7,11 @@
 package v1
 
 import (
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
+
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -472,16 +473,11 @@ type DurableTaskEventLogEntryCompletedResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Ref          *DurableEventLogEntryRef `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
-	Payload      []byte                   `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	IsFailure    bool                     `protobuf:"varint,3,opt,name=is_failure,json=isFailure,proto3" json:"is_failure,omitempty"`
-	ErrorMessage *string                  `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3,oneof" json:"error_message,omitempty"`
-	// (optional) the position of this entry in the per-task satisfaction order.
-	// SDKs release completions to user code in this order so that replays
-	// deterministically reproduce the original wake order. Unset for entries
-	// satisfied before ordering was introduced; such completions are released
-	// immediately.
-	SatisfiedOrder *int64 `protobuf:"varint,5,opt,name=satisfied_order,json=satisfiedOrder,proto3,oneof" json:"satisfied_order,omitempty"`
+	Ref            *DurableEventLogEntryRef `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
+	Payload        []byte                   `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	IsFailure      bool                     `protobuf:"varint,3,opt,name=is_failure,json=isFailure,proto3" json:"is_failure,omitempty"`
+	ErrorMessage   *string                  `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3,oneof" json:"error_message,omitempty"`
+	SatisfiedOrder *int64                   `protobuf:"varint,5,opt,name=satisfied_order,json=satisfiedOrder,proto3,oneof" json:"satisfied_order,omitempty"`
 }
 
 func (x *DurableTaskEventLogEntryCompletedResponse) Reset() {
