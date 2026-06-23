@@ -29,6 +29,10 @@ APIMeta:
       type: boolean
       description: whether or not observability (trace collection) is enabled on this instance
       example: false
+    prometheusServerEnabled:
+      type: boolean
+      description: whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+      example: false
 
 APIMetaAuth:
   type: object

@@ -139,19 +139,23 @@ export interface DurableTaskEventLogEntryResult {
   durableTaskExternalId: string;
   nodeId: number;
   payload: Record<string, unknown> | undefined;
+  isFailure: boolean;
+  errorMessage: string | undefined;
 }
 
 function eventLogEntryResultFromProto(
   proto: DurableTaskEventLogEntryCompletedResponse
 ): DurableTaskEventLogEntryResult {
   let payload: Record<string, unknown> | undefined;
-  if (proto.payload && proto.payload.length > 0) {
+  if (!proto.isFailure && proto.payload && proto.payload.length > 0) {
     payload = JSON.parse(new TextDecoder().decode(proto.payload));
   }
   return {
     durableTaskExternalId: proto.ref?.durableTaskExternalId ?? '',
     nodeId: proto.ref?.nodeId ?? 0,
     payload,
+    isFailure: proto.isFailure,
+    errorMessage: proto.errorMessage,
   };
 }
 
@@ -294,8 +298,9 @@ export class DurableListenerClient {
   private async _connect(): Promise<void> {
     this.logger.info('durable event listener connecting...');
 
-    this._requestQueue = [];
+    this._receiveAbort?.abort();
 
+    this._requestQueue = [];
     this._receiveAbort = new AbortController();
 
     this._enqueueRequest({
@@ -346,13 +351,17 @@ export class DurableListenerClient {
   }
 
   private async *_requestIterator(): AsyncIterable<DurableTaskRequest> {
-    while (this._running) {
-      while (this._requestQueue.length > 0) {
-        yield this._requestQueue.shift()!;
+    const queue = this._requestQueue;
+    const { signal } = this._receiveAbort!;
+
+    while (this._running && !signal.aborted) {
+      while (queue.length > 0) {
+        yield queue.shift()!;
       }
 
       await new Promise<void>((resolve) => {
         this._requestNotify = resolve;
+        signal.addEventListener('abort', () => resolve(), { once: true });
       });
       this._requestNotify = undefined;
     }

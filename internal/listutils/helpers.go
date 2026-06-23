@@ -32,3 +32,13 @@ func All[T comparable](statuses []T, target T) bool {
 	}
 	return true
 }
+
+func MaxOf[T any](xs []T, fn func(T) int) int {
+	m := 0
+	for _, x := range xs {
+		if c := fn(x); c > m {
+			m = c
+		}
+	}
+	return m
+}

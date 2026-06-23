@@ -42,28 +42,30 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                    msgqueue.MessageQueue
-	pubBuffer                             *msgqueue.MQPubBuffer
-	l                                     *zerolog.Logger
-	queueLogger                           *zerolog.Logger
-	pgxStatsLogger                        *zerolog.Logger
-	repov1                                v1.Repository
-	dv                                    datautils.DataDecoderValidator
-	s                                     gocron.Scheduler
-	a                                     *hatcheterrors.Wrapped
-	p                                     *partition.Partition
-	celParser                             *cel.CELParser
-	opsPoolPollInterval                   time.Duration
-	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *operation.TenantOperationPool
-	reassignTaskOperations                *operation.TenantOperationPool
-	retryTaskOperations                   *operation.TenantOperationPool
-	emitSleepOperations                   *operation.TenantOperationPool
-	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
-	replayEnabled                         bool
-	analyzeCronInterval                   time.Duration
-	signaler                              *signal.OLAPSignaler
-	tw                                    *trigger.TriggerWriter
+	mq                                       msgqueue.MessageQueue
+	pubBuffer                                *msgqueue.MQPubBuffer
+	l                                        *zerolog.Logger
+	queueLogger                              *zerolog.Logger
+	pgxStatsLogger                           *zerolog.Logger
+	repov1                                   v1.Repository
+	dv                                       datautils.DataDecoderValidator
+	s                                        gocron.Scheduler
+	a                                        *hatcheterrors.Wrapped
+	p                                        *partition.Partition
+	celParser                                *cel.CELParser
+	opsPoolPollInterval                      time.Duration
+	opsPoolJitter                            time.Duration
+	timeoutTaskOperations                    *operation.TenantOperationPool
+	reassignTaskOperations                   *operation.TenantOperationPool
+	retryTaskOperations                      *operation.TenantOperationPool
+	emitSleepOperations                      *operation.TenantOperationPool
+	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
+	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
+	replayEnabled                            bool
+	analyzeCronInterval                      time.Duration
+	signaler                                 *signal.OLAPSignaler
+	tw                                       *trigger.TriggerWriter
+	promGate                                 *prometheus.Gate
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -81,6 +83,7 @@ type TasksControllerOpts struct {
 	opsPoolPollInterval time.Duration
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
+	promGate            *prometheus.Gate
 }
 
 func defaultTasksControllerOpts() *TasksControllerOpts {
@@ -172,6 +175,12 @@ func WithAnalyzeCronInterval(interval time.Duration) TasksControllerOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.promGate = gate
+	}
+}
+
 func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	opts := defaultTasksControllerOpts()
 
@@ -205,8 +214,8 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
@@ -226,6 +235,7 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		analyzeCronInterval: opts.analyzeCronInterval,
 		signaler:            signaler,
 		tw:                  tw,
+		promGate:            opts.promGate,
 	}
 
 	jitter := t.opsPoolJitter
@@ -272,6 +282,15 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		jitter,
 		1*time.Second,
 		30*time.Second,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
+
+	t.deactivateStaleStepConcurrencyOperations = operation.NewTenantOperationPool(opts.p, opts.l, "deactivate-stale-step-concurrency", timeout, "deactivate stale step concurrency", t.deactivateStaleStepConcurrency, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		15*time.Minute,
+		30*time.Minute,
 		3,
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
@@ -391,6 +410,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.retryTaskOperations.Cleanup()
 		tc.emitSleepOperations.Cleanup()
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
+		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 
@@ -481,9 +501,13 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 	}
 
 	// instrumentation
+	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
+
 	for range res.ReleasedTasks {
 		prometheus.SucceededTasks.Inc()
-		prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantSucceededTasks.WithLabelValues(tenantId.String()).Inc()
+		}
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -584,17 +608,23 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
 
+	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
+
 	for _, e := range res.InternalEvents {
 		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
-			prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantRetriedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 			continue
 		}
 
 		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
-		prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+		}
 	}
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
@@ -734,9 +764,13 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	}
 
 	// instrumentation
+	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
+
 	for range res.ReleasedTasks {
 		prometheus.CancelledTasks.Inc()
-		prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+		if tenantMetricsEnabled {
+			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+		}
 	}
 
 	return err
@@ -1036,6 +1070,7 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 
 		opt := v1.EventTriggerOpts{
 			ExternalId:            msg.EventExternalId,
+			SeenAt:                msg.EventSeenAt,
 			Key:                   msg.EventKey,
 			Data:                  msg.EventData,
 			AdditionalMetadata:    msg.EventAdditionalMetadata,
