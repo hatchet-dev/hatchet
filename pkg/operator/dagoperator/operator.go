@@ -63,7 +63,9 @@ type DAGOperator struct {
 	// repo is used to list the tenant's DAG workflows when refreshing registered actions.
 	repo repository.Repository
 
-	// cancel stops the workflow-polling goroutine on Cleanup/Drain.
+	// ctx and cancel bound the operator's lifetime. Used by run() so that durable task
+	// sessions aren't subject to the dispatcher's short per-delivery context deadline.
+	ctx    context.Context
 	cancel context.CancelFunc
 
 	// lastActions is the most recently registered action set, used to avoid redundant
@@ -88,6 +90,7 @@ func NewDAGOperator(op *sqlcv1.V1Operator, l *zerolog.Logger, repo repository.Re
 	d := &DAGOperator{
 		SharedOperator: shared,
 		repo:           repo,
+		ctx:            ctx,
 		cancel:         cancel,
 	}
 
@@ -196,7 +199,9 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 }
 
 // run opens a durable-task session for the assigned action and drives the DAG to completion.
-func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction) error {
+// It uses d.ctx (the operator's lifetime context) rather than the dispatcher's delivery
+// context, which has a short timeout that would cancel long-running DAGs mid-flight.
+func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.AssignedAction) error {
 	// Report STARTED so the task is marked running. Best-effort: a failed report shouldn't
 	// prevent the actual work.
 	if err := d.SendStarted(action); err != nil {
@@ -211,13 +216,13 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err))
 	}
 
-	tasks, err := d.buildDAG(ctx, action)
+	tasks, err := d.buildDAG(d.ctx, action)
 
 	if err != nil {
 		return d.fail(action, fmt.Errorf("could not build dag: %w", err))
 	}
 
-	requestCh, responseCh, err := d.RegisterDurableTask(ctx, externalId)
+	requestCh, responseCh, err := d.RegisterDurableTask(d.ctx, externalId)
 
 	if err != nil {
 		return d.fail(action, fmt.Errorf("could not register durable task: %w", err))
@@ -235,8 +240,8 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 	}
 
 	select {
-	case <-ctx.Done():
-		return d.fail(action, fmt.Errorf("context cancelled waiting for register worker ack: %w", ctx.Err()))
+	case <-d.ctx.Done():
+		return d.fail(action, fmt.Errorf("operator shutting down waiting for register worker ack: %w", d.ctx.Err()))
 	case _, ok := <-responseCh:
 		if !ok {
 			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"))
@@ -244,7 +249,7 @@ func (d *DAGOperator) run(ctx context.Context, action *contracts.AssignedAction)
 	}
 
 	dagErr := dagDurableTask(
-		ctx,
+		d.ctx,
 		tasks,
 		action.TaskRunExternalId,
 		action.GetDurableTaskInvocationCount(),

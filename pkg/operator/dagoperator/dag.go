@@ -131,6 +131,10 @@ func (d *dag) taskEmitter() {
 }
 
 func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
+	if resp == nil || resp.Message == nil {
+		return
+	}
+
 	switch m := resp.Message.(type) {
 	case *v1contracts.DurableTaskResponse_TriggerRunsAck:
 		ack := m.TriggerRunsAck
