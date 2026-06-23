@@ -69,12 +69,8 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// we only use the new in-memory index for non-parent strategies
 	var concurrencyStrategy *concurrency.ConcurrencyStrategy
-	if !strategy.ParentStrategyID.Valid &&
-		(strategy.Strategy == sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN ||
-			strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS ||
-			strategy.Strategy == sqlcv1.V1ConcurrencyStrategyCANCELNEWEST) {
+	if conf.concurrencyInMemoryIndexEnabled && !strategy.ParentStrategyID.Valid {
 		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
 	}
 
