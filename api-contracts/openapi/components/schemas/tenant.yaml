@@ -204,14 +204,13 @@ TenantMember:
     tenant:
       $ref: "#/Tenant"
       description: The tenant associated with this tenant member.
-    explicit:
+    manually_added:
       type: boolean
       description: Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
   required:
     - metadata
     - user
     - role
-    - explicit
   type: object
 
 TenantMemberList:
