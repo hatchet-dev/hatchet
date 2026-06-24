@@ -99,27 +99,28 @@ type ReadTaskRunMetricsOpts struct {
 }
 
 type WorkflowRunData struct {
-	AdditionalMetadata   []byte                      `json:"additional_metadata"`
-	CreatedAt            pgtype.Timestamptz          `json:"created_at"`
-	DisplayName          string                      `json:"display_name"`
-	ErrorMessage         string                      `json:"error_message"`
-	ExternalID           uuid.UUID                   `json:"external_id"`
-	FinishedAt           pgtype.Timestamptz          `json:"finished_at"`
-	Input                []byte                      `json:"input"`
-	InsertedAt           pgtype.Timestamptz          `json:"inserted_at"`
-	Kind                 sqlcv1.V1RunKind            `json:"kind"`
-	Output               []byte                      `json:"output,omitempty"`
-	ParentTaskExternalId *uuid.UUID                  `json:"parent_task_external_id,omitempty"`
-	ReadableStatus       sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
-	StepId               *uuid.UUID                  `json:"step_id,omitempty"`
-	StartedAt            pgtype.Timestamptz          `json:"started_at"`
-	TaskExternalId       *uuid.UUID                  `json:"task_external_id,omitempty"`
-	TaskId               *int64                      `json:"task_id,omitempty"`
-	TaskInsertedAt       *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
-	TenantID             uuid.UUID                   `json:"tenant_id"`
-	WorkflowID           uuid.UUID                   `json:"workflow_id"`
-	WorkflowVersionId    uuid.UUID                   `json:"workflow_version_id"`
-	RetryCount           *int                        `json:"retry_count,omitempty"`
+	AdditionalMetadata    []byte                      `json:"additional_metadata"`
+	CreatedAt             pgtype.Timestamptz          `json:"created_at"`
+	DisplayName           string                      `json:"display_name"`
+	ErrorMessage          string                      `json:"error_message"`
+	ExternalID            uuid.UUID                   `json:"external_id"`
+	FinishedAt            pgtype.Timestamptz          `json:"finished_at"`
+	Input                 []byte                      `json:"input"`
+	InsertedAt            pgtype.Timestamptz          `json:"inserted_at"`
+	Kind                  sqlcv1.V1RunKind            `json:"kind"`
+	Output                []byte                      `json:"output,omitempty"`
+	ParentTaskExternalId  *uuid.UUID                  `json:"parent_task_external_id,omitempty"`
+	ReadableStatus        sqlcv1.V1ReadableStatusOlap `json:"readable_status"`
+	StepId                *uuid.UUID                  `json:"step_id,omitempty"`
+	StartedAt             pgtype.Timestamptz          `json:"started_at"`
+	TaskExternalId        *uuid.UUID                  `json:"task_external_id,omitempty"`
+	TaskId                *int64                      `json:"task_id,omitempty"`
+	TaskInsertedAt        *pgtype.Timestamptz         `json:"task_inserted_at,omitempty"`
+	TenantID              uuid.UUID                   `json:"tenant_id"`
+	WorkflowID            uuid.UUID                   `json:"workflow_id"`
+	WorkflowVersionId     uuid.UUID                   `json:"workflow_version_id"`
+	RetryCount            *int                        `json:"retry_count,omitempty"`
+	IsDagOrchestratorTask bool                        `json:"is_dag_orchestrator_task"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -2270,6 +2271,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
 		params.Inputs = append(params.Inputs, payloadToWriteToTask)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
+		params.Isdagorchestrators = append(params.Isdagorchestrators, task.IsDagOrchestrator)
 
 		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = task.InsertedAt

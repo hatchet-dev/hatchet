@@ -1951,6 +1951,7 @@ func (r *sharedRepository) insertTasks(
 	workflowRunIds := make([]uuid.UUID, len(tasks))
 	isDurables := make([]bool, len(tasks))
 	desiredWorkerLabels := make([][]byte, len(tasks))
+	isDagOrchestrators := make([]bool, len(tasks))
 
 	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
 
@@ -1978,6 +1979,7 @@ func (r *sharedRepository) insertTasks(
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
 		workflowRunIds[i] = task.WorkflowRunId
 		isDurables[i] = stepConfig.IsDurable
+		isDagOrchestrators[i] = stepConfig.IsDagOrchestrator
 
 		// TODO: case on whether this is a v1 or v2 task by looking at the step data. for now,
 		// we're assuming a v1 task.
@@ -2273,6 +2275,7 @@ func (r *sharedRepository) insertTasks(
 				DesiredWorkerLabels:          make([][]byte, 0),
 				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
+				IsDagOrchestrators:           make([]bool, 0),
 			}
 		}
 
@@ -2311,6 +2314,7 @@ func (r *sharedRepository) insertTasks(
 		params.WorkflowRunIds = append(params.WorkflowRunIds, workflowRunIds[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
 		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+		params.IsDagOrchestrators = append(params.IsDagOrchestrators, isDagOrchestrators[i])
 
 		triggeringEventKey := pgtype.Text{}
 

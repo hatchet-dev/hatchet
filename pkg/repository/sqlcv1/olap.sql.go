@@ -2493,7 +2493,7 @@ WITH selected_retry_count AS (
     )
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.is_dag_orchestrator,
     (t.dag_id IS NULL)::BOOLEAN AS is_standalone,
     st.readable_status::v1_readable_status_olap as status,
     f.finished_at::timestamptz as finished_at,
@@ -2558,6 +2558,7 @@ type PopulateSingleTaskRunDataRow struct {
 	DagInsertedAt         pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable             bool                 `json:"is_durable"`
+	IsDagOrchestrator     bool                 `json:"is_dag_orchestrator"`
 	IsStandalone          bool                 `json:"is_standalone"`
 	Status                V1ReadableStatusOlap `json:"status"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
@@ -2605,6 +2606,7 @@ func (q *Queries) PopulateSingleTaskRunData(ctx context.Context, db DBTX, arg Po
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
 		&i.IsDurable,
+		&i.IsDagOrchestrator,
 		&i.IsStandalone,
 		&i.Status,
 		&i.FinishedAt,
@@ -2650,7 +2652,8 @@ WITH input AS (
         t.workflow_run_id,
         t.latest_retry_count,
         t.dag_id,
-        t.is_durable
+        t.is_durable,
+        t.is_dag_orchestrator
     FROM
         v1_tasks_olap t
     JOIN
@@ -2785,7 +2788,8 @@ SELECT
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
-    COALESCE(t.is_durable, FALSE) AS is_durable
+    COALESCE(t.is_durable, FALSE) AS is_durable,
+    COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator
 FROM
     tasks t
 LEFT JOIN
@@ -2838,6 +2842,7 @@ type PopulateTaskRunDataRow struct {
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
 	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	IsDurable             bool                 `json:"is_durable"`
+	IsDagOrchestrator     bool                 `json:"is_dag_orchestrator"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -2884,6 +2889,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.OutputEventExternalID,
 			&i.OutputEventInsertedAt,
 			&i.IsDurable,
+			&i.IsDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}
@@ -3050,7 +3056,7 @@ WITH lookup_task AS (
         external_id = $1::uuid
 )
 SELECT
-    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable,
+    t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.is_dag_orchestrator,
     e.output,
     e.external_id AS event_external_id,
     e.error_message
@@ -3088,6 +3094,7 @@ type ReadTaskByExternalIDRow struct {
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
+	IsDagOrchestrator    bool                 `json:"is_dag_orchestrator"`
 	Output               []byte               `json:"output"`
 	EventExternalID      uuid.UUID            `json:"event_external_id"`
 	ErrorMessage         pgtype.Text          `json:"error_message"`
@@ -3122,6 +3129,7 @@ func (q *Queries) ReadTaskByExternalID(ctx context.Context, db DBTX, externalid 
 		&i.DagInsertedAt,
 		&i.ParentTaskExternalID,
 		&i.IsDurable,
+		&i.IsDagOrchestrator,
 		&i.Output,
 		&i.EventExternalID,
 		&i.ErrorMessage,
@@ -3308,7 +3316,7 @@ WITH inputs AS (
         UNNEST($1::BIGINT[]) AS task_id,
         UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at
 ), locked_tasks AS (
-    SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id, is_durable
+    SELECT tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at, parent_task_external_id, is_durable, is_dag_orchestrator
     FROM v1_tasks_olap
     WHERE
         (id, inserted_at) IN (SELECT task_id, task_inserted_at FROM inputs)
@@ -4177,7 +4185,7 @@ WITH inputs AS (
         UNNEST($5::UUID[]) AS worker_id,
         UNNEST($6::INTEGER[]) AS retry_count
 ), locked_tasks AS (
-    SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
+    SELECT t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.is_dag_orchestrator, i.readable_status AS new_readable_status, i.worker_id AS new_worker_id, i.retry_count AS new_retry_count
     FROM v1_tasks_olap t
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
@@ -4220,7 +4228,7 @@ WITH inputs AS (
     FROM locked_tasks lt
     WHERE
         (t.inserted_at, t.id, t.tenant_id) = (lt.inserted_at, lt.id, lt.tenant_id)
-    RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable
+    RETURNING t.tenant_id, t.id, t.inserted_at, t.external_id, t.queue, t.action_id, t.step_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.display_name, t.input, t.additional_metadata, t.readable_status, t.latest_retry_count, t.latest_worker_id, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.is_durable, t.is_dag_orchestrator
 )
 
 SELECT

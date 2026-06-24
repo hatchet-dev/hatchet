@@ -3688,6 +3688,7 @@ type V1Task struct {
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
+	IsDagOrchestrator            bool               `json:"is_dag_orchestrator"`
 }
 
 type V1TaskEvent struct {
@@ -3803,6 +3804,7 @@ type V1TasksOlap struct {
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
+	IsDagOrchestrator    bool                 `json:"is_dag_orchestrator"`
 }
 
 type V1WorkerSlotConfig struct {
