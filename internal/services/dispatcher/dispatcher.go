@@ -83,6 +83,10 @@ func (d *DispatcherImpl) V1() *DispatcherServiceImpl {
 	return d.serviceV1
 }
 
+func (d *DispatcherImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	return d.serviceV1.TriggerDAGStep(ctx, tenantId, req)
+}
+
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
 
 type workers struct {
