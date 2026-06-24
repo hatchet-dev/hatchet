@@ -215,7 +215,8 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 			5*time.Millisecond,   // schedulerAdvisoryLockTimeout
 			false,                // optimisticSchedulingEnabled
 			1,                    // optimisticSlots
-			nil,                  // promGate
+			true,
+			nil, // promGate
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -262,6 +263,7 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 			5*time.Millisecond,
 			false,
 			1,
+			true,
 			nil,
 		)
 		require.NoError(t, err)
@@ -305,6 +307,7 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 			5*time.Millisecond,
 			false,
 			1,
+			true,
 			nil,
 		)
 		require.NoError(t, err)
@@ -362,6 +365,7 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 			5*time.Millisecond,
 			false,
 			1,
+			true,
 			nil,
 		)
 		require.NoError(t, err)

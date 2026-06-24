@@ -496,6 +496,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 			5*time.Millisecond,
 			false,
 			1,
+			true,
 			nil,
 		)
 		require.NoError(t, err)
