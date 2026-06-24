@@ -1624,7 +1624,6 @@ type ListTaskOutputEventIdsByTaskRunExternalIdsRow struct {
 	TaskEventInsertedAt   pgtype.Timestamptz `json:"task_event_inserted_at"`
 }
 
-// Lists the most recent completed event output for a list of tasks identified by workflow run id.
 func (q *Queries) ListTaskOutputEventIdsByTaskRunExternalIds(ctx context.Context, db DBTX, taskexternalids []uuid.UUID) ([]*ListTaskOutputEventIdsByTaskRunExternalIdsRow, error) {
 	rows, err := db.Query(ctx, listTaskOutputEventIdsByTaskRunExternalIds, taskexternalids)
 	if err != nil {

@@ -785,7 +785,6 @@ ORDER BY
     task_outputs.retry_count DESC;
 
 -- name: ListTaskOutputEventIdsByTaskRunExternalIds :many
--- Lists the most recent completed event output for a list of tasks identified by workflow run id.
 WITH task_outputs AS (
     SELECT
         lt.external_id AS task_run_external_id,
