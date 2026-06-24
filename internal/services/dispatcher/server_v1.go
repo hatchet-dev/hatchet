@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -468,7 +470,9 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 	ctx, cancel := context.WithCancel(ctx)
 	deregister := d.streamSessions.Register(cancel)
 
-	requestCh := make(chan *contracts.DurableTaskRequest)
+	// Buffer large enough to hold all tasks in a single DAG layer so taskEmitter can
+	// queue all concurrent triggers without blocking on the goroutine's send-ack cycle.
+	requestCh := make(chan *contracts.DurableTaskRequest, 64)
 	respCh := make(chan *contracts.DurableTaskResponse)
 
 	invocation := &durableTaskInvocation{
@@ -1224,4 +1228,70 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 			EntryCompleted: resp,
 		},
 	})
+}
+
+func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ParentTaskExternalId, false)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	childIndex := int64(req.ChildIndex)
+	stepLabel := req.ActionId
+	if parts := strings.SplitN(req.ActionId, ":", 2); len(parts) == 2 {
+		stepLabel = parts[1]
+	}
+	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
+		TriggerTaskData: &v1.TriggerTaskData{
+			WorkflowName:            req.WorkflowName,
+			TargetActionId:          &req.ActionId,
+			UserMessage:             &stepLabel,
+			Data:                    []byte(req.Input),
+			ParentExternalId:        &task.ExternalID,
+			ParentTaskId:            &task.ID,
+			ParentTaskInsertedAt:    &task.InsertedAt.Time,
+			ChildIndex:              &childIndex,
+			DagParentWorkflowRunIds: req.DagParentRunIds,
+		},
+	}}
+
+	if err := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, triggerOpts); err != nil {
+		return nil, fmt.Errorf("failed to populate external ids: %w", err)
+	}
+
+	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
+			TenantId:        tenantId,
+			Task:            task,
+			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			InvocationCount: req.InvocationCount,
+		},
+		TriggerRuns: &v1.IngestTriggerRunsOpts{
+			TriggerOpts: triggerOpts,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to ingest durable task event: %w", err)
+	}
+
+	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
+	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
+
+	if len(dags) > 0 || len(tasks) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, tenantId, tasks, dags); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/dags for dag step trigger")
+		}
+	}
+
+	if len(ingestionResult.TriggerRunsResult.Entries) == 0 {
+		return nil, fmt.Errorf("no entries returned from durable event ingestion")
+	}
+
+	entry := ingestionResult.TriggerRunsResult.Entries[0]
+
+	return &operator.DAGStepTriggerResult{
+		NodeId:                entry.NodeId,
+		BranchId:              entry.BranchId,
+		WorkflowRunExternalId: entry.WorkflowRunExternalId.String(),
+	}, nil
 }
