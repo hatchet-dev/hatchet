@@ -79,6 +79,9 @@ type TriggerTaskData struct {
 
 	// (optional) when set, only trigger this specific step by action ID (used by DAG operator)
 	TargetActionId *string `json:"target_action_id,omitempty"`
+
+	// (optional) a human-readable label shown in the activity log for this durable event entry
+	UserMessage *string `json:"user_message,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {

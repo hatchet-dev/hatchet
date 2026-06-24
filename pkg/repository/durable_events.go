@@ -1102,6 +1102,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				IdempotencyKey:      idempotencyKey,
 				InputPayload:        inputPayload,
 				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
+				UserMessage:         triggerOpts.UserMessage,
 			}
 
 			nodeBranchKey := NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}

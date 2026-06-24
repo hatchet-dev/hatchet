@@ -327,6 +327,9 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
   const userMessage = entry.userMessage?.trim();
 
   if (entry.kind === V1DurableEventLogKind.RUN) {
+    if (userMessage) {
+      return `spawned child ${userMessage}`;
+    }
     const item = entry.waitData?.[0];
     if (
       entry.waitData?.length === 1 &&
@@ -337,7 +340,7 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
         ? `spawned child ${item.workflowName}`
         : 'spawned child';
     }
-    return userMessage || 'spawned child';
+    return 'spawned child';
   }
   if (userMessage) {
     return userMessage;
@@ -350,6 +353,10 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
 
 function entryCompletionMessage(entry: V1DurableEventLogEntry): string {
   if (entry.kind === V1DurableEventLogKind.RUN) {
+    const userMessage = entry.userMessage?.trim();
+    if (userMessage) {
+      return `child ${userMessage} completed`;
+    }
     const item = entry.waitData?.[0];
     if (
       entry.waitData?.length === 1 &&
@@ -412,6 +419,10 @@ function childNamesFromEntries(
   entries: V1DurableEventLogEntry[],
 ): (string | null)[] {
   return entries.map((e) => {
+    const userMessage = e.userMessage?.trim();
+    if (userMessage) {
+      return userMessage;
+    }
     const item = e.waitData?.[0];
     if (
       e.waitData?.length === 1 &&
