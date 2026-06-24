@@ -44,9 +44,9 @@ type LeaseManager struct {
 }
 
 func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, notifierCh[*v1.ListActiveWorkersResult], notifierCh[string], notifierCh[*sqlcv1.V1StepConcurrency]) {
-	workersCh := make(notifierCh[*v1.ListActiveWorkersResult], 1)
-	queuesCh := make(notifierCh[string], 1)
-	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency], 1)
+	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
+	queuesCh := make(notifierCh[string])
+	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency])
 
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),

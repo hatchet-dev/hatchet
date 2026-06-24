@@ -188,37 +188,37 @@ func (p *SchedulingPool) cleanupTenants(toCleanup []*tenantManager) {
 }
 
 func (p *SchedulingPool) Replenish(ctx context.Context, tenantId uuid.UUID) {
-	if tm := p.getTenantManager(tenantId, true); tm != nil {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.replenish(ctx)
 	}
 }
 
 func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId uuid.UUID, queueNames []string) {
-	if tm := p.getTenantManager(tenantId, true); tm != nil {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.queue(ctx, queueNames)
 	}
 }
 
 func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
-	if tm := p.getTenantManager(tenantId, true); tm != nil {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyConcurrency(ctx, strategyIds)
 	}
 }
 
 func (p *SchedulingPool) NotifyNewWorker(ctx context.Context, tenantId uuid.UUID, workerId uuid.UUID) {
-	if tm := p.getTenantManager(tenantId, true); tm != nil {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewWorker(ctx, workerId)
 	}
 }
 
 func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID, queueName string) {
-	if tm := p.getTenantManager(tenantId, true); tm != nil {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewQueue(ctx, queueName)
 	}
 }
 
 func (p *SchedulingPool) NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64) {
-	if tm := p.getTenantManager(tenantId, true); tm != nil {
+	if tm := p.getTenantManager(tenantId, false); tm != nil {
 		tm.notifyNewConcurrencyStrategy(ctx, strategyId)
 	}
 }

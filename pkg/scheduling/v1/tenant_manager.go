@@ -147,15 +147,6 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 				t.queuersMu.RUnlock()
 			} else {
 				t.scheduler.setWorkers(msg.items)
-				t.replenish(ctx)
-
-				t.queuersMu.RLock()
-
-				for _, q := range t.queuers {
-					q.queue(ctx)
-				}
-
-				t.queuersMu.RUnlock()
 			}
 		}
 	}
@@ -197,6 +188,7 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 
 func (t *tenantManager) setQueuers(queueNames []string) {
 	t.queuersMu.Lock()
+	defer t.queuersMu.Unlock()
 
 	queueNamesSet := make(map[string]struct{}, len(queueNames))
 
@@ -220,20 +212,11 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 		}
 	}
 
-	newQueuers := make([]*Queuer, 0, len(queueNamesSet))
-
 	for queueName := range queueNamesSet {
-		q := newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh)
-		newQueueArr = append(newQueueArr, q)
-		newQueuers = append(newQueuers, q)
+		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh))
 	}
 
 	t.queuers = newQueueArr
-	t.queuersMu.Unlock()
-
-	for _, q := range newQueuers {
-		q.queue(context.Background())
-	}
 }
 
 func (t *tenantManager) addQueuer(queueName string) {
@@ -257,6 +240,7 @@ func (t *tenantManager) addQueuer(queueName string) {
 
 func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
+	defer t.concurrencyMu.Unlock()
 
 	strategiesSet := make(map[int64]*sqlcv1.V1StepConcurrency, len(strategies))
 
@@ -278,37 +262,24 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 		}
 	}
 
-	newStrategies := make([]*ConcurrencyManager, 0, len(strategiesSet))
-
 	for _, strategy := range strategiesSet {
-		c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
-		newArr = append(newArr, c)
-		newStrategies = append(newStrategies, c)
+		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
 	}
 
 	t.concurrencyStrategies = newArr
-	t.concurrencyMu.Unlock()
-
-	for _, c := range newStrategies {
-		c.notify(context.Background())
-	}
 }
 
 func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
+	defer t.concurrencyMu.Unlock()
 
 	for _, c := range t.concurrencyStrategies {
 		if c.strategy.ID == strategy.ID {
-			t.concurrencyMu.Unlock()
 			return
 		}
 	}
 
-	c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
-	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
-	t.concurrencyMu.Unlock()
-
-	c.notify(context.Background())
+	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
@@ -326,8 +297,6 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 		strategyIdsMap[id] = struct{}{}
 	}
 
-	notifiedStrategyIds := make(map[int64]struct{}, len(strategyIdsMap))
-
 	t.concurrencyMu.RLock()
 
 	for _, c := range t.concurrencyStrategies {
@@ -335,7 +304,6 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 			continue
 		}
 
-		notifiedStrategyIds[c.strategy.ID] = struct{}{}
 		c.notify(ctx)
 
 		childStrategyIds := make([]int64, 0)
@@ -386,14 +354,6 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 	}
 
 	t.concurrencyMu.RUnlock()
-
-	for strategyId := range strategyIdsMap {
-		if _, ok := notifiedStrategyIds[strategyId]; ok {
-			continue
-		}
-
-		t.notifyNewConcurrencyStrategy(ctx, strategyId)
-	}
 }
 
 func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) {
