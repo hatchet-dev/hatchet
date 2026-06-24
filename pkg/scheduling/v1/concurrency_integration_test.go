@@ -215,6 +215,55 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 	})
 }
 
+func TestConcurrency_NotifyConcurrencyColdStartsTenantManager(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		requireSchedulerSchema(t, ctx, conf)
+
+		s := setupStepConcurrencyTest(t, ctx, conf, "concurrency-cold-start-test", "GROUP_ROUND_ROBIN", 1, 2)
+
+		l := zerolog.Nop()
+		schedulingPool, cleanup, err := v1.NewSchedulingPool(
+			conf.V1.Scheduler(),
+			&l,
+			100,
+			20,
+			5*time.Millisecond,
+			6*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
+			5*time.Millisecond,
+			false,
+			1,
+			nil,
+		)
+		require.NoError(t, err)
+		defer func() { _ = cleanup() }()
+
+		resultsChan := schedulingPool.GetConcurrencyResultsCh()
+		schedulingPool.NotifyConcurrency(ctx, s.tenantId, []int64{s.strategy.ID})
+
+		deadline := time.NewTimer(2 * time.Second)
+		defer deadline.Stop()
+
+		for {
+			select {
+			case <-deadline.C:
+				t.Fatal("timed out waiting for concurrency result after cold-start notification")
+			case res := <-resultsChan:
+				if res.TenantId != s.tenantId || len(res.Queued) == 0 {
+					continue
+				}
+
+				require.Len(t, res.Queued, 1)
+				return nil
+			}
+		}
+	})
+}
+
 // --- Chained strategy regression test ---
 
 // TestConcurrency_ChainedStrategiesDoNotContaminate verifies that when two concurrency
