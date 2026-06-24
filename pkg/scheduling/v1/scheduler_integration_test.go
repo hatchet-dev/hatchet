@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
@@ -219,6 +220,9 @@ func TestScheduler_NotifyQueuesColdStartsTenantManager(t *testing.T) {
 		taskParams.Inputs[0] = []byte(`{}`)
 		taskParams.Additionalmetadatas[0] = []byte(`{}`)
 		taskParams.InitialStates[0] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		taskParams.Concurrencyparentstrategyids[0] = []pgtype.Int8{}
+		taskParams.ConcurrencyStrategyIds[0] = []int64{}
+		taskParams.ConcurrencyKeys[0] = []string{}
 		taskParams.WorkflowVersionIds[0] = wfVersion.WorkflowVersion.ID
 		taskParams.WorkflowRunIds[0] = uuid.New()
 
