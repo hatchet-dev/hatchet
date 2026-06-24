@@ -433,12 +433,14 @@ type decideFn func(sq *subQueue) (toFill, toCancel []slot)
 // preempt a running slot when a higher-priority slot is waiting.
 func (c *ConcurrencyStrategy) decide() decideFn {
 	switch c.strategy.Strategy {
+	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:
+		return decideGroupRoundRobin
 	case sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS:
 		return decideCancelInProgress
 	case sqlcv1.V1ConcurrencyStrategyCANCELNEWEST:
 		return decideCancelNewest
 	default:
-		return decideGroupRoundRobin
+		panic("unknown concurrency strategy")
 	}
 }
 

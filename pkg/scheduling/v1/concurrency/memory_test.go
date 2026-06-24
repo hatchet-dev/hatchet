@@ -1,6 +1,7 @@
 package concurrency
 
 import (
+	"cmp"
 	"runtime"
 	"testing"
 	"time"
@@ -63,7 +64,7 @@ func measureSingleHeap(t *testing.T, n int, usePointers bool) int64 {
 			m[s.taskId] = i
 		}
 		get := func(s *slot) (int, bool) { i, ok := m[s.taskId]; return i, ok }
-		cmp := func(a, b *slot) int { return cmp32(b.priority, a.priority) }
+		cmp := func(a, b *slot) int { return cmp.Compare(b.priority, a.priority) }
 		h := newHeap(cmp, set, get)
 		for i := 0; i < n; i++ {
 			s := mk(i)
@@ -80,7 +81,7 @@ func measureSingleHeap(t *testing.T, n int, usePointers bool) int64 {
 			m[s.taskId] = i
 		}
 		get := func(s slot) (int, bool) { i, ok := m[s.taskId]; return i, ok }
-		cmp := func(a, b slot) int { return cmp32(b.priority, a.priority) }
+		cmp := func(a, b slot) int { return cmp.Compare(b.priority, a.priority) }
 		h := newHeap(cmp, set, get)
 		for i := 0; i < n; i++ {
 			h.insert(mk(i))

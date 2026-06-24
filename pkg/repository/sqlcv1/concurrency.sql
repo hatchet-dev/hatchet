@@ -825,6 +825,7 @@ WHERE sc.id = tenant_step_concurrencies.id;
 
 -- name: ListConcurrencySlotsForIndexing :many
 SELECT
+    sort_id,
     task_id,
     task_inserted_at,
     task_retry_count,
@@ -837,9 +838,9 @@ SELECT
 FROM v1_concurrency_slot
 WHERE tenant_id = @tenantId::UUID
 AND strategy_id = @strategyId::BIGINT
-ORDER BY tenant_id, strategy_id ASC, key ASC, sort_id ASC
-LIMIT sqlc.arg('limit')::int
-OFFSET sqlc.arg('offset')::int;
+AND (key, sort_id) > (sqlc.arg('lastKey')::TEXT, sqlc.arg('lastSortId')::BIGINT)
+ORDER BY key ASC, sort_id ASC
+LIMIT sqlc.arg('limit')::int;
 
 -- name: UpdateConcurrencySlotIsFilled :one
 UPDATE v1_concurrency_slot

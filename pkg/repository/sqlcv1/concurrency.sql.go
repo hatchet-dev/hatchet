@@ -263,6 +263,7 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 
 const listConcurrencySlotsForIndexing = `-- name: ListConcurrencySlotsForIndexing :many
 SELECT
+    sort_id,
     task_id,
     task_inserted_at,
     task_retry_count,
@@ -275,19 +276,21 @@ SELECT
 FROM v1_concurrency_slot
 WHERE tenant_id = $1::UUID
 AND strategy_id = $2::BIGINT
-ORDER BY tenant_id, strategy_id ASC, key ASC, sort_id ASC
-LIMIT $4::int
-OFFSET $3::int
+AND (key, sort_id) > ($3::TEXT, $4::BIGINT)
+ORDER BY key ASC, sort_id ASC
+LIMIT $5::int
 `
 
 type ListConcurrencySlotsForIndexingParams struct {
 	Tenantid   uuid.UUID `json:"tenantid"`
 	Strategyid int64     `json:"strategyid"`
-	Offset     int32     `json:"offset"`
+	LastKey    string    `json:"lastKey"`
+	LastSortId int64     `json:"lastSortId"`
 	Limit      int32     `json:"limit"`
 }
 
 type ListConcurrencySlotsForIndexingRow struct {
+	SortID            pgtype.Int8        `json:"sort_id"`
 	TaskID            int64              `json:"task_id"`
 	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
 	TaskRetryCount    int32              `json:"task_retry_count"`
@@ -303,7 +306,8 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 	rows, err := db.Query(ctx, listConcurrencySlotsForIndexing,
 		arg.Tenantid,
 		arg.Strategyid,
-		arg.Offset,
+		arg.LastKey,
+		arg.LastSortId,
 		arg.Limit,
 	)
 	if err != nil {
@@ -314,6 +318,7 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 	for rows.Next() {
 		var i ListConcurrencySlotsForIndexingRow
 		if err := rows.Scan(
+			&i.SortID,
 			&i.TaskID,
 			&i.TaskInsertedAt,
 			&i.TaskRetryCount,

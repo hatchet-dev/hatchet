@@ -854,13 +854,15 @@ func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.
 
 	defer rollback()
 
-	offset := 0
+	var lastKey string
+	var lastSortId int64
 
 	for {
 		slots, err := c.queries.ListConcurrencySlotsForIndexing(ctx, tx, sqlcv1.ListConcurrencySlotsForIndexingParams{
 			Tenantid:   tenantId,
 			Strategyid: strategyId,
-			Offset:     int32(offset),
+			LastKey:    lastKey,
+			LastSortId: lastSortId,
 			Limit:      10000,
 		})
 
@@ -880,7 +882,9 @@ func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.
 			}
 		}
 
-		offset += len(slots)
+		last := slots[len(slots)-1]
+		lastKey = last.Key
+		lastSortId = last.SortID.Int64
 	}
 
 	if err := commit(ctx); err != nil {

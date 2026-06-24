@@ -1,6 +1,9 @@
 package concurrency
 
-import "time"
+import (
+	"cmp"
+	"time"
+)
 
 // slotIndex is a data structure for efficiently querying concurrency slots.
 //
@@ -69,12 +72,12 @@ type inMemorySlotIndex struct {
 // CANCEL_NEWEST) pass reverseCompare(priorityCompare).
 func priorityCompare(a, b slot) int {
 	if a.priority != b.priority {
-		return cmp32(b.priority, a.priority)
+		return cmp.Compare(b.priority, a.priority)
 	}
 	if a.taskInsertedAtNs != b.taskInsertedAtNs {
-		return cmp64(a.taskInsertedAtNs, b.taskInsertedAtNs)
+		return cmp.Compare(a.taskInsertedAtNs, b.taskInsertedAtNs)
 	}
-	return cmp64(a.taskId, b.taskId)
+	return cmp.Compare(a.taskId, b.taskId)
 }
 
 // reverseCompare flips a comparator's order while preserving ties, so an index built with it pops
@@ -108,9 +111,9 @@ func newInMemorySlotIndexWithCompare(trackTimeouts bool, compare func(a, b slot)
 		// ordering: earliest timeout first, then lower taskId.
 		timedOutCompare := func(a, b timeoutEntry) int {
 			if a.timeoutAtMs != b.timeoutAtMs {
-				return cmp64(a.timeoutAtMs, b.timeoutAtMs)
+				return cmp.Compare(a.timeoutAtMs, b.timeoutAtMs)
 			}
-			return cmp64(a.taskId, b.taskId)
+			return cmp.Compare(a.taskId, b.taskId)
 		}
 
 		timedOutSetIndex := func(e timeoutEntry, i int) {
@@ -275,26 +278,4 @@ func (q *inMemorySlotIndex) setTimeoutIndex(taskId int64, i int) {
 		return
 	}
 	q.byTaskID[taskId] = loc
-}
-
-func cmp64(a, b int64) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	default:
-		return 0
-	}
-}
-
-func cmp32(a, b int32) int {
-	switch {
-	case a < b:
-		return -1
-	case a > b:
-		return 1
-	default:
-		return 0
-	}
 }

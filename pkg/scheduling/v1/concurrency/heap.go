@@ -133,7 +133,7 @@ func (h *heap[T]) takeMin() T {
 
 func (h *heap[T]) delete(i int) {
 	if i < 0 || i >= len(h.values) {
-		panic("heap: delete: index out of range")
+		return
 	}
 
 	removed := h.values[i]
