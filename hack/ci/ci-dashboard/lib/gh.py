@@ -49,7 +49,7 @@ def api_text(path: str, timeout: int = 180) -> str | None:
     )
     if proc.returncode != 0:
         stderr = proc.stderr.lower()
-        if any(s in stderr for s in ("not found", "410", "gone", "no logs")):
+        if any(s in stderr for s in ("not found", "404", "410", "gone", "no logs")):
             return None
         raise GhError(f"gh api {path} failed ({proc.returncode}): {proc.stderr.strip()}")
     return proc.stdout
