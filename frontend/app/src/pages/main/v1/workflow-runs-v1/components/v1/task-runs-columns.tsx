@@ -111,29 +111,14 @@ export const columns: (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title={TaskRunColumn.taskName} />
     ),
-    cell: ({ row }) => {
-      if (row.getCanExpand()) {
-        return (
-          <Link
-            to={appRoutes.tenantRunRoute.to}
-            params={{ tenant: tenantId, run: row.original.metadata.id }}
-          >
-            <div className="min-w-fit cursor-pointer whitespace-nowrap hover:underline">
-              {row.original.displayName}
-            </div>
-          </Link>
-        );
-      } else {
-        return (
-          <div
-            className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
-            onClick={() => onTaskRunIdClick(row.original.metadata.id)}
-          >
-            {row.original.displayName}
-          </div>
-        );
-      }
-    },
+    cell: ({ row }) => (
+      <div
+        className="min-w-fit cursor-pointer whitespace-nowrap hover:underline"
+        onClick={() => onTaskRunIdClick(row.original.metadata.id)}
+      >
+        {row.original.displayName}
+      </div>
+    ),
     enableSorting: false,
     enableHiding: false,
   },
