@@ -180,8 +180,8 @@ message TaskRunInvocationInstruction {
     oneof triggered_by {
         // TODO: cron/schedule/webhook?
 
-        ParentRun parent_run = 15;
-        Event event = 16;
+        ParentRun parent_run = 15; // (optional) the parent run that triggered this task run
+        Event event = 16; // (optional) the event that triggered this task run
     }
 }
 
