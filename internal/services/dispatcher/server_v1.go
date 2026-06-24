@@ -1241,6 +1241,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	if parts := strings.SplitN(req.ActionId, ":", 2); len(parts) == 2 {
 		stepLabel = parts[1]
 	}
+
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		TriggerTaskData: &v1.TriggerTaskData{
 			WorkflowName:            req.WorkflowName,

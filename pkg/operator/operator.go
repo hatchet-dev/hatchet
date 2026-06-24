@@ -124,7 +124,7 @@ func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTrig
 		return nil, fmt.Errorf("operator has no task event writer configured")
 	}
 
-	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId})
 
 	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
 }
