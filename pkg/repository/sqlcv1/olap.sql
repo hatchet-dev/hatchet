@@ -366,6 +366,58 @@ JOIN v1_tasks_olap tsk
     ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
+-- name: ListTaskEventsByTaskIds :many
+WITH aggregated_events AS (
+  SELECT
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    durable_invocation_count,
+    MIN(event_timestamp)::timestamptz AS time_first_seen,
+    MAX(event_timestamp)::timestamptz AS time_last_seen,
+    COUNT(*) AS count,
+    MIN(id) AS first_id
+  FROM v1_task_events_olap
+  WHERE
+    tenant_id = @tenantId::uuid
+    AND (task_id, task_inserted_at) IN (
+        SELECT unnest(@taskIds::bigint[]), unnest(@taskInsertedAts::timestamptz[])
+    )
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
+)
+SELECT
+  a.tenant_id,
+  a.task_id,
+  a.task_inserted_at,
+  a.retry_count,
+  a.event_type,
+  a.durable_invocation_count,
+  a.time_first_seen,
+  a.time_last_seen,
+  a.count,
+  t.id,
+  t.event_timestamp,
+  t.readable_status,
+  t.error_message,
+  t.output,
+  t.external_id AS event_external_id,
+  t.worker_id,
+  t.additional__event_data,
+  t.additional__event_message,
+  tsk.display_name,
+  tsk.external_id AS task_external_id
+FROM aggregated_events a
+JOIN v1_task_events_olap t
+  ON t.tenant_id = a.tenant_id
+  AND t.task_id = a.task_id
+  AND t.task_inserted_at = a.task_inserted_at
+  AND t.id = a.first_id
+JOIN v1_tasks_olap tsk
+    ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
     SELECT

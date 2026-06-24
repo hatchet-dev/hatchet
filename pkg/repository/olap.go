@@ -243,6 +243,7 @@ type OLAPRepository interface {
 	ListWorkflowRuns(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]*WorkflowRunData, int, error)
 	ListTaskRunEvents(ctx context.Context, tenantId uuid.UUID, taskId int64, taskInsertedAt pgtype.Timestamptz, limit, offset int64) ([]*sqlcv1.ListTaskEventsRow, error)
 	ListTaskRunEventsByWorkflowRunId(ctx context.Context, tenantId uuid.UUID, workflowRunId uuid.UUID) ([]*TaskEventWithPayloads, error)
+	ListTaskRunEventsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskMetadata []TaskMetadata) ([]*TaskEventWithPayloads, error)
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
@@ -1684,6 +1685,79 @@ func (r *OLAPRepositoryImpl) ListTaskRunEventsByWorkflowRunId(ctx context.Contex
 		taskEventWithPayloads = append(taskEventWithPayloads, &TaskEventWithPayloads{
 			row,
 			payload,
+		})
+	}
+
+	return taskEventWithPayloads, nil
+}
+
+func (r *OLAPRepositoryImpl) ListTaskRunEventsByTaskIds(ctx context.Context, tenantId uuid.UUID, taskMetadata []TaskMetadata) ([]*TaskEventWithPayloads, error) {
+	taskIds := make([]int64, len(taskMetadata))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(taskMetadata))
+
+	for i, tm := range taskMetadata {
+		taskIds[i] = tm.TaskID
+		taskInsertedAts[i] = sqlchelpers.TimestamptzFromTime(tm.TaskInsertedAt)
+	}
+
+	rows, err := r.queries.ListTaskEventsByTaskIds(ctx, r.readPool, sqlcv1.ListTaskEventsByTaskIdsParams{
+		Tenantid:        tenantId,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	retrievePayloadOpts := make([]ReadOLAPPayloadOpts, len(rows))
+
+	for i, row := range rows {
+		retrievePayloadOpts[i] = ReadOLAPPayloadOpts{
+			ExternalId: row.EventExternalID,
+			InsertedAt: row.EventTimestamp,
+		}
+	}
+
+	payloads, err := r.readPayloads(ctx, r.readPool, tenantId, retrievePayloadOpts...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	taskEventWithPayloads := make([]*TaskEventWithPayloads, 0, len(rows))
+
+	for _, row := range rows {
+		payload, exists := payloads[row.EventExternalID]
+		if !exists {
+			r.l.Error().Ctx(ctx).Msgf("ListTaskRunEventsByTaskIds: event with external_id %s has empty payload, falling back to output", row.EventExternalID)
+			payload = row.Output
+		}
+
+		taskEventWithPayloads = append(taskEventWithPayloads, &TaskEventWithPayloads{
+			ListTaskEventsForWorkflowRunRow: &sqlcv1.ListTaskEventsForWorkflowRunRow{
+				TenantID:               row.TenantID,
+				TaskID:                 row.TaskID,
+				TaskInsertedAt:         row.TaskInsertedAt,
+				RetryCount:             row.RetryCount,
+				EventType:              row.EventType,
+				DurableInvocationCount: row.DurableInvocationCount,
+				TimeFirstSeen:          row.TimeFirstSeen,
+				TimeLastSeen:           row.TimeLastSeen,
+				Count:                  row.Count,
+				ID:                     row.ID,
+				EventTimestamp:         row.EventTimestamp,
+				ReadableStatus:         row.ReadableStatus,
+				ErrorMessage:           row.ErrorMessage,
+				Output:                 row.Output,
+				EventExternalID:        row.EventExternalID,
+				WorkerID:               row.WorkerID,
+				AdditionalEventData:    row.AdditionalEventData,
+				AdditionalEventMessage: row.AdditionalEventMessage,
+				DisplayName:            row.DisplayName,
+				TaskExternalID:         row.TaskExternalID,
+			},
+			OutputPayload: payload,
 		})
 	}
 

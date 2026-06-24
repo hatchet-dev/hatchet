@@ -36,11 +36,13 @@ export function StepRunEvents({
   workflowRunId,
   isDurable,
   durableTaskIds,
+  events: externalEvents,
 }: {
   taskRunId?: string;
   workflowRunId?: string;
   isDurable?: boolean;
   durableTaskIds?: string[];
+  events?: V1TaskEvent[];
   taskDisplayName?: string;
   fallbackTaskDisplayName?: string;
   onClick?: (stepRunId: string) => void;
@@ -61,7 +63,8 @@ export function StepRunEvents({
       taskRunId,
       workflowRunId,
     ),
-    refetchInterval,
+    enabled: !externalEvents,
+    refetchInterval: externalEvents ? false : refetchInterval,
   });
 
   // fixme: this is an n+1 query, would be better to have a bulk getter
@@ -76,7 +79,7 @@ export function StepRunEvents({
 
   const logs = useMemo(() => {
     const taskLines = toTaskEventLogLines(
-      eventsQuery.data?.rows ?? [],
+      externalEvents ?? eventsQuery.data?.rows ?? [],
       isDag,
       tenantId,
     );
@@ -84,7 +87,7 @@ export function StepRunEvents({
       toDurableEventLogLines(q.data ?? []),
     );
     return mergeByTimestamp(taskLines, durableEventLogLines);
-  }, [eventsQuery.data, isDag, tenantId, durableLogsQueries]);
+  }, [externalEvents, eventsQuery.data, isDag, tenantId, durableLogsQueries]);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -112,7 +115,7 @@ export function StepRunEvents({
     [open],
   );
 
-  if (eventsQuery.isLoading) {
+  if (!externalEvents && eventsQuery.isLoading) {
     return <Loading />;
   }
 

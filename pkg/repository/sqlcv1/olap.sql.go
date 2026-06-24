@@ -1796,6 +1796,129 @@ func (q *Queries) ListTaskEvents(ctx context.Context, db DBTX, arg ListTaskEvent
 	return items, nil
 }
 
+const listTaskEventsByTaskIds = `-- name: ListTaskEventsByTaskIds :many
+WITH aggregated_events AS (
+  SELECT
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    durable_invocation_count,
+    MIN(event_timestamp)::timestamptz AS time_first_seen,
+    MAX(event_timestamp)::timestamptz AS time_last_seen,
+    COUNT(*) AS count,
+    MIN(id) AS first_id
+  FROM v1_task_events_olap
+  WHERE
+    tenant_id = $1::uuid
+    AND (task_id, task_inserted_at) IN (
+        SELECT unnest($2::bigint[]), unnest($3::timestamptz[])
+    )
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
+)
+SELECT
+  a.tenant_id,
+  a.task_id,
+  a.task_inserted_at,
+  a.retry_count,
+  a.event_type,
+  a.durable_invocation_count,
+  a.time_first_seen,
+  a.time_last_seen,
+  a.count,
+  t.id,
+  t.event_timestamp,
+  t.readable_status,
+  t.error_message,
+  t.output,
+  t.external_id AS event_external_id,
+  t.worker_id,
+  t.additional__event_data,
+  t.additional__event_message,
+  tsk.display_name,
+  tsk.external_id AS task_external_id
+FROM aggregated_events a
+JOIN v1_task_events_olap t
+  ON t.tenant_id = a.tenant_id
+  AND t.task_id = a.task_id
+  AND t.task_inserted_at = a.task_inserted_at
+  AND t.id = a.first_id
+JOIN v1_tasks_olap tsk
+    ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC
+`
+
+type ListTaskEventsByTaskIdsParams struct {
+	Tenantid        uuid.UUID            `json:"tenantid"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+}
+
+type ListTaskEventsByTaskIdsRow struct {
+	TenantID               uuid.UUID            `json:"tenant_id"`
+	TaskID                 int64                `json:"task_id"`
+	TaskInsertedAt         pgtype.Timestamptz   `json:"task_inserted_at"`
+	RetryCount             int32                `json:"retry_count"`
+	EventType              V1EventTypeOlap      `json:"event_type"`
+	DurableInvocationCount int32                `json:"durable_invocation_count"`
+	TimeFirstSeen          pgtype.Timestamptz   `json:"time_first_seen"`
+	TimeLastSeen           pgtype.Timestamptz   `json:"time_last_seen"`
+	Count                  int64                `json:"count"`
+	ID                     int64                `json:"id"`
+	EventTimestamp         pgtype.Timestamptz   `json:"event_timestamp"`
+	ReadableStatus         V1ReadableStatusOlap `json:"readable_status"`
+	ErrorMessage           pgtype.Text          `json:"error_message"`
+	Output                 []byte               `json:"output"`
+	EventExternalID        uuid.UUID            `json:"event_external_id"`
+	WorkerID               *uuid.UUID           `json:"worker_id"`
+	AdditionalEventData    pgtype.Text          `json:"additional__event_data"`
+	AdditionalEventMessage pgtype.Text          `json:"additional__event_message"`
+	DisplayName            string               `json:"display_name"`
+	TaskExternalID         uuid.UUID            `json:"task_external_id"`
+}
+
+func (q *Queries) ListTaskEventsByTaskIds(ctx context.Context, db DBTX, arg ListTaskEventsByTaskIdsParams) ([]*ListTaskEventsByTaskIdsRow, error) {
+	rows, err := db.Query(ctx, listTaskEventsByTaskIds, arg.Tenantid, arg.Taskids, arg.Taskinsertedats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTaskEventsByTaskIdsRow
+	for rows.Next() {
+		var i ListTaskEventsByTaskIdsRow
+		if err := rows.Scan(
+			&i.TenantID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.RetryCount,
+			&i.EventType,
+			&i.DurableInvocationCount,
+			&i.TimeFirstSeen,
+			&i.TimeLastSeen,
+			&i.Count,
+			&i.ID,
+			&i.EventTimestamp,
+			&i.ReadableStatus,
+			&i.ErrorMessage,
+			&i.Output,
+			&i.EventExternalID,
+			&i.WorkerID,
+			&i.AdditionalEventData,
+			&i.AdditionalEventMessage,
+			&i.DisplayName,
+			&i.TaskExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskEventsForWorkflowRun = `-- name: ListTaskEventsForWorkflowRun :many
 WITH tasks AS (
     SELECT dt.task_id, dt.task_inserted_at
