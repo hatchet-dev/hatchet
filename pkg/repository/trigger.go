@@ -2537,10 +2537,6 @@ func (r *sharedRepository) NewTriggerTaskData(
 		)
 	}
 
-	if len(req.DagParentWorkflowRunIds) > 0 {
-		t.DagParentWorkflowRunIds = req.DagParentWorkflowRunIds
-	}
-
 	return t, nil
 }
 
