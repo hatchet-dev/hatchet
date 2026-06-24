@@ -87,7 +87,8 @@ export function EditTenantTagsModal({
               disabled={setTagsMutation.isPending}
             />
             <p className="text-sm text-muted-foreground">
-              Comma-separated list of tags. Use "*" to allow all members access.
+              Comma-separated list of tags. Use "*" to allow all user groups
+              access.
             </p>
           </div>
           <div className="flex justify-end gap-3">
