@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	// gRPC retry timing keeps the existing 5s exponential shape, but uses
-	// full jitter so clients spread retry pressure across the whole delay window.
-	// Consecutive retry delay windows are 0-5s, 0-10s, 0-20s, 0-40s,
-	// then capped at 0-80s.
+	// gRPC retry backoff uses full jitter over exponential windows so clients
+	// spread retry pressure. After the initial RPC fails, middleware invokes
+	// backoff with attempt=1 for the first retry; delay windows are 0-5s,
+	// 0-10s, 0-20s, 0-40s, then capped at 0-80s.
 	grpcMaxRetries    = 5
 	grpcBaseDelay     = 5 * time.Second
 	grpcBackoffFactor = 2.0

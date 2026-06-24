@@ -27,7 +27,7 @@ func TestGRPCFullJitterBackoff(t *testing.T) {
 		return maxExclusive - 1
 	})
 
-	assert.Equal(t, 5*time.Second, backoff(context.Background(), 0))
-	assert.Equal(t, 10*time.Second, backoff(context.Background(), 1))
+	assert.Equal(t, 5*time.Second, backoff(context.Background(), 1))
+	assert.Equal(t, 10*time.Second, backoff(context.Background(), 2))
 	assert.Equal(t, grpcMaxDelay, backoff(context.Background(), 99))
 }

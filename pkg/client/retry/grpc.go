@@ -47,6 +47,8 @@ func GRPCDialOptions(l *zerolog.Logger, enabled bool) []grpc.DialOption {
 
 func grpcFullJitterBackoff(jitter func(int64) int64) grpc_retry.BackoffFunc {
 	return func(_ context.Context, attempt uint) time.Duration {
-		return fullJitterDelay(int(attempt), grpcBaseDelay, grpcBackoffFactor, grpcMaxDelay, jitter)
+		// go-grpc-middleware passes attempt=1 for the first retry backoff.
+		zeroBasedAttempt := int(attempt) - 1
+		return fullJitterDelay(zeroBasedAttempt, grpcBaseDelay, grpcBackoffFactor, grpcMaxDelay, jitter)
 	}
 }
