@@ -9,18 +9,26 @@ import "google/protobuf/timestamp.proto";
 import "v2/task.proto";
 
 // WorkerService manages the worker lifecycle. Registration and the session
-// are deliberately separate: Register persists what the worker can run (its
-// task definitions) and returns a worker_id, while Session governs whether the
-// worker is connected. Heartbeats, assignment delivery and run state reporting
-// all happen over the single bidirectional session stream, so there is one
-// ordered channel between a connected worker and the server, and reconnects
-// only require a lightweight Attach rather than re-sending task definitions.
+// are deliberately separate: Register establishes the worker and returns a
+// worker_id, while Session governs whether the worker is connected. Task
+// definitions are registered independently through TaskService; workers register
+// the registered task names they can run through RegisterTasks. Heartbeats,
+// assignment delivery and run state reporting all happen over the single
+// bidirectional session stream, so there is one ordered channel between a
+// connected worker and the server, and reconnects only require a lightweight
+// Attach.
 service WorkerService {
-    // Register validates and persists the worker's task definitions and
-    // returns a worker_id. It does not make the worker available for
-    // assignments; the worker is assignable only while a session is attached.
-    // Registrations that are never attached expire after a server-side TTL.
+    // Register validates and persists the worker metadata and returns a
+    // worker_id. It does not make the worker available for assignments; the
+    // worker is assignable only while a session is attached and has task names
+    // registered via RegisterTasks. Registrations that are never attached expire
+    // after a server-side TTL.
     rpc Register(RegisterWorkerRequest) returns (RegisterWorkerResponse) {}
+
+    // RegisterTasks replaces the set of registered task names this worker can
+    // run. The server should reject unknown task names; clients can register or
+    // update tasks independently through TaskService.RegisterTasks.
+    rpc RegisterTasks(RegisterWorkerTasksRequest) returns (RegisterWorkerTasksResponse) {}
 
     // Session must begin with an AttachWorker message referencing a registered
     // worker_id. Attaching with an unknown or expired worker_id fails the
@@ -54,22 +62,28 @@ message RuntimeInfo {
     optional string extra = 5;
 }
 
-// RegisterWorkerRequest establishes the worker and registers its task
-// definitions in a single request; the worker can run the actions of the
-// tasks it registers. Registration is idempotent: re-registering with changed
-// task definitions returns the same worker_id with updated task versions.
+// RegisterWorkerRequest establishes the worker. Registration is idempotent for
+// a stable worker name, but it does not register task definitions or declare
+// which tasks this worker can run.
 message RegisterWorkerRequest {
     string name = 1; // (required) the name of the worker
-    repeated TaskDefinition tasks = 2; // (required) the task definitions this worker serves; tasks may reference each other as parents
-    map<string, int32> slot_config = 3; // (required) slot capacity for this worker (slot_type -> units)
-    map<string, WorkerLabel> labels = 4; // (optional) worker labels (i.e. state or other metadata)
-    optional RuntimeInfo runtime_info = 5; // (optional) information about the worker's runtime environment
+    map<string, int32> slot_config = 2; // (required) slot capacity for this worker (slot_type -> units)
+    map<string, WorkerLabel> labels = 3; // (optional) worker labels (i.e. state or other metadata)
+    optional RuntimeInfo runtime_info = 4; // (optional) information about the worker's runtime environment
 }
 
 message RegisterWorkerResponse {
     string worker_id = 1;
     string tenant_id = 2;
-    map<string, RegisteredTask> tasks = 3; // the registered task versions, keyed by task name
+}
+
+message RegisterWorkerTasksRequest {
+    string worker_id = 1; // (required) the id of the worker
+    repeated string task_names = 2; // (required) the complete set of registered task names this worker can run
+}
+
+message RegisterWorkerTasksResponse {
+    map<string, RegisteredTask> tasks = 1; // the task versions currently served by this worker, keyed by task name
 }
 
 // AttachWorker must be the first message sent on a session stream. It binds
@@ -83,12 +97,19 @@ message Heartbeat {
     google.protobuf.Timestamp sent_at = 1; // (required) the time the worker sent the heartbeat
 }
 
-// AssignmentAck acknowledges receipt of an assignment. SDKs should send it
-// promptly after accepting the assignment, but do not need to block starting
-// execution on the ack write.
-message AssignmentAck {
+// TaskRunInvocationAck acknowledges receipt of a task run invocation
+// instruction. SDKs should send it promptly after accepting the invocation, but
+// do not need to block starting execution on the ack write.
+message TaskRunInvocationAck {
     string task_run_external_id = 1; // (required) the external id of the acknowledged task run
-    int32 retry_count = 2; // (required) the retry count of the acknowledged assignment
+    int32 retry_count = 2; // (required) the retry count of the acknowledged invocation
+}
+
+// CancelTaskRunAck acknowledges receipt of a cancel instruction. SDKs should
+// send it promptly after accepting the cancellation request.
+message CancelTaskRunAck {
+    string task_run_external_id = 1; // (required) the external id of the acknowledged task run
+    int32 retry_count = 2; // (required) the retry attempt being cancelled
 }
 
 // TaskRunEventReport reports run progress. Workers only send STARTED,
@@ -121,10 +142,11 @@ message WorkerSessionRequest {
     oneof message {
         AttachWorker attach = 1;
         Heartbeat heartbeat = 2;
-        AssignmentAck assignment_ack = 3;
+        TaskRunInvocationAck task_run_invocation_ack = 3;
         TaskRunEventReport report = 4;
         RefreshTimeout refresh_timeout = 5;
         ReleaseSlot release_slot = 6;
+        CancelTaskRunAck cancel_task_run_ack = 7;
     }
 }
 
@@ -132,25 +154,39 @@ message AttachWorkerAck {
     string worker_id = 1;
 }
 
-// Assignment instructs the worker to run a task.
-message Assignment {
+// TaskRunInvocationInstruction instructs the worker to run a task.
+message TaskRunInvocationInstruction {
+    message ParentRun {
+        string parent_task_run_external_id = 1; // (required) the parent task run
+        optional int32 child_index = 2; // (optional) the index of this child run within the parent
+        optional string child_key = 3; // (optional) the key of this child run within the parent
+    }
+
+    message Event {
+        string external_id = 1; // (required) the external id of the event that triggered this run
+        string key = 2; // (required) the key of the event that triggered this run
+    }
+
     string task_run_external_id = 1; // the external id of the task run
     string task_name = 2; // the name of the task
-    string action = 3; // the action id to run
+    string queue = 3; // the queue this assignment was routed through // TODO: we used to have this as action so this might have side effects on how we route internally
     bytes input = 4; // the input payload for the run
     int32 retry_count = 5; // the retry attempt for this assignment, 0 for the first attempt
     int32 priority = 6; // the priority of the run
     optional bytes extra = 7; // (optional) extra user metadata set on the run
-    optional string parent_task_run_external_id = 8; // (optional) the parent task run, if this is a child run
-    optional int32 child_index = 9; // (optional) the index of this child run within the parent
-    optional string child_key = 10; // (optional) the key of this child run within the parent
     optional int32 durable_task_invocation_count = 11; // (optional) the invocation count, required for durable task runs
-    optional string triggering_event_external_id = 12; // (optional) the external id of the event that triggered this run
-    optional string triggering_event_key = 13; // (optional) the key of the event that triggered this run
     optional google.protobuf.Timestamp timeout_at = 14; // (optional) when the server will time out the run, so workers can enforce it locally
+
+    oneof triggered_by {
+        // TODO: cron/schedule/webhook?
+
+        ParentRun parent_run = 15;
+        Event event = 16;
+    }
 }
 
-message CancelTaskRun {
+// CancelTaskRunInstruction instructs the worker to cancel a task run.
+message CancelTaskRunInstruction {
     string task_run_external_id = 1; // the external id of the task run to cancel
     int32 retry_count = 2; // the retry attempt being cancelled
 }
@@ -172,8 +208,8 @@ message RefreshTimeoutAck {
 message WorkerSessionResponse {
     oneof message {
         AttachWorkerAck attach_ack = 1;
-        Assignment assignment = 2;
-        CancelTaskRun cancel_task_run = 3;
+        TaskRunInvocationInstruction assignment = 2;
+        CancelTaskRunInstruction cancel_task_run = 3;
         TaskRunEventReportAck report_ack = 4;
         RefreshTimeoutAck refresh_timeout_ack = 5;
     }

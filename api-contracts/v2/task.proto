@@ -9,13 +9,19 @@ import "google/protobuf/timestamp.proto";
 import "v2/shared/conditions.proto";
 import "v2/shared/task_config.proto";
 
-// TaskService is the client-facing surface for task triggering, run admin and
-// run subscriptions. Tasks are the top-level primitive: DAGs are expressed as
-// relationships between tasks (parents + conditions), not a separate workflow
-// resource. Task definitions are registered as part of worker registration,
-// and workers report run state over the worker session stream (see
-// WorkerService.Session in worker.proto).
+// TaskService is the client-facing surface for task definition registration,
+// task triggering, run admin and run subscriptions. Tasks are the top-level
+// primitive: DAGs are expressed as relationships between tasks (parents +
+// conditions), not a separate workflow resource. Workers separately register
+// which registered task names they can run through WorkerService.RegisterTasks,
+// and report run state over the worker session stream (see WorkerService.Session
+// in worker.proto).
 service TaskService {
+    // RegisterTasks validates and persists tasks. Registration is idempotent:
+    // re-registering a task with changed fields returns the same task_id with
+    // an updated task_version_id.
+    rpc RegisterTasks(RegisterTasksRequest) returns (RegisterTasksResponse) {}
+
     rpc TriggerTasks(TriggerTasksRequest) returns (TriggerTasksResponse) {}
 
     rpc CancelTaskRuns(CancelTaskRunsRequest) returns (CancelTaskRunsResponse) {}
@@ -43,13 +49,12 @@ message DefaultFilter {
     optional bytes payload = 3; // (optional) a JSON payload for the filter
 }
 
-// TaskDefinition declares a named, versioned task. A task either stands alone
-// or participates in a DAG via parents/conditions on tasks registered by the
-// same worker. Definitions are registered through the worker session
-// (RegisterWorker in worker.proto).
-message TaskDefinition {
+// Task declares a named, versioned task. A task either stands alone or
+// participates in a DAG via parents/conditions on tasks registered in the same
+// RegisterTasks request.
+message Task {
     string name = 1; // (required) the unique task name
-    string action = 2; // (required) the action id workers run for this task
+    string queue = 2; // (required) the queue this task is routed to
     optional string description = 3; // (optional) a human-readable description
     optional string version = 4; // (optional) the task version
     optional google.protobuf.Duration execution_timeout = 5; // (optional) the maximum run duration once started
@@ -68,10 +73,19 @@ message TaskDefinition {
     repeated string event_triggers = 18; // (optional) event keys that trigger runs of this task
     repeated string cron_triggers = 19; // (optional) cron expressions that trigger runs of this task
     repeated DefaultFilter default_filters = 20; // (optional) default filters applied to event triggers
+    optional bytes default_additional_metadata = 21; // (optional) JSON metadata applied to task runs by default
 }
 
-// RegisteredTask is returned in RegisterWorkerAck (worker.proto), keyed by
-// task name.
+message RegisterTasksRequest {
+    repeated Task tasks = 1; // (required) tasks to register; tasks may reference each other as parents
+}
+
+message RegisterTasksResponse {
+    map<string, RegisteredTask> tasks = 1; // the registered task versions, keyed by task name
+}
+
+// RegisteredTask is returned from RegisterTasks and worker task updates,
+// keyed by task name.
 message RegisteredTask {
     string task_id = 1; // the stable id of the task
     string task_version_id = 2; // the id of the registered version

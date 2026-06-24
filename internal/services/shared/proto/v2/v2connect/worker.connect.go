@@ -35,6 +35,9 @@ const (
 const (
 	// WorkerServiceRegisterProcedure is the fully-qualified name of the WorkerService's Register RPC.
 	WorkerServiceRegisterProcedure = "/v2.WorkerService/Register"
+	// WorkerServiceRegisterTasksProcedure is the fully-qualified name of the WorkerService's
+	// RegisterTasks RPC.
+	WorkerServiceRegisterTasksProcedure = "/v2.WorkerService/RegisterTasks"
 	// WorkerServiceSessionProcedure is the fully-qualified name of the WorkerService's Session RPC.
 	WorkerServiceSessionProcedure = "/v2.WorkerService/Session"
 	// WorkerServiceUpsertLabelsProcedure is the fully-qualified name of the WorkerService's
@@ -47,11 +50,16 @@ const (
 
 // WorkerServiceClient is a client for the v2.WorkerService service.
 type WorkerServiceClient interface {
-	// Register validates and persists the worker's task definitions and
-	// returns a worker_id. It does not make the worker available for
-	// assignments; the worker is assignable only while a session is attached.
-	// Registrations that are never attached expire after a server-side TTL.
+	// Register validates and persists the worker metadata and returns a
+	// worker_id. It does not make the worker available for assignments; the
+	// worker is assignable only while a session is attached and has task names
+	// registered via RegisterTasks. Registrations that are never attached expire
+	// after a server-side TTL.
 	Register(context.Context, *v2.RegisterWorkerRequest) (*v2.RegisterWorkerResponse, error)
+	// RegisterTasks replaces the set of registered task names this worker can
+	// run. The server should reject unknown task names; clients can register or
+	// update tasks independently through TaskService.RegisterTasks.
+	RegisterTasks(context.Context, *v2.RegisterWorkerTasksRequest) (*v2.RegisterWorkerTasksResponse, error)
 	// Session must begin with an AttachWorker message referencing a registered
 	// worker_id. Attaching with an unknown or expired worker_id fails the
 	// stream with NOT_FOUND, in which case the worker should Register again
@@ -78,6 +86,12 @@ func NewWorkerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(workerServiceMethods.ByName("Register")),
 			connect.WithClientOptions(opts...),
 		),
+		registerTasks: connect.NewClient[v2.RegisterWorkerTasksRequest, v2.RegisterWorkerTasksResponse](
+			httpClient,
+			baseURL+WorkerServiceRegisterTasksProcedure,
+			connect.WithSchema(workerServiceMethods.ByName("RegisterTasks")),
+			connect.WithClientOptions(opts...),
+		),
 		session: connect.NewClient[v2.WorkerSessionRequest, v2.WorkerSessionResponse](
 			httpClient,
 			baseURL+WorkerServiceSessionProcedure,
@@ -101,15 +115,25 @@ func NewWorkerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // workerServiceClient implements WorkerServiceClient.
 type workerServiceClient struct {
-	register     *connect.Client[v2.RegisterWorkerRequest, v2.RegisterWorkerResponse]
-	session      *connect.Client[v2.WorkerSessionRequest, v2.WorkerSessionResponse]
-	upsertLabels *connect.Client[v2.UpsertLabelsRequest, v2.UpsertLabelsResponse]
-	deregister   *connect.Client[v2.DeregisterRequest, v2.DeregisterResponse]
+	register      *connect.Client[v2.RegisterWorkerRequest, v2.RegisterWorkerResponse]
+	registerTasks *connect.Client[v2.RegisterWorkerTasksRequest, v2.RegisterWorkerTasksResponse]
+	session       *connect.Client[v2.WorkerSessionRequest, v2.WorkerSessionResponse]
+	upsertLabels  *connect.Client[v2.UpsertLabelsRequest, v2.UpsertLabelsResponse]
+	deregister    *connect.Client[v2.DeregisterRequest, v2.DeregisterResponse]
 }
 
 // Register calls v2.WorkerService.Register.
 func (c *workerServiceClient) Register(ctx context.Context, req *v2.RegisterWorkerRequest) (*v2.RegisterWorkerResponse, error) {
 	response, err := c.register.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
+}
+
+// RegisterTasks calls v2.WorkerService.RegisterTasks.
+func (c *workerServiceClient) RegisterTasks(ctx context.Context, req *v2.RegisterWorkerTasksRequest) (*v2.RegisterWorkerTasksResponse, error) {
+	response, err := c.registerTasks.CallUnary(ctx, connect.NewRequest(req))
 	if response != nil {
 		return response.Msg, err
 	}
@@ -141,11 +165,16 @@ func (c *workerServiceClient) Deregister(ctx context.Context, req *v2.Deregister
 
 // WorkerServiceHandler is an implementation of the v2.WorkerService service.
 type WorkerServiceHandler interface {
-	// Register validates and persists the worker's task definitions and
-	// returns a worker_id. It does not make the worker available for
-	// assignments; the worker is assignable only while a session is attached.
-	// Registrations that are never attached expire after a server-side TTL.
+	// Register validates and persists the worker metadata and returns a
+	// worker_id. It does not make the worker available for assignments; the
+	// worker is assignable only while a session is attached and has task names
+	// registered via RegisterTasks. Registrations that are never attached expire
+	// after a server-side TTL.
 	Register(context.Context, *v2.RegisterWorkerRequest) (*v2.RegisterWorkerResponse, error)
+	// RegisterTasks replaces the set of registered task names this worker can
+	// run. The server should reject unknown task names; clients can register or
+	// update tasks independently through TaskService.RegisterTasks.
+	RegisterTasks(context.Context, *v2.RegisterWorkerTasksRequest) (*v2.RegisterWorkerTasksResponse, error)
 	// Session must begin with an AttachWorker message referencing a registered
 	// worker_id. Attaching with an unknown or expired worker_id fails the
 	// stream with NOT_FOUND, in which case the worker should Register again
@@ -166,6 +195,12 @@ func NewWorkerServiceHandler(svc WorkerServiceHandler, opts ...connect.HandlerOp
 		WorkerServiceRegisterProcedure,
 		svc.Register,
 		connect.WithSchema(workerServiceMethods.ByName("Register")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workerServiceRegisterTasksHandler := connect.NewUnaryHandlerSimple(
+		WorkerServiceRegisterTasksProcedure,
+		svc.RegisterTasks,
+		connect.WithSchema(workerServiceMethods.ByName("RegisterTasks")),
 		connect.WithHandlerOptions(opts...),
 	)
 	workerServiceSessionHandler := connect.NewBidiStreamHandler(
@@ -190,6 +225,8 @@ func NewWorkerServiceHandler(svc WorkerServiceHandler, opts ...connect.HandlerOp
 		switch r.URL.Path {
 		case WorkerServiceRegisterProcedure:
 			workerServiceRegisterHandler.ServeHTTP(w, r)
+		case WorkerServiceRegisterTasksProcedure:
+			workerServiceRegisterTasksHandler.ServeHTTP(w, r)
 		case WorkerServiceSessionProcedure:
 			workerServiceSessionHandler.ServeHTTP(w, r)
 		case WorkerServiceUpsertLabelsProcedure:
@@ -207,6 +244,10 @@ type UnimplementedWorkerServiceHandler struct{}
 
 func (UnimplementedWorkerServiceHandler) Register(context.Context, *v2.RegisterWorkerRequest) (*v2.RegisterWorkerResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v2.WorkerService.Register is not implemented"))
+}
+
+func (UnimplementedWorkerServiceHandler) RegisterTasks(context.Context, *v2.RegisterWorkerTasksRequest) (*v2.RegisterWorkerTasksResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v2.WorkerService.RegisterTasks is not implemented"))
 }
 
 func (UnimplementedWorkerServiceHandler) Session(context.Context, *connect.BidiStream[v2.WorkerSessionRequest, v2.WorkerSessionResponse]) error {

@@ -33,6 +33,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// TaskServiceRegisterTasksProcedure is the fully-qualified name of the TaskService's RegisterTasks
+	// RPC.
+	TaskServiceRegisterTasksProcedure = "/v2.TaskService/RegisterTasks"
 	// TaskServiceTriggerTasksProcedure is the fully-qualified name of the TaskService's TriggerTasks
 	// RPC.
 	TaskServiceTriggerTasksProcedure = "/v2.TaskService/TriggerTasks"
@@ -51,6 +54,10 @@ const (
 
 // TaskServiceClient is a client for the v2.TaskService service.
 type TaskServiceClient interface {
+	// RegisterTasks validates and persists tasks. Registration is idempotent:
+	// re-registering a task with changed fields returns the same task_id with
+	// an updated task_version_id.
+	RegisterTasks(context.Context, *v2.RegisterTasksRequest) (*v2.RegisterTasksResponse, error)
 	TriggerTasks(context.Context, *v2.TriggerTasksRequest) (*v2.TriggerTasksResponse, error)
 	CancelTaskRuns(context.Context, *v2.CancelTaskRunsRequest) (*v2.CancelTaskRunsResponse, error)
 	ReplayTaskRuns(context.Context, *v2.ReplayTaskRunsRequest) (*v2.ReplayTaskRunsResponse, error)
@@ -69,6 +76,12 @@ func NewTaskServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 	baseURL = strings.TrimRight(baseURL, "/")
 	taskServiceMethods := v2.File_v2_task_proto.Services().ByName("TaskService").Methods()
 	return &taskServiceClient{
+		registerTasks: connect.NewClient[v2.RegisterTasksRequest, v2.RegisterTasksResponse](
+			httpClient,
+			baseURL+TaskServiceRegisterTasksProcedure,
+			connect.WithSchema(taskServiceMethods.ByName("RegisterTasks")),
+			connect.WithClientOptions(opts...),
+		),
 		triggerTasks: connect.NewClient[v2.TriggerTasksRequest, v2.TriggerTasksResponse](
 			httpClient,
 			baseURL+TaskServiceTriggerTasksProcedure,
@@ -104,11 +117,21 @@ func NewTaskServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // taskServiceClient implements TaskServiceClient.
 type taskServiceClient struct {
+	registerTasks     *connect.Client[v2.RegisterTasksRequest, v2.RegisterTasksResponse]
 	triggerTasks      *connect.Client[v2.TriggerTasksRequest, v2.TriggerTasksResponse]
 	cancelTaskRuns    *connect.Client[v2.CancelTaskRunsRequest, v2.CancelTaskRunsResponse]
 	replayTaskRuns    *connect.Client[v2.ReplayTaskRunsRequest, v2.ReplayTaskRunsResponse]
 	getTaskRun        *connect.Client[v2.GetTaskRunRequest, v2.GetTaskRunResponse]
 	subscribeTaskRuns *connect.Client[v2.SubscribeTaskRunsRequest, v2.TaskRunEvent]
+}
+
+// RegisterTasks calls v2.TaskService.RegisterTasks.
+func (c *taskServiceClient) RegisterTasks(ctx context.Context, req *v2.RegisterTasksRequest) (*v2.RegisterTasksResponse, error) {
+	response, err := c.registerTasks.CallUnary(ctx, connect.NewRequest(req))
+	if response != nil {
+		return response.Msg, err
+	}
+	return nil, err
 }
 
 // TriggerTasks calls v2.TaskService.TriggerTasks.
@@ -154,6 +177,10 @@ func (c *taskServiceClient) SubscribeTaskRuns(ctx context.Context) (*connect.Bid
 
 // TaskServiceHandler is an implementation of the v2.TaskService service.
 type TaskServiceHandler interface {
+	// RegisterTasks validates and persists tasks. Registration is idempotent:
+	// re-registering a task with changed fields returns the same task_id with
+	// an updated task_version_id.
+	RegisterTasks(context.Context, *v2.RegisterTasksRequest) (*v2.RegisterTasksResponse, error)
 	TriggerTasks(context.Context, *v2.TriggerTasksRequest) (*v2.TriggerTasksResponse, error)
 	CancelTaskRuns(context.Context, *v2.CancelTaskRunsRequest) (*v2.CancelTaskRunsResponse, error)
 	ReplayTaskRuns(context.Context, *v2.ReplayTaskRunsRequest) (*v2.ReplayTaskRunsResponse, error)
@@ -168,6 +195,12 @@ type TaskServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewTaskServiceHandler(svc TaskServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	taskServiceMethods := v2.File_v2_task_proto.Services().ByName("TaskService").Methods()
+	taskServiceRegisterTasksHandler := connect.NewUnaryHandlerSimple(
+		TaskServiceRegisterTasksProcedure,
+		svc.RegisterTasks,
+		connect.WithSchema(taskServiceMethods.ByName("RegisterTasks")),
+		connect.WithHandlerOptions(opts...),
+	)
 	taskServiceTriggerTasksHandler := connect.NewUnaryHandlerSimple(
 		TaskServiceTriggerTasksProcedure,
 		svc.TriggerTasks,
@@ -200,6 +233,8 @@ func NewTaskServiceHandler(svc TaskServiceHandler, opts ...connect.HandlerOption
 	)
 	return "/v2.TaskService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case TaskServiceRegisterTasksProcedure:
+			taskServiceRegisterTasksHandler.ServeHTTP(w, r)
 		case TaskServiceTriggerTasksProcedure:
 			taskServiceTriggerTasksHandler.ServeHTTP(w, r)
 		case TaskServiceCancelTaskRunsProcedure:
@@ -218,6 +253,10 @@ func NewTaskServiceHandler(svc TaskServiceHandler, opts ...connect.HandlerOption
 
 // UnimplementedTaskServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedTaskServiceHandler struct{}
+
+func (UnimplementedTaskServiceHandler) RegisterTasks(context.Context, *v2.RegisterTasksRequest) (*v2.RegisterTasksResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v2.TaskService.RegisterTasks is not implemented"))
+}
 
 func (UnimplementedTaskServiceHandler) TriggerTasks(context.Context, *v2.TriggerTasksRequest) (*v2.TriggerTasksResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("v2.TaskService.TriggerTasks is not implemented"))
