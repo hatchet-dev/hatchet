@@ -61,7 +61,8 @@ export function MemberActions({
   const canChangePassword =
     member.user.email === user?.email && meta?.allowChangePassword;
 
-  const canEditRole = member.manually_added && member.user.email !== user?.email;
+  const canEditRole =
+    member.manually_added && member.user.email !== user?.email;
 
   return (
     <>
