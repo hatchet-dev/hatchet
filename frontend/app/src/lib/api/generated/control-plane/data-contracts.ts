@@ -217,8 +217,6 @@ export interface OrganizationMember {
    * @format email
    */
   email: string;
-  /** Tags assigned to this org member that control which tenants they can access */
-  tags?: string[];
 }
 
 export interface OrganizationMemberList {
