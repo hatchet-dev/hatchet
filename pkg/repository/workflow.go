@@ -207,6 +207,7 @@ type WorkflowRepository interface {
 	PutWorkflowVersion(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkflowVersionOpts) (*sqlcv1.GetWorkflowVersionForEngineRow, error)
 	GetWorkflowShape(ctx context.Context, workflowVersionId uuid.UUID) ([]*sqlcv1.GetWorkflowShapeRow, error)
 	ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error)
+	ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error)
 
 	// ListWorkflows returns all workflows for a given tenant.
 	ListWorkflows(tenantId uuid.UUID, opts *ListWorkflowsOpts) (*ListWorkflowsResult, error)
@@ -266,6 +267,13 @@ func (r *workflowRepository) ListWorkflowNamesByIds(ctx context.Context, tenantI
 func (r *workflowRepository) ListStepsByWorkflowVersionId(ctx context.Context, tenantId uuid.UUID, workflowVersionId uuid.UUID) ([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, error) {
 	return r.queries.ListStepsByWorkflowVersionIds(ctx, r.pool, sqlcv1.ListStepsByWorkflowVersionIdsParams{
 		Ids:      []uuid.UUID{workflowVersionId},
+		Tenantid: tenantId,
+	})
+}
+
+func (r *workflowRepository) ListStepMatchConditions(ctx context.Context, tenantId uuid.UUID, stepIds []uuid.UUID) ([]*sqlcv1.V1StepMatchCondition, error) {
+	return r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		Stepids:  stepIds,
 		Tenantid: tenantId,
 	})
 }
@@ -456,7 +464,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	if len(opts.Tasks) > 1 {
 		opts.Tasks = append(opts.Tasks, CreateStepOpts{
-			ReadableId:        fmt.Sprintf("%s_orchestrator", opts.Name),
+			ReadableId:        opts.Name,
 			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
 			IsDurable:         true,
 			IsDagOrchestrator: true,

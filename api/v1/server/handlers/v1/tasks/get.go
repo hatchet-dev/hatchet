@@ -31,6 +31,12 @@ func (t *TasksService) V1TaskGet(ctx echo.Context, request gen.V1TaskGetRequestO
 		return nil, echo.NewHTTPError(500, "Task type assertion failed")
 	}
 
+	if task.IsDagOrchestrator {
+		return gen.V1TaskGet404JSONResponse{
+			Errors: []gen.APIError{{Description: "task not found"}},
+		}, nil
+	}
+
 	attempt := request.Params.Attempt
 
 	var retryCount *int

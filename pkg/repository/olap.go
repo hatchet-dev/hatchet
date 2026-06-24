@@ -590,27 +590,29 @@ func (r *OLAPRepositoryImpl) ReadTaskRun(ctx context.Context, taskExternalId uui
 	}
 
 	return &sqlcv1.V1TasksOlap{
-		TenantID:           row.TenantID,
-		ID:                 row.ID,
-		InsertedAt:         row.InsertedAt,
-		Queue:              row.Queue,
-		ActionID:           row.ActionID,
-		StepID:             row.StepID,
-		WorkflowID:         row.WorkflowID,
-		ScheduleTimeout:    row.ScheduleTimeout,
-		StepTimeout:        row.StepTimeout,
-		Priority:           row.Priority,
-		Sticky:             row.Sticky,
-		DesiredWorkerID:    row.DesiredWorkerID,
-		DisplayName:        row.DisplayName,
-		Input:              row.Input,
-		AdditionalMetadata: row.AdditionalMetadata,
-		DagID:              row.DagID,
-		DagInsertedAt:      row.DagInsertedAt,
-		ReadableStatus:     row.ReadableStatus,
-		ExternalID:         row.ExternalID,
-		LatestRetryCount:   row.LatestRetryCount,
-		LatestWorkerID:     row.LatestWorkerID,
+		TenantID:             row.TenantID,
+		ID:                   row.ID,
+		InsertedAt:           row.InsertedAt,
+		Queue:                row.Queue,
+		ActionID:             row.ActionID,
+		StepID:               row.StepID,
+		WorkflowID:           row.WorkflowID,
+		ScheduleTimeout:      row.ScheduleTimeout,
+		StepTimeout:          row.StepTimeout,
+		Priority:             row.Priority,
+		Sticky:               row.Sticky,
+		DesiredWorkerID:      row.DesiredWorkerID,
+		DisplayName:          row.DisplayName,
+		Input:                row.Input,
+		AdditionalMetadata:   row.AdditionalMetadata,
+		DagID:                row.DagID,
+		DagInsertedAt:        row.DagInsertedAt,
+		ReadableStatus:       row.ReadableStatus,
+		ExternalID:           row.ExternalID,
+		LatestRetryCount:     row.LatestRetryCount,
+		LatestWorkerID:       row.LatestWorkerID,
+		IsDagOrchestrator:    row.IsDagOrchestrator,
+		ParentTaskExternalID: row.ParentTaskExternalID,
 	}, nil
 }
 
@@ -644,6 +646,24 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 
 	if err != nil {
 		return nil, err
+	}
+
+	if row.IsDagOrchestrator {
+		childRows, err := r.queries.GetChildRunsByParentExternalId(ctx, r.readPool, sqlcv1.GetChildRunsByParentExternalIdParams{
+			Tenantid:         row.TenantID,
+			Parentexternalid: row.ExternalID,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		for _, child := range childRows {
+			taskMetadata = append(taskMetadata, TaskMetadata{
+				TaskID:         child.ID,
+				TaskInsertedAt: child.InsertedAt.Time,
+			})
+		}
 	}
 
 	inputPayload, err := r.ReadPayload(ctx, row.TenantID, ReadOLAPPayloadOpts{

@@ -680,6 +680,44 @@ func (q *Queries) FlattenTasksByExternalIds(ctx context.Context, db DBTX, arg Fl
 	return items, nil
 }
 
+const getChildRunsByParentExternalId = `-- name: GetChildRunsByParentExternalId :many
+SELECT id, inserted_at
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND parent_task_external_id = $2::uuid
+`
+
+type GetChildRunsByParentExternalIdParams struct {
+	Tenantid         uuid.UUID `json:"tenantid"`
+	Parentexternalid uuid.UUID `json:"parentexternalid"`
+}
+
+type GetChildRunsByParentExternalIdRow struct {
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+}
+
+func (q *Queries) GetChildRunsByParentExternalId(ctx context.Context, db DBTX, arg GetChildRunsByParentExternalIdParams) ([]*GetChildRunsByParentExternalIdRow, error) {
+	rows, err := db.Query(ctx, getChildRunsByParentExternalId, arg.Tenantid, arg.Parentexternalid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetChildRunsByParentExternalIdRow
+	for rows.Next() {
+		var i GetChildRunsByParentExternalIdRow
+		if err := rows.Scan(&i.ID, &i.InsertedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDagDurations = `-- name: GetDagDurations :many
 SELECT
     lt.external_id,
@@ -3153,7 +3191,8 @@ WITH runs AS (
         d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
-        d.parent_task_external_id AS parent_task_external_id
+        d.parent_task_external_id AS parent_task_external_id,
+        FALSE::boolean AS is_dag_orchestrator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -3180,7 +3219,8 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL :: UUID AS parent_task_external_id
+        NULL::uuid AS parent_task_external_id,
+        t.is_dag_orchestrator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -3242,7 +3282,7 @@ WITH runs AS (
 )
 
 SELECT
-    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
+    r.dag_id, r.task_id, r.id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id, r.is_dag_orchestrator,
     m.created_at,
     m.started_at,
     m.finished_at,
@@ -3272,6 +3312,7 @@ type ReadWorkflowRunByExternalIdRow struct {
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
 	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
 	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	IsDagOrchestrator     bool                 `json:"is_dag_orchestrator"`
 	CreatedAt             pgtype.Timestamptz   `json:"created_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
@@ -3299,6 +3340,7 @@ func (q *Queries) ReadWorkflowRunByExternalId(ctx context.Context, db DBTX, work
 		&i.AdditionalMetadata,
 		&i.WorkflowVersionID,
 		&i.ParentTaskExternalID,
+		&i.IsDagOrchestrator,
 		&i.CreatedAt,
 		&i.StartedAt,
 		&i.FinishedAt,

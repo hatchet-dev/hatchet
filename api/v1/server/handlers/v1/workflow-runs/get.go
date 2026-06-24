@@ -68,9 +68,13 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	}
 
 	stepIdToTaskExternalId := make(map[uuid.UUID]uuid.UUID)
+	orchestratorStepIds := make(map[uuid.UUID]struct{})
 
 	for _, task := range tasks {
 		stepIdToTaskExternalId[task.StepID] = task.ExternalID
+		if task.IsDagOrchestrator {
+			orchestratorStepIds[task.StepID] = struct{}{}
+		}
 	}
 
 	shape, err := t.config.V1.Workflows().GetWorkflowShape(
@@ -90,7 +94,14 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 		return nil, err
 	}
 
-	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, shape, tasks, stepIdToTaskExternalId, workflowVersion)
+	filteredShape := make([]*sqlcv1.GetWorkflowShapeRow, 0, len(shape))
+	for _, row := range shape {
+		if _, isOrchestrator := orchestratorStepIds[row.Parentstepid]; !isOrchestrator {
+			filteredShape = append(filteredShape, row)
+		}
+	}
+
+	result, err := transformers.ToWorkflowRunDetails(taskRunEvents, workflowRun, filteredShape, tasks, stepIdToTaskExternalId, workflowVersion)
 
 	if err != nil {
 		return nil, err

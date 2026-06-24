@@ -1547,7 +1547,8 @@ WITH runs AS (
         d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
-        d.parent_task_external_id AS parent_task_external_id
+        d.parent_task_external_id AS parent_task_external_id,
+        FALSE::boolean AS is_dag_orchestrator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1574,7 +1575,8 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL :: UUID AS parent_task_external_id
+        NULL::uuid AS parent_task_external_id,
+        t.is_dag_orchestrator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1656,6 +1658,14 @@ FROM v1_dags_olap
 WHERE
     id = @dagId::bigint
     AND inserted_at = @dagInsertedAt::timestamptz
+;
+
+-- name: GetChildRunsByParentExternalId :many
+SELECT id, inserted_at
+FROM v1_runs_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND parent_task_external_id = @parentExternalId::uuid
 ;
 
 -- name: FlattenTasksByExternalIds :many
