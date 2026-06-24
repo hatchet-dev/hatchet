@@ -200,7 +200,7 @@ func (p *SchedulingPool) NotifyQueues(ctx context.Context, tenantId uuid.UUID, q
 }
 
 func (p *SchedulingPool) NotifyConcurrency(ctx context.Context, tenantId uuid.UUID, strategyIds []int64) {
-	if tm := p.getTenantManager(tenantId, false); tm != nil {
+	if tm := p.getTenantManager(tenantId, true); tm != nil {
 		tm.notifyConcurrency(ctx, strategyIds)
 	}
 }
@@ -218,7 +218,7 @@ func (p *SchedulingPool) NotifyNewQueue(ctx context.Context, tenantId uuid.UUID,
 }
 
 func (p *SchedulingPool) NotifyNewConcurrencyStrategy(ctx context.Context, tenantId uuid.UUID, strategyId int64) {
-	if tm := p.getTenantManager(tenantId, false); tm != nil {
+	if tm := p.getTenantManager(tenantId, true); tm != nil {
 		tm.notifyNewConcurrencyStrategy(ctx, strategyId)
 	}
 }
