@@ -487,8 +487,8 @@ class Worker:
         main_pid = os.getpid()
 
         logger.info("------------------------------------------")
-        logger.info("STARTING HATCHET...")
-        logger.debug(f"worker runtime starting on PID: {main_pid}")
+        logger.info("starting hatchet...")
+        logger.debug(f"worker starting on PID: {main_pid}")
 
         self._status = WorkerStatus.STARTING
 

@@ -256,12 +256,13 @@ class DurableEventListener:
             await self._conn.close()
 
     async def _request_iterator(self) -> AsyncIterator[DurableTaskRequest]:
-        if not self._request_queue:
+        queue = self._request_queue
+        if queue is None:
             raise RuntimeError("Request queue not initialized")
 
         while self._running:
             with suppress(asyncio.TimeoutError):
-                yield await asyncio.wait_for(self._request_queue.get(), timeout=1.0)
+                yield await asyncio.wait_for(queue.get(), timeout=1.0)
 
     async def _send_loop(self) -> None:
         while self._running:
@@ -404,7 +405,7 @@ class DurableEventListener:
                         node_id=memo_ack.ref.node_id,
                         branch_id=memo_ack.ref.branch_id,
                         memo_already_existed=memo_ack.memo_already_existed,
-                        memo_result_payload=memo_ack.memo_result_payload,
+                        memo_result_payload=memo_ack.memo_result_payload or None,
                     )
                 )
         elif response.HasField("wait_for_ack"):
@@ -601,6 +602,7 @@ class DurableEventListener:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
             await self._poll_worker_status()
+            return await future
 
         return await self._pending_callbacks[key]
 

@@ -380,6 +380,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 			5*time.Millisecond,
 			false,
 			1,
+			nil,
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()

@@ -75,7 +75,7 @@ class WorkerActionRunLoopManager:
             )()
 
     async def _async_start(self) -> None:
-        logger.info("starting runner...")
+        logger.info("starting action runner...")
         self.loop = asyncio.get_running_loop()
         # needed for graceful termination
         k = self.loop.create_task(self._start_action_loop())
@@ -109,7 +109,10 @@ class WorkerActionRunLoopManager:
             engine_version=self.engine_version,
         )
 
-        logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")
+        logger.debug(
+            f"'{self.name}' found the following actions registered: {list(self.action_registry.keys())}"
+        )
+        logger.info(f"'{self.name}' started, waiting for tasks...")
         while not self.killing:
             action = await self._get_action()
             if action == STOP_LOOP:

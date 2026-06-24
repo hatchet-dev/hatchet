@@ -24,6 +24,11 @@ ALTER TABLE tmp_UserSession RENAME TO "UserSession";
 COMMIT;
 ```
 
+### Added
+
+- Add Go SDK client retry controls, gRPC full-jitter retry backoff, and bounded REST read retries for transient API failures by @igor-kupczynski in [#4240](https://github.com/hatchet-dev/hatchet/pull/4240)
+
+
 ## [0.89.0] - 2026-06-09
 
 Hatchet v0.89.0 introduces a range of updates to the platform, consisting largely of performance improvements and bug fixes to the engine, alongside several user-experience changes to the dashboard.
