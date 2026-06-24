@@ -1632,7 +1632,7 @@ function TenantMemberList({
       {
         columnLabel: 'Source',
         cellRenderer: (member: TenantMember) =>
-          member.manuallyadded ? (
+          member.manually_added ? (
             <Badge variant="outline">Direct</Badge>
           ) : (
             <Badge variant="outline">Tags</Badge>
@@ -1647,7 +1647,7 @@ function TenantMemberList({
                   member={member}
                   tenantId={tenantId}
                   onEditRoleClick={
-                    member.manuallyadded ? setMemberToEdit : () => {}
+                    member.manually_added ? setMemberToEdit : () => {}
                   }
                   onChangePasswordClick={() => {}}
                   onDeleteSuccess={onMembersChanged}
