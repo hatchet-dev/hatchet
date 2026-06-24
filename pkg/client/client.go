@@ -351,7 +351,10 @@ func newFromOpts(opts *ClientOpts) (Client, error) {
 	restOpts := []rest.ClientOption{rest.WithRequestEditorFn(authEditor)}
 	cloudRestOpts := []cloudrest.ClientOption{cloudrest.WithRequestEditorFn(authEditor)}
 	if restRetryEnabled {
-		restDoer := retry.NewRestDoer(&http.Client{})
+		restDoer, retryErr := retry.NewRestDoer(&http.Client{})
+		if retryErr != nil {
+			return nil, fmt.Errorf("could not create rest retry doer: %w", retryErr)
+		}
 		restOpts = append(restOpts, rest.WithHTTPClient(restDoer))
 		cloudRestOpts = append(cloudRestOpts, cloudrest.WithHTTPClient(restDoer))
 	}

@@ -2,10 +2,21 @@ package retry
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
+
+var errInvalidRestMaxAttempts = errors.New("rest max attempts must be at least 1")
+
+func validateRestMaxAttempts(maxAttempts int) error {
+	if maxAttempts < 1 {
+		return fmt.Errorf("%w: got %d", errInvalidRestMaxAttempts, maxAttempts)
+	}
+	return nil
+}
 
 type httpDoer interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -16,6 +27,7 @@ type RestDoer struct {
 	inner              httpDoer
 	headerTimeoutInner httpDoer
 	clock              clock
+	maxAttempts        int
 }
 
 type restDoerOption func(*RestDoer)
@@ -33,7 +45,11 @@ func withHeaderTimeout(timeout time.Duration) restDoerOption {
 }
 
 // NewRestDoer wraps inner with REST read retry behavior.
-func NewRestDoer(inner httpDoer, opts ...restDoerOption) *RestDoer {
+func NewRestDoer(inner httpDoer, opts ...restDoerOption) (*RestDoer, error) {
+	if err := validateRestMaxAttempts(restMaxAttempts); err != nil {
+		return nil, err
+	}
+
 	if inner == nil {
 		inner = &http.Client{}
 	}
@@ -42,13 +58,14 @@ func NewRestDoer(inner httpDoer, opts ...restDoerOption) *RestDoer {
 		inner:              inner,
 		headerTimeoutInner: withResponseHeaderTimeout(inner, restPerAttemptTimeout),
 		clock:              defaultClock(),
+		maxAttempts:        restMaxAttempts,
 	}
 
 	for _, opt := range opts {
 		opt(d)
 	}
 
-	return d
+	return d, nil
 }
 
 func (d *RestDoer) Do(req *http.Request) (*http.Response, error) {
@@ -69,7 +86,7 @@ func (d *RestDoer) Do(req *http.Request) (*http.Response, error) {
 
 	var lastTransportErr error
 
-	for attempt := range restMaxAttempts {
+	for attempt := range d.maxAttempts {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -79,7 +96,7 @@ func (d *RestDoer) Do(req *http.Request) (*http.Response, error) {
 		if err != nil {
 			lastTransportErr = err
 
-			if attempt == restMaxAttempts-1 || ctx.Err() != nil {
+			if attempt == d.maxAttempts-1 || ctx.Err() != nil {
 				if ctx.Err() != nil {
 					return nil, ctx.Err()
 				}
@@ -93,7 +110,7 @@ func (d *RestDoer) Do(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		if !isResponseStatusCodeEligibleForRetry(resp.StatusCode) || attempt == restMaxAttempts-1 {
+		if !isResponseStatusCodeEligibleForRetry(resp.StatusCode) || attempt == d.maxAttempts-1 {
 			return resp, nil
 		}
 

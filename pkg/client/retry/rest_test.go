@@ -50,7 +50,9 @@ func (c *countingDoer) Do(req *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-func newTestRestDoer(inner httpDoer) (*RestDoer, chan time.Duration) {
+func newTestRestDoer(t *testing.T, inner httpDoer) (*RestDoer, chan time.Duration) {
+	t.Helper()
+
 	slept := make(chan time.Duration, 8)
 	sleep := func(ctx context.Context, d time.Duration) error {
 		select {
@@ -60,11 +62,14 @@ func newTestRestDoer(inner httpDoer) (*RestDoer, chan time.Duration) {
 		return sleepContext(ctx, 0)
 	}
 
-	return NewRestDoer(inner, withRestClock(clock{
+	doer, err := NewRestDoer(inner, withRestClock(clock{
 		now:    time.Now,
 		sleep:  sleep,
 		jitter: rand.New(rand.NewPCG(1, 1)).Int64N,
-	})), slept
+	}))
+	require.NoError(t, err)
+
+	return doer, slept
 }
 
 func TestRestDoerRetriesGatewayStatuses(t *testing.T) {
@@ -75,7 +80,7 @@ func TestRestDoerRetriesGatewayStatuses(t *testing.T) {
 			t.Parallel()
 
 			inner := &countingDoer{statuses: []int{status, status, http.StatusOK}}
-			doer, _ := newTestRestDoer(inner)
+			doer, _ := newTestRestDoer(t, inner)
 
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/path?q=1", nil)
 			require.NoError(t, err)
@@ -111,7 +116,7 @@ func TestRestDoerRetriesTransportErrors(t *testing.T) {
 		}, nil
 	}}
 
-	doer, _ := newTestRestDoer(inner)
+	doer, _ := newTestRestDoer(t, inner)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	require.NoError(t, err)
 
@@ -137,7 +142,7 @@ func TestRestDoerDoesNotRetryRequestsOutsideBodylessReads(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			inner := &countingDoer{statuses: []int{http.StatusBadGateway}}
-			doer, _ := newTestRestDoer(inner)
+			doer, _ := newTestRestDoer(t, inner)
 
 			req, err := http.NewRequestWithContext(context.Background(), tc.method, "http://example.com", tc.body)
 			require.NoError(t, err)
@@ -175,7 +180,7 @@ func TestRestDoerPreservesRequestClone(t *testing.T) {
 		}, nil
 	}}
 
-	doer, _ := newTestRestDoer(inner)
+	doer, _ := newTestRestDoer(t, inner)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/items?x=1", nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer abc")
@@ -194,7 +199,7 @@ func TestRestDoerStopsOnContextCancellation(t *testing.T) {
 	cancel()
 
 	inner := &countingDoer{statuses: []int{http.StatusServiceUnavailable}}
-	doer, _ := newTestRestDoer(inner)
+	doer, _ := newTestRestDoer(t, inner)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.com", nil)
 	require.NoError(t, err)
 
@@ -212,7 +217,7 @@ func TestRestDoer429RetryAfterDeltaSeconds(t *testing.T) {
 		statuses: []int{http.StatusTooManyRequests, http.StatusOK},
 		headers:  []http.Header{header},
 	}
-	doer, slept := newTestRestDoer(inner)
+	doer, slept := newTestRestDoer(t, inner)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	require.NoError(t, err)
@@ -254,7 +259,7 @@ func TestRestDoer429InvalidRetryAfterStillRetries(t *testing.T) {
 		}, nil
 	}}
 
-	doer, _ := newTestRestDoer(inner)
+	doer, _ := newTestRestDoer(t, inner)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	require.NoError(t, err)
 
@@ -276,7 +281,8 @@ func TestRestDoerCallerDeadlineOverridesHeaderTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	doer := NewRestDoer(server.Client(), withHeaderTimeout(time.Millisecond))
+	doer, err := NewRestDoer(server.Client(), withHeaderTimeout(time.Millisecond))
+	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
@@ -300,7 +306,8 @@ func TestRestDoerFinalBodyReadablePastHeaderTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	doer := NewRestDoer(server.Client(), withHeaderTimeout(50*time.Millisecond))
+	doer, err := NewRestDoer(server.Client(), withHeaderTimeout(50*time.Millisecond))
+	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
@@ -317,7 +324,7 @@ func TestRestDoerDoesNotRetry404(t *testing.T) {
 	t.Parallel()
 
 	inner := &countingDoer{statuses: []int{http.StatusNotFound}}
-	doer, _ := newTestRestDoer(inner)
+	doer, _ := newTestRestDoer(t, inner)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
 	require.NoError(t, err)
@@ -326,4 +333,45 @@ func TestRestDoerDoesNotRetry404(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Equal(t, 1, int(inner.attempts.Load()))
+}
+
+func TestValidateRestMaxAttempts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   int
+		wantErr error
+	}{
+		{
+			name:  "one is valid",
+			input: 1,
+		},
+		{
+			name:  "five is valid",
+			input: 5,
+		},
+		{
+			name:    "zero is invalid",
+			input:   0,
+			wantErr: errInvalidRestMaxAttempts,
+		},
+		{
+			name:    "negative is invalid",
+			input:   -1,
+			wantErr: errInvalidRestMaxAttempts,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRestMaxAttempts(tt.input)
+			if tt.wantErr != nil {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
