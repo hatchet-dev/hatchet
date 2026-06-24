@@ -147,6 +147,15 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 				t.queuersMu.RUnlock()
 			} else {
 				t.scheduler.setWorkers(msg.items)
+				t.replenish(ctx)
+
+				t.queuersMu.RLock()
+
+				for _, q := range t.queuers {
+					q.queue(ctx)
+				}
+
+				t.queuersMu.RUnlock()
 			}
 		}
 	}
@@ -188,7 +197,6 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 
 func (t *tenantManager) setQueuers(queueNames []string) {
 	t.queuersMu.Lock()
-	defer t.queuersMu.Unlock()
 
 	queueNamesSet := make(map[string]struct{}, len(queueNames))
 
@@ -212,11 +220,20 @@ func (t *tenantManager) setQueuers(queueNames []string) {
 		}
 	}
 
+	newQueuers := make([]*Queuer, 0, len(queueNamesSet))
+
 	for queueName := range queueNamesSet {
-		newQueueArr = append(newQueueArr, newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh))
+		q := newQueuer(t.cf, t.tenantId, queueName, t.scheduler, t.resultsCh)
+		newQueueArr = append(newQueueArr, q)
+		newQueuers = append(newQueuers, q)
 	}
 
 	t.queuers = newQueueArr
+	t.queuersMu.Unlock()
+
+	for _, q := range newQueuers {
+		q.queue(context.Background())
+	}
 }
 
 func (t *tenantManager) addQueuer(queueName string) {

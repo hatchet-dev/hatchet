@@ -177,6 +177,95 @@ func requireNoSnapshotsForTenant(
 	}
 }
 
+func TestScheduler_NotifyQueuesColdStartsTenantManager(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		requireSchedulerSchema(t, ctx, conf)
+
+		action := "test:run"
+		tenantId, _, _ := createTenantDispatcherWorker(t, ctx, conf.V1, "scheduler-queue-cold-start", 1, []string{action})
+
+		desc := "queue cold-start workflow"
+		wfVersion, err := conf.V1.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "queue-cold-start-test",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "my-task",
+					Action:     action,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		shape, err := conf.V1.Workflows().GetWorkflowShape(ctx, wfVersion.WorkflowVersion.ID)
+		require.NoError(t, err)
+		require.Len(t, shape, 1)
+
+		taskParams := newCreateTasksParams(1)
+		taskParams.Tenantids[0] = tenantId
+		taskParams.Queues[0] = "default"
+		taskParams.Actionids[0] = action
+		taskParams.Stepids[0] = shape[0].Parentstepid
+		taskParams.Stepreadableids[0] = "my-task"
+		taskParams.Workflowids[0] = wfVersion.WorkflowVersion.WorkflowId
+		taskParams.Scheduletimeouts[0] = "5m"
+		taskParams.Priorities[0] = 1
+		taskParams.Stickies[0] = string(sqlcv1.V1StickyStrategyNONE)
+		taskParams.Externalids[0] = uuid.New()
+		taskParams.Displaynames[0] = "queue-cold-start-task"
+		taskParams.Inputs[0] = []byte(`{}`)
+		taskParams.Additionalmetadatas[0] = []byte(`{}`)
+		taskParams.InitialStates[0] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		taskParams.WorkflowVersionIds[0] = wfVersion.WorkflowVersion.ID
+		taskParams.WorkflowRunIds[0] = uuid.New()
+
+		tasks, err := sqlcv1.New().CreateTasks(ctx, conf.Pool, taskParams)
+		require.NoError(t, err)
+		require.Len(t, tasks, 1)
+
+		l := zerolog.Nop()
+		pool, cleanup, err := schedv1.NewSchedulingPool(
+			conf.V1.Scheduler(),
+			&l,
+			100,
+			20,
+			5*time.Millisecond,
+			6*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
+			5*time.Millisecond,
+			false,
+			1,
+			nil,
+		)
+		require.NoError(t, err)
+		defer func() { _ = cleanup() }()
+
+		resultsChan := pool.GetResultsCh()
+		pool.NotifyQueues(ctx, tenantId, []string{"default"})
+
+		deadline := time.NewTimer(2 * time.Second)
+		defer deadline.Stop()
+
+		for {
+			select {
+			case <-deadline.C:
+				t.Fatal("timed out waiting for queue assignment after cold-start notification")
+			case res := <-resultsChan:
+				if res.TenantId != tenantId || len(res.Assigned) == 0 {
+					continue
+				}
+
+				require.Len(t, res.Assigned, 1)
+				return nil
+			}
+		}
+	})
+}
+
 func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
