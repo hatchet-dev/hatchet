@@ -226,7 +226,15 @@ func TestScheduler_NotifyQueuesColdStartsTenantManager(t *testing.T) {
 		taskParams.WorkflowVersionIds[0] = wfVersion.WorkflowVersion.ID
 		taskParams.WorkflowRunIds[0] = uuid.New()
 
-		tasks, err := sqlcv1.New().CreateTasks(ctx, conf.Pool, taskParams)
+		queries := sqlcv1.New()
+
+		err = queries.UpsertQueues(ctx, conf.Pool, sqlcv1.UpsertQueuesParams{
+			TenantID: tenantId,
+			Names:    []string{"default"},
+		})
+		require.NoError(t, err)
+
+		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
 		require.NoError(t, err)
 		require.Len(t, tasks, 1)
 
