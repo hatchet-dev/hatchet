@@ -171,17 +171,17 @@ message TaskRunInvocationInstruction {
     string task_name = 2; // the name of the task
     string queue = 3; // the queue this assignment was routed through // TODO: we used to have this as action so this might have side effects on how we route internally
     bytes input = 4; // the input payload for the run
-    int32 retry_count = 5; // the retry attempt for this assignment, 0 for the first attempt
+    optional bytes extra = 5; // (optional) extra user metadata set on the run
     int32 priority = 6; // the priority of the run
-    optional bytes extra = 7; // (optional) extra user metadata set on the run
-    optional int32 durable_task_invocation_count = 11; // (optional) the invocation count, required for durable task runs
-    optional google.protobuf.Timestamp timeout_at = 14; // (optional) when the server will time out the run, so workers can enforce it locally
+    int32 retry_count = 7; // the retry attempt for this assignment, 0 for the first attempt
+    optional int32 durable_task_invocation_count = 8; // (optional) the invocation count, required for durable task runs
+    optional google.protobuf.Timestamp timeout_at = 9; // (optional) when the server will time out the run, so workers can enforce it locally
 
     oneof triggered_by {
         // TODO: cron/schedule/webhook?
 
-        ParentRun parent_run = 15; // (optional) the parent run that triggered this task run
-        Event event = 16; // (optional) the event that triggered this task run
+        ParentRun parent_run = 10; // (optional) the parent run that triggered this task run
+        Event event = 11; // (optional) the event that triggered this task run
     }
 }
 
