@@ -248,6 +248,18 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		}
 	}
 
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string) (*operator.DAGStepTriggerResult, error) {
+		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
+			ParentTaskExternalId: externalId,
+			InvocationCount:      action.GetDurableTaskInvocationCount(),
+			WorkflowName:         workflowName,
+			ActionId:             actionId,
+			ChildIndex:           childIndex,
+			Input:                action.ActionPayload,
+			DagParentRunIds:      parentRunIds,
+		})
+	}
+
 	dagErr := dagDurableTask(
 		d.ctx,
 		tasks,
@@ -256,6 +268,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		action.ActionPayload,
 		requestCh,
 		responseCh,
+		triggerStep,
 	)
 
 	if dagErr != nil {
@@ -309,9 +322,10 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 		}
 
 		t := &task{
-			id:    s.ID,
-			name:  s.ReadableId.String,
-			index: int32(taskIndex), // nolint:gosec
+			id:           s.ID,
+			actionId:     s.ActionId,
+			workflowName: s.WorkflowName,
+			index:        int32(taskIndex), // nolint:gosec
 		}
 		tasksByStepId[s.ID] = t
 		tasks = append(tasks, t)

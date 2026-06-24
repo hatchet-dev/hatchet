@@ -43,12 +43,30 @@ type Operator interface {
 	Drain()
 }
 
+type DAGStepTriggerRequest struct {
+	ParentTaskExternalId uuid.UUID
+	InvocationCount      int32
+	WorkflowName         string
+	ActionId             string
+	ChildIndex           int32
+	Input                string
+	DagParentRunIds      []string
+}
+
+type DAGStepTriggerResult struct {
+	NodeId                int64
+	BranchId              int64
+	WorkflowRunExternalId string
+}
+
 type TaskEventWriter interface {
 	SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
 	// RegisterDurableTask opens a channel-based durable-task session: the operator (acting as
 	// a durable worker) writes requests to the returned channel and reads responses from it.
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
+
+	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
 }
 
 type SharedOperator[T any] struct {
@@ -99,6 +117,16 @@ func (s *SharedOperator[T]) TenantId() uuid.UUID {
 
 func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []string) error {
 	return s.repo.Operators().UpdateOperatorWorkerActions(ctx, s.tenantId, s.workerId, actions)
+}
+
+func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error) {
+	if s.taskEventWriter == nil {
+		return nil, fmt.Errorf("operator has no task event writer configured")
+	}
+
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck
+
+	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
 }
 
 // RegisterDurableTask opens a channel-based durable-task session through the dispatcher,

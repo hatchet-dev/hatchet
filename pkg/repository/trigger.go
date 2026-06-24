@@ -76,6 +76,9 @@ type TriggerTaskData struct {
 
 	// (optional) workflow run external IDs of parent tasks for durable DAG orchestration
 	DagParentWorkflowRunIds []string `json:"dag_parent_workflow_run_ids,omitempty"`
+
+	// (optional) when set, only trigger this specific step by action ID (used by DAG operator)
+	TargetActionId *string `json:"target_action_id,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -592,6 +595,7 @@ type triggerTuple struct {
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
 	dagParentWorkflowRunIds   []string
+	targetActionId            *string
 }
 
 type createCoreUserEventOpts struct {
@@ -744,6 +748,9 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		regularSteps := regularUserSteps(allSteps)
+		if tuple.targetActionId != nil {
+			regularSteps = filterStepsByActionId(regularSteps, *tuple.targetActionId)
+		}
 		isDag := len(regularSteps) > 1
 
 		for _, step := range regularSteps {
@@ -804,6 +811,9 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		regularSteps := regularUserSteps(steps)
+		if tuple.targetActionId != nil {
+			regularSteps = filterStepsByActionId(regularSteps, *tuple.targetActionId)
+		}
 		isDag := len(regularSteps) > 1
 
 		if isDag && hasDAGOperator {
@@ -929,7 +939,7 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerEventExternalId:      tuple.triggeringEventExternalId,
 					TriggerEventKey:             triggeringEventKey,
 				})
-			case len(step.Parents) == 0:
+			case len(step.Parents) == 0 || tuple.targetActionId != nil:
 				// if we have additional match conditions, create a match instead of triggering a workflow for this step
 				additionalMatches := stepsToAdditionalMatches[stepId]
 
@@ -1948,6 +1958,15 @@ func getParentOnFailureGroupMatches(createGroupId, parentExternalId uuid.UUID, p
 	}
 }
 
+func filterStepsByActionId(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow, actionId string) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
+	for _, s := range steps {
+		if s.ActionId == actionId {
+			return []*sqlcv1.ListStepsByWorkflowVersionIdsRow{s}
+		}
+	}
+	return nil
+}
+
 func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
 	out := make([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, 0, len(steps))
 	for _, s := range steps {
@@ -2408,6 +2427,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				priority:                opt.Priority,
 				desiredWorkerLabels:     opt.DesiredWorkerLabels,
 				dagParentWorkflowRunIds: opt.DagParentWorkflowRunIds,
+				targetActionId:          opt.TargetActionId,
 			})
 		}
 	}

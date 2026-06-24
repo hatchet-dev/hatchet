@@ -8,24 +8,27 @@ import (
 	"github.com/google/uuid"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 )
 
 type dag struct {
 	requestCh chan<- *v1contracts.DurableTaskRequest
+
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string) (*operator.DAGStepTriggerResult, error)
 
 	// important: task ordering must be the same between instances
 	tasks           []*task
 	externalId      string
 	invocationCount int32
 	input           string
-	pendingAck      []*task // FIFO: triggered but TriggerRunsAck not yet received
-	err             error   // first child failure, if any
+	err             error // first child failure, if any
 }
 
 type task struct {
 	conditions   []*condition
 	id           uuid.UUID
-	name         string
+	actionId     string
+	workflowName string
 	index        int32 // stable position; used as ChildIndex for deduplication
 	parents      []*task
 	isCompleted  bool
@@ -33,7 +36,6 @@ type task struct {
 	isTriggered  bool
 	errorMessage string
 
-	// populated from TriggerRunsAck
 	nodeId                int64
 	branchId              int64
 	workflowRunExternalId string
@@ -58,6 +60,7 @@ func dagDurableTask(
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string) (*operator.DAGStepTriggerResult, error),
 ) error {
 	d := &dag{
 		tasks:           tasks,
@@ -65,10 +68,13 @@ func dagDurableTask(
 		externalId:      externalId,
 		invocationCount: invocationCount,
 		input:           input,
+		triggerStep:     triggerStep,
 	}
 
 	for !d.isDone() {
-		d.taskEmitter()
+		if err := d.taskEmitter(ctx); err != nil {
+			return err
+		}
 
 		select {
 		case <-ctx.Done():
@@ -81,9 +87,9 @@ func dagDurableTask(
 	return d.err
 }
 
-func (d *dag) taskEmitter() {
+func (d *dag) taskEmitter(ctx context.Context) error {
 	if d.err != nil {
-		return
+		return nil
 	}
 
 	for _, t := range d.tasks {
@@ -110,24 +116,19 @@ func (d *dag) taskEmitter() {
 			}
 		}
 
-		d.requestCh <- &v1contracts.DurableTaskRequest{
-			Message: &v1contracts.DurableTaskRequest_TriggerRuns{
-				TriggerRuns: &v1contracts.DurableTaskTriggerRunsRequest{
-					DurableTaskExternalId: d.externalId,
-					InvocationCount:       d.invocationCount,
-					TriggerOpts: []*v1contracts.TriggerWorkflowRequest{{
-						Name:                    t.name,
-						Input:                   d.input,
-						ChildIndex:              &t.index,
-						DagParentWorkflowRunIds: parentRunIds,
-					}},
-				},
-			},
+		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentRunIds)
+		if err != nil {
+			d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
+			return d.err
 		}
 
+		t.nodeId = result.NodeId
+		t.branchId = result.BranchId
+		t.workflowRunExternalId = result.WorkflowRunExternalId
 		t.isTriggered = true
-		d.pendingAck = append(d.pendingAck, t)
 	}
+
+	return nil
 }
 
 func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
@@ -136,20 +137,6 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 	}
 
 	switch m := resp.Message.(type) {
-	case *v1contracts.DurableTaskResponse_TriggerRunsAck:
-		ack := m.TriggerRunsAck
-		if len(d.pendingAck) == 0 || len(ack.GetRunEntries()) == 0 {
-			return
-		}
-
-		t := d.pendingAck[0]
-		d.pendingAck = d.pendingAck[1:]
-
-		entry := ack.GetRunEntries()[0]
-		t.nodeId = entry.GetNodeId()
-		t.branchId = entry.GetBranchId()
-		t.workflowRunExternalId = entry.GetWorkflowRunExternalId()
-
 	case *v1contracts.DurableTaskResponse_EntryCompleted:
 		ref := m.EntryCompleted.GetRef()
 		if ref == nil {
@@ -169,7 +156,7 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 					t.isFailed = true
 					t.errorMessage = fp.ErrorMessage
 					if d.err == nil {
-						d.err = fmt.Errorf("child task %q failed: %s", t.name, fp.ErrorMessage)
+						d.err = fmt.Errorf("child task %q failed: %s", t.actionId, fp.ErrorMessage)
 					}
 				}
 			}
