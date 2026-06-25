@@ -218,6 +218,10 @@ func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 			if event.IsFailure {
 				return true, &event.ErrorMessage, nil
 			}
+			if event.EventType == sqlcv1.V1TaskEventTypeCANCELLED {
+				msg := "task was cancelled"
+				return true, &msg, nil
+			}
 		}
 	}
 	return false, nil, nil

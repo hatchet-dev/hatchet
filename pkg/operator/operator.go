@@ -64,6 +64,8 @@ type DAGStepTriggerResult struct {
 type TaskEventWriter interface {
 	SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
+	CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
+
 	// RegisterDurableTask opens a channel-based durable-task session: the operator (acting as
 	// a durable worker) writes requests to the returned channel and reads responses from it.
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
@@ -160,6 +162,34 @@ func (s *SharedOperator[T]) SendCompleted(action *contracts.AssignedAction, outp
 // prevents the task from being retried.
 func (s *SharedOperator[T]) SendFailed(action *contracts.AssignedAction, errMsg string, shouldNotRetry bool) error {
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, errMsg, &shouldNotRetry)
+}
+
+func (s *SharedOperator[T]) SendCancelled(action *contracts.AssignedAction, msg string) error {
+	if s.taskEventWriter == nil {
+		return fmt.Errorf("operator has no task event writer configured")
+	}
+
+	retryCount := action.RetryCount
+
+	event := &contracts.StepActionEvent{
+		WorkerId:          s.workerId.String(),
+		JobId:             action.JobId,
+		JobRunId:          action.JobRunId,
+		TaskId:            action.TaskId,
+		TaskRunExternalId: action.TaskRunExternalId,
+		ActionId:          action.ActionId,
+		EventTimestamp:    timestamppb.Now(),
+		EventPayload:      msg,
+		RetryCount:        &retryCount,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
+	defer cancel()
+
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck
+
+	_, err := s.taskEventWriter.CancelTaskEvent(ctx, event)
+	return err
 }
 
 // sendStepActionEvent builds a StepActionEvent from the assigned action and reports it back

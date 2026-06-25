@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -161,7 +162,7 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 
 	d.lastActions = actions
 
-	d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
+	d.Logger().Warn().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
 }
 
 // slicesEqualUnordered reports whether a and b contain the same elements regardless of order.
@@ -274,6 +275,9 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	)
 
 	if dagErr != nil {
+		if isCancelledErr(dagErr) {
+			return d.cancelDAG(action, dagErr.Error())
+		}
 		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr))
 	}
 
@@ -284,15 +288,30 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	return nil
 }
 
-// fail reports a task failure (retryable) and returns the originating error.
 func (d *DAGOperator) fail(action *contracts.AssignedAction, err error) error {
 	if reportErr := d.SendFailed(action, err.Error(), false); reportErr != nil {
 		d.Logger().Error().Err(reportErr).
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("could not report task failure")
+		return err
 	}
 
-	return err
+	return nil
+}
+
+func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) error {
+	if reportErr := d.SendCancelled(action, msg); reportErr != nil {
+		d.Logger().Error().Err(reportErr).
+			Str("task_run_external_id", action.TaskRunExternalId).
+			Msg("could not report task cancellation")
+		return reportErr
+	}
+
+	return nil
+}
+
+func isCancelledErr(err error) bool {
+	return err != nil && len(err.Error()) > 0 && strings.HasPrefix(err.Error(), "dag cancelled:")
 }
 
 func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAction) ([]*task, error) {

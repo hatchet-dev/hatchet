@@ -1201,8 +1201,11 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 			case sqlcv1.V1TaskEventTypeFAILED:
 				res.Error = &event.ErrorMessage
 			case sqlcv1.V1TaskEventTypeCANCELLED:
-				//FIXME: this should be more specific for schedule timeouts
-				res.Error = &event.ErrorMessage
+				msg := event.ErrorMessage
+				if msg == "" {
+					msg = "task was cancelled"
+				}
+				res.Error = &msg
 			}
 
 			stepRunResults = append(stepRunResults, res)
@@ -1394,6 +1397,50 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
+		return nil, err
+	}
+
+	return &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}, nil
+}
+
+func (d *DispatcherImpl) CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error) {
+	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
+	tenantId := tenant.ID
+
+	taskExternalId, err := uuid.Parse(request.TaskRunExternalId)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid task external run id %s: %v", request.TaskRunExternalId, err)
+	}
+
+	task, err := d.getSingleTask(ctx, tenantId, taskExternalId, false)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "could not get task %s: %v", request.TaskRunExternalId, err)
+	}
+
+	retryCount := task.RetryCount
+	if request.RetryCount != nil {
+		retryCount = *request.RetryCount
+	}
+
+	msg, err := tasktypes.CancelledTaskMessage(
+		tenantId,
+		task.ID,
+		task.InsertedAt,
+		task.ExternalID,
+		task.WorkflowRunID,
+		retryCount,
+		sqlcv1.V1EventTypeOlapCANCELLED,
+		request.EventPayload,
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := d.mqv1.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
 		return nil, err
 	}
 
