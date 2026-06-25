@@ -1253,6 +1253,8 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			ParentTaskInsertedAt:    &task.InsertedAt.Time,
 			ChildIndex:              &childIndex,
 			DagParentWorkflowRunIds: req.DagParentRunIds,
+			IsSkipped:               req.IsSkipped,
+			IsCancelled:             req.IsCancelled,
 		},
 	}}
 
