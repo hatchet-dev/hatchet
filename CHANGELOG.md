@@ -3,6 +3,7 @@
 ### Added
 
 - Add Go SDK client retry controls, gRPC full-jitter retry backoff, and bounded REST read retries for transient API failures by @igor-kupczynski in [#4240](https://github.com/hatchet-dev/hatchet/pull/4240)
+- Adds a new experimental rewrite of concurrency strategies which are scoped to the task level. This can be enabled by setting `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=true`. By @abelanger5 in [#4258](https://github.com/hatchet-dev/hatchet/pull/4258)
 
 ## [0.89.0] - 2026-06-09
 
