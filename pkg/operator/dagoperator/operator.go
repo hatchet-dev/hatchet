@@ -281,7 +281,22 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr))
 	}
 
-	if err := d.SendCompleted(action, []byte("{}")); err != nil {
+	output := make(map[string]json.RawMessage, len(tasks))
+	for _, t := range tasks {
+		if t.output != nil {
+			b, err := json.Marshal(t.output)
+			if err == nil {
+				output[t.readableId] = json.RawMessage(b)
+			}
+		}
+	}
+
+	outputBytes, err := json.Marshal(output)
+	if err != nil {
+		outputBytes = []byte("{}")
+	}
+
+	if err := d.SendCompleted(action, outputBytes); err != nil {
 		return fmt.Errorf("could not report task completion: %w", err)
 	}
 
