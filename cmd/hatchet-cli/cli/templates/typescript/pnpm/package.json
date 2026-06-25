@@ -16,11 +16,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@hatchet-dev/typescript-sdk": "1.22.3"
-  },
-  "pnpm": {
-    "overrides": {
-      "qs": ">=6.14.2"
-    }
+    "@hatchet-dev/typescript-sdk": "1.24.1",
+    "zod": "^3.25.0"
   }
 }

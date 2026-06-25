@@ -1,18 +1,6 @@
 import { Badge } from '@/components/v1/ui/badge';
+import { formatShardDeploymentKey } from '@/lib/shard-deployment-key';
 import { cn } from '@/lib/utils';
-
-export function formatTenantRegionDisplay(
-  region: string | undefined,
-): string | undefined {
-  if (!region) {
-    return undefined;
-  }
-  const idx = region.indexOf(':');
-  if (idx >= 0 && idx < region.length - 1) {
-    return region.slice(idx + 1);
-  }
-  return region;
-}
 
 export function TenantRegionBadge({
   region,
@@ -21,7 +9,7 @@ export function TenantRegionBadge({
   region: string | undefined;
   className?: string;
 }) {
-  const label = formatTenantRegionDisplay(region);
+  const label = formatShardDeploymentKey(region);
   if (!label) {
     return null;
   }

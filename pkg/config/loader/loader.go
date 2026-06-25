@@ -15,6 +15,7 @@ import (
 	"github.com/exaring/otelpgx"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -39,6 +40,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/smtp"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
@@ -161,6 +163,21 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		conn.TypeMap().RegisterType(t)
+
+		if uuidType, ok := conn.TypeMap().TypeForName("uuid"); ok {
+			var uuidrangeOID uint32
+			err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID)
+			if err != nil && err != pgx.ErrNoRows {
+				return fmt.Errorf("loading uuidrange oid: %w", err)
+			}
+			if err == nil {
+				conn.TypeMap().RegisterType(&pgtype.Type{
+					Name:  "uuidrange",
+					OID:   uuidrangeOID,
+					Codec: &pgtype.RangeCodec{ElementType: uuidType},
+				})
+			}
+		}
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
 
@@ -326,7 +343,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ExternalCutoverBatchSize:             scf.PayloadStore.ExternalCutoverBatchSize,
 		ExternalCutoverNumConcurrentOffloads: scf.PayloadStore.ExternalCutoverNumConcurrentOffloads,
 		InlineStoreTTL:                       &inlineStoreTTL,
-		EnableImmediateOffloads:              scf.PayloadStore.EnableImmediateOffloads,
+		EnableWindowSizeOptimization:         scf.PayloadStore.EnableWindowSizeOptimization,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
@@ -711,6 +728,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
+	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
 		&queueLogger,
@@ -723,13 +742,14 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
+		promGate,
 	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
@@ -801,6 +821,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
+		PrometheusGate:         promGate,
 		Observability:          cf.Observability,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.FrontendURL, emailSvc),

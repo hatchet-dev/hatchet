@@ -48,6 +48,9 @@ from examples.durable.worker import (
     wait_for_or_event_lookback,
     wait_for_two_events_second_pushed_first,
     durable_child_key_dedup_replay,
+    durable_spawn_many_dags,
+    error_raising_task,
+    error_raising_durable_parent,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -193,6 +196,9 @@ def main() -> None:
             durable_parent_child_key_bug,
             child_child_key_bug,
             durable_child_key_dedup_replay,
+            durable_spawn_many_dags,
+            error_raising_durable_parent,
+            error_raising_task,
         ],
         lifespan=lifespan,
     )

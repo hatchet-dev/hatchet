@@ -17,7 +17,6 @@ import {
   APIErrors,
   APITokenList,
   AuditLogList,
-  AutumnWebhookEvent,
   Build,
   CreateManagedWorkerFromTemplateRequest,
   CreateManagedWorkerRequest,
@@ -51,15 +50,9 @@ import {
   RejectOrganizationInviteRequest,
   RemoveOrganizationMembersRequest,
   RuntimeConfigActionsResponse,
-  SubscriptionPlanList,
-  TenantBillingState,
-  TenantCreditBalance,
-  TenantPaymentMethodList,
   UpdateManagedWorkerRequest,
   UpdateOrganizationRequest,
   UpdateOrganizationTenantRequest,
-  UpdateTenantSubscriptionRequest,
-  UpdateTenantSubscriptionResponse,
   UserOffer,
   VectorPushRequest,
   WorkflowRunEventsMetricsCounts,
@@ -770,141 +763,6 @@ export class Api<
       body: data,
       secure: true,
       type: ContentType.Json,
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description List all available subscription plans and their features
-   *
-   * @tags Billing
-   * @name SubscriptionPlansList
-   * @summary List subscription plans
-   * @request GET:/api/v1/billing/plans
-   */
-  subscriptionPlansList = Object.assign((params: RequestParams = {}) =>
-    this.request<SubscriptionPlanList, APIErrors>({
-      path: `/api/v1/billing/plans`,
-      method: "GET",
-      format: "json",
-      ...params,
-      xResources: [],
-    }), { resources: new Set<string>([]) });
-  /**
-   * @description Receive a webhook message from Autumn
-   *
-   * @tags Billing
-   * @name AutumnEventCreate
-   * @summary Receive a webhook message from Autumn
-   * @request POST:/api/v1/billing/autumn/webhook
-   */
-  autumnEventCreate = Object.assign((data: AutumnWebhookEvent, params: RequestParams = {}) =>
-    this.request<void, APIErrors>({
-      path: `/api/v1/billing/autumn/webhook`,
-      method: "POST",
-      body: data,
-      type: ContentType.Json,
-      ...params,
-      xResources: [],
-    }), { resources: new Set<string>([]) });
-  /**
-   * @description Gets the billing state for a tenant
-   *
-   * @tags Tenant
-   * @name TenantBillingStateGet
-   * @summary Get the billing state for a tenant
-   * @request GET:/api/v1/billing/tenants/{tenant}
-   * @secure
-   */
-  tenantBillingStateGet = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<TenantBillingState, APIErrors | APIError>({
-      path: `/api/v1/billing/tenants/${tenant}`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Update a subscription
-   *
-   * @tags Billing
-   * @name TenantSubscriptionUpdate
-   * @summary Create a new subscription
-   * @request PATCH:/api/v1/billing/tenants/{tenant}/subscription
-   * @secure
-   */
-  tenantSubscriptionUpdate = Object.assign((
-    tenant: string,
-    data: UpdateTenantSubscriptionRequest,
-    params: RequestParams = {},
-  ) =>
-    this.request<UpdateTenantSubscriptionResponse, APIErrors>({
-      path: `/api/v1/billing/tenants/${tenant}/subscription`,
-      method: "PATCH",
-      body: data,
-      secure: true,
-      type: ContentType.Json,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Get the billing portal link
-   *
-   * @tags Billing
-   * @name BillingPortalLinkGet
-   * @summary Create a link to the billing portal
-   * @request GET:/api/v1/billing/tenants/{tenant}/billing-portal-link
-   * @secure
-   */
-  billingPortalLinkGet = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<
-      {
-        /** The url to the billing portal */
-        url?: string;
-      },
-      APIErrors
-    >({
-      path: `/api/v1/billing/tenants/${tenant}/billing-portal-link`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Get the payment methods for a tenant
-   *
-   * @tags Billing
-   * @name TenantPaymentMethodsGet
-   * @summary Get the payment methods for a tenant
-   * @request GET:/api/v1/billing/tenants/{tenant}/payment-methods
-   * @secure
-   */
-  tenantPaymentMethodsGet = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<TenantPaymentMethodList, APIErrors>({
-      path: `/api/v1/billing/tenants/${tenant}/payment-methods`,
-      method: "GET",
-      secure: true,
-      format: "json",
-      ...params,
-      xResources: ["tenant"],
-    }), { resources: new Set<string>(["tenant"]) });
-  /**
-   * @description Get the Stripe credit balance for a tenant
-   *
-   * @tags Billing
-   * @name TenantCreditBalanceGet
-   * @summary Get the Stripe credit balance for a tenant
-   * @request GET:/api/v1/billing/tenants/{tenant}/credit-balance
-   * @secure
-   */
-  tenantCreditBalanceGet = Object.assign((tenant: string, params: RequestParams = {}) =>
-    this.request<TenantCreditBalance, APIErrors>({
-      path: `/api/v1/billing/tenants/${tenant}/credit-balance`,
-      method: "GET",
-      secure: true,
-      format: "json",
       ...params,
       xResources: ["tenant"],
     }), { resources: new Set<string>(["tenant"]) });

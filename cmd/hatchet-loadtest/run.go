@@ -27,7 +27,7 @@ type executionEvent struct {
 	duration  time.Duration
 }
 
-func run(ctx context.Context, config LoadTestConfig, executions chan<- executionEvent) (int64, int64) {
+func run(ctx context.Context, config LoadTestConfig, executions chan<- executionEvent, registered chan<- error) (int64, int64) {
 	hatchet, err := v1.NewHatchetClient(
 		v1.Config{
 			Namespace: config.Namespace,
@@ -174,8 +174,22 @@ func run(ctx context.Context, config LoadTestConfig, executions chan<- execution
 	)
 
 	if err != nil {
-		panic(fmt.Errorf("error creating worker: %w", err))
+		registered <- fmt.Errorf("error creating worker (workflow registration): %w", err)
+		return 0, 0
 	}
+
+	registered <- nil
+
+	if ctx.Err() != nil {
+		return 0, 0
+	}
+
+	if config.WorkerDelay > 0 {
+		l.Info().Msgf("waiting %s before starting the worker", config.WorkerDelay)
+		time.Sleep(config.WorkerDelay)
+	}
+
+	l.Info().Msg("starting worker now")
 
 	cleanup, err := worker.Start()
 	if err != nil {

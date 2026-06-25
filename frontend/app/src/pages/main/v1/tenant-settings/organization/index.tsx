@@ -39,7 +39,10 @@ import {
 } from '@/components/v1/ui/tooltip';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user';
-import { useOrganizations } from '@/hooks/use-organizations';
+import {
+  MAX_INACTIVITY_TIMEOUT_MS,
+  useOrganizations,
+} from '@/hooks/use-organizations';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
@@ -58,10 +61,15 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
+import {
+  formatShardDeploymentKey,
+  shardDeploymentKey,
+} from '@/lib/shard-deployment-key';
 import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
+import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -309,8 +317,12 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     [editedTimeout],
   );
 
+  const editedTimeoutExceedsMax =
+    parsedEditedTimeout !== null &&
+    parsedEditedTimeout > MAX_INACTIVITY_TIMEOUT_MS;
+
   const handleSaveTimeout = () => {
-    if (!orgId || parsedEditedTimeout === null) {
+    if (!orgId || parsedEditedTimeout === null || editedTimeoutExceedsMax) {
       return;
     }
     if (parsedEditedTimeout === currentInactivityTimeoutMs) {
@@ -502,7 +514,9 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     {
       columnLabel: 'Region',
       cellRenderer: (row: OrganizationAvailableShard) => (
-        <span className="font-mono text-sm">{row.region}</span>
+        <span className="font-mono text-sm">
+          {formatShardDeploymentKey(shardDeploymentKey(row)) ?? row.region}
+        </span>
       ),
     },
     {
@@ -717,7 +731,8 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                           onClick={handleSaveTimeout}
                           disabled={
                             updateOrganizationLoading ||
-                            parsedEditedTimeout === null
+                            parsedEditedTimeout === null ||
+                            editedTimeoutExceedsMax
                           }
                           hoverText="Save inactivity timeout"
                           className="shrink-0 bg-background/60 hover:bg-muted/50"
@@ -732,11 +747,18 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                     </div>
                     {editedTimeout.trim() !== '' && (
                       <p
-                        className={`text-xs ${parsedEditedTimeout === null ? 'text-destructive' : 'text-muted-foreground'}`}
+                        className={`text-xs ${
+                          parsedEditedTimeout === null ||
+                          editedTimeoutExceedsMax
+                            ? 'text-destructive'
+                            : 'text-muted-foreground'
+                        }`}
                       >
                         {parsedEditedTimeout === null
                           ? 'Invalid format — try 30m, 1h, 1h30m, 100ms'
-                          : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
+                          : editedTimeoutExceedsMax
+                            ? 'Inactivity timeout cannot exceed 14 days'
+                            : `→ ${formatTimeoutMs(parsedEditedTimeout)}`}
                       </p>
                     )}
                   </div>
@@ -782,6 +804,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
             {canManageSso && (
               <TabsTrigger value="sso" variant="underlined">
                 SSO
+              </TabsTrigger>
+            )}
+            {isControlPlaneEnabled && (
+              <TabsTrigger value="audit-log" variant="underlined">
+                Audit Log
               </TabsTrigger>
             )}
           </TabsList>
@@ -903,7 +930,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                       data={organizationAvailableShardsQuery.data.rows}
                       columns={availableShardColumns}
                       rowKey={(row) =>
-                        `${row.shardClass}:${row.provider}:${row.region}`
+                        `${row.shardClass}:${row.provider}:${row.region}:${row.shardName ?? ''}`
                       }
                     />
                   ) : (
@@ -1087,6 +1114,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                   to get access.
                 </div>
               )}
+            </TabsContent>
+          )}
+          {isControlPlaneEnabled && (
+            <TabsContent value="audit-log">
+              <AuditLogSettings orgId={orgId} />
             </TabsContent>
           )}
         </Tabs>

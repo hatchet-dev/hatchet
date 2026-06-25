@@ -47,7 +47,7 @@ DO UPDATE SET
     lease_process_id = EXCLUDED.lease_process_id,
     lease_expires_at = EXCLUDED.lease_expires_at
 WHERE v1_payloads_olap_cutover_job_offset.lease_expires_at < NOW() OR v1_payloads_olap_cutover_job_offset.lease_process_id = $1::UUID
-RETURNING key, is_completed, lease_process_id, lease_expires_at, last_tenant_id, last_external_id, last_inserted_at, final_source_table_row_count, final_target_table_row_count, final_row_count_diff
+RETURNING key, is_completed, lease_process_id, lease_expires_at, last_external_id
 `
 
 type AcquireOrExtendOLAPCutoverJobLeaseParams struct {
@@ -70,12 +70,7 @@ func (q *Queries) AcquireOrExtendOLAPCutoverJobLease(ctx context.Context, db DBT
 		&i.IsCompleted,
 		&i.LeaseProcessID,
 		&i.LeaseExpiresAt,
-		&i.LastTenantID,
 		&i.LastExternalID,
-		&i.LastInsertedAt,
-		&i.FinalSourceTableRowCount,
-		&i.FinalTargetTableRowCount,
-		&i.FinalRowCountDiff,
 	)
 	return &i, err
 }
@@ -378,6 +373,37 @@ func (q *Queries) CreateOLAPEventPartitions(ctx context.Context, db DBTX, date p
 	return err
 }
 
+const createOLAPOffloadedPayloadIndexBlock = `-- name: CreateOLAPOffloadedPayloadIndexBlock :exec
+INSERT INTO v1_payloads_olap_offloaded_block_index (
+    payload_inserted_at_date,
+    block_external_id_range,
+    index_file_key
+)
+VALUES (
+    $1::DATE,
+    uuidrange($2::UUID, $3::UUID, '(]'),
+    $4::TEXT
+)
+ON CONFLICT ON CONSTRAINT v1_payloads_olap_offloaded_block_index_date_range_excl DO NOTHING
+`
+
+type CreateOLAPOffloadedPayloadIndexBlockParams struct {
+	Payloadinsertedatdate     pgtype.Date `json:"payloadinsertedatdate"`
+	Blocklowerexternalidbound uuid.UUID   `json:"blocklowerexternalidbound"`
+	Blockupperexternalidbound uuid.UUID   `json:"blockupperexternalidbound"`
+	Indexfilekey              string      `json:"indexfilekey"`
+}
+
+func (q *Queries) CreateOLAPOffloadedPayloadIndexBlock(ctx context.Context, db DBTX, arg CreateOLAPOffloadedPayloadIndexBlockParams) error {
+	_, err := db.Exec(ctx, createOLAPOffloadedPayloadIndexBlock,
+		arg.Payloadinsertedatdate,
+		arg.Blocklowerexternalidbound,
+		arg.Blockupperexternalidbound,
+		arg.Indexfilekey,
+	)
+	return err
+}
+
 const createOLAPOtelPartitions = `-- name: CreateOLAPOtelPartitions :exec
 SELECT
     create_v1_range_partition('v1_otel_trace_olap'::text, $1::date),
@@ -491,60 +517,14 @@ func (q *Queries) CreateV1PayloadOLAPCutoverTemporaryTable(ctx context.Context, 
 	return err
 }
 
-const diffOLAPPayloadSourceAndTargetPartitions = `-- name: DiffOLAPPayloadSourceAndTargetPartitions :many
-WITH payloads AS (
-    SELECT
-        (p).*
-    FROM diff_olap_payload_source_and_target_partitions($1::DATE) p
-)
-
-SELECT
-    tenant_id::UUID,
-    external_id::UUID,
-    inserted_at::TIMESTAMPTZ,
-    location::v1_payload_location_olap,
-    COALESCE(external_location_key, '')::TEXT AS external_location_key,
-    inline_content::JSONB AS inline_content,
-    updated_at::TIMESTAMPTZ
-FROM payloads
+const deleteOldOLAPPayloadOffloadedBlockIndexRows = `-- name: DeleteOldOLAPPayloadOffloadedBlockIndexRows :exec
+DELETE FROM v1_payloads_olap_offloaded_block_index
+WHERE payload_inserted_at_date < $1::DATE
 `
 
-type DiffOLAPPayloadSourceAndTargetPartitionsRow struct {
-	TenantID            uuid.UUID             `json:"tenant_id"`
-	ExternalID          uuid.UUID             `json:"external_id"`
-	InsertedAt          pgtype.Timestamptz    `json:"inserted_at"`
-	Location            V1PayloadLocationOlap `json:"location"`
-	ExternalLocationKey string                `json:"external_location_key"`
-	InlineContent       []byte                `json:"inline_content"`
-	UpdatedAt           pgtype.Timestamptz    `json:"updated_at"`
-}
-
-func (q *Queries) DiffOLAPPayloadSourceAndTargetPartitions(ctx context.Context, db DBTX, partitiondate pgtype.Date) ([]*DiffOLAPPayloadSourceAndTargetPartitionsRow, error) {
-	rows, err := db.Query(ctx, diffOLAPPayloadSourceAndTargetPartitions, partitiondate)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []*DiffOLAPPayloadSourceAndTargetPartitionsRow
-	for rows.Next() {
-		var i DiffOLAPPayloadSourceAndTargetPartitionsRow
-		if err := rows.Scan(
-			&i.TenantID,
-			&i.ExternalID,
-			&i.InsertedAt,
-			&i.Location,
-			&i.ExternalLocationKey,
-			&i.InlineContent,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, &i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx context.Context, db DBTX, before pgtype.Date) error {
+	_, err := db.Exec(ctx, deleteOldOLAPPayloadOffloadedBlockIndexRows, before)
+	return err
 }
 
 const findMinInsertedAtForDAGStatusUpdates = `-- name: FindMinInsertedAtForDAGStatusUpdates :one
@@ -804,6 +784,51 @@ func (q *Queries) GetEventByExternalIdUsingTenantId(ctx context.Context, db DBTX
 		&i.TriggeringWebhookName,
 	)
 	return &i, err
+}
+
+const getOLAPOffloadedPayloadIndexBlocks = `-- name: GetOLAPOffloadedPayloadIndexBlocks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::DATE[]) AS inserted_at_date,
+        UNNEST($2::UUID[]) AS external_id
+)
+
+SELECT i.external_id::UUID AS external_id, p.index_file_key
+FROM v1_payloads_olap_offloaded_block_index p
+JOIN inputs i ON
+    p.payload_inserted_at_date = i.inserted_at_date
+    AND p.block_external_id_range @> i.external_id
+`
+
+type GetOLAPOffloadedPayloadIndexBlocksParams struct {
+	Insertedats []pgtype.Date `json:"insertedats"`
+	Externalids []uuid.UUID   `json:"externalids"`
+}
+
+type GetOLAPOffloadedPayloadIndexBlocksRow struct {
+	ExternalID   uuid.UUID `json:"external_id"`
+	IndexFileKey string    `json:"index_file_key"`
+}
+
+// todo: make sure this join uses the index correctly
+func (q *Queries) GetOLAPOffloadedPayloadIndexBlocks(ctx context.Context, db DBTX, arg GetOLAPOffloadedPayloadIndexBlocksParams) ([]*GetOLAPOffloadedPayloadIndexBlocksRow, error) {
+	rows, err := db.Query(ctx, getOLAPOffloadedPayloadIndexBlocks, arg.Insertedats, arg.Externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetOLAPOffloadedPayloadIndexBlocksRow
+	for rows.Next() {
+		var i GetOLAPOffloadedPayloadIndexBlocksRow
+		if err := rows.Scan(&i.ExternalID, &i.IndexFileKey); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRunsListRecursive = `-- name: GetRunsListRecursive :many
@@ -1496,6 +1521,7 @@ WITH task_partitions AS (
         parent_table, partition_name
     FROM
         otel_trace_lookup_partitions
+
 )
 
 SELECT parent_table, partition_name
@@ -3323,7 +3349,12 @@ FROM statuses_from_events s
 WHERE
     (t.id, t.inserted_at) = (s.task_id, s.task_inserted_at)
     AND (
-        (s.retry_count > t.latest_retry_count AND s.status != t.readable_status)
+        -- A newer retry count always applies, even when the readable status is
+        -- unchanged — same rationale as the guards in UpdateTaskStatuses and
+        -- UpdateTaskStatusesFromMQ: requiring the status to differ would skip
+        -- the latest_retry_count advance when the event history's newest retry
+        -- ends in the status the row already has.
+        (s.retry_count > t.latest_retry_count)
         OR (s.retry_count = t.latest_retry_count AND v1_status_to_priority(s.status) > v1_status_to_priority(t.readable_status))
         OR (s.retry_count = t.latest_retry_count AND t.readable_status = 'EVICTED' AND s.status != 'EVICTED')
     )
@@ -3376,32 +3407,6 @@ func (q *Queries) ReconcileTaskStatusesFromEvents(ctx context.Context, db DBTX, 
 		return nil, err
 	}
 	return items, nil
-}
-
-const setFinalOLAPPayloadCutoverRowCounts = `-- name: SetFinalOLAPPayloadCutoverRowCounts :exec
-UPDATE v1_payloads_olap_cutover_job_offset
-SET
-    final_source_table_row_count = $1::BIGINT,
-    final_target_table_row_count = $2::BIGINT,
-    final_row_count_diff = $3::BIGINT
-WHERE key = $4::DATE
-`
-
-type SetFinalOLAPPayloadCutoverRowCountsParams struct {
-	Finalsourcetablerowcount int64       `json:"finalsourcetablerowcount"`
-	Finaltargettablerowcount int64       `json:"finaltargettablerowcount"`
-	Finalrowcountdiff        int64       `json:"finalrowcountdiff"`
-	Key                      pgtype.Date `json:"key"`
-}
-
-func (q *Queries) SetFinalOLAPPayloadCutoverRowCounts(ctx context.Context, db DBTX, arg SetFinalOLAPPayloadCutoverRowCountsParams) error {
-	_, err := db.Exec(ctx, setFinalOLAPPayloadCutoverRowCounts,
-		arg.Finalsourcetablerowcount,
-		arg.Finaltargettablerowcount,
-		arg.Finalrowcountdiff,
-		arg.Key,
-	)
-	return err
 }
 
 const storeCELEvaluationFailures = `-- name: StoreCELEvaluationFailures :exec
@@ -4007,10 +4012,18 @@ WITH tenants AS (
         (t.inserted_at, t.id, t.readable_status) = (tu.inserted_at, tu.id, tu.readable_status)
         AND
             (
-                -- if the retry count is greater than the latest retry count, update the status
+                -- A newer retry count must always apply, even when the readable
+                -- status is unchanged, because this is the only chance to record it:
+                -- the deleted_events CTE below removes every processed event from
+                -- v1_task_events_olap_tmp regardless of whether this UPDATE matched,
+                -- so an event rejected here is never seen again. If a same-status
+                -- event from a newer retry were rejected (a replayed task's COMPLETED
+                -- at retry N ingested before its QUEUED/ASSIGNED events),
+                -- latest_retry_count would stay stale, and the late QUEUED/ASSIGNED
+                -- events at retry N would later pass this branch and leave the task
+                -- stuck at RUNNING.
                 (
                     tu.retry_count > t.latest_retry_count
-                    AND tu.max_readable_status != t.readable_status
                 ) OR
                 -- if the retry count is equal to the latest retry count, update the status if the priority is higher
                 (
@@ -4169,10 +4182,17 @@ WITH inputs AS (
     JOIN inputs i ON (i.tenant_id, i.task_id, i.task_inserted_at) = (t.tenant_id, t.id, t.inserted_at)
     WHERE
         (
-            -- If the retry count is greater than the latest retry count, update the status
+            -- A newer retry count must always apply, even when the readable
+            -- status is unchanged, because this is the only chance to record it:
+            -- the message this batch came from is acked once the transaction
+            -- commits, regardless of whether this update matched, so an event
+            -- rejected here is never seen again. If a same-status event from a
+            -- newer retry were rejected (a replayed task's COMPLETED at retry N
+            -- ingested before its QUEUED/ASSIGNED events), latest_retry_count
+            -- would stay stale, and the late QUEUED/ASSIGNED events at retry N
+            -- would later pass this branch and leave the task stuck at RUNNING.
             (
                 i.retry_count > t.latest_retry_count
-                AND i.readable_status != t.readable_status
             ) OR
             -- If the retry count is equal, only update if the new status has higher priority
             (

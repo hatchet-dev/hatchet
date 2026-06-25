@@ -18,6 +18,7 @@ import {
   APIErrors,
   APIMetaAuth,
   APITokenList,
+  AuditLogList,
   CreateManagementTokenRequest,
   CreateManagementTokenResponse,
   CreateNewTenantForOrganizationRequest,
@@ -31,21 +32,28 @@ import {
   ManagementTokenList,
   Organization,
   OrganizationAvailableShardList,
+  OrganizationBillingState,
+  OrganizationCreditBalance,
   OrganizationEntitlements,
   OrganizationForUserList,
   OrganizationInviteList,
+  OrganizationPaymentMethodList,
   OrganizationTenant,
+  OrganizationTenantResourceLimitsList,
   RejectOrganizationInviteRequest,
   RejectTenantInviteRequest,
   RemoveOrganizationMembersRequest,
   SsoConfig,
   SsoDomainArray,
+  SubscriptionPlanList,
   TenantExchangeToken,
   TenantInvite,
   TenantInviteList,
   TenantMember,
   TenantMemberList,
   UpdateOrganizationRequest,
+  UpdateOrganizationSubscriptionRequest,
+  UpdateOrganizationSubscriptionResponse,
   UpdateTenantInviteRequest,
   UpdateTenantMemberRequest,
   User,
@@ -432,6 +440,61 @@ export class Api<
     this.request<OrganizationAvailableShardList, APIError>({
       path: `/api/v1/control-plane/organizations/${organization}/available-shards`,
       method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description List audit logs across the organization's tenants (federated across shards)
+   *
+   * @tags Management
+   * @name OrganizationListAuditLogs
+   * @summary List Audit Logs for Organization
+   * @request GET:/api/v1/control-plane/organizations/{organization}/audit-logs
+   * @secure
+   */
+  organizationListAuditLogs = (
+    organization: string,
+    query?: {
+      /**
+       * Optional tenant ID to scope results to a single tenant
+       * @format uuid
+       * @minLength 36
+       * @maxLength 36
+       */
+      tenant?: string;
+      /**
+       * The maximum number of rows to return
+       * @format int32
+       * @min 1
+       * @max 1000
+       * @default 1000
+       */
+      limit?: number;
+      /**
+       * The number of rows to skip for pagination
+       * @format int32
+       * @min 0
+       * @default 0
+       */
+      offset?: number;
+      /**
+       * The start of the time range (RFC3339)
+       * @format date-time
+       */
+      since?: string;
+      /**
+       * The end of the time range (RFC3339)
+       * @format date-time
+       */
+      until?: string;
+    },
+    params: RequestParams = {},
+  ) =>
+    this.request<AuditLogList, APIError>({
+      path: `/api/v1/control-plane/organizations/${organization}/audit-logs`,
+      method: "GET",
+      query: query,
       secure: true,
       format: "json",
       ...params,
@@ -1140,6 +1203,147 @@ export class Api<
       path: `/api/v1/control-plane/tenants/${tenant}/invites/${tenantInvite}`,
       method: "DELETE",
       secure: true,
+      ...params,
+    });
+  /**
+   * @description List all available subscription plans and their features
+   *
+   * @tags Billing
+   * @name SubscriptionPlansList
+   * @summary List subscription plans
+   * @request GET:/api/v1/control-plane/billing/plans
+   */
+  subscriptionPlansList = (params: RequestParams = {}) =>
+    this.request<SubscriptionPlanList, APIErrors>({
+      path: `/api/v1/control-plane/billing/plans`,
+      method: "GET",
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the billing state for an organization
+   *
+   * @tags Organization
+   * @name OrganizationBillingStateGet
+   * @summary Get the billing state for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}
+   * @secure
+   */
+  organizationBillingStateGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationBillingState, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Gets the current resource limits for tenants in an organization
+   *
+   * @tags Organization
+   * @name OrganizationTenantResourceLimitsGet
+   * @summary Get tenant resource limits for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/tenant-resource-limits
+   * @secure
+   */
+  organizationTenantResourceLimitsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationTenantResourceLimitsList, APIErrors | APIError>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/tenant-resource-limits`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Update an organization subscription
+   *
+   * @tags Billing
+   * @name OrganizationSubscriptionUpdate
+   * @summary Update organization subscription
+   * @request PATCH:/api/v1/control-plane/billing/organizations/{organization}/subscription
+   * @secure
+   */
+  organizationSubscriptionUpdate = (
+    organization: string,
+    data: UpdateOrganizationSubscriptionRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<UpdateOrganizationSubscriptionResponse, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/subscription`,
+      method: "PATCH",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the billing portal link
+   *
+   * @tags Billing
+   * @name BillingPortalLinkGet
+   * @summary Create a link to the billing portal
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/billing-portal-link
+   * @secure
+   */
+  billingPortalLinkGet = (organization: string, params: RequestParams = {}) =>
+    this.request<
+      {
+        /** The url to the billing portal */
+        url?: string;
+      },
+      APIErrors
+    >({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/billing-portal-link`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the payment methods for an organization
+   *
+   * @tags Billing
+   * @name OrganizationPaymentMethodsGet
+   * @summary Get the payment methods for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/payment-methods
+   * @secure
+   */
+  organizationPaymentMethodsGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationPaymentMethodList, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/payment-methods`,
+      method: "GET",
+      secure: true,
+      format: "json",
+      ...params,
+    });
+  /**
+   * @description Get the Stripe credit balance for an organization
+   *
+   * @tags Billing
+   * @name OrganizationCreditBalanceGet
+   * @summary Get the Stripe credit balance for an organization
+   * @request GET:/api/v1/control-plane/billing/organizations/{organization}/credit-balance
+   * @secure
+   */
+  organizationCreditBalanceGet = (
+    organization: string,
+    params: RequestParams = {},
+  ) =>
+    this.request<OrganizationCreditBalance, APIErrors>({
+      path: `/api/v1/control-plane/billing/organizations/${organization}/credit-balance`,
+      method: "GET",
+      secure: true,
+      format: "json",
       ...params,
     });
 }

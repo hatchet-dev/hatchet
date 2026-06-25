@@ -1298,6 +1298,11 @@ export interface APIMeta {
    * @example false
    */
   observabilityEnabled?: boolean;
+  /**
+   * whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+   * @example false
+   */
+  prometheusServerEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {
@@ -1877,6 +1882,16 @@ export interface ScheduledWorkflows {
 export interface ScheduledWorkflowsList {
   rows?: ScheduledWorkflows[];
   pagination?: PaginationResponse;
+}
+
+export interface TriggerRunResult {
+  /**
+   * The external ID of the triggered workflow run
+   * @format uuid
+   * @minLength 36
+   * @maxLength 36
+   */
+  externalId: string;
 }
 
 export interface UpdateScheduledWorkflowRunRequest {

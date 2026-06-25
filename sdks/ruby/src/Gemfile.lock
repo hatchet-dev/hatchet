@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    hatchet-sdk (0.3.0)
+    hatchet-sdk (0.3.1)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart
@@ -16,27 +16,27 @@ GEM
     ast (2.4.3)
     bigdecimal (4.1.2)
     cgi (0.5.1)
-    concurrent-ruby (1.3.6)
+    concurrent-ruby (1.3.7)
     date (3.5.1)
     diff-lcs (1.6.2)
     erb (4.0.4.1)
       cgi (>= 0.3.3)
-    faraday (2.14.2)
+    faraday (2.14.3)
       faraday-net_http (>= 2.0, < 3.5)
       json
       logger
     faraday-multipart (1.2.0)
       multipart-post (~> 2.0)
-    faraday-net_http (3.4.2)
+    faraday-net_http (3.4.4)
       net-http (~> 0.5)
     gem-release (2.2.4)
-    google-protobuf (4.34.2)
+    google-protobuf (4.35.1)
       bigdecimal
       rake (~> 13.3)
-    google-protobuf (4.34.2-arm64-darwin)
+    google-protobuf (4.35.1-arm64-darwin)
       bigdecimal
       rake (~> 13.3)
-    google-protobuf (4.34.2-x86_64-linux-gnu)
+    google-protobuf (4.35.1-x86_64-linux-gnu)
       bigdecimal
       rake (~> 13.3)
     googleapis-common-protos-types (1.22.0)
@@ -57,11 +57,11 @@ GEM
       prism (>= 1.3.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
-    json (2.19.5)
+    json (2.19.9)
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
     logger (1.7.0)
-    marcel (1.1.1)
+    marcel (1.2.1)
     multipart-post (2.4.1)
     net-http (0.9.1)
       uri (>= 0.11.1)
@@ -99,7 +99,7 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.7)
-    rubocop (1.86.2)
+    rubocop (1.87.0)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.1.0)
@@ -136,7 +136,7 @@ DEPENDENCIES
   json (~> 2.19)
   rake (~> 13.4)
   rspec (~> 3.13)
-  rubocop (~> 1.86)
+  rubocop (~> 1.87)
 
 BUNDLED WITH
    2.6.9

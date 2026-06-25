@@ -36,6 +36,28 @@ func taskExternalID(t *testing.T, client *hatchet.Client, ctx context.Context, r
 	return ""
 }
 
+func workflowResultWithin(t *testing.T, ref *hatchet.WorkflowRunRef, timeout time.Duration) *hatchet.WorkflowResult {
+	t.Helper()
+	type result struct {
+		value *hatchet.WorkflowResult
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		value, err := ref.Result()
+		ch <- result{value: value, err: err}
+	}()
+
+	select {
+	case result := <-ch:
+		require.NoError(t, result.err)
+		return result.value
+	case <-time.After(timeout):
+		t.Fatalf("timed out waiting for workflow run %s result", ref.RunId)
+		return nil
+	}
+}
+
 func TestDurableWorkflow(t *testing.T) {
 	ctx := newTestContext(t)
 
@@ -92,6 +114,8 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+
 	result, err := ref.Result()
 	require.NoError(t, err)
 	replayElapsed := time.Since(replayStart).Seconds()
@@ -118,12 +142,39 @@ func TestDurableChildSpawn(t *testing.T) {
 	assert.Equal(t, "hello from child 1", childOutput["message"])
 }
 
+func TestDurableChildSpawnReplay(t *testing.T) {
+	requireDurableEviction(t)
+	ctx := newTestContext(t)
+
+	ref, err := testDurableWithSpawn.RunNoWait(ctx, EmptyInput{})
+	require.NoError(t, err)
+
+	firstResult := workflowResultWithin(t, ref, 20*time.Second)
+	firstOutput := resultMap(t, firstResult, "durable-with-spawn")
+	firstChild, ok := firstOutput["child_output"].(map[string]any)
+	require.True(t, ok, "expected child_output to be a map")
+	assert.Equal(t, "hello from child 1", firstChild["message"])
+
+	_, err = sharedClient.Runs().Replay(ctx, rest.V1ReplayTaskRequest{
+		ExternalIds: toUUIDs(ref.RunId),
+	})
+	require.NoError(t, err)
+
+	replayResult := workflowResultWithin(t, ref, 20*time.Second)
+	replayOutput := resultMap(t, replayResult, "durable-with-spawn")
+	replayChild, ok := replayOutput["child_output"].(map[string]any)
+	require.True(t, ok, "expected child_output to be a map")
+	assert.Equal(t, "hello from child 1", replayChild["message"])
+}
+
 func TestDurableChildBulkSpawn(t *testing.T) {
 	ctx := newTestContext(t)
 	n := 8
 
+	start := time.Now()
 	result, err := testDurableWithBulkSpawn.Run(ctx, DurableBulkSpawnInput{N: n})
 	require.NoError(t, err)
+	elapsed := time.Since(start).Seconds()
 
 	var m map[string]any
 	err = result.Into(&m)
@@ -144,6 +195,38 @@ func TestDurableChildBulkSpawn(t *testing.T) {
 		seen[msg] = struct{}{}
 	}
 	assert.Len(t, seen, len(outputs))
+	assert.Less(t, elapsed, 2.0, "bulk durable child result collection should not scale linearly with child count")
+}
+
+func TestDurableChildLoopSpawn(t *testing.T) {
+	ctx := newTestContext(t)
+	n := 8
+
+	start := time.Now()
+	result, err := testDurableWithLoopSpawn.Run(ctx, DurableBulkSpawnInput{N: n})
+	require.NoError(t, err)
+	elapsed := time.Since(start).Seconds()
+
+	var m map[string]any
+	err = result.Into(&m)
+	require.NoError(t, err)
+	outputs, ok := m["child_outputs"].([]any)
+	require.True(t, ok, "expected child_outputs to be an array")
+
+	assert.GreaterOrEqual(t, len(outputs), n-1)
+	assert.LessOrEqual(t, len(outputs), n)
+
+	seen := make(map[string]struct{}, len(outputs))
+	for _, raw := range outputs {
+		child, ok := raw.(map[string]any)
+		require.True(t, ok, "expected each child output to be an object")
+
+		msg, ok := child["message"].(string)
+		require.True(t, ok, "expected child message to be a string")
+		seen[msg] = struct{}{}
+	}
+	assert.Len(t, seen, len(outputs))
+	assert.Less(t, elapsed, 4.0, "durable child RunNoWait result collection should not scale linearly with child count")
 }
 
 func TestDurableSleepEventSpawnReplay(t *testing.T) {
@@ -445,4 +528,40 @@ func TestDurableMemoNowCaching(t *testing.T) {
 	m2 := resultMap(t, result2, "memo-now-caching")
 
 	assert.Equal(t, m1["start_time"], m2["start_time"])
+}
+
+func TestDurableErrorOnErrorInChild(t *testing.T) {
+	ctx := newTestContext(t)
+
+	errorMsg := "error in child task " + uuid.NewString()
+
+	result, err := testErrorRaisingDurableParent.Run(ctx, ErrorRaisingInput{ErrorMessage: errorMsg})
+	require.NoError(t, err)
+
+	var output map[string]any
+	err = result.Into(&output)
+	require.NoError(t, err)
+
+	require.True(t, output["child_raised"].(bool), "expected child_raised to be true")
+	childErrorStr, _ := output["child_error_str"].(string)
+	assert.Contains(t, childErrorStr, errorMsg)
+
+	childRunID, _ := output["child_run_external_id"].(string)
+	parentRunID, _ := output["parent_run_external_id"].(string)
+
+	pollUntil(t, ctx, func() (bool, error) {
+		childStatus, err := sharedClient.Runs().GetStatus(ctx, childRunID)
+		if err != nil {
+			return false, err
+		}
+		return *childStatus == rest.V1TaskStatusFAILED, nil
+	})
+
+	pollUntil(t, ctx, func() (bool, error) {
+		parentStatus, err := sharedClient.Runs().GetStatus(ctx, parentRunID)
+		if err != nil {
+			return false, err
+		}
+		return *parentStatus == rest.V1TaskStatusCOMPLETED, nil
+	})
 }

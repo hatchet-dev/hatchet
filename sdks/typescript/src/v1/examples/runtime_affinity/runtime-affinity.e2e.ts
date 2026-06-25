@@ -3,7 +3,7 @@ import { checkDurableEvictionSupport, poll, stopWorker } from '../__e2e__/harnes
 import { Worker } from '../../client/worker/worker';
 import { hatchet } from '../hatchet-client';
 import { affinityExampleTask } from './workflow';
-import {applyNamespace} from "@util/apply-namespace";
+import { applyNamespace } from '@util/apply-namespace';
 
 const labels = ['foo', 'bar'] as const;
 
@@ -39,7 +39,10 @@ describe('runtime-affinity-e2e', () => {
     });
     workerB.start().catch((err) => console.error('[affinity-test] workerB start error:', err));
     await workerB.waitUntilReady(10_000);
-    let runtimeAffinityWorkerName = applyNamespace('runtime-affinity-worker', hatchet.config.namespace)
+    const runtimeAffinityWorkerName = applyNamespace(
+      'runtime-affinity-worker',
+      hatchet.config.namespace
+    );
     const workerResult = await poll(() => hatchet.workers.list(), {
       timeoutMs: 120_000,
       intervalMs: 500,

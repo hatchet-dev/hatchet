@@ -47,7 +47,7 @@ Then, before contributing, check out the following sections:
 
 Ensure all prerequisite dependencies are installed:
 
-- [Go 1.25+](https://go.dev/doc/install)
+- [Go 1.26+](https://go.dev/doc/install)
 - [Node.js v18+](https://nodejs.org/en/download)
    - We recommend using [nvm](https://github.com/nvm-sh/nvm) for managing node versions to match the version defined in [`.nvmrc`](.nvmrc)
 - [pnpm](https://pnpm.io/installation) installed globally (`npm i -g pnpm`)
@@ -77,6 +77,43 @@ Next, ensure all changes are:
 If your changes require documentation updates, modify the relevant files in [`frontend/docs/pages/`](frontend/docs/pages/). You can spin up the documentation site locally by running `task docs`. By default, this will be available at [`http://localhost:3000`](http://localhost:3000).
 
 For configuration changes, see [Updating Configuration](contributing/developer-guides/updating-configuration.md).
+
+### Guidelines
+
+Pull request titles should be conform to the [conventional commit](https://www.conventionalcommits.org/) format i.e
+
+```
+<type>(<scope>): <short description>
+```
+
+#### Scope
+
+Pull request titles can be (optionally) scoped to specify the affected area of the codebase. If multiple scopes apply, they can be provided as a comma-delimited list, e.g. `feat(sdks/go,sdks/ts): ...`. An empty scope implies the change is cross-cutting or not changelog-relevant, e.g. `chore: fix typo in README`.
+
+Please use the following when scoping your changes:
+
+**Hatchet core:**
+- `engine`
+- `api`
+- `migrate`
+- `admin`
+- `cli`
+- `dashboard`
+- `lite`
+
+**Hatchet SDKs:**
+- `sdks/python`
+- `sdks/ruby`
+- `sdks/go`
+- `sdks/ts`
+
+**Other:**
+- `ci`
+- `docs`
+- `devex`
+
+> [!NOTE]
+> Future tooling will rely on scoping to disambiguate the surface area of changes, so please scope your PR where applicable. This list is subject to change.
 
 ## Testing
 

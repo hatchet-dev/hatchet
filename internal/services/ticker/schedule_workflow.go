@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -126,7 +127,14 @@ func (t *TickerImpl) runScheduledWorkflow(tenantId, workflowVersionId, scheduled
 			return
 		}
 
-		err = t.runScheduledWorkflowV1(ctx, tenantId, workflowVersion, scheduledWorkflowId, scheduled)
+		err = t.RunScheduledWorkflowV1(ctx, tenantId, repository.RunScheduledWorkflowV1Opts{
+			ID:                 scheduledWorkflowId,
+			Input:              scheduled.Input,
+			AdditionalMetadata: scheduled.AdditionalMetadata,
+			Priority:           &scheduled.Priority,
+			TriggerAt:          scheduled.TriggerAt.Time,
+			WorkflowName:       workflowVersion.WorkflowName,
+		})
 
 		if err != nil {
 			t.l.Error().Ctx(ctx).Err(err).Msg("could not run scheduled workflow")

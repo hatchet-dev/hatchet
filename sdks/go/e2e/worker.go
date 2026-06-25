@@ -54,32 +54,39 @@ type SleepResult struct {
 
 type EmptyInput struct{}
 
+type ErrorRaisingInput struct {
+	ErrorMessage string `json:"error_message"`
+}
+
 // Durable test workflow definitions and worker tasks
 var (
-	testDurableWorkflow         *hatchet.Workflow
-	testDurableTask             *hatchet.Task
-	testWaitForOrGroup1         *hatchet.Task
-	testWaitForOrGroup2         *hatchet.Task
-	testWaitForSleepTwice       *hatchet.StandaloneTask
-	testSpawnChildTask          *hatchet.StandaloneTask
-	testDurableWithSpawn        *hatchet.StandaloneTask
-	testDurableWithBulkSpawn    *hatchet.StandaloneTask
-	testDurableSleepEventSpawn  *hatchet.StandaloneTask
-	testDurableNonDeterminism   *hatchet.StandaloneTask
-	testDurableReplayReset      *hatchet.StandaloneTask
-	testMemoTask                *hatchet.StandaloneTask
-	testMemoNowCaching          *hatchet.StandaloneTask
-	testDurableSpawnDAG         *hatchet.StandaloneTask
-	testDagChildWorkflow        *hatchet.Workflow
-	testEvictableSleep          *hatchet.StandaloneTask
-	testEvictableWaitForEvent   *hatchet.StandaloneTask
-	testEvictableChildSpawn     *hatchet.StandaloneTask
-	testEvictableChildBulkSpawn *hatchet.StandaloneTask
-	testMultipleEviction        *hatchet.StandaloneTask
-	testCapacityEvictableSleep  *hatchet.StandaloneTask
-	testNonEvictableSleep       *hatchet.StandaloneTask
-	testEvictionChildTask       *hatchet.StandaloneTask
-	testEvictionBulkChildTask   *hatchet.StandaloneTask
+	testDurableWorkflow           *hatchet.Workflow
+	testDurableTask               *hatchet.Task
+	testWaitForOrGroup1           *hatchet.Task
+	testWaitForOrGroup2           *hatchet.Task
+	testWaitForSleepTwice         *hatchet.StandaloneTask
+	testSpawnChildTask            *hatchet.StandaloneTask
+	testDurableWithSpawn          *hatchet.StandaloneTask
+	testDurableWithBulkSpawn      *hatchet.StandaloneTask
+	testErrorRaisingTask          *hatchet.StandaloneTask
+	testErrorRaisingDurableParent *hatchet.StandaloneTask
+	testDurableWithLoopSpawn      *hatchet.StandaloneTask
+	testDurableSleepEventSpawn    *hatchet.StandaloneTask
+	testDurableNonDeterminism     *hatchet.StandaloneTask
+	testDurableReplayReset        *hatchet.StandaloneTask
+	testMemoTask                  *hatchet.StandaloneTask
+	testMemoNowCaching            *hatchet.StandaloneTask
+	testDurableSpawnDAG           *hatchet.StandaloneTask
+	testDagChildWorkflow          *hatchet.Workflow
+	testEvictableSleep            *hatchet.StandaloneTask
+	testEvictableWaitForEvent     *hatchet.StandaloneTask
+	testEvictableChildSpawn       *hatchet.StandaloneTask
+	testEvictableChildBulkSpawn   *hatchet.StandaloneTask
+	testMultipleEviction          *hatchet.StandaloneTask
+	testCapacityEvictableSleep    *hatchet.StandaloneTask
+	testNonEvictableSleep         *hatchet.StandaloneTask
+	testEvictionChildTask         *hatchet.StandaloneTask
+	testEvictionBulkChildTask     *hatchet.StandaloneTask
 
 	// dag payload propagation test workflow
 	testDAGPayloadWorkflow *hatchet.Workflow
@@ -241,6 +248,33 @@ func registerAllWorkflows(client *hatchet.Client) {
 		},
 	)
 
+	testDurableWithLoopSpawn = client.NewStandaloneDurableTask("durable-with-loop-spawn",
+		func(ctx hatchet.DurableContext, input DurableBulkSpawnInput) (map[string]any, error) {
+			refs := make([]*hatchet.WorkflowRunRef, input.N)
+			for i := 0; i < input.N; i++ {
+				ref, err := testSpawnChildTask.RunNoWait(ctx, DurableBulkSpawnInput{N: i})
+				if err != nil {
+					return nil, err
+				}
+				refs[i] = ref
+			}
+
+			outputs := make([]map[string]string, len(refs))
+			for i, ref := range refs {
+				result, err := ref.Result()
+				if err != nil {
+					return nil, err
+				}
+				var m map[string]string
+				if err := result.TaskOutput("spawn-child-task").Into(&m); err != nil {
+					return nil, err
+				}
+				outputs[i] = m
+			}
+			return map[string]any{"child_outputs": outputs}, nil
+		},
+	)
+
 	testDurableSleepEventSpawn = client.NewStandaloneDurableTask("durable-sleep-event-spawn",
 		func(ctx hatchet.DurableContext, input EmptyInput) (map[string]any, error) {
 			start := time.Now()
@@ -378,6 +412,38 @@ func registerAllWorkflows(client *hatchet.Client) {
 			}, nil
 		},
 		hatchet.WithExecutionTimeout(10*time.Second),
+	)
+
+	// --- Error propagation test workflows ---
+
+	testErrorRaisingTask = client.NewStandaloneTask("error-raising-task",
+		func(ctx hatchet.Context, input ErrorRaisingInput) (map[string]any, error) {
+			return nil, fmt.Errorf("%s", input.ErrorMessage)
+		},
+	)
+
+	testErrorRaisingDurableParent = client.NewStandaloneDurableTask("error-raising-durable-parent",
+		func(ctx hatchet.DurableContext, input ErrorRaisingInput) (map[string]any, error) {
+			ref, err := testErrorRaisingTask.RunNoWait(ctx, input)
+			if err != nil {
+				return nil, err
+			}
+
+			_, childErr := ref.Result()
+			childRaised := childErr != nil
+			childErrorStr := ""
+			if childErr != nil {
+				childErrorStr = childErr.Error()
+			}
+
+			return map[string]any{
+				"child_raised":           childRaised,
+				"child_error_str":        childErrorStr,
+				"child_run_external_id":  ref.RunId,
+				"parent_run_external_id": ctx.WorkflowRunId(),
+			}, nil
+		},
+		hatchet.WithExecutionTimeout(30*time.Second),
 	)
 
 	// --- Eviction test workflows ---
@@ -568,6 +634,7 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testSpawnChildTask,
 			testDurableWithSpawn,
 			testDurableWithBulkSpawn,
+			testDurableWithLoopSpawn,
 			testDurableSleepEventSpawn,
 			testDurableNonDeterminism,
 			testDurableReplayReset,
@@ -583,6 +650,8 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testNonEvictableSleep,
 			testEvictionChildTask,
 			testEvictionBulkChildTask,
+			testErrorRaisingTask,
+			testErrorRaisingDurableParent,
 		),
 		hatchet.WithDurableSlots(10),
 	)

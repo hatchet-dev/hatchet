@@ -27,6 +27,15 @@ type ListTickerOpts struct {
 	Active *bool
 }
 
+type RunScheduledWorkflowV1Opts struct {
+	ID                 uuid.UUID
+	Input              []byte
+	AdditionalMetadata []byte
+	Priority           *int32
+	TriggerAt          time.Time
+	WorkflowName       string
+}
+
 type TickerRepository interface {
 	IsTenantAlertActive(ctx context.Context, tenantId uuid.UUID) (bool, time.Time, error)
 

@@ -2,8 +2,10 @@ package olap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -26,6 +28,10 @@ func (oc *OLAPControllerImpl) runOLAPTablePartition(ctx context.Context) func() 
 		err = oc.createTablePartition(ctx)
 
 		if err != nil {
+			if errors.Is(err, v1.ErrPartitionLockConflict) {
+				oc.l.Warn().Ctx(ctx).Msg("partition: lock conflict with concurrent table operation (e.g. ANALYZE), will retry at next interval")
+				return
+			}
 			oc.l.Error().Ctx(ctx).Err(err).Msg("could not create table partition")
 		}
 	}

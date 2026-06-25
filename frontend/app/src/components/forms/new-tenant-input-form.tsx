@@ -1,7 +1,4 @@
-import {
-  RegionSelect,
-  shardDeploymentKey,
-} from '@/components/forms/region-select';
+import { RegionSelect } from '@/components/forms/region-select';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
@@ -14,6 +11,7 @@ import {
 } from '@/components/v1/ui/select';
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
+import { shardDeploymentKey } from '@/lib/shard-deployment-key';
 import { useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 

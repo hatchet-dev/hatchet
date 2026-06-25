@@ -12,6 +12,12 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
 import invariant from 'tiny-invariant';
 
+// Browser setTimeout uses a 32-bit signed int (~24.85 days max); anything larger
+// is silently clamped to 1ms and fires immediately. Cap well below that and at
+// a value that's actually meaningful for an inactivity logout.
+// https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout#maximum_delay_value
+export const MAX_INACTIVITY_TIMEOUT_MS = 14 * 24 * 60 * 60 * 1000;
+
 /**
  * Hook for organization data and operations
  *
@@ -336,6 +342,9 @@ export function useOrganizations() {
     inactivityTimeoutMs: number,
     onSuccess: () => void,
   ) => {
+    if (inactivityTimeoutMs > MAX_INACTIVITY_TIMEOUT_MS) {
+      throw new Error(`Inactivity timeout must not exceed 14 days.`);
+    }
     updateOrganizationMutation.mutate(
       { organizationId, inactivity_timeout: `${inactivityTimeoutMs}ms` },
       {

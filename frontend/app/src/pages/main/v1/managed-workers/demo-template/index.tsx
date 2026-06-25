@@ -1,3 +1,4 @@
+import { ManagedWorkersGate } from '../components/managed-workers-gate';
 import { Button } from '@/components/v1/ui/button';
 import { Card } from '@/components/v1/ui/card';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -32,7 +33,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState, useEffect, useCallback } from 'react';
 
-export default function DemoTemplate() {
+function DemoTemplateImpl() {
   const { tenantId } = useCurrentTenantId();
   const [deploying, setDeploying] = useState(false);
   const [deployed, setDeployed] = useState(false);
@@ -933,5 +934,13 @@ func main() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DemoTemplate() {
+  return (
+    <ManagedWorkersGate>
+      <DemoTemplateImpl />
+    </ManagedWorkersGate>
   );
 }

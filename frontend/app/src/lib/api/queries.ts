@@ -1,5 +1,5 @@
 import { WebhookWorkerCreateRequest } from '.';
-import api, { cloudApi } from './api';
+import api, { cloudApi, controlPlaneApi } from './api';
 import { TemplateOptions } from './generated/cloud/data-contracts';
 import { createQueryKeyStore } from '@lukemorales/query-key-factory';
 import invariant from 'tiny-invariant';
@@ -28,32 +28,39 @@ type GetTaskMetricsQuery = Parameters<typeof api.v1TaskListStatusMetrics>[1];
 type ListWebhooksQuery = Parameters<typeof api.v1WebhookList>[1];
 
 export const queries = createQueryKeyStore({
-  cloud: {
-    billing: (tenant: string) => ({
-      queryKey: ['billing-state:get', tenant],
-      queryFn: async () => (await cloudApi.tenantBillingStateGet(tenant)).data,
+  controlPlane: {
+    billing: (organization: string) => ({
+      queryKey: ['organization-billing-state:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationBillingStateGet(organization)).data,
     }),
-    creditBalance: (tenant: string) => ({
-      queryKey: ['credit-balance:get', tenant],
-      queryFn: async () => (await cloudApi.tenantCreditBalanceGet(tenant)).data,
+    tenantResourceLimits: (organization: string) => ({
+      queryKey: ['organization-tenant-resource-limits:get', organization],
+      queryFn: async () =>
+        (
+          await controlPlaneApi.organizationTenantResourceLimitsGet(
+            organization,
+          )
+        ).data,
+    }),
+    creditBalance: (organization: string) => ({
+      queryKey: ['organization-credit-balance:get', organization],
+      queryFn: async () =>
+        (await controlPlaneApi.organizationCreditBalanceGet(organization)).data,
     }),
     subscriptionPlans: () => ({
       queryKey: ['subscription-plans:list'],
-      queryFn: async () =>
-        (
-          await cloudApi.subscriptionPlansList({
-            secure: true,
-            useExchangeToken: true,
-          })
-        ).data,
+      queryFn: async () => (await controlPlaneApi.subscriptionPlansList()).data,
     }),
 
-    paymentMethods: (tenant: string) => ({
-      queryKey: ['payment-methods:get', tenant],
+    paymentMethods: (organization: string) => ({
+      queryKey: ['organization-payment-methods:get', organization],
       queryFn: async () =>
-        (await cloudApi.tenantPaymentMethodsGet(tenant)).data,
+        (await controlPlaneApi.organizationPaymentMethodsGet(organization))
+          .data,
     }),
-
+  },
+  cloud: {
     getComputeCost: (tenant: string) => ({
       queryKey: ['compute-cost:get', tenant],
       queryFn: async () => (await cloudApi.computeCostGet(tenant)).data,

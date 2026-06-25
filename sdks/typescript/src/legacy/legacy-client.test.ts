@@ -32,6 +32,7 @@ describe('Client', () => {
         otel: {
           excludedAttributes: ['tenant_id', 'workflow_id'],
           includeTaskNameInSpanName: true,
+          individualRunSpansForBulkRun: false,
         },
       },
       {
@@ -62,6 +63,7 @@ describe('Client', () => {
         otel: {
           excludedAttributes: ['tenant_id', 'workflow_id'],
           includeTaskNameInSpanName: true,
+          individualRunSpansForBulkRun: false,
         },
       })
     );
@@ -100,6 +102,7 @@ describe('Client', () => {
         otel: {
           excludedAttributes: ['tenant_id'],
           includeTaskNameInSpanName: false,
+          individualRunSpansForBulkRun: false,
         },
       },
       {
@@ -131,6 +134,7 @@ describe('Client', () => {
         otel: {
           excludedAttributes: ['tenant_id'],
           includeTaskNameInSpanName: false,
+          individualRunSpansForBulkRun: false,
         },
       })
     );

@@ -5,6 +5,12 @@ on:
     tags:
       - "v*" # Trigger on version tags like v0.73.10
       - "!v*-alpha*" # Do not trigger for alpha releases
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build (e.g. v0.89.0)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,16 +20,11 @@ jobs:
   release-cli:
     name: Release CLI with GoReleaser
     runs-on: ubuntu-latest
+    needs: [verify, generate-changelog]
+    env:
+      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
+    if: needs.verify.outputs.should_release == 'true'
     steps:
-      - name: Get tag name
-        id: tag_name
-        run: |
-          tag=${GITHUB_TAG/refs\/tags\//}
-          echo "tag=$tag" >> $GITHUB_OUTPUT
-          echo "Building release for tag: $tag"
-        env:
-          GITHUB_TAG: ${{ github.ref }}
-
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -32,10 +33,19 @@ jobs:
       - name: Fetch all tags
         run: git fetch --force --tags
 
+      - name: Checkout the release tag
+        run: git checkout "$GITHUB_TAG"
+
+      - name: Download release notes
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}
+
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
           cache: true
 
       - name: Install quill (for macOS code signing)
@@ -47,14 +57,15 @@ jobs:
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8 # v7.2.1
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --clean
+          args: release --release-notes=${{ runner.temp }}/release_notes.md --clean --draft
           workdir: cmd/hatchet-cli
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_PREVIOUS_TAG: ${{ needs.verify.outputs.prev_tag }}
           # Homebrew tap token
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           # macOS signing and notarization secrets
@@ -72,3 +83,77 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  verify:
+    name: Verify Release Tag
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
+    outputs:
+      # We should only be triggering a release when using an annotated tag type.
+      should_release: ${{ steps.tag_name.outputs.tag_type == 'tag' }}
+      prev_tag: ${{ steps.prev.outputs.prev_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Fetch the tag object
+        run: git fetch --force origin tag "$GITHUB_TAG"
+
+      - name: Check if tag is annotated
+        id: tag_name
+        run: |
+          tag_type=$(git cat-file -t "$GITHUB_TAG")
+          echo "Tag [$GITHUB_TAG] is of type [$tag_type]."
+          echo "tag_type=$tag_type" >> $GITHUB_OUTPUT
+
+      - name: Determine previous release tag
+        id: prev
+        run: |
+          PREV_TAG=$(gh release view --json tagName --jq .tagName)
+          echo "Previous release tag: $PREV_TAG"
+          echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-changelog:
+    name: Generate release_notes.md artifact
+    runs-on: ubuntu-latest
+    needs: [verify]
+    if: needs.verify.outputs.should_release == 'true'
+    env:
+      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
+      PREV_TAG: ${{ needs.verify.outputs.prev_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Fetch the tag object
+        run: git fetch --force origin tag "$GITHUB_TAG"
+
+      - name: Generate release section
+        uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
+        with:
+          config: cliff.toml
+          args: ${{ env.PREV_TAG }}..${{ env.GITHUB_TAG }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTPUT: /tmp/CHANGES.md
+
+      - name: Generate release notes
+        run: |
+          ./hack/ci/release-notes-cli.sh "$GITHUB_TAG" > release_notes.md
+          echo "" >> release_notes.md
+          cat /tmp/CHANGES.md >> release_notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: release_notes.md
+          overwrite: true
+          retention-days: 1
