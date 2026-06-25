@@ -731,16 +731,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
 
-	// the scheduler's outbox shares the same database connection pool, this means that we need to be
-	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
-	// method which should be used instead of the non-scoped versions.
-	concurrencyOutbox, err := pgoutbox.NewOutbox(
-		context.Background(),
-		dc.Pool,
-		pgoutbox.WithAutoMigrate(false),
-		pgoutbox.WithLogger(l),
-		pgoutbox.WithDefaultExpiration(24*time.Hour),
-	)
+	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
@@ -771,6 +762,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		cleanupConcurrencyOutbox()
 
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
@@ -1070,4 +1063,25 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
+
+	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
+	// method which should be used instead of the non-scoped versions.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(
+		ctx,
+		pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithDefaultExpiration(24*time.Hour),
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err) // nolint:govet
+	}
+
+	return concurrencyOutbox, cancel, nil
 }
