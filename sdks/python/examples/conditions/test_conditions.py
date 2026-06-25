@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
-from examples.conditions.worker import task_condition_workflow
+from examples.conditions.worker import task_condition_workflow, cancel_if_workflow
 from examples.test_utils import wait_for_running_status
-from hatchet_sdk import Hatchet
+from hatchet_sdk import Hatchet, RunStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -48,3 +48,19 @@ async def test_waits(hatchet: Hatchet) -> None:
         + wait_for_sleep_random_number
         + branch_random_number
     )
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cancel_if(hatchet: Hatchet) -> None:
+    ref = cancel_if_workflow.run(wait_for_result=False)
+
+    with pytest.raises(Exception):
+        await ref.aio_result()
+
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+
+    assert details.status == RunStatus.CANCELLED
+
+    ## fixme: need to modify the `task_runs` field in the `get_details` response
+    ## to correctly case on the durable task dag like we did in the rest api, so this looks like a
+    ## dag made up of four tasks, and not just the parent durable task.
