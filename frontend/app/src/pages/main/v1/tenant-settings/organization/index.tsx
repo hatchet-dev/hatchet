@@ -1616,6 +1616,7 @@ function TenantMemberList({
   onMembersChanged: () => void;
 }) {
   const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
+  const { isControlPlaneEnabled } = useControlPlane();
   const columns = useMemo(
     () => [
       {
@@ -1642,15 +1643,19 @@ function TenantMemberList({
           <RelativeDate date={member.metadata.createdAt} />
         ),
       },
-      {
-        columnLabel: 'Source',
-        cellRenderer: (member: TenantMember) =>
-          member.manually_added ? (
-            <Badge variant="outline">Direct</Badge>
-          ) : (
-            <Badge variant="outline">Tags</Badge>
-          ),
-      },
+      ...(isControlPlaneEnabled
+        ? [
+            {
+              columnLabel: 'Source',
+              cellRenderer: (member: TenantMember) =>
+                member.manually_added ? (
+                  <Badge variant="outline">Direct</Badge>
+                ) : (
+                  <Badge variant="outline">Tags</Badge>
+                ),
+            },
+          ]
+        : []),
       ...(canManage
         ? [
             {
