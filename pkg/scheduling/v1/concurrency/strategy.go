@@ -421,10 +421,10 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	c.buildingMu.Lock()
 	defer c.buildingMu.Unlock()
 
-	err := c.outbox.AcquireTopic(ctx, c.topic)
-
-	if err != nil {
-		return err
+	if c.outbox != nil {
+		if err := c.outbox.AcquireTopic(ctx, c.topic); err != nil {
+			return err
+		}
 	}
 
 	writeCh := make(chan *sqlcv1.ListConcurrencySlotsForIndexingRow, 10000)
@@ -460,7 +460,7 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 		}
 	}()
 
-	err = c.repo.ReadConcurrencySlotsForIndexing(ctx, c.strategy.TenantID, c.strategy.ID, writeCh)
+	err := c.repo.ReadConcurrencySlotsForIndexing(ctx, c.strategy.TenantID, c.strategy.ID, writeCh)
 	if err != nil {
 		return err
 	}

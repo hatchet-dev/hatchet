@@ -44,10 +44,15 @@ func PrepareTx(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger) (pgx.
 	return tx, tx.Commit, rollback, nil
 }
 
-func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int) (pgx.Tx, func(context.Context) error, func(), error) {
+func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *zerolog.Logger, timeoutMs int, opts ...pgx.TxOptions) (pgx.Tx, func(context.Context) error, func(), error) {
 	start := time.Now()
 
-	tx, err := pool.Begin(ctx)
+	txOpts := pgx.TxOptions{}
+	if len(opts) > 0 {
+		txOpts = opts[0]
+	}
+
+	tx, err := pool.BeginTx(ctx, txOpts)
 
 	if err != nil {
 		if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {

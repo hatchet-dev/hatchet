@@ -846,7 +846,12 @@ func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, c.pool, c.l, 1000*60*5) // 5 minute timeout
+	// we use a repeatable read so that we don't infinitely loop while reading new committed rows; these changes are represented
+	// in the WAL which updates the index
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, c.pool, c.l, 1000*60*5, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
 
 	if err != nil {
 		return fmt.Errorf("failed to prepare transaction: %w", err)
