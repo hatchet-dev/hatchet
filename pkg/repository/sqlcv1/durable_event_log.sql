@@ -48,7 +48,8 @@ SET
     -- a child_key set, which, if the child was cached, would not create a new log entry and thus not move the latest node forward
     latest_node_id = GREATEST(v1_durable_event_log_file.latest_node_id, COALESCE(sqlc.narg('nodeId')::BIGINT, v1_durable_event_log_file.latest_node_id)),
     latest_invocation_count = COALESCE(sqlc.narg('invocationCount')::INTEGER, v1_durable_event_log_file.latest_invocation_count),
-    latest_branch_id = COALESCE(sqlc.narg('branchId')::BIGINT, v1_durable_event_log_file.latest_branch_id)
+    latest_branch_id = COALESCE(sqlc.narg('branchId')::BIGINT, v1_durable_event_log_file.latest_branch_id),
+    latest_satisfied_order = COALESCE(sqlc.narg('latestSatisfiedOrder')::BIGINT, v1_durable_event_log_file.latest_satisfied_order)
 WHERE durable_task_id = @durableTaskId::BIGINT
   AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
 RETURNING *;
@@ -82,7 +83,35 @@ WHERE durable_task_id = @durableTaskId::BIGINT
   AND node_id = @nodeId::BIGINT;
 
 
+-- name: ListDurableEventLogEntriesBeforeNode :many
+SELECT *
+FROM v1_durable_event_log_entry
+WHERE durable_task_id = @durableTaskId::BIGINT
+  AND durable_task_inserted_at = @durableTaskInsertedAt::TIMESTAMPTZ
+  AND tenant_id = @tenantId::UUID
+  AND node_id < @nodeId::BIGINT
+ORDER BY node_id ASC, branch_id ASC;
+
+
+-- name: LockDurableEventLogFiles :exec
+-- Locks the log file rows for the given durable tasks. Callers MUST sort the
+-- input tuples (durable_task_id, durable_task_inserted_at) to keep lock
+-- acquisition order consistent across concurrent transactions.
+WITH inputs AS (
+    SELECT
+        UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
+        UNNEST(@durableTaskInsertedAts::TIMESTAMPTZ[]) AS durable_task_inserted_at
+)
+SELECT lf.durable_task_id
+FROM v1_durable_event_log_file lf
+JOIN inputs i ON (lf.durable_task_id, lf.durable_task_inserted_at) = (i.durable_task_id, i.durable_task_inserted_at)
+FOR UPDATE OF lf
+;
+
 -- name: UpdateDurableEventLogEntriesSatisfied :many
+-- Important: callers must hold the v1_durable_event_log_file row locks for all
+-- affected log files (via LockDurableEventLogFiles) in the same transaction so
+-- that satisfied_order stamps are assigned from a stable counter.
 WITH inputs AS (
     SELECT
         UNNEST(@durableTaskIds::BIGINT[]) AS durable_task_id,
@@ -91,19 +120,44 @@ WITH inputs AS (
         UNNEST(@branchIds::BIGINT[]) AS branch_id,
         UNNEST(@childTaskIsFailures::BOOLEAN[]) AS child_task_is_failure,
         UNNEST(@childTaskErrorMessages::TEXT[]) AS child_task_error_message
+), to_stamp AS (
+    SELECT
+        e.durable_task_id,
+        e.durable_task_inserted_at,
+        e.branch_id,
+        e.node_id,
+        ROW_NUMBER() OVER (
+            PARTITION BY e.durable_task_id, e.durable_task_inserted_at
+            ORDER BY e.node_id, e.branch_id
+        ) AS stamp_offset
+    FROM v1_durable_event_log_entry e
+    JOIN inputs i ON (e.durable_task_id, e.durable_task_inserted_at, e.branch_id, e.node_id) = (i.durable_task_id, i.durable_task_inserted_at, i.branch_id, i.node_id)
+    WHERE e.satisfied_order IS NULL
 ), updated AS (
     UPDATE v1_durable_event_log_entry
     SET
         is_satisfied = true,
-        satisfied_at = COALESCE(satisfied_at, NOW()),
+        satisfied_at = COALESCE(v1_durable_event_log_entry.satisfied_at, NOW()),
+        satisfied_order = COALESCE(v1_durable_event_log_entry.satisfied_order, slf.latest_satisfied_order + ts.stamp_offset),
         child_task_is_failure = inputs.child_task_is_failure,
         child_task_error_message = CASE WHEN inputs.child_task_is_failure THEN NULLIF(inputs.child_task_error_message, '') ELSE NULL END
     FROM inputs
+    JOIN v1_durable_event_log_file slf ON (slf.durable_task_id, slf.durable_task_inserted_at) = (inputs.durable_task_id, inputs.durable_task_inserted_at)
+    LEFT JOIN to_stamp ts ON (ts.durable_task_id, ts.durable_task_inserted_at, ts.branch_id, ts.node_id) = (inputs.durable_task_id, inputs.durable_task_inserted_at, inputs.branch_id, inputs.node_id)
     WHERE v1_durable_event_log_entry.durable_task_id = inputs.durable_task_id
       AND v1_durable_event_log_entry.durable_task_inserted_at = inputs.durable_task_inserted_at
       AND v1_durable_event_log_entry.node_id = inputs.node_id
       AND v1_durable_event_log_entry.branch_id = inputs.branch_id
     RETURNING v1_durable_event_log_entry.*
+), bumped AS (
+    UPDATE v1_durable_event_log_file lf
+    SET latest_satisfied_order = lf.latest_satisfied_order + c.stamp_count
+    FROM (
+        SELECT durable_task_id, durable_task_inserted_at, COUNT(*) AS stamp_count
+        FROM to_stamp
+        GROUP BY durable_task_id, durable_task_inserted_at
+    ) c
+    WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (c.durable_task_id, c.durable_task_inserted_at)
 )
 
 SELECT updated.*, lf.latest_invocation_count AS invocation_count
@@ -135,6 +189,9 @@ WHERE
     e.branch_id = twn.requested_branch_id
     AND e.node_id = twn.requested_node_id
     AND e.is_satisfied
+-- best-effort ordered redelivery; NULLS FIRST so legacy unstamped entries are
+-- released before gated entries on the worker
+ORDER BY e.durable_task_id, e.durable_task_inserted_at, e.satisfied_order ASC NULLS FIRST
 ;
 
 -- name: MarkDurableEventLogEntrySatisfied :one

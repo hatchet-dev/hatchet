@@ -2317,6 +2317,9 @@ CREATE TABLE v1_durable_event_log_file (
     latest_node_id BIGINT NOT NULL,
     -- The latest branch id. Branches represent different execution paths on a replay.
     latest_branch_id BIGINT NOT NULL,
+    -- A monotonically increasing, contiguous counter for the order in which entries of this log
+    -- were satisfied. Incremented under the log file row lock so satisfaction order is total.
+    latest_satisfied_order BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT v1_durable_event_log_file_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at)
 ) PARTITION BY RANGE(durable_task_inserted_at);
@@ -2364,6 +2367,10 @@ CREATE TABLE v1_durable_event_log_entry (
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
     satisfied_at TIMESTAMPTZ,
+    -- The position of this entry in the per-log satisfaction order, assigned from
+    -- v1_durable_event_log_file.latest_satisfied_order when the entry is first satisfied.
+    -- NULL for entries satisfied before this column existed. Once set, never re-stamped.
+    satisfied_order BIGINT,
 
     user_message TEXT,
     wait_data JSONB,

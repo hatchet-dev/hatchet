@@ -318,6 +318,19 @@ func (w *Worker) wrapDurableAction(actionID string, fn internal.WrappedTaskFn) f
 		worker.SetContextDurableHooks(ctx, evictionHook, w.durableTaskListener, w.supportsDurableEviction)
 		defer worker.SetContextDurableHooks(ctx, nil, nil, false)
 
+		if w.durableTaskListener != nil {
+			// when the durable task fn returns, no continuation of this invocation can
+			// be running anymore: release any ordered-completion gate held on its
+			// behalf so parked siblings (e.g. spawned goroutines that outlive the fn)
+			// are not stalled until the park timeout.
+			invCount := ctx.DurableTaskInvocationCount()
+			if invCount == 0 {
+				invCount = 1
+			}
+
+			defer w.durableTaskListener.NotifyInvocationQuiesced(key, invCount)
+		}
+
 		return fn(ctx)
 	}
 }

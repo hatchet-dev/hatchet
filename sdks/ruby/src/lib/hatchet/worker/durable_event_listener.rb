@@ -4,6 +4,8 @@ require "json"
 require "monitor"
 require "timeout"
 
+require_relative "durable_ordered_release"
+
 module Hatchet
   module WorkerRuntime
     # Thread-safe multiplexer over the ``V1Dispatcher.DurableTask`` bidirectional
@@ -20,6 +22,8 @@ module Hatchet
     #   ack = listener.send_event(task_id, invocation_count, wait_for_event)
     #   result = listener.wait_for_callback(task_id, invocation_count, branch_id, node_id)
     class DurableEventListener
+      include DurableOrderedRelease
+
       DEFAULT_RECONNECT_INTERVAL = 3 # seconds
       EVICTION_ACK_TIMEOUT_SECONDS = 30.0
       REGISTER_WORKER_ACK_TIMEOUT_SECONDS = 10.0
@@ -63,6 +67,10 @@ module Hatchet
         @pending_callbacks = {}
         # key -> [inserted_at, result] (rudimentary TTL cache)
         @buffered_completions = {}
+        # (task_external_id, invocation_count) => OrderedReleaseGate
+        @gates = {}
+        @park_timeout_s = DEFAULT_PARK_TIMEOUT_SECONDS
+        @gap_timeout_s = DEFAULT_GAP_TIMEOUT_SECONDS
 
         @running = false
         @start_mu = Mutex.new
@@ -149,6 +157,8 @@ module Hatchet
 
         buffered = @mu.synchronize { @buffered_completions.delete(key) }
         if buffered
+          # the registering continuation picks up a buffered result and keeps
+          # running: it never parked, so the ordered-release gate is untouched.
           @logger&.debug(
             "durable event listener wait_for_callback: buffered completion hit " \
             "task=#{durable_task_external_id} invocation=#{invocation_count} " \
@@ -158,7 +168,13 @@ module Hatchet
         end
 
         queue = @mu.synchronize do
-          @pending_callbacks[key] ||= Queue.new
+          q = (@pending_callbacks[key] ||= Queue.new)
+
+          # the continuation is now parked awaiting this entry: open the gate
+          # for the next ordered release.
+          notify_parked([durable_task_external_id, invocation_count])
+
+          q
         end
 
         @logger&.debug(
@@ -254,6 +270,12 @@ module Hatchet
             next unless k[0] == durable_task_external_id && k[1] <= invocation_count
 
             @buffered_completions.delete(k)
+          end
+
+          @gates.each_key do |k|
+            next unless k[0] == durable_task_external_id && k[1] <= invocation_count
+
+            @gates.delete(k)
           end
         end
       end
@@ -464,6 +486,7 @@ module Hatchet
           sleep 1
           begin
             poll_worker_status
+            sweep_gates
           rescue StandardError => e
             @logger&.error("durable event listener send_loop error: #{e.class}: #{e.message}")
           end
@@ -604,18 +627,19 @@ module Hatchet
       def handle_entry_completed(completed)
         @logger&.debug(
           "durable event listener recv entry_completed: task=#{completed.ref.durable_task_external_id} " \
-          "invocation=#{completed.ref.invocation_count} branch_id=#{completed.ref.branch_id} node_id=#{completed.ref.node_id}",
+          "invocation=#{completed.ref.invocation_count} branch_id=#{completed.ref.branch_id} " \
+          "node_id=#{completed.ref.node_id} " \
+          "satisfied_order=#{completed.has_satisfied_order? ? completed.satisfied_order : "nil"}",
         )
         key = callback_key_for(completed.ref)
         result = parse_entry_completed(completed)
 
-        @mu.synchronize do
-          queue = @pending_callbacks.delete(key)
-          if queue
-            queue << [:ok, result]
-          else
-            @buffered_completions[key] = [Time.now, result]
-          end
+        if completed.has_satisfied_order?
+          gate_key = [completed.ref.durable_task_external_id, completed.ref.invocation_count]
+          handle_ordered_completion(gate_key, completed.satisfied_order, key, result)
+        else
+          # legacy completion with no satisfied order: release immediately.
+          deliver_completion(key, result)
         end
       end
 
@@ -722,6 +746,7 @@ module Hatchet
           @pending_callbacks.each_value { |q| q << [:err, exc] }
           @pending_callbacks.clear
           @buffered_completions.clear
+          @gates.clear
         end
       end
 

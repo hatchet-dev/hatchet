@@ -175,6 +175,7 @@ type SatisfiedEntry struct {
 	DurableTaskId         int64
 	NodeId                int64
 	BranchId              int64
+	SatisfiedOrder        *int64
 	InvocationCount       int32
 	DurableTaskExternalId uuid.UUID
 }
@@ -818,6 +819,22 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 	}
 
+	// NOTE: we lock the affected log files (in a stable order, to avoid deadlocks)
+	// before satisfying entries so that satisfied_order stamps are assigned from a
+	// stable per-log counter.
+	if len(durableTaskIds) > 0 {
+		lockTaskIds, lockTaskInsertedAts := sortedUniqueLogFileRefs(durableTaskIds, durableTaskInsertedAts)
+
+		err = m.queries.LockDurableEventLogFiles(ctx, tx, sqlcv1.LockDurableEventLogFilesParams{
+			Durabletaskids:         lockTaskIds,
+			Durabletaskinsertedats: lockTaskInsertedAts,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to lock durable event log files: %w", err)
+		}
+	}
+
 	entries, err := m.queries.UpdateDurableEventLogEntriesSatisfied(ctx, tx, sqlcv1.UpdateDurableEventLogEntriesSatisfiedParams{
 		Nodeids:                durableTaskNodeIds,
 		Branchids:              durableTaskBranchIds,
@@ -857,6 +874,11 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		}
 
 		initialEntry.InvocationCount = cb.InvocationCount
+
+		if cb.SatisfiedOrder.Valid {
+			satisfiedOrder := cb.SatisfiedOrder.Int64
+			initialEntry.SatisfiedOrder = &satisfiedOrder
+		}
 
 		if len(initialEntry.Data) > 0 {
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{
@@ -1525,4 +1547,42 @@ func (m *sharedRepository) userEventCondition(orGroupId uuid.UUID, readableDataK
 
 func getDurableSleepEventKey(sleepId int64) string {
 	return fmt.Sprintf("sleep-%d", sleepId)
+}
+
+func sortedUniqueLogFileRefs(taskIds []int64, insertedAts []pgtype.Timestamptz) ([]int64, []pgtype.Timestamptz) {
+	type ref struct {
+		insertedAt pgtype.Timestamptz
+		taskId     int64
+	}
+
+	seen := make(map[IdInsertedAt]struct{}, len(taskIds))
+	refs := make([]ref, 0, len(taskIds))
+
+	for i, taskId := range taskIds {
+		key := IdInsertedAt{ID: taskId, InsertedAt: insertedAts[i]}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		refs = append(refs, ref{taskId: taskId, insertedAt: insertedAts[i]})
+	}
+
+	slices.SortFunc(refs, func(a, b ref) int {
+		if a.taskId != b.taskId {
+			if a.taskId < b.taskId {
+				return -1
+			}
+			return 1
+		}
+		return a.insertedAt.Time.Compare(b.insertedAt.Time)
+	})
+
+	outIds := make([]int64, len(refs))
+	outInsertedAts := make([]pgtype.Timestamptz, len(refs))
+	for i, r := range refs {
+		outIds[i] = r.taskId
+		outInsertedAts[i] = r.insertedAt
+	}
+
+	return outIds, outInsertedAts
 }

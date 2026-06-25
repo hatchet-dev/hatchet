@@ -57,6 +57,7 @@ message DurableTaskEventLogEntryCompletedResponse {
     bytes payload = 2;
     bool is_failure = 3;
     optional string error_message = 4;
+    optional int64 satisfied_order = 5;
 }
 
 message DurableTaskEvictInvocationRequest {

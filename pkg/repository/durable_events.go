@@ -29,6 +29,7 @@ type TaskExternalIdNodeIdBranchId struct {
 
 type SatisfiedEventWithPayload struct {
 	Result                []byte
+	SatisfiedOrder        *int64
 	ChildTaskIsFailure    bool
 	ChildTaskErrorMessage *string
 	BranchID              int64
@@ -77,6 +78,7 @@ type IngestMemoResult struct {
 
 type IngestTriggerRunsEntry struct {
 	ResultPayload         []byte
+	SatisfiedOrder        *int64
 	ChildTaskIsFailure    bool
 	ChildTaskErrorMessage *string
 	NodeId                int64
@@ -95,6 +97,7 @@ type IngestTriggerRunsResult struct {
 
 type IngestWaitForResult struct {
 	ResultPayload   []byte
+	SatisfiedOrder  *int64
 	NodeId          int64
 	BranchId        int64
 	InvocationCount int32
@@ -535,6 +538,7 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 			BranchID:              row.BranchID,
 			InvocationCount:       row.InvocationCount,
 			Result:                payload,
+			SatisfiedOrder:        satisfiedOrderPtr(row.SatisfiedOrder),
 			ChildTaskIsFailure:    row.ChildTaskIsFailure,
 			ChildTaskErrorMessage: childTaskErrorMessage,
 		})
@@ -545,6 +549,14 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 func getDurableTaskSignalKey(taskExternalId uuid.UUID, nodeId int64) string {
 	return fmt.Sprintf("durable:%s:%d", taskExternalId.String(), nodeId)
+}
+
+func satisfiedOrderPtr(v pgtype.Int8) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	order := v.Int64
+	return &order
 }
 
 func (r *durableEventsRepository) createIdempotencyKey(kind sqlcv1.V1DurableEventLogKind, triggerOpts *WorkflowNameTriggerOpts, waitForConditions []CreateExternalSignalConditionOpt) ([]byte, error) {
@@ -1233,6 +1245,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				AlreadyExisted:        entry.AlreadyExisted,
 				ResultPayload:         entry.ResultPayload,
 				WorkflowRunExternalId: workflowRunExternalId,
+				SatisfiedOrder:        satisfiedOrderPtr(entry.Entry.SatisfiedOrder),
 				ChildTaskIsFailure:    entry.Entry.ChildTaskIsFailure,
 				ChildTaskErrorMessage: childTaskErrorMessage,
 			}
@@ -1431,6 +1444,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			BranchId:        le.Entry.BranchID,
 			AlreadyExisted:  le.AlreadyExisted,
 			ResultPayload:   le.ResultPayload,
+			SatisfiedOrder:  satisfiedOrderPtr(le.Entry.SatisfiedOrder),
 		}
 	case sqlcv1.V1DurableEventLogKindMEMO:
 		if len(logEntries) != 1 {
@@ -1586,6 +1600,7 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 				NodeId:          initialWaitForResult.NodeId,
 				BranchId:        initialWaitForResult.BranchId,
 				AlreadyExisted:  initialWaitForResult.AlreadyExisted,
+				SatisfiedOrder:  entry.SatisfiedOrder,
 			}, nil
 		}
 	}
@@ -1621,6 +1636,36 @@ func (r *durableEventsRepository) handleWaitFor(ctx context.Context, tx sqlcv1.D
 	}}
 
 	return r.registerSignalMatchConditions(ctx, tx, tenantId, createMatchOpts)
+}
+
+func (r *durableEventsRepository) latestSatisfiedOrderBeforeBranchPoint(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) (int64, error) {
+	entries, err := r.queries.ListDurableEventLogEntriesBeforeNode(ctx, tx, sqlcv1.ListDurableEventLogEntriesBeforeNodeParams{
+		Durabletaskid:         task.ID,
+		Durabletaskinsertedat: task.InsertedAt,
+		Tenantid:              tenantId,
+		Nodeid:                nodeId,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to list durable event log entries before branch point: %w", err)
+	}
+
+	return latestSatisfiedOrderForBranchPrefix(entries, branchId, nextBranchIdToBranchPoint), nil
+}
+
+func latestSatisfiedOrderForBranchPrefix(entries []*sqlcv1.V1DurableEventLogEntry, branchId int64, nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint) int64 {
+	var latest int64
+
+	for _, entry := range entries {
+		if entry.BranchID != resolveBranchForNode(entry.NodeID, branchId, nextBranchIdToBranchPoint) {
+			continue
+		}
+
+		if entry.SatisfiedOrder.Valid && entry.SatisfiedOrder.Int64 > latest {
+			latest = entry.SatisfiedOrder.Int64
+		}
+	}
+
+	return latest
 }
 
 func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts CompleteMemoEntryOpts) error {
@@ -1690,9 +1735,21 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 	newBranchId := logFile.LatestBranchID + 1
 	zero := int64(0)
 
+	nextBranchIdToBranchPoint, err := r.listEventLogBranchPoints(ctx, tx, tenantId, task.ID, task.InsertedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list log branch points: %w", err)
+	}
+
+	latestSatisfiedOrder, err := r.latestSatisfiedOrderBeforeBranchPoint(ctx, tx, tenantId, nodeId, branchId, task, nextBranchIdToBranchPoint)
+	if err != nil {
+		return nil, err
+	}
+
 	logFile, err = r.queries.UpdateLogFile(ctx, tx, sqlcv1.UpdateLogFileParams{
-		BranchId:              sqlchelpers.ToBigInt(&newBranchId),
-		NodeId:                sqlchelpers.ToBigInt(&zero),
+		BranchId:             sqlchelpers.ToBigInt(&newBranchId),
+		NodeId:               sqlchelpers.ToBigInt(&zero),
+		LatestSatisfiedOrder: sqlchelpers.ToBigInt(&latestSatisfiedOrder),
+
 		Durabletaskid:         task.ID,
 		Durabletaskinsertedat: task.InsertedAt,
 	})

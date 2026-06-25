@@ -5,7 +5,7 @@ import warnings
 
 from hatchet_sdk.contracts import events_pb2 as events__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.81.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class EventsServiceStub(object):
+class EventsServiceStub:
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel: grpc.Channel | grpc.aio.Channel) -> None:
@@ -61,7 +61,7 @@ class EventsServiceStub(object):
                 _registered_method=True)
 
 
-class EventsServiceServicer(object):
+class EventsServiceServicer:
     """Missing associated documentation comment in .proto file."""
 
     def Push(self, request, context):
@@ -130,7 +130,7 @@ def add_EventsServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class EventsService(object):
+class EventsService:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod

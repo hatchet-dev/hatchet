@@ -288,7 +288,7 @@ class StepActionEvent(_message.Message):
     event_payload: str
     retry_count: int
     should_not_retry: bool
-    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: _Optional[bool] = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
     __slots__ = ("tenant_id", "worker_id")
@@ -336,7 +336,7 @@ class WorkflowEvent(_message.Message):
     task_retries: int
     retry_count: int
     event_index: int
-    def __init__(self, workflow_run_id: _Optional[str] = ..., resource_type: _Optional[_Union[ResourceType, str]] = ..., event_type: _Optional[_Union[ResourceEventType, str]] = ..., resource_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_payload: _Optional[str] = ..., hangup: bool = ..., task_retries: _Optional[int] = ..., retry_count: _Optional[int] = ..., event_index: _Optional[int] = ...) -> None: ...
+    def __init__(self, workflow_run_id: _Optional[str] = ..., resource_type: _Optional[_Union[ResourceType, str]] = ..., event_type: _Optional[_Union[ResourceEventType, str]] = ..., resource_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_payload: _Optional[str] = ..., hangup: _Optional[bool] = ..., task_retries: _Optional[int] = ..., retry_count: _Optional[int] = ..., event_index: _Optional[int] = ...) -> None: ...
 
 class WorkflowRunEvent(_message.Message):
     __slots__ = ("workflow_run_id", "event_type", "event_timestamp", "results")
@@ -426,7 +426,7 @@ class RestoreEvictedTaskResponse(_message.Message):
     __slots__ = ("requeued",)
     REQUEUED_FIELD_NUMBER: _ClassVar[int]
     requeued: bool
-    def __init__(self, requeued: bool = ...) -> None: ...
+    def __init__(self, requeued: _Optional[bool] = ...) -> None: ...
 
 class GetVersionRequest(_message.Message):
     __slots__ = ()

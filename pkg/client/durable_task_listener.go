@@ -90,16 +90,20 @@ type DurableTaskListener struct {
 	bufferedCompletions   map[PendingCallbackKey]*v1.DurableTaskResponse
 	pendingEventAcks      map[PendingAckKey]chan EventAckResult
 	pendingCallbacks      map[PendingCallbackKey]chan CallbackResult
+	gates                 map[PendingAckKey]*invocationGate
 	workerID              string
 	streamSeq             int
 	reconnectInterval     time.Duration
 	evictionAckTTL        time.Duration
+	parkTimeout           time.Duration
+	gapTimeout            time.Duration
 	onServerEvictMu       sync.RWMutex
 	streamMu              sync.Mutex
 	bufferedCompletionsMu sync.Mutex
 	pendingCallbacksMu    sync.Mutex
 	pendingEvictionAcksMu sync.Mutex
 	pendingEventAcksMu    sync.Mutex
+	gateMu                sync.Mutex
 	mu                    sync.Mutex
 	running               bool
 }
@@ -121,6 +125,23 @@ func WithEvictionAckTimeout(d time.Duration) DurableTaskListenerOpt {
 	}
 }
 
+// WithParkTimeout overrides how long the ordered-release gate stays closed
+// waiting for a woken continuation to park before being forced open.
+func WithParkTimeout(d time.Duration) DurableTaskListenerOpt {
+	return func(l *DurableTaskListener) {
+		l.parkTimeout = d
+	}
+}
+
+// WithGapTimeout overrides how long a hole in the satisfied-order sequence may
+// persist before the invocation's waiters are failed with an
+// OrderedReplayGapError.
+func WithGapTimeout(d time.Duration) DurableTaskListenerOpt {
+	return func(l *DurableTaskListener) {
+		l.gapTimeout = d
+	}
+}
+
 // NewDurableTaskListener creates a new listener.
 func NewDurableTaskListener(
 	workerID string,
@@ -138,11 +159,14 @@ func NewDurableTaskListener(
 		l:                   logger,
 		reconnectInterval:   defaultReconnectInterval,
 		evictionAckTTL:      evictionAckTimeout,
+		parkTimeout:         defaultParkTimeout,
+		gapTimeout:          defaultGapTimeout,
 		connectFn:           connectFn,
 		pendingEventAcks:    make(map[PendingAckKey]chan EventAckResult),
 		pendingEvictionAcks: make(map[PendingAckKey]chan error),
 		pendingCallbacks:    make(map[PendingCallbackKey]chan CallbackResult),
 		bufferedCompletions: make(map[PendingCallbackKey]*v1.DurableTaskResponse),
+		gates:               make(map[PendingAckKey]*invocationGate),
 		requestQueue:        make(chan *v1.DurableTaskRequest, 100),
 	}
 
@@ -174,6 +198,7 @@ func (l *DurableTaskListener) Start(ctx context.Context) {
 	l.cancel = cancel
 	l.running = true
 	go l.receiveLoop(listenerCtx)
+	go l.runGateSweeper(listenerCtx.Done())
 }
 
 // Stop halts the listener.
@@ -239,13 +264,20 @@ func (l *DurableTaskListener) AddPendingCallback(key PendingCallbackKey) chan Ca
 	l.bufferedCompletionsMu.Unlock()
 
 	if hasBuffered {
+		// the registering continuation picks up a buffered result and keeps
+		// running: it never parked, so the ordered-release gate is untouched.
 		ch <- CallbackResult{Resp: buffered}
 		return ch
 	}
 
 	l.pendingCallbacksMu.Lock()
-	defer l.pendingCallbacksMu.Unlock()
 	l.pendingCallbacks[key] = ch
+	l.pendingCallbacksMu.Unlock()
+
+	// the continuation is now parked awaiting this entry: open the gate for the
+	// next ordered release.
+	l.notifyParked(PendingAckKey{TaskID: key.TaskID, SignalKey: key.SignalKey})
+
 	return ch
 }
 
@@ -314,6 +346,14 @@ func (l *DurableTaskListener) CleanupTaskState(taskExternalID string, invocation
 		}
 	}
 	l.bufferedCompletionsMu.Unlock()
+
+	l.gateMu.Lock()
+	for k := range l.gates {
+		if k.TaskID == taskExternalID && k.SignalKey <= int64(invocationCount) {
+			delete(l.gates, k)
+		}
+	}
+	l.gateMu.Unlock()
 }
 
 func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
@@ -733,31 +773,18 @@ func (l *DurableTaskListener) dispatchResponse(resp *v1.DurableTaskResponse) {
 	case *v1.DurableTaskResponse_EntryCompleted:
 		completed := msg.EntryCompleted
 		ref := completed.GetRef()
-		key := PendingCallbackKey{
-			TaskID:    ref.GetDurableTaskExternalId(),
-			SignalKey: int64(ref.GetInvocationCount()),
-			BranchID:  ref.GetBranchId(),
-			NodeID:    ref.GetNodeId(),
-		}
 
-		l.pendingCallbacksMu.Lock()
-		ch, ok := l.pendingCallbacks[key]
-		if ok {
-			delete(l.pendingCallbacks, key)
-		}
-		l.pendingCallbacksMu.Unlock()
-
-		if ok {
-			select {
-			case ch <- CallbackResult{Resp: resp}:
-			default:
+		if completed.SatisfiedOrder != nil {
+			ackKey := PendingAckKey{
+				TaskID:    ref.GetDurableTaskExternalId(),
+				SignalKey: int64(ref.GetInvocationCount()),
 			}
+			l.handleOrderedEntryCompleted(ackKey, completed.GetSatisfiedOrder(), resp)
 			return
 		}
 
-		l.bufferedCompletionsMu.Lock()
-		l.bufferedCompletions[key] = resp
-		l.bufferedCompletionsMu.Unlock()
+		// legacy completion with no satisfied order: release immediately.
+		l.deliverCompletion(resp)
 	case *v1.DurableTaskResponse_Error:
 		l.dispatchError(msg.Error)
 	case *v1.DurableTaskResponse_ServerEvict:

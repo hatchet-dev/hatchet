@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
 from dataclasses import dataclass
@@ -12,6 +13,11 @@ from typing_extensions import Never, Self
 
 from hatchet_sdk.clients.admin import (
     AdminClient,
+)
+from hatchet_sdk.clients.listeners.durable_ordered_release import (
+    DEFAULT_GAP_TIMEOUT_S,
+    DEFAULT_PARK_TIMEOUT_S,
+    OrderedReleaseGate,
 )
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
@@ -185,6 +191,12 @@ class DurableEventListener:
             PendingCallback, DurableTaskEventLogEntryResult
         ] = TTLCache(ttl=timedelta(seconds=10))
 
+        # Ordered-release gates keyed by (task external id, invocation count).
+        # See OrderedReleaseGate.
+        self._gates: dict[PendingEventAck, OrderedReleaseGate] = {}
+        self._park_timeout_s = DEFAULT_PARK_TIMEOUT_S
+        self._gap_timeout_s = DEFAULT_GAP_TIMEOUT_S
+
         self._receive_task: asyncio.Task[None] | None = None
         self._send_task: asyncio.Task[None] | None = None
         self._running = False
@@ -267,6 +279,7 @@ class DurableEventListener:
     async def _send_loop(self) -> None:
         while self._running:
             await asyncio.sleep(1)
+            self._sweep_gates()
             await self._poll_worker_status()
 
     async def _poll_worker_status(self) -> None:
@@ -313,6 +326,7 @@ class DurableEventListener:
                 future.set_exception(exc)
         self._pending_callbacks.clear()
         self._buffered_completions.clear()
+        self._gates.clear()
 
     async def _receive_loop(self) -> None:
         while self._running:
@@ -433,13 +447,14 @@ class DurableEventListener:
                 completed.ref.node_id,
             )
             result = DurableTaskEventLogEntryResult.from_proto(completed)
-            if completed_key in self._pending_callbacks:
-                completed_future = self._pending_callbacks[completed_key]
-                if not completed_future.done():
-                    completed_future.set_result(result)
-                del self._pending_callbacks[completed_key]
+
+            if completed.HasField("satisfied_order"):
+                self._handle_ordered_completion(
+                    completed.satisfied_order, completed_key, result
+                )
             else:
-                self._buffered_completions[completed_key] = result
+                # legacy completion with no satisfied order: release immediately
+                self._deliver_completion(completed_key, result)
         elif response.HasField("eviction_ack"):
             eviction_ack = response.eviction_ack
             eviction_key = (
@@ -514,6 +529,130 @@ class DurableEventListener:
                 eviction_future = self._pending_eviction_acks.pop(error_eviction_key)
                 if not eviction_future.done():
                     eviction_future.set_exception(exc)
+
+    def _deliver_completion(
+        self, key: PendingCallback, result: DurableTaskEventLogEntryResult
+    ) -> bool:
+        """Hand a completion to a registered waiter, or buffer it for late
+        registration. Returns True if a parked continuation was woken."""
+        if key in self._pending_callbacks:
+            future = self._pending_callbacks.pop(key)
+            if not future.done():
+                future.set_result(result)
+            return True
+
+        self._buffered_completions[key] = result
+        return False
+
+    def _handle_ordered_completion(
+        self,
+        order: int,
+        completed_key: PendingCallback,
+        result: DurableTaskEventLogEntryResult,
+    ) -> None:
+        gate_key: PendingEventAck = (completed_key[0], completed_key[1])
+        gate = self._gates.setdefault(gate_key, OrderedReleaseGate())
+
+        if order <= gate.released:
+            # re-delivery of an already-released completion (e.g. after
+            # reconnect): bypass the gate
+            self._deliver_completion(completed_key, result)
+            return
+
+        gate.held[order] = (completed_key, result)
+        self._pump_gate(gate)
+
+    def _pump_gate(self, gate: OrderedReleaseGate) -> None:
+        """Release contiguously ordered completions while the gate is open."""
+        while gate.wakes == 0 and (gate.released + 1) in gate.held:
+            completed_key, result = gate.held.pop(gate.released + 1)
+            gate.released += 1
+
+            if self._deliver_completion(completed_key, result):
+                # the release woke a parked continuation: hold further releases
+                # until it parks again
+                gate.wakes += 1
+                gate.wake_since = time.monotonic()
+            # if nobody was waiting, the completion was buffered for a
+            # continuation that is still running; keep pumping so a parked
+            # continuation awaiting a later order is not deadlocked
+
+        if gate.held and gate.wakes == 0:
+            if gate.gap_since is None:
+                gate.gap_since = time.monotonic()
+        else:
+            gate.gap_since = None
+
+    def _notify_parked(self, gate_key: PendingEventAck) -> None:
+        """A continuation of the given invocation parked (registered its next
+        awaited entry without a buffered result): open the gate for the next
+        ordered release."""
+        gate = self._gates.get(gate_key)
+        if gate is None:
+            return
+
+        if gate.wakes > 0:
+            gate.wakes -= 1
+
+        self._pump_gate(gate)
+
+    def _sweep_gates(self) -> None:
+        """Enforce the park and gap timeouts on all ordered-release gates."""
+        now = time.monotonic()
+
+        for gate_key in list(self._gates.keys()):
+            gate = self._gates[gate_key]
+
+            if gate.wakes > 0 and now - gate.wake_since > self._park_timeout_s:
+                logger.warning(
+                    f"durable task {gate_key[0]} (invocation {gate_key[1]}): "
+                    f"continuation did not park within {self._park_timeout_s}s after a "
+                    "gated release; forcing the completion gate open. durable task code "
+                    "should not perform unrecorded blocking work between durable operations"
+                )
+                gate.wakes = 0
+                self._pump_gate(gate)
+
+            if (
+                gate.held
+                and gate.wakes == 0
+                and gate.gap_since is not None
+                and now - gate.gap_since > self._gap_timeout_s
+            ):
+                missing_order = gate.released + 1
+                exc = NonDeterminismError(
+                    task_external_id=gate_key[0],
+                    invocation_count=gate_key[1],
+                    message=(
+                        f"completion with satisfied order {missing_order} was never "
+                        f"delivered while later completions {sorted(gate.held)} arrived; "
+                        "the recorded history likely diverged from the current code"
+                    ),
+                    node_id=missing_order,
+                )
+                logger.error(str(exc))
+
+                del self._gates[gate_key]
+                self._fail_invocation_waiters(gate_key, exc)
+
+    def _fail_invocation_waiters(
+        self, gate_key: PendingEventAck, exc: Exception
+    ) -> None:
+        """Deliver an error to every pending callback and event ack belonging to
+        the given invocation."""
+        stale_cb_keys = [
+            k
+            for k in self._pending_callbacks
+            if k[0] == gate_key[0] and k[1] == gate_key[1]
+        ]
+        for k in stale_cb_keys:
+            fut = self._pending_callbacks.pop(k)
+            if not fut.done():
+                fut.set_exception(exc)
+
+        ack_fut = self._pending_event_acks.pop(gate_key, None)
+        if ack_fut is not None and not ack_fut.done():
+            ack_fut.set_exception(exc)
 
     async def _register_worker(self) -> None:
         if self._request_queue is None or self._worker_id is None:
@@ -596,11 +735,18 @@ class DurableEventListener:
         key = (durable_task_external_id, invocation_count, branch_id, node_id)
 
         if key in self._buffered_completions:
+            # the registering continuation picks up a buffered result and keeps
+            # running: it never parked, so the ordered-release gate is untouched
             return self._buffered_completions.pop(key)
 
         if key not in self._pending_callbacks:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
+
+            # the continuation is now parked awaiting this entry: open the gate
+            # for the next ordered release
+            self._notify_parked((durable_task_external_id, invocation_count))
+
             await self._poll_worker_status()
             return await future
 
@@ -637,6 +783,14 @@ class DurableEventListener:
         ]
         for ek in stale_early_keys:
             del self._buffered_completions[ek]
+
+        stale_gate_keys = [
+            gk
+            for gk in self._gates
+            if gk[0] == durable_task_external_id and gk[1] <= invocation_count
+        ]
+        for gk in stale_gate_keys:
+            del self._gates[gk]
 
     _EVICTION_ACK_TIMEOUT_S = 30.0
 

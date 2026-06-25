@@ -235,6 +235,7 @@ func DurableRestoreTaskMessage(tenantId uuid.UUID, taskExternalId uuid.UUID, rea
 
 type DurableCallbackCompletedPayload struct {
 	Payload               []byte
+	SatisfiedOrder        *int64
 	ChildTaskIsFailure    bool
 	ChildTaskErrorMessage *string
 	BranchId              int64
@@ -244,7 +245,7 @@ type DurableCallbackCompletedPayload struct {
 }
 
 func DurableCallbackCompletedMessage(
-	tenantId, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, childTaskIsFailure bool, childTaskErrorMessage *string,
+	tenantId, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, satisfiedOrder *int64, childTaskIsFailure bool, childTaskErrorMessage *string,
 ) (*msgqueue.Message, error) {
 	return msgqueue.NewTenantMessage(
 		tenantId,
@@ -257,6 +258,7 @@ func DurableCallbackCompletedMessage(
 			BranchId:              branchId,
 			NodeId:                nodeId,
 			Payload:               payload,
+			SatisfiedOrder:        satisfiedOrder,
 			ChildTaskIsFailure:    childTaskIsFailure,
 			ChildTaskErrorMessage: childTaskErrorMessage,
 		},
