@@ -48,6 +48,7 @@ type Repository interface {
 	SNS() SNSRepository
 	TenantInvite() TenantInviteRepository
 	TenantLimit() TenantLimitRepository
+	TenantEntitlement() TenantEntitlementRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	Tenant() TenantRepository
 	User() UserRepository
@@ -83,6 +84,7 @@ type repositoryImpl struct {
 	sns               SNSRepository
 	tenantInvite      TenantInviteRepository
 	tenantLimit       TenantLimitRepository
+	tenantEntitlement TenantEntitlementRepository
 	tenantAlerting    TenantAlertingRepository
 	tenant            TenantRepository
 	user              UserRepository
@@ -136,6 +138,7 @@ func NewRepository(
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
 		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, cacheDuration),
+		tenantEntitlement: newTenantEntitlementRepository(shared),
 		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
 		tenant:            newTenantRepository(shared, cacheDuration),
 		user:              newUserRepository(shared),
@@ -273,6 +276,10 @@ func (r *repositoryImpl) TenantInvite() TenantInviteRepository {
 
 func (r *repositoryImpl) TenantLimit() TenantLimitRepository {
 	return r.tenantLimit
+}
+
+func (r *repositoryImpl) TenantEntitlement() TenantEntitlementRepository {
+	return r.tenantEntitlement
 }
 
 func (r *repositoryImpl) TenantAlertingSettings() TenantAlertingRepository {

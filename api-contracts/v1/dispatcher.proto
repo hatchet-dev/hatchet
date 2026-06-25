@@ -55,6 +55,8 @@ message DurableTaskEventWaitForAckResponse {
 message DurableTaskEventLogEntryCompletedResponse {
     DurableEventLogEntryRef ref = 1;
     bytes payload = 2;
+    bool is_failure = 3;
+    optional string error_message = 4;
 }
 
 message DurableTaskEvictInvocationRequest {

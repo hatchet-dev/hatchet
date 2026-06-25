@@ -369,6 +369,37 @@ dagChildWorkflow.task({
   },
 });
 
+// --- Error propagation test ---
+
+export const errorRaisingTask = hatchet.task({
+  name: 'error-raising-task',
+  fn: async (input: { error_message: string }) => {
+    throw new Error(input.error_message);
+  },
+});
+
+export const errorRaisingDurableParent = hatchet.durableTask({
+  name: 'error-raising-durable-parent',
+  executionTimeout: '30s',
+  fn: async (input: { error_message: string }, ctx) => {
+    let childRaised = false;
+    let childErrorStr: string | null = null;
+    const ref = await errorRaisingTask.runNoWait(input);
+    try {
+      await ref.output;
+    } catch (e: unknown) {
+      childRaised = true;
+      childErrorStr = e instanceof Error ? e.message : String(e);
+    }
+    return {
+      child_raised: childRaised,
+      child_error_str: childErrorStr,
+      child_run_external_id: await ref.runId,
+      parent_run_external_id: ctx.workflowRunId(),
+    };
+  },
+});
+
 export const durableSpawnDag = hatchet.durableTask({
   name: 'durable-spawn-dag',
   executionTimeout: '10s',

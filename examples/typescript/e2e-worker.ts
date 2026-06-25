@@ -29,6 +29,8 @@ import {
   waitForEventLookback,
   waitForOrEventLookback,
   waitForTwoEventsSecondPushedFirst,
+  errorRaisingTask,
+  errorRaisingDurableParent,
 } from './durable/workflow';
 import { durableEvent, durableEventWithFilter } from './durable_event/workflow';
 import {
@@ -94,6 +96,8 @@ const workflows = [
   waitForEventLookback,
   waitForOrEventLookback,
   waitForTwoEventsSecondPushedFirst,
+  errorRaisingTask,
+  errorRaisingDurableParent,
   durableEvent,
   durableEventWithFilter,
   durableSleep,

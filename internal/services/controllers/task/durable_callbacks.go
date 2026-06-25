@@ -8,92 +8,14 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/durable"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 func (tc *TasksControllerImpl) processSatisfiedEventLogEntry(ctx context.Context, tenantId uuid.UUID, callbacks []v1.SatisfiedEntry) error {
-	if len(callbacks) == 0 {
-		return nil
-	}
-
-	idInsertedAtTuples := make([]v1.IdInsertedAt, 0)
-
-	for _, cb := range callbacks {
-		idInsertedAtTuples = append(idInsertedAtTuples, v1.IdInsertedAt{
-			ID:         cb.DurableTaskId,
-			InsertedAt: cb.DurableTaskInsertedAt,
-		})
-	}
-
-	idInsertedAtToDispatcherId, err := tc.repov1.Workers().GetDurableDispatcherIdsForTasks(ctx, tenantId, idInsertedAtTuples)
-
-	if err != nil {
-		return fmt.Errorf("could not list dispatcher ids for tasks: %w", err)
-	}
-
-	dispatcherToMsgs := make(map[uuid.UUID][]*msgqueue.Message)
-
-	for _, cb := range callbacks {
-		key := v1.IdInsertedAt{
-			ID:         cb.DurableTaskId,
-			InsertedAt: cb.DurableTaskInsertedAt,
-		}
-
-		dispatcherLookup, ok := idInsertedAtToDispatcherId[key]
-
-		if !ok {
-			tc.l.Warn().Msgf("no runtime/dispatcher lookup row for task %d, skipping callback delivery", cb.DurableTaskId)
-			continue
-		}
-
-		if dispatcherLookup.IsEvicted {
-			tc.l.Debug().Msgf("task %d is evicted, publishing restore message", cb.DurableTaskId)
-
-			restoreMsg, err := tasktypes.DurableRestoreTaskMessage(tenantId, cb.DurableTaskExternalId, "callback satisfied while task evicted")
-			if err != nil {
-				tc.l.Error().Err(err).Msgf("failed to create restore message for task %s", cb.DurableTaskExternalId)
-				continue
-			}
-
-			if err := tc.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, restoreMsg); err != nil {
-				tc.l.Error().Err(err).Msgf("failed to publish restore message for task %s", cb.DurableTaskExternalId)
-			}
-			continue
-		}
-
-		dispatcherId := dispatcherLookup.DispatcherId
-		if dispatcherId == nil {
-			tc.l.Warn().Msgf("task %d has runtime but no durable dispatcher id, skipping callback delivery", cb.DurableTaskId)
-			continue
-		}
-
-		msg, err := tasktypes.DurableCallbackCompletedMessage(
-			tenantId,
-			cb.DurableTaskExternalId,
-			cb.InvocationCount,
-			cb.BranchId,
-			cb.NodeId,
-			cb.Data,
-		)
-		if err != nil {
-			tc.l.Error().Err(err).Msgf("failed to create callback completed message for task %s node %d", cb.DurableTaskExternalId, cb.NodeId)
-			continue
-		}
-
-		dispatcherToMsgs[*dispatcherId] = append(dispatcherToMsgs[*dispatcherId], msg)
-	}
-
-	for dispatcherId, msgs := range dispatcherToMsgs {
-		for _, m := range msgs {
-			if err := tc.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherId), m); err != nil {
-				tc.l.Error().Err(err).Msgf("failed to send callback completed message to dispatcher %s", dispatcherId)
-			}
-		}
-	}
-
-	return nil
+	return durable.DispatchCallbacks(ctx, tc.l, tc.mq, tc.repov1, tenantId, callbacks)
 }
 
 func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {

@@ -426,6 +426,9 @@ type APIMeta struct {
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`
 
+	// PrometheusServerEnabled whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+	PrometheusServerEnabled *bool `json:"prometheusServerEnabled,omitempty"`
+
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
 }

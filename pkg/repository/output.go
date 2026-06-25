@@ -168,6 +168,7 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 				if err := json.Unmarshal(entries[0], &event); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal task output event from match data: %w", err)
 				}
+
 				return event.Output, nil
 			}
 		}
@@ -197,4 +198,27 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	}
 
 	return nil, fmt.Errorf("no entries found in match data")
+}
+
+func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
+	var outer map[string]map[string][]json.RawMessage
+	if err := json.Unmarshal(data, &outer); err != nil {
+		return false, nil, err
+	}
+
+	for _, keyMap := range outer {
+		for _, entries := range keyMap {
+			if len(entries) == 0 {
+				continue
+			}
+			var event TaskOutputEvent
+			if err := json.Unmarshal(entries[0], &event); err != nil {
+				continue
+			}
+			if event.IsFailure {
+				return true, &event.ErrorMessage, nil
+			}
+		}
+	}
+	return false, nil, nil
 }

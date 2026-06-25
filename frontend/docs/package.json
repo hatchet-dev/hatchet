@@ -14,7 +14,7 @@
     "prettier:fix": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --write",
     "generate-llms": "tsx scripts/generate-llms.ts",
     "test-search": "tsx scripts/test-search-quality.ts",
-    "generate-examples": "cd ../snippets/ && python3 generate.py "
+    "generate-examples": "cd ../snippets/ && python -X utf8 generate.py || python3 -X utf8 generate.py"
   },
   "repository": {
     "type": "git",

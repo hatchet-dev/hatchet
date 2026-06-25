@@ -69,6 +69,7 @@ import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
 import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
+import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -805,6 +806,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                 SSO
               </TabsTrigger>
             )}
+            {isControlPlaneEnabled && (
+              <TabsTrigger value="audit-log" variant="underlined">
+                Audit Log
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="tenants">
@@ -1108,6 +1114,11 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                   to get access.
                 </div>
               )}
+            </TabsContent>
+          )}
+          {isControlPlaneEnabled && (
+            <TabsContent value="audit-log">
+              <AuditLogSettings orgId={orgId} />
             </TabsContent>
           )}
         </Tabs>
