@@ -19,7 +19,7 @@ import { TenantMemberRoleType } from '@/lib/api/generated/control-plane/data-con
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 interface CreateUserGroupModalProps {
   open: boolean;
@@ -53,6 +53,14 @@ export function CreateUserGroupModal({
     onError: handleApiError,
   });
 
+  const createGroup = useCallback(
+    (data: { name: string; role: TenantMemberRoleType }) =>
+      createMutation.mutate(data),
+    [createMutation],
+  );
+
+  const isPending = createMutation.isPending;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -71,7 +79,7 @@ export function CreateUserGroupModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Engineers"
-              disabled={createMutation.isPending}
+              disabled={isPending}
             />
           </div>
           <div className="space-y-2">
@@ -79,7 +87,7 @@ export function CreateUserGroupModal({
             <Select
               value={role}
               onValueChange={(v) => setRole(v as TenantMemberRoleType)}
-              disabled={createMutation.isPending}
+              disabled={isPending}
             >
               <SelectTrigger id="group-role">
                 <SelectValue />
@@ -101,15 +109,15 @@ export function CreateUserGroupModal({
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={createMutation.isPending}
+              disabled={isPending}
             >
               Cancel
             </Button>
             <Button
-              onClick={() => createMutation.mutate({ name, role })}
-              disabled={createMutation.isPending || !name.trim()}
+              onClick={() => createGroup({ name, role })}
+              disabled={isPending || !name.trim()}
             >
-              {createMutation.isPending ? 'Creating...' : 'Create Group'}
+              {isPending ? 'Creating...' : 'Create Group'}
             </Button>
           </div>
         </div>

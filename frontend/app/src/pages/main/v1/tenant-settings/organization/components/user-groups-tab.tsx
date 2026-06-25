@@ -23,16 +23,18 @@ import {
 } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 interface UserGroupsTabProps {
   organizationId: string;
   allOrgMembers: OrganizationMember[];
+  allTenantTags: string[];
 }
 
 export function UserGroupsTab({
   organizationId,
   allOrgMembers,
+  allTenantTags,
 }: UserGroupsTabProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
@@ -132,6 +134,7 @@ export function UserGroupsTab({
           organizationId={organizationId}
           group={groupToEdit}
           allOrgMembers={allOrgMembers}
+          allTenantTags={allTenantTags}
         />
       )}
     </>
@@ -158,6 +161,13 @@ function UserGroupActions({
     onError,
   });
 
+  const deleteGroup = useCallback(
+    () => deleteMutation.mutate(),
+    [deleteMutation],
+  );
+
+  const isPending = deleteMutation.isPending;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -172,8 +182,8 @@ function UserGroupActions({
         </DropdownMenuItem>
         <DropdownMenuItem
           className="text-destructive"
-          onClick={() => deleteMutation.mutate()}
-          disabled={deleteMutation.isPending}
+          onClick={deleteGroup}
+          disabled={isPending}
         >
           <TrashIcon className="mr-2 size-4" />
           Delete

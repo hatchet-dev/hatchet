@@ -10,8 +10,9 @@ import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { KeyboardEvent, useCallback, useEffect, useState } from 'react';
 
 interface EditTenantTagsModalProps {
   open: boolean;
@@ -33,7 +34,8 @@ export function EditTenantTagsModal({
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
   const { handleApiError } = useApiError({});
-  const [rawInput, setRawInput] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState('');
 
   const tagsQuery = useQuery({
     ...orgApi.tenantTagsGetQuery(organizationId, tenantId),
@@ -42,9 +44,15 @@ export function EditTenantTagsModal({
 
   useEffect(() => {
     if (tagsQuery.data) {
-      setRawInput(tagsQuery.data.join(', '));
+      setTags(tagsQuery.data);
     }
   }, [tagsQuery.data]);
+
+  useEffect(() => {
+    if (!open) {
+      setInputValue('');
+    }
+  }, [open]);
 
   const setTagsMutation = useMutation({
     ...orgApi.tenantTagsSetMutation(organizationId, tenantId),
@@ -58,13 +66,30 @@ export function EditTenantTagsModal({
     onError: handleApiError,
   });
 
-  const handleSave = useCallback(() => {
-    const tags = rawInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-    setTagsMutation.mutate(tags);
-  }, [rawInput, setTagsMutation]);
+  const addTag = useCallback(() => {
+    const value = inputValue.trim();
+    if (value && !tags.includes(value)) {
+      setTags((prev) => [...prev, value]);
+    }
+    setInputValue('');
+  }, [inputValue, tags]);
+
+  const removeTag = (tag: string) =>
+    setTags((prev) => prev.filter((t) => t !== tag));
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTag();
+    }
+  };
+
+  const saveTenantTags = useCallback(
+    (tagsToSave: string[]) => setTagsMutation.mutate(tagsToSave),
+    [setTagsMutation],
+  );
+
+  const isPending = setTagsMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,29 +103,58 @@ export function EditTenantTagsModal({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="tags">Tags</Label>
-            <Input
-              id="tags"
-              value={rawInput}
-              onChange={(e) => setRawInput(e.target.value)}
-              placeholder="e.g. prod, us-east"
-              disabled={setTagsMutation.isPending}
-            />
-            <p className="text-sm text-muted-foreground">
-              Comma-separated list of tags. Use "*" to allow all user groups
-              access.
-            </p>
+            <Label htmlFor="tag-input">Tags</Label>
+            <div className="flex gap-2">
+              <Input
+                id="tag-input"
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder='Type a tag and press Enter — e.g. "prod"'
+                disabled={isPending}
+                autoComplete="off"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={addTag}
+                disabled={isPending || !inputValue.trim()}
+              >
+                Add
+              </Button>
+            </div>
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-md border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      disabled={isPending}
+                      className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
+                      aria-label={`Remove ${tag}`}
+                    >
+                      <XMarkIcon className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-3">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={setTagsMutation.isPending}
+              disabled={isPending}
             >
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={setTagsMutation.isPending}>
-              {setTagsMutation.isPending ? 'Saving...' : 'Save Tags'}
+            <Button onClick={() => saveTenantTags(tags)} disabled={isPending}>
+              {isPending ? 'Saving...' : 'Save Tags'}
             </Button>
           </div>
         </div>

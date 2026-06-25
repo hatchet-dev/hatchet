@@ -22,7 +22,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -32,6 +32,7 @@ interface EditUserGroupModalProps {
   organizationId: string;
   group: UserGroup;
   allOrgMembers: OrganizationMember[];
+  allTenantTags: string[];
 }
 
 export function EditUserGroupModal({
@@ -40,6 +41,7 @@ export function EditUserGroupModal({
   organizationId,
   group,
   allOrgMembers,
+  allTenantTags,
 }: EditUserGroupModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
@@ -49,13 +51,13 @@ export function EditUserGroupModal({
 
   const [name, setName] = useState(group.name);
   const [role, setRole] = useState<TenantMemberRoleType>(group.role);
-  const [rawTags, setRawTags] = useState(group.tags.join(', '));
+  const [tags, setTags] = useState<string[]>(group.tags);
 
   useEffect(() => {
     if (open) {
       setName(group.name);
       setRole(group.role);
-      setRawTags(group.tags.join(', '));
+      setTags(group.tags);
     }
   }, [open, group]);
 
@@ -123,21 +125,48 @@ export function EditUserGroupModal({
     (m) => !currentMemberIds.has(m.metadata.id),
   );
 
-  const handleSave = async () => {
-    const tags = rawTags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+  const availableTagsToAdd = allTenantTags.filter((t) => !tags.includes(t));
+
+  const addTag = (tag: string) => setTags((prev) => [...prev, tag]);
+  const removeTag = (tag: string) =>
+    setTags((prev) => prev.filter((t) => t !== tag));
+
+  const updateGroup = useCallback(
+    (data: { name?: string; role: TenantMemberRoleType }) =>
+      updateMutation.mutateAsync(data),
+    [updateMutation],
+  );
+
+  const saveGroupTags = useCallback(
+    (tagsToSave: string[]) => tagsMutation.mutateAsync(tagsToSave),
+    [tagsMutation],
+  );
+
+  const addMember = useCallback(
+    (memberId: string) => addMemberMutation.mutate(memberId),
+    [addMemberMutation],
+  );
+
+  const removeMember = useCallback(
+    (memberId: string) => removeMemberMutation.mutate(memberId),
+    [removeMemberMutation],
+  );
+
+  const isPending = updateMutation.isPending || tagsMutation.isPending;
+  const isMemberMutating =
+    addMemberMutation.isPending || removeMemberMutation.isPending;
+
+  const handleSave = useCallback(async () => {
     try {
       await Promise.all([
-        updateMutation.mutateAsync({ name: name.trim() || undefined, role }),
-        tagsMutation.mutateAsync(tags),
+        updateGroup({ name: name.trim() || undefined, role }),
+        saveGroupTags(tags),
       ]);
       onOpenChange(false);
     } catch {
       // errors already shown via onError toast handlers
     }
-  };
+  }, [updateGroup, saveGroupTags, name, role, tags, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,7 +183,7 @@ export function EditUserGroupModal({
                 id="edit-group-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                disabled={updateMutation.isPending || tagsMutation.isPending}
+                disabled={isPending}
               />
             </div>
             <div className="space-y-2">
@@ -162,7 +191,7 @@ export function EditUserGroupModal({
               <Select
                 value={role}
                 onValueChange={(v) => setRole(v as TenantMemberRoleType)}
-                disabled={updateMutation.isPending || tagsMutation.isPending}
+                disabled={isPending}
               >
                 <SelectTrigger id="edit-group-role">
                   <SelectValue />
@@ -184,17 +213,55 @@ export function EditUserGroupModal({
 
           {/* Tags */}
           <div className="space-y-2">
-            <Label htmlFor="edit-group-tags">Tags</Label>
-            <Input
-              id="edit-group-tags"
-              value={rawTags}
-              onChange={(e) => setRawTags(e.target.value)}
-              placeholder="e.g. prod, us-east"
-              disabled={updateMutation.isPending || tagsMutation.isPending}
-            />
+            <Label>Tags</Label>
+            {availableTagsToAdd.length > 0 ? (
+              <Select
+                onValueChange={addTag}
+                disabled={isPending}
+                value=""
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Add a tag…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTagsToAdd.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {allTenantTags.length === 0
+                  ? 'No tags exist on any tenant yet.'
+                  : 'All available tags have been added.'}
+              </p>
+            )}
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-md border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      disabled={isPending}
+                      className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
+                      aria-label={`Remove ${tag}`}
+                    >
+                      <XMarkIcon className="size-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
-              Comma-separated. Members in this group get access to tenants whose
-              tags are a subset of these tags.
+              Members in this group get access to tenants whose tags are a
+              subset of these tags.
             </p>
           </div>
 
@@ -220,8 +287,8 @@ export function EditUserGroupModal({
                       variant="ghost"
                       size="sm"
                       className="h-7 w-7 p-0"
-                      onClick={() => removeMemberMutation.mutate(m.metadata.id)}
-                      disabled={removeMemberMutation.isPending}
+                      onClick={() => removeMember(m.metadata.id)}
+                      disabled={isMemberMutating}
                     >
                       <TrashIcon className="size-3.5 text-destructive" />
                     </Button>
@@ -234,8 +301,8 @@ export function EditUserGroupModal({
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Add member:</p>
                 <Select
-                  onValueChange={(v) => addMemberMutation.mutate(v)}
-                  disabled={addMemberMutation.isPending}
+                  onValueChange={addMember}
+                  disabled={isMemberMutating}
                   value=""
                 >
                   <SelectTrigger>
@@ -257,13 +324,8 @@ export function EditUserGroupModal({
           </div>
 
           <div className="flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={updateMutation.isPending || tagsMutation.isPending}
-            >
-              {updateMutation.isPending || tagsMutation.isPending
-                ? 'Saving...'
-                : 'Save'}
+            <Button onClick={handleSave} disabled={isPending}>
+              {isPending ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </div>

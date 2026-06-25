@@ -71,7 +71,7 @@ import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-set
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
-import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
+import { TagList } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -260,6 +260,15 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
       ) || [],
     [org?.tenants, organization?.tenants],
   );
+
+  const allTenantTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const tenant of visibleTenants) {
+      const tags = (tenant as unknown as { tags?: string[] }).tags;
+      tags?.forEach((t) => tagSet.add(t));
+    }
+    return Array.from(tagSet).sort();
+  }, [visibleTenants]);
 
   // showing the first tenant as open, to make clearer that:
   // 1. tenants can expand
@@ -1142,6 +1151,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
               <UserGroupsTab
                 organizationId={orgId}
                 allOrgMembers={organization?.members ?? []}
+                allTenantTags={allTenantTags}
               />
             </TabsContent>
           )}
@@ -1495,21 +1505,19 @@ function TenantAccordionItem({
   return (
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <AccordionTrigger className="flex-1 py-1 hover:no-underline [&>svg]:text-muted-foreground">
-          <div className="flex min-w-0 items-center gap-2 text-left">
+        <AccordionTrigger headerClassName="min-w-0 flex-1" className="py-1 hover:no-underline [&>svg]:text-muted-foreground">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
             <p className="min-w-0 truncate font-medium leading-5">
               {tenant.name || tenant.id}
             </p>
             <TenantRegionBadge region={tenant.region} />
-            {((tenant as unknown as { tags?: string[] }).tags ?? []).map(
-              (tag) => (
-                <TagBadge key={tag} tag={tag} />
-              ),
-            )}
+            <TagList
+              tags={(tenant as unknown as { tags?: string[] }).tags ?? []}
+            />
           </div>
         </AccordionTrigger>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2">
           <div className="hidden items-center gap-2 lg:flex">
             <span className="font-mono text-xs text-muted-foreground">
               {tenant.id}
