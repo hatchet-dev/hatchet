@@ -248,7 +248,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		}
 	}
 
-	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string) (*operator.DAGStepTriggerResult, error) {
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error) {
 		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
 			ParentTaskExternalId: externalId,
 			InvocationCount:      action.GetDurableTaskInvocationCount(),
@@ -257,6 +257,8 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 			ChildIndex:           childIndex,
 			Input:                action.ActionPayload,
 			DagParentRunIds:      parentRunIds,
+			IsSkipped:            isSkipped,
+			IsCancelled:          isCancelled,
 		})
 	}
 
@@ -314,6 +316,7 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 
 	tasksByStepId := make(map[uuid.UUID]*task, len(steps))
 	tasks := make([]*task, 0, len(steps))
+	stepIds := make([]uuid.UUID, 0, len(steps))
 
 	taskIndex := 0
 	for _, s := range steps {
@@ -325,10 +328,12 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 			id:           s.ID,
 			actionId:     s.ActionId,
 			workflowName: s.WorkflowName,
+			readableId:   s.ReadableId.String,
 			index:        int32(taskIndex), // nolint:gosec
 		}
 		tasksByStepId[s.ID] = t
 		tasks = append(tasks, t)
+		stepIds = append(stepIds, s.ID)
 		taskIndex++
 	}
 
@@ -340,6 +345,19 @@ func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAc
 		for _, parentId := range s.Parents {
 			if parent, ok := tasksByStepId[parentId]; ok {
 				t.parents = append(t.parents, parent)
+			}
+		}
+	}
+
+	if len(stepIds) > 0 {
+		stepConditions, err := d.repo.Workflows().ListStepMatchConditions(ctx, d.TenantId(), stepIds)
+		if err != nil {
+			return nil, fmt.Errorf("could not list step match conditions for workflow version %s: %w", versionId, err)
+		}
+
+		for _, cond := range stepConditions {
+			if t, ok := tasksByStepId[cond.StepID]; ok {
+				t.stepConditions = append(t.stepConditions, cond)
 			}
 		}
 	}
