@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"github.com/rs/zerolog"
 )
@@ -144,6 +145,14 @@ func (c *ConcurrencyStrategy) buildIndexLoop(ctx context.Context) {
 // index and flushing the resulting slot decisions to the database. It returns the merged
 // *repository.RunConcurrencyResult across all batches processed this tick.
 func (c *ConcurrencyStrategy) Run(ctx context.Context) (*repository.RunConcurrencyResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "concurrency-strategy-run")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+	)
+
 	// wait for the initial (async) index build to complete before processing WAL messages. If the
 	// caller's context expires first, surface a clear error rather than running against an
 	// incomplete index - the build keeps going on its own lifecycle context and a later Run will
@@ -220,6 +229,14 @@ func (c *ConcurrencyStrategy) runInitialQueueing(ctx context.Context) (*reposito
 // delete messages, but this post-build pass has no outbox message to attach to, so it manages its
 // own transaction (and finalizes the undo scopes inline rather than handing them to Run).
 func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repository.RunConcurrencyResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "concurrency-initial-queueing")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+	)
+
 	// hold buildingMu so we don't queue against a half-built index (same guard as processWALMessages)
 	c.buildingMu.Lock()
 	defer c.buildingMu.Unlock()
@@ -241,7 +258,7 @@ func (c *ConcurrencyStrategy) queueAllSubQueues(ctx context.Context) (*repositor
 
 	now := time.Now().UTC()
 
-	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(grouped, now, c.decide())
+	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(ctx, grouped, now, c.decide())
 
 	tasksToSetFilled, cancelledSlots := buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout)
 
@@ -359,6 +376,14 @@ type walMessage struct {
 }
 
 func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
+	ctx, span := telemetry.NewSpan(ctx, "concurrency-build-index")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+	)
+
 	c.buildingMu.Lock()
 	defer c.buildingMu.Unlock()
 
@@ -571,7 +596,7 @@ func (c *ConcurrencyStrategy) processStrategy(ctx context.Context, tx pgx.Tx, ms
 	// single "now" so every sub-queue evaluates scheduling timeouts against the same instant
 	now := time.Now().UTC()
 
-	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(grouped, now, decide)
+	touched, slotsToSetFilled, slotsToDelete, slotsToTimeout := c.decideSubQueues(ctx, grouped, now, decide)
 
 	// Hand the open undo scopes to Run, which finalizes them once ProcessMessages returns. We must
 	// not commit/rollback here: pgoutbox still deletes the messages and commits the transaction
@@ -598,7 +623,15 @@ func (c *ConcurrencyStrategy) processStrategy(ctx context.Context, tx pgx.Tx, ms
 // touched so the caller can finalize the scopes once its flush is durable. The returned slot slices
 // are the merged fill/delete/timeout decisions across all sub-queues. The post-build pass passes nil
 // message slices so only the decide step runs against the hydrated slots.
-func (c *ConcurrencyStrategy) decideSubQueues(grouped map[string][]walMessage, now time.Time, decide decideFn) (touched []*subQueue, slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) {
+func (c *ConcurrencyStrategy) decideSubQueues(ctx context.Context, grouped map[string][]walMessage, now time.Time, decide decideFn) (touched []*subQueue, slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) {
+	_, span := telemetry.NewSpan(ctx, "concurrency-decide-sub-queues")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+		telemetry.AttributeKV{Key: "concurrency.sub-queue.count", Value: len(grouped)},
+	)
 	wg := sync.WaitGroup{}
 	var batchMu sync.Mutex
 
@@ -646,6 +679,16 @@ func (c *ConcurrencyStrategy) decideSubQueues(grouped map[string][]walMessage, n
 }
 
 func (c *ConcurrencyStrategy) flushToDatabase(ctx context.Context, tx pgx.Tx, slotsToSetFilled, slotsToDelete, slotsToTimeout []slot) (*repository.RunConcurrencyResult, error) {
+	ctx, span := telemetry.NewSpan(ctx, "concurrency-flush-to-database")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "concurrency.strategy.id", Value: c.strategy.ID},
+		telemetry.AttributeKV{Key: "tenant.id", Value: c.strategy.TenantID},
+		telemetry.AttributeKV{Key: "concurrency.slots.filled", Value: len(slotsToSetFilled)},
+		telemetry.AttributeKV{Key: "concurrency.slots.cancelled", Value: len(slotsToDelete) + len(slotsToTimeout)},
+	)
+
 	tasksToSetFilled, cancelledSlots := buildSlotInputs(slotsToSetFilled, slotsToDelete, slotsToTimeout)
 
 	runResult, err := c.repo.UpdateConcurrencySlotsTx(ctx, tx, c.strategy.TenantID, c.strategy.ID, tasksToSetFilled, cancelledSlots)
