@@ -1131,7 +1131,7 @@ class DurableContext(Context):
                 "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "
             )
 
-        if ack.memo_already_existed and ack.memo_result_payload is not None:
+        if ack.memo_already_existed and ack.memo_result_payload:
             serialized_result = ack.memo_result_payload
             result = adapter.validate_json(
                 serialized_result, context=HATCHET_PYDANTIC_SENTINEL
