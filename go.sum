@@ -273,6 +273,8 @@ github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hatchet-dev/pgoutbox v0.2.0 h1:DphItrLVDaFsGOjbVm4Qgy93LfTyGTSK3nidMt7cUxg=
 github.com/hatchet-dev/pgoutbox v0.2.0/go.mod h1:x7wEFajIrOJ+goWri49MjzlkdwLHMdr+dZkXjVCm9ho=
+github.com/hatchet-dev/hatchet-quickstarts v0.1.0 h1:1NhP06WYnm7A+27W/dKj+NXJHZ/QFJLVaXqAiU6cAF8=
+github.com/hatchet-dev/hatchet-quickstarts v0.1.0/go.mod h1:kuGRjIxJUqfY6MR8x1oOrozo+G1Yo3q6A/GQqoDRp6M=
 github.com/hatchet-dev/timediff v0.0.4 h1:RfYX1ehoa/qxHKAGQBMAvmkPx+FRQfUV37tDy/G1pOY=
 github.com/hatchet-dev/timediff v0.0.4/go.mod h1:PrtGf43MxnKwg3DNrRxdBdkCu+7BUgcJ8V5X1Gtx5xI=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
