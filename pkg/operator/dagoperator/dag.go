@@ -16,7 +16,7 @@ import (
 type dag struct {
 	requestCh chan<- *v1contracts.DurableTaskRequest
 
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
 
 	// important: task ordering must be the same between instances
 	tasks           []*task
@@ -30,7 +30,7 @@ type dag struct {
 
 type pendingWaitAck struct {
 	task   *task
-	isSkip bool
+	isSkipIf bool
 }
 
 type task struct {
@@ -45,7 +45,7 @@ type task struct {
 	isFailed     bool
 	isCancelled  bool
 	isTriggered  bool
-	isSkipped    bool
+	isSkipIfped    bool
 	errorMessage string
 	output       map[string]interface{}
 
@@ -54,10 +54,10 @@ type task struct {
 	waitNodeId      int64
 	waitBranchId    int64
 
-	isSkipWaiting       bool
-	isSkipWaitSatisfied bool
-	skipWaitNodeId      int64
-	skipWaitBranchId    int64
+	isSkipIfIfRegistered bool
+	isSkipIfIfFired      bool
+	skipIfNodeId       int64
+	skipIfBranchId     int64
 
 	stepConditions []*sqlcv1.V1StepMatchCondition
 
@@ -80,7 +80,7 @@ func dagDurableTask(
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
 ) error {
 	d := &dag{
 		tasks:           tasks,
@@ -122,7 +122,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 	}
 
 	for _, t := range d.tasks {
-		if t.isTriggered || t.isSkipped {
+		if t.isTriggered || t.isSkipIfped {
 			continue
 		}
 
@@ -156,15 +156,15 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			}
 
 			if !cancelled {
-				if d.hasSkipWaitConditions(t) && !t.isSkipWaiting {
-					if err := d.registerSkipWaitFor(t); err != nil {
+				if d.hasSkipIfUserEventConditions(t) && !t.isSkipIfIfRegistered {
+					if err := d.registerSkipIfWatch(t); err != nil {
 						d.err = fmt.Errorf("failed to register skip_if wait for task %q: %w", t.actionId, err)
 						return d.err
 					}
-					t.isSkipWaiting = true
+					t.isSkipIfIfRegistered = true
 				}
 
-				if t.isSkipWaitSatisfied {
+				if t.isSkipIfIfFired {
 					skip = true
 				}
 
@@ -193,7 +193,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 				}
 
 				if skip {
-					t.isSkipped = true
+					t.isSkipIfped = true
 				}
 
 				t.nodeId = result.NodeId
@@ -243,9 +243,9 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 		// so acks arrive in the same order we sent the WAITFOR requests.
 		ack := d.pendingWaitAcks[0]
 		d.pendingWaitAcks = d.pendingWaitAcks[1:]
-		if ack.isSkip {
-			ack.task.skipWaitNodeId = ref.GetNodeId()
-			ack.task.skipWaitBranchId = ref.GetBranchId()
+		if ack.isSkipIf {
+			ack.task.skipIfNodeId = ref.GetNodeId()
+			ack.task.skipIfBranchId = ref.GetBranchId()
 		} else {
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
@@ -261,8 +261,8 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 		branchId := ref.GetBranchId()
 
 		for _, t := range d.tasks {
-			if t.isSkipWaiting && !t.isSkipWaitSatisfied && t.skipWaitNodeId == nodeId && t.skipWaitBranchId == branchId {
-				t.isSkipWaitSatisfied = true
+			if t.isSkipIfIfRegistered && !t.isSkipIfIfFired && t.skipIfNodeId == nodeId && t.skipIfBranchId == branchId {
+				t.isSkipIfIfFired = true
 				return
 			}
 
@@ -288,7 +288,7 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 				if err := json.Unmarshal(payload, &outputData); err == nil {
 					t.output = outputData
 					if skipped, ok := outputData["skipped"].(bool); ok && skipped {
-						t.isSkipped = true
+						t.isSkipIfped = true
 					}
 					if cancelled, ok := outputData["cancelled"].(bool); ok && cancelled {
 						t.isCancelled = true
@@ -441,11 +441,11 @@ func (d *dag) registerWaitFor(t *task) error {
 		},
 	}
 
-	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkip: false})
+	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: false})
 	return nil
 }
 
-func (d *dag) hasSkipWaitConditions(t *task) bool {
+func (d *dag) hasSkipIfUserEventConditions(t *task) bool {
 	for _, c := range t.stepConditions {
 		if c.Kind == sqlcv1.V1StepMatchConditionKindUSEREVENT && c.Action == sqlcv1.V1MatchConditionActionSKIP {
 			return true
@@ -454,7 +454,7 @@ func (d *dag) hasSkipWaitConditions(t *task) bool {
 	return false
 }
 
-func (d *dag) registerSkipWaitFor(t *task) error {
+func (d *dag) registerSkipIfWatch(t *task) error {
 	conditions := &v1contracts.DurableEventListenerConditions{}
 
 	for _, c := range t.stepConditions {
@@ -481,7 +481,7 @@ func (d *dag) registerSkipWaitFor(t *task) error {
 		},
 	}
 
-	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkip: true})
+	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: true})
 	return nil
 }
 
