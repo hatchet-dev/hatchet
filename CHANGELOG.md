@@ -2,27 +2,23 @@
 
 ### Upgrade Notes
 
-* This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, we recommend running the following query against your Postgres instance to ensure a bulk-cleanup:
+* This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, you can optionally run the following query as many times as needed against your Postgres instance to ensure a bulk-cleanup prior to upgrade:
 
 ```sql
-BEGIN;
-
-LOCK TABLE "UserSession" IN ACCESS EXCLUSIVE MODE;
-
-CREATE TABLE tmp_UserSession AS
-SELECT *
-FROM "UserSession"
-WHERE
-   ("userId" IS NOT NULL AND "expiresAt" >= NOW())
-OR
-   ("userId" IS NULL AND "createdAt" >= NOW() - INTERVAL '24 hours');
-
-DROP TABLE "UserSession";
-
-ALTER TABLE tmp_UserSession RENAME TO "UserSession";
-
-COMMIT;
+DELETE FROM "UserSession"
+WHERE ctid IN (
+    SELECT ctid
+    FROM "UserSession"
+    WHERE NOT (
+        ("userId" IS NOT NULL AND "expiresAt" >= NOW())
+        OR
+        ("userId" IS NULL AND "createdAt" >= NOW() - INTERVAL '24 hours')
+    )
+    LIMIT 10000
+);
 ```
+
+Note: The limit of `10 000` can be adjusted if needed.
 
 ### Added
 
