@@ -51,6 +51,8 @@ type DAGStepTriggerRequest struct {
 	ChildIndex           int32
 	Input                string
 	DagParentRunIds      []string
+	IsSkipped            bool
+	IsCancelled          bool
 }
 
 type DAGStepTriggerResult struct {
