@@ -1304,7 +1304,7 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 		Data:            condition.Data,
 	}
 
-	if condition.EventResourceHint != nil {
+	if condition.EventResourceHint != nil && *condition.EventResourceHint != uuid.Nil.String() {
 		param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
 	}
 
