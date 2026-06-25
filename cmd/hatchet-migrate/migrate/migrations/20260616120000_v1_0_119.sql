@@ -37,10 +37,13 @@ BEGIN
             RETURN '5 minutes'::interval;
         END IF;
 
-        -- Digit cap keeps the cast and the sum well inside double precision,
-        -- so oversized values fall back instead of raising.
+        -- Digit cap keeps the cast and the sum well inside double precision.
+        -- Registration validation rejects this, so the only way to reach this
+        -- branch is a stored value from before the validator change or a
+        -- client bypassing validation. Fail loud rather than silently
+        -- substitute a different timeout.
         IF length(m[1]) > 15 THEN
-            RETURN '5 minutes'::interval;
+            RAISE EXCEPTION 'duration % has a numeric component exceeding 15 digits', duration;
         END IF;
 
         val := m[1]::double precision;
@@ -59,9 +62,10 @@ BEGIN
     END LOOP;
 
     -- Anything beyond Go's maximum duration (~292 years) cannot have passed
-    -- registration validation; fall back rather than risk interval overflow.
+    -- registration validation; fail loud rather than silently substitute a
+    -- different timeout.
     IF total_seconds > 9223372036 THEN
-        RETURN '5 minutes'::interval;
+        RAISE EXCEPTION 'duration % exceeds maximum supported value (~292 years)', duration;
     END IF;
 
     RETURN make_interval(secs => total_seconds);

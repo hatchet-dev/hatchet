@@ -24,14 +24,16 @@ func TestConvertDurationToInterval(t *testing.T) {
 	v := hatchetvalidator.NewDefaultValidator()
 
 	// Shared corpus: everything registration validation accepts must be
-	// enforced as the same number of seconds, and everything it rejects
-	// must hit the SQL fallback (5 minutes = 300s) rather than parse to
-	// something else.
+	// enforced as the same number of seconds. Everything it rejects must
+	// either hit the SQL fallback (5 minutes = 300s) for genuinely garbled
+	// input, or raise loudly when the value is well outside the grammar
+	// (oversized digit count, beyond Go's max duration).
 	epochCases := []struct {
 		name         string
 		input        string
 		seconds      float64
 		wantFallback bool
+		wantRaise    bool
 	}{
 		{name: "single second", input: "42s", seconds: 42},
 		{name: "single minute", input: "11m", seconds: 660},
@@ -51,17 +53,27 @@ func TestConvertDurationToInterval(t *testing.T) {
 		{name: "microseconds", input: "100us", wantFallback: true},
 		{name: "mixed multi-unit and legacy", input: "30s1d", wantFallback: true},
 		{name: "decimal legacy unit", input: "1.5d", wantFallback: true},
-		{name: "overflows go duration", input: "9999999999999h", wantFallback: true},
-		{name: "exceeds digit cap", input: "1234567890123456h", wantFallback: true},
+		{name: "overflows go duration", input: "9999999999999h", wantRaise: true},
+		{name: "exceeds digit cap", input: "1234567890123456h", wantRaise: true},
 	}
 
 	for _, tc := range epochCases {
 		t.Run(tc.name, func(t *testing.T) {
 			valErr := v.Validate(&durationField{Duration: tc.input})
-			if tc.wantFallback {
+			if tc.wantFallback || tc.wantRaise {
 				assert.Error(t, valErr, "validator must reject %q", tc.input)
 			} else {
 				assert.NoError(t, valErr, "validator must accept %q", tc.input)
+			}
+
+			if tc.wantRaise {
+				var got float64
+				err := pool.QueryRow(ctx,
+					`SELECT EXTRACT(EPOCH FROM convert_duration_to_interval($1))::double precision`,
+					tc.input,
+				).Scan(&got)
+				require.Error(t, err, "SQL function must raise on %q", tc.input)
+				return
 			}
 
 			var got float64
