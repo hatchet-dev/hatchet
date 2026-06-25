@@ -12,12 +12,14 @@ import {
 import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
 import { shardDeploymentKey } from '@/lib/shard-deployment-key';
-import { useMemo, useState } from 'react';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+import { KeyboardEvent, useCallback, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 type NewTenantInputFormProps = {
   defaultTenantName?: string;
   isSaving?: boolean;
+  allTenantTags?: string[];
 } & (
   | {
       isCloudEnabled: true;
@@ -101,12 +103,14 @@ export function NewTenantInputForm({
   availableShards = [],
   isShardsLoading = false,
   showTagsInput = false,
+  allTenantTags = [],
 }: NewTenantInputFormProps) {
   const [tenantName, setTenantName] = useState(defaultTenantName);
   const [selectedDeploymentRegion, setSelectedDeploymentRegion] = useState<
     string | undefined
   >();
-  const [rawTags, setRawTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInputValue, setTagInputValue] = useState('');
 
   const shardKeys = useMemo(
     () => availableShards.map(shardDeploymentKey),
@@ -118,10 +122,26 @@ export function NewTenantInputForm({
       ? selectedDeploymentRegion
       : shardKeys[0];
 
-  const parsedTags = rawTags
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
+  const addTag = useCallback(
+    (value: string) => {
+      const trimmed = value.trim();
+      if (trimmed && !tags.includes(trimmed)) {
+        setTags((prev) => [...prev, trimmed]);
+      }
+      setTagInputValue('');
+    },
+    [tags],
+  );
+
+  const removeTag = (tag: string) =>
+    setTags((prev) => prev.filter((t) => t !== tag));
+
+  const handleTagKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addTag(tagInputValue);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +153,7 @@ export function NewTenantInputForm({
         ...(showRegionSelect && deploymentRegion
           ? { region: deploymentRegion }
           : {}),
-        ...(showTagsInput && parsedTags.length > 0 ? { tags: parsedTags } : {}),
+        ...(showTagsInput && tags.length > 0 ? { tags } : {}),
       });
     } else {
       onSubmit({ tenantName });
@@ -194,19 +214,72 @@ export function NewTenantInputForm({
 
       {showTagsInput && (
         <div className="grid gap-2">
-          <Label htmlFor="tenant-tags">Tags (optional)</Label>
+          <Label>Tags (optional)</Label>
           <p className="text-sm text-muted-foreground">
-            Comma-separated tags. Members whose tags include all of these will
-            automatically get access to this tenant.
+            Users in user groups which match these tags automatically get access
+            to this tenant.
           </p>
-          <Input
-            id="tenant-tags"
-            placeholder="e.g. prod, us-east"
-            type="text"
-            value={rawTags}
-            onChange={(e) => setRawTags(e.target.value)}
-            disabled={isSaving}
-          />
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1 text-sm text-secondary-foreground"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    disabled={isSaving}
+                    className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
+                    aria-label={`Remove ${tag}`}
+                  >
+                    <XMarkIcon className="size-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {allTenantTags.filter((t) => !tags.includes(t)).length > 0 && (
+            <Select
+              onValueChange={addTag}
+              disabled={isSaving}
+              value=""
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Add an existing tag…" />
+              </SelectTrigger>
+              <SelectContent>
+                {allTenantTags
+                  .filter((t) => !tags.includes(t))
+                  .map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+          <div className="flex gap-2">
+            <Input
+              id="tenant-tags"
+              placeholder="New tag..."
+              type="text"
+              value={tagInputValue}
+              onChange={(e) => setTagInputValue(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              disabled={isSaving}
+              autoComplete="off"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => addTag(tagInputValue)}
+              disabled={isSaving || !tagInputValue.trim()}
+            >
+              Add
+            </Button>
+          </div>
         </div>
       )}
 

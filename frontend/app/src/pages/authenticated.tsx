@@ -91,6 +91,7 @@ function AuthenticatedInner() {
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
+  const [newTenantAllTags, setNewTenantAllTags] = useState<string[]>([]);
   const [inviteModalTenantId, setInviteModalTenantId] = useState<
     string | undefined
   >();
@@ -395,8 +396,9 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
+      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId, allTenantTags }) => {
         setDefaultOrganizationId(defaultOrganizationId);
+        setNewTenantAllTags(allTenantTags ?? []);
         setNewTenantModalOpen(true);
       }),
     [],
@@ -551,8 +553,10 @@ function AuthenticatedInner() {
             <div className="flex justify-center">
               <NewTenantSaverForm
                 defaultOrganizationId={defaultOrganizationId}
+                allTenantTags={newTenantAllTags}
                 afterSave={(result) => {
                   setDefaultOrganizationId(undefined);
+                  setNewTenantAllTags([]);
                   setNewTenantModalOpen(false);
                   const tenantId =
                     result.type === 'cloud'

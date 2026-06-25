@@ -1423,6 +1423,7 @@ function TenantsSection({
               onClick={() =>
                 globalEmitter.emit('create-new-tenant', {
                   defaultOrganizationId,
+                  allTenantTags: allTags,
                 })
               }
             >

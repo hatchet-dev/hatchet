@@ -111,13 +111,34 @@ export function EditTenantTagsModal({
         <DialogHeader>
           <DialogTitle>Edit Tenant Tags</DialogTitle>
           <DialogDescription>
-            Tags for <strong>{tenantName}</strong>. Users whose tags include all
-            of these tags will have access to this tenant.
+            Tags for <strong>{tenantName}</strong>. User groups with these tags will have access to this tenant.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Tags</Label>
+
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1 text-sm text-secondary-foreground"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      disabled={isPending}
+                      className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
+                      aria-label={`Remove ${tag}`}
+                    >
+                      <XMarkIcon className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {/* Select from existing tags */}
             {availableTagsToAdd.length > 0 && (
@@ -146,7 +167,7 @@ export function EditTenantTagsModal({
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder='New tag — type and press Enter'
+                placeholder="New tag..."
                 disabled={isPending}
                 autoComplete="off"
               />
@@ -159,28 +180,6 @@ export function EditTenantTagsModal({
                 Add
               </Button>
             </div>
-
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 rounded-md border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      disabled={isPending}
-                      className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
-                      aria-label={`Remove ${tag}`}
-                    >
-                      <XMarkIcon className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
           <div className="flex justify-end gap-3">
             <Button

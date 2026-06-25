@@ -214,6 +214,27 @@ export function EditUserGroupModal({
           {/* Tags */}
           <div className="space-y-2">
             <Label>Tags</Label>
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1 text-sm text-secondary-foreground"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      disabled={isPending}
+                      className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
+                      aria-label={`Remove ${tag}`}
+                    >
+                      <XMarkIcon className="size-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             {availableTagsToAdd.length > 0 ? (
               <Select
                 onValueChange={addTag}
@@ -237,27 +258,6 @@ export function EditUserGroupModal({
                   ? 'No tags exist on any tenant yet.'
                   : 'All available tags have been added.'}
               </p>
-            )}
-            {tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 rounded-md border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      disabled={isPending}
-                      className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
-                      aria-label={`Remove ${tag}`}
-                    >
-                      <XMarkIcon className="size-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
             )}
             <p className="text-xs text-muted-foreground">
               Members in this group get access to tenants whose tags are a
