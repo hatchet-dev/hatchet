@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -963,7 +964,7 @@ func (c *ConcurrencyRepositoryImpl) UpdateConcurrencySlotsTx(
 	}
 
 	// releaseTasks requires a 1:1 match between input tasks and returned rows, so dedupe first.
-	tasksToCancel = uniqueSet(tasksToCancel)
+	tasksToCancel = listutils.UniqBy(tasksToCancel, createTaskUniqueKey)
 
 	// note: we'd prefer to call cancelTasks here, but keeping this consistent with the previous concurrency
 	// implementation. the only important thing is that we delete v1_concurrency_slot, but we need to release
