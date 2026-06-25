@@ -82,6 +82,12 @@ type TriggerTaskData struct {
 
 	// (optional) a human-readable label shown in the activity log for this durable event entry
 	UserMessage *string `json:"user_message,omitempty"`
+
+	// (optional) when set, the task is created in SKIPPED state immediately (used by DAG operator)
+	IsSkipped bool `json:"is_skipped,omitempty"`
+
+	// (optional) when set, the task is created in CANCELLED state immediately (used by DAG operator)
+	IsCancelled bool `json:"is_cancelled,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -599,6 +605,8 @@ type triggerTuple struct {
 	triggeringEventKey        *string
 	dagParentWorkflowRunIds   []string
 	targetActionId            *string
+	isSkipped                 bool
+	isCancelled               bool
 }
 
 type createCoreUserEventOpts struct {
@@ -943,8 +951,13 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerEventKey:             triggeringEventKey,
 				})
 			case len(step.Parents) == 0 || tuple.targetActionId != nil:
-				// if we have additional match conditions, create a match instead of triggering a workflow for this step
-				additionalMatches := stepsToAdditionalMatches[stepId]
+				// When targetActionId is set, the DAG operator has already evaluated all wait/skip
+				// conditions before calling TriggerDAGStep, so we must create the task directly
+				// without re-applying the step's match conditions.
+				var additionalMatches []*sqlcv1.V1StepMatchCondition
+				if tuple.targetActionId == nil {
+					additionalMatches = stepsToAdditionalMatches[stepId]
+				}
 
 				if len(additionalMatches) > 0 {
 					// create an event match
@@ -1062,13 +1075,20 @@ func (r *sharedRepository) triggerWorkflows(
 						labels[i].StepId = stepId
 					}
 
+					initialState := sqlcv1.V1TaskInitialStateQUEUED
+					if tuple.isSkipped {
+						initialState = sqlcv1.V1TaskInitialStateSKIPPED
+					} else if tuple.isCancelled {
+						initialState = sqlcv1.V1TaskInitialStateCANCELLED
+					}
+
 					opt := CreateTaskOpts{
 						ExternalId:                taskExternalId,
 						WorkflowRunId:             tuple.externalId,
 						StepId:                    step.ID,
 						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentWorkflowRunIds),
 						AdditionalMetadata:        tuple.additionalMetadata,
-						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+						InitialState:              initialState,
 						DesiredWorkerId:           tuple.desiredWorkerId,
 						ParentTaskExternalId:      tuple.parentExternalId,
 						ParentTaskId:              tuple.parentTaskId,
@@ -2431,6 +2451,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				desiredWorkerLabels:     opt.DesiredWorkerLabels,
 				dagParentWorkflowRunIds: opt.DagParentWorkflowRunIds,
 				targetActionId:          opt.TargetActionId,
+				isSkipped:               opt.IsSkipped,
+				isCancelled:             opt.IsCancelled,
 			})
 		}
 	}
