@@ -236,11 +236,7 @@ export function EditUserGroupModal({
               </div>
             )}
             {availableTagsToAdd.length > 0 ? (
-              <Select
-                onValueChange={addTag}
-                disabled={isPending}
-                value=""
-              >
+              <Select onValueChange={addTag} disabled={isPending} value="">
                 <SelectTrigger>
                   <SelectValue placeholder="Add a tag…" />
                 </SelectTrigger>

@@ -17,11 +17,15 @@ export function TagList({ tags }: { tags: string[] }) {
   useLayoutEffect(() => {
     const container = containerRef.current;
     const measure = measureRef.current;
-    if (!container || !measure) return;
+    if (!container || !measure) {
+      return;
+    }
 
     const compute = () => {
       const available = container.clientWidth;
-      if (available === 0) return;
+      if (available === 0) {
+        return;
+      }
 
       const items = Array.from(measure.children) as HTMLElement[];
       const GAP = 4; // gap-1 = 4px
@@ -33,7 +37,9 @@ export function TagList({ tags }: { tags: string[] }) {
       for (let i = 0; i < items.length; i++) {
         const w = items[i].offsetWidth + (i > 0 ? GAP : 0);
         const isLast = i === items.length - 1;
-        if (used + w + (isLast ? 0 : ELLIPSIS_W) > available) break;
+        if (used + w + (isLast ? 0 : ELLIPSIS_W) > available) {
+          break;
+        }
         used += w;
         count++;
       }

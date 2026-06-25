@@ -1507,7 +1507,10 @@ function TenantAccordionItem({
   return (
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
       <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <AccordionTrigger headerClassName="min-w-0 flex-1" className="py-1 hover:no-underline [&>svg]:text-muted-foreground">
+        <AccordionTrigger
+          headerClassName="min-w-0 flex-1"
+          className="py-1 hover:no-underline [&>svg]:text-muted-foreground"
+        >
           <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
             <p className="min-w-0 truncate font-medium leading-5">
               {tenant.name || tenant.id}

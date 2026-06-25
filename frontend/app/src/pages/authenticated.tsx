@@ -396,11 +396,14 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId, allTenantTags }) => {
-        setDefaultOrganizationId(defaultOrganizationId);
-        setNewTenantAllTags(allTenantTags ?? []);
-        setNewTenantModalOpen(true);
-      }),
+      globalEmitter.on(
+        'create-new-tenant',
+        ({ defaultOrganizationId, allTenantTags }) => {
+          setDefaultOrganizationId(defaultOrganizationId);
+          setNewTenantAllTags(allTenantTags ?? []);
+          setNewTenantModalOpen(true);
+        },
+      ),
     [],
   );
 

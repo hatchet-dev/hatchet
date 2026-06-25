@@ -241,11 +241,7 @@ export function NewTenantInputForm({
             </div>
           )}
           {allTenantTags.filter((t) => !tags.includes(t)).length > 0 && (
-            <Select
-              onValueChange={addTag}
-              disabled={isSaving}
-              value=""
-            >
+            <Select onValueChange={addTag} disabled={isSaving} value="">
               <SelectTrigger>
                 <SelectValue placeholder="Add an existing tag…" />
               </SelectTrigger>

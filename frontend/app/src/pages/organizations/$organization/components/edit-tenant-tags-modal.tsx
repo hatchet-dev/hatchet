@@ -111,7 +111,8 @@ export function EditTenantTagsModal({
         <DialogHeader>
           <DialogTitle>Edit Tenant Tags</DialogTitle>
           <DialogDescription>
-            Tags for <strong>{tenantName}</strong>. User groups with these tags will have access to this tenant.
+            Tags for <strong>{tenantName}</strong>. User groups with these tags
+            will have access to this tenant.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -142,11 +143,7 @@ export function EditTenantTagsModal({
 
             {/* Select from existing tags */}
             {availableTagsToAdd.length > 0 && (
-              <Select
-                onValueChange={addTag}
-                disabled={isPending}
-                value=""
-              >
+              <Select onValueChange={addTag} disabled={isPending} value="">
                 <SelectTrigger>
                   <SelectValue placeholder="Add an existing tag…" />
                 </SelectTrigger>
