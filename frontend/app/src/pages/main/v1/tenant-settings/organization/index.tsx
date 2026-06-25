@@ -1225,6 +1225,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
           organizationId={orgId}
           tenantId={tenantToEditTags.id}
           tenantName={tenantToEditTags.name || tenantToEditTags.id}
+          allTenantTags={allTenantTags}
           onSuccess={() =>
             queryClient.invalidateQueries({
               queryKey: ['organization:get', orgId],

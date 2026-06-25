@@ -8,6 +8,13 @@ import {
 } from '@/components/v1/ui/dialog';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -21,6 +28,7 @@ interface EditTenantTagsModalProps {
   tenantId: string;
   tenantName: string;
   onSuccess: () => void;
+  allTenantTags?: string[];
 }
 
 export function EditTenantTagsModal({
@@ -30,6 +38,7 @@ export function EditTenantTagsModal({
   tenantId,
   tenantName,
   onSuccess,
+  allTenantTags = [],
 }: EditTenantTagsModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
@@ -66,13 +75,16 @@ export function EditTenantTagsModal({
     onError: handleApiError,
   });
 
-  const addTag = useCallback(() => {
-    const value = inputValue.trim();
-    if (value && !tags.includes(value)) {
-      setTags((prev) => [...prev, value]);
-    }
-    setInputValue('');
-  }, [inputValue, tags]);
+  const addTag = useCallback(
+    (value: string) => {
+      const trimmed = value.trim();
+      if (trimmed && !tags.includes(trimmed)) {
+        setTags((prev) => [...prev, trimmed]);
+      }
+      setInputValue('');
+    },
+    [tags],
+  );
 
   const removeTag = (tag: string) =>
     setTags((prev) => prev.filter((t) => t !== tag));
@@ -80,7 +92,7 @@ export function EditTenantTagsModal({
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addTag();
+      addTag(inputValue);
     }
   };
 
@@ -90,6 +102,8 @@ export function EditTenantTagsModal({
   );
 
   const isPending = setTagsMutation.isPending;
+
+  const availableTagsToAdd = allTenantTags.filter((t) => !tags.includes(t));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,26 +117,49 @@ export function EditTenantTagsModal({
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="tag-input">Tags</Label>
+            <Label>Tags</Label>
+
+            {/* Select from existing tags */}
+            {availableTagsToAdd.length > 0 && (
+              <Select
+                onValueChange={addTag}
+                disabled={isPending}
+                value=""
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Add an existing tag…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTagsToAdd.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {tag}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Add a new tag */}
             <div className="flex gap-2">
               <Input
                 id="tag-input"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder='Type a tag and press Enter — e.g. "prod"'
+                placeholder='New tag — type and press Enter'
                 disabled={isPending}
                 autoComplete="off"
               />
               <Button
                 type="button"
                 variant="outline"
-                onClick={addTag}
+                onClick={() => addTag(inputValue)}
                 disabled={isPending || !inputValue.trim()}
               >
                 Add
               </Button>
             </div>
+
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {tags.map((tag) => (
