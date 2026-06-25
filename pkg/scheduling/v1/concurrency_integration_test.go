@@ -481,7 +481,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		l := zerolog.Nop()
 		// the outbox table and v1_concurrency_slot triggers are provided by migrations; mirror
 		// production by disabling pgoutbox's auto-migration.
-		outbox, err := pgoutbox.NewOutbox(conf.Pool, pgoutbox.WithAutoMigrate(false))
+		outbox, err := pgoutbox.NewOutbox(t.Context(), conf.Pool, pgoutbox.WithAutoMigrate(false))
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),

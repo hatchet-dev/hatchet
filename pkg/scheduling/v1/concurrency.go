@@ -72,6 +72,8 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	var concurrencyStrategy *concurrency.ConcurrencyStrategy
 	if conf.concurrencyInMemoryIndexEnabled && !strategy.ParentStrategyID.Valid {
 		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
+	} else {
+		concurrency.NewNoOpFlusher(ctx, conf.outbox, strategy, &l)
 	}
 
 	c := &ConcurrencyManager{

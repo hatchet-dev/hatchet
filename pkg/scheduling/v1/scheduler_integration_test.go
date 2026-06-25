@@ -60,7 +60,7 @@ func runWithDatabase(t *testing.T, test func(conf *database.Layer) error) {
 func newTestOutbox(t *testing.T, conf *database.Layer) pgoutbox.Outbox {
 	t.Helper()
 
-	o, err := pgoutbox.NewOutbox(conf.Pool, pgoutbox.WithAutoMigrate(false))
+	o, err := pgoutbox.NewOutbox(t.Context(), conf.Pool, pgoutbox.WithAutoMigrate(false))
 	require.NoError(t, err)
 
 	return o

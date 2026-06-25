@@ -734,7 +734,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	// the scheduler's outbox shares the same database connection pool, this means that we need to be
 	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
 	// method which should be used instead of the non-scoped versions.
-	concurrencyOutbox, err := pgoutbox.NewOutbox(dc.Pool, pgoutbox.WithAutoMigrate(false))
+	concurrencyOutbox, err := pgoutbox.NewOutbox(
+		context.Background(),
+		dc.Pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithDefaultExpiration(24*time.Hour),
+	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)

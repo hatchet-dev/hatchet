@@ -107,7 +107,7 @@ func NewConcurrencyStrategy(
 		l:         l,
 		compare:   priorityCompare,
 		outbox:    outbox,
-		topic:     fmt.Sprintf("%s.%d", strategy.TenantID, strategy.ID),
+		topic:     getTopic(strategy),
 		built:     make(chan struct{}),
 	}
 
@@ -116,6 +116,45 @@ func NewConcurrencyStrategy(
 	go c.buildIndexLoop(ctx)
 
 	return c
+}
+
+func NewNoOpFlusher(
+	ctx context.Context,
+	outbox pgoutbox.Outbox,
+	strategy *sqlcv1.V1StepConcurrency,
+	l *zerolog.Logger,
+) {
+	topic := getTopic(strategy)
+	f := pgoutbox.NewNopFlusher()
+
+	outbox.AddFlusher(topic, f)
+
+	go func() {
+		err := outbox.AcquireTopic(ctx, topic)
+
+		if err != nil {
+			l.Error().Err(err).Msgf("failed to acquire topic %s", topic)
+		}
+
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+
+			_, err = outbox.ProcessMessages(ctx, topic)
+
+			if err != nil {
+				l.Error().Err(err).Msgf("failed to process messages for topic %s", topic)
+			}
+
+			time.Sleep(5 * time.Second)
+		}
+	}()
+}
+
+// important: this needs to be kept in sync with the triggers in v1-core.sql
+func getTopic(strategy *sqlcv1.V1StepConcurrency) string {
+	return fmt.Sprintf("concurrency.%s.%d", strategy.TenantID, strategy.ID)
 }
 
 // buildIndexLoop hydrates the in-memory index, retrying with backoff until it succeeds or the
@@ -309,19 +348,14 @@ func (c *ConcurrencyStrategy) pruneEmpty(candidates []*subQueue) {
 	}
 }
 
-// Flush satisfies the pgoutbox.Flusher interface, but this strategy requires transactional
-// flushing so its slot writes commit atomically with the outbox message delete. pgoutbox always
-// prefers FlushWithTx for a TxFlusher, so this is never expected to be called.
-func (c *ConcurrencyStrategy) Flush(ctx context.Context, msgs []*outboxsqlc.Message) error {
-	return fmt.Errorf("concurrency strategy for topic %s requires transactional flushing (FlushWithTx)", c.topic)
-}
-
-// FlushWithTx implements the pgoutbox.TxFlusher interface. It runs inside the same transaction
+// Flush satisfies the pgoutbox.Flusher interface. It runs inside the same transaction
 // pgoutbox uses to acquire and delete the messages, so the slot writes performed here commit (or
 // roll back) atomically with the message delete. We unmarshal the WAL payloads, replay them into
 // the index, and stash the result for Run to collect. If we return an error, pgoutbox rolls the
 // transaction back and the messages are redelivered on a later Run.
-func (c *ConcurrencyStrategy) FlushWithTx(ctx context.Context, tx pgx.Tx, msgs []*outboxsqlc.Message) error {
+func (c *ConcurrencyStrategy) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsqlc.Message) error {
+	tx := ctx.Tx()
+
 	wal := make([]walMessage, 0, len(msgs))
 
 	for _, msg := range msgs {
@@ -387,6 +421,12 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 	c.buildingMu.Lock()
 	defer c.buildingMu.Unlock()
 
+	err := c.outbox.AcquireTopic(ctx, c.topic)
+
+	if err != nil {
+		return err
+	}
+
 	writeCh := make(chan *sqlcv1.ListConcurrencySlotsForIndexingRow, 10000)
 	done := make(chan struct{})
 
@@ -420,7 +460,7 @@ func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
 		}
 	}()
 
-	err := c.repo.ReadConcurrencySlotsForIndexing(ctx, c.strategy.TenantID, c.strategy.ID, writeCh)
+	err = c.repo.ReadConcurrencySlotsForIndexing(ctx, c.strategy.TenantID, c.strategy.ID, writeCh)
 	if err != nil {
 		return err
 	}
@@ -559,7 +599,7 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 					superseded = append(superseded, currentRunningSlot)
 					sq.running.delete(msg.TaskId)
 					sq.running.insert(walMessageToSlot(msg))
-				} else {
+				} else if currentRunningSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
 			} else if currentQueuedSlot, exists := sq.queued.get(msg.TaskId); exists {
@@ -568,7 +608,7 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 					superseded = append(superseded, currentQueuedSlot)
 					sq.queued.delete(msg.TaskId)
 					sq.queued.insert(walMessageToSlot(msg))
-				} else {
+				} else if currentQueuedSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
 			} else {

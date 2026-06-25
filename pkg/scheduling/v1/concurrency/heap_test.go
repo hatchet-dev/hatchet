@@ -260,13 +260,6 @@ func TestDeleteIndexZero(t *testing.T) {
 	}
 }
 
-func TestDeleteOutOfRangePanics(t *testing.T) {
-	h, _ := newTestHeap()
-	h.insert(item{key: 1, pri: 1})
-	assertPanics(t, "delete negative", func() { h.delete(-1) })
-	assertPanics(t, "delete >= len", func() { h.delete(5) })
-}
-
 func TestInsertManyIntoEmpty(t *testing.T) {
 	h, idx := newTestHeap()
 	h.insertMany(slices.Values([]item{

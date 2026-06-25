@@ -5,7 +5,7 @@ RETURNS trigger AS $$
 BEGIN
     INSERT INTO outbox.messages (topic, payload)
     SELECT
-        nt.tenant_id::text || '.' || nt.strategy_id::text,
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
         jsonb_build_object(
             'operation', 'INSERT',
             'key', nt.key,
@@ -17,8 +17,7 @@ BEGIN
         )
     FROM new_table nt
     JOIN v1_step_concurrency sc ON sc.id = nt.strategy_id
-    WHERE sc.parent_strategy_id IS NULL
-      AND sc.strategy IN ('GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST');
+    WHERE sc.parent_strategy_id IS NULL;
 
     RETURN NULL;
 END;
@@ -35,7 +34,7 @@ RETURNS trigger AS $$
 BEGIN
     INSERT INTO outbox.messages (topic, payload)
     SELECT
-        dr.tenant_id::text || '.' || dr.strategy_id::text,
+        'concurrency.' || dr.tenant_id::text || '.' || dr.strategy_id::text,
         jsonb_build_object(
             'operation', 'DELETE',
             'key', dr.key,
@@ -47,8 +46,7 @@ BEGIN
         )
     FROM deleted_rows dr
     JOIN v1_step_concurrency sc ON sc.id = dr.strategy_id
-    WHERE sc.parent_strategy_id IS NULL
-      AND sc.strategy IN ('GROUP_ROUND_ROBIN', 'CANCEL_IN_PROGRESS', 'CANCEL_NEWEST');
+    WHERE sc.parent_strategy_id IS NULL;
 
     RETURN NULL;
 END;
