@@ -520,7 +520,7 @@ func toWorkflowVersionLegacy(workflowVersion *sqlcv1.GetWorkflowVersionForEngine
 	return version
 }
 
-func putWorkflowAnalyticsFeatureFlags(opts *contracts.CreateWorkflowVersionOpts) analytics.Properties  {
+func putWorkflowAnalyticsFeatureFlags(opts *contracts.CreateWorkflowVersionOpts) analytics.Properties {
 	if opts == nil {
 		return nil
 	}
