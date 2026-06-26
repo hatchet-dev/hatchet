@@ -282,11 +282,11 @@ func (t *tenantManager) addConcurrencyStrategy(ctx context.Context, strategy *sq
 	c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
 	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
 
-	// This manager was created on-demand (incremental lease acquisition), which happens when a task
-	// arrives for a strategy this scheduler isn't already running (i.e. a "cold" strategy). Notify it
-	// immediately so it schedules the waiting task on its next loop iteration instead of waiting up to
-	// maxPollingInterval for the first ticker tick. The bulk setConcurrencyStrategies path deliberately
-	// does NOT do this, so startup/rebalance keeps the randomticker's load-spreading.
+	// Notify the newly instantiated manager so it evaluates its already-queued slots on the next loop
+	// iteration, instead of waiting up to maxPollingInterval for its first ticker tick. This is what
+	// lets a cold strategy schedule its waiting task promptly once its lease is acquired. The bulk
+	// setConcurrencyStrategies path deliberately does NOT do this, so startup/rebalance keeps the
+	// randomticker's load-spreading.
 	c.notify(ctx)
 }
 
@@ -404,22 +404,12 @@ func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
 }
 
 func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) {
-	// Acquire the lease and create the manager directly, rather than handing the strategy to the
-	// lease channel (a non-blocking send that can drop the message under load). addConcurrencyStrategy
-	// is idempotent and notifies the new manager immediately, so the cold task is scheduled at once.
-	strategy, err := t.leaseManager.acquireConcurrencyStrategyOnDemand(ctx, strategyId)
+	err := t.leaseManager.notifyNewConcurrencyStrategy(ctx, strategyId)
 
 	if err != nil {
-		t.l.Error().Err(err).Msgf("error acquiring on-demand lease for concurrency strategy %d", strategyId)
+		t.l.Error().Err(err).Msg("error notifying new concurrency strategy")
 		return
 	}
-
-	if strategy == nil {
-		// lease genuinely owned by another scheduler; that scheduler will manage it
-		return
-	}
-
-	t.addConcurrencyStrategy(ctx, strategy)
 }
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {

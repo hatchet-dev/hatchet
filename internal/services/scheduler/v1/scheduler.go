@@ -328,6 +328,8 @@ func (s *Scheduler) handleTask(ctx context.Context, task *msgqueue.Message) (err
 		return s.handleNewWorker(ctx, task)
 	case msgqueue.MsgIDNewQueue:
 		return s.handleNewQueue(ctx, task)
+	case msgqueue.MsgIDNewConcurrencyStrategy:
+		return s.handleNewConcurrencyStrategy(ctx, task)
 	}
 
 	return fmt.Errorf("unknown task: %s", task.ID)
@@ -377,6 +379,19 @@ func (s *Scheduler) handleNewQueue(ctx context.Context, msg *msgqueue.Message) e
 
 	for _, payload := range payloads {
 		s.pool.NotifyNewQueue(ctx, msg.TenantID, payload.QueueName)
+	}
+
+	return nil
+}
+
+func (s *Scheduler) handleNewConcurrencyStrategy(ctx context.Context, msg *msgqueue.Message) error {
+	ctx, span := telemetry.NewSpanWithCarrier(ctx, "handle-new-concurrency-strategy", msg.OtelCarrier)
+	defer span.End()
+
+	payloads := msgqueue.JSONConvert[tasktypes.NewConcurrencyStrategyPayload](msg.Payloads)
+
+	for _, payload := range payloads {
+		s.pool.NotifyNewConcurrencyStrategy(ctx, msg.TenantID, payload.StrategyId)
 	}
 
 	return nil

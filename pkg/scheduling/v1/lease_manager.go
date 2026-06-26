@@ -98,12 +98,13 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
-	select {
-	case l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
+	// Blocking send: an acquired concurrency lease must never be dropped, otherwise its manager is
+	// never instantiated and a cold strategy waits for the next lease poll to schedule its task. The
+	// listener is always reading except during cleanup, where processMu serializes against this send
+	// and the recover() above handles a racing send on a closed channel.
+	l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
 		items:         concurrencyLeases,
 		isIncremental: isIncremental,
-	}:
-	default:
 	}
 }
 
@@ -418,67 +419,58 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	return nil
 }
 
-// acquireConcurrencyStrategyOnDemand acquires a lease for a single concurrency strategy on-demand
-// (the cold-start path). It returns the strategy when a ConcurrencyManager should be created for it,
-// or nil when the lease is already held here or is owned by another scheduler.
+// notifyNewConcurrencyStrategy acquires a lease for a single concurrency strategy on-demand and hands
+// it to the lease channel, which instantiates the ConcurrencyManager. This mirrors notifyNewQueue.
 //
-// Unlike the periodic lease loop, this takes a BLOCKING lock and returns the strategy to the caller
-// rather than delivering it over the (non-blocking, lossy) lease channel. Callers run this off the
-// hot path in their own goroutine, so blocking is fine -- and it guarantees the acquisition is not
-// silently dropped under contention (the previous TryLock + non-blocking-send approach would no-op
-// when several cold strategies raced each other or the periodic poll, falling back to the 5s poll).
-func (l *LeaseManager) acquireConcurrencyStrategyOnDemand(ctx context.Context, strategyId int64) (*sqlcv1.V1StepConcurrency, error) {
+// It is a no-op when we already hold the lease for the strategy: because sendConcurrencyLeases is a
+// blocking send, holding the lease implies a manager was (or is being) created for it, so there is
+// nothing to do.
+func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) error {
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()
 
 	if l.cleanedUp {
-		return nil, nil
+		return nil
 	}
 
-	l.concurrencyLeasesMu.Lock()
+	if !l.concurrencyLeasesMu.TryLock() {
+		return nil
+	}
+
 	defer l.concurrencyLeasesMu.Unlock()
+
+	// check that we don't already have a lease for this concurrency strategy
+	for _, lease := range l.concurrencyLeases {
+		if lease.ResourceId == fmt.Sprintf("%d", strategyId) {
+			return nil
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
-	// Callers only reach this path when NO manager exists for the strategy, so we must always return
-	// the strategy and let the caller (idempotently) ensure a manager. Whether we already hold the
-	// lease only decides if we re-acquire it: a lease can be held WITHOUT a live manager (e.g. the
-	// bulk periodic lease-channel send was dropped), and in that case returning nil here would leave
-	// the cold task waiting for the next poll. Holding the lease must never block manager creation.
-	alreadyLeased := false
-	for _, lease := range l.concurrencyLeases {
-		if lease.ResourceId == fmt.Sprintf("%d", strategyId) {
-			alreadyLeased = true
-			break
-		}
-	}
-
 	strategy, err := l.lr.GetConcurrencyStrategy(ctx, l.tenantId, strategyId)
 
 	if err != nil {
-		return nil, err
-	}
-
-	if alreadyLeased {
-		// lease already held here; just ensure the manager exists (no re-acquire needed)
-		return strategy, nil
+		return err
 	}
 
 	lease, err := l.lr.AcquireOrExtendLeases(ctx, l.tenantId, sqlcv1.LeaseKindCONCURRENCYSTRATEGY, []string{fmt.Sprintf("%d", strategyId)}, []*sqlcv1.Lease{})
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(lease) == 0 || lease[0].ResourceId == "" {
-		// the lease is genuinely owned by another scheduler; it will manage this strategy
-		return nil, nil
+		// the lease is owned by another scheduler; it will manage this strategy
+		return nil
 	}
 
 	l.concurrencyLeases = append(l.concurrencyLeases, lease...)
 
-	return strategy, nil
+	l.sendConcurrencyLeases([]*sqlcv1.V1StepConcurrency{strategy}, true)
+
+	return nil
 }
 
 func (l *LeaseManager) acquireAllLeases(ctx context.Context) {

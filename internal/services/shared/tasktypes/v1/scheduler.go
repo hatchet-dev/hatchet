@@ -122,3 +122,21 @@ func NotifyNewQueue(tenantId uuid.UUID, queueName string) (*msgqueue.Message, er
 		payload,
 	)
 }
+
+type NewConcurrencyStrategyPayload struct {
+	StrategyId int64 `json:"strategy_id"`
+}
+
+func NotifyNewConcurrencyStrategy(tenantId uuid.UUID, strategyId int64) (*msgqueue.Message, error) {
+	payload := NewConcurrencyStrategyPayload{
+		StrategyId: strategyId,
+	}
+
+	return msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDNewConcurrencyStrategy,
+		true,
+		false,
+		payload,
+	)
+}
