@@ -658,6 +658,8 @@ export interface V1TriggerWorkflowRunRequest {
   additionalMetadata?: object;
   /** The priority of the workflow run. */
   priority?: number;
+  /** A boolean flag indicating whether to only return the id of the created run. */
+  return_only_id?: boolean;
 }
 
 export interface V1WorkflowRun {
