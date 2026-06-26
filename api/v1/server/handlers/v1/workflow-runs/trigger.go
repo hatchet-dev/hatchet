@@ -88,6 +88,20 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		return nil, err
 	}
 
+	if request.Body.ReturnOnlyId != nil && *request.Body.ReturnOnlyId {
+		return gen.V1WorkflowRunCreate200JSONResponse(
+			gen.V1WorkflowRunDetails{
+				Run: gen.V1WorkflowRun{
+					Metadata: gen.APIResourceMeta{
+						Id:        resp.ExternalId,
+						CreatedAt: time.Now().UTC(),
+						UpdatedAt: time.Now().UTC(),
+					},
+				},
+			},
+		), nil
+	}
+
 	// loop for workflow to be created in the OLAP database
 	var rawWorkflowRun *v1.V1WorkflowRunPopulator
 	retries := 0
