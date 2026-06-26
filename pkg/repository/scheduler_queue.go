@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -624,7 +625,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
 	stepIdToLabels := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
-	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+	uniqueStepIds := listutils.Uniq(stepIds)
 
 	for _, stepId := range uniqueStepIds {
 		if value, found := d.stepIdLabelsCache.Get(stepId); found {
@@ -673,7 +674,7 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
 	defer span.End()
 
-	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+	uniqueStepIds := listutils.Uniq(stepIds)
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
 	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(uniqueStepIds))
