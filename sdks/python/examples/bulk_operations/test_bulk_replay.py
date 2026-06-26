@@ -31,7 +31,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     ]
     additional_metadata = {"test_run_id": test_run_id}
 
-    async def list_filtered_runs() -> V1TaskSummaryList:
+    async def list_filtered_runs() -> list[V1TaskSummary]:
         return await hatchet.runs.aio_list(
             workflow_ids=workflow_ids,
             since=test_start,
@@ -81,9 +81,8 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def wait_for_all_failed() -> V1TaskSummaryList:
-        runs = await list_filtered_runs()
-        rows = runs.rows or []
+    async def wait_for_all_failed() -> list[V1TaskSummary]:
+        rows = await list_filtered_runs()
 
         if len(rows) != expected_total:
             raise AssertionError(
@@ -116,9 +115,8 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
     @tenacity.retry(
         stop=stop_after_attempt(10), wait=wait_exponential(multiplier=1, min=4, max=10)
     )
-    async def wait_for_replayed_completed() -> V1TaskSummaryList:
-        runs = await list_filtered_runs()
-        rows = runs.rows or []
+    async def wait_for_replayed_completed() -> list[V1TaskSummary]:
+        rows = await list_filtered_runs()
 
         if len(rows) != expected_total:
             raise AssertionError(
@@ -147,7 +145,7 @@ async def test_bulk_replay(hatchet: Hatchet, test_run_id: str) -> None:
 
     runs = await wait_for_replayed_completed()
 
-    assert len(runs.rows) == expected_total
+    assert len(runs) == expected_total
 
     for run in runs:
         assert run.status == V1TaskStatus.COMPLETED

@@ -175,7 +175,7 @@ class EventClient(BaseRestClient):
         )
 
         response = cast(
-            EventProto,
+            "EventProto",
             await push_event(request, metadata=create_authorization_header(self.token)),  # type: ignore[misc]
         )
 
@@ -224,7 +224,6 @@ class EventClient(BaseRestClient):
                         else event.priority
                     ),
                     scope=event.scope,
-                    namespace_override=self.namespace,
                 )
                 for event in events
             ]
@@ -235,7 +234,7 @@ class EventClient(BaseRestClient):
         bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
 
         response = cast(
-            EventsProto,
+            "EventsProto",
             await bulk_push(  # type: ignore[misc]
                 bulk_request,
                 metadata=create_authorization_header(self.token),
@@ -335,7 +334,7 @@ class EventClient(BaseRestClient):
     ) -> PutStreamEventResponse:
         client = self._get_or_create_aio_client()
         return cast(
-            PutStreamEventResponse,
+            "PutStreamEventResponse",
             await client.PutStreamEvent(  # type: ignore[misc]
                 request, metadata=metadata
             ),

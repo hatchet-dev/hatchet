@@ -126,7 +126,7 @@ class LogRecord:
 
 
 class AsyncLogSender:
-    def __init__(self, event_client: EventClient):
+    def __init__(self, event_client: EventClient) -> None:
         self._event_client = event_client
         self.q: queue.SimpleQueue[LogRecord | STOP_LOOP_TYPE] = queue.SimpleQueue()
         self._thread: threading.Thread | None = None

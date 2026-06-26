@@ -643,40 +643,26 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_aio_push_event(
         self,
         wrapped: Callable[..., Coroutine[None, None, Event]],
-        instance: EventClient,
+        _instance: EventClient,
         args: tuple[
             str,
             JSONSerializableMapping,
-            PushEventOptions | None,
             JSONSerializableMapping | None,
             Priority | None,
             str | None,
         ],
         kwargs: dict[
             str,
-            str | JSONSerializableMapping | PushEventOptions | Priority | None,
+            str | JSONSerializableMapping | Priority | None,
         ],
     ) -> Event:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        event_key = cast(str, params[0])
-        payload = cast(JSONSerializableMapping, params[1])
-        options = cast(PushEventOptions | None, params[2])
-        additional_metadata = cast(JSONSerializableMapping | None, params[3])
-        priority = cast(Priority | None, params[4])
-        scope = cast(str | None, params[5])
-
-        additional_metadata = additional_metadata or (
-            options.additional_metadata if options else {}
-        )
-
-        priority_option = options.priority if options else None
-
-        if isinstance(priority_option, int):
-            priority_option = Priority(priority_option)
-
-        priority = priority or priority_option
-        scope = scope or (options.scope if options else None)
+        event_key = cast("str", params[0])
+        payload = cast("JSONSerializableMapping", params[1])
+        additional_metadata = cast("JSONSerializableMapping | None", params[2])
+        priority = cast("Priority | None", params[3])
+        scope = cast("str | None", params[4])
 
         attributes = {
             OTelAttribute.EVENT_KEY: event_key,
@@ -708,7 +694,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 payload,
                 None,
                 _inject_source_info(
-                    _inject_traceparent_into_metadata(dict(additional_metadata)),
+                    _inject_traceparent_into_metadata(additional_metadata or {}),
                 ),
                 priority,
                 scope,
@@ -717,22 +703,16 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_aio_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None],
+            [list[BulkPushEventWithMetadata]],
             Coroutine[None, None, list[Event]],
         ],
-        instance: EventClient,
-        args: tuple[
-            list[BulkPushEventWithMetadata],
-            BulkPushEventOptions | None,
-        ],
-        kwargs: dict[
-            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
-        ],
+        _instance: EventClient,
+        args: tuple[list[BulkPushEventWithMetadata],],
+        kwargs: dict[str, list[BulkPushEventWithMetadata] | None],
     ) -> list[Event]:
         params = self.extract_bound_args(wrapped, args, kwargs)
 
-        bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
-        options = cast(BulkPushEventOptions | None, params[1])
+        bulk_events = cast("list[BulkPushEventWithMetadata]", params[0])
 
         num_bulk_events = len(bulk_events)
         unique_event_keys = {event.key for event in bulk_events}
@@ -760,7 +740,6 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return await wrapped(
                 bulk_events_with_meta,
-                options,
             )
 
     def _build_run_workflow_attributes(
