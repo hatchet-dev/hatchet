@@ -17,6 +17,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  notFound,
   redirect,
 } from '@tanstack/react-router';
 import { Outlet } from '@tanstack/react-router';
@@ -218,6 +219,24 @@ const v1RedirectRoute = createRoute({
     throw redirect({ to: appRoutes.authenticatedRoute.to });
   },
 });
+
+/**
+ * Throws a notFound response when the request originates from a self-hosted
+ * (Lite) deployment that has neither cloud nor control-plane support.
+ * Managed-compute routes are a cloud-only feature; visiting them in Lite mode
+ * produces an infinite loading screen because the billing/cloud queries never
+ * resolve (see GitHub issue hatchet-dev/hatchet#3896).
+ */
+async function requireCloudOrControlPlane() {
+  const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
+    queryClient.fetchQuery(getCloudMetadataQuery),
+    fetchControlPlaneStatus(),
+  ]);
+
+  if (!isCloudEnabled && !isControlPlaneEnabled) {
+    throw notFound();
+  }
+}
 
 async function getOrganizationIdForTenantInRouter(tenantId: string) {
   const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
@@ -458,6 +477,7 @@ const tenantWorkerRoute = createRoute({
 const tenantManagedWorkersRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers',
+  loader: () => requireCloudOrControlPlane(),
   component: lazyRouteComponent(
     () => import('./pages/main/v1/managed-workers/index.tsx'),
     'default',
@@ -467,6 +487,7 @@ const tenantManagedWorkersRoute = createRoute({
 const tenantManagedWorkersTemplateRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers/demo-template',
+  loader: () => requireCloudOrControlPlane(),
   component: lazyRouteComponent(
     () => import('./pages/main/v1/managed-workers/demo-template/index.tsx'),
     'default',
@@ -476,6 +497,7 @@ const tenantManagedWorkersTemplateRoute = createRoute({
 const tenantManagedWorkersCreateRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers/create',
+  loader: () => requireCloudOrControlPlane(),
   component: lazyRouteComponent(
     () => import('./pages/main/v1/managed-workers/create/index.tsx'),
     'default',
@@ -485,6 +507,7 @@ const tenantManagedWorkersCreateRoute = createRoute({
 const tenantManagedWorkerRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'managed-workers/$managedWorker',
+  loader: () => requireCloudOrControlPlane(),
   component: lazyRouteComponent(
     () => import('./pages/main/v1/managed-workers/$managed-worker/index.tsx'),
     'default',
