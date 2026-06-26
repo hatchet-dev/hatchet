@@ -5,6 +5,18 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.12] - 2026-06-21
+
+### Fixed
+
+- Fixed a bug where `_aio_memo` crashes on durable task replay when the engine returns `memo_already_existed=True` with an empty payload (`b''`). Proto3 unset bytes fields deserialize to `b''` rather than `None`, slipping past the `is not None` guard and crashing `validate_json(b'')`.
+
+## [1.33.11] - 2026-06-18
+
+### Fixed
+
+- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with causes a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
+
 ## [1.33.10] - 2026-06-16
 
 ### Fixed

@@ -216,6 +216,7 @@ const createWorkflowTriggerScheduledRefForWorkflow = `-- name: CreateWorkflowTri
 WITH latest_version AS (
     SELECT "id" FROM "WorkflowVersion"
     WHERE "workflowId" = $6::uuid
+        AND "deletedAt" IS NULL
     ORDER BY "order" DESC
     LIMIT 1
 ),

@@ -16,6 +16,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
+	"github.com/hatchet-dev/hatchet/internal/services/shared/durable"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
@@ -796,6 +797,8 @@ func (s *Scheduler) handleDeadLetteredMessages(msg *msgqueue.Message) (err error
 		err = s.handleDeadLetteredTaskBulkAssigned(ctx, msg)
 	case msgqueue.MsgIDTaskCancelled:
 		err = s.handleDeadLetteredTaskCancelled(ctx, msg)
+	case msgqueue.MsgIDDurableCallbackCompleted:
+		err = s.handleDeadLetteredDurableCallbackCompleted(ctx, msg)
 	default:
 		err = fmt.Errorf("unknown task: %s", msg.ID)
 	}
@@ -852,6 +855,49 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 	}
 
 	return nil
+}
+
+func (s *Scheduler) handleDeadLetteredDurableCallbackCompleted(ctx context.Context, msg *msgqueue.Message) error {
+	payloads := msgqueue.JSONConvert[tasktypes.DurableCallbackCompletedPayload](msg.Payloads)
+
+	externalIds := make([]uuid.UUID, 0, len(payloads))
+	for _, p := range payloads {
+		externalIds = append(externalIds, p.TaskExternalId)
+	}
+
+	flatTasks, err := s.repov1.Tasks().FlattenExternalIds(ctx, msg.TenantID, externalIds)
+	if err != nil {
+		return fmt.Errorf("could not resolve tasks for undelivered durable callbacks: %w", err)
+	}
+
+	flatByExternalId := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow, len(flatTasks))
+	for _, t := range flatTasks {
+		flatByExternalId[t.ExternalID] = t
+	}
+
+	callbacks := make([]repov1.SatisfiedEntry, 0, len(payloads))
+
+	for _, p := range payloads {
+		t, ok := flatByExternalId[p.TaskExternalId]
+		if !ok {
+			s.l.Warn().Ctx(ctx).Msgf("no task found for undelivered durable callback %s, skipping", p.TaskExternalId)
+			continue
+		}
+
+		callbacks = append(callbacks, repov1.SatisfiedEntry{
+			DurableTaskId:         t.ID,
+			DurableTaskInsertedAt: t.InsertedAt,
+			DurableTaskExternalId: p.TaskExternalId,
+			InvocationCount:       p.InvocationCount,
+			BranchId:              p.BranchId,
+			NodeId:                p.NodeId,
+			Data:                  p.Payload,
+			ChildTaskIsFailure:    p.ChildTaskIsFailure,
+			ChildTaskErrorMessage: p.ChildTaskErrorMessage,
+		})
+	}
+
+	return durable.DispatchCallbacks(ctx, s.l, s.mq, s.repov1, msg.TenantID, callbacks)
 }
 
 func (s *Scheduler) handleDeadLetteredTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
