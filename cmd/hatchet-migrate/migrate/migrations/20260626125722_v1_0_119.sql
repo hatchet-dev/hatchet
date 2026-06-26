@@ -60,12 +60,9 @@ BEGIN
         parent_to_child_strategy_ids pcs
     ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
 
-    WITH strategies_to_touch AS (
+    WITH inactive_strategies AS (
         SELECT
-            strategy.workflow_id,
-            strategy.workflow_version_id,
-            strategy.step_id,
-            strategy.id
+            strategy.*
         FROM
             new_table cs
         JOIN
@@ -79,12 +76,12 @@ BEGIN
     )
     UPDATE v1_step_concurrency strategy
     SET is_active = TRUE, last_active = NOW()
-    FROM strategies_to_touch
+    FROM inactive_strategies
     WHERE
-        strategy.workflow_id = strategies_to_touch.workflow_id AND
-        strategy.workflow_version_id = strategies_to_touch.workflow_version_id AND
-        strategy.step_id = strategies_to_touch.step_id AND
-        strategy.id = strategies_to_touch.id;
+        strategy.workflow_id = inactive_strategies.workflow_id AND
+        strategy.workflow_version_id = inactive_strategies.workflow_version_id AND
+        strategy.step_id = inactive_strategies.step_id AND
+        strategy.id = inactive_strategies.id;
 
     RETURN NULL;
 END;

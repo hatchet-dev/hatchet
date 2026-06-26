@@ -838,18 +838,13 @@ BEGIN
         parent_to_child_strategy_ids pcs
     ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
 
-    -- Mark the strategies referenced by these slots active and refresh their last_active timestamp.
-    -- last_active keeps a strategy "warm": DeactivateStaleStepConcurrency only deactivates it once it
-    -- has had no slots for a full day. We only write the row when it actually needs refreshing
-    -- (inactive, or last_active older than an hour) to keep this off the hot slot-insert path, while
-    -- keeping last_active accurate to within an hour. ORDER BY id + FOR UPDATE preserves the stable
-    -- lock ordering used elsewhere to avoid deadlocks.
-    WITH strategies_to_touch AS (
+    -- Reactivate the strategy and refresh last_active so the 1-day stale-deactivation sweep measures
+    -- time since the last task run. We refresh when the strategy is inactive OR its last_active is more
+    -- than an hour stale, so a busy strategy rewrites its row at most once an hour (not on every task)
+    -- while keeping last_active within an hour of the last run -- ample precision for a 1-day threshold.
+    WITH inactive_strategies AS (
         SELECT
-            strategy.workflow_id,
-            strategy.workflow_version_id,
-            strategy.step_id,
-            strategy.id
+            strategy.*
         FROM
             new_table cs
         JOIN
@@ -863,12 +858,12 @@ BEGIN
     )
     UPDATE v1_step_concurrency strategy
     SET is_active = TRUE, last_active = NOW()
-    FROM strategies_to_touch
+    FROM inactive_strategies
     WHERE
-        strategy.workflow_id = strategies_to_touch.workflow_id AND
-        strategy.workflow_version_id = strategies_to_touch.workflow_version_id AND
-        strategy.step_id = strategies_to_touch.step_id AND
-        strategy.id = strategies_to_touch.id;
+        strategy.workflow_id = inactive_strategies.workflow_id AND
+        strategy.workflow_version_id = inactive_strategies.workflow_version_id AND
+        strategy.step_id = inactive_strategies.step_id AND
+        strategy.id = inactive_strategies.id;
 
     RETURN NULL;
 END;
