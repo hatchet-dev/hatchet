@@ -100,27 +100,28 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
-	msg := notifierMsg[*sqlcv1.V1StepConcurrency]{
+	// a full refresh supersedes anything still queued, so drain stale messages first
+	if !isIncremental {
+		l.drainConcurrencyLeasesCh()
+	}
+
+	select {
+	case l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
 		items:         concurrencyLeases,
 		isIncremental: isIncremental,
+	}:
+	default:
 	}
+}
 
-	if isIncremental {
-		// On-demand (cold-start) fast path: best-effort, non-blocking. Bursts are absorbed by the
-		// buffer; if it ever fills, the strategy is still active in the DB and the bulk reconcile
-		// below (the ~5s lease poll) will instantiate its manager, so dropping here is safe.
+func (l *LeaseManager) drainConcurrencyLeasesCh() {
+	for {
 		select {
-		case l.concurrencyLeasesCh <- msg:
+		case <-l.concurrencyLeasesCh:
 		default:
+			return
 		}
-		return
 	}
-
-	// Bulk reconcile from the ~5s lease-acquisition poll: this carries the full active set and creates
-	// any manager the fast path missed, so it must be delivered. Block until the listener accepts it
-	// (it drains continuously, so this only waits in the pathological full-buffer case). The recover()
-	// above handles a racing send on the channel closed during cleanup.
-	l.concurrencyLeasesCh <- msg
 }
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
@@ -434,12 +435,9 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	return nil
 }
 
-// notifyNewConcurrencyStrategy acquires a lease for a single concurrency strategy on-demand and hands
-// it to the lease channel, which instantiates the ConcurrencyManager. This mirrors notifyNewQueue.
-//
-// It is a no-op when we already hold the lease for the strategy: because sendConcurrencyLeases is a
-// blocking send, holding the lease implies a manager was (or is being) created for it, so there is
-// nothing to do.
+// notifyNewConcurrencyStrategy acquires a lease for a single strategy on-demand and hands it to the
+// lease channel, which spins up its ConcurrencyManager. Mirrors notifyNewQueue. No-op if we already
+// hold the lease.
 func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) error {
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()

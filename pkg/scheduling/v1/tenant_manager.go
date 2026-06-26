@@ -266,10 +266,8 @@ func (t *tenantManager) setConcurrencyStrategies(ctx context.Context, strategies
 		c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
 		newArr = append(newArr, c)
 
-		// Notify each newly instantiated manager so it evaluates its already-queued slots immediately,
-		// instead of waiting up to maxPollingInterval for its first ticker tick. This matters on
-		// startup/rebalance, where managers are (re)created here for strategies that may already have
-		// queued work. notify() is a non-blocking send, so it is safe to call under the lock.
+		// notify the new manager so it picks up already-queued work now instead of waiting for its first
+		// tick (matters on startup/rebalance). notify() is a non-blocking send, so it's fine under the lock.
 		c.notify(ctx)
 	}
 
@@ -289,11 +287,7 @@ func (t *tenantManager) addConcurrencyStrategy(ctx context.Context, strategy *sq
 	c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
 	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
 
-	// Notify the newly instantiated manager so it evaluates its already-queued slots on the next loop
-	// iteration, instead of waiting up to maxPollingInterval for its first ticker tick. This is what
-	// lets a cold strategy schedule its waiting task promptly once its lease is acquired. The bulk
-	// setConcurrencyStrategies path deliberately does NOT do this, so startup/rebalance keeps the
-	// randomticker's load-spreading.
+	// notify the new manager so it schedules its waiting task now instead of waiting for its first tick.
 	c.notify(ctx)
 }
 
@@ -373,15 +367,10 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 
 	t.concurrencyMu.RUnlock()
 
-	// Any strategy ids still in the map have no manager running on this scheduler. This is the "cold"
-	// case: a task arrived for a strategy that was deactivated while idle (or has never been leased here).
-	// Acquire the lease on-demand so a ConcurrencyManager is created now, instead of waiting up to the
-	// next lease-acquisition poll (every 5s) for it to be discovered. notifyNewConcurrencyStrategy does a
-	// DB lease acquisition, so run it off the hot notify path; it is a no-op if the lease is already held
-	// or owned by another scheduler.
+	// anything still in the map has no manager here (cold strategy): acquire its lease on-demand so a
+	// manager is created now instead of waiting for the ~5s poll. run off the hot path since it hits the DB.
 	if len(strategyIdsMap) > 0 {
-		// detach from the request context so cancellation when the message handler returns doesn't
-		// abort the lease-acquisition DB call, while still propagating telemetry/values
+		// don't inherit cancellation from the message handler returning, but keep telemetry/values
 		leaseCtx := context.WithoutCancel(ctx)
 
 		for id := range strategyIdsMap {
