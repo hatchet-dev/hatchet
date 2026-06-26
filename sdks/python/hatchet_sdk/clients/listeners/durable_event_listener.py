@@ -405,7 +405,7 @@ class DurableEventListener:
                         node_id=memo_ack.ref.node_id,
                         branch_id=memo_ack.ref.branch_id,
                         memo_already_existed=memo_ack.memo_already_existed,
-                        memo_result_payload=memo_ack.memo_result_payload,
+                        memo_result_payload=memo_ack.memo_result_payload or None,
                     )
                 )
         elif response.HasField("wait_for_ack"):
@@ -602,6 +602,7 @@ class DurableEventListener:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
             await self._poll_worker_status()
+            return await future
 
         return await self._pending_callbacks[key]
 

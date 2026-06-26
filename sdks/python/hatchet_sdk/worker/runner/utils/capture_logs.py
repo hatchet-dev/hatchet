@@ -1,8 +1,8 @@
-import asyncio
 import functools
 import logging
+import queue
+import threading
 from collections.abc import Awaitable, Callable
-from contextlib import suppress
 from dataclasses import dataclass
 from io import StringIO
 from typing import Any, Literal, ParamSpec, TypeVar
@@ -126,25 +126,18 @@ class LogRecord:
 
 
 class AsyncLogSender:
-    def __init__(self, event_client: EventClient) -> None:
-        self.event_client = event_client
-        self.q = asyncio.Queue[LogRecord | STOP_LOOP_TYPE](
-            maxsize=event_client.client_config.log_queue_size
-        )
-        self._owner_loop: asyncio.AbstractEventLoop | None = None
+    def __init__(self, event_client: EventClient):
+        self._event_client = event_client
+        self.q: queue.SimpleQueue[LogRecord | STOP_LOOP_TYPE] = queue.SimpleQueue()
+        self._thread: threading.Thread | None = None
 
-    async def consume(self) -> None:
-        self._owner_loop = asyncio.get_running_loop()
-
+    def _consume(self) -> None:
         while True:
-            record = await self.q.get()
-
+            record = self.q.get()
             if record == STOP_LOOP:
                 break
-
             try:
-                await asyncio.to_thread(
-                    self.event_client.log,
+                self._event_client.log(
                     message=record.message,
                     step_run_id=record.step_run_id,
                     level=record.level,
@@ -154,30 +147,18 @@ class AsyncLogSender:
                 logger.exception("failed to send log to Hatchet")
 
     def publish(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        owner_loop = self._owner_loop
+        self.q.put(record)
 
-        if owner_loop is None:
-            self._enqueue_or_drop(record)
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._consume, daemon=True)
+        self._thread.start()
+
+    def stop(self, timeout: float = 5.0) -> None:
+        if self._thread is None:
             return
-
-        try:
-            running_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            running_loop = None
-
-        if running_loop is owner_loop:
-            self._enqueue_or_drop(record)
-            return
-
-        with suppress(RuntimeError):
-            # The owner loop may already be closed during worker shutdown.
-            owner_loop.call_soon_threadsafe(self._enqueue_or_drop, record)
-
-    def _enqueue_or_drop(self, record: LogRecord | STOP_LOOP_TYPE) -> None:
-        try:
-            self.q.put_nowait(record)
-        except asyncio.QueueFull:
-            logger.warning("log queue is full, dropping log message")
+        self.q.put(STOP_LOOP)
+        self._thread.join(timeout)
+        self._thread = None
 
 
 class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]

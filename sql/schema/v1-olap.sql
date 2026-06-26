@@ -36,6 +36,70 @@ RETURNS v1_readable_status_olap IMMUTABLE LANGUAGE sql AS $$
     END::v1_readable_status_olap;
 $$;
 
+-- Mirrors the body of the convert_duration_to_interval migration so sqlc can
+-- resolve the function during codegen. Keep both definitions in sync.
+CREATE OR REPLACE FUNCTION convert_duration_to_interval(duration text) RETURNS interval AS $$
+DECLARE
+    rest text;
+    total_seconds double precision := 0;
+    m text[];
+    val double precision;
+    unit text;
+    factor double precision;
+BEGIN
+    IF duration IS NULL OR length(duration) = 0 THEN
+        RETURN '5 minutes'::interval;
+    END IF;
+
+    m := regexp_match(duration, '^([0-9]{1,8})(d|w|y)$');
+    IF m IS NOT NULL THEN
+        val := m[1]::double precision;
+        unit := m[2];
+        CASE unit
+            WHEN 'd' THEN RETURN make_interval(days => val::int);
+            WHEN 'w' THEN RETURN make_interval(days => (val * 7)::int);
+            WHEN 'y' THEN RETURN make_interval(months => (val * 12)::int);
+        END CASE;
+    END IF;
+
+    rest := duration;
+
+    LOOP
+        EXIT WHEN length(rest) = 0;
+
+        m := regexp_match(rest, '^([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(ms|s|m|h)');
+
+        IF m IS NULL THEN
+            RETURN '5 minutes'::interval;
+        END IF;
+
+        IF length(m[1]) > 15 THEN
+            RAISE EXCEPTION 'duration % has a numeric component exceeding 15 digits', duration;
+        END IF;
+
+        val := m[1]::double precision;
+        unit := m[2];
+
+        CASE unit
+            WHEN 'ms' THEN factor := 1e-3;
+            WHEN 's' THEN factor := 1;
+            WHEN 'm' THEN factor := 60;
+            WHEN 'h' THEN factor := 3600;
+        END CASE;
+
+        total_seconds := total_seconds + val * factor;
+
+        rest := substring(rest from length(m[1]) + length(m[2]) + 1);
+    END LOOP;
+
+    IF total_seconds > 9223372036 THEN
+        RAISE EXCEPTION 'duration % exceeds maximum supported value (~292 years)', duration;
+    END IF;
+
+    RETURN make_interval(secs => total_seconds);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --
 CREATE OR REPLACE FUNCTION get_v1_partitions_before_date(
     targetTableName text,

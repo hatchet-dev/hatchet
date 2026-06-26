@@ -408,6 +408,18 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
         wrap_function_wrapper(
             hatchet_sdk,
+            "clients.events.EventClient.aio_push",
+            self._wrap_aio_push_event,
+        )
+
+        wrap_function_wrapper(
+            hatchet_sdk,
+            "clients.events.EventClient.aio_bulk_push",
+            self._wrap_aio_bulk_push_event,
+        )
+
+        wrap_function_wrapper(
+            hatchet_sdk,
             "clients.admin.AdminClient.run_workflow",
             self._wrap_run_workflow,
         )
@@ -626,6 +638,129 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
             return wrapped(
                 bulk_events_with_meta,
+            )
+
+    async def _wrap_aio_push_event(
+        self,
+        wrapped: Callable[..., Coroutine[None, None, Event]],
+        instance: EventClient,
+        args: tuple[
+            str,
+            JSONSerializableMapping,
+            PushEventOptions | None,
+            JSONSerializableMapping | None,
+            Priority | None,
+            str | None,
+        ],
+        kwargs: dict[
+            str,
+            str | JSONSerializableMapping | PushEventOptions | Priority | None,
+        ],
+    ) -> Event:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        event_key = cast(str, params[0])
+        payload = cast(JSONSerializableMapping, params[1])
+        options = cast(PushEventOptions | None, params[2])
+        additional_metadata = cast(JSONSerializableMapping | None, params[3])
+        priority = cast(Priority | None, params[4])
+        scope = cast(str | None, params[5])
+
+        additional_metadata = additional_metadata or (
+            options.additional_metadata if options else {}
+        )
+
+        priority_option = options.priority if options else None
+
+        if isinstance(priority_option, int):
+            priority_option = Priority(priority_option)
+
+        priority = priority or priority_option
+        scope = scope or (options.scope if options else None)
+
+        attributes = {
+            OTelAttribute.EVENT_KEY: event_key,
+            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+                additional_metadata, default=str
+            ),
+            OTelAttribute.PRIORITY: priority,
+            OTelAttribute.FILTER_SCOPE: scope,
+        }
+
+        with self._tracer.start_as_current_span(
+            "hatchet.push_event",
+            attributes={
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
+            },
+            kind=SpanKind.PRODUCER,
+        ):
+            return await wrapped(
+                event_key,
+                payload,
+                None,
+                _inject_source_info(
+                    _inject_traceparent_into_metadata(dict(additional_metadata)),
+                ),
+                priority,
+                scope,
+            )
+
+    async def _wrap_aio_bulk_push_event(
+        self,
+        wrapped: Callable[
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None],
+            Coroutine[None, None, list[Event]],
+        ],
+        instance: EventClient,
+        args: tuple[
+            list[BulkPushEventWithMetadata],
+            BulkPushEventOptions | None,
+        ],
+        kwargs: dict[
+            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
+        ],
+    ) -> list[Event]:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
+        options = cast(BulkPushEventOptions | None, params[1])
+
+        num_bulk_events = len(bulk_events)
+        unique_event_keys = {event.key for event in bulk_events}
+
+        with self._tracer.start_as_current_span(
+            "hatchet.bulk_push_event",
+            attributes={
+                "instrumentor": "hatchet",
+                "hatchet.num_events": num_bulk_events,
+                "hatchet.unique_event_keys": json.dumps(unique_event_keys, default=str),
+            },
+            kind=SpanKind.PRODUCER,
+        ):
+            bulk_events_with_meta = [
+                BulkPushEventWithMetadata(
+                    **event.model_dump(exclude={"additional_metadata"}),
+                    additional_metadata=_inject_source_info(
+                        _inject_traceparent_into_metadata(
+                            event.additional_metadata,
+                        )
+                    ),
+                )
+                for event in bulk_events
+            ]
+
+            return await wrapped(
+                bulk_events_with_meta,
+                options,
             )
 
     def _build_run_workflow_attributes(

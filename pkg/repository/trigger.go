@@ -25,6 +25,8 @@ import (
 type EventTriggerOpts struct {
 	ExternalId uuid.UUID
 
+	SeenAt time.Time
+
 	Key string
 
 	Data []byte
@@ -2076,15 +2078,13 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 
 	eventExternalIdsToPayloads := make(map[uuid.UUID][]byte)
 
-	seenAt := time.Now().UTC() // TODO: propagate this to caller, and figure out how we should be setting this
-
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
 		createCoreEventsTenantIds = append(createCoreEventsTenantIds, tenantId)
 		createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
-		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
+		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(opt.SeenAt))
 		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
 		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)

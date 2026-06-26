@@ -59,8 +59,8 @@ class WorkerActionRunLoopManager:
         self._event_client = EventClient(config)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
         self.log_sender = AsyncLogSender(self._event_client)
-        self.log_task = self.loop.create_task(self.log_sender.consume())
 
+        self.log_sender.start()
         self.start()
 
     def start(self) -> None:
@@ -87,7 +87,7 @@ class WorkerActionRunLoopManager:
         self.killing = True
 
         self.action_queue.put(STOP_LOOP)
-        self.log_sender.publish(STOP_LOOP)
+        self.log_sender.stop()
 
     async def evict_all_waiting_durable_runs(self) -> None:
         if self.runner:
