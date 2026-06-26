@@ -4,10 +4,6 @@
 ALTER TABLE v1_step_concurrency
     ADD COLUMN last_active TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
--- +goose StatementEnd
-
--- +goose StatementBegin
-
 CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_function()
 RETURNS trigger AS $$
 BEGIN
@@ -64,7 +60,6 @@ BEGIN
         parent_to_child_strategy_ids pcs
     ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
 
-    -- Mark the strategies referenced by these slots active and refresh their last_active timestamp.
     WITH strategies_to_touch AS (
         SELECT
             strategy.workflow_id,
@@ -157,7 +152,6 @@ BEGIN
         parent_to_child_strategy_ids pcs
     ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
 
-    -- If the v1_step_concurrency strategy is not active, we set it to active.
     WITH inactive_strategies AS (
         SELECT
             strategy.*
@@ -184,10 +178,6 @@ BEGIN
 END;
 
 $$ LANGUAGE plpgsql;
-
--- +goose StatementEnd
-
--- +goose StatementBegin
 
 ALTER TABLE v1_step_concurrency DROP COLUMN last_active;
 
