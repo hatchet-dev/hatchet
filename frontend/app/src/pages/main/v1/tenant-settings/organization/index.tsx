@@ -1675,7 +1675,7 @@ function TenantMemberList({
           ]
         : []),
     ],
-    [canManage, onMembersChanged, tenantId],
+    [canManage, isControlPlaneEnabled, onMembersChanged, tenantId],
   );
 
   return (
