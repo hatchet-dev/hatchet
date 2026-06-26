@@ -859,7 +859,7 @@ WITH eligible_slots_per_group AS (
             wcs_all.key = distinct_keys.key
             AND wcs_all.tenant_id = $1::uuid
             AND wcs_all.strategy_id = $2::bigint
-        ORDER BY wcs_all.sort_id ASC
+        ORDER BY wcs_all.priority DESC, wcs_all.sort_id ASC
         LIMIT $3::int
     ) cs ON true
 ), schedule_timeout_slots AS (
