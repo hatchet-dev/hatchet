@@ -159,6 +159,7 @@ export function TriggerWorkflowForm({
         workflowName: selectedWorkflow.workflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
+        return_only_id: true,
       });
 
       return res.data;
