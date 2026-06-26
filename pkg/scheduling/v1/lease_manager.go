@@ -17,6 +17,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+const concurrencyLeasesChBuffer = 1024
+
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
@@ -46,7 +48,7 @@ type LeaseManager struct {
 func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, notifierCh[*v1.ListActiveWorkersResult], notifierCh[string], notifierCh[*sqlcv1.V1StepConcurrency]) {
 	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	queuesCh := make(notifierCh[string])
-	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency])
+	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency], concurrencyLeasesChBuffer)
 
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),
@@ -98,14 +100,27 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
-	// Blocking send: an acquired concurrency lease must never be dropped, otherwise its manager is
-	// never instantiated and a cold strategy waits for the next lease poll to schedule its task. The
-	// listener is always reading except during cleanup, where processMu serializes against this send
-	// and the recover() above handles a racing send on a closed channel.
-	l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
+	msg := notifierMsg[*sqlcv1.V1StepConcurrency]{
 		items:         concurrencyLeases,
 		isIncremental: isIncremental,
 	}
+
+	if isIncremental {
+		// On-demand (cold-start) fast path: best-effort, non-blocking. Bursts are absorbed by the
+		// buffer; if it ever fills, the strategy is still active in the DB and the bulk reconcile
+		// below (the ~5s lease poll) will instantiate its manager, so dropping here is safe.
+		select {
+		case l.concurrencyLeasesCh <- msg:
+		default:
+		}
+		return
+	}
+
+	// Bulk reconcile from the ~5s lease-acquisition poll: this carries the full active set and creates
+	// any manager the fast path missed, so it must be delivered. Block until the listener accepts it
+	// (it drains continuously, so this only waits in the pathological full-buffer case). The recover()
+	// above handles a racing send on the channel closed during cleanup.
+	l.concurrencyLeasesCh <- msg
 }
 
 func (l *LeaseManager) acquireWorkerLeases(ctx context.Context) error {
