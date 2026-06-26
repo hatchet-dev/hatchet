@@ -177,10 +177,10 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 		case msg := <-t.concurrencyCh:
 			if msg.isIncremental {
 				for _, strategy := range msg.items {
-					t.addConcurrencyStrategy(ctx, strategy)
+					t.addConcurrencyStrategy(strategy)
 				}
 			} else {
-				t.setConcurrencyStrategies(ctx, msg.items)
+				t.setConcurrencyStrategies(msg.items)
 			}
 		}
 	}
@@ -238,7 +238,7 @@ func (t *tenantManager) addQueuer(queueName string) {
 	t.queue(context.Background(), []string{queueName})
 }
 
-func (t *tenantManager) setConcurrencyStrategies(ctx context.Context, strategies []*sqlcv1.V1StepConcurrency) {
+func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
@@ -265,16 +265,12 @@ func (t *tenantManager) setConcurrencyStrategies(ctx context.Context, strategies
 	for _, strategy := range strategiesSet {
 		c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
 		newArr = append(newArr, c)
-
-		// notify the new manager so it picks up already-queued work now instead of waiting for its first
-		// tick (matters on startup/rebalance). notify() is a non-blocking send, so it's fine under the lock.
-		c.notify(ctx)
 	}
 
 	t.concurrencyStrategies = newArr
 }
 
-func (t *tenantManager) addConcurrencyStrategy(ctx context.Context, strategy *sqlcv1.V1StepConcurrency) {
+func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
@@ -286,9 +282,6 @@ func (t *tenantManager) addConcurrencyStrategy(ctx context.Context, strategy *sq
 
 	c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
 	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
-
-	// notify the new manager so it schedules its waiting task now instead of waiting for its first tick.
-	c.notify(ctx)
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
@@ -301,9 +294,11 @@ func (t *tenantManager) replenish(ctx context.Context) {
 
 func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int64) {
 	strategyIdsMap := make(map[int64]struct{}, len(strategyIds))
+	unmatchedIds := make(map[int64]struct{}, len(strategyIds))
 
 	for _, id := range strategyIds {
 		strategyIdsMap[id] = struct{}{}
+		unmatchedIds[id] = struct{}{}
 	}
 
 	t.concurrencyMu.RLock()
@@ -313,8 +308,7 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 			continue
 		}
 
-		// mark this strategy as already managed so we don't try to acquire a lease for it below
-		delete(strategyIdsMap, c.strategy.ID)
+		delete(unmatchedIds, c.strategy.ID)
 
 		c.notify(ctx)
 
@@ -367,13 +361,10 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 
 	t.concurrencyMu.RUnlock()
 
-	// anything still in the map has no manager here (cold strategy): acquire its lease on-demand so a
-	// manager is created now instead of waiting for the ~5s poll. run off the hot path since it hits the DB.
-	if len(strategyIdsMap) > 0 {
-		// don't inherit cancellation from the message handler returning, but keep telemetry/values
+	if len(unmatchedIds) > 0 {
 		leaseCtx := context.WithoutCancel(ctx)
 
-		for id := range strategyIdsMap {
+		for id := range unmatchedIds {
 			go t.notifyNewConcurrencyStrategy(leaseCtx, id)
 		}
 	}
