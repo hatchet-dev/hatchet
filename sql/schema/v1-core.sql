@@ -173,6 +173,11 @@ CREATE TABLE v1_step_concurrency (
     step_id UUID NOT NULL,
     -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- last_active is refreshed whenever a slot is created for this strategy. The stale-deactivation
+    -- sweep only deactivates a strategy once it has had no slots AND last_active is over a day old, so
+    -- a strategy used periodically is never deactivated (and so never pays a cold start). Mirrors how
+    -- v1_queue.last_active gates the 1-day queue activity window.
+    last_active TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
@@ -833,28 +838,37 @@ BEGIN
         parent_to_child_strategy_ids pcs
     ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
 
-    -- If the v1_step_concurrency strategy is not active, we set it to active.
-    WITH inactive_strategies AS (
+    -- Mark the strategies referenced by these slots active and refresh their last_active timestamp.
+    -- last_active keeps a strategy "warm": DeactivateStaleStepConcurrency only deactivates it once it
+    -- has had no slots for a full day. We only write the row when it actually needs refreshing
+    -- (inactive, or last_active older than an hour) to keep this off the hot slot-insert path, while
+    -- keeping last_active accurate to within an hour. ORDER BY id + FOR UPDATE preserves the stable
+    -- lock ordering used elsewhere to avoid deadlocks.
+    WITH strategies_to_touch AS (
         SELECT
-            strategy.*
+            strategy.workflow_id,
+            strategy.workflow_version_id,
+            strategy.step_id,
+            strategy.id
         FROM
             new_table cs
         JOIN
             v1_step_concurrency strategy ON strategy.workflow_id = cs.workflow_id AND strategy.workflow_version_id = cs.workflow_version_id AND strategy.id = cs.strategy_id
         WHERE
             strategy.is_active = FALSE
+            OR strategy.last_active < NOW() - INTERVAL '1 hour'
         ORDER BY
             strategy.id
         FOR UPDATE
     )
     UPDATE v1_step_concurrency strategy
-    SET is_active = TRUE
-    FROM inactive_strategies
+    SET is_active = TRUE, last_active = NOW()
+    FROM strategies_to_touch
     WHERE
-        strategy.workflow_id = inactive_strategies.workflow_id AND
-        strategy.workflow_version_id = inactive_strategies.workflow_version_id AND
-        strategy.step_id = inactive_strategies.step_id AND
-        strategy.id = inactive_strategies.id;
+        strategy.workflow_id = strategies_to_touch.workflow_id AND
+        strategy.workflow_version_id = strategies_to_touch.workflow_version_id AND
+        strategy.step_id = strategies_to_touch.step_id AND
+        strategy.id = strategies_to_touch.id;
 
     RETURN NULL;
 END;

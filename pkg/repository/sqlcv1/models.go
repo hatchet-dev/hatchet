@@ -3563,6 +3563,7 @@ type V1StepConcurrency struct {
 	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
 	StepID            uuid.UUID             `json:"step_id"`
 	IsActive          bool                  `json:"is_active"`
+	LastActive        pgtype.Timestamp      `json:"last_active"`
 	Strategy          V1ConcurrencyStrategy `json:"strategy"`
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`

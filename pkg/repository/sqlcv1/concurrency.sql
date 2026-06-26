@@ -802,6 +802,9 @@ WITH tenant_step_concurrencies AS (
     FROM v1_step_concurrency sc
     WHERE sc.tenant_id = @tenantId::UUID
         AND sc.is_active = TRUE
+        -- only deactivate strategies idle for a full day, so a strategy used periodically stays warm
+        -- and never pays a cold start (mirrors v1_queue's 1-day activity window)
+        AND sc.last_active < NOW() - INTERVAL '1 day'
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
             WHERE

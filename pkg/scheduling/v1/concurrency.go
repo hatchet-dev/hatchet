@@ -190,6 +190,7 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			c.l.Warn().Ctx(ctx).
 				Msgf("concurrency strategy %d took longer than 100ms (%s) to process %d items", c.strategy.ID, time.Since(start), len(results.Queued))
 		}
+
 		c.resultsCh <- &ConcurrencyResults{
 			RunConcurrencyResult: results,
 			TenantId:             c.tenantId,
