@@ -7,10 +7,12 @@ import { HatchetClient } from '../..';
 import { InternalWorker } from './worker-internal';
 import { resolveWorkerOptions, type WorkerSlotOptions } from './slot-utils';
 import {
-  isLegacyEngine,
   fetchEngineVersion,
   LegacyDualWorker,
   emitDeprecationNotice,
+  semverLessThan,
+  LEGACY_ENGINE_MESSAGE,
+  LEGACY_ENGINE_START,
 } from './deprecated';
 import { MinEngineVersion, supportsEviction } from './engine-version';
 
@@ -119,7 +121,14 @@ export class Worker {
    */
   async start() {
     // Check engine version and fall back to legacy dual-worker mode if needed
-    if (await isLegacyEngine(this._v1)) {
+    const engineVersion = await fetchEngineVersion(this._v1).catch(() => undefined);
+
+    if (!engineVersion || semverLessThan(engineVersion, MinEngineVersion.SLOT_CONFIG)) {
+      const logger = this._v1.config.logger('Worker', this._v1.config.log_level);
+      emitDeprecationNotice('legacy-engine', LEGACY_ENGINE_MESSAGE, LEGACY_ENGINE_START, logger, {
+        errorDays: 180,
+      });
+
       // Include workflows registered after construction (via registerWorkflow/registerWorkflows)
       // so the legacy worker picks them up.
       const legacyConfig: CreateWorkerOpts = {
@@ -132,7 +141,6 @@ export class Worker {
       return this._legacyWorker.start();
     }
 
-    const engineVersion = await fetchEngineVersion(this._v1).catch(() => undefined);
     this._checkEvictionSupport(engineVersion);
     this._internal.engineVersion = engineVersion;
 
@@ -161,9 +169,9 @@ export class Worker {
     emitDeprecationNotice(
       'pre-eviction-engine',
       `Engine ${engineVersion || 'unknown'} does not support durable eviction ` +
-        `(requires >= ${MinEngineVersion.DURABLE_EVICTION}). ` +
-        `Eviction policies will be ignored for tasks: ${names}. ` +
-        `Please upgrade your Hatchet engine.`,
+      `(requires >= ${MinEngineVersion.DURABLE_EVICTION}). ` +
+      `Eviction policies will be ignored for tasks: ${names}. ` +
+      `Please upgrade your Hatchet engine.`,
       new Date('2026-03-01T00:00:00Z'),
       logger
     );
