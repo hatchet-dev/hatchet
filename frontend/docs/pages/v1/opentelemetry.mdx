@@ -5,6 +5,12 @@ import UniversalTabs from "@/components/UniversalTabs";
 
 Hatchet supports exporting traces from your tasks to an [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) to improve visibility into your Hatchet tasks.
 
+<Callout type="info">
+  This page is about tracing your application, task, and workflow code. To
+  export traces emitted by Hatchet's own services on a self-hosted instance, see
+  [Internal OpenTelemetry traces](/self-hosting/opentelemetry).
+</Callout>
+
 ## Setup
 
 <UniversalTabs items={["Python", "TypeScript", "Go", "Ruby"]}>
