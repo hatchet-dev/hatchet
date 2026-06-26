@@ -664,7 +664,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
 
     async def _wrap_aio_push_event(
         self,
-        wrapped: Callable[..., Event],
+        wrapped: Callable[..., Coroutine[None, None, Event]],
         instance: EventClient,
         args: tuple[
             str,
@@ -739,7 +739,8 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
     async def _wrap_aio_bulk_push_event(
         self,
         wrapped: Callable[
-            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None], list[Event]
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None],
+            Coroutine[None, None, list[Event]],
         ],
         instance: EventClient,
         args: tuple[
