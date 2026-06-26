@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/timestamp.proto";
+
+// LogService ingests log lines emitted by task runs.
+service LogService {
+    rpc PutLogs(PutLogsRequest) returns (PutLogsResponse) {}
+}
+
+enum LogLevel {
+    LOG_LEVEL_UNSPECIFIED = 0;
+    LOG_LEVEL_DEBUG = 1;
+    LOG_LEVEL_INFO = 2;
+    LOG_LEVEL_WARN = 3;
+    LOG_LEVEL_ERROR = 4;
+}
+
+message Log {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    google.protobuf.Timestamp seen_at = 2; // (required) when the log line was seen
+    string message = 3; // (required) the log line message
+    optional LogLevel level = 4; // (optional) the log level, default INFO
+    optional bytes extra = 5; // (optional) extra user metadata for the log line
+    optional int32 retry_count = 6; // (optional) the retry attempt of the task run
+}
+
+message PutLogsRequest {
+    repeated Log logs = 1;
+}
+
+message PutLogsResponse {}

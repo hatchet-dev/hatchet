@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/duration.proto";
+
+enum RateLimitWindow {
+    RATE_LIMIT_WINDOW_UNSPECIFIED = 0;
+    RATE_LIMIT_WINDOW_SECOND = 1;
+    RATE_LIMIT_WINDOW_MINUTE = 2;
+    RATE_LIMIT_WINDOW_HOUR = 3;
+    RATE_LIMIT_WINDOW_DAY = 4;
+    RATE_LIMIT_WINDOW_WEEK = 5;
+    RATE_LIMIT_WINDOW_MONTH = 6;
+    RATE_LIMIT_WINDOW_YEAR = 7;
+}
+
+// RateLimit declares the rate limit a task consumes and how runs count against
+// it. Limits are upserted when the task is registered: static keys declare
+// their total via limit, dynamic keys via limit_values_expression.
+message RateLimit {
+    oneof key {
+        string static_key = 1; // a static key for the rate limit
+        string key_expression = 2; // a CEL expression for determining the rate limit key
+    }
+    optional int32 limit = 3; // (optional) the total count available per window for a static key
+    oneof consumed_count {
+        int32 count = 4; // the count this task run consumes, default 1
+        string count_expression = 5; // a CEL expression for determining the count consumed
+    }
+    optional string limit_values_expression = 6; // (optional) a CEL expression for determining the total count for a dynamic key
+    optional RateLimitWindow window = 7; // (optional) the rate limit window, default MINUTE
+}
+
+enum ConcurrencyLimitStrategy {
+    CONCURRENCY_LIMIT_STRATEGY_UNSPECIFIED = 0;
+    CONCURRENCY_LIMIT_STRATEGY_CANCEL_IN_PROGRESS = 1;
+    CONCURRENCY_LIMIT_STRATEGY_GROUP_ROUND_ROBIN = 2;
+    CONCURRENCY_LIMIT_STRATEGY_CANCEL_NEWEST = 3;
+}
+
+message Concurrency {
+    string expression = 1; // (required) a CEL expression producing the concurrency group key
+    optional int32 max_runs = 2; // (optional) the maximum number of concurrent runs per group key, default 1
+    optional ConcurrencyLimitStrategy limit_strategy = 3; // (optional) the strategy when the limit is reached, default CANCEL_IN_PROGRESS
+}
+
+// WorkerPinning keeps a run and its child runs on the same worker, e.g. to
+// reuse expensive local state across tasks.
+enum WorkerPinning {
+    WORKER_PINNING_UNSPECIFIED = 0;
+    WORKER_PINNING_PREFERRED = 1; // prefer the same worker, fall back to another if unavailable
+    WORKER_PINNING_REQUIRED = 2; // only run on the same worker, waiting until it is available or the schedule timeout is reached
+}
+
+message RetryPolicy {
+    int32 max_retries = 1; // (optional) the number of retries for the task run, default 0
+    optional float backoff_factor = 2; // (optional) the exponential backoff factor between retries
+    optional google.protobuf.Duration backoff_max = 3; // (optional) the maximum backoff between retries
+}
+
+enum WorkerLabelComparator {
+    WORKER_LABEL_COMPARATOR_UNSPECIFIED = 0;
+    WORKER_LABEL_COMPARATOR_EQUAL = 1;
+    WORKER_LABEL_COMPARATOR_NOT_EQUAL = 2;
+    WORKER_LABEL_COMPARATOR_GREATER_THAN = 3;
+    WORKER_LABEL_COMPARATOR_GREATER_THAN_OR_EQUAL = 4;
+    WORKER_LABEL_COMPARATOR_LESS_THAN = 5;
+    WORKER_LABEL_COMPARATOR_LESS_THAN_OR_EQUAL = 6;
+}
+
+// DesiredWorkerLabel expresses affinity between a task run and worker labels.
+message DesiredWorkerLabel {
+    optional string str_value = 1;
+    optional int32 int_value = 2;
+    optional bool required = 3; // (optional) if true, workers without a matching label will not accept the run, default false
+    optional WorkerLabelComparator comparator = 4; // (optional) the comparator for the affinity, default EQUAL
+    optional int32 weight = 5; // (optional) the weight of the affinity for scheduling, default 100
+}
