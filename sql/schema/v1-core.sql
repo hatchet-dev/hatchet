@@ -177,7 +177,7 @@ CREATE TABLE v1_step_concurrency (
     -- sweep only deactivates a strategy once it has had no slots AND last_active is over a day old, so
     -- a strategy used periodically is never deactivated (and so never pays a cold start). Mirrors how
     -- v1_queue.last_active gates the 1-day queue activity window.
-    last_active TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_active TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,

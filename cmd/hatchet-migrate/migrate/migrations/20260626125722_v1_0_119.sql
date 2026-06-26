@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 
 ALTER TABLE v1_step_concurrency
-    ADD COLUMN last_active TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN last_active TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_function()
 RETURNS trigger AS $$
