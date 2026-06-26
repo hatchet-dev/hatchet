@@ -544,7 +544,16 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        await asyncio.to_thread(self.put_stream, data)
+        try:
+            ix = self._increment_stream_index()
+
+            await self._event_client.aio_stream(
+                data=data,
+                step_run_id=self._step_run_id,
+                index=ix,
+            )
+        except Exception:
+            logger.exception("error putting stream event")
 
     def refresh_timeout(self, increment_by: Duration) -> None:
         """
