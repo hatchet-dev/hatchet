@@ -1,0 +1,48 @@
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: vouch-manage
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mitchellh/vouch/action/manage-by-issue@c6d80ead49839655b61b422700b7a3bc9d0804a9 # v1.4.2
+        id: manage-by-issue
+        with:
+          repo: ${{ github.repository }}
+          issue-id: ${{ github.event.issue.number }}
+          comment-id: ${{ github.event.comment.id }}
+          # Create a PR for this.
+          pull-request: true
+          vouched-managers-file: .github/VOUCHED.td
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Label PR as denounced
+        if: steps.manage-by-issue.outputs.status == 'denounced' && github.event.issue.pull_request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --add-label "denounced"
+
+      - name: Label Issue as denounced
+        if: steps.manage-by-issue.outputs.status == 'denounced' && !github.event.issue.pull_request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit "${{ github.event.issue.number }}" \
+            --repo "${{ github.repository }}" \
+            --add-label "denounced"

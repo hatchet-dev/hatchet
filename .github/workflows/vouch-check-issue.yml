@@ -1,0 +1,28 @@
+name: "Vouch - Check Issue"
+
+on:
+  issues:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      issue-number:
+        description: 'Issue number to check'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mitchellh/vouch/action/check-issue@c6d80ead49839655b61b422700b7a3bc9d0804a9 # v1.4.2
+        with:
+          issue-number: ${{ github.event.issue.number || inputs.issue-number }}
+          auto-close: true
+          # NOTE: auto-close only for explicitly denounced users.
+          require-vouch: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
