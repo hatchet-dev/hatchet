@@ -29,6 +29,8 @@ type ClientConfigFile struct {
 
 	NoGrpcRetry bool `mapstructure:"noGrpcRetry" json:"noGrpcRetry,omitempty"`
 
+	NoRetry bool `mapstructure:"noRetry" json:"noRetry,omitempty"`
+
 	CloudRegisterID *string `mapstructure:"cloudRegisterID" json:"cloudRegisterID,omitempty"`
 
 	RawRunnableActions []string `mapstructure:"runnableActions" json:"runnableActions,omitempty"`
@@ -48,6 +50,7 @@ type ClientConfig struct {
 	TenantId    string
 	Token       string
 	NoGrpcRetry bool
+	NoRetry     bool
 
 	ServerURL            string
 	GRPCBroadcastAddress string
@@ -84,6 +87,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("cloudRegisterID", "HATCHET_CLOUD_REGISTER_ID")
 	_ = v.BindEnv("runnableActions", "HATCHET_CLOUD_ACTIONS")
 	_ = v.BindEnv("noGrpcRetry", "HATCHET_CLIENT_NO_GRPC_RETRY")
+	_ = v.BindEnv("noRetry", "HATCHET_CLIENT_NO_RETRY")
 	_ = v.BindEnv("autoscalingTarget", "HATCHET_CLIENT_AUTOSCALING_TARGET")
 	_ = v.BindEnv("disableGzipCompression", "HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION")
 

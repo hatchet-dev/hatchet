@@ -1,6 +1,7 @@
 import { SettingsPageHeader } from '../components/settings-page-header';
 import { UpdateTenantForm } from './components/update-tenant-form';
 import { Button } from '@/components/v1/ui/button';
+import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
@@ -22,6 +23,8 @@ export default function TenantSettings() {
           <SettingRow label="Tenant Name">
             <UpdateTenant />
           </SettingRow>
+          <TenantApiUrl />
+          <TenantRegion />
           <SettingRow
             label="Analytics Opt-Out"
             description="Disable usage analytics collection for this tenant."
@@ -55,6 +58,48 @@ function SettingRow({
     </div>
   );
 }
+
+function ReadOnlyValue({ value }: { value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="max-w-[280px] truncate font-mono text-sm text-muted-foreground">
+        {value}
+      </span>
+      <CopyToClipboard text={value} />
+    </div>
+  );
+}
+
+const TenantApiUrl: React.FC = () => {
+  const { tenant } = useTenantDetails();
+  const apiUrl = tenant?.serverUrl || window.location.origin;
+
+  return (
+    <SettingRow
+      label="API URL"
+      description="The base URL for this tenant's REST API."
+    >
+      <ReadOnlyValue value={apiUrl} />
+    </SettingRow>
+  );
+};
+
+const TenantRegion: React.FC = () => {
+  const { tenant } = useTenantDetails();
+
+  if (!tenant?.region) {
+    return null;
+  }
+
+  return (
+    <SettingRow
+      label="Region"
+      description="The control-plane region this tenant is deployed to."
+    >
+      <ReadOnlyValue value={tenant.region} />
+    </SettingRow>
+  );
+};
 
 const UpdateTenant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);

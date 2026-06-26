@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -51,6 +52,7 @@ type AdminServiceOpts struct {
 	grpcTriggerSlots            int
 	optimisticSchedulingEnabled bool
 	grpcTriggersEnabled         bool
+	promGate                    *prometheus.Gate
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -124,6 +126,12 @@ func WithAnalytics(a analytics.Analytics) AdminServiceOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.promGate = gate
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -145,7 +153,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	if opts.grpcTriggersEnabled {
 		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
 
-		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
+		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 	}
 
 	var localScheduler *scheduler.Scheduler

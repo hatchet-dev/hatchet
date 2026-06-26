@@ -23,14 +23,16 @@ type OLAPSignaler struct {
 	repo      v1.Repository
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
+	promGate  *prometheus.Gate
 }
 
-func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer) *OLAPSignaler {
+func NewOLAPSignaler(mq msgqueue.MessageQueue, repo v1.Repository, l *zerolog.Logger, pubBuffer *msgqueue.MQPubBuffer, promGate *prometheus.Gate) *OLAPSignaler {
 	return &OLAPSignaler{
 		mq:        mq,
 		l:         l,
 		repo:      repo,
 		pubBuffer: pubBuffer,
+		promGate:  promGate,
 	}
 }
 
@@ -321,9 +323,13 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -384,11 +390,15 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.CancelledTasks.Inc()
-			prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+				prometheus.TenantCancelledTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -450,11 +460,15 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.FailedTasks.Inc()
-			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+				prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -515,11 +529,15 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 
 	// instrumentation
 	go func() {
+		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
+
 		for range tasks {
 			prometheus.CreatedTasks.Inc()
-			prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
 			prometheus.SkippedTasks.Inc()
-			prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
+			if tenantMetricsEnabled {
+				prometheus.TenantCreatedTasks.WithLabelValues(tenantId.String()).Inc()
+				prometheus.TenantSkippedTasks.WithLabelValues(tenantId.String()).Inc()
+			}
 		}
 	}()
 
@@ -666,15 +684,19 @@ func (s *OLAPSignaler) SendInternalEvents(ctx context.Context, tenantId uuid.UUI
 func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UUID, eventIdToOpts map[uuid.UUID]v1.EventTriggerOpts, eventIdsToRuns map[uuid.UUID][]*v1.Run) error {
 	eventTriggerOpts := make([]tasktypes.CreatedEventTriggerPayloadSingleton, 0)
 
-	// FIXME: Should `SeenAt` be set on the SDK when the event is created?
-	eventSeenAt := time.Now()
-
 	for eventExternalId, runs := range eventIdsToRuns {
 		opts := eventIdToOpts[eventExternalId]
 
+		// need this for backwards compat when we deploy this version
+		// can remove later
+		seenAt := opts.SeenAt
+		if seenAt.IsZero() {
+			seenAt = time.Now().UTC()
+		}
+
 		if len(runs) == 0 {
 			eventTriggerOpts = append(eventTriggerOpts, tasktypes.CreatedEventTriggerPayloadSingleton{
-				EventSeenAt:             eventSeenAt,
+				EventSeenAt:             seenAt,
 				EventKey:                opts.Key,
 				EventExternalId:         opts.ExternalId,
 				EventPayload:            opts.Data,
@@ -689,7 +711,7 @@ func (s *OLAPSignaler) SignalEventsCreated(ctx context.Context, tenantId uuid.UU
 					MaybeRunId:              &run.Id,
 					MaybeRunInsertedAt:      &run.InsertedAt,
 					MaybeRunExternalId:      &runExtID,
-					EventSeenAt:             eventSeenAt,
+					EventSeenAt:             seenAt,
 					EventKey:                opts.Key,
 					EventExternalId:         opts.ExternalId,
 					EventPayload:            opts.Data,
