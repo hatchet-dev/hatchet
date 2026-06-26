@@ -507,10 +507,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 
 		concurrencyRepo := r.Scheduler().Concurrency()
 
-		// Make the strategy "cold". The stale-deactivation sweep only deactivates a strategy whose
-		// last_active is over a day old, so first age last_active past that window, then run the sweep.
-		// This mirrors a strategy that has been idle for more than a day.
-		_, err = conf.Pool.Exec(ctx, `UPDATE v1_step_concurrency SET last_active = NOW() - INTERVAL '2 days' WHERE tenant_id = $1::uuid AND id = $2::bigint`, tenantId, strat.ID)
+		_, err = conf.Pool.Exec(ctx, `UPDATE v1_step_concurrency SET last_active_at = NOW() - INTERVAL '2 days' WHERE tenant_id = $1::uuid AND id = $2::bigint`, tenantId, strat.ID)
 		require.NoError(t, err)
 
 		require.NoError(t, concurrencyRepo.DeactivateStaleStepConcurrency(ctx, tenantId))

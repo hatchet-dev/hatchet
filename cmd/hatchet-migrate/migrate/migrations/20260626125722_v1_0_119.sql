@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 
 ALTER TABLE v1_step_concurrency
-    ADD COLUMN last_active TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_function()
 RETURNS trigger AS $$
@@ -69,13 +69,13 @@ BEGIN
             v1_step_concurrency strategy ON strategy.workflow_id = cs.workflow_id AND strategy.workflow_version_id = cs.workflow_version_id AND strategy.id = cs.strategy_id
         WHERE
             strategy.is_active = FALSE
-            OR strategy.last_active < NOW() - INTERVAL '1 hour'
+            OR strategy.last_active_at < NOW() - INTERVAL '1 hour'
         ORDER BY
             strategy.id
         FOR UPDATE
     )
     UPDATE v1_step_concurrency strategy
-    SET is_active = TRUE, last_active = NOW()
+    SET is_active = TRUE, last_active_at = NOW()
     FROM inactive_strategies
     WHERE
         strategy.workflow_id = inactive_strategies.workflow_id AND
@@ -176,6 +176,6 @@ END;
 
 $$ LANGUAGE plpgsql;
 
-ALTER TABLE v1_step_concurrency DROP COLUMN last_active;
+ALTER TABLE v1_step_concurrency DROP COLUMN last_active_at;
 
 -- +goose StatementEnd
