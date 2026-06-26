@@ -34,7 +34,7 @@ tasks:
         SERVER_URL=http://localhost:8080
 
         SERVER_AUTH_COOKIE_SECRETS="$(randstring 16) $(randstring 16)"
-        SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
+        SERVER_AUTH_COOKIE_DOMAIN=localhost
         SERVER_AUTH_COOKIE_INSECURE=true
         SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
@@ -54,6 +54,8 @@ tasks:
         SERVER_GRPC_INSECURE=true
         SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
         SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
+
+        VITE_CONTROL_PLANE_API_PROXY_TARGET=http://127.0.0.1:8080
         EOF
   fmt-go:
     cmd: gofmt -s -w .
@@ -143,8 +145,7 @@ tasks:
     deps:
       - task: goose-migrate
       - task: start-db
-      - task: start-api
-      - task: start-engine
+      - task: start-dashboard
       - task: start-frontend
   start-dev-tmux:
     cmds:
@@ -174,6 +175,9 @@ tasks:
   start-lite:
     cmds:
       - bash ./hack/dev/start-lite.sh
+  start-dashboard:
+    cmds:
+      - bash ./hack/dev/start-dashboard.sh
   start-ngrok:
     cmds:
       - ngrok http 8080
