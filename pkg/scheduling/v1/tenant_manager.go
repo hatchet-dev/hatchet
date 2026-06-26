@@ -180,7 +180,7 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 					t.addConcurrencyStrategy(ctx, strategy)
 				}
 			} else {
-				t.setConcurrencyStrategies(msg.items)
+				t.setConcurrencyStrategies(ctx, msg.items)
 			}
 		}
 	}
@@ -238,7 +238,7 @@ func (t *tenantManager) addQueuer(queueName string) {
 	t.queue(context.Background(), []string{queueName})
 }
 
-func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {
+func (t *tenantManager) setConcurrencyStrategies(ctx context.Context, strategies []*sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
@@ -263,7 +263,14 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	for _, strategy := range strategiesSet {
-		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+		c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
+		newArr = append(newArr, c)
+
+		// Notify each newly instantiated manager so it evaluates its already-queued slots immediately,
+		// instead of waiting up to maxPollingInterval for its first ticker tick. This matters on
+		// startup/rebalance, where managers are (re)created here for strategies that may already have
+		// queued work. notify() is a non-blocking send, so it is safe to call under the lock.
+		c.notify(ctx)
 	}
 
 	t.concurrencyStrategies = newArr
