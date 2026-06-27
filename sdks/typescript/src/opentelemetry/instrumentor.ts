@@ -8,7 +8,7 @@
  * patching module prototypes to automatically instrument all instances.
  */
 
-import type { Context as OtelContext, Span, Attributes } from '@opentelemetry/api';
+import type { Context as OtelContext, Span, Attributes, SpanContext } from '@opentelemetry/api';
 
 import type { InstrumentationConfig } from '@opentelemetry/instrumentation';
 
@@ -77,6 +77,22 @@ type HatchetInstrumentationConfig = OpenTelemetryConfig &
      * Configuration for the BatchSpanProcessor that sends spans to the Hatchet collector.
      */
     bspConfig?: HatchetBspConfig;
+
+    /**
+     * When provided, this predicate is called with the actionId of each incoming step run.
+     * Returning true causes the step's span to use an OTel span link back to the triggering
+     * span rather than making that span its parent. This is the correct choice for
+     * fire-and-forget patterns (e.g. runNoWait fan-outs) where the parent span should close
+     * as soon as the spawn loop returns, not when the slowest child finishes.
+     *
+     * Default: undefined (all spans use parent-child semantics, preserving prior behaviour).
+     *
+     * @example
+     * new HatchetInstrumentor({
+     *   useLinksInsteadOfParent: (actionId) => actionId.startsWith('fan-out-worker:'),
+     * });
+     */
+    useLinksInsteadOfParent?: (actionId: string) => boolean;
   };
 type Carrier = Record<string, string>;
 
@@ -721,29 +737,45 @@ export class HatchetInstrumentor extends InstrumentationBase<HatchetInstrumentat
           }
           setHatchetSpanAttributes(hatchetAttrs);
 
+          const runSpan = (span: Span) =>
+            original
+              .call(this, action)
+              .then((taskError: Error | undefined) => {
+                if (taskError instanceof Error) {
+                  span.recordException(taskError);
+                  span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
+                } else {
+                  span.setStatus({ code: SpanStatusCode.OK });
+                }
+                return taskError;
+              })
+              .finally(() => {
+                span.end();
+              });
+
+          const useLinks = getConfig().useLinksInsteadOfParent?.(action.actionId) ?? false;
+          if (useLinks) {
+            const parentSpanCtx: SpanContext | undefined =
+              otelApi.trace.getSpanContext(parentContext);
+            const links =
+              parentSpanCtx && otelApi.trace.isSpanContextValid(parentSpanCtx)
+                ? [{ context: parentSpanCtx }]
+                : [];
+            // Using ROOT_CONTEXT prevents unrelated ambient spans on the worker
+            // from turning this link-only span into a child in the wrong trace.
+            return tracer.startActiveSpan(
+              spanName,
+              { kind: SpanKind.CONSUMER, attributes, links },
+              otelApi.ROOT_CONTEXT,
+              runSpan
+            );
+          }
+
           return tracer.startActiveSpan(
             spanName,
-            {
-              kind: SpanKind.CONSUMER,
-              attributes,
-            },
+            { kind: SpanKind.CONSUMER, attributes },
             parentContext,
-            (span: Span) => {
-              return original
-                .call(this, action)
-                .then((taskError: Error | undefined) => {
-                  if (taskError instanceof Error) {
-                    span.recordException(taskError);
-                    span.setStatus({ code: SpanStatusCode.ERROR, message: taskError.message });
-                  } else {
-                    span.setStatus({ code: SpanStatusCode.OK });
-                  }
-                  return taskError;
-                })
-                .finally(() => {
-                  span.end();
-                });
-            }
+            runSpan
           );
         };
       }
