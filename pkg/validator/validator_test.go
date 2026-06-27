@@ -93,8 +93,68 @@ func TestValidatorDuration(t *testing.T) {
 			input: "5s",
 		},
 		{
+			name:  "minutes and seconds",
+			input: "42m30s",
+		},
+		{
+			name:  "hours minutes seconds",
+			input: "1h30m5s",
+		},
+		{
+			name:  "decimal hour",
+			input: "1.5h",
+		},
+		{
+			name:  "milliseconds",
+			input: "1500ms",
+		},
+		{
+			name:  "zero with unit",
+			input: "0s",
+		},
+		{
 			name:       "invalid duration (missing unit)",
 			input:      "5",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (bare zero)",
+			input:      "0",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (trailing garbage)",
+			input:      "42m30sX",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (negative)",
+			input:      "-1.5h",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (leading plus sign)",
+			input:      "+1h",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (nanoseconds)",
+			input:      "100ns",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (microseconds)",
+			input:      "100us",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (days)",
+			input:      "1d",
+			wantErrTag: "duration",
+		},
+		{
+			name:       "invalid duration (overflow)",
+			input:      "9999999999999h",
 			wantErrTag: "duration",
 		},
 	}
