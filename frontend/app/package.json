@@ -20,7 +20,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "typecheck:build": "tsc -p tsconfig.build.json",
     "typecheck:cypress": "tsc -p tsconfig.cypress.json",
-    "docs:gen": "cd ../snippets && python3 generate.py"
+    "docs:gen": "cd ../snippets && python3 -X utf8 generate.py"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

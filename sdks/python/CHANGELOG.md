@@ -5,6 +5,13 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.13] - 2026-06-26
+
+### Fixed
+
+- Reworks the internals of event pushes and stream event pubs to use `grpc.aio` directly to limit threading overhead on high-throughput workers.
+- Reworks how logs are forwarded to the engine to publish from a thread instead of from an `asyncio.Task` to try to avoid event loop blocking issues.
+
 ## [1.33.12] - 2026-06-21
 
 ### Fixed
