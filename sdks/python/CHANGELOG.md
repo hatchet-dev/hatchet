@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an `individual_run_spans_for_bulk_run` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`run_workflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
 
+### Added
+
+- Adds an optional `priority` argument to `ScheduledClient.create` and `ScheduledClient.aio_create`, allowing scheduled workflow runs to be created with a priority between 1 and 3.
+
 ### Fixed
 
 - Fixed a bug where synchronous log calls via `asyncio.to_thread` (or other threads) could block workers.
