@@ -71,7 +71,10 @@ import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-set
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
-import { TagBadge, TagList } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
+import {
+  TagBadge,
+  TagList,
+} from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';

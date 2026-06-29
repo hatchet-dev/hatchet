@@ -18,7 +18,11 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import { KeyIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  KeyIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -77,7 +81,8 @@ export function CreateTokenModal({
   }, [reset, onOpenChange]);
 
   const addTag = (tag: string) => setTags((prev) => [...prev, tag]);
-  const removeTag = (tag: string) => setTags((prev) => prev.filter((t) => t !== tag));
+  const removeTag = (tag: string) =>
+    setTags((prev) => prev.filter((t) => t !== tag));
   const availableTagsToAdd = allTenantTags.filter((t) => !tags.includes(t));
 
   const handleTokenCreate = useCallback(
@@ -239,7 +244,11 @@ export function CreateTokenModal({
                 </div>
               )}
               {availableTagsToAdd.length > 0 ? (
-                <Select onValueChange={addTag} disabled={createTokenLoading} value="">
+                <Select
+                  onValueChange={addTag}
+                  disabled={createTokenLoading}
+                  value=""
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Add a tag…" />
                   </SelectTrigger>
@@ -259,8 +268,8 @@ export function CreateTokenModal({
                 </p>
               )}
               <p className="text-sm text-muted-foreground">
-                When set, the token can only access or create tenants whose
-                tags are a subset of these tags.
+                When set, the token can only access or create tenants whose tags
+                are a subset of these tags.
               </p>
             </div>
 
