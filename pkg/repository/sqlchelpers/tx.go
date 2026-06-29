@@ -144,6 +144,11 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 }
 
 func DeferRollback(ctx context.Context, l *zerolog.Logger, rollback func(context.Context) error) {
+
+	if ctx.Done() != nil {
+		return
+	}
+
 	if err := rollback(ctx); err != nil {
 		if !errors.Is(err, pgx.ErrTxClosed) {
 			l.Error().Err(err).Msg("failed to rollback transaction")
