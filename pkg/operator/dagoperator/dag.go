@@ -3,6 +3,7 @@ package dagoperator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	cel "github.com/google/cel-go/cel"
@@ -13,17 +14,39 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+var celEnv *cel.Env
+
+func init() {
+	var err error
+	celEnv, err = cel.NewEnv(cel.Variable("output", cel.MapType(cel.StringType, cel.DynType)))
+	if err != nil {
+		panic(fmt.Sprintf("failed to initialize CEL environment: %v", err))
+	}
+}
+
+type dagCancelledError struct {
+	taskActionId string
+}
+
+func (e *dagCancelledError) Error() string {
+	return fmt.Sprintf("task %q was cancelled", e.taskActionId)
+}
+
+func isDagCancelledErr(err error) bool {
+	var e *dagCancelledError
+	return errors.As(err, &e)
+}
+
 type dag struct {
 	requestCh chan<- *v1contracts.DurableTaskRequest
 
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
 
-	// important: task ordering must be the same between instances
 	tasks           []*task
 	externalId      uuid.UUID
 	invocationCount int32
 	input           string
-	err             error // first child failure, if any
+	err             error
 
 	pendingWaitAcks []*pendingWaitAck
 }
@@ -34,18 +57,17 @@ type pendingWaitAck struct {
 }
 
 type task struct {
-	conditions   []*condition
 	id           uuid.UUID
 	actionId     string
 	workflowName string
 	readableId   string
-	index        int32 // stable position; used as ChildIndex for deduplication
+	index        int32
 	parents      []*task
 	isCompleted  bool
 	isFailed     bool
 	isCancelled  bool
 	isTriggered  bool
-	isSkipIfped  bool
+	isSkipped    bool
 	errorMessage string
 	output       map[string]interface{}
 
@@ -54,22 +76,16 @@ type task struct {
 	waitNodeId      int64
 	waitBranchId    int64
 
-	isSkipIfIfRegistered bool
-	isSkipIfIfFired      bool
-	skipIfNodeId         int64
-	skipIfBranchId       int64
+	skipIfWatchRegistered bool
+	skipIfWatchFired      bool
+	skipIfNodeId          int64
+	skipIfBranchId        int64
 
 	stepConditions []*sqlcv1.V1StepMatchCondition
 
 	nodeId                int64
 	branchId              int64
 	workflowRunExternalId *uuid.UUID
-}
-
-type condition struct {
-	*v1contracts.TaskConditions
-	isSatisfied bool
-	isTriggered bool // nolint:unused
 }
 
 func dagDurableTask(
@@ -80,7 +96,7 @@ func dagDurableTask(
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
 ) error {
 	d := &dag{
 		tasks:           tasks,
@@ -107,7 +123,7 @@ func dagDurableTask(
 	if d.err == nil {
 		for _, t := range d.tasks {
 			if t.isCancelled {
-				d.err = fmt.Errorf("dag cancelled: task %q was cancelled", t.actionId)
+				d.err = &dagCancelledError{taskActionId: t.actionId}
 				break
 			}
 		}
@@ -122,7 +138,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 	}
 
 	for _, t := range d.tasks {
-		if t.isTriggered || t.isSkipIfped {
+		if t.isTriggered || t.isSkipped {
 			continue
 		}
 
@@ -156,24 +172,18 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			}
 
 			if !cancelled {
-				if d.hasSkipIfUserEventConditions(t) && !t.isSkipIfIfRegistered {
-					if err := d.registerSkipIfWatch(t); err != nil {
-						d.err = fmt.Errorf("failed to register skip_if wait for task %q: %w", t.actionId, err)
-						return d.err
-					}
-					t.isSkipIfIfRegistered = true
+				if d.hasSkipIfUserEventConditions(t) && !t.skipIfWatchRegistered {
+					d.registerSkipIfWatch(t)
+					t.skipIfWatchRegistered = true
 				}
 
-				if t.isSkipIfIfFired {
+				if t.skipIfWatchFired {
 					skip = true
 				}
 
 				if !skip && d.hasWaitConditions(t) && !t.isWaitSatisfied {
 					if !t.isWaiting {
-						if err := d.registerWaitFor(t); err != nil {
-							d.err = fmt.Errorf("failed to register wait_for for task %q: %w", t.actionId, err)
-							return d.err
-						}
+						d.registerWaitFor(t)
 						t.isWaiting = true
 					}
 					continue
@@ -193,7 +203,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 				}
 
 				if skip {
-					t.isSkipIfped = true
+					t.isSkipped = true
 				}
 
 				t.nodeId = result.NodeId
@@ -218,7 +228,6 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 		}
 
 		t.isCancelled = true
-
 		t.nodeId = result.NodeId
 		t.branchId = result.BranchId
 		t.workflowRunExternalId = &result.WorkflowRunExternalId
@@ -261,8 +270,8 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 		branchId := ref.GetBranchId()
 
 		for _, t := range d.tasks {
-			if t.isSkipIfIfRegistered && !t.isSkipIfIfFired && t.skipIfNodeId == nodeId && t.skipIfBranchId == branchId {
-				t.isSkipIfIfFired = true
+			if t.skipIfWatchRegistered && !t.skipIfWatchFired && t.skipIfNodeId == nodeId && t.skipIfBranchId == branchId {
+				t.skipIfWatchFired = true
 				return
 			}
 
@@ -288,7 +297,7 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 				if err := json.Unmarshal(payload, &outputData); err == nil {
 					t.output = outputData
 					if skipped, ok := outputData["skipped"].(bool); ok && skipped {
-						t.isSkipIfped = true
+						t.isSkipped = true
 					}
 					if cancelled, ok := outputData["cancelled"].(bool); ok && cancelled {
 						t.isCancelled = true
@@ -402,7 +411,7 @@ func (d *dag) hasWaitConditions(t *task) bool {
 	return false
 }
 
-func (d *dag) registerWaitFor(t *task) error {
+func (d *dag) registerWaitFor(t *task) {
 	conditions := &v1contracts.DurableEventListenerConditions{}
 
 	for _, c := range t.stepConditions {
@@ -411,13 +420,12 @@ func (d *dag) registerWaitFor(t *task) error {
 		}
 		switch c.Kind {
 		case sqlcv1.V1StepMatchConditionKindSLEEP:
-			sleepFor := c.SleepDuration.String
 			conditions.SleepConditions = append(conditions.SleepConditions, &v1contracts.SleepMatchCondition{
 				Base: &v1contracts.BaseMatchCondition{
 					ReadableDataKey: c.ReadableDataKey,
 					OrGroupId:       c.OrGroupID.String(),
 				},
-				SleepFor: sleepFor,
+				SleepFor: c.SleepDuration.String,
 			})
 		case sqlcv1.V1StepMatchConditionKindUSEREVENT:
 			conditions.UserEventConditions = append(conditions.UserEventConditions, &v1contracts.UserEventMatchCondition{
@@ -442,7 +450,6 @@ func (d *dag) registerWaitFor(t *task) error {
 	}
 
 	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: false})
-	return nil
 }
 
 func (d *dag) hasSkipIfUserEventConditions(t *task) bool {
@@ -454,7 +461,7 @@ func (d *dag) hasSkipIfUserEventConditions(t *task) bool {
 	return false
 }
 
-func (d *dag) registerSkipIfWatch(t *task) error {
+func (d *dag) registerSkipIfWatch(t *task) {
 	conditions := &v1contracts.DurableEventListenerConditions{}
 
 	for _, c := range t.stepConditions {
@@ -482,23 +489,15 @@ func (d *dag) registerSkipIfWatch(t *task) error {
 	}
 
 	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: true})
-	return nil
 }
 
 func evalCELExpr(ctx context.Context, expr string, output map[string]interface{}) (bool, error) {
-	env, err := cel.NewEnv(
-		cel.Variable("output", cel.MapType(cel.StringType, cel.DynType)),
-	)
-	if err != nil {
-		return false, fmt.Errorf("failed to create CEL environment: %w", err)
-	}
-
-	ast, issues := env.Compile(expr)
+	ast, issues := celEnv.Compile(expr)
 	if issues != nil && issues.Err() != nil {
 		return false, fmt.Errorf("failed to compile CEL expression %q: %w", expr, issues.Err())
 	}
 
-	prg, err := env.Program(ast)
+	prg, err := celEnv.Program(ast)
 	if err != nil {
 		return false, fmt.Errorf("failed to create CEL program for %q: %w", expr, err)
 	}

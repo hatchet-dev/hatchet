@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -180,7 +179,6 @@ func slicesEqualUnordered(a, b []string) bool {
 }
 
 func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
-	// Track this task so Drain/Cleanup wait for it before the operator shuts down.
 	release := d.RecordTask()
 	defer release()
 
@@ -199,12 +197,9 @@ func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.Assign
 	}
 }
 
-// run opens a durable-task session for the assigned action and drives the DAG to completion.
-// It uses d.ctx (the operator's lifetime context) rather than the dispatcher's delivery
+// run uses d.ctx (the operator's lifetime context) rather than the dispatcher's delivery
 // context, which has a short timeout that would cancel long-running DAGs mid-flight.
 func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.AssignedAction) error {
-	// Report STARTED so the task is marked running. Best-effort: a failed report shouldn't
-	// prevent the actual work.
 	if err := d.SendStarted(action); err != nil {
 		d.Logger().Error().Err(err).
 			Str("task_run_external_id", action.TaskRunExternalId).
@@ -229,7 +224,6 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		return d.fail(action, fmt.Errorf("could not register durable task: %w", err))
 	}
 
-	// Closing requestCh tears down the dispatcher-side session.
 	defer close(requestCh)
 
 	requestCh <- &v1contracts.DurableTaskRequest{
@@ -263,16 +257,10 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		})
 	}
 
-	taskRunExternalId, err := uuid.Parse(action.TaskRunExternalId)
-
-	if err != nil {
-		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err))
-	}
-
 	dagErr := dagDurableTask(
 		d.ctx,
 		tasks,
-		taskRunExternalId,
+		externalId,
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
 		requestCh,
@@ -281,7 +269,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	)
 
 	if dagErr != nil {
-		if isCancelledErr(dagErr) {
+		if isDagCancelledErr(dagErr) {
 			return d.cancelDAG(action, dagErr.Error())
 		}
 		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr))
@@ -329,10 +317,6 @@ func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) er
 	}
 
 	return nil
-}
-
-func isCancelledErr(err error) bool {
-	return err != nil && len(err.Error()) > 0 && strings.HasPrefix(err.Error(), "dag cancelled:")
 }
 
 func (d *DAGOperator) buildDAG(ctx context.Context, action *contracts.AssignedAction) ([]*task, error) {
