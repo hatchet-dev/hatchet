@@ -27,13 +27,17 @@ export function useInviteActions({
   onConfirmation: () => void;
 }) {
   const { invalidate: invalidateUserUniverse } = useUserUniverse();
-  const { acceptOrgInviteMutation, rejectOrgInviteMutation } = useOrganizations();
-  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } = useTenantApi();
+  const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
+    useOrganizations();
+  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } =
+    useTenantApi();
   const { capture } = useAnalytics();
 
   const [pendingId, setPendingId] = useState<string>();
   const [processedIds, setProcessedIds] = useState<Set<string>>(new Set());
-  const [acceptedTenantInfos, setAcceptedTenantInfos] = useState<AcceptedTenantInfo[]>([]);
+  const [acceptedTenantInfos, setAcceptedTenantInfos] = useState<
+    AcceptedTenantInfo[]
+  >([]);
   const [errors, setErrors] = useState<string[]>([]);
   const { handleApiError } = useApiError({ setErrors });
 
@@ -45,9 +49,14 @@ export function useInviteActions({
   const checkCompletion = useCallback(
     (nextProcessedIds: Set<string>, nextAccepted: AcceptedTenantInfo[]) => {
       const remaining =
-        tenantInvites.filter((inv) => !nextProcessedIds.has(inv.metadata.id)).length +
-        organizationInvites.filter((inv) => !nextProcessedIds.has(inv.metadata.id)).length;
-      if (remaining > 0) return;
+        tenantInvites.filter((inv) => !nextProcessedIds.has(inv.metadata.id))
+          .length +
+        organizationInvites.filter(
+          (inv) => !nextProcessedIds.has(inv.metadata.id),
+        ).length;
+      if (remaining > 0) {
+        return;
+      }
       invalidatePendingInvites();
       if (nextAccepted.length > 0) {
         onConfirmation();
@@ -55,7 +64,13 @@ export function useInviteActions({
         onClose();
       }
     },
-    [tenantInvites, organizationInvites, invalidatePendingInvites, onClose, onConfirmation],
+    [
+      tenantInvites,
+      organizationInvites,
+      invalidatePendingInvites,
+      onClose,
+      onConfirmation,
+    ],
   );
 
   const markProcessed = useCallback((id: string) => {
@@ -70,13 +85,20 @@ export function useInviteActions({
 
   const acceptTenantMutation = useMutation({
     mutationKey: ['invite-modal:tenant:accept'],
-    mutationFn: async (data: { inviteId: string; tenantId: string; tenantName: string }) => {
+    mutationFn: async (data: {
+      inviteId: string;
+      tenantId: string;
+      tenantName: string;
+    }) => {
       await acceptTenantFn({ invite: data.inviteId });
       return { tenantId: data.tenantId, tenantName: data.tenantName };
     },
     onSuccess: async ({ tenantId, tenantName }) => {
       await invalidateUserUniverse();
-      const next = [...acceptedTenantInfosRef.current, { id: tenantId, name: tenantName }];
+      const next = [
+        ...acceptedTenantInfosRef.current,
+        { id: tenantId, name: tenantName },
+      ];
       acceptedTenantInfosRef.current = next;
       setAcceptedTenantInfos(next);
     },
@@ -111,7 +133,13 @@ export function useInviteActions({
         },
       );
     },
-    [acceptTenantMutation, capture, markProcessed, invalidatePendingInvites, checkCompletion],
+    [
+      acceptTenantMutation,
+      capture,
+      markProcessed,
+      invalidatePendingInvites,
+      checkCompletion,
+    ],
   );
 
   const handleTenantReject = useCallback(
@@ -122,7 +150,9 @@ export function useInviteActions({
         { inviteId },
         {
           onSuccess: () => {
-            capture('onboarding_tenant_invite_rejected', { invite_id: inviteId });
+            capture('onboarding_tenant_invite_rejected', {
+              invite_id: inviteId,
+            });
             const nextProcessedIds = markProcessed(inviteId);
             invalidatePendingInvites();
             checkCompletion(nextProcessedIds, acceptedTenantInfosRef.current);
@@ -131,7 +161,13 @@ export function useInviteActions({
         },
       );
     },
-    [rejectTenantMutation, capture, markProcessed, invalidatePendingInvites, checkCompletion],
+    [
+      rejectTenantMutation,
+      capture,
+      markProcessed,
+      invalidatePendingInvites,
+      checkCompletion,
+    ],
   );
 
   const handleOrgAccept = useCallback(

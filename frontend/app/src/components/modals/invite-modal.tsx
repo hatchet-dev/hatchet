@@ -16,12 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
-import { usePendingInvites } from '@/hooks/use-pending-invites';
-import { useTenantDetails } from '@/hooks/use-tenant';
 import {
   AcceptedTenantInfo,
   useInviteActions,
 } from '@/hooks/use-invite-actions';
+import { usePendingInvites } from '@/hooks/use-pending-invites';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant } from '@/lib/api';
 import { useUserUniverse } from '@/providers/user-universe';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
@@ -41,7 +41,8 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
   const [phase, setPhase] = useState<'invites' | 'confirmation'>('invites');
 
   const tenantInvites = pendingInvitesQuery.data?.tenantInvites ?? [];
-  const organizationInvites = pendingInvitesQuery.data?.organizationInvites ?? [];
+  const organizationInvites =
+    pendingInvitesQuery.data?.organizationInvites ?? [];
   const totalInviteCount = pendingInvitesQuery.data?.inviteCount ?? 0;
 
   const {
@@ -82,7 +83,14 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     ) {
       onClose();
     }
-  }, [isOpen, phase, pendingInvitesQuery.isSuccess, totalInviteCount, processedIds.size, onClose]);
+  }, [
+    isOpen,
+    phase,
+    pendingInvitesQuery.isSuccess,
+    totalInviteCount,
+    processedIds.size,
+    onClose,
+  ]);
 
   const visibleTenantInvites = tenantInvites.filter(
     (inv) => !processedIds.has(inv.metadata.id),
@@ -164,7 +172,10 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                     {visibleTenantInvites.map((invite) => (
                       <TableRow key={invite.metadata.id}>
                         <TableCell>
-                          <Badge variant="secondary" className="text-xs font-normal">
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-normal"
+                          >
                             Tenant
                           </Badge>
                         </TableCell>
@@ -190,7 +201,9 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                                 invite.tenantName ?? '',
                               )
                             }
-                            onDecline={() => handleTenantReject(invite.metadata.id)}
+                            onDecline={() =>
+                              handleTenantReject(invite.metadata.id)
+                            }
                           />
                         </TableCell>
                       </TableRow>
@@ -198,7 +211,10 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                     {visibleOrgInvites.map((invite) => (
                       <TableRow key={invite.metadata.id}>
                         <TableCell>
-                          <Badge variant="secondary" className="text-xs font-normal">
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-normal"
+                          >
                             Org
                           </Badge>
                         </TableCell>
@@ -218,7 +234,9 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                           <InviteActions
                             disabled={pendingId === invite.metadata.id}
                             onAccept={() => handleOrgAccept(invite.metadata.id)}
-                            onDecline={() => handleOrgReject(invite.metadata.id)}
+                            onDecline={() =>
+                              handleOrgReject(invite.metadata.id)
+                            }
                           />
                         </TableCell>
                       </TableRow>

@@ -127,6 +127,9 @@ describe('Tenant Invite: decline', () => {
     cy.get('[role="dialog"]', { timeout: 10000 }).should('not.exist');
 
     // Should remain on a tenant page (modal closes in-place; no redirect)
-    cy.location('pathname', { timeout: 10000 }).should('match', /\/tenants\/.+/);
+    cy.location('pathname', { timeout: 10000 }).should(
+      'match',
+      /\/tenants\/.+/,
+    );
   });
 });
