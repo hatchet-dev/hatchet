@@ -838,8 +838,8 @@ func (d *DispatcherImpl) populateTaskData(
 			}
 		}
 
-		if len(currInput.DagParentWorkflowRunIds) > 0 {
-			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, currInput.DagParentWorkflowRunIds)
+		if len(currInput.DagParentTaskRunIds) > 0 {
+			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, currInput.DagParentTaskRunIds)
 
 			if err != nil {
 				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to look up dag parent outputs")

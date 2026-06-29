@@ -1244,17 +1244,17 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:            req.WorkflowName,
-			TargetActionId:          &req.ActionId,
-			UserMessage:             &stepLabel,
-			Data:                    []byte(req.Input),
-			ParentExternalId:        &task.ExternalID,
-			ParentTaskId:            &task.ID,
-			ParentTaskInsertedAt:    &task.InsertedAt.Time,
-			ChildIndex:              &childIndex,
-			DagParentWorkflowRunIds: req.DagParentTaskRunIds,
-			IsSkipped:               req.IsSkipped,
-			IsCancelled:             req.IsCancelled,
+			WorkflowName:         req.WorkflowName,
+			TargetActionId:       &req.ActionId,
+			UserMessage:          &stepLabel,
+			Data:                 []byte(req.Input),
+			ParentExternalId:     &task.ExternalID,
+			ParentTaskId:         &task.ID,
+			ParentTaskInsertedAt: &task.InsertedAt.Time,
+			ChildIndex:           &childIndex,
+			DagParentTaskRunIds:  req.DagParentTaskRunIds,
+			IsSkipped:            req.IsSkipped,
+			IsCancelled:          req.IsCancelled,
 		},
 	}}
 

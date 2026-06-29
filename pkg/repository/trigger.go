@@ -74,8 +74,8 @@ type TriggerTaskData struct {
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
 
-	// (optional) workflow run external IDs of parent tasks for durable DAG orchestration
-	DagParentWorkflowRunIds []uuid.UUID `json:"dag_parent_workflow_run_ids,omitempty"`
+	// (optional) task run external IDs of parent tasks for durable DAG orchestration
+	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
 
 	// (optional) when set, only trigger this specific step by action ID (used by DAG operator)
 	TargetActionId *string `json:"target_action_id,omitempty"`
@@ -603,7 +603,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
-	dagParentWorkflowRunIds   []uuid.UUID
+	dagParentTaskRunIds       []uuid.UUID
 	targetActionId            *string
 	isSkipped                 bool
 	isCancelled               bool
@@ -834,7 +834,7 @@ func (r *sharedRepository) triggerWorkflows(
 				ExternalId:                tuple.externalId,
 				WorkflowRunId:             tuple.externalId,
 				StepId:                    orchestratorStep.ID,
-				Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentWorkflowRunIds),
+				Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
 				AdditionalMetadata:        tuple.additionalMetadata,
 				InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
 				DesiredWorkerId:           tuple.desiredWorkerId,
@@ -1083,7 +1083,7 @@ func (r *sharedRepository) triggerWorkflows(
 						ExternalId:                taskExternalId,
 						WorkflowRunId:             tuple.externalId,
 						StepId:                    step.ID,
-						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentWorkflowRunIds),
+						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
 						AdditionalMetadata:        tuple.additionalMetadata,
 						InitialState:              initialState,
 						DesiredWorkerId:           tuple.desiredWorkerId,
@@ -2432,24 +2432,24 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 			}
 
 			triggerOpts = append(triggerOpts, triggerTuple{
-				workflowVersionId:       workflowVersion.WorkflowVersionId,
-				workflowId:              workflowVersion.WorkflowId,
-				workflowName:            workflowVersion.WorkflowName,
-				externalId:              opt.ExternalId,
-				input:                   opt.Data,
-				additionalMetadata:      opt.AdditionalMetadata,
-				desiredWorkerId:         opt.DesiredWorkerId,
-				parentExternalId:        opt.ParentExternalId,
-				parentTaskId:            opt.ParentTaskId,
-				parentTaskInsertedAt:    opt.ParentTaskInsertedAt,
-				childIndex:              opt.ChildIndex,
-				childKey:                opt.ChildKey,
-				priority:                opt.Priority,
-				desiredWorkerLabels:     opt.DesiredWorkerLabels,
-				dagParentWorkflowRunIds: opt.DagParentWorkflowRunIds,
-				targetActionId:          opt.TargetActionId,
-				isSkipped:               opt.IsSkipped,
-				isCancelled:             opt.IsCancelled,
+				workflowVersionId:    workflowVersion.WorkflowVersionId,
+				workflowId:           workflowVersion.WorkflowId,
+				workflowName:         workflowVersion.WorkflowName,
+				externalId:           opt.ExternalId,
+				input:                opt.Data,
+				additionalMetadata:   opt.AdditionalMetadata,
+				desiredWorkerId:      opt.DesiredWorkerId,
+				parentExternalId:     opt.ParentExternalId,
+				parentTaskId:         opt.ParentTaskId,
+				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
+				childIndex:           opt.ChildIndex,
+				childKey:             opt.ChildKey,
+				priority:             opt.Priority,
+				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
+				targetActionId:       opt.TargetActionId,
+				isSkipped:            opt.IsSkipped,
+				isCancelled:          opt.IsCancelled,
 			})
 		}
 	}
