@@ -14,4 +14,5 @@ export const globalEmitter = makeEmitter<{
     organizationId: string;
     invite: CreateOrganizationInviteRequest;
   };
+  'open-invite-modal': Record<string, never>;
 }>();

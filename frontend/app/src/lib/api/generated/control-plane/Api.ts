@@ -479,12 +479,12 @@ export class Api<
        */
       offset?: number;
       /**
-       * The start of the time range (RFC3339)
+       * The start of the time range (RFC3339). When omitted, defaults to the beginning of the retained audit history (i.e. results are not limited to a recent window); the response is still bounded by limit and offset, returning the most recent rows first.
        * @format date-time
        */
       since?: string;
       /**
-       * The end of the time range (RFC3339)
+       * The end of the time range (RFC3339). When omitted, defaults to the current time.
        * @format date-time
        */
       until?: string;

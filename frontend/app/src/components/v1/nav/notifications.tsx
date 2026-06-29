@@ -87,10 +87,14 @@ export function Notifications() {
       <DropdownMenuContent className="w-80" align="end">
         {notifications.map((notification, i) => (
           <DropdownMenuItem
-            key={`${notification.url}-${i}`}
+            key={i}
             variant="interactive"
             className="flex cursor-pointer items-start gap-2 px-3 py-2"
-            onClick={() => navigate({ to: notification.url })}
+            onClick={() =>
+              notification.onClick
+                ? notification.onClick()
+                : navigate({ to: notification.url })
+            }
           >
             <span
               className={cn(
