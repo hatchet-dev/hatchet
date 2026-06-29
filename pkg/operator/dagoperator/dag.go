@@ -6,23 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	cel "github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
-
-var celEnv *cel.Env
-
-func init() {
-	var err error
-	celEnv, err = cel.NewEnv(cel.Variable("output", cel.MapType(cel.StringType, cel.DynType)))
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize CEL environment: %v", err))
-	}
-}
 
 type dagCancelledError struct {
 	taskActionId string
@@ -38,8 +28,8 @@ func isDagCancelledErr(err error) bool {
 }
 
 type dag struct {
-	requestCh chan<- *v1contracts.DurableTaskRequest
-
+	requestCh  chan<- *v1contracts.DurableTaskRequest
+	matchRepo  repository.MatchRepository
 	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
 
 	tasks           []*task
@@ -96,11 +86,13 @@ func dagDurableTask(
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
+	matchRepo repository.MatchRepository,
 	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
 ) error {
 	d := &dag{
 		tasks:           tasks,
 		requestCh:       requestCh,
+		matchRepo:       matchRepo,
 		externalId:      externalId,
 		invocationCount: invocationCount,
 		input:           input,
@@ -356,7 +348,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			expr = "true"
 		}
 
-		matched, evalErr := evalCELExpr(ctx, expr, parent.output)
+		matched, evalErr := d.matchRepo.EvalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 		if evalErr != nil {
 			return false, false, fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, evalErr)
 		}
@@ -491,22 +483,3 @@ func (d *dag) registerSkipIfWatch(t *task) {
 	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: true})
 }
 
-func evalCELExpr(ctx context.Context, expr string, output map[string]interface{}) (bool, error) {
-	ast, issues := celEnv.Compile(expr)
-	if issues != nil && issues.Err() != nil {
-		return false, fmt.Errorf("failed to compile CEL expression %q: %w", expr, issues.Err())
-	}
-
-	prg, err := celEnv.Program(ast)
-	if err != nil {
-		return false, fmt.Errorf("failed to create CEL program for %q: %w", expr, err)
-	}
-
-	out, _, err := prg.ContextEval(ctx, map[string]interface{}{"output": output})
-	if err != nil {
-		return false, fmt.Errorf("failed to evaluate CEL expression %q: %w", expr, err)
-	}
-
-	b, ok := out.Value().(bool)
-	return ok && b, nil
-}

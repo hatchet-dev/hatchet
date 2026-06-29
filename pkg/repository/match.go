@@ -184,6 +184,8 @@ type MatchRepository interface {
 
 	ProcessUserEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
 	ProcessInternalEventMatches(ctx context.Context, tenantId uuid.UUID, events []CandidateEventMatch) (*EventMatchResults, error)
+
+	EvalBoolExpr(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
 }
 
 type MatchRepositoryImpl struct {
@@ -194,6 +196,48 @@ func newMatchRepository(s *sharedRepository) MatchRepository {
 	return &MatchRepositoryImpl{
 		sharedRepository: s,
 	}
+}
+
+func (r *sharedRepository) compileCELExpr(expr string) (cel.Program, error) {
+	if expr == "" {
+		expr = "true"
+	}
+
+	hasher := fnv.New64a()
+	hasher.Write([]byte(expr))
+	exprHash := hasher.Sum64()
+
+	if program, ok := r.celProgramCache.Get(exprHash); ok {
+		return program, nil
+	}
+
+	ast, issues := r.env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return nil, fmt.Errorf("failed to compile CEL expression %q: %w", expr, issues.Err())
+	}
+
+	program, err := r.env.Program(ast)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create CEL program for %q: %w", expr, err)
+	}
+
+	r.celProgramCache.Add(exprHash, program)
+	return program, nil
+}
+
+func (r *sharedRepository) EvalBoolExpr(ctx context.Context, expr string, vars map[string]interface{}) (bool, error) {
+	program, err := r.compileCELExpr(expr)
+	if err != nil {
+		return false, err
+	}
+
+	out, _, err := program.ContextEval(ctx, vars)
+	if err != nil {
+		return false, fmt.Errorf("failed to evaluate CEL expression %q: %w", expr, err)
+	}
+
+	b, ok := out.Value().(bool)
+	return ok && b, nil
 }
 
 func (r *sharedRepository) registerSignalMatchConditions(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, signalMatches []ExternalCreateSignalMatchOpts) error {
@@ -946,42 +990,15 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 		Value: attribute.IntValue(len(conditions)),
 	})
 
-	// parse CEL expressions
 	programs := make(map[int64]cel.Program)
 	conditionIdsToConditions := make(map[int64]*sqlcv1.ListMatchConditionsForEventRow)
 
 	for _, condition := range conditions {
-		expr := condition.Expression.String
-
-		if expr == "" {
-			expr = "true"
+		program, err := m.compileCELExpr(condition.Expression.String)
+		if err != nil {
+			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to compile CEL expression: %s", condition.Expression.String)
+			continue
 		}
-
-		hasher := fnv.New64a()
-		hasher.Write([]byte(expr))
-		exprHash := hasher.Sum64()
-
-		program, ok := m.celProgramCache.Get(exprHash)
-
-		if !ok {
-			ast, issues := m.env.Compile(expr)
-
-			if issues != nil && issues.Err() != nil {
-				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
-				continue
-			}
-
-			compiled, err := m.env.Program(ast)
-
-			if err != nil {
-				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-				continue
-			}
-
-			m.celProgramCache.Add(exprHash, compiled)
-			program = compiled
-		}
-
 		programs[condition.ID] = program
 		conditionIdsToConditions[condition.ID] = condition
 	}
