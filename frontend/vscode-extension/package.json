@@ -74,7 +74,8 @@
       "serialize-javascript": "^7.0.5",
       "undici": "^7.24.0",
       "minimatch": ">=10.2.3",
-      "picomatch": "^4.0.4"
+      "picomatch": "^4.0.4",
+      "@vscode/vsce>minimatch": "3.1.2"
     }
   }
 }
