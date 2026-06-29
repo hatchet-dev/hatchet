@@ -640,7 +640,7 @@ function AuthenticatedInner() {
           onClose={() => setShowWelcome(false)}
         />
         <InviteModal
-          open={inviteModalOpen}
+          isOpen={inviteModalOpen}
           onClose={() => setInviteModalOpen(false)}
         />
       </SupportChat>

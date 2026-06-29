@@ -28,7 +28,7 @@ export default function Invites() {
   return (
     <div className="flex min-h-full flex-1 items-center justify-center">
       <InviteModal
-        open={true}
+        isOpen={true}
         onClose={() => navigate({ to: appRoutes.authenticatedRoute.to })}
       />
     </div>

@@ -100,57 +100,41 @@ describe('Tenant Invite: accept', () => {
       /\/tenants\/.+/,
     );
 
-    // Open the notification dropdown and click the tenant invite notification
-    cy.get('[data-cy="notifications-button"]', { timeout: 10000 })
-      .filter(':visible')
-      .first()
-      .click();
-    cy.contains(`Tenant invite: ${tenant2Name}`).first().click();
+    // The invite modal auto-opens when the member has pending invites.
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
 
-    // Should be on the invites page now
-    cy.location('pathname', { timeout: 5000 }).should(
-      'eq',
-      '/onboarding/invites',
-    );
-
-    // Find the specific invite and accept it
-    cy.contains(`invited to join the ${tenant2Name} tenant`).should('exist');
-
-    // Accept the invite
+    // Accept the specific invite for tenant2Name
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
-    cy.contains(`invited to join the ${tenant2Name} tenant`)
-      .parent()
-      .contains('button', 'Accept')
+    cy.contains(tenant2Name)
+      .closest('tr')
+      .find('button[aria-label="Accept"]')
       .should('exist')
       .click();
 
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
-    // Wait for the accepted invite card to be removed from the DOM before
-    // looking for remaining Decline buttons. The app awaits a user-universe
-    // refetch before removing the card, so there's a window where the stale
-    // Decline button is still visible.
-    cy.contains(`invited to join the ${tenant2Name} tenant`).should(
-      'not.exist',
-    );
-
-    // Decline all remaining invites so the page redirects
+    // Decline all remaining invites so the modal can advance to the confirmation step
     const declineAll = (remaining = 20) => {
       cy.get('body').then(($body) => {
         if (
           remaining > 0 &&
-          $body.find('button:contains("Decline")').length > 0
+          $body.find('button[aria-label="Decline"]').length > 0
         ) {
           cy.intercept('POST', '/api/v1/users/invites/reject').as(
             'rejectInvite',
           );
-          cy.contains('button', 'Decline').click({ force: true });
+          cy.get('button[aria-label="Decline"]').first().click({ force: true });
           cy.wait('@rejectInvite');
           declineAll(remaining - 1);
         }
       });
     };
     declineAll();
+
+    // Confirmation step: click "Switch to <tenant>" to navigate
+    cy.contains(`Switch to ${tenant2Name}`, { timeout: 10000 })
+      .should('be.visible')
+      .click();
 
     // Verify redirect to the tenant page
     cy.location('pathname', { timeout: 5000 }).should(

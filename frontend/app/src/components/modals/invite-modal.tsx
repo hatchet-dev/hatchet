@@ -16,70 +16,65 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/v1/ui/table';
-import { useAnalytics } from '@/hooks/use-analytics';
-import { useOrganizations } from '@/hooks/use-organizations';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
+import {
+  AcceptedTenantInfo,
+  useInviteActions,
+} from '@/hooks/use-invite-actions';
 import { Tenant } from '@/lib/api';
-import { useTenantApi } from '@/lib/api/tenant-wrapper';
-import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
-import { useMutation } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-
-interface AcceptedTenantInfo {
-  id: string;
-  name: string;
-}
+import { useEffect, useMemo, useState } from 'react';
 
 interface InviteModalProps {
-  open: boolean;
+  isOpen: boolean;
   onClose: () => void;
 }
 
-export function InviteModal({ open, onClose }: InviteModalProps) {
+export function InviteModal({ isOpen, onClose }: InviteModalProps) {
   const { pendingInvitesQuery, invalidate: invalidatePendingInvites } =
     usePendingInvites();
-  const { invalidate: invalidateUserUniverse, tenantMemberships } =
-    useUserUniverse();
-  const { acceptOrgInviteMutation, rejectOrgInviteMutation } =
-    useOrganizations();
-  const { tenantInviteAcceptMutation, tenantInviteRejectMutation } =
-    useTenantApi();
-  const { capture } = useAnalytics();
+  const { tenantMemberships } = useUserUniverse();
   const { setTenant } = useTenantDetails();
 
-  const [processedIds, setProcessedIds] = useState<Set<string>>(new Set());
-  const [acceptedTenantInfos, setAcceptedTenantInfos] = useState<
-    AcceptedTenantInfo[]
-  >([]);
   const [phase, setPhase] = useState<'invites' | 'confirmation'>('invites');
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<string[]>([]);
-  const { handleApiError } = useApiError({ setErrors });
-
-  // Reset state when modal closes and refresh invite count for the notification bar
-  useEffect(() => {
-    if (!open) {
-      invalidatePendingInvites();
-      setProcessedIds(new Set());
-      setAcceptedTenantInfos([]);
-      setPhase('invites');
-      setPendingId(null);
-      setErrors([]);
-    }
-  }, [open, invalidatePendingInvites]);
 
   const tenantInvites = pendingInvitesQuery.data?.tenantInvites ?? [];
-  const organizationInvites =
-    pendingInvitesQuery.data?.organizationInvites ?? [];
+  const organizationInvites = pendingInvitesQuery.data?.organizationInvites ?? [];
   const totalInviteCount = pendingInvitesQuery.data?.inviteCount ?? 0;
 
-  // Close immediately if the modal was opened with stale data and the query resolves to 0
+  const {
+    pendingId,
+    processedIds,
+    acceptedTenantInfos,
+    errors,
+    handleTenantAccept,
+    handleTenantReject,
+    handleOrgAccept,
+    handleOrgReject,
+    reset,
+  } = useInviteActions({
+    tenantInvites,
+    organizationInvites,
+    invalidatePendingInvites,
+    onClose,
+    onConfirmation: () => setPhase('confirmation'),
+  });
+
+  // Reset all action state when the modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      invalidatePendingInvites();
+      setPhase('invites');
+      reset();
+    }
+  }, [isOpen, invalidatePendingInvites, reset]);
+
+  // Close immediately if opened with stale data that resolves to 0 invites
   useEffect(() => {
     if (
-      open &&
+      isOpen &&
       phase === 'invites' &&
       pendingInvitesQuery.isSuccess &&
       totalInviteCount === 0 &&
@@ -87,14 +82,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
     ) {
       onClose();
     }
-  }, [
-    open,
-    phase,
-    pendingInvitesQuery.isSuccess,
-    totalInviteCount,
-    processedIds.size,
-    onClose,
-  ]);
+  }, [isOpen, phase, pendingInvitesQuery.isSuccess, totalInviteCount, processedIds.size, onClose]);
 
   const visibleTenantInvites = tenantInvites.filter(
     (inv) => !processedIds.has(inv.metadata.id),
@@ -103,7 +91,6 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
     (inv) => !processedIds.has(inv.metadata.id),
   );
 
-  // Derives full Tenant objects from live memberships — populates once invalidation resolves
   const acceptedTenants = useMemo(
     () =>
       acceptedTenantInfos
@@ -119,164 +106,6 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
     [acceptedTenantInfos, tenantMemberships],
   );
 
-  const markProcessed = useCallback((id: string) => {
-    setProcessedIds((prev) => new Set([...prev, id]));
-  }, []);
-
-  // Transition to confirmation or close when all visible invites are handled
-  useEffect(() => {
-    if (phase !== 'invites') {
-      return;
-    }
-    if (!pendingInvitesQuery.isSuccess) {
-      return;
-    }
-    if (totalInviteCount === 0 || processedIds.size === 0) {
-      return;
-    }
-
-    const remaining = visibleTenantInvites.length + visibleOrgInvites.length;
-    if (remaining > 0) {
-      return;
-    }
-
-    invalidatePendingInvites();
-    if (acceptedTenantInfos.length > 0) {
-      setPhase('confirmation');
-    } else {
-      onClose();
-    }
-  }, [
-    processedIds.size,
-    visibleTenantInvites.length,
-    visibleOrgInvites.length,
-    phase,
-    acceptedTenantInfos.length,
-    totalInviteCount,
-    invalidatePendingInvites,
-    onClose,
-    pendingInvitesQuery.isSuccess,
-  ]);
-
-  const { mutationFn: acceptTenantFn } = tenantInviteAcceptMutation();
-  const { mutationFn: rejectTenantFn } = tenantInviteRejectMutation();
-
-  const acceptTenantMutation = useMutation({
-    mutationKey: ['invite-modal:tenant:accept'],
-    mutationFn: async (data: {
-      inviteId: string;
-      tenantId: string;
-      tenantName: string;
-    }) => {
-      await acceptTenantFn({ invite: data.inviteId });
-      return { tenantId: data.tenantId, tenantName: data.tenantName };
-    },
-    onSuccess: async ({ tenantId, tenantName }) => {
-      await invalidateUserUniverse();
-      setAcceptedTenantInfos((prev) => [
-        ...prev,
-        { id: tenantId, name: tenantName },
-      ]);
-    },
-    onError: handleApiError,
-  });
-
-  const rejectTenantMutation = useMutation({
-    mutationKey: ['invite-modal:tenant:reject'],
-    mutationFn: async (data: { inviteId: string }) => {
-      await rejectTenantFn({ invite: data.inviteId });
-    },
-    onError: handleApiError,
-  });
-
-  const handleTenantAccept = useCallback(
-    (inviteId: string, tenantId: string, tenantName: string) => {
-      setErrors([]);
-      setPendingId(inviteId);
-      acceptTenantMutation.mutate(
-        { inviteId, tenantId, tenantName },
-        {
-          onSuccess: () => {
-            capture('onboarding_tenant_invite_accepted', {
-              invite_id: inviteId,
-              tenant_id: tenantId,
-            });
-            markProcessed(inviteId);
-            invalidatePendingInvites();
-          },
-          onSettled: () => setPendingId(null),
-        },
-      );
-    },
-    [acceptTenantMutation, capture, markProcessed, invalidatePendingInvites],
-  );
-
-  const handleTenantReject = useCallback(
-    (inviteId: string) => {
-      setErrors([]);
-      setPendingId(inviteId);
-      rejectTenantMutation.mutate(
-        { inviteId },
-        {
-          onSuccess: () => {
-            capture('onboarding_tenant_invite_rejected', {
-              invite_id: inviteId,
-            });
-            markProcessed(inviteId);
-            invalidatePendingInvites();
-          },
-          onSettled: () => setPendingId(null),
-        },
-      );
-    },
-    [rejectTenantMutation, capture, markProcessed, invalidatePendingInvites],
-  );
-
-  const handleOrgAccept = useCallback(
-    (inviteId: string) => {
-      setErrors([]);
-      setPendingId(inviteId);
-      acceptOrgInviteMutation.mutate(
-        { inviteId },
-        {
-          onSuccess: async () => {
-            await invalidateUserUniverse();
-            capture('onboarding_org_invite_accepted', { invite_id: inviteId });
-            markProcessed(inviteId);
-            invalidatePendingInvites();
-          },
-          onSettled: () => setPendingId(null),
-        },
-      );
-    },
-    [
-      acceptOrgInviteMutation,
-      invalidateUserUniverse,
-      capture,
-      markProcessed,
-      invalidatePendingInvites,
-    ],
-  );
-
-  const handleOrgReject = useCallback(
-    (inviteId: string) => {
-      setErrors([]);
-      setPendingId(inviteId);
-      rejectOrgInviteMutation.mutate(
-        { inviteId },
-        {
-          onSuccess: () => {
-            capture('onboarding_org_invite_rejected', { invite_id: inviteId });
-            markProcessed(inviteId);
-            invalidatePendingInvites();
-          },
-          onSettled: () => setPendingId(null),
-        },
-      );
-    },
-    [rejectOrgInviteMutation, capture, markProcessed, invalidatePendingInvites],
-  );
-
   const pendingCount = visibleTenantInvites.length + visibleOrgInvites.length;
 
   const titleText =
@@ -288,9 +117,17 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
           ? `Join ${visibleOrgInvites[0].organizationName}`
           : 'Pending invite';
 
+  // Suppress content render while the stale-close effect is pending to avoid flash
+  const isStaleClose =
+    isOpen &&
+    phase === 'invites' &&
+    pendingInvitesQuery.isSuccess &&
+    totalInviteCount === 0 &&
+    processedIds.size === 0;
+
   return (
     <Dialog
-      open={open}
+      open={isOpen}
       onOpenChange={(o) => {
         if (!o) {
           onClose();
@@ -301,118 +138,115 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
         className="max-w-2xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        {phase === 'invites' ? (
+        {!isStaleClose && (
           <>
-            <DialogHeader>
-              <DialogTitle>{titleText}</DialogTitle>
-              <DialogDescription>
-                {pendingCount === 1
-                  ? 'Accept or decline the invite below.'
-                  : `You have ${pendingCount} pending invite${pendingCount !== 1 ? 's' : ''}.`}
-              </DialogDescription>
-            </DialogHeader>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">Type</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="w-24">Role</TableHead>
-                  <TableHead className="w-44">From</TableHead>
-                  <TableHead className="w-20 text-right" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleTenantInvites.map((invite) => (
-                  <TableRow key={invite.metadata.id}>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className="text-xs font-normal"
-                      >
-                        Tenant
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {invite.tenantName ?? '—'}
-                    </TableCell>
-                    <TableCell className="capitalize text-muted-foreground">
-                      {invite.role.toLowerCase()}
-                    </TableCell>
-                    <TableCell
-                      className="max-w-[176px] truncate text-xs text-muted-foreground"
-                      title={invite.email}
-                    >
-                      {invite.email}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <InviteActions
-                        disabled={pendingId === invite.metadata.id}
-                        onAccept={() =>
-                          handleTenantAccept(
-                            invite.metadata.id,
-                            invite.tenantId,
-                            invite.tenantName ?? '',
-                          )
-                        }
-                        onDecline={() => handleTenantReject(invite.metadata.id)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {visibleOrgInvites.map((invite) => (
-                  <TableRow key={invite.metadata.id}>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className="text-xs font-normal"
-                      >
-                        Org
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {invite.organizationName}
-                    </TableCell>
-                    <TableCell className="capitalize text-muted-foreground">
-                      {invite.role.toLowerCase()}
-                    </TableCell>
-                    <TableCell
-                      className="max-w-[176px] truncate text-xs text-muted-foreground"
-                      title={invite.inviterEmail}
-                    >
-                      {invite.inviterEmail}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <InviteActions
-                        disabled={pendingId === invite.metadata.id}
-                        onAccept={() => handleOrgAccept(invite.metadata.id)}
-                        onDecline={() => handleOrgReject(invite.metadata.id)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {phase === 'invites' ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{titleText}</DialogTitle>
+                  <DialogDescription>
+                    {pendingCount === 1
+                      ? 'Accept or decline the invite below.'
+                      : `You have ${pendingCount} pending invite${pendingCount !== 1 ? 's' : ''}.`}
+                  </DialogDescription>
+                </DialogHeader>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">Type</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="w-24">Role</TableHead>
+                      <TableHead className="w-44">From</TableHead>
+                      <TableHead className="w-20 text-right" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibleTenantInvites.map((invite) => (
+                      <TableRow key={invite.metadata.id}>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            Tenant
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {invite.tenantName ?? '—'}
+                        </TableCell>
+                        <TableCell className="capitalize text-muted-foreground">
+                          {invite.role.toLowerCase()}
+                        </TableCell>
+                        <TableCell
+                          className="max-w-[176px] truncate text-xs text-muted-foreground"
+                          title={invite.email}
+                        >
+                          {invite.email}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <InviteActions
+                            disabled={pendingId === invite.metadata.id}
+                            onAccept={() =>
+                              handleTenantAccept(
+                                invite.metadata.id,
+                                invite.tenantId,
+                                invite.tenantName ?? '',
+                              )
+                            }
+                            onDecline={() => handleTenantReject(invite.metadata.id)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {visibleOrgInvites.map((invite) => (
+                      <TableRow key={invite.metadata.id}>
+                        <TableCell>
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            Org
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {invite.organizationName}
+                        </TableCell>
+                        <TableCell className="capitalize text-muted-foreground">
+                          {invite.role.toLowerCase()}
+                        </TableCell>
+                        <TableCell
+                          className="max-w-[176px] truncate text-xs text-muted-foreground"
+                          title={invite.inviterEmail}
+                        >
+                          {invite.inviterEmail}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <InviteActions
+                            disabled={pendingId === invite.metadata.id}
+                            onAccept={() => handleOrgAccept(invite.metadata.id)}
+                            onDecline={() => handleOrgReject(invite.metadata.id)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </>
+            ) : (
+              <ConfirmationStep
+                acceptedTenantInfos={acceptedTenantInfos}
+                acceptedTenants={acceptedTenants}
+                onSwitch={(tenant) => {
+                  setTenant(tenant);
+                  onClose();
+                }}
+                onClose={onClose}
+              />
+            )}
+            {errors.length > 0 && (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {errors.map((e, i) => (
+                    <p key={i}>{e}</p>
+                  ))}
+                </AlertDescription>
+              </Alert>
+            )}
           </>
-        ) : (
-          // Confirmation step
-          <ConfirmationStep
-            acceptedTenantInfos={acceptedTenantInfos}
-            acceptedTenants={acceptedTenants}
-            onSwitch={(tenant) => {
-              setTenant(tenant);
-              onClose();
-            }}
-            onClose={onClose}
-          />
-        )}
-        {errors.length > 0 && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {errors.map((e, i) => (
-                <p key={i}>{e}</p>
-              ))}
-            </AlertDescription>
-          </Alert>
         )}
       </DialogContent>
     </Dialog>
@@ -450,14 +284,12 @@ function ConfirmationStep({
       </DialogHeader>
 
       <div className="flex flex-col gap-3">
-        {/* No tenant invites were accepted */}
         {!hasTenants && !stillLoading && (
           <div className="flex justify-end">
             <Button onClick={onClose}>Done</Button>
           </div>
         )}
 
-        {/* Waiting for membership data to refresh */}
         {stillLoading && (
           <>
             {acceptedTenantInfos.map((info) => (
@@ -479,7 +311,6 @@ function ConfirmationStep({
           </>
         )}
 
-        {/* Single accepted tenant */}
         {hasTenants && acceptedTenants.length === 1 && (
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={onClose}>
@@ -491,7 +322,6 @@ function ConfirmationStep({
           </div>
         )}
 
-        {/* Multiple accepted tenants */}
         {hasTenants && acceptedTenants.length > 1 && (
           <>
             {acceptedTenants.map(({ info, tenant }) => (
