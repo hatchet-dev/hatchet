@@ -10,7 +10,7 @@ gem "rake", "~> 13.4"
 
 gem "rspec", "~> 3.13"
 
-gem "rubocop", "~> 1.87"
+gem "rubocop", "~> 1.88"
 
 # REST API client dependencies
 gem "faraday", "~> 2.14"
