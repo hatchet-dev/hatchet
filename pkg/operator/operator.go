@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -294,4 +295,17 @@ func (s *SharedOperator[T]) beginShutdown() {
 // heartbeating this worker during the drain so it stays registered until its tasks complete.
 func (s *SharedOperator[T]) drainTasks() {
 	s.tasks.Wait()
+}
+
+func SlicesEqualUnordered(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	ac := slices.Clone(a)
+	bc := slices.Clone(b)
+	slices.Sort(ac)
+	slices.Sort(bc)
+
+	return slices.Equal(ac, bc)
 }

@@ -107,7 +107,10 @@ func dagDurableTask(
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case resp := <-responseCh:
+		case resp, ok := <-responseCh:
+			if !ok {
+				return fmt.Errorf("durable task session closed")
+			}
 			d.taskConsumer(resp)
 		}
 	}
@@ -154,8 +157,9 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			}
 		}
 
+		var skip bool
+
 		if !cancelled {
-			var skip bool
 			var err error
 			skip, cancelled, err = d.evaluateParentConditions(ctx, t)
 			if err != nil {
@@ -180,29 +184,6 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 					}
 					continue
 				}
-
-				var parentTaskRunIds []uuid.UUID
-				for _, p := range d.tasks {
-					if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
-						parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
-					}
-				}
-
-				result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, false)
-				if err != nil {
-					d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
-					return d.err
-				}
-
-				if skip {
-					t.isSkipped = true
-				}
-
-				t.nodeId = result.NodeId
-				t.branchId = result.BranchId
-				t.workflowRunExternalId = &result.WorkflowRunExternalId
-				t.isTriggered = true
-				continue
 			}
 		}
 
@@ -213,13 +194,18 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			}
 		}
 
-		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, false, true)
+		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, cancelled)
 		if err != nil {
 			d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
 			return d.err
 		}
 
-		t.isCancelled = true
+		if cancelled {
+			t.isCancelled = true
+		} else if skip {
+			t.isSkipped = true
+		}
+
 		t.nodeId = result.NodeId
 		t.branchId = result.BranchId
 		t.workflowRunExternalId = &result.WorkflowRunExternalId

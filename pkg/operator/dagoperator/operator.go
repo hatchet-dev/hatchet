@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,7 +149,7 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 		return
 	}
 
-	if slicesEqualUnordered(actions, d.lastActions) {
+	if operator.SlicesEqualUnordered(actions, d.lastActions) {
 		return
 	}
 
@@ -164,19 +163,6 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 	d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
 }
 
-// slicesEqualUnordered reports whether a and b contain the same elements regardless of order.
-func slicesEqualUnordered(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	ac := slices.Clone(a)
-	bc := slices.Clone(b)
-	slices.Sort(ac)
-	slices.Sort(bc)
-
-	return slices.Equal(ac, bc)
-}
 
 func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
 	release := d.RecordTask()

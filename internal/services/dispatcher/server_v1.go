@@ -326,7 +326,6 @@ type durableTaskInvocation struct {
 	l        *zerolog.Logger
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
-	workerId uuid.UUID
 	closed   bool // channel transport only; guarded by sendMu
 }
 
@@ -470,8 +469,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 	ctx, cancel := context.WithCancel(ctx)
 	deregister := d.streamSessions.Register(cancel)
 
-	// Buffer large enough to hold all tasks in a single DAG layer so taskEmitter can
-	// queue all concurrent triggers without blocking on the goroutine's send-ack cycle.
+	// fixme / important: this probably can't be hard-coded to 64, but I'm not sure what it should be set to yet
 	requestCh := make(chan *contracts.DurableTaskRequest, 64)
 	respCh := make(chan *contracts.DurableTaskResponse)
 
@@ -586,8 +584,6 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	}
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Register)
-
-	invocation.workerId = workerId
 
 	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
 	if err != nil {
