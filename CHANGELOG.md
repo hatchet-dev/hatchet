@@ -1,3 +1,30 @@
+## [Unreleased]
+
+### Upgrade Notes
+
+* This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, you can optionally run the following query as many times as needed against your Postgres instance to ensure a bulk-cleanup prior to upgrade:
+
+```sql
+DELETE FROM "UserSession"
+WHERE ctid IN (
+    SELECT ctid
+    FROM "UserSession"
+    WHERE NOT (
+        ("userId" IS NOT NULL AND "expiresAt" >= NOW())
+        OR
+        ("userId" IS NULL AND "createdAt" >= NOW() - INTERVAL '24 hours')
+    )
+    LIMIT 10000
+);
+```
+
+Note: The limit of `10 000` can be adjusted if needed.
+
+### Added
+
+- Add Go SDK client retry controls, gRPC full-jitter retry backoff, and bounded REST read retries for transient API failures by @igor-kupczynski in [#4240](https://github.com/hatchet-dev/hatchet/pull/4240)
+
+
 ## [0.89.0] - 2026-06-09
 
 Hatchet v0.89.0 introduces a range of updates to the platform, consisting largely of performance improvements and bug fixes to the engine, alongside several user-experience changes to the dashboard.

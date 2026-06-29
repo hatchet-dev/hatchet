@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"embed"
 	"fmt"
 	"os"
 	"strings"
@@ -10,13 +9,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	quickstarts "github.com/hatchet-dev/hatchet-quickstarts"
+
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/templater"
 )
-
-//go:embed all:templates/*
-var content embed.FS
 
 var quickstartCmd = &cobra.Command{
 	Use:   "quickstart",
@@ -114,13 +112,15 @@ func GenerateQuickstart(language, packageManager, projectName, dir string) (stri
 		PackageManager: packageManager,
 	}
 
-	err := templater.ProcessMultiSource(content, language, packageManager, dir, templateData)
+	templatesFS := quickstarts.TemplatesFS()
+
+	err := templater.ProcessMultiSource(templatesFS, language, packageManager, dir, templateData)
 	if err != nil {
 		return "", fmt.Errorf("could not process templates: %w", err)
 	}
 
 	// Process POST_QUICKSTART.md if it exists
-	postQuickstart, err := templater.ProcessPostQuickstartMultiSource(content, language, packageManager, templateData)
+	postQuickstart, err := templater.ProcessPostQuickstartMultiSource(templatesFS, language, packageManager, templateData)
 	if err != nil {
 		return "", fmt.Errorf("could not process post-quickstart content: %w", err)
 	}

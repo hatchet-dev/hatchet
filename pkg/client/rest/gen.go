@@ -2066,6 +2066,9 @@ type V1TriggerWorkflowRunRequest struct {
 	// Priority The priority of the workflow run.
 	Priority *int `json:"priority,omitempty"`
 
+	// ReturnOnlyId A boolean flag indicating whether to only return the id of the created run.
+	ReturnOnlyId *bool `json:"return_only_id,omitempty"`
+
 	// WorkflowName The name of the workflow.
 	WorkflowName string `json:"workflowName"`
 }

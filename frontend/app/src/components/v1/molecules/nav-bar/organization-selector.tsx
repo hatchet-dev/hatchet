@@ -7,7 +7,12 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { TooltipProvider } from '@/components/v1/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantMember } from '@/lib/api';
@@ -165,9 +170,19 @@ function OrganizationGroup({
                   <div className="flex h-5 w-5 shrink-0 items-center justify-center">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                    {membership.tenant?.name}
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">
+                        {membership.tenant?.name}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      className="max-w-[min(24rem,calc(100vw-2rem))] break-words"
+                    >
+                      {membership.tenant?.name}
+                    </TooltipContent>
+                  </Tooltip>
                   <TenantRegionBadge region={membership.tenant?.region} />
                 </div>
                 <CheckIcon
