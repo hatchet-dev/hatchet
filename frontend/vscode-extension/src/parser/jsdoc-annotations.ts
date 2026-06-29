@@ -74,6 +74,11 @@ export function scanFileForWorkflowAnnotations(
   return results;
 }
 
+/** Whether `node` carries a local `@hatchet-workflow` JSDoc tag. */
+export function hasHatchetWorkflowTag(node: ts.Node): boolean {
+  return ts.getJSDocTags(node).some((t) => t.tagName.text === 'hatchet-workflow');
+}
+
 function rangeOf(
   node: ts.Node,
   sourceFile: ts.SourceFile,

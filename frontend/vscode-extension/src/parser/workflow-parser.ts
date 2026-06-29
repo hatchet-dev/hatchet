@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import type * as vscode from 'vscode';
-import type { WorkflowFactoryAnnotation } from './jsdoc-annotations';
+import { hasHatchetWorkflowTag, type WorkflowFactoryAnnotation } from './jsdoc-annotations';
 
 export interface ParsedTask {
   varId: string;
@@ -322,9 +322,16 @@ export function parseWorkflows(
 
 /**
  * Walk up the AST from `node` to determine whether it lives inside a function
- * that is registered as an `@hatchet-workflow` factory. Used to suppress a
- * standalone lens on a `*.workflow(...)` call defined inside such a factory —
- * its DAG is surfaced on the factory's usage site instead.
+ * carrying a local `@hatchet-workflow` JSDoc tag. Used to suppress a standalone
+ * lens on a `*.workflow(...)` call defined inside such a factory — its DAG is
+ * surfaced on the factory's usage site instead.
+ *
+ * The annotation is read from the enclosing node's own JSDoc (not the
+ * workspace-wide name map) so an unannotated function that merely shares a name
+ * with an annotated one elsewhere is never affected. `annotatedFunctions` is
+ * only a fast bail: when empty there is nothing to suppress — and the annotation
+ * cache relies on this when it parses a factory body (with no annotations) to
+ * capture the very inner workflow this would otherwise hide.
  */
 function isInsideAnnotatedFactory(
   node: ts.Node,
@@ -332,17 +339,17 @@ function isInsideAnnotatedFactory(
 ): boolean {
   if (annotatedFunctions.size === 0) return false;
   for (let cur = node.parent; cur; cur = cur.parent) {
-    if (ts.isFunctionDeclaration(cur) && cur.name && annotatedFunctions.has(cur.name.text)) {
+    // function foo(...) {}
+    if (ts.isFunctionDeclaration(cur) && hasHatchetWorkflowTag(cur)) {
       return true;
     }
-    if (
-      (ts.isArrowFunction(cur) || ts.isFunctionExpression(cur)) &&
-      cur.parent &&
-      ts.isVariableDeclaration(cur.parent) &&
-      ts.isIdentifier(cur.parent.name) &&
-      annotatedFunctions.has(cur.parent.name.text)
-    ) {
-      return true;
+    // const foo = (...) => {} / const foo = function(...) {} — JSDoc sits on the
+    // enclosing variable statement.
+    if (ts.isArrowFunction(cur) || ts.isFunctionExpression(cur)) {
+      const stmt = cur.parent?.parent?.parent;
+      if (stmt && ts.isVariableStatement(stmt) && hasHatchetWorkflowTag(stmt)) {
+        return true;
+      }
     }
   }
   return false;
