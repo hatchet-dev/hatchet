@@ -162,7 +162,7 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 
 	d.lastActions = actions
 
-	d.Logger().Warn().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
+	d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
 }
 
 // slicesEqualUnordered reports whether a and b contain the same elements regardless of order.
@@ -249,7 +249,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		}
 	}
 
-	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error) {
+	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error) {
 		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
 			ParentTaskExternalId: externalId,
 			InvocationCount:      action.GetDurableTaskInvocationCount(),
@@ -257,16 +257,22 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 			ActionId:             actionId,
 			ChildIndex:           childIndex,
 			Input:                action.ActionPayload,
-			DagParentRunIds:      parentRunIds,
+			DagParentTaskRunIds:  parentTaskRunIds,
 			IsSkipped:            isSkipped,
 			IsCancelled:          isCancelled,
 		})
 	}
 
+	taskRunExternalId, err := uuid.Parse(action.TaskRunExternalId)
+
+	if err != nil {
+		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err))
+	}
+
 	dagErr := dagDurableTask(
 		d.ctx,
 		tasks,
-		action.TaskRunExternalId,
+		taskRunExternalId,
 		action.GetDurableTaskInvocationCount(),
 		action.ActionPayload,
 		requestCh,

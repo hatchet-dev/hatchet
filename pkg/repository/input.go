@@ -14,7 +14,7 @@ type TaskInput struct {
 	FilterPayload map[string]interface{} `json:"filter_payload"`
 
 	// workflow run external IDs of parent tasks in a durable DAG orchestration
-	DagParentWorkflowRunIds []string `json:"dag_parent_workflow_run_ids,omitempty"`
+	DagParentWorkflowRunIds []uuid.UUID `json:"dag_parent_workflow_run_ids,omitempty"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
@@ -41,7 +41,7 @@ func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *Tas
 	return i
 }
 
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte, dagParentWorkflowRunIds []string) *TaskInput {
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte, dagParentWorkflowRunIds []uuid.UUID) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -163,7 +163,7 @@ type V1StepRunData struct {
 	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
 
 	// workflow run external IDs of parent tasks in a durable DAG orchestration
-	DagParentWorkflowRunIds []string `json:"dag_parent_workflow_run_ids,omitempty"`
+	DagParentWorkflowRunIds []uuid.UUID `json:"dag_parent_workflow_run_ids,omitempty"`
 }
 
 func (v1 *V1StepRunData) Bytes() []byte {

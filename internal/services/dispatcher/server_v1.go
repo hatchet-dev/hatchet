@@ -1252,7 +1252,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			ParentTaskId:            &task.ID,
 			ParentTaskInsertedAt:    &task.InsertedAt.Time,
 			ChildIndex:              &childIndex,
-			DagParentWorkflowRunIds: req.DagParentRunIds,
+			DagParentWorkflowRunIds: req.DagParentTaskRunIds,
 			IsSkipped:               req.IsSkipped,
 			IsCancelled:             req.IsCancelled,
 		},
@@ -1295,6 +1295,6 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	return &operator.DAGStepTriggerResult{
 		NodeId:                entry.NodeId,
 		BranchId:              entry.BranchId,
-		WorkflowRunExternalId: entry.WorkflowRunExternalId.String(),
+		WorkflowRunExternalId: entry.WorkflowRunExternalId,
 	}, nil
 }

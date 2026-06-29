@@ -839,19 +839,7 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 
 		if len(currInput.DagParentWorkflowRunIds) > 0 {
-			parentExternalIds := make([]uuid.UUID, 0, len(currInput.DagParentWorkflowRunIds))
-
-			for _, idStr := range currInput.DagParentWorkflowRunIds {
-				id, err := uuid.Parse(idStr)
-				if err != nil {
-					d.l.Warn().Ctx(ctx).Err(err).Msgf("failed to parse dag parent workflow run id: %s", idStr)
-					continue
-				}
-
-				parentExternalIds = append(parentExternalIds, id)
-			}
-
-			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, parentExternalIds)
+			dagParentOutputs, err := d.repov1.Tasks().GetDagParentOutputs(ctx, tenantId, currInput.DagParentWorkflowRunIds)
 
 			if err != nil {
 				d.l.Warn().Ctx(ctx).Err(err).Msg("failed to look up dag parent outputs")

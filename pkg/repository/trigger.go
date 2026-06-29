@@ -75,7 +75,7 @@ type TriggerTaskData struct {
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
 
 	// (optional) workflow run external IDs of parent tasks for durable DAG orchestration
-	DagParentWorkflowRunIds []string `json:"dag_parent_workflow_run_ids,omitempty"`
+	DagParentWorkflowRunIds []uuid.UUID `json:"dag_parent_workflow_run_ids,omitempty"`
 
 	// (optional) when set, only trigger this specific step by action ID (used by DAG operator)
 	TargetActionId *string `json:"target_action_id,omitempty"`
@@ -603,7 +603,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
-	dagParentWorkflowRunIds   []string
+	dagParentWorkflowRunIds   []uuid.UUID
 	targetActionId            *string
 	isSkipped                 bool
 	isCancelled               bool

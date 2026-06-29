@@ -16,11 +16,11 @@ import (
 type dag struct {
 	requestCh chan<- *v1contracts.DurableTaskRequest
 
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
 
 	// important: task ordering must be the same between instances
 	tasks           []*task
-	externalId      string
+	externalId      uuid.UUID
 	invocationCount int32
 	input           string
 	err             error // first child failure, if any
@@ -29,7 +29,7 @@ type dag struct {
 }
 
 type pendingWaitAck struct {
-	task   *task
+	task     *task
 	isSkipIf bool
 }
 
@@ -45,7 +45,7 @@ type task struct {
 	isFailed     bool
 	isCancelled  bool
 	isTriggered  bool
-	isSkipIfped    bool
+	isSkipIfped  bool
 	errorMessage string
 	output       map[string]interface{}
 
@@ -56,14 +56,14 @@ type task struct {
 
 	isSkipIfIfRegistered bool
 	isSkipIfIfFired      bool
-	skipIfNodeId       int64
-	skipIfBranchId     int64
+	skipIfNodeId         int64
+	skipIfBranchId       int64
 
 	stepConditions []*sqlcv1.V1StepMatchCondition
 
 	nodeId                int64
 	branchId              int64
-	workflowRunExternalId string
+	workflowRunExternalId *uuid.UUID
 }
 
 type condition struct {
@@ -75,12 +75,12 @@ type condition struct {
 func dagDurableTask(
 	ctx context.Context,
 	tasks []*task,
-	externalId string,
+	externalId uuid.UUID,
 	invocationCount int32,
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentRunIds []string, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipIfped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
 ) error {
 	d := &dag{
 		tasks:           tasks,
@@ -179,14 +179,14 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 					continue
 				}
 
-				var parentRunIds []string
+				var parentTaskRunIds []uuid.UUID
 				for _, p := range d.tasks {
-					if p.isCompleted && !p.isFailed && p.workflowRunExternalId != "" {
-						parentRunIds = append(parentRunIds, p.workflowRunExternalId)
+					if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
+						parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
 					}
 				}
 
-				result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentRunIds, skip, false)
+				result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, false)
 				if err != nil {
 					d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
 					return d.err
@@ -198,20 +198,20 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 
 				t.nodeId = result.NodeId
 				t.branchId = result.BranchId
-				t.workflowRunExternalId = result.WorkflowRunExternalId
+				t.workflowRunExternalId = &result.WorkflowRunExternalId
 				t.isTriggered = true
 				continue
 			}
 		}
 
-		var parentRunIds []string
+		var parentTaskRunIds []uuid.UUID
 		for _, p := range d.tasks {
-			if p.isCompleted && !p.isFailed && p.workflowRunExternalId != "" {
-				parentRunIds = append(parentRunIds, p.workflowRunExternalId)
+			if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
+				parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
 			}
 		}
 
-		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentRunIds, false, true)
+		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, false, true)
 		if err != nil {
 			d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
 			return d.err
@@ -221,7 +221,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 
 		t.nodeId = result.NodeId
 		t.branchId = result.BranchId
-		t.workflowRunExternalId = result.WorkflowRunExternalId
+		t.workflowRunExternalId = &result.WorkflowRunExternalId
 		t.isTriggered = true
 	}
 
@@ -434,7 +434,7 @@ func (d *dag) registerWaitFor(t *task) error {
 	d.requestCh <- &v1contracts.DurableTaskRequest{
 		Message: &v1contracts.DurableTaskRequest_WaitFor{
 			WaitFor: &v1contracts.DurableTaskWaitForRequest{
-				DurableTaskExternalId: d.externalId,
+				DurableTaskExternalId: d.externalId.String(),
 				InvocationCount:       d.invocationCount,
 				WaitForConditions:     conditions,
 			},
@@ -474,7 +474,7 @@ func (d *dag) registerSkipIfWatch(t *task) error {
 	d.requestCh <- &v1contracts.DurableTaskRequest{
 		Message: &v1contracts.DurableTaskRequest_WaitFor{
 			WaitFor: &v1contracts.DurableTaskWaitForRequest{
-				DurableTaskExternalId: d.externalId,
+				DurableTaskExternalId: d.externalId.String(),
 				InvocationCount:       d.invocationCount,
 				WaitForConditions:     conditions,
 			},

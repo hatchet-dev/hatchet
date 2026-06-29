@@ -50,7 +50,7 @@ type DAGStepTriggerRequest struct {
 	ActionId             string
 	ChildIndex           int32
 	Input                string
-	DagParentRunIds      []string
+	DagParentTaskRunIds  []uuid.UUID
 	IsSkipped            bool
 	IsCancelled          bool
 }
@@ -58,7 +58,7 @@ type DAGStepTriggerRequest struct {
 type DAGStepTriggerResult struct {
 	NodeId                int64
 	BranchId              int64
-	WorkflowRunExternalId string
+	WorkflowRunExternalId uuid.UUID
 }
 
 type TaskEventWriter interface {
