@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import type * as vscode from 'vscode';
-import type { WorkflowFactoryAnnotation } from './jsdoc-annotations';
+import { hasHatchetWorkflowTag, type WorkflowFactoryAnnotation } from './jsdoc-annotations';
 
 export interface ParsedTask {
   varId: string;
@@ -161,8 +161,11 @@ export function parseWorkflows(
         const init = decl.initializer;
         if (!init) continue;
 
-        if (isWorkflowCall(init)) {
-          const workflowName = extractWorkflowName(init);
+        // A direct `*.workflow(...)` call. Skip it when it lives inside an
+        // annotated factory — its DAG is surfaced on the factory's usage site
+        // instead, so we don't want a second lens on the inner call.
+        if (isWorkflowCall(init) && !isInsideAnnotatedFactory(node, annotatedFunctions)) {
+          const workflowName = resolveWorkflowName(init, sourceFile, varName);
           if (workflowName) {
             const line = sourceFile.getLineAndCharacterOfPosition(
               node.getStart(sourceFile),
@@ -171,13 +174,16 @@ export function parseWorkflows(
           }
         }
 
-        if (ts.isCallExpression(init)) {
-          const calleeName = getCalleeIdentifierName(init);
+        // A usage of an annotated factory: `const x = factory(...)` or
+        // `const x = await factory(...)`.
+        const factoryCall = ts.isAwaitExpression(init) ? init.expression : init;
+        if (ts.isCallExpression(factoryCall)) {
+          const calleeName = getCalleeIdentifierName(factoryCall);
           if (calleeName) {
             const ann = annotatedFunctions.get(calleeName);
             if (ann) {
               const workflowName =
-                extractWorkflowNameFromArgs(init) ?? varName;
+                extractWorkflowNameFromArgs(factoryCall) ?? varName;
               const line = sourceFile.getLineAndCharacterOfPosition(
                 node.getStart(sourceFile),
               ).line;
@@ -303,12 +309,50 @@ export function parseWorkflows(
 
   const results: ParsedWorkflow[] = [];
 
-  for (const [varName, { name, declarationLine }] of workflowVars) {
-    const tasks = tasksByWorkflow.get(varName) ?? [];
+  for (const [varName, { name, declarationLine, annotation }] of workflowVars) {
+    const collected = tasksByWorkflow.get(varName) ?? [];
+    // When a factory usage has no tasks of its own, fall back to the DAG built
+    // inside the factory body (captured on the annotation).
+    const tasks = collected.length > 0 ? collected : annotation?.tasks ?? [];
     results.push({ name, varName, declarationLine, tasks });
   }
 
   return results;
+}
+
+/**
+ * Walk up the AST from `node` to determine whether it lives inside a function
+ * carrying a local `@hatchet-workflow` JSDoc tag. Used to suppress a standalone
+ * lens on a `*.workflow(...)` call defined inside such a factory — its DAG is
+ * surfaced on the factory's usage site instead.
+ *
+ * The annotation is read from the enclosing node's own JSDoc (not the
+ * workspace-wide name map) so an unannotated function that merely shares a name
+ * with an annotated one elsewhere is never affected. `annotatedFunctions` is
+ * only a fast bail: when empty there is nothing to suppress — and the annotation
+ * cache relies on this when it parses a factory body (with no annotations) to
+ * capture the very inner workflow this would otherwise hide.
+ */
+function isInsideAnnotatedFactory(
+  node: ts.Node,
+  annotatedFunctions: ReadonlyMap<string, WorkflowFactoryAnnotation>,
+): boolean {
+  if (annotatedFunctions.size === 0) return false;
+  for (let cur = node.parent; cur; cur = cur.parent) {
+    // function foo(...) {}
+    if (ts.isFunctionDeclaration(cur) && hasHatchetWorkflowTag(cur)) {
+      return true;
+    }
+    // const foo = (...) => {} / const foo = function(...) {} — JSDoc sits on the
+    // enclosing variable statement.
+    if (ts.isArrowFunction(cur) || ts.isFunctionExpression(cur)) {
+      const stmt = cur.parent?.parent?.parent;
+      if (stmt && ts.isVariableStatement(stmt) && hasHatchetWorkflowTag(stmt)) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -326,11 +370,29 @@ function isWorkflowCall(expr: ts.Expression): expr is ts.CallExpression {
   return false;
 }
 
-function extractWorkflowName(call: ts.CallExpression): string | undefined {
+/**
+ * Resolve a workflow's display name from a `*.workflow({ name })` call.
+ *
+ * Returns `undefined` only when the first argument has no `name` property at
+ * all — i.e. the call isn't a Hatchet workflow definition. When `name` is
+ * present but not a static string (e.g. `name: stub.name` or a substituting
+ * template), falls back to the name expression's source text so the workflow
+ * still renders with a meaningful label, and finally to the variable name.
+ */
+function resolveWorkflowName(
+  call: ts.CallExpression,
+  sourceFile: ts.SourceFile,
+  varNameFallback: string,
+): string | undefined {
   const arg = call.arguments[0];
   if (!arg || !ts.isObjectLiteralExpression(arg)) return undefined;
-  const nameProp = getPropertyValue(arg, 'name');
-  return getStringLiteral(nameProp);
+  const nameExpr = getPropertyValue(arg, 'name');
+  if (!nameExpr) return undefined;
+
+  const literal = getStringLiteral(nameExpr);
+  if (literal) return literal;
+
+  return nameExpr.getText(sourceFile).trim() || varNameFallback;
 }
 
 /** Sanitize a display name to a valid JS identifier (used as varId fallback). */
@@ -369,8 +431,11 @@ export function detectTsWorkflowDeclarations(
         const init = decl.initializer;
         if (!init) continue;
 
+        // Direct `*.workflow(...)` — skip when inside an annotated factory
+        // (surfaced on the factory's usage site instead).
         if (isWorkflowCall(init)) {
-          const workflowName = extractWorkflowName(init);
+          if (isInsideAnnotatedFactory(node, annotatedFunctions)) continue;
+          const workflowName = resolveWorkflowName(init, sourceFile, varName);
           if (!workflowName) continue;
 
           const namePos = sourceFile.getLineAndCharacterOfPosition(
@@ -385,13 +450,15 @@ export function detectTsWorkflowDeclarations(
           continue;
         }
 
-        if (ts.isCallExpression(init)) {
-          const calleeName = getCalleeIdentifierName(init);
+        // Usage of an annotated factory, optionally awaited.
+        const factoryCall = ts.isAwaitExpression(init) ? init.expression : init;
+        if (ts.isCallExpression(factoryCall)) {
+          const calleeName = getCalleeIdentifierName(factoryCall);
           if (!calleeName) continue;
           const ann = annotatedFunctions.get(calleeName);
           if (!ann) continue;
 
-          const workflowName = extractWorkflowNameFromArgs(init) ?? varName;
+          const workflowName = extractWorkflowNameFromArgs(factoryCall) ?? varName;
           const namePos = sourceFile.getLineAndCharacterOfPosition(
             decl.name.getStart(sourceFile),
           );
