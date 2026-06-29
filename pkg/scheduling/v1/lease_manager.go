@@ -17,6 +17,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+const concurrencyLeasesChBuffer = 1024
+
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
@@ -46,7 +48,7 @@ type LeaseManager struct {
 func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, notifierCh[*v1.ListActiveWorkersResult], notifierCh[string], notifierCh[*sqlcv1.V1StepConcurrency]) {
 	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	queuesCh := make(notifierCh[string])
-	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency])
+	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency], concurrencyLeasesChBuffer)
 
 	return &LeaseManager{
 		lr:                  conf.repo.Lease(),
@@ -98,13 +100,27 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
-	// Blocking send: an acquired concurrency lease must never be dropped, otherwise its manager is
-	// never instantiated and a cold strategy waits for the next lease poll to schedule its task. The
-	// listener is always reading except during cleanup, where processMu serializes against this send
-	// and the recover() above handles a racing send on a closed channel.
-	l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
+	// a full refresh supersedes anything still queued, so drain stale messages first
+	if !isIncremental {
+		l.drainConcurrencyLeasesCh()
+	}
+
+	select {
+	case l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
 		items:         concurrencyLeases,
 		isIncremental: isIncremental,
+	}:
+	default:
+	}
+}
+
+func (l *LeaseManager) drainConcurrencyLeasesCh() {
+	for {
+		select {
+		case <-l.concurrencyLeasesCh:
+		default:
+			return
+		}
 	}
 }
 
@@ -419,12 +435,9 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 	return nil
 }
 
-// notifyNewConcurrencyStrategy acquires a lease for a single concurrency strategy on-demand and hands
-// it to the lease channel, which instantiates the ConcurrencyManager. This mirrors notifyNewQueue.
-//
-// It is a no-op when we already hold the lease for the strategy: because sendConcurrencyLeases is a
-// blocking send, holding the lease implies a manager was (or is being) created for it, so there is
-// nothing to do.
+// notifyNewConcurrencyStrategy acquires a lease for a single strategy on-demand and hands it to the
+// lease channel, which spins up its ConcurrencyManager. Mirrors notifyNewQueue. No-op if we already
+// hold the lease.
 func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) error {
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()
