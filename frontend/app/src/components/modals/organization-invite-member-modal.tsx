@@ -9,6 +9,13 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
+import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -18,11 +25,12 @@ import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
+  role: z.nativeEnum(OrganizationMemberRoleType),
 });
 
 type OrganizationInviteMemberModalProps = {
@@ -48,11 +56,13 @@ export const OrganizationInviteMemberModal = ({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       email: '',
+      role: OrganizationMemberRoleType.MEMBER,
     },
   });
 
@@ -62,10 +72,13 @@ export const OrganizationInviteMemberModal = ({
     orgApi.organizationInviteCreateMutation(organizationId);
   const inviteMemberMutation = useMutation({
     ...orgInviteCreate,
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: {
+      email: string;
+      role: OrganizationMemberRoleType;
+    }) => {
       const request: CreateOrganizationInviteRequest = {
         inviteeEmail: data.email,
-        role: OrganizationMemberRoleType.OWNER,
+        role: data.role,
       };
       await orgInviteCreate.mutationFn(request);
       return request;
@@ -123,6 +136,33 @@ export const OrganizationInviteMemberModal = ({
             <p className="text-sm text-muted-foreground">
               The user will receive an email invitation to join this
               organization.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="role">Role</Label>
+            <Controller
+              control={control}
+              name="role"
+              render={({ field }) => (
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={OrganizationMemberRoleType.MEMBER}>
+                      Member
+                    </SelectItem>
+                    <SelectItem value={OrganizationMemberRoleType.OWNER}>
+                      Owner
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <p className="text-sm text-muted-foreground">
+              Members can access tenants based on their tags. Owners have full
+              access to all tenants.
             </p>
           </div>
 

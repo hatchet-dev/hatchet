@@ -30,6 +30,7 @@ const schema = z.object({
     z.nativeEnum(ManagementTokenDuration),
     z.literal('never'),
   ]),
+  tags: z.string().optional(),
 });
 
 interface CreateTokenModalProps {
@@ -76,10 +77,22 @@ export function CreateTokenModal({
     (data: z.infer<typeof schema>) => {
       const duration: ManagementTokenDuration | undefined =
         data.duration === DURATION_NEVER ? undefined : data.duration;
-      handleCreateToken(organizationId, data.name, duration, (tokenData) => {
-        setCreatedToken(tokenData.token);
-        onSuccess();
-      });
+      const tags = data.tags
+        ? data.tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : undefined;
+      handleCreateToken(
+        organizationId,
+        data.name,
+        duration,
+        (tokenData) => {
+          setCreatedToken(tokenData.token);
+          onSuccess();
+        },
+        tags,
+      );
     },
     [organizationId, handleCreateToken, onSuccess],
   );
@@ -199,6 +212,20 @@ export function CreateTokenModal({
                   </span>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tag Scope (optional)</Label>
+              <Input
+                {...register('tags')}
+                id="tags"
+                placeholder="e.g. prod, us-east"
+                disabled={createTokenLoading}
+              />
+              <p className="text-sm text-muted-foreground">
+                Comma-separated tags. When set, the token can only access or
+                create tenants whose tags are a subset of these tags.
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">

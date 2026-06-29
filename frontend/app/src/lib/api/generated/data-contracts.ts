@@ -1473,6 +1473,8 @@ export interface TenantMember {
   role: TenantMemberRole;
   /** The tenant associated with this tenant member. */
   tenant?: Tenant;
+  /** Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed. */
+  manually_added?: boolean;
 }
 
 export interface UserTenantMembershipsList {

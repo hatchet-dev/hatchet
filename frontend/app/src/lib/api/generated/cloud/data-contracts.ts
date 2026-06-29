@@ -48,6 +48,7 @@ export enum TenantStatusType {
 
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
+  MEMBER = "MEMBER",
 }
 
 export enum TemplateOptions {
@@ -1170,4 +1171,10 @@ export interface AutumnProductItem {
 export interface AutumnProductItemDisplay {
   primary_text?: string;
   secondary_text?: string;
+}
+
+/** Request body for adding existing org members to a specific tenant, bypassing tag matching. */
+export interface AddOrganizationMembersToTenantRequest {
+  /** IDs of org members to add to the tenant. */
+  memberIds: string[];
 }
