@@ -145,7 +145,7 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 
 func DeferRollback(ctx context.Context, l *zerolog.Logger, rollback func(context.Context) error) {
 
-	if ctx.Done() != nil {
+	if ctx.Done() != nil && ctx.Done() {
 		return
 	}
 
