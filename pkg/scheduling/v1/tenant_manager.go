@@ -177,10 +177,10 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 		case msg := <-t.concurrencyCh:
 			if msg.isIncremental {
 				for _, strategy := range msg.items {
-					t.addConcurrencyStrategy(ctx, strategy)
+					t.addConcurrencyStrategy(strategy)
 				}
 			} else {
-				t.setConcurrencyStrategies(ctx, msg.items)
+				t.setConcurrencyStrategies(msg.items)
 			}
 		}
 	}
@@ -238,7 +238,7 @@ func (t *tenantManager) addQueuer(queueName string) {
 	t.queue(context.Background(), []string{queueName})
 }
 
-func (t *tenantManager) setConcurrencyStrategies(ctx context.Context, strategies []*sqlcv1.V1StepConcurrency) {
+func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
@@ -270,7 +270,7 @@ func (t *tenantManager) setConcurrencyStrategies(ctx context.Context, strategies
 	t.concurrencyStrategies = newArr
 }
 
-func (t *tenantManager) addConcurrencyStrategy(ctx context.Context, strategy *sqlcv1.V1StepConcurrency) {
+func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrency) {
 	t.concurrencyMu.Lock()
 	defer t.concurrencyMu.Unlock()
 
