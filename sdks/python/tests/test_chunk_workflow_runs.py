@@ -66,9 +66,9 @@ def test_splits_on_byte_size_limit() -> None:
     req = make_request(input_size_bytes=600)
     single_size = req.ByteSize()
 
-    assert single_size < max_bytes, (
-        "single request must fit within the limit for this test to be valid"
-    )
+    assert (
+        single_size < max_bytes
+    ), "single request must fit within the limit for this test to be valid"
 
     reqs = [make_request(input_size_bytes=600) for _ in range(3)]
     chunks = list(client.chunk_workflow_runs(reqs))
