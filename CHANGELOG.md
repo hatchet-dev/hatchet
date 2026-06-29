@@ -1,8 +1,26 @@
-## [Unreleased]
+## [0.90.13] - 2026-06-29
+
+Hatchet v0.90.13 is a stability-focused release. It keeps long-running deployments healthy by bounding session-table growth, reduces scheduling latency under load, fixes a duration-parsing bug that could silently shorten your timeouts, and ships a batch of dashboard fixes.
+
+### Highlights
+
+- The `UserSession` table no longer grows unbounded: an hourly cleanup job now removes expired and orphaned sessions automatically. See [Upgrade Notes](#usersession-bulk-cleanup) for an optional one-time bulk cleanup to run before upgrading.
+- Multi-unit duration strings such as `42m30s` are now parsed correctly and enforce their full value, rather than silently truncating to a shorter duration. See [Upgrade Notes](#stricter-duration-validation) for the related behavior and validation changes.
+- Reduced engine cold-start latency when moving runs from `QUEUED` to `ASSIGNED_TO_WORKER` under load, and stale concurrency state is now cleaned up automatically so it can no longer build up and slow scheduling.
+- Fixed a dashboard race that could return a 500 when triggering a run, alongside several quality-of-life improvements: a system theme option in account settings, a scrollable workflow settings page, persisted sidebar scroll position across navigation, a tooltip for long tenant names, and CodeEditor theming and border fixes in light mode.
+- The Go SDK now retries bodyless `GET` and `HEAD` reads with backoff on transient failures, which can be disabled via the `HATCHET_CLIENT_NO_RETRY` environment variable.
+- Durable execution is sturdier: dead-lettered callback messages are now handled gracefully instead of erroring, and a failing child task correctly raises an error in its durable parent, matching the behavior of regular tasks.
+- Hatchet Cloud adds the foundations for tenant-scoped Prometheus metrics and audit logs.
 
 ### Upgrade Notes
 
-* This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, you can optionally run the following query as many times as needed against your Postgres instance to ensure a bulk-cleanup prior to upgrade:
+#### Stricter duration validation
+
+Registration now rejects duration strings that were previously accepted and silently coerced: signed values, bare numbers, sub-millisecond units (`ns`/`us`), and mixed forms using `d`/`w`/`y`. If you register durations in any of these forms, they'll now fail at registration — check your workflow definitions before upgrading.
+
+#### `UserSession` bulk cleanup
+
+This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, you can optionally run the following query as many times as needed against your Postgres instance to ensure a bulk-cleanup prior to upgrade:
 
 ```sql
 DELETE FROM "UserSession"
@@ -18,12 +36,7 @@ WHERE ctid IN (
 );
 ```
 
-Note: The limit of `10 000` can be adjusted if needed.
-
-### Added
-
-- Add Go SDK client retry controls, gRPC full-jitter retry backoff, and bounded REST read retries for transient API failures by @igor-kupczynski in [#4240](https://github.com/hatchet-dev/hatchet/pull/4240)
-
+Note: the `10000` limit can be adjusted as needed.
 
 ## [0.89.0] - 2026-06-09
 
