@@ -462,7 +462,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		return nil, err
 	}
 
-	if len(opts.Tasks) > 1 {
+	if r.dagOperatorEnabled && len(opts.Tasks) > 1 {
 		opts.Tasks = append(opts.Tasks, CreateStepOpts{
 			ReadableId:        opts.Name,
 			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
