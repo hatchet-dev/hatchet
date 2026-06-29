@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
 func TestIsPermanentPreAckError_PgError22P02(t *testing.T) {
@@ -22,6 +24,22 @@ func TestIsPermanentPreAckError_StringFallback(t *testing.T) {
 	err := errors.New("ERROR: invalid input syntax for type json (SQLSTATE 22P02)")
 	if !isPermanentPreAckError(err) {
 		t.Fatalf("expected true for sqlstate 22P02 string fallback")
+	}
+}
+
+func TestIsPermanentPreAckError_ExternalPayloadNotFound(t *testing.T) {
+	err := fmt.Errorf("wrap: %w", &repository.ExternalPayloadNotFoundError{
+		Kind: repository.ExternalPayloadNotFoundKindIndexFile,
+		Key:  "index/2026-06-11/example.index",
+		Err:  errors.New("key not found"),
+	})
+
+	if !isPermanentPreAckError(err) {
+		t.Fatalf("expected true for external payload not found error")
+	}
+
+	if got := permanentPreAckErrorReason(err); got != "external_payload_not_found" {
+		t.Fatalf("expected external payload reason, got %q", got)
 	}
 }
 
