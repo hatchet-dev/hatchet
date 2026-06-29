@@ -13,10 +13,10 @@ export const useInviteNotifications = () => {
     }
 
     const count = data.inviteCount;
-    const mostRecent =
-      data.tenantInvites[0]?.metadata.createdAt ??
-      data.organizationInvites[0]?.metadata.createdAt ??
-      '';
+    const mostRecent = [...data.tenantInvites, ...data.organizationInvites]
+      .map((inv) => inv.metadata.createdAt as string | undefined)
+      .filter((ts): ts is string => Boolean(ts))
+      .reduce((max, ts) => (ts > max ? ts : max), '');
 
     return [
       {

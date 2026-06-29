@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from '@/components/v1/ui/alert';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -46,7 +47,6 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
     useOrganizations();
   const { tenantInviteAcceptMutation, tenantInviteRejectMutation } =
     useTenantApi();
-  const { handleApiError } = useApiError({});
   const { capture } = useAnalytics();
   const { setTenant } = useTenantDetails();
 
@@ -56,6 +56,8 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
   >([]);
   const [phase, setPhase] = useState<'invites' | 'confirmation'>('invites');
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors });
 
   // Reset state when modal closes and refresh invite count for the notification bar
   useEffect(() => {
@@ -65,6 +67,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
       setAcceptedTenantInfos([]);
       setPhase('invites');
       setPendingId(null);
+      setErrors([]);
     }
   }, [open, invalidatePendingInvites]);
 
@@ -188,6 +191,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
 
   const handleTenantAccept = useCallback(
     (inviteId: string, tenantId: string, tenantName: string) => {
+      setErrors([]);
       setPendingId(inviteId);
       acceptTenantMutation.mutate(
         { inviteId, tenantId, tenantName },
@@ -209,6 +213,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
 
   const handleTenantReject = useCallback(
     (inviteId: string) => {
+      setErrors([]);
       setPendingId(inviteId);
       rejectTenantMutation.mutate(
         { inviteId },
@@ -229,6 +234,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
 
   const handleOrgAccept = useCallback(
     (inviteId: string) => {
+      setErrors([]);
       setPendingId(inviteId);
       acceptOrgInviteMutation.mutate(
         { inviteId },
@@ -254,6 +260,7 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
 
   const handleOrgReject = useCallback(
     (inviteId: string) => {
+      setErrors([]);
       setPendingId(inviteId);
       rejectOrgInviteMutation.mutate(
         { inviteId },
@@ -398,6 +405,15 @@ export function InviteModal({ open, onClose }: InviteModalProps) {
             onClose={onClose}
           />
         )}
+        {errors.length > 0 && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {errors.map((e, i) => (
+                <p key={i}>{e}</p>
+              ))}
+            </AlertDescription>
+          </Alert>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -519,6 +535,7 @@ function InviteActions({
         disabled={disabled}
         onClick={onDecline}
         hoverText="Decline"
+        aria-label="Decline"
       >
         <Cross2Icon className="h-4 w-4" />
       </Button>
@@ -529,6 +546,7 @@ function InviteActions({
         disabled={disabled}
         onClick={onAccept}
         hoverText="Accept"
+        aria-label="Accept"
       >
         <CheckIcon className="h-4 w-4" />
       </Button>

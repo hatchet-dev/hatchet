@@ -87,7 +87,7 @@ export function Notifications() {
       <DropdownMenuContent className="w-80" align="end">
         {notifications.map((notification, i) => (
           <DropdownMenuItem
-            key={i}
+            key={`${notification.title}-${notification.timestamp}`}
             variant="interactive"
             className="flex cursor-pointer items-start gap-2 px-3 py-2"
             onClick={() =>
