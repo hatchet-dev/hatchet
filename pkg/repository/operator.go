@@ -161,7 +161,7 @@ func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, te
 }
 
 func (r *operatorRepository) HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
-	return r.queries.HasDAGOperatorForTenant(ctx, r.pool, tenantId)
+	return r.sharedRepository.hasDAGOperator(ctx, tenantId)
 }
 
 func (r *operatorRepository) CreateOperatorWorker(ctx context.Context, dispatcherId uuid.UUID, operator *sqlcv1.V1Operator, slotConfig map[string]int32) (*sqlcv1.Worker, error) {

@@ -724,8 +724,7 @@ func (r *sharedRepository) triggerWorkflows(
 	dagTaskOpts := make(map[uuid.UUID][]CreateTaskOpts)
 	nonDagTaskOpts := make([]CreateTaskOpts, 0)
 
-	// fixme: can probably cache this?
-	hasDAGOperator, err := r.queries.HasDAGOperatorForTenant(ctx, r.pool, tenantId)
+	hasDAGOperator, err := r.hasDAGOperator(ctx, tenantId)
 	if err != nil {
 		r.l.Warn().Ctx(ctx).Err(err).Msg("could not check for DAG operator; falling back to step-task creation")
 		hasDAGOperator = false

@@ -408,6 +408,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			adminv1.WithDagOperatorEnabled(sc.Runtime.DagOperatorEnabled),
 			adminv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
@@ -850,6 +851,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			adminv1.WithDagOperatorEnabled(sc.Runtime.DagOperatorEnabled),
 			adminv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 

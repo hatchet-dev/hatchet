@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -32,6 +33,8 @@ type sharedRepository struct {
 	l       *zerolog.Logger
 	queries *sqlcv1.Queries
 
+	dagOperatorEnabled bool
+
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
 	concurrencyStrategyCache *cache.Cache
@@ -57,6 +60,7 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
+	dagOperatorEnabled bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -99,6 +103,7 @@ func newSharedRepository(
 		v:                           v,
 		l:                           l,
 		queries:                     queries,
+		dagOperatorEnabled:          dagOperatorEnabled,
 		queueCache:                  queueCache,
 		stepExpressionCache:         stepExpressionCache,
 		concurrencyStrategyCache:    concurrencyStrategyCache,
@@ -118,6 +123,15 @@ func newSharedRepository(
 	s.m = tenantLimitRepository
 
 	return s, s.cleanup
+}
+
+func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	// fixme: can probably cache this?
+	if !s.dagOperatorEnabled {
+		return false, nil
+	}
+
+	return s.queries.TenantHasDAGOperator(ctx, s.pool, tenantId)
 }
 
 func (s *sharedRepository) cleanup() error {

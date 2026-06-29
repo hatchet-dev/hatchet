@@ -128,7 +128,7 @@ SET
 WHERE
     w."id" = @workerId::uuid;
 
--- name: HasDAGOperatorForTenant :one
+-- name: TenantHasDAGOperator :one
 SELECT EXISTS(
     SELECT 1
     FROM v1_operator
