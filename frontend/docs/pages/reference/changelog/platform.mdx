@@ -12,7 +12,7 @@ Hatchet v0.90.13 is a stability-focused release. It keeps long-running deploymen
 - Fixed a dashboard race that could return a 500 when triggering a run, alongside several quality-of-life improvements: a system theme option in account settings, a scrollable workflow settings page, persisted sidebar scroll position across navigation, a tooltip for long tenant names, and CodeEditor theming and border fixes in light mode.
 - The Go SDK now retries bodyless `GET` and `HEAD` reads with backoff on transient failures, which can be disabled via the `HATCHET_CLIENT_NO_RETRY` environment variable.
 - Durable execution is sturdier: dead-lettered callback messages are now handled gracefully instead of erroring, and a failing child task correctly raises an error in its durable parent, matching the behavior of regular tasks.
-- Hatchet Cloud adds the foundations for tenant-scoped Prometheus metrics and audit logs.
+- Hatchet Cloud now has self-serve support for tenant-scoped Prometheus metrics and an audit logs API available on the Scale plan.
 
 ### Upgrade Notes
 
