@@ -414,15 +414,43 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
+	if r.dagOperatorEnabled && len(opts.Tasks) > 1 {
+		opts.Tasks = append(opts.Tasks, CreateStepOpts{
+			ReadableId:        opts.Name,
+			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
+			IsDurable:         true,
+			IsDagOrchestrator: true,
+		})
+	}
+
 	cs, modifiedOpts, err := checksumV1(opts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// if the checksum matches the old checksum, we don't need to create a new workflow version
+	// if the checksum matches the old checksum, we don't need to create a new workflow version,
+	// unless the existing version's orchestrator step presence disagrees with the current flag.
+	// This handles the case where the old code computed the checksum before appending the
+	// orchestrator step, so the 4-step hash happens to match — but the stored version still has
+	// 5 steps with isDagOrchestrator=false that would be incorrectly routed.
 	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
-		return &oldWorkflowVersion.WorkflowVersion.ID, nil
+		existingSteps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
+			Tenantid: tenantId,
+			Ids:      []uuid.UUID{oldWorkflowVersion.WorkflowVersion.ID},
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("could not list steps for existing workflow version: %w", err)
+		}
+
+		existingHasOrchestrator := slices.ContainsFunc(existingSteps, func(s *sqlcv1.ListStepsByWorkflowVersionIdsRow) bool {
+			return s.IsDagOrchestrator
+		})
+
+		if existingHasOrchestrator == r.dagOperatorEnabled {
+			return &oldWorkflowVersion.WorkflowVersion.ID, nil
+		}
 	}
 
 	optsJson, err := json.Marshal(modifiedOpts)
@@ -460,15 +488,6 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	if err != nil {
 		return nil, err
-	}
-
-	if r.dagOperatorEnabled && len(opts.Tasks) > 1 {
-		opts.Tasks = append(opts.Tasks, CreateStepOpts{
-			ReadableId:        opts.Name,
-			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
-			IsDurable:         true,
-			IsDagOrchestrator: true,
-		})
 	}
 
 	_, err = r.createJobTx(ctx, tx, tenantId, workflowId, sqlcWorkflowVersion.ID, sqlcv1.JobKindDEFAULT, opts.Tasks)

@@ -724,12 +724,6 @@ func (r *sharedRepository) triggerWorkflows(
 	dagTaskOpts := make(map[uuid.UUID][]CreateTaskOpts)
 	nonDagTaskOpts := make([]CreateTaskOpts, 0)
 
-	hasDAGOperator, err := r.hasDAGOperator(ctx, tenantId)
-	if err != nil {
-		r.l.Warn().Ctx(ctx).Err(err).Msg("could not check for DAG operator; falling back to step-task creation")
-		hasDAGOperator = false
-	}
-
 	// map of task external IDs to matches
 	eventMatches := make(map[uuid.UUID][]CreateMatchOpts)
 	createMatchOpts := make([]CreateMatchOpts, 0)
@@ -826,33 +820,37 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 		isDag := len(regularSteps) > 1
 
-		if isDag && hasDAGOperator {
-			for _, s := range steps {
-				if s.IsDagOrchestrator {
-					nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
-						ExternalId:                tuple.externalId,
-						WorkflowRunId:             tuple.externalId,
-						StepId:                    s.ID,
-						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentWorkflowRunIds),
-						AdditionalMetadata:        tuple.additionalMetadata,
-						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
-						DesiredWorkerId:           tuple.desiredWorkerId,
-						ParentTaskExternalId:      tuple.parentExternalId,
-						ParentTaskId:              tuple.parentTaskId,
-						ParentTaskInsertedAt:      tuple.parentTaskInsertedAt,
-						ChildIndex:                tuple.childIndex,
-						ChildKey:                  tuple.childKey,
-						Priority:                  tuple.priority,
-						TriggeringEventExternalId: tuple.triggeringEventExternalId,
-						TriggeringEventKey:        tuple.triggeringEventKey,
-					})
-					break
-				}
+		var orchestratorStep *sqlcv1.ListStepsByWorkflowVersionIdsRow
+		for _, s := range steps {
+			if s.IsDagOrchestrator {
+				orchestratorStep = s
+				break
 			}
+		}
+		useOperatorPath := isDag && orchestratorStep != nil
+
+		if useOperatorPath {
+			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
+				ExternalId:                tuple.externalId,
+				WorkflowRunId:             tuple.externalId,
+				StepId:                    orchestratorStep.ID,
+				Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentWorkflowRunIds),
+				AdditionalMetadata:        tuple.additionalMetadata,
+				InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+				DesiredWorkerId:           tuple.desiredWorkerId,
+				ParentTaskExternalId:      tuple.parentExternalId,
+				ParentTaskId:              tuple.parentTaskId,
+				ParentTaskInsertedAt:      tuple.parentTaskInsertedAt,
+				ChildIndex:                tuple.childIndex,
+				ChildKey:                  tuple.childKey,
+				Priority:                  tuple.priority,
+				TriggeringEventExternalId: tuple.triggeringEventExternalId,
+				TriggeringEventKey:        tuple.triggeringEventKey,
+			})
 		}
 
 		for stepIndex, step := range orderSteps(regularSteps) {
-			if isDag && hasDAGOperator {
+			if useOperatorPath {
 				break
 			}
 
@@ -1220,7 +1218,7 @@ func (r *sharedRepository) triggerWorkflows(
 			}
 		}
 
-		if isDag && !hasDAGOperator {
+		if isDag && !useOperatorPath {
 			dagOpts = append(dagOpts, createDAGOpts{
 				ExternalId:           tuple.externalId,
 				Input:                tuple.input,
