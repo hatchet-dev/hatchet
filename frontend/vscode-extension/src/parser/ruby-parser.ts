@@ -1,19 +1,4 @@
 import type { ParsedTask, ParsedWorkflow, WorkflowDeclaration } from './workflow-parser';
-import { collectWrapperNames, workflowNameFromCall } from './wrapper-annotations';
-
-/**
- * Workflow declaration: `varName = <expr>.workflow(name: <X>)`.
- * `<X>` is either a quoted string literal (group 2) or any other expression
- * such as `stub.name` (group 3) — the latter is used verbatim as the label so
- * dynamically-named workflows still render.
- */
-const WORKFLOW_RE =
-  /^(\w+)\s*=\s*\S+\.workflow\s*\(\s*name:\s*(?:["']([^"']+)["']|([^\s,)]+))/;
-
-/** `varName = wrapper_fn(...)` — wrapper-usage workflow declaration. */
-const USAGE_RE = /^(\w+)\s*=\s*(\w+)\s*\(/;
-/** `def func_name` / `def self.func_name` — used to resolve marked wrappers. */
-const DEF_RE = /^def\s+(?:self\.)?(\w+)/;
 
 /**
  * Collect the text inside the outermost `(...)` starting at the first `(` on
@@ -61,19 +46,11 @@ export function parseRubyWorkflows(source: string): ParsedWorkflow[] {
   // ── Pass 1: workflow declarations ────────────────────────────────────────
   // e.g. `DAG_WORKFLOW = HATCHET.workflow(name: "DAGWorkflow")`
   const workflowVars = new Map<string, { name: string; declarationLine: number }>();
-  const wrappers = collectWrapperNames(lines, DEF_RE);
+  const wfRe = /^(\w+)\s*=\s*\S+\.workflow\s*\(\s*name:\s*["']([^"']+)["']/;
 
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trimStart();
-    const m = WORKFLOW_RE.exec(trimmed);
-    if (m) {
-      workflowVars.set(m[1], { name: m[2] ?? m[3], declarationLine: i });
-      continue;
-    }
-    const u = USAGE_RE.exec(trimmed);
-    if (u && wrappers.has(u[2])) {
-      workflowVars.set(u[1], { name: workflowNameFromCall(trimmed, u[1]), declarationLine: i });
-    }
+    const m = wfRe.exec(lines[i].trimStart());
+    if (m) workflowVars.set(m[1], { name: m[2], declarationLine: i });
   }
 
   if (workflowVars.size === 0) return [];
@@ -141,23 +118,15 @@ export function detectRubyWorkflowDeclarations(source: string): WorkflowDeclarat
   const lines = source.split('\n');
   const result: WorkflowDeclaration[] = [];
   // Regex is applied to trimStart() — varName starts at the indentation boundary
-  const wrappers = collectWrapperNames(lines, DEF_RE);
+  const wfRe = /^(\w+)\s*=\s*\S+\.workflow\s*\(\s*name:\s*["']([^"']+)["']/;
 
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trimStart();
-    const declarationCharacter = lines[i].length - trimmed.length;
-
-    const m = WORKFLOW_RE.exec(trimmed);
+    const m = wfRe.exec(lines[i].trimStart());
     if (m) {
-      result.push({ name: m[2] ?? m[3], varName: m[1], declarationLine: i, declarationCharacter });
-      continue;
-    }
-
-    const u = USAGE_RE.exec(trimmed);
-    if (u && wrappers.has(u[2])) {
+      const declarationCharacter = lines[i].length - lines[i].trimStart().length;
       result.push({
-        name: workflowNameFromCall(trimmed, u[1]),
-        varName: u[1],
+        name: m[2],
+        varName: m[1],
         declarationLine: i,
         declarationCharacter,
       });

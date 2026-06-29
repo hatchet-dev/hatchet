@@ -72,7 +72,6 @@ Two-phase parsing is the key idea:
 | `src/parser/workflow-parser.ts` | **TypeScript** parser (uses the TypeScript compiler API / AST). Handles generics, dynamic names, and the `@hatchet-workflow` wrapper path. |
 | `src/parser/python-parser.ts`, `go-parser.ts`, `ruby-parser.ts` | **Regex/line-based** parsers for the other languages. |
 | `src/parser/jsdoc-annotations.ts` | Scans TS source for `@hatchet-workflow` JSDoc tags (factory functions). |
-| `src/parser/wrapper-annotations.ts` | Shared helpers for the comment-marker wrapper feature in the Python/Go/Ruby parsers. |
 | `src/analysis/annotation-cache.ts` | Workspace-wide cache of TS `@hatchet-workflow` factories, kept fresh by a file watcher. |
 | `src/analysis/lsp-analyzer.ts` | Pass 2: queries the language server for cross-file task references and extracts tasks from each reference site. |
 | `src/panel/dag-panel.ts` | Owns the webview panel lifecycle and debounced updates. |
@@ -88,16 +87,19 @@ declarations on that workflow variable, and each task's **parents**.
 
 ### Workflow name
 
-The workflow name (the DAG label) may be a **string literal** or a **dynamic
-expression** — for a non-literal like `stub.name`, the expression text is used
-as the label so the workflow still renders.
+The workflow name is the DAG label.
 
-| Language | Workflow declaration |
-| --- | --- |
-| TypeScript | `const wf = hatchet.workflow<...>({ name: "x" \| stub.name })` |
-| Python | `wf = hatchet.workflow(name="x" \| stub.name)` |
-| Go | `wf := client.NewWorkflow("x" \| stub.Name)` |
-| Ruby | `wf = hatchet.workflow(name: "x" \| stub.name)` |
+For **TypeScript** it may be a **string literal** or a **dynamic expression** —
+for a non-literal like `stub.name` the expression text is used as the label so
+the workflow still renders (this is the case fixed by `resolveWorkflowName`).
+Python/Go/Ruby currently require a **string-literal** name.
+
+| Language | Workflow declaration | Name |
+| --- | --- | --- |
+| TypeScript | `const wf = hatchet.workflow<...>({ name: <X> })` | literal **or** dynamic (`stub.name`) |
+| Python | `wf = hatchet.workflow(name="x")` | literal only |
+| Go | `wf := client.NewWorkflow("x")` | literal only |
+| Ruby | `wf = hatchet.workflow(name: "x")` | literal only |
 
 ### Tasks and parents
 
@@ -108,10 +110,11 @@ as the label so the workflow still renders.
 | Go | `s := wf.NewTask("name", ...)` | `hatchet.WithParents(a, b)` |
 | Ruby | `s = wf.task(:name, ...)` | `parents: [a, b]` |
 
-### The `@hatchet-workflow` wrapper feature
+### The `@hatchet-workflow` wrapper feature (TypeScript only)
 
-A factory function can be **marked as a workflow wrapper**, so a *usage* of it is
-treated as a workflow and the tasks attached to the returned value form the DAG:
+A TS factory function can be **marked as a workflow wrapper** with a
+`@hatchet-workflow` JSDoc tag, so a *usage* of it is treated as a workflow and
+the tasks attached to the returned value form the DAG:
 
 ```ts
 /** @hatchet-workflow */
@@ -121,13 +124,11 @@ const ordersDag = createWorkflowBuilder({ name: "orders-dag" });  // ← DAG ren
 const start = ordersDag.task({ name: "start" });
 ```
 
-- **TypeScript:** marker is the `@hatchet-workflow` **JSDoc tag**; wrappers are
-  resolved **across the workspace** (via `WorkflowAnnotationCache`).
-- **Python/Go/Ruby:** marker is a `@hatchet-workflow` **comment** on/above the
-  function (`# @hatchet-workflow` / `// @hatchet-workflow`); wrappers are resolved
-  **within the same file only** (the regex parsers scan a single file).
+Wrappers are resolved **across the workspace** (via `WorkflowAnnotationCache`),
+so the factory and its usage may live in different files. There is no equivalent
+wrapper feature for Python/Go/Ruby.
 
-Runnable examples for all four live in [`examples/wrapper-dag/`](examples/wrapper-dag/).
+A runnable example lives in [`examples/wrapper-dag/workflow.ts`](examples/wrapper-dag/workflow.ts).
 
 ---
 
@@ -139,8 +140,8 @@ Runnable examples for all four live in [`examples/wrapper-dag/`](examples/wrappe
 2. Press **F5** → **"Run Extension (wrapper-dag examples)"**. The launch config
    (`.vscode/launch.json`) runs the `build` task first and opens
    `examples/wrapper-dag/` in a second VSCode window with the extension loaded.
-3. Open any `examples/wrapper-dag/workflow.*` file. A `Show Hatchet DAG` CodeLens
-   should appear above the workflow variable. Click it → the DAG panel opens.
+3. Open `examples/wrapper-dag/workflow.ts`. A `Show Hatchet DAG` CodeLens should
+   appear above the workflow variable. Click it → the DAG panel opens.
 4. Edit a task (add one, change a `parents` list) and watch the panel update.
 
 To reload after changing extension code: rebuild (`pnpm run build`, or run
@@ -161,30 +162,23 @@ node_modules/.bin/tsc /tmp/t.ts --module commonjs --target ES2020 \
   --outDir ./__scratch && node ./__scratch/t.js && rm -rf ./__scratch
 ```
 
-Example `t.ts`:
+Example `t.ts` (verifies the dynamic-name fix):
 
 ```ts
-import { detectPyWorkflowDeclarations, parsePythonWorkflows } from './src/parser/python-parser';
+import { detectTsWorkflowDeclarations, parseWorkflows } from './src/parser/workflow-parser';
 
 const src = `
-# @hatchet-workflow
-def make(hatchet, name):
-    return hatchet.workflow(name=name)
-
-wf = make(hatchet, name="demo")
-
-@wf.task()
-def start(i, c): ...
-@wf.task(parents=[start])
-def end(i, c): ...
+const workflow = hatchet.workflow<TInput, Out>({ name: stub.name });
+const start = workflow.task({ name: 'start' });
+const end = workflow.task({ name: 'end', parents: [start] });
 `;
 
-console.log(detectPyWorkflowDeclarations(src));        // → [{ name: 'demo', varName: 'wf', ... }]
-console.log(parsePythonWorkflows(src)[0].tasks);       // → start, end (end parented to start)
+console.log(detectTsWorkflowDeclarations(src, 't.ts'));   // → [{ name: 'stub.name', varName: 'workflow', ... }]
+console.log(parseWorkflows(src, 't.ts')[0].tasks);        // → start, end (end parented to start)
 ```
 
-This is exactly how the parser changes in this folder were verified. Keep the
-output directory and scratch file outside `src/` so they aren't bundled.
+This is exactly how the dynamic-name fix was verified. Keep the output directory
+and scratch file outside `src/` so they aren't bundled.
 
 ### 3. Static checks (treat as CI)
 

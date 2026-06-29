@@ -161,7 +161,10 @@ export function parseWorkflows(
         const init = decl.initializer;
         if (!init) continue;
 
-        if (isWorkflowCall(init)) {
+        // A direct `*.workflow(...)` call. Skip it when it lives inside an
+        // annotated factory — its DAG is surfaced on the factory's usage site
+        // instead, so we don't want a second lens on the inner call.
+        if (isWorkflowCall(init) && !isInsideAnnotatedFactory(node, annotatedFunctions)) {
           const workflowName = resolveWorkflowName(init, sourceFile, varName);
           if (workflowName) {
             const line = sourceFile.getLineAndCharacterOfPosition(
@@ -171,13 +174,16 @@ export function parseWorkflows(
           }
         }
 
-        if (ts.isCallExpression(init)) {
-          const calleeName = getCalleeIdentifierName(init);
+        // A usage of an annotated factory: `const x = factory(...)` or
+        // `const x = await factory(...)`.
+        const factoryCall = ts.isAwaitExpression(init) ? init.expression : init;
+        if (ts.isCallExpression(factoryCall)) {
+          const calleeName = getCalleeIdentifierName(factoryCall);
           if (calleeName) {
             const ann = annotatedFunctions.get(calleeName);
             if (ann) {
               const workflowName =
-                extractWorkflowNameFromArgs(init) ?? varName;
+                extractWorkflowNameFromArgs(factoryCall) ?? varName;
               const line = sourceFile.getLineAndCharacterOfPosition(
                 node.getStart(sourceFile),
               ).line;
@@ -303,12 +309,43 @@ export function parseWorkflows(
 
   const results: ParsedWorkflow[] = [];
 
-  for (const [varName, { name, declarationLine }] of workflowVars) {
-    const tasks = tasksByWorkflow.get(varName) ?? [];
+  for (const [varName, { name, declarationLine, annotation }] of workflowVars) {
+    const collected = tasksByWorkflow.get(varName) ?? [];
+    // When a factory usage has no tasks of its own, fall back to the DAG built
+    // inside the factory body (captured on the annotation).
+    const tasks = collected.length > 0 ? collected : annotation?.tasks ?? [];
     results.push({ name, varName, declarationLine, tasks });
   }
 
   return results;
+}
+
+/**
+ * Walk up the AST from `node` to determine whether it lives inside a function
+ * that is registered as an `@hatchet-workflow` factory. Used to suppress a
+ * standalone lens on a `*.workflow(...)` call defined inside such a factory —
+ * its DAG is surfaced on the factory's usage site instead.
+ */
+function isInsideAnnotatedFactory(
+  node: ts.Node,
+  annotatedFunctions: ReadonlyMap<string, WorkflowFactoryAnnotation>,
+): boolean {
+  if (annotatedFunctions.size === 0) return false;
+  for (let cur = node.parent; cur; cur = cur.parent) {
+    if (ts.isFunctionDeclaration(cur) && cur.name && annotatedFunctions.has(cur.name.text)) {
+      return true;
+    }
+    if (
+      (ts.isArrowFunction(cur) || ts.isFunctionExpression(cur)) &&
+      cur.parent &&
+      ts.isVariableDeclaration(cur.parent) &&
+      ts.isIdentifier(cur.parent.name) &&
+      annotatedFunctions.has(cur.parent.name.text)
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -387,7 +424,10 @@ export function detectTsWorkflowDeclarations(
         const init = decl.initializer;
         if (!init) continue;
 
+        // Direct `*.workflow(...)` — skip when inside an annotated factory
+        // (surfaced on the factory's usage site instead).
         if (isWorkflowCall(init)) {
+          if (isInsideAnnotatedFactory(node, annotatedFunctions)) continue;
           const workflowName = resolveWorkflowName(init, sourceFile, varName);
           if (!workflowName) continue;
 
@@ -403,13 +443,15 @@ export function detectTsWorkflowDeclarations(
           continue;
         }
 
-        if (ts.isCallExpression(init)) {
-          const calleeName = getCalleeIdentifierName(init);
+        // Usage of an annotated factory, optionally awaited.
+        const factoryCall = ts.isAwaitExpression(init) ? init.expression : init;
+        if (ts.isCallExpression(factoryCall)) {
+          const calleeName = getCalleeIdentifierName(factoryCall);
           if (!calleeName) continue;
           const ann = annotatedFunctions.get(calleeName);
           if (!ann) continue;
 
-          const workflowName = extractWorkflowNameFromArgs(init) ?? varName;
+          const workflowName = extractWorkflowNameFromArgs(factoryCall) ?? varName;
           const namePos = sourceFile.getLineAndCharacterOfPosition(
             decl.name.getStart(sourceFile),
           );
