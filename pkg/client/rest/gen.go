@@ -1248,10 +1248,12 @@ type TenantInviteList struct {
 
 // TenantMember defines model for TenantMember.
 type TenantMember struct {
-	Metadata APIResourceMeta  `json:"metadata"`
-	Role     TenantMemberRole `json:"role"`
-	Tenant   *Tenant          `json:"tenant,omitempty"`
-	User     UserTenantPublic `json:"user"`
+	// ManuallyAdded Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
+	ManuallyAdded *bool            `json:"manually_added,omitempty"`
+	Metadata      APIResourceMeta  `json:"metadata"`
+	Role          TenantMemberRole `json:"role"`
+	Tenant        *Tenant          `json:"tenant,omitempty"`
+	User          UserTenantPublic `json:"user"`
 }
 
 // TenantMemberList defines model for TenantMemberList.
