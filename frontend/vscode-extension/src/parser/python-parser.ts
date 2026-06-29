@@ -1,4 +1,19 @@
 import type { ParsedTask, ParsedWorkflow, WorkflowDeclaration } from './workflow-parser';
+import { collectWrapperNames, workflowNameFromCall } from './wrapper-annotations';
+
+/**
+ * Workflow declaration: `varName = <expr>.workflow(name=<X>)`.
+ * `<X>` is either a quoted string literal (group 2) or any other expression
+ * such as `stub.name` (group 3) — the latter is used verbatim as the label so
+ * dynamically-named workflows still render.
+ */
+const WORKFLOW_RE =
+  /^(\w+)\s*=\s*\S+\.workflow\s*\(\s*name\s*=\s*(?:["']([^"']+)["']|([^\s,)]+))/;
+
+/** `varName = wrapperFn(...)` — wrapper-usage workflow declaration. */
+const USAGE_RE = /^(\w+)\s*=\s*(\w+)\s*\(/;
+/** `def funcName(` / `async def funcName(` — used to resolve marked wrappers. */
+const DEF_RE = /^(?:async\s+)?def\s+(\w+)/;
 
 /**
  * Collect the text inside the outermost `(...)` beginning at the first `(` on
@@ -30,6 +45,9 @@ function collectParenContent(lines: string[], startLine: number): string {
  * Recognised patterns
  * -------------------
  * Workflow:  `varName = <expr>.workflow(name="WorkflowName")`
+ *            `varName = <expr>.workflow(name=stub.name)`  (dynamic name → label
+ *            falls back to the expression text; also matches indented
+ *            declarations inside factory/wrapper functions)
  * Task:      `@varName.task(...)`  followed by  `[async] def funcName(...)`
  * Parents:   `parents=[step1, step2]`  (bare identifiers inside the list)
  */
@@ -39,11 +57,19 @@ export function parsePythonWorkflows(source: string): ParsedWorkflow[] {
   // ── Pass 1: workflow declarations ────────────────────────────────────────
   const workflowVars = new Map<string, { name: string; declarationLine: number }>();
   // e.g. `dag_workflow = hatchet.workflow(name="DAGWorkflow")`
-  const wfRe = /^(\w+)\s*=\s*\S+\.workflow\s*\(\s*name\s*=\s*["']([^"']+)["']/;
+  const wrappers = collectWrapperNames(lines, DEF_RE);
 
   for (let i = 0; i < lines.length; i++) {
-    const m = wfRe.exec(lines[i]);
-    if (m) workflowVars.set(m[1], { name: m[2], declarationLine: i });
+    const trimmed = lines[i].trimStart();
+    const m = WORKFLOW_RE.exec(trimmed);
+    if (m) {
+      workflowVars.set(m[1], { name: m[2] ?? m[3], declarationLine: i });
+      continue;
+    }
+    const u = USAGE_RE.exec(trimmed);
+    if (u && wrappers.has(u[2])) {
+      workflowVars.set(u[1], { name: workflowNameFromCall(trimmed, u[1]), declarationLine: i });
+    }
   }
 
   if (workflowVars.size === 0) return [];
@@ -109,17 +135,25 @@ export function parsePythonWorkflows(source: string): ParsedWorkflow[] {
 export function detectPyWorkflowDeclarations(source: string): WorkflowDeclaration[] {
   const lines = source.split('\n');
   const result: WorkflowDeclaration[] = [];
-  // Python workflow declarations are at column 0 (the regex anchors to ^)
-  const wfRe = /^(\w+)\s*=\s*\S+\.workflow\s*\(\s*name\s*=\s*["']([^"']+)["']/;
+  const wrappers = collectWrapperNames(lines, DEF_RE);
 
   for (let i = 0; i < lines.length; i++) {
-    const m = wfRe.exec(lines[i]);
+    const trimmed = lines[i].trimStart();
+    const declarationCharacter = lines[i].length - trimmed.length;
+
+    const m = WORKFLOW_RE.exec(trimmed);
     if (m) {
+      result.push({ name: m[2] ?? m[3], varName: m[1], declarationLine: i, declarationCharacter });
+      continue;
+    }
+
+    const u = USAGE_RE.exec(trimmed);
+    if (u && wrappers.has(u[2])) {
       result.push({
-        name: m[2],
-        varName: m[1],
+        name: workflowNameFromCall(trimmed, u[1]),
+        varName: u[1],
         declarationLine: i,
-        declarationCharacter: 0, // ^ anchor ensures varName starts at column 0
+        declarationCharacter,
       });
     }
   }

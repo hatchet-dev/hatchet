@@ -162,7 +162,7 @@ export function parseWorkflows(
         if (!init) continue;
 
         if (isWorkflowCall(init)) {
-          const workflowName = extractWorkflowName(init);
+          const workflowName = resolveWorkflowName(init, sourceFile, varName);
           if (workflowName) {
             const line = sourceFile.getLineAndCharacterOfPosition(
               node.getStart(sourceFile),
@@ -326,11 +326,29 @@ function isWorkflowCall(expr: ts.Expression): expr is ts.CallExpression {
   return false;
 }
 
-function extractWorkflowName(call: ts.CallExpression): string | undefined {
+/**
+ * Resolve a workflow's display name from a `*.workflow({ name })` call.
+ *
+ * Returns `undefined` only when the first argument has no `name` property at
+ * all — i.e. the call isn't a Hatchet workflow definition. When `name` is
+ * present but not a static string (e.g. `name: stub.name` or a substituting
+ * template), falls back to the name expression's source text so the workflow
+ * still renders with a meaningful label, and finally to the variable name.
+ */
+function resolveWorkflowName(
+  call: ts.CallExpression,
+  sourceFile: ts.SourceFile,
+  varNameFallback: string,
+): string | undefined {
   const arg = call.arguments[0];
   if (!arg || !ts.isObjectLiteralExpression(arg)) return undefined;
-  const nameProp = getPropertyValue(arg, 'name');
-  return getStringLiteral(nameProp);
+  const nameExpr = getPropertyValue(arg, 'name');
+  if (!nameExpr) return undefined;
+
+  const literal = getStringLiteral(nameExpr);
+  if (literal) return literal;
+
+  return nameExpr.getText(sourceFile).trim() || varNameFallback;
 }
 
 /** Sanitize a display name to a valid JS identifier (used as varId fallback). */
@@ -370,7 +388,7 @@ export function detectTsWorkflowDeclarations(
         if (!init) continue;
 
         if (isWorkflowCall(init)) {
-          const workflowName = extractWorkflowName(init);
+          const workflowName = resolveWorkflowName(init, sourceFile, varName);
           if (!workflowName) continue;
 
           const namePos = sourceFile.getLineAndCharacterOfPosition(
