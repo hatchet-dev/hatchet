@@ -117,5 +117,5 @@ func TestPopulatorMiddlewareParentDisagreement(t *testing.T) {
 	err := middlewareFunc(c)
 
 	// Assertions
-	assert.ErrorContains(t, err, "could not be populated")
+	assert.ErrorContains(t, err, "not authorized to access this resource")
 }
