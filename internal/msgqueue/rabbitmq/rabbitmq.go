@@ -802,7 +802,7 @@ func (t *MessageQueueImpl) subscribe(
 
 				if exists {
 					// message was rejected before
-					deathCount := xDeath[0].(amqp.Table)["count"].(int64)
+					deathCount := xDeathCount(xDeath)
 
 					if deathCount > 5 {
 						t.l.Error().
@@ -945,6 +945,39 @@ func identity() string {
 	_, _ = fmt.Fprint(h, err)
 	_, _ = fmt.Fprint(h, os.Getpid())
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// xDeathCount reads the retry count from RabbitMQ's x-death header.
+// AMQP encodes the count field as a signed 32-bit integer (type 'I'), but
+// some publishers may send int64; accept both to avoid panics in consumers.
+func xDeathCount(xDeath []interface{}) int64 {
+	if len(xDeath) == 0 {
+		return 0
+	}
+
+	table, ok := xDeath[0].(amqp.Table)
+	if !ok {
+		return 0
+	}
+
+	return amqpTableInt64(table["count"])
+}
+
+func amqpTableInt64(v interface{}) int64 {
+	switch n := v.(type) {
+	case int64:
+		return n
+	case int32:
+		return int64(n)
+	case int:
+		return int64(n)
+	case uint64:
+		return int64(n)
+	case uint32:
+		return int64(n)
+	default:
+		return 0
+	}
 }
 
 func getTmpDLQName(dlxName string) string {
