@@ -1187,28 +1187,50 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 		stepRunResults := make([]*contracts.StepRunResult, 0)
 
 		for _, event := range wr.OutputEvents {
-			res := &contracts.StepRunResult{
-				TaskRunExternalId: event.TaskExternalId.String(),
-				TaskName:          event.StepReadableID,
-				JobRunId:          event.TaskExternalId.String(),
-			}
-
 			switch event.EventType {
 			case sqlcv1.V1TaskEventTypeCOMPLETED:
-				out := string(event.Output)
+				if event.IsDagOrchestrator {
+					var stepOutputs map[string]json.RawMessage
+					if err := json.Unmarshal(event.Output, &stepOutputs); err == nil {
+						for stepName, stepOutput := range stepOutputs {
+							out := string(stepOutput)
+							stepRunResults = append(stepRunResults, &contracts.StepRunResult{
+								TaskRunExternalId: event.TaskExternalId.String(),
+								TaskName:          stepName,
+								JobRunId:          event.TaskExternalId.String(),
+								Output:            &out,
+							})
+						}
+						continue
+					}
+				}
 
-				res.Output = &out
+				out := string(event.Output)
+				stepRunResults = append(stepRunResults, &contracts.StepRunResult{
+					TaskRunExternalId: event.TaskExternalId.String(),
+					TaskName:          event.StepReadableID,
+					JobRunId:          event.TaskExternalId.String(),
+					Output:            &out,
+				})
 			case sqlcv1.V1TaskEventTypeFAILED:
-				res.Error = &event.ErrorMessage
+				stepRunResults = append(stepRunResults, &contracts.StepRunResult{
+					TaskRunExternalId: event.TaskExternalId.String(),
+					TaskName:          event.StepReadableID,
+					JobRunId:          event.TaskExternalId.String(),
+					Error:             &event.ErrorMessage,
+				})
 			case sqlcv1.V1TaskEventTypeCANCELLED:
 				msg := event.ErrorMessage
 				if msg == "" {
 					msg = "task was cancelled"
 				}
-				res.Error = &msg
+				stepRunResults = append(stepRunResults, &contracts.StepRunResult{
+					TaskRunExternalId: event.TaskExternalId.String(),
+					TaskName:          event.StepReadableID,
+					JobRunId:          event.TaskExternalId.String(),
+					Error:             &msg,
+				})
 			}
-
-			stepRunResults = append(stepRunResults, res)
 		}
 
 		res = append(res, &contracts.WorkflowRunEvent{

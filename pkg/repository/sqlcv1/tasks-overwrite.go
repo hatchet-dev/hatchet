@@ -750,7 +750,8 @@ SELECT
     r.worker_id,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
-    t.concurrency_strategy_ids
+    t.concurrency_strategy_ids,
+    t.is_dag_orchestrator
 FROM
     v1_task t
 JOIN
@@ -776,6 +777,7 @@ type ReleaseTasksRow struct {
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
+	IsDagOrchestrator      bool               `json:"is_dag_orchestrator"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -805,6 +807,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.RetryCount,
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,
+				&i.IsDagOrchestrator,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)

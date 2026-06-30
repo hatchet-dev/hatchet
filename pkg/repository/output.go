@@ -27,6 +27,8 @@ type TaskOutputEvent struct {
 	ErrorMessage string `json:"error_message"`
 
 	StepReadableID string `json:"step_readable_id"`
+
+	IsDagOrchestrator bool `json:"is_dag_orchestrator"`
 }
 
 func (e *TaskOutputEvent) IsCompleted() bool {
@@ -115,10 +117,11 @@ func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 
 func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: row.ExternalID,
-		TaskId:         row.ID,
-		RetryCount:     row.RetryCount,
-		StepReadableID: row.StepReadableID,
+		TaskExternalId:    row.ExternalID,
+		TaskId:            row.ID,
+		RetryCount:        row.RetryCount,
+		StepReadableID:    row.StepReadableID,
+		IsDagOrchestrator: row.IsDagOrchestrator,
 	}
 }
 
