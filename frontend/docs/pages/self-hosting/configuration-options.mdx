@@ -319,20 +319,23 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## OpenTelemetry Configuration
 
-| Variable                            | Description                                                | Default Value |
-| ----------------------------------- | ---------------------------------------------------------- | ------------- |
-| `SERVER_OTEL_SERVICE_NAME`          | Service name for OpenTelemetry                             |               |
-| `SERVER_OTEL_COLLECTOR_URL`         | Collector URL for OpenTelemetry                            |               |
-| `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
-| `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
-| `SERVER_OTEL_COLLECTOR_AUTH`        | OpenTelemetry Collector Authorization header value         |               |
-| `SERVER_OTEL_METRICS_ENABLED`       | Enable OpenTelemetry metrics collection                    | `false`       |
-| `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
-| `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
-| `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
-| `SERVER_PROMETHEUS_SERVER_URL`      | Prometheus server URL                                      |               |
-| `SERVER_PROMETHEUS_SERVER_USERNAME` | Prometheus server username                                 |               |
-| `SERVER_PROMETHEUS_SERVER_PASSWORD` | Prometheus server password                                 |               |
+For how to enable and use internal trace export with these settings, see [Internal OpenTelemetry traces](/self-hosting/opentelemetry).
+
+| Variable                                 | Description                                                                                                                            | Default Value |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `SERVER_OTEL_SERVICE_NAME`               | Service name for OpenTelemetry                                                                                                         |               |
+| `SERVER_OTEL_COLLECTOR_URL`              | Collector URL for OpenTelemetry                                                                                                        |               |
+| `SERVER_OTEL_INSECURE`                   | Whether to use an insecure connection to the collector URL                                                                             |               |
+| `SERVER_OTEL_TRACE_ID_RATIO`             | OpenTelemetry trace ID ratio                                                                                                           |               |
+| `SERVER_OTEL_COLLECTOR_AUTH`             | OpenTelemetry Collector Authorization header value                                                                                     |               |
+| `SERVER_OTEL_METRICS_ENABLED`            | Enable OpenTelemetry metrics collection                                                                                                | `false`       |
+| `SERVER_PROMETHEUS_ENABLED`              | Enable Prometheus                                                                                                                      | `false`       |
+| `SERVER_PROMETHEUS_ADDRESS`              | Prometheus address                                                                                                                     | `:9090`       |
+| `SERVER_PROMETHEUS_PATH`                 | Prometheus metrics path                                                                                                                | `/metrics`    |
+| `SERVER_PROMETHEUS_SERVER_URL`           | Prometheus server URL                                                                                                                  |               |
+| `SERVER_PROMETHEUS_SERVER_USERNAME`      | Prometheus server username                                                                                                             |               |
+| `SERVER_PROMETHEUS_SERVER_PASSWORD`      | Prometheus server password                                                                                                             |               |
+| `SERVER_PROMETHEUS_SERVER_TENANT_SCOPED` | Gate the per-tenant metrics endpoint on each tenant's Prometheus metrics entitlement; when `false`, metrics are served for all tenants | `false`       |
 
 ## Tenant Alerting Configuration
 

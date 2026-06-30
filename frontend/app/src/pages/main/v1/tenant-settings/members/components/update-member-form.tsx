@@ -30,6 +30,7 @@ interface UpdateMemberFormProps {
   isLoading: boolean;
   member: TenantMember;
   isCloudEnabled?: boolean;
+  canSetOwnerRole?: boolean;
 }
 
 export function UpdateMemberForm({
@@ -96,7 +97,7 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {!props.isCloudEnabled && (
+                        {(!props.isCloudEnabled || props.canSetOwnerRole) && (
                           <SelectItem value="OWNER">Owner</SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>

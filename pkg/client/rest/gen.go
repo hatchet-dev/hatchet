@@ -426,6 +426,9 @@ type APIMeta struct {
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`
 
+	// PrometheusServerEnabled whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+	PrometheusServerEnabled *bool `json:"prometheusServerEnabled,omitempty"`
+
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
 }
@@ -1245,10 +1248,12 @@ type TenantInviteList struct {
 
 // TenantMember defines model for TenantMember.
 type TenantMember struct {
-	Metadata APIResourceMeta  `json:"metadata"`
-	Role     TenantMemberRole `json:"role"`
-	Tenant   *Tenant          `json:"tenant,omitempty"`
-	User     UserTenantPublic `json:"user"`
+	// ManuallyAdded Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
+	ManuallyAdded *bool            `json:"manually_added,omitempty"`
+	Metadata      APIResourceMeta  `json:"metadata"`
+	Role          TenantMemberRole `json:"role"`
+	Tenant        *Tenant          `json:"tenant,omitempty"`
+	User          UserTenantPublic `json:"user"`
 }
 
 // TenantMemberList defines model for TenantMemberList.
@@ -2060,6 +2065,9 @@ type V1TriggerWorkflowRunRequest struct {
 
 	// Priority The priority of the workflow run.
 	Priority *int `json:"priority,omitempty"`
+
+	// ReturnOnlyId A boolean flag indicating whether to only return the id of the created run.
+	ReturnOnlyId *bool `json:"return_only_id,omitempty"`
 
 	// WorkflowName The name of the workflow.
 	WorkflowName string `json:"workflowName"`

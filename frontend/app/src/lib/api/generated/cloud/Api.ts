@@ -12,6 +12,7 @@
 
 import {
   AcceptOrganizationInviteRequest,
+  AddOrganizationMembersToTenantRequest,
   APICloudMetadata,
   APIError,
   APIErrors,
@@ -1319,4 +1320,28 @@ export class Api<
       ...params,
       xResources: ["organization"],
     }), { resources: new Set<string>(["organization"]) });
+  /**
+   * @description Directly add one or more org members to a tenant, bypassing tag matching. Only org OWNERs can call this endpoint.
+   *
+   * @tags Management
+   * @name OrganizationTenantMembersAdd
+   * @summary Add Org Members to Tenant
+   * @request POST:/api/v1/management/organizations/{organization}/tenants/{tenant}/members
+   * @secure
+   */
+  organizationTenantMembersAdd = Object.assign((
+    organization: string,
+    tenant: string,
+    data: AddOrganizationMembersToTenantRequest,
+    params: RequestParams = {},
+  ) =>
+    this.request<void, APIError>({
+      path: `/api/v1/management/organizations/${organization}/tenants/${tenant}/members`,
+      method: "POST",
+      body: data,
+      secure: true,
+      type: ContentType.Json,
+      ...params,
+      xResources: ["organization", "organization-tenant"],
+    }), { resources: new Set<string>(["organization", "organization-tenant"]) });
 }

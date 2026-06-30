@@ -380,6 +380,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 			5*time.Millisecond,
 			false,
 			1,
+			nil,
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -436,5 +437,159 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 
 		}
 		return nil
+	})
+}
+
+// TestConcurrency_ColdStrategyScheduledPromptly is a regression test for cold-start scheduling
+// latency on concurrency-keyed tasks.
+//
+// A concurrency strategy that has been idle long enough to be deactivated (is_active=FALSE, no
+// slots) has no ConcurrencyManager running in the scheduler. When the next task arrives, the
+// scheduler is notified via NotifyConcurrency (the in-process effect of the CheckTenantQueue /
+// NotifyTaskCreated message published on task creation). The scheduler must create a manager for
+// that strategy and schedule the waiting task.
+//
+// Before the fix, NotifyConcurrency only woke *already-running* managers, so a cold strategy was
+// not picked up until the periodic lease-acquisition poll (every 5s) happened to discover it -- the
+// "first run is slow, then warm" symptom (observed as intermittent 5-11s queued->started spikes).
+// After the fix, NotifyConcurrency acquires the lease on-demand and the new manager runs immediately.
+//
+// This test reproduces the cold path through the full SchedulingPool and asserts the task is queued
+// well within the 5s lease-poll window. Run against the pre-fix commit and it waits ~5s and fails the
+// deadline; against the fix it completes in milliseconds.
+func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		r := conf.V1
+		queries := sqlcv1.New()
+
+		tenantId := uuid.New()
+		tenant, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "concurrency-cold-start-test",
+			Slug: fmt.Sprintf("concurrency-cold-start-test-%s", tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		desc := "test workflow for cold-start scheduling"
+		groupRR := "GROUP_ROUND_ROBIN"
+		var maxRuns int32 = 10
+
+		wfVersion, err := r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "concurrency-cold-start-test",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "my-task",
+					Action:     "test:run",
+					Concurrency: []repo.CreateConcurrencyOpts{
+						{
+							MaxRuns:       &maxRuns,
+							LimitStrategy: &groupRR,
+							Expression:    "input.my_id",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		workflowId := wfVersion.WorkflowVersion.WorkflowId
+		workflowVersionId := wfVersion.WorkflowVersion.ID
+
+		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+		require.Len(t, strategies, 1)
+		strat := strategies[0]
+
+		concurrencyRepo := r.Scheduler().Concurrency()
+
+		// Make the strategy "cold": with no slots yet, the stale-deactivation sweep flips it to
+		// is_active=FALSE. This mirrors a strategy that has been idle for the deactivation window.
+		require.NoError(t, concurrencyRepo.DeactivateStaleStepConcurrency(ctx, tenantId))
+
+		activeAfterDeactivate, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+		require.Len(t, activeAfterDeactivate, 0, "strategy must be inactive so no manager is leased at pool start")
+
+		// Start the scheduling pool. Its initial lease acquisition runs now and finds no active
+		// strategy, so no ConcurrencyManager exists for our strategy -- it is genuinely cold.
+		l := zerolog.Nop()
+		schedulingPool, cleanup, err := v1.NewSchedulingPool(
+			r.Scheduler(),
+			&l,
+			100,
+			20,
+			10*time.Millisecond,
+			20*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
+			5*time.Millisecond,
+			false,
+			1,
+			nil,
+		)
+		require.NoError(t, err)
+		defer func() { _ = cleanup() }()
+
+		schedulingPool.SetTenants([]*sqlcv1.Tenant{tenant})
+		resultsChan := schedulingPool.GetConcurrencyResultsCh()
+
+		// A task arrives for the cold strategy. Creating the task inserts a concurrency slot, whose
+		// insert trigger reactivates the strategy in the DB (is_active=TRUE) -- but the scheduler does
+		// not know about it yet.
+		taskParams := newCreateTasksParams(1)
+		taskParams.Tenantids[0] = tenantId
+		taskParams.Queues[0] = "default"
+		taskParams.Actionids[0] = "test:run"
+		taskParams.Stepids[0] = strat.StepID
+		taskParams.Stepreadableids[0] = "my-task"
+		taskParams.Workflowids[0] = workflowId
+		taskParams.Scheduletimeouts[0] = "5m"
+		taskParams.Priorities[0] = 1
+		taskParams.Stickies[0] = string(sqlcv1.V1StickyStrategyNONE)
+		taskParams.Externalids[0] = uuid.New()
+		taskParams.Displaynames[0] = "cold-task"
+		taskParams.Inputs[0] = []byte(`{"my_id": "thread-1"}`)
+		taskParams.Additionalmetadatas[0] = []byte(`{}`)
+		taskParams.InitialStates[0] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		taskParams.Concurrencyparentstrategyids[0] = []pgtype.Int8{{}}
+		taskParams.ConcurrencyStrategyIds[0] = []int64{strat.ID}
+		taskParams.ConcurrencyKeys[0] = []string{"thread-1"}
+		taskParams.WorkflowVersionIds[0] = workflowVersionId
+		taskParams.WorkflowRunIds[0] = uuid.New()
+
+		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
+		require.NoError(t, err)
+		require.Len(t, tasks, 1)
+
+		// This is exactly what the task-creation message does in production.
+		start := time.Now()
+		schedulingPool.NotifyConcurrency(ctx, tenantId, []int64{strat.ID})
+
+		// The fix must schedule the waiting task without waiting for the 5s lease-acquisition poll.
+		const coldStartDeadline = 2 * time.Second
+		deadline := time.NewTimer(coldStartDeadline)
+		defer deadline.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("context cancelled while waiting for cold strategy to be scheduled: %v", ctx.Err())
+			case <-deadline.C:
+				t.Fatalf("cold concurrency strategy was not scheduled within %s; "+
+					"the on-demand manager was not created (fell back to the periodic lease poll)", coldStartDeadline)
+			case res := <-resultsChan:
+				require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+				if len(res.RunConcurrencyResult.Queued) > 0 {
+					require.Len(t, res.RunConcurrencyResult.Queued, 1, "the single waiting task should be queued")
+					t.Logf("cold strategy scheduled in %s", time.Since(start))
+					return nil
+				}
+			}
+		}
 	})
 }
