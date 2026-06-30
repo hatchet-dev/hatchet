@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # noqa: TC003
 from enum import Enum
 
 from pydantic import BaseModel
 from typing_extensions import assert_never
 
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionKey
-from hatchet_sdk.runnables.eviction import EvictionPolicy
+from hatchet_sdk.runnables.action import ActionKey  # noqa: TC001
+from hatchet_sdk.runnables.eviction import EvictionPolicy  # noqa: TC001
 
 
 class EvictionCause(str, Enum):
@@ -92,7 +92,7 @@ class DurableEvictionCache:
         rec.wait_kind = wait_kind
         rec.wait_resource_id = resource_id
 
-    def mark_active(self, key: ActionKey, now: datetime) -> None:
+    def mark_active(self, key: ActionKey) -> None:
         rec = self._runs.get(key)
         if not rec:
             return

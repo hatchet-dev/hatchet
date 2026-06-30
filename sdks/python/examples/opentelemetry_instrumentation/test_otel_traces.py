@@ -44,8 +44,9 @@ def poll_for_trace(hatchet: Hatchet, run_id: str, min_spans: int = 1) -> list[Ot
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
-    test_run_id = str(uuid4())
+async def test_otel_spans_created_on_task_run(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     message = "Hello, OpenTelemetry!"
     HatchetInstrumentor().instrument()
 
@@ -139,9 +140,10 @@ async def test_otel_spans_created_on_task_run(hatchet: Hatchet) -> None:
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
+async def test_otel_spans_on_event_triggered_run(
+    hatchet: Hatchet, test_run_id: str
+) -> None:
     HatchetInstrumentor().instrument()
-    test_run_id = str(uuid4())
 
     event = await hatchet.event.aio_push(
         "otel:test-event",
@@ -152,8 +154,7 @@ async def test_otel_spans_on_event_triggered_run(hatchet: Hatchet) -> None:
     run_id = None
     for _ in range(15):
         runs = await hatchet.runs.aio_list(triggering_event_external_id=event.event_id)
-        rows = runs.rows or []
-        completed = [r for r in rows if r.status == V1TaskStatus.COMPLETED]
+        completed = [r for r in runs if r.status == V1TaskStatus.COMPLETED]
         if completed:
             run_id = completed[0].task_external_id
             break
@@ -335,10 +336,9 @@ async def test_otel_spans_on_dag_run(hatchet: Hatchet) -> None:
 
 @requires_observability
 @pytest.mark.asyncio(loop_scope="session")
-async def test_otel_spans_on_child_spawn(hatchet: Hatchet) -> None:
+async def test_otel_spans_on_child_spawn(hatchet: Hatchet, test_run_id: str) -> None:
     HatchetInstrumentor().instrument()
     message = "spawn-test"
-    test_run_id = str(uuid4())
 
     ref = await otel_spawn_parent.aio_run(
         input=SimpleOtelTaskInput(message=message),

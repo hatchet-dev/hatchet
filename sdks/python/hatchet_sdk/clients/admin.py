@@ -33,7 +33,6 @@ from hatchet_sdk.runnables.contextvars import (
 )
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
-    _warn_if_dict_desired_worker_labels,
 )
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.rate_limit import RateLimitDuration
@@ -133,7 +132,7 @@ class AdminClient:
         config: ClientConfig,
         workflow_run_listener: PooledWorkflowRunListener,
         workflow_run_event_listener: RunEventListenerClient,
-    ):
+    ) -> None:
         self.config = config
         self.token = config.token
         self.namespace = config.namespace
@@ -184,13 +183,18 @@ class AdminClient:
         input: str | None,
         options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
+        workflow_run_id = ctx_workflow_run_id.get()
+        step_run_id = ctx_step_run_id.get()
+        action_key = ctx_action_key.get()
+        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
+
         _options = self.TriggerWorkflowRequest.model_validate(options.model_dump())
+        _options.child_index = spawn_index
+        _options.parent_id = workflow_run_id
+        _options.parent_step_run_id = step_run_id
 
         desired_worker_labels = None
         if _options.desired_worker_label:
-            _warn_if_dict_desired_worker_labels(
-                _options.desired_worker_label, stacklevel=6
-            )
             if isinstance(_options.desired_worker_label, list):
                 labels_dict = {
                     d.key: d for d in _options.desired_worker_label if d.key is not None
@@ -248,13 +252,18 @@ class AdminClient:
         input: str | None = None,
         options: ScheduleTriggerWorkflowOptions = ScheduleTriggerWorkflowOptions(),
     ) -> v0_workflow_protos.ScheduleWorkflowRequest:
+        workflow_run_id = ctx_workflow_run_id.get()
+        step_run_id = ctx_step_run_id.get()
+        action_key = ctx_action_key.get()
+        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
+
         return v0_workflow_protos.ScheduleWorkflowRequest(
             name=name,
             schedules=[self._parse_schedule(schedule) for schedule in schedules],
             input=input,
-            parent_id=options.parent_id,
-            parent_task_run_external_id=options.parent_step_run_id,
-            child_index=options.child_index,
+            parent_id=workflow_run_id,
+            parent_task_run_external_id=step_run_id,
+            child_index=spawn_index,
             child_key=options.child_key,
             additional_metadata=json.dumps(options.additional_metadata),
             priority=options.priority,
@@ -295,7 +304,7 @@ class AdminClient:
 
         put_workflow = tenacity_retry(self.client.PutWorkflow, self.config.tenacity)
         return cast(
-            workflow_protos.CreateWorkflowVersionResponse,
+            "workflow_protos.CreateWorkflowVersionResponse",
             put_workflow(
                 workflow,
                 metadata=create_authorization_header(self.token),
@@ -347,7 +356,7 @@ class AdminClient:
             )
 
             return cast(
-                v0_workflow_protos.WorkflowVersion,
+                "v0_workflow_protos.WorkflowVersion",
                 schedule_workflow(
                     request,
                     metadata=create_authorization_header(self.token),
@@ -365,12 +374,9 @@ class AdminClient:
         input: str | None,
         options: TriggerWorkflowOptions,
     ) -> trigger_protos.TriggerWorkflowRequest:
-        workflow_run_id = ctx_workflow_run_id.get()
-        step_run_id = ctx_step_run_id.get()
         worker_id = ctx_worker_id.get()
         action_key = ctx_action_key.get()
         additional_metadata = ctx_additional_metadata.get() or {}
-        spawn_index = workflow_spawn_indices[action_key] if action_key else 0
 
         ## Increment the spawn_index for the parent workflow
         if action_key:
@@ -379,21 +385,14 @@ class AdminClient:
         desired_worker_id = (
             (options.desired_worker_id or worker_id) if options.sticky else None
         )
-        child_index = (
-            options.child_index if options.child_index is not None else spawn_index
-        )
 
         trigger_options = TriggerWorkflowOptions(
-            parent_id=options.parent_id or workflow_run_id,
-            parent_step_run_id=options.parent_step_run_id or step_run_id,
             child_key=options.child_key,
-            child_index=child_index,
             additional_metadata={**additional_metadata, **options.additional_metadata},
             desired_worker_id=desired_worker_id,
             priority=options.priority,
             namespace=options.namespace,
             sticky=options.sticky,
-            key=options.key,
             desired_worker_label=options.desired_worker_label,
         )
 
@@ -415,7 +414,7 @@ class AdminClient:
 
         try:
             resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
+                "v0_workflow_protos.TriggerWorkflowResponse",
                 trigger_workflow(
                     request,
                     metadata=create_authorization_header(self.token),
@@ -446,7 +445,7 @@ class AdminClient:
 
         try:
             resp = cast(
-                v0_workflow_protos.TriggerWorkflowResponse,
+                "v0_workflow_protos.TriggerWorkflowResponse",
                 await asyncio.to_thread(
                     trigger_workflow,
                     request,
@@ -514,7 +513,7 @@ class AdminClient:
             )
 
             resp = cast(
-                v0_workflow_protos.BulkTriggerWorkflowResponse,
+                "v0_workflow_protos.BulkTriggerWorkflowResponse",
                 bulk_trigger_workflow(
                     bulk_request,
                     metadata=create_authorization_header(self.token),
@@ -559,7 +558,7 @@ class AdminClient:
             )
 
             resp = cast(
-                v0_workflow_protos.BulkTriggerWorkflowResponse,
+                "v0_workflow_protos.BulkTriggerWorkflowResponse",
                 await asyncio.to_thread(
                     bulk_trigger_workflow,
                     bulk_request,
@@ -599,7 +598,7 @@ class AdminClient:
         )
 
         response = cast(
-            workflow_protos.GetRunDetailsResponse,
+            "workflow_protos.GetRunDetailsResponse",
             get_run_payloads(
                 workflow_protos.GetRunDetailsRequest(external_id=external_id),
                 metadata=create_authorization_header(self.token),

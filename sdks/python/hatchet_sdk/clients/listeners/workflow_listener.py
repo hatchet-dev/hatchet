@@ -62,7 +62,7 @@ class PooledWorkflowRunListener(
             self.client = DispatcherStub(conn)
 
         return cast(
-            grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent],
+            "grpc.aio.UnaryStreamCall[SubscribeToWorkflowRunsRequest, WorkflowRunEvent]",
             self.client.SubscribeToWorkflowRuns(
                 request,  # type: ignore[arg-type]
                 metadata=metadata,

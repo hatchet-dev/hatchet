@@ -8,9 +8,8 @@ from hatchet_sdk import Hatchet, RunStatus, V1TaskStatus
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_run(hatchet: Hatchet) -> None:
+async def test_run(hatchet: Hatchet, test_run_id: str) -> None:
     mock_input = MockInput(foo=str(uuid4()))
-    test_run_id = str(uuid4())
     meta = {"test_run_id": test_run_id}
     ref = run_detail_test_workflow.run(
         input=mock_input,

@@ -58,7 +58,7 @@ class Subscription(Generic[T]):
 
 
 class PooledListener(Generic[R, T, L], ABC):
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         self.token = config.token
         self.config = config
 

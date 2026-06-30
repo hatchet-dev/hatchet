@@ -60,12 +60,9 @@ def _subprocess_target(
     mock_dispatcher.get_action_listener = AsyncMock(return_value=listener)
     mock_dispatcher.send_step_action_event = AsyncMock()
 
-    with (
-        patch(
-            "hatchet_sdk.worker.action_listener_process.DispatcherClient",
-            return_value=mock_dispatcher,
-        ),
-        patch("hatchet_sdk.worker.action_listener_process.Client"),
+    with patch(
+        "hatchet_sdk.worker.action_listener_process.DispatcherClient",
+        return_value=mock_dispatcher,
     ):
         worker_action_listener_process(
             name=name,
@@ -75,7 +72,6 @@ def _subprocess_target(
             action_queue=action_queue,
             event_queue=event_queue,
             handle_kill=handle_kill,
-            debug=debug,
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
@@ -109,20 +105,18 @@ def _make_process(
     if event_queue is None:
         event_queue = _CTX.Queue()
 
-    with patch(f"{_LISTENER_MODULE}.Client"):
-        process = WorkerActionListenerProcess(
-            name="test-worker",
-            actions=["test_action"],
-            slot_config={"default": 1, "durable": 0},
-            config=config,
-            action_queue=_CTX.Queue(),
-            event_queue=event_queue,
-            handle_kill=False,
-            debug=False,
-            labels=[],
-            worker_id_queue=worker_id_queue,
-            stop_event=stop_event,
-        )
+    process = WorkerActionListenerProcess(
+        name="test-worker",
+        actions=["test_action"],
+        slot_config={"default": 1, "durable": 0},
+        config=config,
+        action_queue=_CTX.Queue(),
+        event_queue=event_queue,
+        handle_kill=False,
+        labels=[],
+        worker_id_queue=worker_id_queue,
+        stop_event=stop_event,
+    )
     return process
 
 
@@ -186,10 +180,7 @@ async def test_worker_id_published_to_queue_on_start() -> None:
 
     process = _make_process(stop_event, worker_id_queue, event_queue)
 
-    with (
-        patch(f"{_LISTENER_MODULE}.DispatcherClient", return_value=mock_dispatcher),
-        patch(f"{_LISTENER_MODULE}.Client"),
-    ):
+    with patch(f"{_LISTENER_MODULE}.DispatcherClient", return_value=mock_dispatcher):
         await process.start()
 
     try:

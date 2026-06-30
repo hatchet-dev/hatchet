@@ -19,9 +19,8 @@ from tests.child_spawn_cache_on_retry.worker import (
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_spawn_caching_on_retry(
-    hatchet: Hatchet, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
     try:
         await spawn_cache_on_retry_parent.aio_run(
             additional_metadata={"test_run_id": test_run_id}

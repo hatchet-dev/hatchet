@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
-from hatchet_sdk import Context, EmptyModel, Hatchet
+from hatchet_sdk import Context, Hatchet
 
 
 class StepOutput(BaseModel):
@@ -23,7 +23,7 @@ dag_workflow = hatchet.workflow(name="DAGWorkflow")
 
 # > First task
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
-def step1(input: EmptyModel, ctx: Context) -> StepOutput:
+def step1(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -32,12 +32,12 @@ def step1(input: EmptyModel, ctx: Context) -> StepOutput:
 
 
 @dag_workflow.task(execution_timeout=timedelta(seconds=5))
-async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
+async def step2(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
 @dag_workflow.task(parents=[step1, step2])
-async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
+async def step3(input: None, ctx: Context) -> RandomSum:
     one = ctx.task_output(step1).random_number
     two = ctx.task_output(step2).random_number
 
@@ -47,7 +47,7 @@ async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
 
 
 @dag_workflow.task(parents=[step1, step3])
-async def step4(input: EmptyModel, ctx: Context) -> dict[str, str]:
+async def step4(input: None, ctx: Context) -> dict[str, str]:
     print(
         "executed step4",
         time.strftime("%H:%M:%S", time.localtime()),

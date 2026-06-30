@@ -20,7 +20,6 @@ from hatchet_sdk import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
     Context,
-    EmptyModel,
     Hatchet,
 )
 
@@ -103,7 +102,7 @@ process_object_workflow = hatchet.workflow(
 
 
 @fetch_buckets_workflow.task()
-async def fetch_buckets(input: EmptyModel, ctx: Context) -> dict[str, Any]:
+async def fetch_buckets(input: None, ctx: Context) -> dict[str, Any]:
     paginator = s3.get_paginator("list_buckets")
     pages = paginator.paginate(
         Prefix=BUCKET_PREFIX,

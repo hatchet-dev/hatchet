@@ -39,7 +39,7 @@ DEFAULT_REGISTER_TIMEOUT = 30
 
 
 class DispatcherClient:
-    def __init__(self, config: ClientConfig):
+    def __init__(self, config: ClientConfig) -> None:
         self.token = config.token
         self.config = config
 
@@ -80,7 +80,7 @@ class DispatcherClient:
             proto_labels[key] = WorkerLabels(str_value=str(value))
 
         response = cast(
-            WorkerRegisterResponse,
+            "WorkerRegisterResponse",
             # fixme: figure out how to get typing right here
             await aio_client.Register(  # type: ignore[misc]
                 WorkerRegisterRequest(
@@ -120,7 +120,7 @@ class DispatcherClient:
 
         try:
             response = cast(
-                GetVersionResponse,
+                "GetVersionResponse",
                 await aio_client.GetVersion(  # type: ignore[misc]
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
@@ -198,7 +198,7 @@ class DispatcherClient:
 
         try:
             return cast(
-                ActionEventResponse,
+                "ActionEventResponse",
                 await aio_client.SendStepActionEvent(  # type: ignore[misc]
                     event,
                     metadata=create_authorization_header(self.token),
@@ -218,7 +218,7 @@ class DispatcherClient:
         client = self._get_or_create_client()
 
         return cast(
-            ActionEventResponse,
+            "ActionEventResponse",
             client.PutOverridesData(
                 data,
                 metadata=create_authorization_header(self.token),

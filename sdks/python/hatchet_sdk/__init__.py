@@ -140,8 +140,13 @@ from hatchet_sdk.conditions import (
     or_,
 )
 from hatchet_sdk.config import ClientConfig, ClientTLSConfig, OpenTelemetryConfig
-from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.context.context import (
+    Context,
+    DurableContext,
+    EventWaitResult,
+    OrGroupResult,
+    SleepResult,
+)
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
     DedupeViolationError,
@@ -157,7 +162,6 @@ from hatchet_sdk.hatchet import Hatchet
 from hatchet_sdk.runnables.task import Depends, Task
 from hatchet_sdk.runnables.types import (
     DefaultFilter,
-    EmptyModel,
     TaskDefaults,
     WorkflowConfig,
 )
@@ -177,9 +181,7 @@ from hatchet_sdk.types.rate_limit import RateLimit, RateLimitDuration
 from hatchet_sdk.types.slot_types import SlotType
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.types.trigger import (
-    BulkPushEventOptions,
     BulkPushEventWithMetadata,
-    PushEventOptions,
     ScheduleTriggerWorkflowOptions,
     TriggerWorkflowOptions,
     WorkflowRunTriggerConfig,
@@ -199,7 +201,6 @@ __all__ = [
     "APIToken",
     "AcceptInviteRequest",
     "BulkCancelReplayOpts",
-    "BulkPushEventOptions",
     "BulkPushEventWithMetadata",
     "CELEvaluationResult",
     "CELFailure",
@@ -221,13 +222,13 @@ __all__ = [
     "Depends",
     "DesiredWorkerLabel",
     "DurableContext",
-    "EmptyModel",
     "Event",
     "EventData",
     "EventKeyList",
     "EventList",
     "EventOrderByDirection",
     "EventOrderByField",
+    "EventWaitResult",
     "EventWorkflowRunSummary",
     "EvictionNotSupportedError",
     "FailedTaskRunExceptionGroup",
@@ -253,12 +254,12 @@ __all__ = [
     "OTelAttribute",
     "OpenTelemetryConfig",
     "OrGroup",
+    "OrGroupResult",
     "PaginationResponse",
     "ParentCondition",
     "Priority",
     "PullRequest",
     "PullRequestState",
-    "PushEventOptions",
     "RateLimit",
     "RateLimitDuration",
     "RegisterDurableEventRequest",
@@ -271,6 +272,7 @@ __all__ = [
     "ScheduleTriggerWorkflowOptions",
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
+    "SleepResult",
     "SlotType",
     "StepRun",
     "StepRunDiff",
@@ -304,7 +306,6 @@ __all__ = [
     "V1WebhookSourceName",
     "Worker",
     "Worker",
-    "WorkerContext",
     "WorkerLabel",
     "WorkerLabelComparator",
     "WorkerList",

@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncGenerator
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import grpc
 import grpc.aio
@@ -16,7 +16,6 @@ from hatchet_sdk.clients.events import proto_timestamp_now
 from hatchet_sdk.clients.listeners.run_event_listener import (
     DEFAULT_ACTION_LISTENER_RETRY_INTERVAL,
 )
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import ActionType as ActionTypeProto
 from hatchet_sdk.contracts.dispatcher_pb2 import (
@@ -33,6 +32,9 @@ from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
+if TYPE_CHECKING:
+    from hatchet_sdk.config import ClientConfig
+
 DEFAULT_ACTION_TIMEOUT = 600  # seconds
 DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
 
@@ -40,7 +42,7 @@ DEFAULT_ACTION_LISTENER_RETRY_COUNT = 15
 def parse_additional_metadata(additional_metadata: str) -> JSONSerializableMapping:
     try:
         return cast(
-            JSONSerializableMapping,
+            "JSONSerializableMapping",
             json.loads(additional_metadata),
         )
     except json.JSONDecodeError:
@@ -290,7 +292,7 @@ class ActionListener:
         self.last_connection_attempt = current_time
 
         return cast(
-            grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction], listener
+            "grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction]", listener
         )
 
     def cleanup(self) -> None:
@@ -322,6 +324,6 @@ class ActionListener:
             if self.interrupt is not None:
                 self.interrupt.set()
 
-            return cast(WorkerUnsubscribeRequest, req)
+            return cast("WorkerUnsubscribeRequest", req)
         except grpc.RpcError as e:
             raise Exception("Failed to unsubscribe") from e

@@ -1,15 +1,12 @@
 import asyncio
 import contextlib
 import logging
-import multiprocessing.synchronize
 import signal
 import time
-import warnings
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-from multiprocessing import Queue
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import grpc
 from aiohttp import web
@@ -17,14 +14,13 @@ from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Gauge, generate_latest
 
-from hatchet_sdk.client import Client
-from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 from hatchet_sdk.clients.dispatcher.dispatcher import DispatcherClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
     ActionEventResponse,
 )
+from hatchet_sdk.features.workers import WorkersClient
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
 from hatchet_sdk.runnables.contextvars import (
@@ -37,6 +33,12 @@ from hatchet_sdk.runnables.contextvars import (
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
+
+if TYPE_CHECKING:
+    import multiprocessing.synchronize
+    from multiprocessing import Queue
+
+    from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
 
 ACTION_EVENT_RETRY_COUNT = 5
 STARTING_UNHEALTHY_AFTER_SECONDS = 10.0
@@ -69,7 +71,6 @@ class WorkerActionListenerProcess:
         action_queue: "Queue[Action]",
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
-        debug: bool,
         labels: list[WorkerLabel],
         worker_id_queue: "Queue[str]",
         stop_event: "multiprocessing.synchronize.Event",
@@ -82,7 +83,6 @@ class WorkerActionListenerProcess:
         self.config = config
         self.action_queue = action_queue
         self.event_queue = event_queue
-        self.debug = debug
         self.labels = labels
         self.handle_kill = handle_kill
         self.worker_id_queue = worker_id_queue
@@ -105,13 +105,10 @@ class WorkerActionListenerProcess:
         self.running_step_runs: dict[str, float] = {}
         self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
 
-        if self.debug:
+        if self.config.debug:
             logger.setLevel(logging.DEBUG)
 
-        self.client = Client(config=self.config, debug=self.debug)
-
-        # explicit no-op on SIGINT and SIGTERM because shutdown is completely controlled
-        # by the parent worker process
+        self._workers_client = WorkersClient(self.config)
         loop = asyncio.get_event_loop()
         loop.add_signal_handler(signal.SIGINT, lambda: None)
         loop.add_signal_handler(signal.SIGTERM, lambda: None)
@@ -125,24 +122,6 @@ class WorkerActionListenerProcess:
                 "hatchet_worker_event_loop_lag_seconds",
                 "Event loop lag in seconds (listener process)",
             )
-
-    @property
-    def slots(self) -> int:
-        warnings.warn(
-            "WorkerActionListenerProcess.slots is deprecated; use slot_config['default'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slots
-
-    @property
-    def durable_slots(self) -> int:
-        warnings.warn(
-            "WorkerActionListenerProcess.durable_slots is deprecated; use slot_config['durable'] instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._durable_slots
 
     async def _monitor_event_loop(self) -> None:
         # If the loop is blocked, this coroutine itself can't run; when it resumes,
@@ -229,7 +208,7 @@ class WorkerActionListenerProcess:
 
         return HealthStatus.HEALTHY if ok else HealthStatus.UNHEALTHY
 
-    async def _health_handler(self, request: Request) -> Response:
+    async def _health_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 
@@ -238,7 +217,7 @@ class WorkerActionListenerProcess:
 
         return web.json_response(response, status=200 if ok else 503)
 
-    async def _metrics_handler(self, request: Request) -> Response:
+    async def _metrics_handler(self, _request: Request) -> Response:
         status = self._compute_health()
         ok = status == HealthStatus.HEALTHY
 
@@ -524,7 +503,6 @@ def worker_action_listener_process(
     action_queue: "Queue[Action]",
     event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
-    debug: bool,
     labels: list[WorkerLabel],
     worker_id_queue: "Queue[str]",
     stop_event: "multiprocessing.synchronize.Event",
@@ -538,7 +516,6 @@ def worker_action_listener_process(
             action_queue=action_queue,
             event_queue=event_queue,
             handle_kill=handle_kill,
-            debug=debug,
             labels=labels,
             worker_id_queue=worker_id_queue,
             stop_event=stop_event,
