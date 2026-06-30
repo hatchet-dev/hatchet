@@ -12,7 +12,7 @@ import {
   workflowKey,
 } from './components/event-columns';
 import { useEvents } from './hooks/use-events';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import RelativeDate from '@/components/v1/molecules/relative-date';
@@ -139,15 +139,12 @@ export default function Events() {
         }}
         onResetFilters={resetFilters}
         emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No events found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.v1.events}
-                label="Learn about pushing events to Hatchet"
-              />
-            </div>
-          </div>
+          <EmptyState
+            title="No events found"
+            description="Events are payloads you push to Hatchet to trigger workflows. No events have been received yet."
+            docPage={docsPages.v1.events}
+            docLabel="Learn about events"
+          />
         }
       />
     </>
