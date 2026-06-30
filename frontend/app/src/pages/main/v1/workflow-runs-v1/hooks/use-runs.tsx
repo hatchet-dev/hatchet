@@ -46,6 +46,18 @@ export const useRuns = ({
   const { refetchInterval } = useRefetchInterval();
   const { offset, pagination, setPageSize, setPagination } = usePagination({
     key: 'runs-table-' + key,
+    resetPageOnChange: [
+      createdAfter,
+      finishedBefore,
+      statuses,
+      runningFilter,
+      additionalMetadata,
+      workerId,
+      workflowIds,
+      parentTaskExternalId,
+      triggeringEventExternalId,
+      onlyTasks,
+    ],
   });
 
   const [initialRenderTime] = useState(

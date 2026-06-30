@@ -22,10 +22,6 @@ const workflowQuerySchema = z
 export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const { pagination, setPagination, setPageSize, offset, limit } =
-    usePagination({
-      key,
-    });
 
   const paramKey = `workflows-${key}`;
 
@@ -37,6 +33,12 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   } = useZodColumnFilters(workflowQuerySchema, paramKey, { s: nameKey });
 
   const [debouncedSearch] = useDebounce(search, 300);
+
+  const { pagination, setPagination, setPageSize, offset, limit } =
+    usePagination({
+      key,
+      resetPageOnChange: debouncedSearch,
+    });
 
   const setSearch = useCallback(
     (value: string) => {
