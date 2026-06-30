@@ -1088,6 +1088,7 @@ CREATE TABLE
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
+        "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

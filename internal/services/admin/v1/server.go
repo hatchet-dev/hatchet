@@ -731,7 +731,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		}
 	}
 
-	if len(req.Tasks) > 1 {
+	if currWorkflow.WorkflowVersion.IsUsingDagOperator {
 		if err := a.ensureDAGOperator(ctx, tenantId); err != nil {
 			a.l.Err(err).Ctx(ctx).Msg("could not ensure DAG operator for tenant")
 		}
@@ -742,17 +742,15 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	// but might not in the future
 	actions, err := getActionsForTasks(req.Tasks)
 
-	hasDagOperator, err := a.repo.Operators().HasDAGOperator(ctx, tenantId)
-
 	if err != nil {
-		return nil, fmt.Errorf("could not check for DAG operator: %w", err)
+		return nil, fmt.Errorf("could not get actions for tasks: %w", err)
 	}
 
-	if len(req.Tasks) > 1 && hasDagOperator {
+	if currWorkflow.WorkflowVersion.IsUsingDagOperator {
 		actions = append(actions, strings.ToLower(req.Name+"_orchestrator"))
 	}
 
-	if tenant.SchedulerPartitionId.Valid && err == nil {
+	if tenant.SchedulerPartitionId.Valid {
 		go func() {
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()

@@ -414,7 +414,10 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
-	if r.dagOperatorEnabled && len(opts.Tasks) > 1 {
+	// todo: maybe don't need `len` check here?
+	isUsingDagOperator := sqlchelpers.BoolFromBoolean(r.dagOperatorEnabled && len(opts.Tasks) > 1)
+
+	if isUsingDagOperator.Bool {
 		opts.Tasks = append(opts.Tasks, CreateStepOpts{
 			ReadableId:        opts.Name,
 			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
@@ -429,28 +432,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		return nil, err
 	}
 
-	// if the checksum matches the old checksum, we don't need to create a new workflow version,
-	// unless the existing version's orchestrator step presence disagrees with the current flag.
-	// This handles the case where the old code computed the checksum before appending the
-	// orchestrator step, so the 4-step hash happens to match — but the stored version still has
-	// 5 steps with isDagOrchestrator=false that would be incorrectly routed.
-	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs {
-		existingSteps, err := r.queries.ListStepsByWorkflowVersionIds(ctx, tx, sqlcv1.ListStepsByWorkflowVersionIdsParams{
-			Tenantid: tenantId,
-			Ids:      []uuid.UUID{oldWorkflowVersion.WorkflowVersion.ID},
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("could not list steps for existing workflow version: %w", err)
-		}
-
-		existingHasOrchestrator := slices.ContainsFunc(existingSteps, func(s *sqlcv1.ListStepsByWorkflowVersionIdsRow) bool {
-			return s.IsDagOrchestrator
-		})
-
-		if existingHasOrchestrator == r.dagOperatorEnabled {
-			return &oldWorkflowVersion.WorkflowVersion.ID, nil
-		}
+	// if the checksum matches and the version's DAG operator flag matches the current server
+	// flag, reuse the existing version — no change needed.
+	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs &&
+		oldWorkflowVersion.WorkflowVersion.IsUsingDagOperator == isUsingDagOperator.Bool {
+		return &oldWorkflowVersion.WorkflowVersion.ID, nil
 	}
 
 	optsJson, err := json.Marshal(modifiedOpts)
@@ -465,6 +451,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
 		InputJsonSchema:           opts.InputJsonSchema,
+		IsUsingDagOperator:        isUsingDagOperator,
 	}
 
 	if opts.Sticky != nil {
