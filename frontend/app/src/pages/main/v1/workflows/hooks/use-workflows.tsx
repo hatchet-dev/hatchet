@@ -37,7 +37,7 @@ export const useWorkflows = ({ key }: UseWorkflowsProps) => {
   const { pagination, setPagination, setPageSize, offset, limit } =
     usePagination({
       key,
-      resetPageOnChange: debouncedSearch,
+      resetPageOnChange: [debouncedSearch],
     });
 
   const setSearch = useCallback(

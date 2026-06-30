@@ -44,7 +44,7 @@ export const useRateLimits = ({ key }: { key: string }) => {
   const { limit, offset, pagination, setPagination, setPageSize } =
     usePagination({
       key,
-      resetPageOnChange: debouncedSearch,
+      resetPageOnChange: [debouncedSearch],
     });
 
   const { data, isLoading, error, isRefetching, refetch } = useQuery({

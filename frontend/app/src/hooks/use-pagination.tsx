@@ -1,6 +1,6 @@
 import { useSearchParams } from '@/lib/router-helpers';
 import { PaginationState, Updater } from '@tanstack/react-table';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { DependencyList, useCallback, useEffect, useMemo, useRef } from 'react';
 
 type PaginationQueryShape = {
   i: number; // index
@@ -9,10 +9,9 @@ type PaginationQueryShape = {
 
 type UsePaginationProps = {
   key: string;
-  // When this value changes (by deep/serialized equality), the page index resets to 0.
-  // Pass the active filter values here so changing a filter doesn't leave the user
-  // stranded on a page that no longer has results.
-  resetPageOnChange?: unknown;
+  // if any dependency changes, we reset pagination to 0 so users don't get
+  // stuck on a page that no longer has results.
+  resetPageOnChange?: DependencyList;
 };
 
 const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {

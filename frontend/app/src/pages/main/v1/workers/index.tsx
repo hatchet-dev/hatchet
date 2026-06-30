@@ -43,7 +43,7 @@ export default function Workers() {
   const { pagination, setPagination, limit, offset, setPageSize } =
     usePagination({
       key: paramKey,
-      resetPageOnChange: statuses,
+      resetPageOnChange: [statuses],
     });
 
   const [columnVisibility, setColumnVisibility] =
