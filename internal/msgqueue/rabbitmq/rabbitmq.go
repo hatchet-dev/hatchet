@@ -4,18 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
@@ -831,21 +827,6 @@ func (t *MessageQueueImpl) subscribe(
 				t.l.Debug().Msgf("(session: %d) got msg", session)
 
 				if err := preAck(msg); err != nil {
-					if isPermanentPreAckError(err) {
-						t.l.Error().
-							Err(err).
-							Str("message_id", msg.ID).
-							Str("tenant_id", msg.TenantID.String()).
-							Int("num_payloads", len(msg.Payloads)).
-							Msg("dropping message due to permanent pre-ack error")
-
-						if ackErr := rabbitMsg.Ack(false); ackErr != nil {
-							t.l.Error().Err(ackErr).Msg("error acknowledging message after permanent pre-ack error")
-						}
-
-						return
-					}
-
 					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
 
 					// nack the message
@@ -909,31 +890,6 @@ func (t *MessageQueueImpl) subscribe(
 	}
 
 	return cleanup, nil
-}
-
-func isPermanentPreAckError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		// invalid input syntax for type json / jsonb
-		if pgErr.Code == pgerrcode.InvalidTextRepresentation {
-			return true
-		}
-	}
-
-	// Fallback: some error paths may lose pg error type info.
-	errStr := err.Error()
-	if strings.Contains(errStr, fmt.Sprintf("SQLSTATE %s", pgerrcode.InvalidTextRepresentation)) {
-		return true
-	}
-	if strings.Contains(errStr, "invalid input syntax for type json") {
-		return true
-	}
-
-	return false
 }
 
 // identity returns the same host/process unique string for the lifetime of

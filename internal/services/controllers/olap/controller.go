@@ -588,6 +588,26 @@ func (tc *OLAPControllerImpl) handleCreatedTask(ctx context.Context, tenantId uu
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, extractCreatedTaskData(createTaskOpts))
 
 		if err != nil {
+			if queueutils.IsPermanentConsumerError(err) {
+				tc.l.Error().
+					Ctx(ctx).
+					Err(err).
+					Str("permanent_consumer_error_reason", queueutils.PermanentConsumerErrorReason(err)).
+					Int("num_payloads", len(createTaskOpts)).
+					Msg("shedding created task batch after permanent consumer error")
+
+				createTaskOpts, err = tc.shedPermanentCreatedTaskErrors(ctx, tenantId, createTaskOpts)
+				if err != nil {
+					return fmt.Errorf("failed to shed permanent created task errors: %w", err)
+				}
+
+				if len(createTaskOpts) > 0 && attempts < maxLockAttempts {
+					tc.sleepWithBackoff(attempts)
+				}
+
+				continue
+			}
+
 			return fmt.Errorf("failed to create tasks: %w", err)
 		}
 
@@ -683,6 +703,26 @@ func (tc *OLAPControllerImpl) handleCreatedDAG(ctx context.Context, tenantId uui
 		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, extractCreatedDAGData(createDAGOpts))
 
 		if err != nil {
+			if queueutils.IsPermanentConsumerError(err) {
+				tc.l.Error().
+					Ctx(ctx).
+					Err(err).
+					Str("permanent_consumer_error_reason", queueutils.PermanentConsumerErrorReason(err)).
+					Int("num_payloads", len(createDAGOpts)).
+					Msg("shedding created DAG batch after permanent consumer error")
+
+				createDAGOpts, err = tc.shedPermanentCreatedDAGErrors(ctx, tenantId, createDAGOpts)
+				if err != nil {
+					return fmt.Errorf("failed to shed permanent created DAG errors: %w", err)
+				}
+
+				if len(createDAGOpts) > 0 && attempts < maxLockAttempts {
+					tc.sleepWithBackoff(attempts)
+				}
+
+				continue
+			}
+
 			return fmt.Errorf("failed to create DAGs: %w", err)
 		}
 
@@ -921,6 +961,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	timestamps := make([]pgtype.Timestamptz, 0)
 	eventExternalIds := make([]uuid.UUID, 0)
 	msgIxToSpanEvent := make(map[int]engineSpanEvent)
+	externalIdToSpanEvent := make(map[uuid.UUID]engineSpanEvent)
 
 	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
@@ -950,7 +991,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		eventExternalIdToWorkflowRunId[externalId] = taskMeta.WorkflowRunID
 		externalIdToMsg[externalId] = msg
 
-		msgIxToSpanEvent[ix] = engineSpanEvent{
+		spanEvent := engineSpanEvent{
 			taskID:             msg.TaskId,
 			insertedAt:         taskMeta.InsertedAt.Time,
 			taskInsertedAt:     taskMeta.InsertedAt.Time,
@@ -968,6 +1009,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workflowVersionID:  taskMeta.WorkflowVersionID,
 			stepID:             taskMeta.StepID,
 		}
+		msgIxToSpanEvent[ix] = spanEvent
+		externalIdToSpanEvent[externalId] = spanEvent
 
 		if msg.WorkerId != nil {
 			workerIds = append(workerIds, *msg.WorkerId)
@@ -1085,6 +1128,26 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, opts, eventExternalIdToWorkflowRunId)
 
 		if err != nil {
+			if queueutils.IsPermanentConsumerError(err) {
+				tc.l.Error().
+					Ctx(ctx).
+					Err(err).
+					Str("permanent_consumer_error_reason", queueutils.PermanentConsumerErrorReason(err)).
+					Int("num_payloads", len(opts)).
+					Msg("shedding monitoring event batch after permanent consumer error")
+
+				opts, err = tc.shedPermanentMonitoringEventErrors(ctx, tenantId, opts, eventExternalIdToWorkflowRunId, externalIdToMsg, externalIdToSpanEvent, processedRunIDs)
+				if err != nil {
+					return fmt.Errorf("failed to shed permanent monitoring event errors: %w", err)
+				}
+
+				if len(opts) > 0 && attempts < maxLockAttempts {
+					tc.sleepWithBackoff(attempts)
+				}
+
+				continue
+			}
+
 			return fmt.Errorf("failed to create task events: %w", err)
 		}
 
@@ -1150,6 +1213,137 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	)
 
 	return nil
+}
+
+func (tc *OLAPControllerImpl) shedPermanentCreatedTaskErrors(ctx context.Context, tenantId uuid.UUID, createTaskOpts []*tasktypes.CreatedTaskPayload) ([]*tasktypes.CreatedTaskPayload, error) {
+	remainingOpts := make([]*tasktypes.CreatedTaskPayload, 0)
+
+	for _, opt := range createTaskOpts {
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTasks(ctx, tenantId, []*v1.V1TaskWithPayload{opt.V1TaskWithPayload})
+		if err != nil {
+			if queueutils.IsPermanentConsumerError(err) {
+				tc.l.Error().
+					Ctx(ctx).
+					Err(err).
+					Str("permanent_consumer_error_reason", queueutils.PermanentConsumerErrorReason(err)).
+					Int64("task_id", opt.ID).
+					Str("task_external_id", opt.ExternalID.String()).
+					Str("workflow_run_id", opt.WorkflowRunID.String()).
+					Msg("dropping created task after permanent consumer error")
+				continue
+			}
+
+			return nil, err
+		}
+
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.WorkflowRunID]; notAcquired {
+			remainingOpts = append(remainingOpts, opt)
+			continue
+		}
+
+		if result != nil {
+			if err := tc.notifyStatusUpdates(ctx, result); err != nil {
+				return nil, err
+			}
+		}
+
+		tc.emitStandaloneTaskRootSpans(ctx, tenantId, []*v1.V1TaskWithPayload{opt.V1TaskWithPayload})
+	}
+
+	return remainingOpts, nil
+}
+
+func (tc *OLAPControllerImpl) shedPermanentCreatedDAGErrors(ctx context.Context, tenantId uuid.UUID, createDAGOpts []*tasktypes.CreatedDAGPayload) ([]*tasktypes.CreatedDAGPayload, error) {
+	remainingOpts := make([]*tasktypes.CreatedDAGPayload, 0)
+
+	for _, opt := range createDAGOpts {
+		workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateDAGs(ctx, tenantId, []*v1.DAGWithData{opt.DAGWithData})
+		if err != nil {
+			if queueutils.IsPermanentConsumerError(err) {
+				tc.l.Error().
+					Ctx(ctx).
+					Err(err).
+					Str("permanent_consumer_error_reason", queueutils.PermanentConsumerErrorReason(err)).
+					Int64("dag_id", opt.ID).
+					Str("dag_external_id", opt.ExternalID.String()).
+					Msg("dropping created DAG after permanent consumer error")
+				continue
+			}
+
+			return nil, err
+		}
+
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[opt.ExternalID]; notAcquired {
+			remainingOpts = append(remainingOpts, opt)
+			continue
+		}
+
+		tc.emitWorkflowRunRootSpans(ctx, tenantId, []*v1.DAGWithData{opt.DAGWithData})
+	}
+
+	return remainingOpts, nil
+}
+
+func (tc *OLAPControllerImpl) shedPermanentMonitoringEventErrors(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	opts []sqlcv1.CreateTaskEventsOLAPParams,
+	eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID,
+	externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload,
+	externalIdToSpanEvent map[uuid.UUID]engineSpanEvent,
+	processedRunIDs map[uuid.UUID]bool,
+) ([]sqlcv1.CreateTaskEventsOLAPParams, error) {
+	remainingOpts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
+
+	for _, opt := range opts {
+		workflowRunId, ok := eventExternalIdToWorkflowRunId[opt.ExternalID]
+		if !ok {
+			tc.l.Error().Ctx(ctx).Str("event_external_id", opt.ExternalID.String()).Msg("could not find workflow run id for monitoring event")
+			continue
+		}
+
+		result, workflowRunIdsOfLocksNotAcquired, err := tc.repo.OLAP().CreateTaskEvents(ctx, tenantId, []sqlcv1.CreateTaskEventsOLAPParams{opt}, map[uuid.UUID]uuid.UUID{
+			opt.ExternalID: workflowRunId,
+		})
+		if err != nil {
+			if queueutils.IsPermanentConsumerError(err) {
+				event := tc.l.Error().
+					Ctx(ctx).
+					Err(err).
+					Str("permanent_consumer_error_reason", queueutils.PermanentConsumerErrorReason(err)).
+					Str("event_external_id", opt.ExternalID.String()).
+					Str("event_type", string(opt.EventType))
+
+				if msg, ok := externalIdToMsg[opt.ExternalID]; ok {
+					event.Int64("task_id", msg.TaskId)
+				}
+
+				event.Msg("dropping monitoring event after permanent consumer error")
+				continue
+			}
+
+			return nil, err
+		}
+
+		if _, notAcquired := workflowRunIdsOfLocksNotAcquired[workflowRunId]; notAcquired {
+			remainingOpts = append(remainingOpts, opt)
+			continue
+		}
+
+		if result != nil {
+			if err := tc.notifyStatusUpdates(ctx, result); err != nil {
+				return nil, err
+			}
+		}
+
+		if spanEvent, ok := externalIdToSpanEvent[opt.ExternalID]; ok {
+			tc.synthesizeEngineSpans(ctx, tenantId, []engineSpanEvent{spanEvent})
+		}
+
+		processedRunIDs[workflowRunId] = true
+	}
+
+	return remainingOpts, nil
 }
 
 func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantId uuid.UUID, tasks []*tasktypes.CreatedTaskPayload) error {
