@@ -1,23 +1,33 @@
 import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import {
   SearchBarWithFilters,
   type SearchSuggestion,
 } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { Loading } from '@/components/v1/ui/loading.tsx';
+import { usePylon } from '@/components/support-chat';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
+import { appRoutes } from '@/router';
+import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { VisibilityState } from '@tanstack/react-table';
+import { BookOpen, Calendar, MessageCircle, Rocket } from 'lucide-react';
 import { useMemo } from 'react';
 
 const noopAutocomplete = () => ({ suggestions: [] as SearchSuggestion[] });
 const noopApplySuggestion = (query: string) => query;
 
 export default function WorkflowTable() {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const pylon = usePylon();
+
+  const workflowCountQuery = useQuery(
+    queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
+  );
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:workflows', {});
@@ -42,8 +52,61 @@ export default function WorkflowTable() {
 
   const autocompleteContext = useMemo(() => ({}), []);
 
-  if (isLoading) {
+  if (isLoading || !workflowCountQuery.isSuccess) {
     return <Loading />;
+  }
+
+  const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
+
+  if (!hasWorkflows) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <EmptyState
+          title="No workflows found"
+          description="Workflows define sequences of tasks that execute together. Create your first workflow to start orchestrating work."
+          actions={[
+            {
+              icon: <Rocket className="size-4" />,
+              label: 'Get started',
+              description: 'Follow our onboarding guide',
+              href: `/tenants/${tenantId}/overview`,
+            },
+            {
+              icon: <BookOpen className="size-4" />,
+              label: 'Read the docs',
+              description: 'Learn about workflows and tasks',
+              href: docsPages.v1.quickstart.href,
+              external: true,
+            },
+            ...(pylon.enabled
+              ? [
+                  {
+                    icon: <MessageCircle className="size-4" />,
+                    label: 'Talk to us',
+                    description: 'Chat with our support team',
+                    onClick: pylon.show,
+                  } as const,
+                ]
+              : [
+                  {
+                    icon: <MessageCircle className="size-4" />,
+                    label: 'Join Discord',
+                    description: 'Chat with the Hatchet community',
+                    href: 'https://discord.com/invite/ZMeUafwH89',
+                    external: true,
+                  } as const,
+                ]),
+            {
+              icon: <Calendar className="size-4" />,
+              label: 'Book office hours',
+              description: 'Schedule time with the Hatchet team',
+              href: 'https://hatchet.run/office-hours',
+              external: true,
+            },
+          ]}
+        />
+      </div>
+    );
   }
 
   const searchBar = (
@@ -63,15 +126,13 @@ export default function WorkflowTable() {
       columns={columns(tenantId)}
       data={workflows}
       emptyState={
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No workflows found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.quickstart}
-              label="Learn about creating workflows and tasks"
-            />
-          </div>
-        </div>
+        <EmptyState
+          filterHint="Try changing your search or filters."
+          title="No workflows found"
+          description="Workflows define sequences of tasks that execute together."
+          docPage={docsPages.v1.quickstart}
+          docLabel="Learn about workflows"
+        />
       }
       searchBar={searchBar}
       columnVisibility={columnVisibility}

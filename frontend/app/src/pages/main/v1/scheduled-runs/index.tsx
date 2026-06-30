@@ -9,7 +9,7 @@ import {
   metadataKey,
 } from './components/scheduled-runs-columns';
 import { useScheduledRuns } from './hooks/use-scheduled-runs';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import {
   ToolbarFilters,
   ToolbarType,
@@ -294,15 +294,12 @@ export default function ScheduledRunsTable({
 
       <DataTable
         emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No runs found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.v1['scheduled-runs']}
-                label="Learn about scheduled runs"
-              />
-            </div>
-          </div>
+          <EmptyState
+            title="No scheduled runs found"
+            description="Scheduled runs let you dispatch a workflow at a specific future date and time."
+            docPage={docsPages.v1['scheduled-runs']}
+            docLabel="Learn about scheduled runs"
+          />
         }
         error={error}
         isLoading={isLoading}

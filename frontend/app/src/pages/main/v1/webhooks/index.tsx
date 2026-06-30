@@ -9,7 +9,7 @@ import {
   WebhookUpdateFormData,
   webhookUpdateFormSchema,
 } from './hooks/use-webhooks';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -125,15 +125,12 @@ export default function Webhooks() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No webhooks found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.webhooks}
-              label="Learn about triggering runs from webhooks"
-            />
-          </div>
-        </div>
+        <EmptyState
+          title="No webhooks found"
+          description="Webhooks allow external services to trigger your workflows via HTTP requests."
+          docPage={docsPages.v1.webhooks}
+          docLabel="Learn about webhooks"
+        />
       )}
     </div>
   );
