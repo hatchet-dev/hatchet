@@ -46,6 +46,33 @@ const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
+// Builds the updated search params for setting the `i` (pageIndex) and `s`
+// (pageSize) of the pagination param at `paramKey`, preserving all other params.
+const buildPaginationSearchParams = (
+  prev: URLSearchParams,
+  paramKey: string,
+  i: number,
+  s: number,
+) => ({
+  ...Object.fromEntries(prev.entries()),
+  [paramKey]: { i, s },
+});
+
+// JSON.stringify throws on values a DependencyList can legally contain but
+// JSON can't represent (BigInt, circular references). Fall back to a
+// best-effort string so a bad dependency value can't crash render.
+const serializeDeps = (deps?: DependencyList): string => {
+  if (!deps) {
+    return '';
+  }
+
+  try {
+    return JSON.stringify(deps);
+  } catch {
+    return deps.map((dep) => String(dep)).join('|');
+  }
+};
+
 export const usePagination = ({
   key,
   resetPageOnChange,
@@ -58,7 +85,7 @@ export const usePagination = ({
     [searchParams, paramKey],
   );
 
-  const resetPageOnChangeKey = JSON.stringify(resetPageOnChange);
+  const resetPageOnChangeKey = serializeDeps(resetPageOnChange);
   const prevResetPageOnChangeKey = useRef(resetPageOnChangeKey);
 
   useEffect(() => {
@@ -75,13 +102,12 @@ export const usePagination = ({
     setSearchParams((prev) => {
       const currentPagination = parsePaginationParam(prev, paramKey);
 
-      return {
-        ...Object.fromEntries(prev.entries()),
-        [paramKey]: {
-          i: 0,
-          s: currentPagination.pageSize,
-        },
-      };
+      return buildPaginationSearchParams(
+        prev,
+        paramKey,
+        0,
+        currentPagination.pageSize,
+      );
     });
   }, [resetPageOnChangeKey, pagination.pageIndex, setSearchParams, paramKey]);
 
@@ -105,18 +131,12 @@ export const usePagination = ({
     setSearchParams((prev) => {
       const currentPagination = parsePaginationParam(prev, paramKey);
 
-      const nextPagination = {
-        ...currentPagination,
-        pageIndex: currentPagination.pageIndex + 1,
-      };
-
-      return {
-        ...Object.fromEntries(prev.entries()),
-        [paramKey]: {
-          i: nextPagination.pageIndex,
-          s: nextPagination.pageSize,
-        },
-      };
+      return buildPaginationSearchParams(
+        prev,
+        paramKey,
+        currentPagination.pageIndex + 1,
+        currentPagination.pageSize,
+      );
     });
   }, [setSearchParams, paramKey]);
 
@@ -124,39 +144,21 @@ export const usePagination = ({
     setSearchParams((prev) => {
       const currentPagination = parsePaginationParam(prev, paramKey);
 
-      const prevPagination = {
-        ...currentPagination,
-        pageIndex: Math.max(0, currentPagination.pageIndex - 1),
-      };
-
-      return {
-        ...Object.fromEntries(prev.entries()),
-        [paramKey]: {
-          i: prevPagination.pageIndex,
-          s: prevPagination.pageSize,
-        },
-      };
+      return buildPaginationSearchParams(
+        prev,
+        paramKey,
+        Math.max(0, currentPagination.pageIndex - 1),
+        currentPagination.pageSize,
+      );
     });
   }, [setSearchParams, paramKey]);
 
   const setPageSize = useCallback(
     (pageSize: number) => {
-      setSearchParams((prev) => {
-        const currentPagination = parsePaginationParam(prev, paramKey);
-        const nextPagination = {
-          ...currentPagination,
-          pageIndex: 0, // Reset to first page when page size changes
-          pageSize,
-        };
-
-        return {
-          ...Object.fromEntries(prev.entries()),
-          [paramKey]: {
-            i: nextPagination.pageIndex,
-            s: nextPagination.pageSize,
-          },
-        };
-      });
+      setSearchParams((prev) =>
+        // Reset to first page when page size changes
+        buildPaginationSearchParams(prev, paramKey, 0, pageSize),
+      );
     },
     [setSearchParams, paramKey],
   );
@@ -169,13 +171,12 @@ export const usePagination = ({
         const newPagination =
           typeof updater === 'function' ? updater(currentPagination) : updater;
 
-        return {
-          ...Object.fromEntries(prev.entries()),
-          [paramKey]: {
-            i: newPagination.pageIndex,
-            s: newPagination.pageSize,
-          },
-        };
+        return buildPaginationSearchParams(
+          prev,
+          paramKey,
+          newPagination.pageIndex,
+          newPagination.pageSize,
+        );
       });
     },
     offset,
