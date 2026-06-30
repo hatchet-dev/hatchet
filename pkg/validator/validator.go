@@ -17,6 +17,11 @@ import (
 
 var NameRegex = regexp.MustCompile("^[a-zA-Z0-9\\.\\-_]+$") //nolint:gosimple
 
+// DurationRegex restricts durations to the grammar convert_duration_to_interval
+// can parse: one or more <number><unit> components, units ms/s/m/h, optional
+// fractions, no sign. Stricter than time.ParseDuration on purpose.
+var DurationRegex = regexp.MustCompile(`^(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ms|s|m|h))+$`)
+
 func newValidator() *validator.Validate {
 	validate := validator.New()
 
@@ -62,7 +67,14 @@ func newValidator() *validator.Validate {
 	})
 
 	_ = validate.RegisterValidation("duration", func(fl validator.FieldLevel) bool {
-		_, err := time.ParseDuration(fl.Field().String())
+		s := fl.Field().String()
+
+		if !DurationRegex.MatchString(s) {
+			return false
+		}
+
+		// ParseDuration catches what the regex cannot, such as overflow.
+		_, err := time.ParseDuration(s)
 
 		return err == nil
 	})

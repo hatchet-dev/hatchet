@@ -110,6 +110,9 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 	go c.loopConcurrency(ctx)
 	go c.loopCheckActive(ctx)
 
+	// run once on startup instead of waiting for the first tick
+	c.notify(context.Background())
+
 	return c
 }
 

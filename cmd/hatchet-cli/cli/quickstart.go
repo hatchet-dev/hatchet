@@ -7,8 +7,9 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	quickstarts "github.com/hatchet-dev/hatchet-quickstarts"
 	"github.com/spf13/cobra"
+
+	quickstarts "github.com/hatchet-dev/hatchet-quickstarts"
 
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
