@@ -29,10 +29,6 @@ export default function Workers() {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
   const paramKey = 'workers-table';
-  const { pagination, setPagination, limit, offset, setPageSize } =
-    usePagination({
-      key: paramKey,
-    });
   const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
     null,
   );
@@ -43,6 +39,12 @@ export default function Workers() {
     setColumnFilters,
     resetFilters,
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
+
+  const { pagination, setPagination, limit, offset, setPageSize } =
+    usePagination({
+      key: paramKey,
+      resetPageOnChange: statuses,
+    });
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:workers', {});
