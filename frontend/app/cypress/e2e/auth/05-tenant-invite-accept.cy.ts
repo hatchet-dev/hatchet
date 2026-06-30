@@ -113,21 +113,31 @@ describe('Tenant Invite: accept', () => {
 
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
-    // Decline all remaining invites so the modal can advance to the confirmation step
+    // Wait for the accepted invite's row to be removed before looking for
+    // remaining Decline buttons. The state update (processedIds + phase change)
+    // is async; this assertion ensures React has flushed before we proceed.
+    cy.contains('td', tenant2Name).should('not.exist');
+
+    // Decline any remaining invites (defensive — normally none in CI).
     const declineAll = (remaining = 20) => {
-      cy.get('body').then(($body) => {
-        if (
-          remaining > 0 &&
-          $body.find('[role="dialog"][data-state="open"]').length > 0 &&
-          $body.find('button[aria-label="Decline"]').length > 0
-        ) {
-          cy.intercept('POST', '/api/v1/users/invites/reject').as(
-            'rejectInvite',
-          );
-          cy.get('button[aria-label="Decline"]').first().click({ force: true });
-          cy.wait('@rejectInvite');
-          declineAll(remaining - 1);
+      if (remaining === 0) {
+        return;
+      }
+      // Use cy.document() (no retry) so we read the live DOM state without
+      // Cypress retrying for 15 s when the dialog has transitioned away.
+      cy.document().then((doc) => {
+        const btn = doc.querySelector(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        );
+        if (!btn) {
+          return;
         }
+        cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
+        cy.intercept('GET', '/api/v1/users/invites*').as('invitesRefetch');
+        cy.wrap(btn).click({ force: true });
+        cy.wait('@rejectInvite');
+        cy.wait('@invitesRefetch');
+        declineAll(remaining - 1);
       });
     };
     declineAll();
