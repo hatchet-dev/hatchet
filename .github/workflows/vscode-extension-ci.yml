@@ -53,6 +53,10 @@ jobs:
         working-directory: frontend/vscode-extension
         run: pnpm run typecheck
 
+      - name: Test
+        working-directory: frontend/vscode-extension
+        run: pnpm test
+
       - name: Build
         working-directory: frontend/vscode-extension
         run: pnpm build:prod

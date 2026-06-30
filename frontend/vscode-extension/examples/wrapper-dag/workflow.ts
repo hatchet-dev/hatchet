@@ -1,64 +1,49 @@
-// `createWorkflowBuilder` is an `@hatchet-workflow` factory: it builds the
-// workflow AND its task DAG internally (dynamic name `stub.name` + generics) and
-// returns it. The CodeLens lands on the *usage* (`builtWorkflow` at the bottom),
-// and clicking it renders the DAG defined inside the factory:
-//
-//   step-1 ─┐
-//           ├─► step-3 ─► step-5 ─┐
-//   step-2 ─┘                     ├─► step-6
-//           └─► step-4 ───────────┘
+// Real Hatchet SDK (v1) usage. Detection is type-driven: anything whose type
+// resolves — through Promise/await, customer aliases, and inference — to an SDK
+// workflow base type (WorkflowDeclaration / TaskWorkflowDeclaration /
+// BaseWorkflowDeclaration) gets the DAG lens, however many wrappers deep.
+import { HatchetClient } from '@hatchet-dev/typescript-sdk/v1';
+import type { WorkflowDeclaration } from '@hatchet-dev/typescript-sdk/v1';
 
-type JsonObject = Record<string, unknown>;
-interface WorkflowOutputSentinel {}
+const hatchet = HatchetClient.init();
 
-interface WorkflowStub<TInput> {
-  name: string;
-  version?: string;
-  defaultInput?: TInput;
+type DagInput = {
+  Message: string;
+};
+
+// A customer-style alias over the SDK type — the kind of indirection that
+// defeats syntactic detection but not type resolution.
+type DurableWorkflow = WorkflowDeclaration<DagInput, {}, {}>;
+
+// Factory returns the aliased SDK workflow type → lens on the function.
+function createWorkflowBuilder(name: string): DurableWorkflow {
+  return hatchet.workflow<DagInput>({ name });
 }
 
-interface TaskRef {}
-interface BuiltWorkflow<TInput extends JsonObject, TOutput> {
-  readonly _input?: TInput;
-  readonly _output?: TOutput;
-  task(opts: { name: string; parents?: TaskRef[] }): TaskRef;
-}
+// Usage: `wf` is typed (via the alias) as a workflow → lens here too; the DAG is
+// the durableTask graph attached below.
+export function createWrapperWorkflow() {
+  const wf = createWorkflowBuilder('wrapper-example');
 
-declare function getClient(): Promise<{
-  workflow<I extends JsonObject, O>(opts: { name: string; version?: string }): BuiltWorkflow<I, O>;
-} | null>;
-
-/**
- * Reusable factory that builds the workflow and its task DAG, then returns it.
- * @hatchet-workflow
- */
-export async function createWorkflowBuilder<TInput extends JsonObject>(args: {
-  stub: WorkflowStub<TInput>;
-  langsmithApiKey?: string;
-}) {
-  const { stub } = args;
-  const hatchet = await getClient();
-  if (!hatchet) {
-    throw new Error('Unable to get hatchet client');
-  }
-
-  const workflow = hatchet.workflow<TInput & JsonObject, WorkflowOutputSentinel>({
-    name: stub.name,
-    ...(stub.version ? { version: stub.version } : {}),
+  const fetchData = wf.durableTask({
+    name: 'fetch-data',
+    fn: async (input) => ({ message: input.Message }),
   });
 
-  const step1 = workflow.task({ name: 'step-1' });
-  const step2 = workflow.task({ name: 'step-2' });
+  const analyze = wf.durableTask({
+    name: 'analyze',
+    parents: [fetchData],
+    fn: async () => ({ analyzed: true }),
+  });
 
-  const step3 = workflow.task({ name: 'step-3', parents: [step1, step2] });
-  const step4 = workflow.task({ name: 'step-4', parents: [step1, step2] });
+  wf.task({
+    name: 'report',
+    parents: [fetchData, analyze],
+    fn: async () => ({ done: true }),
+  });
 
-  const step5 = workflow.task({ name: 'step-5', parents: [step3] });
-
-  workflow.task({ name: 'step-6', parents: [step3, step4, step5] });
-
-  return workflow;
+  return wf;
 }
 
-// Build the workflow for a stub.
-export const builtWorkflow = createWorkflowBuilder({ stub: { name: 'example-workflow' } });
+// Direct + inferred — no wrapper, no annotation.
+export const directWorkflow = hatchet.workflow<DagInput>({ name: 'direct-example' });
