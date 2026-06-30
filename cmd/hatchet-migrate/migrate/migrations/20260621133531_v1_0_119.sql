@@ -7,6 +7,8 @@ ALTER TABLE "Step" ADD COLUMN "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false
 ALTER TABLE v1_task ADD COLUMN is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE v1_tasks_olap ADD COLUMN is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false;
 
+ALTER TABLE "WorkflowVersion" ADD COLUMN "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false;
+
 CREATE TYPE v1_operator_kind AS ENUM ('HTTP_API', 'DAG');
 
 CREATE TABLE v1_operator (
@@ -25,6 +27,7 @@ CREATE TABLE v1_operator (
 -- +goose Down
 -- +goose StatementBegin
 ALTER TABLE "Step" DROP COLUMN "isDagOrchestrator";
+ALTER TABLE "WorkflowVersion" DROP COLUMN "isUsingDagOperator";
 ALTER TABLE v1_tasks_olap DROP COLUMN is_dag_orchestrator;
 ALTER TABLE v1_task DROP COLUMN is_dag_orchestrator;
 

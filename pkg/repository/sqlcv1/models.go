@@ -4068,4 +4068,5 @@ type WorkflowVersion struct {
 	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
+	IsUsingDagOperator        bool               `json:"isUsingDagOperator"`
 }
