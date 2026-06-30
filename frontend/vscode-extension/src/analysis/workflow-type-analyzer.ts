@@ -245,8 +245,51 @@ function unwrapPromise(type: ts.Type, checker: ts.TypeChecker): ts.Type | undefi
 }
 
 /**
- * Whether `type` derives from a Hatchet workflow base type, following
- * `Promise<>` wrapping, alias resolution, and class inheritance.
+ * Nominal check: the type itself, a base type, or a union/intersection member is
+ * an SDK workflow declaration (alias resolution + class inheritance).
+ */
+function isSdkWorkflowNominal(type: ts.Type, seen = new Set<ts.Type>()): boolean {
+  if (!type || seen.has(type)) return false;
+  seen.add(type);
+
+  const symbol = type.getSymbol() ?? type.aliasSymbol;
+  if (symbol && WORKFLOW_TYPE_NAMES.has(symbol.getName()) && isFromHatchet(symbol)) {
+    return true;
+  }
+  for (const base of type.getBaseTypes?.() ?? []) {
+    if (isSdkWorkflowNominal(base, seen)) return true;
+  }
+  if (type.isUnionOrIntersection()) {
+    for (const t of type.types) if (isSdkWorkflowNominal(t, seen)) return true;
+  }
+  return false;
+}
+
+/**
+ * Composition check: a wrapper that *holds* an SDK workflow as a property (e.g.
+ * `readonly _sdkDeclaration: BaseWorkflowDeclaration<…>`). This catches custom
+ * `DurableWorkflow`/builder types that compose the SDK declaration rather than
+ * extend it. Only direct (non-method) properties count, so a builder whose
+ * `build()` *returns* a workflow isn't mistaken for one.
+ */
+function composesSdkWorkflow(type: ts.Type, checker: ts.TypeChecker): boolean {
+  for (const prop of type.getProperties()) {
+    const decl = prop.valueDeclaration ?? prop.declarations?.[0];
+    if (!decl) continue;
+    let propType: ts.Type;
+    try {
+      propType = checker.getTypeOfSymbolAtLocation(prop, decl);
+    } catch {
+      continue;
+    }
+    if (isSdkWorkflowNominal(propType)) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether `type` is a Hatchet workflow — directly, through `Promise<>`, by
+ * inheritance/alias, or by composing an SDK declaration as a field.
  */
 function isWorkflowType(type: ts.Type, checker: ts.TypeChecker, seen = new Set<ts.Type>()): boolean {
   if (!type || seen.has(type)) return false;
@@ -255,20 +298,8 @@ function isWorkflowType(type: ts.Type, checker: ts.TypeChecker, seen = new Set<t
   const promised = unwrapPromise(type, checker);
   if (promised && isWorkflowType(promised, checker, seen)) return true;
 
-  const symbol = type.getSymbol() ?? type.aliasSymbol;
-  if (symbol && WORKFLOW_TYPE_NAMES.has(symbol.getName()) && isFromHatchet(symbol)) {
-    return true;
-  }
-
-  if (type.isClassOrInterface() || (type as ts.InterfaceType).getBaseTypes) {
-    for (const base of type.getBaseTypes?.() ?? []) {
-      if (isWorkflowType(base, checker, seen)) return true;
-    }
-  }
-
-  if (type.isUnionOrIntersection()) {
-    for (const t of type.types) if (isWorkflowType(t, checker, seen)) return true;
-  }
+  if (isSdkWorkflowNominal(type)) return true;
+  if (composesSdkWorkflow(type, checker)) return true;
 
   return false;
 }

@@ -11,12 +11,8 @@ type DagInput = {
   Message: string;
 };
 
-// A customer-style alias over the SDK type — the kind of indirection that
-// defeats syntactic detection but not type resolution.
-type DurableWorkflow = WorkflowDeclaration<DagInput, {}, {}>;
-
 // Factory returns the aliased SDK workflow type → lens on the function.
-function createWorkflowBuilder(name: string): DurableWorkflow {
+function createWorkflowBuilder(name: string): WorkflowDeclaration<DagInput, {}, {}> {
   return hatchet.workflow<DagInput>({ name });
 }
 
