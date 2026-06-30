@@ -2,9 +2,6 @@
 
 Hatchet v0.90.13 is a stability-focused release. It keeps long-running deployments healthy by bounding session-table growth, reduces scheduling latency under load, fixes a duration-parsing bug that could silently shorten your timeouts, and ships a batch of dashboard fixes.
 
-- Add Go SDK client retry controls, gRPC full-jitter retry backoff, and bounded REST read retries for transient API failures by @igor-kupczynski in [#4240](https://github.com/hatchet-dev/hatchet/pull/4240)
-- Adds a new experimental rewrite of concurrency strategies which are scoped to the task level. This can be enabled by setting `SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=true`. By @abelanger5 in [#4258](https://github.com/hatchet-dev/hatchet/pull/4258)
-
 ### Highlights
 
 - The `UserSession` table no longer grows unbounded: an hourly cleanup job now removes expired and orphaned sessions automatically. See [Upgrade Notes](#usersession-bulk-cleanup) for an optional one-time bulk cleanup to run before upgrading.
