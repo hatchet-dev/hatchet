@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -730,8 +731,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
 
+	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
+	}
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
@@ -742,6 +750,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
+		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
 		promGate,
 	)
 
@@ -754,9 +763,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
+		cleanupConcurrencyOutbox()
+
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
@@ -1051,4 +1063,25 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
+
+	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
+	// method which should be used instead of the non-scoped versions.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(
+		ctx,
+		pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithDefaultExpiration(24*time.Hour),
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err) // nolint:govet
+	}
+
+	return concurrencyOutbox, cancel, nil
 }
