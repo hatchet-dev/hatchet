@@ -890,7 +890,7 @@ export interface OrganizationInvite {
    */
   organizationId: string;
   /** The name of the organization */
-  organizationName: string;
+  organizationName?: string;
   /**
    * The email of the inviter
    * @format email

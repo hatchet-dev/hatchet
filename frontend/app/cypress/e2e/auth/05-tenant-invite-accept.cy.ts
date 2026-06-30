@@ -105,7 +105,7 @@ describe('Tenant Invite: accept', () => {
 
     // Accept the specific invite for tenant2Name
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
-    cy.contains(tenant2Name)
+    cy.contains('td', tenant2Name)
       .closest('tr')
       .find('button[aria-label="Accept"]')
       .should('exist')
@@ -118,6 +118,7 @@ describe('Tenant Invite: accept', () => {
       cy.get('body').then(($body) => {
         if (
           remaining > 0 &&
+          $body.find('[role="dialog"][data-state="open"]').length > 0 &&
           $body.find('button[aria-label="Decline"]').length > 0
         ) {
           cy.intercept('POST', '/api/v1/users/invites/reject').as(

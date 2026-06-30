@@ -107,18 +107,26 @@ describe('Tenant Invite: decline', () => {
 
     // Step 5: Decline all invites
     const declineAll = (remaining = 20) => {
-      cy.get('body').then(($body) => {
-        if (
-          remaining > 0 &&
-          $body.find('button[aria-label="Decline"]').length > 0
-        ) {
-          cy.intercept('POST', '/api/v1/users/invites/reject').as(
-            'rejectInvite',
-          );
-          cy.get('button[aria-label="Decline"]').first().click({ force: true });
-          cy.wait('@rejectInvite');
-          declineAll(remaining - 1);
+      if (remaining === 0) {
+        return;
+      }
+      // Use cy.document() (no retry) so we read the live DOM state at this exact
+      // moment without Cypress retrying for 15 s when the dialog has closed.
+      cy.document().then((doc) => {
+        const btn = doc.querySelector(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        );
+        if (!btn) {
+          return;
         }
+        cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
+        // Also intercept the invites refetch that invalidatePendingInvites()
+        // triggers so we can wait for React to re-render before recursing.
+        cy.intercept('GET', '/api/v1/users/invites*').as('invitesRefetch');
+        cy.wrap(btn).click({ force: true });
+        cy.wait('@rejectInvite').its('response.statusCode').should('eq', 200);
+        cy.wait('@invitesRefetch');
+        declineAll(remaining - 1);
       });
     };
     declineAll();

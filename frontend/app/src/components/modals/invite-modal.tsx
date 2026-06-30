@@ -122,7 +122,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
       : visibleTenantInvites[0]
         ? `Join ${visibleTenantInvites[0].tenantName ?? 'a tenant'}`
         : visibleOrgInvites[0]
-          ? `Join ${visibleOrgInvites[0].organizationName}`
+          ? `Join ${visibleOrgInvites[0].organizationName ?? 'an organization'}`
           : 'Pending invite';
 
   // Suppress content render while the stale-close effect is pending to avoid flash
@@ -219,7 +219,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-medium">
-                          {invite.organizationName}
+                          {invite.organizationName ?? '—'}
                         </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {invite.role.toLowerCase()}
