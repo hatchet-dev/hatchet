@@ -72,7 +72,10 @@ import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-set
 import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
-import { TagList } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
+import {
+  TagBadge,
+  TagList,
+} from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { UserGroupsTab } from '@/pages/main/v1/tenant-settings/organization/components/user-groups-tab';
 import { CancelInviteModal } from '@/pages/organizations/$organization/components/cancel-invite-modal';
 import { CreateTokenModal } from '@/pages/organizations/$organization/components/create-token-modal';
@@ -552,6 +555,21 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
       cellRenderer: (row: ManagementToken) => (
         <span className="font-medium">{row.name}</span>
       ),
+    },
+    {
+      columnLabel: 'Tags',
+      cellRenderer: (row: ManagementToken) => {
+        const rowTags = (row as unknown as { tags?: string[] }).tags;
+        return rowTags && rowTags.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {rowTags.map((tag) => (
+              <TagBadge key={tag} tag={tag} />
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        );
+      },
     },
     {
       columnLabel: 'Expiry',
@@ -1177,6 +1195,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
           organizationId={orgId}
           organizationName={organizationName}
           onSuccess={() => managementTokensQuery.refetch()}
+          allTenantTags={allTenantTags}
         />
       )}
 
