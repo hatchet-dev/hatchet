@@ -122,10 +122,7 @@ func newTestActionListener(listenClient dispatchercontracts.Dispatcher_ListenV2C
 }
 
 func TestWorkerActionsSurvivesMoreThanFiveTransientFailures(t *testing.T) {
-	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
-		return nil
-	})
-	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+	disableStreamBackoffForTest(t)
 
 	recvCalls := atomic.Int32{}
 	subscribeCalls := atomic.Int32{}
@@ -173,10 +170,7 @@ func TestWorkerActionsSurvivesMoreThanFiveTransientFailures(t *testing.T) {
 }
 
 func TestWorkerRetrySubscribeStopsOnNoProgressError(t *testing.T) {
-	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
-		return nil
-	})
-	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+	disableStreamBackoffForTest(t)
 
 	constructorCalls := atomic.Int32{}
 
@@ -317,10 +311,7 @@ func TestWorkerRetrySubscribeUsesStreamSyncMaxAttemptsConstant(t *testing.T) {
 }
 
 func TestWorkerActionsReconnectsOnEOFWhileContextActive(t *testing.T) {
-	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
-		return nil
-	})
-	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+	disableStreamBackoffForTest(t)
 
 	recvCalls := atomic.Int32{}
 	subscribeCalls := atomic.Int32{}
@@ -372,10 +363,7 @@ func TestWorkerActionsReconnectsOnEOFWhileContextActive(t *testing.T) {
 }
 
 func TestWorkerActionsRetriesNoProgressBeforeGivingUp(t *testing.T) {
-	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
-		return nil
-	})
-	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+	disableStreamBackoffForTest(t)
 
 	recvCalls := atomic.Int32{}
 	subscribeCalls := atomic.Int32{}

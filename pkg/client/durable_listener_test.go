@@ -604,10 +604,7 @@ func TestListenForDurableEventsRespectsDeadlineContext(t *testing.T) {
 }
 
 func TestDoRetryListenBackgroundStopsOnNoProgressError(t *testing.T) {
-	retry.SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
-		return nil
-	})
-	t.Cleanup(retry.ResetStreamSleepHookForTesting)
+	disableStreamBackoffForTest(t)
 
 	logger := zerolog.Nop()
 	constructorCalls := atomic.Int32{}
