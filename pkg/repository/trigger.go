@@ -827,7 +827,7 @@ func (r *sharedRepository) triggerWorkflows(
 				break
 			}
 		}
-		useOperatorPath := orchestratorStep != nil
+		useOperatorPath := orchestratorStep != nil && tuple.targetActionId == nil
 
 		if useOperatorPath {
 			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
