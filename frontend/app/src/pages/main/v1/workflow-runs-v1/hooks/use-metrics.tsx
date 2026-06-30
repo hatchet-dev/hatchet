@@ -8,12 +8,14 @@ export const useMetrics = ({
   parentTaskExternalId,
   additionalMetadata,
   createdAfter,
+  createdBefore,
   showQueueMetrics,
 }: {
   workflow: string | undefined;
   parentTaskExternalId: string | undefined;
   additionalMetadata?: string[] | undefined;
   createdAfter?: string;
+  createdBefore?: string;
   showQueueMetrics: boolean;
 }) => {
   const { tenantId } = useCurrentTenantId();
@@ -30,6 +32,7 @@ export const useMetrics = ({
       since:
         createdAfter ||
         new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+      until: createdBefore,
       parent_task_external_id: parentTaskExternalId,
       workflow_ids: workflow ? [workflow] : [],
       additional_metadata: additionalMetadata,
