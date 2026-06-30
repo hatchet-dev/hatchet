@@ -5,11 +5,17 @@ import path from 'path';
 import { runThreaded } from '@hatchet/util/thread-helper';
 import { ClientConfig } from '../../hatchet-client';
 import { DispatcherClient } from '../dispatcher-client';
+import { z } from 'zod/v4';
 
-export interface HeartbeatMessage {
-  type: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-}
+const HeartbeatMessageSchema = z.object({
+  type: z.enum(['info', 'warn', 'error', 'debug']),
+  message: z.string(),
+});
+
+export type HeartbeatMessage = z.infer<typeof HeartbeatMessageSchema>;
+
+export const isHeartbeatMessage = (message: unknown): message is HeartbeatMessage =>
+  HeartbeatMessageSchema.safeParse(message).success;
 
 export const STOP_HEARTBEAT = 'stop';
 export class Heartbeat {
@@ -41,7 +47,11 @@ export class Heartbeat {
         },
       });
 
-      this.heartbeatWorker.on('message', (message: HeartbeatMessage) => {
+      this.heartbeatWorker.on('message', (message: unknown) => {
+        if (!isHeartbeatMessage(message)) {
+          return;
+        }
+
         this.logger[message.type](message.message);
       });
     }
