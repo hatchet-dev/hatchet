@@ -138,13 +138,18 @@ function extractTsTask(
   fileUri: vscode.Uri,
   annotation?: WorkflowFactoryAnnotation,
 ): ParsedTask | undefined {
-  const taskMethod = annotation?.taskMethod ?? 'task';
+  // Recognize the default DAG-task methods plus any custom one declared via an
+  // annotation — kept in sync with the parser's task-first detection.
+  const taskMethods = ['task', 'durableTask'];
+  if (annotation?.taskMethod) taskMethods.push(annotation.taskMethod);
   const taskParentsProp = annotation?.taskParentsProp ?? 'parents';
   const refLine = lines[refLineOffset];
 
   // Match: [const/let varId = ]varName.<taskMethod>(
   const taskRe = new RegExp(
-    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.${escapeRegex(taskMethod)}\\s*\\(`,
+    `(?:(?:const|let)\\s+(\\w+)\\s*=\\s*)?${escapeRegex(varName)}\\.(?:${taskMethods
+      .map(escapeRegex)
+      .join('|')})\\s*\\(`,
   );
   const m = taskRe.exec(refLine);
   if (!m) return undefined;
