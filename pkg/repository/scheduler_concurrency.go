@@ -3,14 +3,24 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 const PARENT_STRATEGY_LOCK_OFFSET = 1000000000000 // 1 trillion
+
+// Cancellation reasons surfaced on TaskWithCancelledReason. Kept as plain strings to match the
+// values the downstream consumer (notifyAfterConcurrency) and the legacy SQL paths compare against.
+const (
+	CancelledReasonConcurrencyLimit   = "CONCURRENCY_LIMIT"
+	CancelledReasonSchedulingTimedOut = "SCHEDULING_TIMED_OUT"
+)
 
 type TaskWithQueue struct {
 	*TaskIdInsertedAtRetryCount
@@ -26,6 +36,13 @@ type TaskWithCancelledReason struct {
 	TaskExternalId uuid.UUID
 
 	WorkflowRunId uuid.UUID
+}
+
+// CancelledSlotInput identifies a concurrency slot to cancel along with the reason it's being
+// cancelled, so UpdateConcurrencySlots can propagate the reason into the RunConcurrencyResult.
+type CancelledSlotInput struct {
+	CancelledReason string
+	TaskIdInsertedAtRetryCount
 }
 
 type RunConcurrencyResult struct {
@@ -50,6 +67,30 @@ type ConcurrencyRepository interface {
 	DeactivateStaleStepConcurrency(ctx context.Context, tenantId uuid.UUID) error
 
 	ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error)
+
+	ReadConcurrencySlotsForIndexing(ctx context.Context, tenantId uuid.UUID, strategyId int64, writeCh chan<- *sqlcv1.ListConcurrencySlotsForIndexingRow) error
+
+	// UpdateConcurrencySlots manages its own transaction, for callers (e.g. the post-build queueing
+	// pass) that have no transaction to attach to. Callers that already hold a transaction (e.g. the
+	// WAL flush riding the outbox transaction) should use UpdateConcurrencySlotsTx instead.
+	UpdateConcurrencySlots(
+		ctx context.Context,
+		tenantId uuid.UUID,
+		strategyId int64,
+		filledSlots []TaskIdInsertedAtRetryCount,
+		cancelledSlots []CancelledSlotInput,
+	) (*RunConcurrencyResult, error)
+
+	// UpdateConcurrencySlotsTx runs the slot updates within the provided transaction, so the writes
+	// commit (or roll back) atomically with whatever else the caller is doing in that transaction.
+	UpdateConcurrencySlotsTx(
+		ctx context.Context,
+		tx pgx.Tx,
+		tenantId uuid.UUID,
+		strategyId int64,
+		filledSlots []TaskIdInsertedAtRetryCount,
+		cancelledSlots []CancelledSlotInput,
+	) (*RunConcurrencyResult, error)
 }
 
 type ConcurrencyRepositoryImpl struct {
@@ -798,4 +839,198 @@ func (c *ConcurrencyRepositoryImpl) DeactivateStaleStepConcurrency(ctx context.C
 
 func (c *ConcurrencyRepositoryImpl) ListTenantsWithManyStepConcurrencies(ctx context.Context, threshold int64) ([]*sqlcv1.ListTenantsWithManyStepConcurrenciesRow, error) {
 	return c.queries.ListTenantsWithManyStepConcurrencies(ctx, c.pool, threshold)
+}
+
+func (c *ConcurrencyRepositoryImpl) ReadConcurrencySlotsForIndexing(ctx context.Context, tenantId uuid.UUID, strategyId int64, writeCh chan<- *sqlcv1.ListConcurrencySlotsForIndexingRow) error {
+	// we don't want to hold the transaction open if we're blocked on the write channel, so we use this
+	// context to escape the <- writeCh loop and close the tx
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	// we use a repeatable read so that we don't infinitely loop while reading new committed rows; these changes are represented
+	// in the WAL which updates the index
+	tx, commit, rollback, err := sqlchelpers.PrepareTxWithStatementTimeout(ctx, c.pool, c.l, 1000*60*5, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
+	defer rollback()
+
+	var lastKey string
+	var lastSortId int64
+
+	for {
+		slots, err := c.queries.ListConcurrencySlotsForIndexing(ctx, tx, sqlcv1.ListConcurrencySlotsForIndexingParams{
+			Tenantid:   tenantId,
+			Strategyid: strategyId,
+			LastKey:    lastKey,
+			LastSortId: lastSortId,
+			Limit:      10000,
+		})
+
+		if err != nil {
+			return fmt.Errorf("error reading concurrency slots for indexing: %w", err)
+		}
+
+		if len(slots) == 0 {
+			break
+		}
+
+		for _, slot := range slots {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case writeCh <- slot:
+			}
+		}
+
+		last := slots[len(slots)-1]
+		lastKey = last.Key
+		lastSortId = last.SortID.Int64
+	}
+
+	if err := commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+func (c *ConcurrencyRepositoryImpl) UpdateConcurrencySlotsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	tenantId uuid.UUID,
+	strategyId int64,
+	filledSlots []TaskIdInsertedAtRetryCount,
+	cancelledSlots []CancelledSlotInput,
+) (*RunConcurrencyResult, error) {
+	updateArgs := make([]sqlcv1.UpdateConcurrencySlotIsFilledParams, len(filledSlots))
+
+	for i, slot := range filledSlots {
+		updateArgs[i] = sqlcv1.UpdateConcurrencySlotIsFilledParams{
+			IsFilled:       true,
+			TaskID:         slot.Id,
+			TaskInsertedAt: slot.InsertedAt,
+			TaskRetryCount: slot.RetryCount,
+			StrategyID:     strategyId,
+		}
+	}
+
+	filledRows, err := c.queries.UpdateConcurrencySlotIsFilledBatch(ctx, tx, updateArgs)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update concurrency slots: %w", err)
+	}
+
+	// build the queued / next-strategy results from the slots we just filled, mirroring
+	// the output contract of runGroupRoundRobin
+	queued := make([]TaskWithQueue, 0, len(filledRows))
+	nextConcurrencyStrategies := make([]int64, 0, len(filledRows))
+
+	for _, row := range filledRows {
+		// if the slot hands off to a downstream strategy, notify it instead of enqueuing the task
+		if len(row.NextStrategyIds) > 0 {
+			nextConcurrencyStrategies = append(nextConcurrencyStrategies, row.NextStrategyIds[0])
+			continue
+		}
+
+		queued = append(queued, TaskWithQueue{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         row.TaskID,
+				InsertedAt: row.TaskInsertedAt,
+				RetryCount: row.TaskRetryCount,
+			},
+			Queue: row.QueueToNotify,
+		})
+	}
+
+	// flatten to the plain task identifiers releaseTasks expects, and keep a lookup of each task's
+	// cancellation reason so we can propagate it onto the result below.
+	type reasonKey struct {
+		id         int64
+		retryCount int32
+	}
+
+	tasksToCancel := make([]TaskIdInsertedAtRetryCount, 0, len(cancelledSlots))
+	reasonByTask := make(map[reasonKey]string, len(cancelledSlots))
+
+	for _, slot := range cancelledSlots {
+		tasksToCancel = append(tasksToCancel, slot.TaskIdInsertedAtRetryCount)
+		reasonByTask[reasonKey{id: slot.Id, retryCount: slot.RetryCount}] = slot.CancelledReason
+	}
+
+	// releaseTasks requires a 1:1 match between input tasks and returned rows, so dedupe first.
+	tasksToCancel = listutils.UniqBy(tasksToCancel, createTaskUniqueKey)
+
+	// note: we'd prefer to call cancelTasks here, but keeping this consistent with the previous concurrency
+	// implementation. the only important thing is that we delete v1_concurrency_slot, but we need to release
+	// other scheduling resources in a precise order which releaseTasks respects, otherwise we deadlock.
+	releasedTasks, err := c.releaseTasks(ctx, tx, tenantId, tasksToCancel)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to release tasks: %w", err)
+	}
+
+	cancelled := make([]TaskWithCancelledReason, 0, len(releasedTasks))
+
+	for _, released := range releasedTasks {
+		reason, ok := reasonByTask[reasonKey{id: released.ID, retryCount: released.RetryCount}]
+		if !ok {
+			reason = CancelledReasonConcurrencyLimit
+		}
+
+		cancelled = append(cancelled, TaskWithCancelledReason{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         released.ID,
+				InsertedAt: released.InsertedAt,
+				RetryCount: released.RetryCount,
+			},
+			CancelledReason: reason,
+			TaskExternalId:  released.ExternalID,
+			WorkflowRunId:   released.WorkflowRunID,
+		})
+	}
+
+	if err := c.upsertQueuesForQueuedTasks(ctx, tx, tenantId, queued); err != nil {
+		return nil, fmt.Errorf("failed to upsert queues for queued tasks: %w", err)
+	}
+
+	return &RunConcurrencyResult{
+		Queued:                    queued,
+		Cancelled:                 cancelled,
+		NextConcurrencyStrategies: nextConcurrencyStrategies,
+		FailedAdvisoryLock:        false,
+	}, nil
+}
+
+func (c *ConcurrencyRepositoryImpl) UpdateConcurrencySlots(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	strategyId int64,
+	filledSlots []TaskIdInsertedAtRetryCount,
+	cancelledSlots []CancelledSlotInput,
+) (*RunConcurrencyResult, error) {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, c.pool, c.l)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare transaction: %w", err)
+	}
+
+	defer rollback()
+
+	res, err := c.UpdateConcurrencySlotsTx(ctx, tx, tenantId, strategyId, filledSlots, cancelledSlots)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if err := commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return res, nil
 }

@@ -60,7 +60,7 @@ export const usePendingInvites = (opts?: {
   );
 
   const invalidate = useCallback(() => {
-    queryClient.resetQueries({
+    queryClient.invalidateQueries({
       queryKey: ['pending-invites'],
     });
   }, [queryClient]);

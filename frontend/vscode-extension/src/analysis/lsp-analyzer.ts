@@ -72,7 +72,7 @@ export class LspAnalyzer {
               refLine - startLine, // offset of reference line within the slice
               startLine,           // absolute document line of lines[0]
               decl.varName,
-              doc.languageId,
+              languageIdFromUri(location.uri),
               location.uri,
               decl.annotation,
             ) ?? null;
@@ -327,6 +327,21 @@ function extractRubyTask(
     declarationLine: absoluteStartLine + refLineOffset,
     fileUri,
   };
+}
+
+/**
+ * Map a file URI to the VSCode languageId understood by `extractTaskAtLocation`.
+ * Cross-file references are read straight from disk, so there's no open
+ * document to source `languageId` from — derive it from the file extension.
+ */
+function languageIdFromUri(uri: vscode.Uri): string {
+  const path = uri.path.toLowerCase();
+  if (path.endsWith('.tsx')) return 'typescriptreact';
+  if (path.endsWith('.ts')) return 'typescript';
+  if (path.endsWith('.py')) return 'python';
+  if (path.endsWith('.go')) return 'go';
+  if (path.endsWith('.rb')) return 'ruby';
+  return '';
 }
 
 function escapeRegex(s: string): string {
