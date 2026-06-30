@@ -1,19 +1,17 @@
 import { columns, statusKey, WorkerColumn } from './components/worker-columns';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
-import step3Graphic from '@/assets/illustrations/step-3.svg';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePagination } from '@/hooks/use-pagination';
+import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
 import { WorkerStatus } from '@/lib/api/generated/data-contracts';
 import { docsPages } from '@/lib/generated/docs';
-import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
 import { VisibilityState } from '@tanstack/react-table';
 import { useMemo, useState, useCallback } from 'react';
 import { z } from 'zod';
@@ -28,27 +26,13 @@ const workersQuerySchema = z
   }));
 
 export default function Workers() {
-  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+  const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-
-  const workflowCountQuery = useQuery(
-    queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
-  );
-  const activeWorkersQuery = useQuery(
-    queries.workers.list(tenantId, {
-      limit: 1,
-      statuses: ['ACTIVE', 'INACTIVE'] as WorkerStatus[],
-    }),
-  );
-
-  const hasWorkflows =
-    workflowCountQuery.isSuccess &&
-    (workflowCountQuery.data?.rows?.length ?? 0) > 0;
-  const hasActiveOrInactiveWorkers =
-    activeWorkersQuery.isSuccess &&
-    (activeWorkersQuery.data?.rows?.length ?? 0) > 0;
-
   const paramKey = 'workers-table';
+  const { pagination, setPagination, limit, offset, setPageSize } =
+    usePagination({
+      key: paramKey,
+    });
   const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
     null,
   );
@@ -59,12 +43,6 @@ export default function Workers() {
     setColumnFilters,
     resetFilters,
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
-
-  const { pagination, setPagination, limit, offset, setPageSize } =
-    usePagination({
-      key: paramKey,
-      resetPageOnChange: statuses,
-    });
 
   const [columnVisibility, setColumnVisibility] =
     useLocalStorageState<VisibilityState>('hatchet:columns:workers', {});
@@ -93,36 +71,8 @@ export default function Workers() {
     listWorkersQuery.data?.pagination?.num_pages ??
     Math.ceil(rows.length / limit);
 
-  if (
-    listWorkersQuery.isLoading ||
-    !workflowCountQuery.isSuccess ||
-    !activeWorkersQuery.isSuccess
-  ) {
+  if (listWorkersQuery.isLoading) {
     return <Loading />;
-  }
-
-  if (!hasWorkflows && !hasActiveOrInactiveWorkers) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <EmptyState
-          graphic={
-            <img
-              src={step3Graphic}
-              alt=""
-              aria-hidden="true"
-              className="h-64 w-auto opacity-90"
-            />
-          }
-          graphicPosition="bottom"
-          title="No workers found"
-          description="Deploy workers on Kubernetes, Porter, Railway, Render, ECS, or any container platform. They automatically connect to Hatchet and can scale up or down based on workload."
-          links={[
-            { href: docsPages.v1.workers.href, label: 'Learn about workers', external: true },
-            { href: 'https://hatchet.run/office-hours', label: 'Book office hours', external: true },
-          ]}
-        />
-      </div>
-    );
   }
 
   return (
@@ -142,13 +92,15 @@ export default function Workers() {
         },
       ]}
       emptyState={
-        <EmptyState
-          filterHint="Try changing your filters."
-          title="No workers found"
-          description="Workers are persistent processes that pull and execute your tasks. Connect a worker to start running workflows."
-          docPage={docsPages.v1.workers}
-          docLabel="Learn about workers"
-        />
+        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+          <p className="text-lg font-semibold">No workers found</p>
+          <div className="w-fit">
+            <DocsButton
+              doc={docsPages.v1.workers}
+              label="Learn about running workers"
+            />
+          </div>
+        </div>
       }
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}

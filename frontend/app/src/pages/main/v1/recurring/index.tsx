@@ -7,7 +7,7 @@ import {
   metadataKey,
 } from './components/recurring-columns';
 import { useCrons } from './hooks/use-crons';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import {
   ToolbarFilters,
@@ -153,12 +153,15 @@ export default function CronsTable() {
         onResetFilters={resetFilters}
         showSelectedRows={false}
         emptyState={
-          <EmptyState
-            title="No recurring runs found"
-            description="Recurring runs trigger workflows automatically on a cron schedule."
-            docPage={docsPages.v1['cron-runs']}
-            docLabel="Learn about cron jobs"
-          />
+          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
+            <p className="text-lg font-semibold">No crons found</p>
+            <div className="w-fit">
+              <DocsButton
+                doc={docsPages.v1['cron-runs']}
+                label="Learn about cron jobs in Hatchet"
+              />
+            </div>
+          </div>
         }
       />
     </>

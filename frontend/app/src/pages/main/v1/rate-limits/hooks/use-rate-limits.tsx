@@ -28,6 +28,10 @@ export type RateLimitWithMetadata = RateLimit & {
 
 export const useRateLimits = ({ key }: { key: string }) => {
   const { tenantId } = useCurrentTenantId();
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+    });
   const { refetchInterval } = useRefetchInterval();
 
   const paramKey = `rate-limits-${key}`;
@@ -40,12 +44,6 @@ export const useRateLimits = ({ key }: { key: string }) => {
   } = useZodColumnFilters(rateLimitQuerySchema, paramKey, { s: keyKey });
 
   const [debouncedSearch] = useDebounce(search, 300);
-
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-      resetPageOnChange: debouncedSearch,
-    });
 
   const { data, isLoading, error, isRefetching, refetch } = useQuery({
     ...queries.rate_limits.list(tenantId, {

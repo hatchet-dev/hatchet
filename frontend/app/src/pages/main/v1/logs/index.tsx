@@ -9,7 +9,6 @@ import {
 import type { LogAutocompleteContext } from '@/components/v1/cloud/logging/log-search/autocomplete';
 import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-search/types';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
@@ -21,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useSidePanel } from '@/hooks/use-side-panel';
-import { docsPages } from '@/lib/generated/docs';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
@@ -167,17 +165,7 @@ export default function TenantLogsPage() {
         onViewRun={handleViewRun}
         showAttempt={false}
         showTaskName
-        emptyComponent={
-          <EmptyState
-            title="No logs found"
-            description="Logs are emitted by your workers as they execute tasks. Try adjusting your time range or search filters."
-            filterHint="Try changing your filters or time range."
-            links={[
-              { href: docsPages.v1.logging.href, label: 'Learn about logging', external: true },
-              { href: 'https://hatchet.run/office-hours', label: 'Book office hours', external: true },
-            ]}
-          />
-        }
+        emptyMessage="No logs found for this time window."
       />
     </div>
   );

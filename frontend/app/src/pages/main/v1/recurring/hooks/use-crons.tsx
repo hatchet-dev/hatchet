@@ -34,6 +34,10 @@ export const useCrons = ({ key }: UseCronsProps) => {
   const { refetchInterval } = useRefetchInterval();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+    });
 
   const paramKey = `crons-${key}`;
   const {
@@ -45,12 +49,6 @@ export const useCrons = ({ key }: UseCronsProps) => {
     w: workflowKey,
     m: metadataKey,
   });
-
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-      resetPageOnChange: [selectedWorkflowIds, selectedMetadata],
-    });
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     ...queries.cronJobs.list(tenantId, {

@@ -3,7 +3,6 @@ import { TokenActions } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
 import RelativeDate from '@/components/v1/molecules/relative-date';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@/components/v1/ui/dialog';
@@ -78,10 +77,10 @@ export default function APITokens() {
             rowKey={(row) => row.metadata.id}
           />
         ) : (
-          <EmptyState
-            title="No API tokens found"
-            description="API tokens authenticate your workers and applications with the Hatchet API."
-          />
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No API tokens found. Create a token to allow workers to connect to
+            and communicate with the Hatchet Engine.
+          </div>
         )}
 
         {showTokenDialog && (
