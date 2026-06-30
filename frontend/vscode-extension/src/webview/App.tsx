@@ -43,6 +43,9 @@ export function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
   const [loadingName, setLoadingName] = useState('');
+  // Distinguishes "no shape received yet" from "received, but the workflow has
+  // no tasks" — otherwise an empty DAG looks like it's stuck loading forever.
+  const [received, setReceived] = useState(false);
 
   useEffect(() => {
     const updateDarkClass = () => {
@@ -67,6 +70,7 @@ export function App() {
         setWorkflowName(msg.workflowName);
         setIsLoading(false);
         setIsFallback(msg.isFallback ?? false);
+        setReceived(true);
         updateDarkClass();
       }
     };
@@ -106,7 +110,9 @@ export function App() {
           fontSize: '13px',
         }}
       >
-        Waiting for workflow data…
+        {received
+          ? 'No tasks found in this workflow.'
+          : 'Waiting for workflow data…'}
       </div>
     );
   }
