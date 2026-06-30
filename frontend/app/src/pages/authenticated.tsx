@@ -3,6 +3,7 @@ import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
 import {
@@ -102,6 +103,7 @@ function AuthenticatedInner() {
     { tenantId: string; organizationId: string } | undefined
   >();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -251,23 +253,15 @@ function AuthenticatedInner() {
     const shouldHaveAnOrganizationButDoesnt =
       isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
 
-    const mustAcceptOrganizationInviteNow =
+    // Redirect to invites page only for users with no memberships yet (new users).
+    // Existing users with memberships see the InviteModal overlay instead.
+    const mustRedirectToInvitesPage =
       okayToMakeOnboardingRedirectDecisions &&
-      shouldHaveAnOrganizationButDoesnt &&
+      (tenantMemberships?.length ?? 0) === 0 &&
       pendingInvites &&
-      pendingInvites.organizationInvites.length > 0;
+      pendingInvites.inviteCount > 0;
 
-    const mustAcceptTenantInviteNow =
-      okayToMakeOnboardingRedirectDecisions &&
-      tenantMemberships &&
-      tenantMemberships.length === 0 &&
-      pendingInvites &&
-      pendingInvites.tenantInvites.length > 0;
-
-    if (
-      !isOnboardingInvitesPage &&
-      (mustAcceptOrganizationInviteNow || mustAcceptTenantInviteNow)
-    ) {
+    if (!isOnboardingInvitesPage && mustRedirectToInvitesPage) {
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
       return;
     } else if (
@@ -428,6 +422,14 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
+      globalEmitter.on('open-invite-modal', () => {
+        setInviteModalOpen(true);
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
       globalEmitter.on(
         'add-org-member-to-tenant',
         ({ tenantId, organizationId }) => {
@@ -519,6 +521,24 @@ function AuthenticatedInner() {
     welcomeBillingState.error,
     welcomeBillingState.isError,
     welcomeBillingState.isPending,
+  ]);
+
+  // Auto-open invite modal for users who already have memberships when new invites appear.
+  // New users with no memberships are redirected to /onboarding/invites instead.
+  useEffect(() => {
+    if (
+      !isOnboardingInvitesPage &&
+      pendingInvitesQuery.isSuccess &&
+      (pendingInvitesQuery.data?.inviteCount ?? 0) > 0 &&
+      (tenantMemberships?.length ?? 0) > 0
+    ) {
+      setInviteModalOpen(true);
+    }
+  }, [
+    pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.data?.inviteCount,
+    isOnboardingInvitesPage,
+    tenantMemberships?.length,
   ]);
 
   if (!currentUser) {
@@ -618,6 +638,10 @@ function AuthenticatedInner() {
           organizationId={organizationId}
           open={showWelcome}
           onClose={() => setShowWelcome(false)}
+        />
+        <InviteModal
+          isOpen={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
         />
       </SupportChat>
     </PostHogProvider>

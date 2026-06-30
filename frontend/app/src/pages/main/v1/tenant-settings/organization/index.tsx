@@ -43,6 +43,7 @@ import {
   MAX_INACTIVITY_TIMEOUT_MS,
   useOrganizations,
 } from '@/hooks/use-organizations';
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
@@ -143,6 +144,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     handleCreateOrganizationSsoDomain,
     handleDeleteOrganizationSsoDomain,
   } = useOrganizations();
+  const { lastTenantId } = useTenantDetails();
 
   const org = organizations.find((o) => o.metadata.id === orgId);
   const isOrganizationOwner = org?.isOwner ?? false;
@@ -277,7 +279,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   // 1. tenants can expand
   // 2. you can add members to tenants from here
   useEffect(() => {
-    const firstVisibleTenantId = visibleTenants[0]?.id;
+    const firstVisibleTenantId = lastTenantId ?? visibleTenants[0]?.id;
 
     if (!firstVisibleTenantId) {
       autoExpandedTenantId.current = null;
@@ -293,7 +295,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     if (!expandedTenantIds.length) {
       setExpandedTenantIds([firstVisibleTenantId]);
     }
-  }, [visibleTenants, expandedTenantIds.length]);
+  }, [visibleTenants, expandedTenantIds.length, lastTenantId]);
 
   const handleSaveName = () => {
     const trimmedName = editedName.trim();
@@ -1264,6 +1266,7 @@ export function OssOrganizationSettings() {
     useState<OrganizationTenantWithRegion | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
   const autoExpandedTenantId = useRef<string | null>(null);
+  const { lastTenantId } = useTenantDetails();
 
   const visibleTenants = useMemo(
     () =>
@@ -1286,11 +1289,11 @@ export function OssOrganizationSettings() {
     [tenantMemberships],
   );
 
-  // showing the first tenant as open, to make clearer that:
+  // showing either the last active or first (fallback) tenant as open, to make clearer that:
   // 1. tenants can expand
   // 2. you can add members to tenants from here
   useEffect(() => {
-    const firstVisibleTenantId = visibleTenants[0]?.id;
+    const firstVisibleTenantId = lastTenantId ?? visibleTenants[0]?.id;
 
     if (!firstVisibleTenantId) {
       autoExpandedTenantId.current = null;
@@ -1306,7 +1309,7 @@ export function OssOrganizationSettings() {
     if (!expandedTenantIds.length) {
       setExpandedTenantIds([firstVisibleTenantId]);
     }
-  }, [visibleTenants, expandedTenantIds.length]);
+  }, [visibleTenants, expandedTenantIds.length, lastTenantId]);
 
   return (
     <div className="h-full w-full flex-grow">
