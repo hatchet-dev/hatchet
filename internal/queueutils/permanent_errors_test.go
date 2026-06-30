@@ -1,4 +1,4 @@
-package rabbitmq
+package queueutils
 
 import (
 	"errors"
@@ -11,41 +11,41 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 )
 
-func TestIsPermanentPreAckError_PgError22P02(t *testing.T) {
+func TestIsPermanentConsumerError_PgError22P02(t *testing.T) {
 	pgErr := &pgconn.PgError{Code: pgerrcode.InvalidTextRepresentation, Message: "invalid input syntax for type json"}
 	wrapped := fmt.Errorf("wrap: %w", pgErr)
 
-	if !isPermanentPreAckError(wrapped) {
+	if !IsPermanentConsumerError(wrapped) {
 		t.Fatalf("expected true for wrapped pg error 22P02")
 	}
 }
 
-func TestIsPermanentPreAckError_StringFallback(t *testing.T) {
+func TestIsPermanentConsumerError_StringFallback(t *testing.T) {
 	err := errors.New("ERROR: invalid input syntax for type json (SQLSTATE 22P02)")
-	if !isPermanentPreAckError(err) {
+	if !IsPermanentConsumerError(err) {
 		t.Fatalf("expected true for sqlstate 22P02 string fallback")
 	}
 }
 
-func TestIsPermanentPreAckError_ExternalPayloadNotFound(t *testing.T) {
+func TestIsPermanentConsumerError_ExternalPayloadNotFound(t *testing.T) {
 	err := fmt.Errorf("wrap: %w", &repository.ExternalPayloadNotFoundError{
 		Kind: repository.ExternalPayloadNotFoundKindIndexFile,
 		Key:  "index/2026-06-11/example.index",
 		Err:  errors.New("key not found"),
 	})
 
-	if !isPermanentPreAckError(err) {
+	if !IsPermanentConsumerError(err) {
 		t.Fatalf("expected true for external payload not found error")
 	}
 
-	if got := permanentPreAckErrorReason(err); got != "external_payload_not_found" {
+	if got := PermanentConsumerErrorReason(err); got != "external_payload_not_found" {
 		t.Fatalf("expected external payload reason, got %q", got)
 	}
 }
 
-func TestIsPermanentPreAckError_OtherError(t *testing.T) {
+func TestIsPermanentConsumerError_OtherError(t *testing.T) {
 	err := errors.New("some transient error")
-	if isPermanentPreAckError(err) {
+	if IsPermanentConsumerError(err) {
 		t.Fatalf("expected false for non-permanent error")
 	}
 }

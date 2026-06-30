@@ -4,18 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
@@ -25,7 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/random"
-	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -832,23 +827,6 @@ func (t *MessageQueueImpl) subscribe(
 				t.l.Debug().Msgf("(session: %d) got msg", session)
 
 				if err := preAck(msg); err != nil {
-					if isPermanentPreAckError(err) {
-						event := t.l.Error().
-							Err(err).
-							Str("message_id", msg.ID).
-							Str("tenant_id", msg.TenantID.String()).
-							Int("num_payloads", len(msg.Payloads))
-
-						addPermanentPreAckErrorFields(event, err).
-							Msg("dropping message due to permanent pre-ack error")
-
-						if ackErr := rabbitMsg.Ack(false); ackErr != nil {
-							t.l.Error().Err(ackErr).Msg("error acknowledging message after permanent pre-ack error")
-						}
-
-						return
-					}
-
 					t.l.Error().Msgf("error in pre-ack on msg %s: %v", msg.ID, err)
 
 					// nack the message
@@ -912,52 +890,6 @@ func (t *MessageQueueImpl) subscribe(
 	}
 
 	return cleanup, nil
-}
-
-func isPermanentPreAckError(err error) bool {
-	return permanentPreAckErrorReason(err) != ""
-}
-
-func permanentPreAckErrorReason(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	if errors.Is(err, repository.ErrExternalPayloadNotFound) {
-		return "external_payload_not_found"
-	}
-
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		// invalid input syntax for type json / jsonb
-		if pgErr.Code == pgerrcode.InvalidTextRepresentation {
-			return "invalid_json"
-		}
-	}
-
-	// Fallback: some error paths may lose pg error type info.
-	errStr := err.Error()
-	if strings.Contains(errStr, fmt.Sprintf("SQLSTATE %s", pgerrcode.InvalidTextRepresentation)) {
-		return "invalid_json"
-	}
-	if strings.Contains(errStr, "invalid input syntax for type json") {
-		return "invalid_json"
-	}
-
-	return ""
-}
-
-func addPermanentPreAckErrorFields(event *zerolog.Event, err error) *zerolog.Event {
-	event.Str("permanent_pre_ack_reason", permanentPreAckErrorReason(err))
-
-	var payloadErr *repository.ExternalPayloadNotFoundError
-	if errors.As(err, &payloadErr) {
-		event.
-			Str("external_payload_kind", string(payloadErr.Kind)).
-			Str("external_payload_key", payloadErr.Key)
-	}
-
-	return event
 }
 
 // identity returns the same host/process unique string for the lifetime of
