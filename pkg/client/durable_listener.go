@@ -4,8 +4,6 @@ package client
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"sync"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
@@ -136,10 +134,6 @@ func (w *DurableEventsListener) retryListenBackground(ctx context.Context) error
 		},
 		"could not resubscribe after %d consecutive no-progress errors: %w",
 	)
-}
-
-func (w *DurableEventsListener) doRetryListenBackground(ctx context.Context) error {
-	return w.retryListenBackground(ctx)
 }
 
 func (w *DurableEventsListener) replayHandlers(ctx context.Context, client contracts.V1Dispatcher_ListenForDurableEventClient) error {
@@ -317,90 +311,23 @@ func (l *DurableEventsListener) Listen(ctx context.Context) error {
 }
 
 func (l *DurableEventsListener) listen(ctx context.Context) error {
-	consecutiveNoProgress := 0
-	reconnectAttempt := 0
-
-	client, generation, ok := l.streamCore().getClientSnapshot()
-	if !ok {
-		return fmt.Errorf("client is not connected")
-	}
-	defer func() {
-		if closeErr := client.CloseSend(); closeErr != nil {
-			l.l.Warn().Err(closeErr).Msg("failed to close durable event stream after listen exit")
-		}
-	}()
-
-	for {
-		event, err := client.Recv()
-
-		if err != nil {
-			eofPolicy := streamEOFStops
-			if l.shouldReconnectOnEOF(ctx) {
-				eofPolicy = streamEOFRetries
-			}
-
-			decision := classifyStreamRecvError(ctx, err, eofPolicy)
-
-			switch decision {
-			case retry.StreamDecisionStop:
-				return nil
-			case retry.StreamDecisionNoProgress:
-				consecutiveNoProgress++
-				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
-				}
-			default:
-				consecutiveNoProgress++
-			}
-
-			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
-				client, generation = l.getClientSnapshot()
-				consecutiveNoProgress = 0
-				reconnectAttempt = 0
-				continue
-			}
-
-			if reconnectAttempt > 0 {
-				if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
-					return nil
-				}
-			}
-
-			retryErr := l.retryListenBackground(l.lifecycleContext())
-
-			if retryErr != nil {
-				if errors.Is(retryErr, errListenerClosed) {
-					return nil
-				}
-
-				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
-				if streamDecisionStopsReconnect(retryDecision) {
-					return fmt.Errorf("failed to relisten: %w", retryErr)
-				}
-
-				l.l.Error().Err(retryErr).Msgf("failed to relisten (consecutive no-progress: %d/%d)", consecutiveNoProgress, maxConsecutiveStreamNoProgress)
-
-				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-					return fmt.Errorf("failed to relisten after %d consecutive errors: %w", consecutiveNoProgress, retryErr)
-				}
-
-				reconnectAttempt++
-				continue
-			}
-
-			client, generation = l.getClientSnapshot()
-			consecutiveNoProgress = 0
-			reconnectAttempt = 0
-			continue
-		}
-
-		consecutiveNoProgress = 0
-		reconnectAttempt = 0
-
-		if err := l.handleEvent(event); err != nil {
-			return err
-		}
-	}
+	return listenReconnectingStream(
+		ctx,
+		l.streamCore(),
+		streamListenConfig[contracts.V1Dispatcher_ListenForDurableEventClient, *contracts.DurableEvent]{
+			recv: func(client contracts.V1Dispatcher_ListenForDurableEventClient) (*contracts.DurableEvent, error) {
+				return client.Recv()
+			},
+			handle:               l.handleEvent,
+			shouldReconnectOnEOF: l.shouldReconnectOnEOF,
+			reconnectContext:     l.lifecycleContext(),
+			labels: streamListenLabels{
+				streamName:    "durable event listener",
+				reconnectVerb: "relisten",
+			},
+			l: l.l,
+		},
+	)
 }
 
 func (l *DurableEventsListener) Close() error {

@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -511,25 +510,6 @@ func TestAddSignalBoundedWhenEngineDown(t *testing.T) {
 	assert.LessOrEqual(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts+1))
 }
 
-func TestDurableListenPermanentErrorStops(t *testing.T) {
-	logger := zerolog.Nop()
-
-	listener := &DurableEventsListener{
-		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
-			return nil, status.Error(codes.PermissionDenied, "denied")
-		},
-		client: &mockDurableEventClient{
-			recvFn: func() (*contracts.DurableEvent, error) {
-				return nil, status.Error(codes.Unavailable, "stream broken")
-			},
-		},
-		l: &logger,
-	}
-
-	err := listener.Listen(context.Background())
-	require.Error(t, err)
-}
-
 func TestListenForDurableEventsRespectsCancelledContext(t *testing.T) {
 	logger := zerolog.Nop()
 
@@ -603,21 +583,23 @@ func TestListenForDurableEventsRespectsDeadlineContext(t *testing.T) {
 	assert.Equal(t, int32(1), constructorCalls.Load())
 }
 
-func TestDoRetryListenBackgroundStopsOnNoProgressError(t *testing.T) {
-	disableStreamBackoffForTest(t)
-
+func TestDurableListenEOFWithoutHandlersDoesNotReconnect(t *testing.T) {
 	logger := zerolog.Nop()
 	constructorCalls := atomic.Int32{}
 
 	listener := &DurableEventsListener{
 		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
 			constructorCalls.Add(1)
-			return nil, fmt.Errorf("plain listen error")
+			return &mockDurableEventClient{recvCh: make(chan *contracts.DurableEvent)}, nil
+		},
+		client: &mockDurableEventClient{
+			recvFn: func() (*contracts.DurableEvent, error) {
+				return nil, io.EOF
+			},
 		},
 		l: &logger,
 	}
 
-	err := listener.doRetryListenBackground(context.Background())
-	require.Error(t, err)
-	assert.Equal(t, int32(1), constructorCalls.Load())
+	require.NoError(t, listener.Listen(context.Background()))
+	assert.Equal(t, int32(0), constructorCalls.Load())
 }

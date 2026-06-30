@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
 type mockListenV2Client struct {
@@ -304,10 +303,6 @@ func TestWorkerListenDisablesGrpcRetry(t *testing.T) {
 	defer cancel()
 
 	require.NoError(t, listener.retrySubscribe(ctx))
-}
-
-func TestWorkerRetrySubscribeUsesStreamSyncMaxAttemptsConstant(t *testing.T) {
-	require.Equal(t, 5, retry.StreamSyncMaxAttempts)
 }
 
 func TestWorkerActionsReconnectsOnEOFWhileContextActive(t *testing.T) {

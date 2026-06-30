@@ -9,10 +9,127 @@ import (
 	"io"
 	"sync"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/singleflight"
 
 	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
+
+type streamListenLabels struct {
+	streamName    string
+	reconnectVerb string
+}
+
+type streamListenConfig[C any, E any] struct {
+	reconnectContext     context.Context
+	recv                 func(C) (E, error)
+	handle               func(E) error
+	shouldReconnectOnEOF func(context.Context) bool
+	l                    *zerolog.Logger
+	labels               streamListenLabels
+}
+
+func listenReconnectingStream[C any, E any](
+	ctx context.Context,
+	stream *reconnectingStream[C],
+	cfg streamListenConfig[C, E],
+) error {
+	consecutiveNoProgress := 0
+	reconnectAttempt := 0
+
+	client, generation, ok := stream.getClientSnapshot()
+	if !ok {
+		return fmt.Errorf("client is not connected")
+	}
+	defer func() {
+		if stream.closeSend != nil {
+			if closeErr := stream.closeSend(client); closeErr != nil {
+				cfg.l.Warn().Err(closeErr).Msgf("failed to close %s after listen exit", cfg.labels.streamName)
+			}
+		}
+	}()
+
+	verb := cfg.labels.reconnectVerb
+	noProgressFormat := fmt.Sprintf("could not %s after %%d consecutive no-progress errors: %%w", verb)
+
+	for {
+		event, err := cfg.recv(client)
+
+		if err != nil {
+			eofPolicy := streamEOFStops
+			if cfg.shouldReconnectOnEOF(ctx) {
+				eofPolicy = streamEOFRetries
+			}
+
+			decision := classifyStreamRecvError(ctx, err, eofPolicy)
+
+			switch decision {
+			case retry.StreamDecisionStop:
+				return nil
+			case retry.StreamDecisionNoProgress:
+				consecutiveNoProgress++
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+				}
+			default:
+				consecutiveNoProgress++
+			}
+
+			if _, genAfter, _ := stream.getClientSnapshot(); genAfter != generation {
+				client, generation, _ = stream.getClientSnapshot()
+				consecutiveNoProgress = 0
+				reconnectAttempt = 0
+				continue
+			}
+
+			if reconnectAttempt > 0 {
+				if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
+					return nil
+				}
+			}
+
+			retryErr := stream.retryConnectBackground(
+				cfg.reconnectContext,
+				func(err error, attempt int) {
+					cfg.l.Error().Err(err).Msgf("could not %s to the %s (background attempt %d)", verb, cfg.labels.streamName, attempt)
+				},
+				noProgressFormat,
+			)
+
+			if retryErr != nil {
+				if errors.Is(retryErr, errListenerClosed) {
+					return nil
+				}
+
+				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
+				if streamDecisionStopsReconnect(retryDecision) {
+					return fmt.Errorf("failed to %s: %w", verb, retryErr)
+				}
+
+				cfg.l.Error().Err(retryErr).Msgf("failed to %s (consecutive no-progress: %d/%d)", verb, consecutiveNoProgress, maxConsecutiveStreamNoProgress)
+
+				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+					return fmt.Errorf("failed to %s after %d consecutive errors: %w", verb, consecutiveNoProgress, retryErr)
+				}
+
+				reconnectAttempt++
+				continue
+			}
+
+			client, generation, _ = stream.getClientSnapshot()
+			consecutiveNoProgress = 0
+			reconnectAttempt = 0
+			continue
+		}
+
+		consecutiveNoProgress = 0
+		reconnectAttempt = 0
+
+		if err := cfg.handle(event); err != nil {
+			return err
+		}
+	}
+}
 
 type streamEOFPolicy int
 

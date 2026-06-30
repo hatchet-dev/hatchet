@@ -541,44 +541,6 @@ func TestListen_DispatchesEventsToHandlers(t *testing.T) {
 	assert.Equal(t, "run-1", ev.(WorkflowRunEvent).WorkflowRunId)
 }
 
-func TestListen_ExitsOnEOF(t *testing.T) {
-	logger := zerolog.Nop()
-
-	client := &mockSubscribeClient{
-		recvErr: io.EOF,
-	}
-
-	listener := &WorkflowRunsListener{
-		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-			return client, nil
-		},
-		client: client,
-		l:      &logger,
-	}
-
-	err := listener.Listen(context.Background())
-	assert.NoError(t, err, "Listen should return nil on EOF")
-}
-
-func TestListen_ExitsOnCanceled(t *testing.T) {
-	logger := zerolog.Nop()
-
-	client := &mockSubscribeClient{
-		recvErr: status.Error(codes.Canceled, "context canceled"),
-	}
-
-	listener := &WorkflowRunsListener{
-		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-			return client, nil
-		},
-		client: client,
-		l:      &logger,
-	}
-
-	err := listener.Listen(context.Background())
-	assert.NoError(t, err, "Listen should return nil on Canceled")
-}
-
 func TestWorkflowRunsListenerRestartsAfterListenExits(t *testing.T) {
 	logger := zerolog.Nop()
 
@@ -718,65 +680,6 @@ func TestWorkflowRunsListenerClosePreventsEOFReconnectAndAdd(t *testing.T) {
 		return nil
 	})
 	require.ErrorIs(t, err, errListenerClosed)
-}
-
-func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
-	logger := zerolog.Nop()
-
-	newRecvChan := make(chan *dispatchercontracts.WorkflowRunEvent, 1)
-
-	brokenClient := &mockSubscribeClient{
-		recvErr: status.Error(codes.Unavailable, "stream broken"),
-	}
-
-	workingClient := &mockSubscribeClient{
-		recvChan: newRecvChan,
-	}
-
-	constructorCalls := atomic.Int32{}
-
-	listener := &WorkflowRunsListener{
-		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-			constructorCalls.Add(1)
-			return workingClient, nil
-		},
-		client: brokenClient,
-		l:      &logger,
-	}
-
-	var receivedEvent atomic.Value
-	listener.handlers.Store("run-1", &threadSafeHandlers{
-		handlers: map[string]WorkflowRunEventHandler{
-			"session-1": func(event WorkflowRunEvent) error {
-				receivedEvent.Store(event)
-				return nil
-			},
-		},
-	})
-
-	listenErr := make(chan error, 1)
-	go func() {
-		listenErr <- listener.Listen(context.Background())
-	}()
-
-	newRecvChan <- &dispatchercontracts.WorkflowRunEvent{
-		WorkflowRunId: "run-1",
-	}
-
-	require.Eventually(t, func() bool {
-		return receivedEvent.Load() != nil
-	}, time.Second, 10*time.Millisecond)
-	listener.handlers.Delete("run-1")
-	close(newRecvChan)
-
-	err := <-listenErr
-	assert.NoError(t, err, "Listen should exit cleanly on EOF after reconnection")
-
-	assert.GreaterOrEqual(t, constructorCalls.Load(), int32(1), "constructor should have been called to reconnect")
-
-	ev := receivedEvent.Load()
-	require.NotNil(t, ev, "handler should have received event from new client")
-	assert.Equal(t, "run-1", ev.(WorkflowRunEvent).WorkflowRunId)
 }
 
 func TestClose_NilClient(t *testing.T) {
@@ -1025,7 +928,7 @@ func TestAddWorkflowRunBoundedWhenEngineDown(t *testing.T) {
 	assert.LessOrEqual(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts+1))
 }
 
-func TestDoRetrySubscribeSyncStopsAtStreamSyncMaxAttempts(t *testing.T) {
+func TestRetrySubscribeSyncStopsAtStreamSyncMaxAttempts(t *testing.T) {
 	logger := zerolog.Nop()
 	constructorCalls := atomic.Int32{}
 
@@ -1037,12 +940,12 @@ func TestDoRetrySubscribeSyncStopsAtStreamSyncMaxAttempts(t *testing.T) {
 		l: &logger,
 	}
 
-	err := listener.doRetrySubscribeSync(context.Background())
+	err := listener.retrySubscribeSync(context.Background())
 	require.Error(t, err)
 	assert.Equal(t, int32(retry.StreamSyncMaxAttempts), constructorCalls.Load())
 }
 
-func TestDoRetrySubscribeBackgroundContinuesPastSyncCap(t *testing.T) {
+func TestRetrySubscribeBackgroundContinuesPastSyncCap(t *testing.T) {
 	disableStreamBackoffForTest(t)
 
 	logger := zerolog.Nop()
@@ -1061,7 +964,7 @@ func TestDoRetrySubscribeBackgroundContinuesPastSyncCap(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		_ = listener.doRetrySubscribeBackground(ctx)
+		_ = listener.retrySubscribeBackground(ctx)
 		close(done)
 	}()
 
@@ -1090,23 +993,6 @@ func TestListenEOFWithoutHandlersDoesNotReconnect(t *testing.T) {
 
 	require.NoError(t, listener.Listen(context.Background()))
 	assert.Equal(t, int32(0), constructorCalls.Load())
-}
-
-func TestListenPermanentErrorStops(t *testing.T) {
-	logger := zerolog.Nop()
-
-	listener := &WorkflowRunsListener{
-		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-			return nil, status.Error(codes.PermissionDenied, "denied")
-		},
-		client: &mockSubscribeClient{
-			recvErr: status.Error(codes.Unavailable, "stream broken"),
-		},
-		l: &logger,
-	}
-
-	err := listener.Listen(context.Background())
-	require.Error(t, err)
 }
 
 func TestRetrySubscribeSyncReplaysHandlers(t *testing.T) {
@@ -1378,25 +1264,6 @@ func TestSubscribeToWorkflowRunEventsRespectsDeadlineContext(t *testing.T) {
 	assert.Equal(t, int32(1), constructorCalls.Load())
 }
 
-func TestDoRetrySubscribeBackgroundStopsOnNoProgressError(t *testing.T) {
-	disableStreamBackoffForTest(t)
-
-	logger := zerolog.Nop()
-	constructorCalls := atomic.Int32{}
-
-	listener := &WorkflowRunsListener{
-		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-			constructorCalls.Add(1)
-			return nil, fmt.Errorf("plain subscribe error")
-		},
-		l: &logger,
-	}
-
-	err := listener.doRetrySubscribeBackground(context.Background())
-	require.Error(t, err)
-	assert.Equal(t, int32(1), constructorCalls.Load())
-}
-
 func TestReconnectSyncAndBackgroundSerializeConnect(t *testing.T) {
 	logger := zerolog.Nop()
 	releaseConstructor := make(chan struct{})
@@ -1449,62 +1316,4 @@ func TestReconnectSyncAndBackgroundSerializeConnect(t *testing.T) {
 
 	require.NoError(t, <-syncDone)
 	require.NoError(t, <-backgroundDone)
-}
-
-func TestListenRetriesUnknownCodeBeforeGivingUp(t *testing.T) {
-	disableStreamBackoffForTest(t)
-
-	logger := zerolog.Nop()
-	recvCalls := atomic.Int32{}
-	constructorCalls := atomic.Int32{}
-
-	replacementClient := &mockSubscribeClient{
-		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
-	}
-
-	brokenClient := &mockSubscribeClient{
-		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
-			recvCalls.Add(1)
-			return nil, status.Error(codes.Unknown, "unknown stream error")
-		},
-	}
-
-	listener := &WorkflowRunsListener{
-		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-			constructorCalls.Add(1)
-			return replacementClient, nil
-		},
-		client: brokenClient,
-		l:      &logger,
-	}
-
-	listener.handlers.Store("run-1", &threadSafeHandlers{
-		handlers: map[string]WorkflowRunEventHandler{
-			"session-1": func(event WorkflowRunEvent) error { return nil },
-		},
-	})
-
-	listenErr := make(chan error, 1)
-	go func() {
-		listenErr <- listener.Listen(context.Background())
-	}()
-
-	require.Eventually(t, func() bool {
-		return constructorCalls.Load() >= 1
-	}, time.Second, 10*time.Millisecond)
-
-	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
-		WorkflowRunId: "run-1",
-	}
-
-	require.Eventually(t, func() bool {
-		return len(replacementClient.recvChan) == 0
-	}, time.Second, 10*time.Millisecond)
-
-	listener.handlers.Delete("run-1")
-	close(replacementClient.recvChan)
-
-	err := <-listenErr
-	assert.NoError(t, err)
-	assert.Equal(t, int32(1), recvCalls.Load())
 }

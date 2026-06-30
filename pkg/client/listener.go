@@ -278,14 +278,6 @@ func (w *WorkflowRunsListener) retrySubscribeBackground(ctx context.Context) err
 	)
 }
 
-func (w *WorkflowRunsListener) doRetrySubscribeSync(ctx context.Context) error {
-	return w.retrySubscribeSync(ctx)
-}
-
-func (w *WorkflowRunsListener) doRetrySubscribeBackground(ctx context.Context) error {
-	return w.retrySubscribeBackground(ctx)
-}
-
 func (w *WorkflowRunsListener) replayHandlers(ctx context.Context, client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
 	var rangeErr error
 
@@ -410,90 +402,23 @@ func (l *WorkflowRunsListener) Listen(ctx context.Context) error {
 }
 
 func (l *WorkflowRunsListener) listen(ctx context.Context) error {
-	consecutiveNoProgress := 0
-	reconnectAttempt := 0
-
-	client, generation, ok := l.streamCore().getClientSnapshot()
-	if !ok {
-		return fmt.Errorf("client is not connected")
-	}
-	defer func() {
-		if closeErr := client.CloseSend(); closeErr != nil {
-			l.l.Warn().Err(closeErr).Msg("failed to close workflow run stream after listen exit")
-		}
-	}()
-
-	for {
-		event, err := client.Recv()
-
-		if err != nil {
-			eofPolicy := streamEOFStops
-			if l.shouldReconnectOnEOF(ctx) {
-				eofPolicy = streamEOFRetries
-			}
-
-			decision := classifyStreamRecvError(ctx, err, eofPolicy)
-
-			switch decision {
-			case retry.StreamDecisionStop:
-				return nil
-			case retry.StreamDecisionNoProgress:
-				consecutiveNoProgress++
-				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
-				}
-			default:
-				consecutiveNoProgress++
-			}
-
-			if _, genAfter := l.getClientSnapshot(); genAfter != generation {
-				client, generation = l.getClientSnapshot()
-				consecutiveNoProgress = 0
-				reconnectAttempt = 0
-				continue
-			}
-
-			if reconnectAttempt > 0 {
-				if sleepErr := retry.SleepStreamBackoff(ctx, reconnectAttempt-1); sleepErr != nil {
-					return nil
-				}
-			}
-
-			retryErr := l.retrySubscribeBackground(l.lifecycleContext())
-
-			if retryErr != nil {
-				if errors.Is(retryErr, errListenerClosed) {
-					return nil
-				}
-
-				retryDecision := retry.ClassifyStreamError(ctx, retryErr)
-				if streamDecisionStopsReconnect(retryDecision) {
-					return fmt.Errorf("failed to resubscribe: %w", retryErr)
-				}
-
-				l.l.Error().Err(retryErr).Msgf("failed to resubscribe (consecutive no-progress: %d/%d)", consecutiveNoProgress, maxConsecutiveStreamNoProgress)
-
-				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
-					return fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", consecutiveNoProgress, retryErr)
-				}
-
-				reconnectAttempt++
-				continue
-			}
-
-			client, generation = l.getClientSnapshot()
-			consecutiveNoProgress = 0
-			reconnectAttempt = 0
-			continue
-		}
-
-		consecutiveNoProgress = 0
-		reconnectAttempt = 0
-
-		if err := l.handleWorkflowRun(event); err != nil {
-			return err
-		}
-	}
+	return listenReconnectingStream(
+		ctx,
+		l.streamCore(),
+		streamListenConfig[dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, *dispatchercontracts.WorkflowRunEvent]{
+			recv: func(client dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) (*dispatchercontracts.WorkflowRunEvent, error) {
+				return client.Recv()
+			},
+			handle:               l.handleWorkflowRun,
+			shouldReconnectOnEOF: l.shouldReconnectOnEOF,
+			reconnectContext:     l.lifecycleContext(),
+			labels: streamListenLabels{
+				streamName:    "workflow run listener",
+				reconnectVerb: "resubscribe",
+			},
+			l: l.l,
+		},
+	)
 }
 
 func (l *WorkflowRunsListener) Close() error {

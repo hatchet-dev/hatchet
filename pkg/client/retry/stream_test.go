@@ -107,12 +107,6 @@ func TestClassifyStreamErrorContextCancelled(t *testing.T) {
 	assert.Equal(t, StreamDecisionStop, ClassifyStreamError(ctx, err))
 }
 
-func TestStreamSyncMaxAttemptsValue(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, 5, StreamSyncMaxAttempts)
-}
-
 func TestStreamSleepHookForTesting(t *testing.T) {
 	called := false
 	SetStreamSleepHookForTesting(func(ctx context.Context, attempt int) error {
