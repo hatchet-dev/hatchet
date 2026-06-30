@@ -4,7 +4,8 @@ import { useRunsContext } from '../hooks/runs-provider';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { columns, TaskRunColumn } from './v1/task-runs-columns';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { RunsEmptyGraphic } from './runs-empty-graphic';
 import {
   DataPoint,
   ZoomableChart,
@@ -253,15 +254,14 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
-            <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-              <p className="text-lg font-semibold">No runs found</p>
-              <div className="w-fit">
-                <DocsButton
-                  doc={docsPages.v1.quickstart}
-                  label={'Learn more about tasks'}
-                />
-              </div>
-            </div>
+            <EmptyState
+              graphic={<RunsEmptyGraphic />}
+              filterHint="Try changing your filters."
+              title="No runs found"
+              description="Runs are individual executions of your tasks and workflows. Dispatch a task to see runs appear here."
+              docPage={docsPages.v1.quickstart}
+              docLabel="Learn about running tasks"
+            />
           }
           isLoading={isRunningFirstLoad}
           columns={tableColumns}

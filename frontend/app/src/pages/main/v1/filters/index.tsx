@@ -7,7 +7,7 @@ import {
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
 import { useFilters } from './hooks/use-filters';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
@@ -94,16 +94,12 @@ export default function Filters() {
       pageCount={numFilters}
       getRowId={(row) => row.metadata.id}
       emptyState={
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No filters found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.events}
-              scrollTo="event-filters"
-              label="Learn about event filters"
-            />
-          </div>
-        </div>
+        <EmptyState
+          title="No filters found"
+          description="Event filters route incoming events to specific workflows based on payload conditions."
+          docPage={{ href: `${docsPages.v1.events.href}#event-filters` }}
+          docLabel="Learn about event filters"
+        />
       }
       columnKeyToName={FilterColumn}
       showSelectedRows={false}
