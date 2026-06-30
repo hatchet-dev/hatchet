@@ -21,7 +21,6 @@ import {
   SNSActions,
 } from '../ingestors/components/sns-integrations-columns';
 import { PrometheusMetricsSettings } from './components/prometheus-metrics-settings';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
@@ -291,10 +290,9 @@ function EmailGroupsList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <EmptyState
-          title="No email groups found"
-          description="Email groups receive alert notifications when your workflows encounter errors."
-        />
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No email groups found. Create a group to receive alerts via email.
+        </div>
       )}
       {showGroupsDialog && (
         <CreateEmailGroup
@@ -458,10 +456,9 @@ function SlackWebhooksList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <EmptyState
-          title="No Slack webhooks found"
-          description="Slack webhooks send workflow status updates and alerts to your Slack channels."
-        />
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No Slack webhooks found. Add a webhook to receive alerts in Slack.
+        </div>
       )}
       {deleteSlack && (
         <DeleteSlackWebhook
@@ -573,10 +570,10 @@ function SNSIntegrationsList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <EmptyState
-          title="No SNS integrations found"
-          description="SNS integrations publish Hatchet workflow events to your AWS Simple Notification Service topics."
-        />
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          No SNS integrations found. Create an endpoint to receive events from
+          AWS SNS.
+        </div>
       )}
       {showSNSDialog && (
         <CreateSNSIntegration

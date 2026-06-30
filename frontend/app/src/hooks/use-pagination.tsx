@@ -1,6 +1,6 @@
 import { useSearchParams } from '@/lib/router-helpers';
 import { PaginationState, Updater } from '@tanstack/react-table';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useMemo } from 'react';
 
 type PaginationQueryShape = {
   i: number; // index
@@ -9,10 +9,6 @@ type PaginationQueryShape = {
 
 type UsePaginationProps = {
   key: string;
-  // When this value changes (by deep/serialized equality), the page index resets to 0.
-  // Pass the active filter values here so changing a filter doesn't leave the user
-  // stranded on a page that no longer has results.
-  resetPageOnChange?: unknown;
 };
 
 const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
@@ -47,10 +43,7 @@ const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
-export const usePagination = ({
-  key,
-  resetPageOnChange,
-}: UsePaginationProps) => {
+export const usePagination = ({ key }: UsePaginationProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramKey = `pagination-${key}`;
 
@@ -58,33 +51,6 @@ export const usePagination = ({
     () => parsePaginationParam(searchParams, paramKey),
     [searchParams, paramKey],
   );
-
-  const resetPageOnChangeKey = JSON.stringify(resetPageOnChange);
-  const prevResetPageOnChangeKey = useRef(resetPageOnChangeKey);
-
-  useEffect(() => {
-    if (prevResetPageOnChangeKey.current === resetPageOnChangeKey) {
-      return;
-    }
-
-    prevResetPageOnChangeKey.current = resetPageOnChangeKey;
-
-    if (pagination.pageIndex === 0) {
-      return;
-    }
-
-    setSearchParams((prev) => {
-      const currentPagination = parsePaginationParam(prev, paramKey);
-
-      return {
-        ...Object.fromEntries(prev.entries()),
-        [paramKey]: {
-          i: 0,
-          s: currentPagination.pageSize,
-        },
-      };
-    });
-  }, [resetPageOnChangeKey, pagination.pageIndex, setSearchParams, paramKey]);
 
   const offset = useMemo(() => {
     if (!pagination) {
