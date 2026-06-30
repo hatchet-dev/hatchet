@@ -635,8 +635,11 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		// Start the scheduling pool. Its initial lease acquisition runs now and finds no active
 		// strategy, so no ConcurrencyManager exists for our strategy -- it is genuinely cold.
 		l := zerolog.Nop()
+		outbox, err := pgoutbox.NewOutbox(ctx, conf.Pool, pgoutbox.WithAutoMigrate(false))
+		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			outbox,
 			&l,
 			100,
 			20,
@@ -647,6 +650,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 			5*time.Millisecond,
 			false,
 			1,
+			true,
 			nil,
 		)
 		require.NoError(t, err)
