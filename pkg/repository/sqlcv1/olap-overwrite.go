@@ -91,7 +91,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH filtered AS (
     SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
-    FROM v1_runs_olap
+    FROM v1_runs_olap r
     WHERE
         tenant_id = $1::uuid
         AND readable_status = ANY($2::v1_readable_status_olap[])
@@ -131,6 +131,16 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+
+		-- fixme: this might be really slow
+		AND NOT EXISTS (
+			SELECT 1
+			FROM v1_tasks_olap t
+			WHERE
+				t.external_id = r.parent_task_external_id
+				AND COALESCE(t.is_dag_orchestrator, FALSE)
+				AND t.tenant_id = r.tenant_id
 		)
     LIMIT 20000
 )
