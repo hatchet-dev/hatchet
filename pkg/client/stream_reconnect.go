@@ -15,16 +15,28 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
+const maxConsecutiveStreamNoProgress = 10
+
+var errListenerClosed = errors.New("listener is closed")
+
 type streamListenLabels struct {
 	streamName    string
 	reconnectVerb string
 }
+
+type streamNoProgressPolicy int
+
+const (
+	streamNoProgressRetriesUntilCap streamNoProgressPolicy = iota
+	streamNoProgressStopsImmediately
+)
 
 type streamListenConfig[C any, E any] struct {
 	reconnectContext     context.Context
 	recv                 func(C) (E, error)
 	handle               func(E) error
 	shouldReconnectOnEOF func(context.Context) bool
+	noProgressPolicy     streamNoProgressPolicy
 	l                    *zerolog.Logger
 	labels               streamListenLabels
 }
@@ -70,6 +82,9 @@ func listenReconnectingStream[C any, E any](
 				consecutiveNoProgress++
 				if consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
 					return fmt.Errorf("stream made no progress after %d consecutive errors: %w", consecutiveNoProgress, err)
+				}
+				if cfg.noProgressPolicy == streamNoProgressStopsImmediately {
+					return err
 				}
 			default:
 				consecutiveNoProgress++

@@ -121,6 +121,34 @@ func TestDurableEventsListenerAddSignalSendsOnceWhenStarting(t *testing.T) {
 	close(recvCh)
 }
 
+func TestDurableEventsListenerAddSignalRollsBackHandlerWhenSendFails(t *testing.T) {
+	disableStreamBackoffForTest(t)
+
+	logger := zerolog.Nop()
+	client := &mockDurableEventClient{
+		sendFn: func(req *contracts.ListenForDurableEventRequest) error {
+			return status.Error(codes.Unavailable, "send failed")
+		},
+		recvFn: func() (*contracts.DurableEvent, error) {
+			return nil, io.EOF
+		},
+	}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	err := listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		return nil
+	})
+	require.Error(t, err)
+	assert.False(t, listener.hasHandlers())
+}
+
 func TestGetDurableEventsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T) {
 	logger := zerolog.Nop()
 	closeCh := make(chan struct{})

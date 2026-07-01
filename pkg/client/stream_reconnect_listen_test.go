@@ -271,6 +271,33 @@ func TestListenReconnectingStreamNoProgressStopsAtCap(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to resubscribe")
 }
 
+func TestListenReconnectingStreamNoProgressStopsImmediatelyWhenConfigured(t *testing.T) {
+	disableStreamBackoffForTest(t)
+
+	recvErr := fmt.Errorf("plain recv error")
+	recvCalls := atomic.Int32{}
+	client := &testListenClient{
+		recvFn: func() (testListenEvent, error) {
+			recvCalls.Add(1)
+			return testListenEvent{}, recvErr
+		},
+	}
+
+	stream := newTestListenStream(t, client, func(ctx context.Context) (*testListenClient, error) {
+		t.Fatal("constructor should not run when no-progress policy stops immediately")
+		return nil, nil
+	})
+
+	cfg := testListenConfig(stream, context.Background(), func(context.Context) bool {
+		return false
+	})
+	cfg.noProgressPolicy = streamNoProgressStopsImmediately
+
+	err := listenReconnectingStream(context.Background(), stream, cfg)
+	require.ErrorIs(t, err, recvErr)
+	assert.Equal(t, int32(1), recvCalls.Load())
+}
+
 func TestListenReconnectingStreamUsesReconnectContext(t *testing.T) {
 	disableStreamBackoffForTest(t)
 

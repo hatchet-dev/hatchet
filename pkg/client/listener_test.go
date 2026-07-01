@@ -181,6 +181,30 @@ func TestWorkflowRunsListenerAddWorkflowRunSendsOnceWhenStarting(t *testing.T) {
 	close(recvChan)
 }
 
+func TestWorkflowRunsListenerAddWorkflowRunRollsBackHandlerWhenSendFails(t *testing.T) {
+	disableStreamBackoffForTest(t)
+
+	logger := zerolog.Nop()
+	client := &mockSubscribeClient{
+		sendErr: status.Error(codes.Unavailable, "send failed"),
+		recvErr: io.EOF,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	err := listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		return nil
+	})
+	require.Error(t, err)
+	assert.False(t, listener.hasHandlers())
+}
+
 func TestGetWorkflowRunsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T) {
 	logger := zerolog.Nop()
 	closeCh := make(chan struct{})
