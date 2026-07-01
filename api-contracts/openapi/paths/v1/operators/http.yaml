@@ -1,0 +1,235 @@
+V1HTTPOperatorListCreate:
+  get:
+    x-resources: ["tenant"]
+    description: Lists all HTTP operators for a tenant.
+    operationId: v1-http-operator:list
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+      - description: The number to skip
+        in: query
+        name: offset
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - description: The number to limit by
+        in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int64
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1HTTPOperatorList"
+        description: Successfully listed the HTTP operators
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+    summary: List HTTP operators
+    tags:
+      - Operator
+  post:
+    x-resources: ["tenant"]
+    description: Create a new HTTP operator
+    operationId: v1-http-operator:create
+    parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1CreateHTTPOperatorRequest"
+      description: The input to the HTTP operator creation
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1HTTPOperator"
+        description: Successfully created the HTTP operator
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Create an HTTP operator
+    tags:
+      - Operator
+
+V1HTTPOperatorGetUpdateDelete:
+  get:
+    x-resources: ["tenant", "v1-http-operator"]
+    description: Get an HTTP operator by its id
+    operationId: v1-http-operator:get
+    parameters:
+      - description: The HTTP operator id
+        in: path
+        name: v1-http-operator
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1HTTPOperator"
+        description: Successfully got the HTTP operator
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Get an HTTP operator
+    tags:
+      - Operator
+  patch:
+    x-resources: ["tenant", "v1-http-operator"]
+    description: Update an HTTP operator
+    operationId: v1-http-operator:update
+    parameters:
+      - description: The id of the HTTP operator to update
+        in: path
+        name: v1-http-operator
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: "../../../components/schemas/_index.yaml#/V1UpdateHTTPOperatorRequest"
+      description: The fields to update on the HTTP operator
+      required: true
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1HTTPOperator"
+        description: Successfully updated the HTTP operator
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Update an HTTP operator
+    tags:
+      - Operator
+  delete:
+    x-resources: ["tenant", "v1-http-operator"]
+    description: Delete an HTTP operator
+    operationId: v1-http-operator:delete
+    parameters:
+      - description: The id of the HTTP operator to delete
+        in: path
+        name: v1-http-operator
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
+    responses:
+      "200":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/V1HTTPOperator"
+        description: Successfully deleted the HTTP operator
+      "400":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: A malformed or bad request
+      "403":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Forbidden
+      "404":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Not found
+    summary: Delete an HTTP operator
+    tags:
+      - Operator

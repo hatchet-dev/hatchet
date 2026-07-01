@@ -113,6 +113,74 @@ func TestDurableTaskSurfacesRecvError(t *testing.T) {
 	}
 }
 
+// RegisterDurableTask gives operators the channel-based equivalent of the DurableTask
+// stream: the task is registered up front so async responses route to the returned channel,
+// and cancelling the context tears the session down (deregisters the invocation, closes the
+// response channel, and makes further sends error rather than panic).
+func TestRegisterDurableTaskBridgesResponsesAndCleansUp(t *testing.T) {
+	d := newTestDispatcher()
+	ctx, cancel := context.WithCancel(tenantContext())
+	t.Cleanup(cancel)
+
+	externalId := uuid.New()
+
+	_, respCh, err := d.RegisterDurableTask(ctx, externalId)
+	if err != nil {
+		t.Fatalf("RegisterDurableTask returned error: %v", err)
+	}
+
+	inv, ok := d.durableInvocations.Load(externalId)
+	if !ok {
+		t.Fatal("expected invocation to be registered for externalId up front")
+	}
+
+	// An async response routed through the invocation (as the dispatcher does when a
+	// wait-for is satisfied) must reach the response channel.
+	want := &contracts.DurableTaskResponse{
+		Message: &contracts.DurableTaskResponse_RegisterWorker{
+			RegisterWorker: &contracts.DurableTaskResponseRegisterWorker{WorkerId: "w1"},
+		},
+	}
+
+	sendErr := make(chan error, 1)
+	go func() { sendErr <- inv.send(want) }()
+
+	select {
+	case got := <-respCh:
+		if got != want {
+			t.Fatalf("unexpected response delivered: %v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("response was not delivered to the channel")
+	}
+
+	if err := <-sendErr; err != nil {
+		t.Fatalf("send returned error: %v", err)
+	}
+
+	// Cancelling tears the session down.
+	cancel()
+
+	select {
+	case _, open := <-respCh:
+		if open {
+			t.Fatal("expected respCh to be closed after cancel")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("respCh was not closed after cancel")
+	}
+
+	// The close happens after the deregister in the same teardown, so by now it's gone.
+	if _, ok := d.durableInvocations.Load(externalId); ok {
+		t.Fatal("expected invocation to be deregistered after cancel")
+	}
+
+	// Sends after teardown return an error rather than panicking on the closed channel.
+	if err := inv.send(want); err == nil {
+		t.Fatal("expected send after teardown to return an error")
+	}
+}
+
 func TestDurableTaskReturnsNilOnEOF(t *testing.T) {
 	d := newTestDispatcher()
 

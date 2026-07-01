@@ -26,7 +26,6 @@ type DispatcherServiceImpl struct {
 	streamSessions     *streams.Registry
 	l                  *zerolog.Logger
 	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
-	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 	dispatcherId       uuid.UUID
 }
 

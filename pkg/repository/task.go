@@ -1363,7 +1363,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 				RetryCount: task.RetryCount,
 			},
 			IsAppError:     true,
-			ErrorMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+			ErrorMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout),
 			IsNonRetryable: false,
 		})
 	}

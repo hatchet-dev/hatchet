@@ -23,8 +23,11 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
+	"github.com/hatchet-dev/hatchet/pkg/operator/manager"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -60,6 +63,7 @@ type DispatcherImpl struct {
 	version                             string
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	streamEventBufferTimeout            time.Duration
+	om                                  *manager.OperatorManager
 	workflowRunBufferSize               int
 	payloadSizeThreshold                int
 	dispatcherId                        uuid.UUID
@@ -155,6 +159,8 @@ type DispatcherOpts struct {
 	defaultMaxWorkerLockAcquisitionTime time.Duration
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
+	enc                                 encryption.EncryptionService
+	infraBlockedCIDRs                   []string
 	dispatcherId                        uuid.UUID
 	promGate                            *prometheus.Gate
 }
@@ -215,6 +221,18 @@ func WithDispatcherId(dispatcherId uuid.UUID) DispatcherOpt {
 func WithCache(cache cache.Cacheable) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
 		opts.cache = cache
+	}
+}
+
+func WithEncryption(enc encryption.EncryptionService) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.enc = enc
+	}
+}
+
+func WithInfraBlockedCIDRs(cidrs []string) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.infraBlockedCIDRs = cidrs
 	}
 }
 
@@ -294,6 +312,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
+	om := manager.NewOperatorManager(opts.dispatcherId, opts.l, opts.repov1, opts.enc, opts.infraBlockedCIDRs)
 	v := validator.NewDefaultValidator()
 
 	return &DispatcherImpl{
@@ -315,6 +334,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
+		om:                                  om,
 		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
@@ -347,6 +367,10 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	d.s.Start()
+
+	operatorCh := d.om.Start(ctx, d)
+
+	go d.listenForOperators(operatorCh)
 
 	wg := sync.WaitGroup{}
 
@@ -383,6 +407,11 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 
 		wg.Wait()
 
+		// drain the operators (waits for their in-flight tasks and stops their heartbeats);
+		// this runs after wg.Wait so in-flight queue tasks can still reach their operators,
+		// and before pubBuffer.Stop so draining operators can still flush result events
+		d.om.Cleanup()
+
 		d.pubBuffer.Stop()
 
 		// drain the existing connections
@@ -391,6 +420,12 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 		d.workers.Range(func(key uuid.UUID, value *syncx.Map[string, *subscribedWorker]) bool {
 			value.Range(func(key string, value *subscribedWorker) bool {
 				w := value
+
+				// operator-backed workers have no stream goroutine reading `finished`; the
+				// operator manager has already drained them above
+				if w.operator != nil {
+					return true
+				}
 
 				w.finished <- true
 
@@ -419,6 +454,54 @@ func (d *DispatcherImpl) Start() (func() error, error) {
 	}
 
 	return cleanup, nil
+}
+
+// listenForOperators mirrors the manager's reported operator set into the workers map. Each
+// message carries the full set of active operators (resent every poll), so entries that
+// disappear from the set are removed — the dispatcher never accumulates routing entries for
+// operators that are no longer claimed by it.
+func (d *DispatcherImpl) listenForOperators(ch <-chan []operator.Operator) {
+	// workerId -> sessionId for the operator-backed entries this loop has added; only this
+	// goroutine touches it. operator workers are exclusive to their operator instance, so a
+	// stable session per worker is sufficient.
+	sessions := make(map[uuid.UUID]string)
+
+	for operators := range ch {
+		current := make(map[uuid.UUID]struct{}, len(operators))
+
+		for _, o := range operators {
+			workerId := o.WorkerId()
+			current[workerId] = struct{}{}
+
+			if _, ok := sessions[workerId]; ok {
+				continue
+			}
+
+			sessionId := uuid.NewString()
+			sessions[workerId] = sessionId
+
+			d.workers.Add(
+				workerId,
+				sessionId,
+				// nil finished channel: operator workers have no stream goroutine to signal,
+				// and the shutdown drain skips them (the operator manager owns their teardown)
+				newOperatorSubscribedWorker(
+					workerId,
+					d.pubBuffer,
+					o,
+				),
+			)
+		}
+
+		for workerId := range sessions {
+			if _, ok := current[workerId]; ok {
+				continue
+			}
+
+			delete(sessions, workerId)
+			d.workers.Delete(workerId)
+		}
+	}
 }
 
 func (d *DispatcherImpl) handleV1Task(ctx context.Context, task *msgqueue.Message) (err error) {

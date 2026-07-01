@@ -299,6 +299,17 @@ type ConfigFileRuntime struct {
 	// The loader splits this into AllowedOrigins at startup.
 	AllowedOriginsString string `mapstructure:"allowedOriginsString" json:"allowedOriginsString,omitempty"`
 
+	// OperatorInfraBlockedCIDRs are additional CIDR ranges the HTTP operator blocks when
+	// delivering outbound requests (our own infrastructure: VPC, metadata, internal LBs),
+	// on top of the built-in reserved/private denylist. Populated from
+	// OperatorInfraBlockedCIDRsString at startup; do not set directly via env.
+	OperatorInfraBlockedCIDRs []string `mapstructure:"operatorInfraBlockedCIDRs" json:"operatorInfraBlockedCIDRs,omitempty"`
+
+	// OperatorInfraBlockedCIDRsString is the raw space-separated value used for env binding
+	// (SERVER_OPERATOR_INFRA_BLOCKED_CIDRS). Example: "10.0.0.0/8 fd00::/8".
+	// The loader splits this into OperatorInfraBlockedCIDRs at startup.
+	OperatorInfraBlockedCIDRsString string `mapstructure:"operatorInfraBlockedCIDRsString" json:"operatorInfraBlockedCIDRsString,omitempty"`
+
 	// SchedulerConcurrencyRateLimit is the rate limit for scheduler concurrency strategy execution (per second)
 	SchedulerConcurrencyRateLimit int `mapstructure:"schedulerConcurrencyRateLimit" json:"schedulerConcurrencyRateLimit,omitempty" default:"20"`
 
@@ -775,6 +786,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
+	_ = v.BindEnv("runtime.operatorInfraBlockedCIDRsString", "SERVER_OPERATOR_INFRA_BLOCKED_CIDRS")
 
 	// security check options
 	_ = v.BindEnv("securityCheck.enabled", "SERVER_SECURITY_CHECK_ENABLED")
