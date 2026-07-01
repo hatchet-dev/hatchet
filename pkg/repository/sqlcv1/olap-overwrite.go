@@ -169,50 +169,80 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 }
 
 const fetchWorkflowRunIds = `-- name: FetchWorkflowRunIds :many
-SELECT id, inserted_at, kind, external_id
-FROM v1_runs_olap
-WHERE
-    tenant_id = $1::uuid
-    AND readable_status = ANY($2::v1_readable_status_olap[])
-    AND (
-        $3::uuid[] IS NULL
-        OR workflow_id = ANY($3::uuid[])
-    )
-    AND inserted_at >= $4::timestamptz
-    AND (
-        $5::timestamptz IS NULL
-        OR inserted_at <= $5::timestamptz
-    )
-    AND (
-        $6::text[] IS NULL
-        OR $7::text[] IS NULL
-        OR EXISTS (
-            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-            JOIN LATERAL (
-                SELECT unnest($6::text[]) AS k,
-                    unnest($7::text[]) AS v
-            ) AS u ON kv.key = u.k AND kv.value = u.v
-        )
-    )
-    AND (
-        $10::UUID IS NULL
-        OR parent_task_external_id = $10::UUID
-    )
-    AND (
-        $11::UUID IS NULL
-		OR (id, inserted_at) IN (
-			SELECT etr.run_id, etr.run_inserted_at
-			FROM v1_event_lookup_table_olap lt
-			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-			WHERE
-				lt.tenant_id = $1::uuid
-				AND lt.external_id = $11::UUID
+WITH candidates AS (
+	SELECT *
+	FROM v1_runs_olap
+	WHERE
+		tenant_id = $1::uuid
+		AND readable_status = ANY($2::v1_readable_status_olap[])
+		AND (
+			$3::uuid[] IS NULL
+			OR workflow_id = ANY($3::uuid[])
 		)
-    )
-ORDER BY inserted_at DESC, id DESC
+		AND inserted_at >= $4::timestamptz
+		AND (
+			$5::timestamptz IS NULL
+			OR inserted_at <= $5::timestamptz
+		)
+		AND (
+			$6::text[] IS NULL
+			OR $7::text[] IS NULL
+			OR EXISTS (
+				SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+				JOIN LATERAL (
+					SELECT unnest($6::text[]) AS k,
+						unnest($7::text[]) AS v
+				) AS u ON kv.key = u.k AND kv.value = u.v
+			)
+		)
+		AND (
+			$10::UUID IS NULL
+			OR parent_task_external_id = $10::UUID
+		)
+		AND (
+			$11::UUID IS NULL
+			OR (id, inserted_at) IN (
+				SELECT etr.run_id, etr.run_inserted_at
+				FROM v1_event_lookup_table_olap lt
+				JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+				WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $11::UUID
+			)
+		)
+	ORDER BY inserted_at DESC, id DESC
+	LIMIT $9::integer * 2
+	OFFSET $8::integer
+), dag_orchestrators AS (
+	SELECT c.*
+	FROM candidates c
+	JOIN v1_tasks_olap t ON (c.id, c.inserted_at) = (t.id, t.inserted_at)
+	WHERE t.is_dag_orchestrator
+), dag_orchestrator_subtasks AS (
+	SELECT *
+	FROM candidates
+	WHERE parent_task_external_id IN (
+		SELECT external_id FROM dag_orchestrators
+	)
+)
+
+SELECT
+	c.id,
+	c.inserted_at,
+	c.kind,
+	c.external_id,
+	EXISTS (
+		SELECT 1
+		FROM dag_orchestrators d
+		WHERE (d.id, d.inserted_at) = (c.id, c.inserted_at)
+	) AS is_dag_orchestrator
+FROM candidates c
+WHERE (c.id, c.inserted_at) NOT IN (
+	SELECT id, inserted_at
+	FROM dag_orchestrator_subtasks
+)
 LIMIT $9::integer
-OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
@@ -230,10 +260,11 @@ type FetchWorkflowRunIdsParams struct {
 }
 
 type FetchWorkflowRunIdsRow struct {
-	ID         int64              `json:"id"`
-	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
-	Kind       V1RunKind          `json:"kind"`
-	ExternalID uuid.UUID          `json:"external_id"`
+	ID                int64              `json:"id"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	Kind              V1RunKind          `json:"kind"`
+	ExternalID        uuid.UUID          `json:"external_id"`
+	IsDagOrchestrator bool               `json:"is_dag_orchestrator"`
 }
 
 func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWorkflowRunIdsParams) ([]*FetchWorkflowRunIdsRow, error) {
@@ -263,6 +294,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 			&i.InsertedAt,
 			&i.Kind,
 			&i.ExternalID,
+			&i.IsDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}
