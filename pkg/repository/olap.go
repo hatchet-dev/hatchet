@@ -1270,15 +1270,21 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	runIdsWithDAGs := make([]int64, 0)
 	runInsertedAtsWithDAGs := make([]pgtype.Timestamptz, 0)
-	idsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
+	orchestratorIds := make([]int64, 0)
+	orchestratorInsertedAts := make([]pgtype.Timestamptz, 0)
+	taskIdsInsertedAts := make([]IdInsertedAt, 0, len(workflowRunIds))
 	retrievePayloadOpts := make([]ReadOLAPPayloadOpts, 0)
 
 	for _, row := range workflowRunIds {
-		if row.Kind == sqlcv1.V1RunKindDAG {
+		switch {
+		case row.Kind == sqlcv1.V1RunKindDAG:
 			runIdsWithDAGs = append(runIdsWithDAGs, row.ID)
 			runInsertedAtsWithDAGs = append(runInsertedAtsWithDAGs, row.InsertedAt)
-		} else {
-			idsInsertedAts = append(idsInsertedAts, IdInsertedAt{
+		case row.IsDagOrchestrator:
+			orchestratorIds = append(orchestratorIds, row.ID)
+			orchestratorInsertedAts = append(orchestratorInsertedAts, row.InsertedAt)
+		default:
+			taskIdsInsertedAts = append(taskIdsInsertedAts, IdInsertedAt{
 				ID:         row.ID,
 				InsertedAt: row.InsertedAt,
 			})
@@ -1313,19 +1319,41 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		}
 	}
 
+	orchestratorExtIdToChildExtIds := make(map[uuid.UUID][]uuid.UUID)
+
+	if len(orchestratorIds) > 0 {
+		orchestratorRows, err := r.queries.GetDagOrchestratorTasks(ctx, tx, sqlcv1.GetDagOrchestratorTasksParams{
+			Tenantid:    tenantId,
+			Ids:         orchestratorIds,
+			Insertedats: orchestratorInsertedAts,
+		})
+
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, 0, err
+		}
+
+		for _, row := range orchestratorRows {
+			taskIdsInsertedAts = append(taskIdsInsertedAts, IdInsertedAt{ID: row.ID, InsertedAt: row.InsertedAt})
+
+			if row.ParentTaskExternalID == nil {
+				continue
+			}
+
+			parentExternalId := *row.ParentTaskExternalID
+			orchestratorExtIdToChildExtIds[parentExternalId] = append(orchestratorExtIdToChildExtIds[parentExternalId], row.ExternalID)
+		}
+	}
+
 	tasksToPopulated := make(map[uuid.UUID]*sqlcv1.PopulateTaskRunDataRow)
 
-	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, idsInsertedAts, opts.IncludePayloads)
+	populatedTasks, err := r.populateTaskRunData(ctx, tx, tenantId, taskIdsInsertedAts, opts.IncludePayloads)
 
 	if err != nil {
 		return nil, 0, err
 	}
 
-	externalIdToIsDagOrchestrator := make(map[uuid.UUID]bool)
 	for _, task := range populatedTasks {
 		tasksToPopulated[task.ExternalID] = task
-
-		externalIdToIsDagOrchestrator[task.ExternalID] = task.IsDagOrchestrator
 
 		retrievePayloadOpts = append(retrievePayloadOpts, ReadOLAPPayloadOpts{
 			ExternalId: task.ExternalID,
@@ -1357,8 +1385,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	res := make([]*WorkflowRunData, 0)
 
 	for _, row := range workflowRunIds {
-		isOrchestrator := externalIdToIsDagOrchestrator[row.ExternalID]
-
 		if row.Kind == sqlcv1.V1RunKindDAG {
 			dag, ok := dagsToPopulated[row.ExternalID]
 
@@ -1374,7 +1400,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
 
 				if !exists {
-					if opts.IncludePayloads && dag.OutputEventExternalID != nil && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+					if opts.IncludePayloads && dag.ReadableStatus == sqlcv1.V1ReadableStatusOlapCOMPLETED {
 						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
 					}
 					outputPayload = dag.Output
@@ -1391,7 +1417,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				inputPayload = dag.Input
 			}
 
-			// TODO !IMPORTANT: verify this is correct
 			retryCount := int(dag.RetryCount)
 
 			res = append(res, &WorkflowRunData{
@@ -1408,74 +1433,81 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				ErrorMessage:         dag.ErrorMessage.String,
 				Kind:                 sqlcv1.V1RunKindDAG,
 				WorkflowVersionId:    dag.WorkflowVersionID,
-				TaskExternalId:       nil,
-				TaskId:               nil,
-				TaskInsertedAt:       nil,
 				Output:               outputPayload,
 				Input:                inputPayload,
 				ParentTaskExternalId: dag.ParentTaskExternalID,
 				RetryCount:           &retryCount,
 				ID:                   dag.DagID,
 			})
-		} else if isOrchestrator {
-			dag, ok := tasksToPopulated[row.ExternalID]
+		} else if row.IsDagOrchestrator {
+			orch, ok := tasksToPopulated[row.ExternalID]
 
 			if !ok {
-				r.l.Error().Ctx(ctx).Msgf("could not find dag with external id %s", row.ExternalID.String())
+				r.l.Error().Ctx(ctx).Msgf("could not find orchestrator with external id %s", row.ExternalID.String())
 				continue
 			}
 
 			var outputPayload []byte
 			var exists bool
 
-			if dag.OutputEventExternalID != nil {
-				outputPayload, exists = externalIdToPayload[*dag.OutputEventExternalID]
+			if orch.OutputEventExternalID != nil {
+				outputPayload, exists = externalIdToPayload[*orch.OutputEventExternalID]
 
 				if !exists {
-					if opts.IncludePayloads && dag.OutputEventExternalID != nil && dag.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-1: dag with external_id %s and inserted_at %s has empty payload, falling back to output", dag.ExternalID, dag.InsertedAt.Time)
+					if opts.IncludePayloads && orch.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-3: orchestrator with external_id %s and inserted_at %s has empty payload, falling back to output", orch.ExternalID, orch.InsertedAt.Time)
 					}
-					outputPayload = dag.Output
+					outputPayload = orch.Output
 				}
 			} else {
-				outputPayload = dag.Output
+				outputPayload = orch.Output
 			}
 
-			inputPayload, exists := externalIdToPayload[dag.ExternalID]
+			inputPayload, exists := externalIdToPayload[orch.ExternalID]
 			if !exists {
-				if opts.IncludePayloads && dag.ExternalID != uuid.Nil {
-					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-2: dag with external_id %s and inserted_at %s has empty payload, falling back to input", dag.ExternalID, dag.InsertedAt.Time)
+				if opts.IncludePayloads && orch.ExternalID != uuid.Nil {
+					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-4: orchestrator with external_id %s and inserted_at %s has empty payload, falling back to input", orch.ExternalID, orch.InsertedAt.Time)
 				}
-				inputPayload = dag.Input
+				inputPayload = orch.Input
 			}
 
-			// TODO !IMPORTANT: verify this is correct
-			retryCount := int(dag.RetryCount)
+			zeroRetryCount := 0
 
 			res = append(res, &WorkflowRunData{
-				TenantID:              dag.TenantID,
-				InsertedAt:            dag.InsertedAt,
-				ExternalID:            dag.ExternalID,
-				WorkflowID:            dag.WorkflowID,
-				DisplayName:           dag.DisplayName,
-				ReadableStatus:        dag.Status,
-				AdditionalMetadata:    dag.AdditionalMetadata,
-				CreatedAt:             dag.InsertedAt,
-				StartedAt:             dag.StartedAt,
-				FinishedAt:            dag.FinishedAt,
-				ErrorMessage:          dag.ErrorMessage.String,
+				TenantID:              orch.TenantID,
+				InsertedAt:            orch.InsertedAt,
+				ExternalID:            orch.ExternalID,
+				WorkflowID:            orch.WorkflowID,
+				DisplayName:           orch.DisplayName,
+				ReadableStatus:        orch.Status,
+				AdditionalMetadata:    orch.AdditionalMetadata,
+				CreatedAt:             orch.InsertedAt,
+				StartedAt:             orch.StartedAt,
+				FinishedAt:            orch.FinishedAt,
+				ErrorMessage:          orch.ErrorMessage.String,
 				Kind:                  sqlcv1.V1RunKindDAG,
-				WorkflowVersionId:     dag.WorkflowVersionID,
-				TaskExternalId:        nil,
-				TaskId:                nil,
-				TaskInsertedAt:        nil,
+				WorkflowVersionId:     orch.WorkflowVersionID,
 				Output:                outputPayload,
 				Input:                 inputPayload,
-				ParentTaskExternalId:  dag.ParentTaskExternalID,
-				RetryCount:            &retryCount,
+				ParentTaskExternalId:  orch.ParentTaskExternalID,
+				RetryCount:            &zeroRetryCount,
 				IsDagOrchestratorTask: true,
-				ID:                    dag.ID,
+				ID:                    orch.ID,
 			})
+
+			orchestratorExtIdToChildExtIds, ok := orchestratorExtIdToChildExtIds[orch.ExternalID]
+
+			if !ok {
+				continue
+			}
+
+			for _, childExternalId := range orchestratorExtIdToChildExtIds {
+				child, ok := tasksToPopulated[childExternalId]
+				if !ok {
+					continue
+				}
+				res = append(res, r.taskToWorkflowRunData(ctx, child, externalIdToPayload, opts.IncludePayloads))
+			}
 		} else {
 			task, ok := tasksToPopulated[row.ExternalID]
 
@@ -1484,61 +1516,63 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				continue
 			}
 
-			retryCount := int(task.RetryCount)
-
-			var outputPayload []byte
-			var exists bool
-
-			if task.OutputEventExternalID != nil {
-				outputPayload, exists = externalIdToPayload[*task.OutputEventExternalID]
-
-				if !exists {
-					if opts.IncludePayloads && task.OutputEventExternalID != nil && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
-						r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-3: task with external_id %s and inserted_at %s has empty payload, falling back to output", task.ExternalID, task.InsertedAt.Time)
-					}
-					outputPayload = task.Output
-				}
-			} else {
-				outputPayload = task.Output
-			}
-
-			inputPayload, exists := externalIdToPayload[task.ExternalID]
-
-			if !exists {
-				if opts.IncludePayloads && task.ExternalID != uuid.Nil {
-					r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns-4: task with external_id %s and inserted_at %s has empty payload, falling back to input", task.ExternalID, task.InsertedAt.Time)
-				}
-				inputPayload = task.Input
-			}
-
-			res = append(res, &WorkflowRunData{
-				TenantID:             task.TenantID,
-				InsertedAt:           task.InsertedAt,
-				ExternalID:           task.ExternalID,
-				WorkflowID:           task.WorkflowID,
-				WorkflowVersionId:    task.WorkflowVersionID,
-				DisplayName:          task.DisplayName,
-				ReadableStatus:       task.Status,
-				AdditionalMetadata:   task.AdditionalMetadata,
-				CreatedAt:            task.InsertedAt,
-				StartedAt:            task.StartedAt,
-				FinishedAt:           task.FinishedAt,
-				ErrorMessage:         task.ErrorMessage.String,
-				Kind:                 sqlcv1.V1RunKindTASK,
-				TaskExternalId:       &task.ExternalID,
-				TaskId:               &task.ID,
-				TaskInsertedAt:       &task.InsertedAt,
-				Output:               outputPayload,
-				Input:                inputPayload,
-				StepId:               &task.StepID,
-				RetryCount:           &retryCount,
-				ParentTaskExternalId: task.ParentTaskExternalID,
-				ID:                   task.ID,
-			})
+			res = append(res, r.taskToWorkflowRunData(ctx, task, externalIdToPayload, opts.IncludePayloads))
 		}
 	}
 
 	return res, int(count), nil
+}
+
+func (r *OLAPRepositoryImpl) taskToWorkflowRunData(ctx context.Context, task *sqlcv1.PopulateTaskRunDataRow, payloads map[uuid.UUID][]byte, includePayloads bool) *WorkflowRunData {
+	var outputPayload []byte
+	var exists bool
+
+	if task.OutputEventExternalID != nil {
+		outputPayload, exists = payloads[*task.OutputEventExternalID]
+		if !exists {
+			if includePayloads && task.Status == sqlcv1.V1ReadableStatusOlapCOMPLETED {
+				r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty output payload", task.ExternalID)
+			}
+			outputPayload = task.Output
+		}
+	} else {
+		outputPayload = task.Output
+	}
+
+	inputPayload, exists := payloads[task.ExternalID]
+	if !exists {
+		if includePayloads && task.ExternalID != uuid.Nil {
+			r.l.Error().Ctx(ctx).Msgf("ListWorkflowRuns: task with external_id %s has empty input payload", task.ExternalID)
+		}
+		inputPayload = task.Input
+	}
+
+	retryCount := int(task.RetryCount)
+
+	return &WorkflowRunData{
+		TenantID:             task.TenantID,
+		InsertedAt:           task.InsertedAt,
+		ExternalID:           task.ExternalID,
+		WorkflowID:           task.WorkflowID,
+		WorkflowVersionId:    task.WorkflowVersionID,
+		DisplayName:          task.DisplayName,
+		ReadableStatus:       task.Status,
+		AdditionalMetadata:   task.AdditionalMetadata,
+		CreatedAt:            task.InsertedAt,
+		StartedAt:            task.StartedAt,
+		FinishedAt:           task.FinishedAt,
+		ErrorMessage:         task.ErrorMessage.String,
+		Kind:                 sqlcv1.V1RunKindTASK,
+		TaskExternalId:       &task.ExternalID,
+		TaskId:               &task.ID,
+		TaskInsertedAt:       &task.InsertedAt,
+		Output:               outputPayload,
+		Input:                inputPayload,
+		StepId:               &task.StepID,
+		RetryCount:           &retryCount,
+		ParentTaskExternalId: task.ParentTaskExternalID,
+		ID:                   task.ID,
+	}
 }
 
 func (r *OLAPRepositoryImpl) ListWorkflowRunExternalIds(ctx context.Context, tenantId uuid.UUID, opts ListWorkflowRunOpts) ([]uuid.UUID, error) {
