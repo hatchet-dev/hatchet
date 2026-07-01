@@ -228,6 +228,14 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		}
 	}
 
+	var payloadWrapper struct {
+		Input json.RawMessage `json:"input"`
+	}
+	workflowInput := "{}"
+	if err := json.Unmarshal([]byte(action.ActionPayload), &payloadWrapper); err == nil && len(payloadWrapper.Input) > 0 {
+		workflowInput = string(payloadWrapper.Input)
+	}
+
 	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error) {
 		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
 			ParentTaskExternalId: externalId,
@@ -235,7 +243,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 			WorkflowName:         workflowName,
 			ActionId:             actionId,
 			ChildIndex:           childIndex,
-			Input:                action.ActionPayload,
+			Input:                workflowInput,
 			DagParentTaskRunIds:  parentTaskRunIds,
 			IsSkipped:            isSkipped,
 			IsCancelled:          isCancelled,
