@@ -75,8 +75,14 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 	}
 
 	commit := func(ctx context.Context) error {
-		// reset statement timeout
+		// reset statement and idle-in-transaction timeouts
 		_, err = tx.Exec(ctx, "SET statement_timeout=30000")
+
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		if err != nil {
 			return err
@@ -90,6 +96,12 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 	}
 
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET idle_in_transaction_session_timeout=%d", timeoutMs))
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -126,7 +138,7 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 	}
 
 	release := func() {
-		// reset statement timeout with a separate ctx; we don't want to use the original ctx here in case it has been cancelled
+		// reset timeouts with a separate ctx; we don't want to use the original ctx here in case it has been cancelled
 		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_, err = conn.Exec(resetCtx, "SET statement_timeout=30000")
@@ -135,10 +147,23 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 			l.Error().Err(err).Msg("failed to reset statement timeout on released connection")
 		}
 
+		_, err = conn.Exec(resetCtx, "SET idle_in_transaction_session_timeout=30000")
+
+		if err != nil {
+			l.Error().Err(err).Msg("failed to reset idle in transaction timeout on released connection")
+		}
+
 		conn.Release()
 	}
 
 	_, err = conn.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
+
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+
+	_, err = conn.Exec(ctx, fmt.Sprintf("SET idle_in_transaction_session_timeout=%d", timeoutMs))
 
 	if err != nil {
 		release()

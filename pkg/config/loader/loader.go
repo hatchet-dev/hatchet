@@ -181,6 +181,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		return err
 	}
