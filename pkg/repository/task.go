@@ -3445,13 +3445,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepIdsInDAGs) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  listutils.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", listErr)
 		}
 
 		for _, match := range additionalMatches {
