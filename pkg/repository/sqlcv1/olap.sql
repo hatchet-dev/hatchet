@@ -1720,6 +1720,37 @@ WHERE
     AND parent_task_external_id = @parentExternalId::uuid
 ;
 
+-- name: GetDagOrchestratorTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@ids::bigint[]) AS id,
+        UNNEST(@insertedAts::timestamptz[]) AS inserted_at
+), parents AS (
+    SELECT *
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND (id, inserted_at) IN (SELECT id, inserted_at FROM inputs)
+), children AS (
+    SELECT *
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND parent_task_external_id IN (
+            SELECT external_id
+            FROM parents
+        )
+)
+
+SELECT id, inserted_at, external_id, parent_task_external_id
+FROM parents
+
+UNION ALL
+
+SELECT id, inserted_at, external_id, parent_task_external_id
+FROM children
+;
+
 -- name: FlattenTasksByExternalIds :many
 WITH lookups AS (
     SELECT

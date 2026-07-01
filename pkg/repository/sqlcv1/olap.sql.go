@@ -769,6 +769,75 @@ func (q *Queries) GetDagDurations(ctx context.Context, db DBTX, arg GetDagDurati
 	return items, nil
 }
 
+const getDagOrchestratorTasks = `-- name: GetDagOrchestratorTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST($1::bigint[]) AS id,
+        UNNEST($2::timestamptz[]) AS inserted_at
+), parents AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, workflow_version_id, additional_metadata, parent_task_external_id
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $3::uuid
+        AND (id, inserted_at) IN (SELECT id, inserted_at FROM inputs)
+), children AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, workflow_version_id, additional_metadata, parent_task_external_id
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $3::uuid
+        AND parent_task_external_id IN (
+            SELECT external_id
+            FROM parents
+        )
+)
+
+SELECT id, inserted_at, external_id, parent_task_external_id
+FROM parents
+
+UNION ALL
+
+SELECT id, inserted_at, external_id, parent_task_external_id
+FROM children
+`
+
+type GetDagOrchestratorTasksParams struct {
+	Ids         []int64              `json:"ids"`
+	Insertedats []pgtype.Timestamptz `json:"insertedats"`
+	Tenantid    uuid.UUID            `json:"tenantid"`
+}
+
+type GetDagOrchestratorTasksRow struct {
+	ID                   int64              `json:"id"`
+	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
+	ExternalID           uuid.UUID          `json:"external_id"`
+	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
+}
+
+func (q *Queries) GetDagOrchestratorTasks(ctx context.Context, db DBTX, arg GetDagOrchestratorTasksParams) ([]*GetDagOrchestratorTasksRow, error) {
+	rows, err := db.Query(ctx, getDagOrchestratorTasks, arg.Ids, arg.Insertedats, arg.Tenantid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*GetDagOrchestratorTasksRow
+	for rows.Next() {
+		var i GetDagOrchestratorTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.InsertedAt,
+			&i.ExternalID,
+			&i.ParentTaskExternalID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEventByExternalId = `-- name: GetEventByExternalId :one
 SELECT e.tenant_id, e.id, e.external_id, e.seen_at, e.key, e.payload, e.additional_metadata, e.scope, e.triggering_webhook_name
 FROM v1_event_lookup_table_olap elt
