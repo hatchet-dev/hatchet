@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -708,6 +709,10 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 	return finalizedRootExternalIds, finalizedDAGToStepCount, nil
 }
 
+func createTaskUniqueKey(t TaskIdInsertedAtRetryCount) string {
+	return fmt.Sprintf("%d:%d", t.Id, t.RetryCount)
+}
+
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error) {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTasks")
 	defer span.End()
@@ -736,7 +741,10 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	defer rollback()
 
-	taskIdRetryCounts = uniqueSet(taskIdRetryCounts)
+	taskIdRetryCounts = listutils.UniqBy(
+		taskIdRetryCounts,
+		createTaskUniqueKey,
+	)
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
@@ -864,7 +872,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 	}
 
-	tasks = uniqueSet(tasks)
+	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
 
 	retriedTasks := make([]RetriedTask, 0)
 
@@ -1164,7 +1172,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 
 func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
-	tasks = uniqueSet(tasks)
+	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
@@ -3437,13 +3445,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepIdsInDAGs) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
-			Stepids:  sqlchelpers.UniqueSet(stepIdsInDAGs),
+		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
+			Stepids:  listutils.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", listErr)
 		}
 
 		for _, match := range additionalMatches {
@@ -3781,21 +3789,6 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 			Kinds:           kinds,
 		},
 	)
-}
-
-func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedAtRetryCount {
-	unique := make(map[string]struct{})
-	res := make([]TaskIdInsertedAtRetryCount, 0)
-
-	for _, task := range taskIdRetryCounts {
-		k := fmt.Sprintf("%d:%d", task.Id, task.RetryCount)
-		if _, ok := unique[k]; !ok {
-			unique[k] = struct{}{}
-			res = append(res, task)
-		}
-	}
-
-	return res
 }
 
 func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {

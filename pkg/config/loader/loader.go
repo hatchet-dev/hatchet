@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -73,6 +74,16 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 
 	_, err := loaderutils.LoadConfigFromViper(f, configFile, files...)
 	return configFile, err
+}
+
+func parseRetentionDuration(name, value string) (time.Duration, error) {
+	retentionPeriod, err := time.ParseDuration(value)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s %s: %w", name, value, err)
+	}
+
+	return retentionPeriod, nil
 }
 
 type ConfigLoader struct {
@@ -180,6 +191,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		return err
 	}
@@ -313,10 +329,22 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+	_, err = parseRetentionDuration("default tenant retention period", scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+		return nil, err
+	}
+
+	corePartitionRetention, err := parseRetentionDuration("core partition retention", scf.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
+	}
+
+	olapPartitionRetention, err := parseRetentionDuration("OLAP partition retention", scf.Runtime.Limits.OLAPPartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
 	}
 
 	taskLimits := repov1.TaskOperationLimits{
@@ -356,8 +384,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ddlPool,
 		&l,
 		cf.CacheDuration,
-		retentionPeriod,
-		retentionPeriod,
+		corePartitionRetention,
+		olapPartitionRetention,
 		scf.Runtime.MaxInternalRetryCount,
 		taskLimits,
 		payloadStoreOpts,
@@ -730,8 +758,15 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
 
+	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
+	}
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
@@ -742,6 +777,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
+		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
 		promGate,
 	)
 
@@ -754,9 +790,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
+		cleanupConcurrencyOutbox()
+
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
@@ -1055,4 +1094,25 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
+
+	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
+	// method which should be used instead of the non-scoped versions.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(
+		ctx,
+		pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithDefaultExpiration(24*time.Hour),
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err) // nolint:govet
+	}
+
+	return concurrencyOutbox, cancel, nil
 }
