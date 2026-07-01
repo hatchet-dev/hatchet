@@ -594,6 +594,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	auth := server.AuthConfig{
 		RestrictedEmailDomains: getStrArr(cf.Auth.RestrictedEmailDomains),
 		ConfigFile:             cf.Auth,
+		NoAuthEnabled:          cf.Auth.NoAuthEnabled,
+		NoAuthTenantID:         dc.Seed.DefaultTenantID,
+		NoAuthUserEmail:        dc.Seed.AdminEmail,
+	}
+
+	if auth.NoAuthEnabled {
+		l.Warn().Msg("SERVER_AUTH_NO_AUTH_ENABLED is set: authentication is DISABLED and all requests run as the seed default tenant and admin user. Never enable this in production.")
 	}
 
 	if cf.Auth.Google.Enabled {
