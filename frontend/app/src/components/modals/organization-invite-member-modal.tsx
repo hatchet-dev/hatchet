@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import useControlPlane from '@/hooks/use-control-plane';
 import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
@@ -47,6 +48,7 @@ export const OrganizationInviteMemberModal = ({
   onCreated,
 }: OrganizationInviteMemberModalProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const { handleApiError } = useApiError({
     setFieldErrors,
@@ -62,7 +64,9 @@ export const OrganizationInviteMemberModal = ({
     resolver: zodResolver(schema),
     defaultValues: {
       email: '',
-      role: OrganizationMemberRoleType.MEMBER,
+      role: isControlPlaneEnabled
+        ? OrganizationMemberRoleType.MEMBER
+        : OrganizationMemberRoleType.OWNER,
     },
   });
 
@@ -139,32 +143,34 @@ export const OrganizationInviteMemberModal = ({
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
-            <Controller
-              control={control}
-              name="role"
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={OrganizationMemberRoleType.MEMBER}>
-                      Member
-                    </SelectItem>
-                    <SelectItem value={OrganizationMemberRoleType.OWNER}>
-                      Owner
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <p className="text-sm text-muted-foreground">
-              Members can access tenants based on their tags. Owners have full
-              access to all tenants.
-            </p>
-          </div>
+          {isControlPlaneEnabled && (
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Controller
+                control={control}
+                name="role"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={OrganizationMemberRoleType.MEMBER}>
+                        Member
+                      </SelectItem>
+                      <SelectItem value={OrganizationMemberRoleType.OWNER}>
+                        Owner
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-sm text-muted-foreground">
+                Members can access tenants based on their tags. Owners have full
+                access to all tenants.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
