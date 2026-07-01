@@ -1,3 +1,5 @@
+-- +goose NO TRANSACTION
+
 -- +goose Up
 -- +goose StatementBegin
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepExpression_stepId_idx" ON "StepExpression" ("stepId");
