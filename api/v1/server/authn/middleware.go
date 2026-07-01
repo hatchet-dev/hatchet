@@ -60,6 +60,10 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
+	if a.config.Auth.NoAuthEnabled {
+		return a.handleNoAuthBypass(c)
+	}
+
 	var bearerErr error
 
 	if r.Security.BearerAuth() {
@@ -134,6 +138,33 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 
 	// set unauthenticated session in context
 	c.Set("session", session)
+
+	return nil
+}
+
+func (a *AuthN) handleNoAuthBypass(c echo.Context) error {
+	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
+
+	ctx := c.Request().Context()
+
+	user, err := a.config.V1.User().GetUserByEmail(ctx, a.config.Auth.NoAuthUserEmail)
+
+	if err != nil {
+		a.l.Error().Ctx(ctx).Err(err).Msg("no-auth mode: could not resolve default user")
+
+		return forbidden
+	}
+
+	c.Set("user", user)
+	c.Set("auth_strategy", "noauth")
+
+	ctx = context.WithValue(ctx, analytics.UserIDKey, user.ID)
+	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
+
+	span := trace.SpanFromContext(ctx)
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "user.id", Value: user.ID})
+
+	c.SetRequest(c.Request().WithContext(ctx))
 
 	return nil
 }

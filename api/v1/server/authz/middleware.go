@@ -51,6 +51,8 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 	var err error
 
 	switch c.Get("auth_strategy").(string) {
+	case "noauth":
+		err = a.validateUserTenantPermissions(c, r)
 	case "cookie":
 		err = a.handleCookieAuth(c, r)
 	case "bearer":

@@ -20,6 +20,7 @@ export default {
     title: "Managing Hatchet",
   },
   "configuration-options": "Engine Configuration Options",
+  "local-no-auth": "Local No-Auth Mode",
   "using-pgbouncer": "Using PgBouncer",
   "prometheus-metrics": {
     title: "Prometheus Metrics",

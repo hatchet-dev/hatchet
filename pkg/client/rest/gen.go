@@ -422,6 +422,9 @@ type APIMeta struct {
 	AllowSignup *bool        `json:"allowSignup,omitempty"`
 	Auth        *APIMetaAuth `json:"auth,omitempty"`
 
+	// NoAuthEnabled whether or not authentication is disabled (local no-auth mode) on this instance
+	NoAuthEnabled *bool `json:"noAuthEnabled,omitempty"`
+
 	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`

@@ -33,6 +33,10 @@ APIMeta:
       type: boolean
       description: whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
       example: false
+    noAuthEnabled:
+      type: boolean
+      description: whether or not authentication is disabled (local no-auth mode) on this instance
+      example: false
 
 APIMetaAuth:
   type: object

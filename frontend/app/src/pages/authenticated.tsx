@@ -1,6 +1,7 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { NoAuthBanner } from '@/components/layout/no-auth-banner';
 import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
@@ -41,6 +42,7 @@ import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -81,6 +83,7 @@ export async function loader(_args: { request: Request }) {
 
 function AuthenticatedInner() {
   const { tenant, organizationId } = useTenantDetails();
+  const { meta } = useApiMeta();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -549,6 +552,11 @@ function AuthenticatedInner() {
     <PostHogProvider user={currentUser}>
       <SupportChat user={currentUser}>
         <AppLayout
+          banner={
+            meta && 'noAuthEnabled' in meta && meta.noAuthEnabled ? (
+              <NoAuthBanner />
+            ) : undefined
+          }
           header={
             <TopNav
               user={currentUser}
