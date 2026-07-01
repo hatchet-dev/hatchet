@@ -595,7 +595,7 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 
 	for _, msg := range msgs {
 		switch msg.Operation {
-		case "INSERT", "UPDATE":
+		case "INSERT":
 			if currentRunningSlot, exists := sq.running.get(msg.TaskId); exists {
 				// compare the current running slot's retry count with the message's retry count; the greater wins
 				if currentRunningSlot.taskRetryCount < msg.TaskRetryCount {
@@ -603,11 +603,7 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 					sq.running.delete(msg.TaskId)
 
 					// place the new slot in the queued index, so it goes through the regular promotion pipeline
-					if !msg.IsFilled {
-						sq.queued.insert(walMessageToSlot(msg))
-					} else {
-						sq.running.insert(walMessageToSlot(msg))
-					}
+					sq.queued.insert(walMessageToSlot(msg))
 				} else if currentRunningSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
@@ -622,6 +618,19 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 				}
 			} else {
 				sq.queued.insert(walMessageToSlot(msg))
+			}
+		case "UPDATE":
+			// UPDATE never represents a duplicate row - it's the same physical v1_concurrency_slot row
+			// being resynced in place (a retry-reset: task_retry_count/schedule_timeout_at/priority
+			// changed, is_filled reset to FALSE). Unlike INSERT, nothing is ever superseded/cancelled
+			// here - just move the slot into whichever index matches msg.IsFilled.
+			newSlot := walMessageToSlot(msg)
+			if msg.IsFilled {
+				sq.queued.delete(msg.TaskId)
+				sq.running.insert(newSlot)
+			} else {
+				sq.running.delete(msg.TaskId)
+				sq.queued.insert(newSlot)
 			}
 		case "DELETE":
 			// note: since we're processing a DELETE, it's already been removed from the database, we're just
