@@ -802,6 +802,7 @@ WITH tenant_step_concurrencies AS (
     FROM v1_step_concurrency sc
     WHERE sc.tenant_id = @tenantId::UUID
         AND sc.is_active = TRUE
+        AND sc.last_active_at < NOW() - INTERVAL '1 day'
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
             WHERE

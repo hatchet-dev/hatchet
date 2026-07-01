@@ -115,6 +115,7 @@ WITH tenant_step_concurrencies AS (
     FROM v1_step_concurrency sc
     WHERE sc.tenant_id = $1::UUID
         AND sc.is_active = TRUE
+        AND sc.last_active_at < NOW() - INTERVAL '1 day'
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
             WHERE
@@ -144,7 +145,7 @@ func (q *Queries) DeactivateStaleStepConcurrency(ctx context.Context, db DBTX, t
 
 const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
 FROM
     v1_step_concurrency sc
 WHERE
@@ -167,6 +168,7 @@ func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg G
 		&i.WorkflowVersionID,
 		&i.StepID,
 		&i.IsActive,
+		&i.LastActiveAt,
 		&i.Strategy,
 		&i.Expression,
 		&i.TenantID,
@@ -220,7 +222,7 @@ func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX
 
 const listActiveConcurrencyStrategies = `-- name: ListActiveConcurrencyStrategies :many
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
 FROM
     v1_step_concurrency sc
 JOIN
@@ -246,6 +248,7 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsActive,
+			&i.LastActiveAt,
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
@@ -341,7 +344,7 @@ func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, 
 
 const listConcurrencyStrategiesByStepId = `-- name: ListConcurrencyStrategiesByStepId :many
 SELECT
-    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 FROM
     v1_step_concurrency
 WHERE
@@ -370,6 +373,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsActive,
+			&i.LastActiveAt,
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
@@ -386,7 +390,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 }
 
 const listConcurrencyStrategiesByWorkflowVersionId = `-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.strategy, c.expression, c.tenant_id, c.max_concurrency, s."readableId" AS step_readable_id
+SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, s."readableId" AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
 WHERE
@@ -416,6 +420,7 @@ type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
 	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
 	StepID            uuid.UUID             `json:"step_id"`
 	IsActive          bool                  `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
 	Strategy          V1ConcurrencyStrategy `json:"strategy"`
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`
@@ -439,6 +444,7 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsActive,
+			&i.LastActiveAt,
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
