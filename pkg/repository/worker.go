@@ -508,7 +508,7 @@ func hashActions(actions []string) []byte {
 }
 
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
-	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
+	preWorker, postWorker := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
 	if err := preWorker(); err != nil {
 		return nil, err
@@ -521,7 +521,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		slots += units
 	}
 
-	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
 
 	if err := preWorkerSlot(); err != nil {
 		return nil, err

@@ -39,7 +39,7 @@ type TenantLimitRepository interface {
 
 	DefaultLimits() []Limit
 
-	Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
+	Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func())
 
 	Stop()
 }
@@ -150,11 +150,19 @@ func (t *tenantLimitRepository) GetLimits(ctx context.Context, tenantId uuid.UUI
 }
 
 func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+	return t.canCreate(ctx, nil, resource, tenantId, numberOfResources)
+}
+
+func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	if !t.enforceLimits {
 		return true, 0, nil
 	}
 
-	limit, err := t.queries.GetTenantResourceLimit(ctx, t.pool, sqlcv1.GetTenantResourceLimitParams{
+	if dbtx == nil {
+		dbtx = t.pool
+	}
+
+	limit, err := t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
 		Tenantid: tenantId,
 		Resource: sqlcv1.NullLimitResource{
 			LimitResource: resource,
@@ -165,7 +173,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Ctx(ctx).Msgf("no %s tenant limit found, creating default limit", string(resource))
 
-		err = t.UpdateLimits(ctx, tenantId, t.DefaultLimits())
+		err = t.updateLimits(ctx, dbtx, tenantId, t.DefaultLimits())
 
 		if err != nil {
 			return false, 0, err
@@ -180,7 +188,7 @@ func (t *tenantLimitRepository) CanCreate(ctx context.Context, resource sqlcv1.L
 
 	// patch custom worker limits aggregate methods
 	if resource == sqlcv1.LimitResourceWORKER {
-		count, err := t.queries.CountTenantWorkers(ctx, t.pool, tenantId)
+		count, err := t.queries.CountTenantWorkers(ctx, dbtx, tenantId)
 		value = int32(count) // nolint: gosec
 
 		if err != nil {
@@ -222,7 +230,7 @@ func (t *tenantLimitRepository) saveMeter(ctx context.Context, resource sqlcv1.L
 	return r, nil
 }
 
-func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
+func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
 	var key = fmt.Sprintf("%s:%s", resource, tenantId)
 
 	var canCreate *bool
@@ -234,7 +242,7 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sq
 	}
 
 	if canCreate == nil {
-		c, p, err := t.CanCreate(ctx, resource, tenantId, numberOfResources)
+		c, p, err := t.canCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 		if err != nil {
 			return false, 0, fmt.Errorf("could not check tenant limit: %w", err)
@@ -251,9 +259,9 @@ func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, resource sq
 	return *canCreate, percent, nil
 }
 
-func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
+func (t *tenantLimitRepository) Meter(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (precommit func() error, postcommit func()) {
 	return func() error {
-			canCreate, _, err := t.cachedCanCreate(ctx, resource, tenantId, numberOfResources)
+			canCreate, _, err := t.cachedCanCreate(ctx, dbtx, resource, tenantId, numberOfResources)
 
 			if err != nil {
 				return fmt.Errorf("could not check tenant limit: %w", err)
@@ -265,14 +273,17 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.Limit
 
 			return nil
 		}, func() {
-			_, percent, err := t.cachedCanCreate(ctx, resource, tenantId, numberOfResources)
+			postCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+			defer cancel()
+
+			_, percent, err := t.cachedCanCreate(postCtx, nil, resource, tenantId, numberOfResources)
 
 			if err != nil {
-				t.l.Error().Ctx(ctx).Err(err).Msg("could not check tenant limit")
+				t.l.Error().Ctx(postCtx).Err(err).Msg("could not check tenant limit")
 				return
 			}
 
-			limit, err := t.saveMeter(ctx, resource, tenantId, numberOfResources)
+			limit, err := t.saveMeter(postCtx, resource, tenantId, numberOfResources)
 
 			if limit != nil && (percent <= 50 || percent >= 100) {
 				var key = fmt.Sprintf("%s:%s", resource, tenantId)
@@ -280,14 +291,22 @@ func (t *tenantLimitRepository) Meter(ctx context.Context, resource sqlcv1.Limit
 			}
 
 			if err != nil {
-				t.l.Error().Ctx(ctx).Err(err).Msg("could not meter resource")
+				t.l.Error().Ctx(postCtx).Err(err).Msg("could not meter resource")
 			}
 		}
 }
 
 func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.UUID, limits []Limit) error {
+	return t.updateLimits(ctx, nil, tenantId, limits)
+}
+
+func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
 	if len(limits) == 0 {
 		return nil
+	}
+
+	if dbtx == nil {
+		dbtx = t.pool
 	}
 
 	resources := make([]string, len(limits))
@@ -312,7 +331,7 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.
 		}
 	}
 
-	return t.queries.UpsertTenantResourceLimits(ctx, t.pool, sqlcv1.UpsertTenantResourceLimitsParams{
+	return t.queries.UpsertTenantResourceLimits(ctx, dbtx, sqlcv1.UpsertTenantResourceLimitsParams{
 		Tenantid:          tenantId,
 		Resources:         resources,
 		Limitvalues:       limitValues,
