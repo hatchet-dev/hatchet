@@ -1305,6 +1305,11 @@ export interface APIMeta {
    * @example false
    */
   prometheusServerEnabled?: boolean;
+  /**
+   * whether or not authentication is disabled (local no-auth mode) on this instance
+   * @example false
+   */
+  noAuthEnabled?: boolean;
 }
 
 export interface APIMetaIntegration {

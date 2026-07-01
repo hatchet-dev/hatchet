@@ -40,7 +40,10 @@ var startCmd = &cobra.Command{
   hatchet server start --pull-policy never
 
   # Only pull images if they are not already available locally
-  hatchet server start --pull-policy missing`,
+  hatchet server start --pull-policy missing
+
+  # Start server with authentication disabled (local development only)
+  hatchet server start --no-auth-mode`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Get flag values
 		dashboardPort, _ := cmd.Flags().GetInt("dashboard-port")
@@ -49,8 +52,13 @@ var startCmd = &cobra.Command{
 		profileName, _ := cmd.Flags().GetString("profile")
 		tag, _ := cmd.Flags().GetString("tag")
 		pullPolicy, _ := cmd.Flags().GetString("pull-policy")
+		noAuthMode, _ := cmd.Flags().GetBool("no-auth-mode")
 
 		opts := []docker.HatchetLiteOpt{}
+
+		if noAuthMode {
+			opts = append(opts, docker.WithNoAuthMode(true))
+		}
 
 		if dashboardPort != 0 {
 			opts = append(opts, docker.WithOverrideDashboardPort(dashboardPort))
@@ -77,8 +85,13 @@ var startCmd = &cobra.Command{
 			cli.Logger.Fatalf("%v", err)
 		}
 
+		additionalMessage := ""
+		if noAuthMode {
+			additionalMessage = "No-auth mode is enabled: authentication is disabled. Use for local development only."
+		}
+
 		// Render styled output
-		fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, ""))
+		fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, additionalMessage))
 	},
 }
 
@@ -206,6 +219,7 @@ func init() {
 	startCmd.Flags().StringP("profile", "n", "local", "Name for the local profile (default: local)")
 	startCmd.Flags().StringP("tag", "t", "latest", `Image tag for the hatchet-lite container (e.g. "v0.83.1")`)
 	startCmd.Flags().String("pull-policy", "always", `Image pull policy: "always", "missing", or "never"`)
+	startCmd.Flags().Bool("no-auth-mode", false, "Disable authentication for the local server (local development only, never use in production)")
 
 	stopCmd.Flags().StringP("project-name", "p", "", "Docker project name for containers (default: hatchet-cli)")
 }

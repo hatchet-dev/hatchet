@@ -65,6 +65,7 @@ type HatchetLiteOpts struct {
 	overrideGrpcPort      int
 	imageTag              string
 	pullPolicy            pullPolicy
+	noAuthEnabled         bool
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
@@ -118,6 +119,14 @@ func WithCreateTokenCallback(cb func(string)) HatchetLiteOpt {
 func WithPortsCallback(cb func(dashboardPort, grpcPort int)) HatchetLiteOpt {
 	return func(o *HatchetLiteOpts) error {
 		o.portsCb = cb
+		return nil
+	}
+}
+
+// WithNoAuthMode disables authentication on the local server (local development only).
+func WithNoAuthMode(enabled bool) HatchetLiteOpt {
+	return func(o *HatchetLiteOpts) error {
+		o.noAuthEnabled = enabled
 		return nil
 	}
 }
@@ -417,21 +426,27 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 	labels["com.docker.compose.depends_on"] = opts.postgresName
 	labels["com.docker.compose.image"] = imageInspect.ID
 
+	env := []string{
+		"DATABASE_URL=postgresql://hatchet:hatchet@" + opts.postgresName + ":5432/hatchet?sslmode=disable",
+		"SERVER_AUTH_COOKIE_DOMAIN=localhost",
+		"SERVER_AUTH_COOKIE_INSECURE=t",
+		"SERVER_GRPC_BIND_ADDRESS=0.0.0.0",
+		"SERVER_GRPC_INSECURE=t",
+		"SERVER_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", grpcPort),
+		"SERVER_GRPC_PORT=" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
+		"SERVER_URL=http://localhost:" + fmt.Sprintf("%d", dashboardPort),
+		"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
+		"SERVER_DEFAULT_ENGINE_VERSION=V1",
+		"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
+	}
+
+	if opts.noAuthEnabled {
+		env = append(env, "SERVER_AUTH_NO_AUTH_ENABLED=t")
+	}
+
 	containerConfig := &container.Config{
-		Image: imageName,
-		Env: []string{
-			"DATABASE_URL=postgresql://hatchet:hatchet@" + opts.postgresName + ":5432/hatchet?sslmode=disable",
-			"SERVER_AUTH_COOKIE_DOMAIN=localhost",
-			"SERVER_AUTH_COOKIE_INSECURE=t",
-			"SERVER_GRPC_BIND_ADDRESS=0.0.0.0",
-			"SERVER_GRPC_INSECURE=t",
-			"SERVER_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", grpcPort),
-			"SERVER_GRPC_PORT=" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
-			"SERVER_URL=http://localhost:" + fmt.Sprintf("%d", dashboardPort),
-			"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
-			"SERVER_DEFAULT_ENGINE_VERSION=V1",
-			"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
-		},
+		Image:        imageName,
+		Env:          env,
 		ExposedPorts: exposedPorts,
 		Labels:       labels,
 		Healthcheck: &container.HealthConfig{

@@ -595,7 +595,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		RestrictedEmailDomains: getStrArr(cf.Auth.RestrictedEmailDomains),
 		ConfigFile:             cf.Auth,
 		NoAuthEnabled:          cf.Auth.NoAuthEnabled,
-		NoAuthTenantID:         dc.Seed.DefaultTenantID,
 		NoAuthUserEmail:        dc.Seed.AdminEmail,
 	}
 

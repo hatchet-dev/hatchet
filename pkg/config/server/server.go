@@ -622,10 +622,9 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// NoAuthEnabled, when true, disables authentication and resolves every request to
-	// NoAuthTenantID / NoAuthUserEmail. Only honored when CustomAuthenticator is nil.
+	// NoAuthEnabled, when true, disables API/UI authentication and resolves every request to
+	// NoAuthUserEmail. Only honored when CustomAuthenticator is nil.
 	NoAuthEnabled   bool
-	NoAuthTenantID  string
 	NoAuthUserEmail string
 
 	// Operations listed here bypass the tenant RBAC check. Use this for
