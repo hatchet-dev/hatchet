@@ -486,6 +486,8 @@ CREATE TABLE "StepExpression" (
     CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key","stepId","kind")
 );
 
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepExpression_stepId_idx" ON "StepExpression" ("stepId");
+
 -- CreateTable
 CREATE TABLE "StepRateLimit" (
     "units" INTEGER NOT NULL,

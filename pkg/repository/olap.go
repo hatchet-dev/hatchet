@@ -897,26 +897,19 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	var (
-		rows     []*sqlcv1.ListTasksOlapRow
-		count    int64
-		countErr error
+		rows  []*sqlcv1.ListTasksOlapRow
+		count int64
 	)
 
-	// A pgx.Tx must not be used concurrently, so we run the count query against the pool.
-	g, gctx := errgroup.WithContext(ctx)
+	rows, err = r.queries.ListTasksOlap(ctx, tx, params)
 
-	g.Go(func() error {
-		var err error
-		rows, err = r.queries.ListTasksOlap(gctx, tx, params)
-		return err
-	})
+	if err != nil {
+		return nil, 0, err
+	}
 
-	g.Go(func() error {
-		count, countErr = r.queries.CountTasks(gctx, r.readPool, countParams)
-		return nil
-	})
+	count, err = r.queries.CountTasks(ctx, tx, countParams)
 
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -987,10 +980,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 			output,
 			int64(0),
 		})
-	}
-
-	if countErr != nil {
-		count = int64(len(tasksWithData))
 	}
 
 	if err := commit(ctx); err != nil {
@@ -1267,17 +1256,14 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	var (
 		workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow
 		count          int64
-		countErr       error
 	)
 
-	// A pgx.Tx must not be used concurrently; run count on the pool in the background while we do tx work.
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		count, countErr = r.queries.CountWorkflowRuns(gctx, r.readPool, countParams)
-		return nil
-	})
-
 	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err = r.queries.CountWorkflowRuns(ctx, tx, countParams)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1356,16 +1342,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	if err := commit(ctx); err != nil {
 		return nil, 0, err
-	}
-
-	// Join the count goroutine before returning.
-	if err := g.Wait(); err != nil {
-		return nil, 0, err
-	}
-
-	if countErr != nil {
-		r.l.Error().Ctx(ctx).Msgf("error counting workflow runs: %v", countErr)
-		count = int64(len(workflowRunIds))
 	}
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)

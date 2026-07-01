@@ -1,4 +1,5 @@
 import * as ts from 'typescript';
+import type { ParsedTask } from './workflow-parser';
 
 export interface WorkflowFactoryAnnotation {
   functionName: string;
@@ -12,6 +13,14 @@ export interface WorkflowFactoryAnnotation {
    * Sourced from `@hatchet-task-parents <prop>`. Defaults to `'parents'`.
    */
   taskParentsProp: string;
+  /** 0-based line range of the factory's definition. */
+  range?: { startLine: number; endLine: number };
+  /**
+   * Tasks of the workflow built *inside* the factory body (when the factory
+   * itself defines the DAG rather than the caller). Populated by the annotation
+   * cache and used to render the DAG on a usage of the factory.
+   */
+  tasks?: ParsedTask[];
 }
 
 /**
@@ -49,13 +58,13 @@ export function scanFileForWorkflowAnnotations(
     // function foo(...) {}  /  export function foo(...) {}
     if (ts.isFunctionDeclaration(node) && node.name) {
       const ann = tryExtract(node, node.name.text);
-      if (ann) results.push(ann);
+      if (ann) results.push({ ...ann, range: rangeOf(node, sourceFile) });
     }
 
     // const foo = (...) => {}  /  const foo = function(...) {}
     if (ts.isVariableStatement(node)) {
       const ann = tryExtractFromVariableStatement(node);
-      if (ann) results.push(ann);
+      if (ann) results.push({ ...ann, range: rangeOf(node, sourceFile) });
     }
 
     ts.forEachChild(node, visit);
@@ -63,6 +72,21 @@ export function scanFileForWorkflowAnnotations(
 
   visit(sourceFile);
   return results;
+}
+
+/** Whether `node` carries a local `@hatchet-workflow` JSDoc tag. */
+export function hasHatchetWorkflowTag(node: ts.Node): boolean {
+  return ts.getJSDocTags(node).some((t) => t.tagName.text === 'hatchet-workflow');
+}
+
+function rangeOf(
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+): { startLine: number; endLine: number } {
+  return {
+    startLine: sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line,
+    endLine: sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line,
+  };
 }
 
 function tryExtract(node: ts.Node, functionName: string): WorkflowFactoryAnnotation | undefined {

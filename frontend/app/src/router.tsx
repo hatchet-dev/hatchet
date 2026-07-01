@@ -195,6 +195,15 @@ const onboardingCreateOrganizationRoute = createRoute({
   ),
 });
 
+const onboardingNoTenantsRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: 'onboarding/no-tenants',
+  component: lazyRouteComponent(
+    () => import('./pages/onboarding/no-tenants'),
+    'default',
+  ),
+});
+
 const onboardingInvitesRoute = createRoute({
   getParentRoute: () => authenticatedRoute,
   path: 'onboarding/invites',
@@ -903,6 +912,7 @@ const routeTree = rootRoute.addChildren([
   authenticatedRoute.addChildren([
     onboardingCreateTenantRoute,
     onboardingCreateOrganizationRoute,
+    onboardingNoTenantsRoute,
     onboardingInvitesRoute,
     redeemOffersRoute,
     organizationsRoute.addChildren([
@@ -948,6 +958,7 @@ export const appRoutes = {
   authenticatedRoute,
   onboardingCreateTenantRoute,
   onboardingCreateOrganizationRoute,
+  onboardingNoTenantsRoute,
   onboardingInvitesRoute,
   tenantRoute,
   tenantEventsRoute,

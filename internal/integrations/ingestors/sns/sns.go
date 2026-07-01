@@ -65,6 +65,33 @@ func (payload *Payload) BuildSignature() []byte {
 	return builtSignature.Bytes()
 }
 
+// validateSNSURL ensures that a URL provided in an SNS payload points to a
+// legitimate AWS SNS endpoint over HTTPS before it is used to make an outbound
+// HTTP request. This prevents Server-Side Request Forgery (SSRF) via fields
+// such as UnsubscribeURL, which are not covered by the signature in
+// BuildSignature() and can therefore be tampered with on an otherwise valid
+// AWS-signed message.
+func validateSNSURL(rawURL string) error {
+	if rawURL == "" {
+		return errors.New("URL is empty")
+	}
+
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return err
+	}
+
+	if parsedURL.Scheme != "https" {
+		return fmt.Errorf("url should be using https")
+	}
+
+	if !hostPattern.Match([]byte(parsedURL.Host)) {
+		return fmt.Errorf("url is located on an invalid domain")
+	}
+
+	return nil
+}
+
 // SignatureAlgorithm returns properly Algorithm for AWS Signature Version.
 func (payload *Payload) SignatureAlgorithm() x509.SignatureAlgorithm {
 	if payload.SignatureVersion == "2" {
@@ -125,6 +152,10 @@ func (payload *Payload) Subscribe() (ConfirmSubscriptionResponse, error) {
 		return response, errors.New("Payload does not have a SubscribeURL!")
 	}
 
+	if err := validateSNSURL(payload.SubscribeURL); err != nil {
+		return response, err
+	}
+
 	resp, err := http.Get(payload.SubscribeURL)
 	if err != nil {
 		return response, err
@@ -147,6 +178,11 @@ func (payload *Payload) Subscribe() (ConfirmSubscriptionResponse, error) {
 // Unsubscribe will use the UnsubscribeURL in a payload to confirm a subscription and return a UnsubscribeResponse
 func (payload *Payload) Unsubscribe() (UnsubscribeResponse, error) {
 	var response UnsubscribeResponse
+
+	if err := validateSNSURL(payload.UnsubscribeURL); err != nil {
+		return response, err
+	}
+
 	resp, err := http.Get(payload.UnsubscribeURL)
 	if err != nil {
 		return response, err

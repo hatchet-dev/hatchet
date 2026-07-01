@@ -503,9 +503,17 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
 	defer span.End()
 
+	itemCount := assignResultsItemCount(r)
+
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		telemetry.AttributeKV{Key: "batch.item_count", Value: itemCount},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.schedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.rateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.rateLimitedToMove)},
 	)
 
 	begin := time.Now()
@@ -617,6 +625,15 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	chWriteDuration := time.Since(checkpoint)
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "duration.write_ms", Value: writeDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.nack_ms", Value: nackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.ack_ms", Value: ackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.channel_write_ms", Value: chWriteDuration.Milliseconds()},
+	)
+
 	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
@@ -628,7 +645,23 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			"ack_duration", ackDuration,
 		).Dur(
 			"ch_write_duration", chWriteDuration,
-		).Msgf("flushing %d items to database took longer than 100ms", len(r.assigned)+len(r.unassigned)+len(r.schedulingTimedOut))
+		).Int(
+			"item_count", itemCount,
+		).Int(
+			"assigned", len(r.assigned),
+		).Int(
+			"unassigned", len(r.unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.schedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.rateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.rateLimitedToMove),
+		).Int(
+			"succeeded", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
 	return len(succeeded) + len(r.schedulingTimedOut)
@@ -707,9 +740,17 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	ctx, span := telemetry.NewSpan(ctx, "Queuer.flushToDatabaseOptimistic")
 	defer span.End()
 
+	itemCount := assignResultsItemCount(r)
+
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		telemetry.AttributeKV{Key: "batch.item_count", Value: itemCount},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.schedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.rateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.rateLimitedToMove)},
 	)
 
 	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
@@ -822,6 +863,16 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	chWriteDuration := time.Since(checkpoint)
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "result.succeeded_local", Value: len(succeededLocal)},
+		telemetry.AttributeKV{Key: "duration.write_ms", Value: writeDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.nack_ms", Value: nackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.ack_ms", Value: ackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.channel_write_ms", Value: chWriteDuration.Milliseconds()},
+	)
+
 	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
@@ -833,7 +884,25 @@ func (q *Queuer) flushToDatabaseOptimistic(
 			"ack_duration", ackDuration,
 		).Dur(
 			"ch_write_duration", chWriteDuration,
-		).Msgf("flushing %d items to database took longer than 100ms", len(r.assigned)+len(r.unassigned)+len(r.schedulingTimedOut))
+		).Int(
+			"item_count", itemCount,
+		).Int(
+			"assigned", len(r.assigned),
+		).Int(
+			"unassigned", len(r.unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.schedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.rateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.rateLimitedToMove),
+		).Int(
+			"succeeded", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Int(
+			"succeeded_local", len(succeededLocal),
+		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
 	return succeededLocal, &QueueResults{
@@ -843,4 +912,8 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
 	}, nil
+}
+
+func assignResultsItemCount(r *assignResults) int {
+	return len(r.assigned) + len(r.unassigned) + len(r.schedulingTimedOut) + len(r.rateLimited) + len(r.rateLimitedToMove)
 }

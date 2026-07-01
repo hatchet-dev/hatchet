@@ -665,10 +665,11 @@ export class Api<
    * @tags Durable Tasks
    * @name V1DurableTaskEventLogList
    * @summary List durable event log
-   * @request GET:/api/v1/stable/durable-tasks/{durable-task}
+   * @request GET:/api/v1/stable/tenants/{tenant}/durable-tasks/{durable-task}
    * @secure
    */
   v1DurableTaskEventLogList = Object.assign((
+    tenant: string,
     durableTask: string,
     query?: {
       /**
@@ -685,14 +686,14 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<V1DurableEventLogList, APIErrors>({
-      path: `/api/v1/stable/durable-tasks/${durableTask}`,
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/${durableTask}`,
       method: "GET",
       query: query,
       secure: true,
       format: "json",
       ...params,
-      xResources: ["durable-task"],
-    }), { resources: new Set<string>(["durable-task"]) });
+      xResources: ["tenant", "durable-task"],
+    }), { resources: new Set<string>(["tenant", "durable-task"]) });
   /**
    * @description Get a workflow run and its metadata to display on the "detail" page
    *

@@ -236,17 +236,20 @@ def _read_sdk_version(lang: str) -> str:
     """Read the published SDK version from the source package file."""
     if lang == "python":
         path = os.path.join(ROOT, "sdks", "python", "pyproject.toml")
-        for line in open(path):
-            if line.startswith("version = "):
-                return line.split('"')[1].strip()
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("version = "):
+                    return line.split('"')[1].strip()
     elif lang == "typescript":
-        data = json.load(open(os.path.join(ROOT, "sdks", "typescript", "package.json")))
+        with open(os.path.join(ROOT, "sdks", "typescript", "package.json"), encoding="utf-8") as f:
+            data = json.load(f)
         return data["version"]
     elif lang == "ruby":
         path = os.path.join(ROOT, "sdks", "ruby", "src", "lib", "hatchet", "version.rb")
-        for line in open(path):
-            if "VERSION" in line:
-                return line.split('"')[1].strip()
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                if "VERSION" in line:
+                    return line.split('"')[1].strip()
     elif lang == "go":
         # Go module uses monorepo; use Python SDK version as proxy for hatchet release
         return _read_sdk_version("python")
@@ -259,7 +262,7 @@ def write_examples(examples: list[ProcessedExample]) -> None:
         out_dir = os.path.dirname(out_path)
         os.makedirs(out_dir, exist_ok=True)
 
-        with open(out_path, "w") as f:
+        with open(out_path, "w", encoding="utf-8") as f:
             f.write(
                 clean_example_content(
                     example.raw_content, example.context.value.comment_prefix
@@ -370,7 +373,7 @@ def write_doc_index_to_app() -> None:
     out_dir = os.path.join(ROOT, "frontend", "app", "src", "lib", "generated", "docs")
     os.makedirs(out_dir, exist_ok=True)
 
-    with open(os.path.join(out_dir, "index.ts"), "w") as f:
+    with open(os.path.join(out_dir, "index.ts"), "w", encoding="utf-8") as f:
         f.write("export const docsPages = ")
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
@@ -384,7 +387,7 @@ if __name__ == "__main__":
     print(f"Writing snippets to {OUTPUT_DIR}/index.ts")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    with open(os.path.join(OUTPUT_DIR, "index.ts"), "w") as f:
+    with open(os.path.join(OUTPUT_DIR, "index.ts"), "w", encoding="utf-8") as f:
         f.write("export const snippets = ")
         json.dump(tree, f, indent=2)
         f.write(" as const;\n")
@@ -401,7 +404,7 @@ if __name__ == "__main__":
     )
 
     print(f"Writing snippet type to {BASE_SNIPPETS_DIR}/snippet.ts")
-    with open(os.path.join(BASE_SNIPPETS_DIR, "snippet.ts"), "w") as f:
+    with open(os.path.join(BASE_SNIPPETS_DIR, "snippet.ts"), "w", encoding="utf-8") as f:
         f.write(snippet_type)
 
     write_examples(processed_examples)
