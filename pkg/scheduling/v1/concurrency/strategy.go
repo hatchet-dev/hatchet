@@ -407,6 +407,9 @@ type walMessage struct {
 	ScheduleTimeoutAtMs int64     `json:"scheduleTimeoutAtMs"`
 	Priority            int32     `json:"priority"`
 	TaskRetryCount      int32     `json:"taskRetryCount"`
+
+	// only populated by UPDATE messages
+	IsFilled bool `json:"isFilled"`
 }
 
 func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
@@ -592,13 +595,19 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 
 	for _, msg := range msgs {
 		switch msg.Operation {
-		case "INSERT":
+		case "INSERT", "UPDATE":
 			if currentRunningSlot, exists := sq.running.get(msg.TaskId); exists {
 				// compare the current running slot's retry count with the message's retry count; the greater wins
 				if currentRunningSlot.taskRetryCount < msg.TaskRetryCount {
 					superseded = append(superseded, currentRunningSlot)
 					sq.running.delete(msg.TaskId)
-					sq.running.insert(walMessageToSlot(msg))
+
+					// place the new slot in the queued index, so it goes through the regular promotion pipeline
+					if !msg.IsFilled {
+						sq.queued.insert(walMessageToSlot(msg))
+					} else {
+						sq.running.insert(walMessageToSlot(msg))
+					}
 				} else if currentRunningSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
