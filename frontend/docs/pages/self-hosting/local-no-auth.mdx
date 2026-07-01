@@ -15,11 +15,10 @@ When enabled, no-auth mode resolves every unauthenticated dashboard and REST API
 
 - **Dashboard** loads without a login screen.
 - **REST API** calls succeed without a bearer token or session cookie. The tenant is taken from the request URL, and the admin user is authorized against it exactly as a signed-in owner would be.
-- A red banner is shown on every dashboard page while it is active.
 
 ## What it does **not** change
 
-The gRPC engine is unaffected. Workers and SDK clients still authenticate with an API token as usual, and **the token's tenant is authoritative**. This is deliberate: it means there are no surprises about which tenant a worker runs against.
+The gRPC engine is unaffected. Workers and SDK clients still authenticate with an API token as usual, and **the token's tenant is authoritative**. This is deliberate in the sense that it means there are no surprises about which tenant a worker runs against.
 
 So the usual multi-tenant flow works normally:
 
@@ -46,11 +45,3 @@ SERVER_AUTH_NO_AUTH_ENABLED=true
 ```
 
 This maps to `auth.noAuthEnabled` in the server config file.
-
-## Safety guarantees
-
-No-auth mode is designed so it cannot be accidentally activated on a managed or production instance:
-
-- It defaults to **off** and must be explicitly enabled.
-- It is **ignored whenever a custom authenticator is configured** (as it always is on Hatchet Cloud), so it can never take effect there.
-- The server logs a prominent warning on startup while it is enabled.
