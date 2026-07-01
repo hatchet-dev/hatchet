@@ -233,6 +233,7 @@ SELECT
 	COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator
 FROM candidates c
 LEFT JOIN v1_tasks_olap t ON (c.id, c.inserted_at) = (t.id, t.inserted_at)
+ORDER BY c.inserted_at DESC, c.id DESC
 `
 
 type FetchWorkflowRunIdsParams struct {
