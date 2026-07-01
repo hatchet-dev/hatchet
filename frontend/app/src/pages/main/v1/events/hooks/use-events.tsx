@@ -35,10 +35,6 @@ const eventFilterSchema = z
 export const useEvents = ({ key }: UseEventsProps) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-    });
 
   const paramKey = `events-${key}`;
   const {
@@ -61,6 +57,19 @@ export const useEvents = ({ key }: UseEventsProps) => {
     m: metadataKey,
     i: idKey,
   });
+
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+      resetPageOnChange: [
+        selectedKeys,
+        selectedWorkflowIds,
+        selectedScopes,
+        selectedStatuses,
+        selectedMetadata,
+        selectedEventIds,
+      ],
+    });
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     queryKey: [
