@@ -19,7 +19,7 @@ from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
-from examples.conditions.worker import task_condition_workflow
+from examples.conditions.worker import task_condition_workflow, cancel_if_workflow
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
@@ -199,6 +199,7 @@ def main() -> None:
             durable_spawn_many_dags,
             error_raising_durable_parent,
             error_raising_task,
+            cancel_if_workflow,
         ],
         lifespan=lifespan,
     )

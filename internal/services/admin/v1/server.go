@@ -731,12 +731,26 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		}
 	}
 
+	if currWorkflow.WorkflowVersion.IsUsingDagOperator {
+		if err := a.ensureDAGOperator(ctx, tenantId); err != nil {
+			a.l.Err(err).Ctx(ctx).Msg("could not ensure DAG operator for tenant")
+		}
+	}
+
 	// notify that a new set of queues have been created
 	// important: this assumes that actions correspond 1:1 with queues, which they do at the moment
 	// but might not in the future
 	actions, err := getActionsForTasks(req.Tasks)
 
-	if tenant.SchedulerPartitionId.Valid && err == nil {
+	if err != nil {
+		return nil, fmt.Errorf("could not get actions for tasks: %w", err)
+	}
+
+	if currWorkflow.WorkflowVersion.IsUsingDagOperator {
+		actions = append(actions, strings.ToLower(req.Name+"_orchestrator"))
+	}
+
+	if tenant.SchedulerPartitionId.Valid {
 		go func() {
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -765,6 +779,32 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 		Id:         currWorkflow.WorkflowVersion.ID.String(),
 		WorkflowId: currWorkflow.WorkflowVersion.WorkflowId.String(),
 	}, nil
+}
+
+func (a *AdminServiceImpl) ensureDAGOperator(ctx context.Context, tenantId uuid.UUID) error {
+	exists, err := a.repo.Operators().HasDAGOperator(ctx, tenantId)
+
+	if err != nil {
+		return fmt.Errorf("could not check for DAG operator: %w", err)
+	}
+
+	if exists {
+		return nil
+	}
+
+	config, err := json.Marshal(struct{}{})
+
+	if err != nil {
+		return fmt.Errorf("could not marshal DAG operator config: %w", err)
+	}
+
+	_, err = a.repo.Operators().CreateOperator(ctx, tenantId, v1.CreateOperatorOpts{
+		Name:   "default",
+		Kind:   sqlcv1.V1OperatorKindDAG,
+		Config: config,
+	})
+
+	return err
 }
 
 func getActionsForTasks(tasks []*contracts.CreateTaskOpts) ([]string, error) {

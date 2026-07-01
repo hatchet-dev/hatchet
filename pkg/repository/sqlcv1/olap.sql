@@ -366,6 +366,58 @@ JOIN v1_tasks_olap tsk
     ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
 ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
 
+-- name: ListTaskEventsByTaskIds :many
+WITH aggregated_events AS (
+  SELECT
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    retry_count,
+    event_type,
+    durable_invocation_count,
+    MIN(event_timestamp)::timestamptz AS time_first_seen,
+    MAX(event_timestamp)::timestamptz AS time_last_seen,
+    COUNT(*) AS count,
+    MIN(id) AS first_id
+  FROM v1_task_events_olap
+  WHERE
+    tenant_id = @tenantId::uuid
+    AND (task_id, task_inserted_at) IN (
+        SELECT unnest(@taskIds::bigint[]), unnest(@taskInsertedAts::timestamptz[])
+    )
+  GROUP BY tenant_id, task_id, task_inserted_at, retry_count, event_type, durable_invocation_count
+)
+SELECT
+  a.tenant_id,
+  a.task_id,
+  a.task_inserted_at,
+  a.retry_count,
+  a.event_type,
+  a.durable_invocation_count,
+  a.time_first_seen,
+  a.time_last_seen,
+  a.count,
+  t.id,
+  t.event_timestamp,
+  t.readable_status,
+  t.error_message,
+  t.output,
+  t.external_id AS event_external_id,
+  t.worker_id,
+  t.additional__event_data,
+  t.additional__event_message,
+  tsk.display_name,
+  tsk.external_id AS task_external_id
+FROM aggregated_events a
+JOIN v1_task_events_olap t
+  ON t.tenant_id = a.tenant_id
+  AND t.task_id = a.task_id
+  AND t.task_inserted_at = a.task_inserted_at
+  AND t.id = a.first_id
+JOIN v1_tasks_olap tsk
+    ON (tsk.tenant_id, tsk.id, tsk.inserted_at) = (t.tenant_id, t.task_id, t.task_inserted_at)
+ORDER BY a.time_first_seen DESC, t.event_timestamp DESC;
+
 -- name: PopulateSingleTaskRunData :one
 WITH selected_retry_count AS (
     SELECT
@@ -518,7 +570,8 @@ WITH input AS (
         t.workflow_run_id,
         t.latest_retry_count,
         t.dag_id,
-        t.is_durable
+        t.is_durable,
+        t.is_dag_orchestrator
     FROM
         v1_tasks_olap t
     JOIN
@@ -653,7 +706,8 @@ SELECT
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
-    COALESCE(t.is_durable, FALSE) AS is_durable
+    COALESCE(t.is_durable, FALSE) AS is_durable,
+    COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator
 FROM
     tasks t
 LEFT JOIN
@@ -1545,7 +1599,8 @@ WITH runs AS (
         d.input AS input,
         d.additional_metadata AS additional_metadata,
         d.workflow_version_id AS workflow_version_id,
-        d.parent_task_external_id AS parent_task_external_id
+        d.parent_task_external_id AS parent_task_external_id,
+        FALSE::boolean AS is_dag_orchestrator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1572,7 +1627,8 @@ WITH runs AS (
         t.input AS input,
         t.additional_metadata AS additional_metadata,
         t.workflow_version_id AS workflow_version_id,
-        NULL :: UUID AS parent_task_external_id
+        NULL::uuid AS parent_task_external_id,
+        t.is_dag_orchestrator
     FROM
         v1_lookup_table_olap lt
     JOIN
@@ -1654,6 +1710,45 @@ FROM v1_dags_olap
 WHERE
     id = @dagId::bigint
     AND inserted_at = @dagInsertedAt::timestamptz
+;
+
+-- name: GetChildRunsByParentExternalId :many
+SELECT id, inserted_at
+FROM v1_runs_olap
+WHERE
+    tenant_id = @tenantId::uuid
+    AND parent_task_external_id = @parentExternalId::uuid
+;
+
+-- name: GetDagOrchestratorTasks :many
+WITH inputs AS (
+    SELECT
+        UNNEST(@ids::bigint[]) AS id,
+        UNNEST(@insertedAts::timestamptz[]) AS inserted_at
+), parents AS (
+    SELECT *
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND (id, inserted_at) IN (SELECT id, inserted_at FROM inputs)
+), children AS (
+    SELECT *
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND parent_task_external_id IN (
+            SELECT external_id
+            FROM parents
+        )
+)
+
+SELECT id, inserted_at, external_id, parent_task_external_id
+FROM parents
+
+UNION ALL
+
+SELECT id, inserted_at, external_id, parent_task_external_id
+FROM children
 ;
 
 -- name: FlattenTasksByExternalIds :many

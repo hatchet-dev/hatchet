@@ -73,6 +73,21 @@ type TriggerTaskData struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
+
+	// (optional) task run external IDs of parent tasks for durable DAG orchestration
+	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
+
+	// (optional) when set, only trigger this specific step by action ID (used by DAG operator)
+	TargetActionId *string `json:"target_action_id,omitempty"`
+
+	// (optional) a human-readable label shown in the activity log for this durable event entry
+	UserMessage *string `json:"user_message,omitempty"`
+
+	// (optional) when set, the task is created in SKIPPED state immediately (used by DAG operator)
+	IsSkipped bool `json:"is_skipped,omitempty"`
+
+	// (optional) when set, the task is created in CANCELLED state immediately (used by DAG operator)
+	IsCancelled bool `json:"is_cancelled,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -588,6 +603,10 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
+	dagParentTaskRunIds       []uuid.UUID
+	targetActionId            *string
+	isSkipped                 bool
+	isCancelled               bool
 }
 
 type createCoreUserEventOpts struct {
@@ -718,7 +737,7 @@ func (r *sharedRepository) triggerWorkflows(
 	for i, tuple := range tuples {
 		stepsToExternalIds[i] = make(map[uuid.UUID]uuid.UUID)
 
-		steps, ok := workflowVersionToSteps[tuple.workflowVersionId]
+		allSteps, ok := workflowVersionToSteps[tuple.workflowVersionId]
 
 		if !ok {
 			// TODO: properly handle this error
@@ -726,19 +745,19 @@ func (r *sharedRepository) triggerWorkflows(
 			continue
 		}
 
-		if len(steps) == 0 {
+		if len(allSteps) == 0 {
 			// TODO: properly handle this error
 			r.l.Error().Msgf("no steps found for workflow version id: %s", tuple.workflowVersionId)
 			continue
 		}
 
-		isDag := false
-
-		if len(steps) > 1 {
-			isDag = true
+		regularSteps := regularUserSteps(allSteps)
+		if tuple.targetActionId != nil {
+			regularSteps = filterStepsByActionId(regularSteps, *tuple.targetActionId)
 		}
+		isDag := len(regularSteps) > 1
 
-		for _, step := range steps {
+		for _, step := range regularSteps {
 			if !isDag {
 				stepsToExternalIds[i][step.ID] = tuple.externalId
 			} else {
@@ -795,13 +814,46 @@ func (r *sharedRepository) triggerWorkflows(
 			continue
 		}
 
-		isDag := false
+		regularSteps := regularUserSteps(steps)
+		if tuple.targetActionId != nil {
+			regularSteps = filterStepsByActionId(regularSteps, *tuple.targetActionId)
+		}
+		isDag := len(regularSteps) > 1
 
-		if len(steps) > 1 {
-			isDag = true
+		var orchestratorStep *sqlcv1.ListStepsByWorkflowVersionIdsRow
+		for _, s := range steps {
+			if s.IsDagOrchestrator {
+				orchestratorStep = s
+				break
+			}
+		}
+		useOperatorPath := orchestratorStep != nil && tuple.targetActionId == nil
+
+		if useOperatorPath {
+			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
+				ExternalId:                tuple.externalId,
+				WorkflowRunId:             tuple.externalId,
+				StepId:                    orchestratorStep.ID,
+				Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
+				AdditionalMetadata:        tuple.additionalMetadata,
+				InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+				DesiredWorkerId:           tuple.desiredWorkerId,
+				ParentTaskExternalId:      tuple.parentExternalId,
+				ParentTaskId:              tuple.parentTaskId,
+				ParentTaskInsertedAt:      tuple.parentTaskInsertedAt,
+				ChildIndex:                tuple.childIndex,
+				ChildKey:                  tuple.childKey,
+				Priority:                  tuple.priority,
+				TriggeringEventExternalId: tuple.triggeringEventExternalId,
+				TriggeringEventKey:        tuple.triggeringEventKey,
+			})
 		}
 
-		for stepIndex, step := range orderSteps(steps) {
+		for stepIndex, step := range orderSteps(regularSteps) {
+			if useOperatorPath {
+				break
+			}
+
 			stepId := step.ID
 			taskExternalId := stepsToExternalIds[i][stepId]
 
@@ -811,7 +863,7 @@ func (r *sharedRepository) triggerWorkflows(
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
-				for _, otherStep := range steps {
+				for _, otherStep := range regularSteps {
 					if otherStep.ID == stepId {
 						continue
 					}
@@ -895,9 +947,14 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerEventExternalId:      tuple.triggeringEventExternalId,
 					TriggerEventKey:             triggeringEventKey,
 				})
-			case len(step.Parents) == 0:
-				// if we have additional match conditions, create a match instead of triggering a workflow for this step
-				additionalMatches := stepsToAdditionalMatches[stepId]
+			case len(step.Parents) == 0 || tuple.targetActionId != nil:
+				// When targetActionId is set, the DAG operator has already evaluated all wait/skip
+				// conditions before calling TriggerDAGStep, so we must create the task directly
+				// without re-applying the step's match conditions.
+				var additionalMatches []*sqlcv1.V1StepMatchCondition
+				if tuple.targetActionId == nil {
+					additionalMatches = stepsToAdditionalMatches[stepId]
+				}
 
 				if len(additionalMatches) > 0 {
 					// create an event match
@@ -1015,13 +1072,20 @@ func (r *sharedRepository) triggerWorkflows(
 						labels[i].StepId = stepId
 					}
 
+					initialState := sqlcv1.V1TaskInitialStateQUEUED
+					if tuple.isSkipped {
+						initialState = sqlcv1.V1TaskInitialStateSKIPPED
+					} else if tuple.isCancelled {
+						initialState = sqlcv1.V1TaskInitialStateCANCELLED
+					}
+
 					opt := CreateTaskOpts{
 						ExternalId:                taskExternalId,
 						WorkflowRunId:             tuple.externalId,
 						StepId:                    step.ID,
-						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload),
+						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
 						AdditionalMetadata:        tuple.additionalMetadata,
-						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+						InitialState:              initialState,
 						DesiredWorkerId:           tuple.desiredWorkerId,
 						ParentTaskExternalId:      tuple.parentExternalId,
 						ParentTaskId:              tuple.parentTaskId,
@@ -1154,7 +1218,7 @@ func (r *sharedRepository) triggerWorkflows(
 			}
 		}
 
-		if isDag {
+		if isDag && !useOperatorPath {
 			dagOpts = append(dagOpts, createDAGOpts{
 				ExternalId:           tuple.externalId,
 				Input:                tuple.input,
@@ -1914,6 +1978,25 @@ func getParentOnFailureGroupMatches(createGroupId, parentExternalId uuid.UUID, p
 	}
 }
 
+func filterStepsByActionId(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow, actionId string) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
+	for _, s := range steps {
+		if s.ActionId == actionId {
+			return []*sqlcv1.ListStepsByWorkflowVersionIdsRow{s}
+		}
+	}
+	return nil
+}
+
+func regularUserSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
+	out := make([]*sqlcv1.ListStepsByWorkflowVersionIdsRow, 0, len(steps))
+	for _, s := range steps {
+		if !s.IsDagOrchestrator {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func orderSteps(steps []*sqlcv1.ListStepsByWorkflowVersionIdsRow) []*sqlcv1.ListStepsByWorkflowVersionIdsRow {
 	slices.SortStableFunc(steps, func(i, j *sqlcv1.ListStepsByWorkflowVersionIdsRow) int {
 		idA := i.ID.String()
@@ -2361,6 +2444,10 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
+				targetActionId:       opt.TargetActionId,
+				isSkipped:            opt.IsSkipped,
+				isCancelled:          opt.IsCancelled,
 			})
 		}
 	}
@@ -2468,6 +2555,49 @@ func (r *sharedRepository) NewTriggerTaskData(
 	}
 
 	return t, nil
+}
+
+func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Context, tenantId uuid.UUID, parentTaskExternalIds []uuid.UUID) (map[string]json.RawMessage, error) {
+	rows, err := r.queries.ListTaskOutputEventIdsByTaskRunExternalIds(ctx, r.pool, parentTaskExternalIds)
+	if err != nil {
+		return nil, err
+	}
+
+	retrieveOpts := make([]RetrievePayloadOpts, 0, len(rows))
+	retrieveOptToRow := make(map[RetrievePayloadOpts]*sqlcv1.ListTaskOutputEventIdsByTaskRunExternalIdsRow, len(rows))
+
+	for _, row := range rows {
+		opt := RetrievePayloadOpts{
+			Id:         row.TaskEventID,
+			InsertedAt: row.TaskEventInsertedAt,
+			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
+			TenantId:   tenantId,
+			ExternalId: row.OutputEventExternalID,
+		}
+		retrieveOpts = append(retrieveOpts, opt)
+		retrieveOptToRow[opt] = row
+	}
+
+	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve parent output payloads: %w", err)
+	}
+
+	result := make(map[string]json.RawMessage, len(rows))
+
+	for _, payload := range payloads {
+		e, err := newTaskEventFromBytes(payload)
+		if err != nil {
+			r.l.Warn().Ctx(ctx).Msgf("failed to parse parent task output: %v", err)
+			continue
+		}
+
+		if e.IsCompleted() {
+			result[e.StepReadableID] = json.RawMessage(e.Output)
+		}
+	}
+
+	return result, nil
 }
 
 func injectParentIDs(additionalMetadata []byte, parentWorkflowRunID, parentStepRunID uuid.UUID) []byte {

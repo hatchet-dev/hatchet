@@ -12,6 +12,9 @@ type TaskInput struct {
 	TriggerData *MatchData `json:"trigger_datas"`
 
 	FilterPayload map[string]interface{} `json:"filter_payload"`
+
+	// task run external IDs of parent tasks in a durable DAG orchestration
+	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
@@ -38,7 +41,7 @@ func (s *sharedRepository) newTaskInputFromExistingBytes(inputBytes []byte) *Tas
 	return i
 }
 
-func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte) *TaskInput {
+func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchData, filterPayload []byte, dagParentTaskRunIds []uuid.UUID) *TaskInput {
 	var input map[string]interface{}
 
 	if len(inputBytes) > 0 {
@@ -58,9 +61,10 @@ func (s *sharedRepository) newTaskInput(inputBytes []byte, triggerData *MatchDat
 	}
 
 	return &TaskInput{
-		Input:         input,
-		TriggerData:   triggerData,
-		FilterPayload: filterPayloadMap,
+		Input:               input,
+		TriggerData:         triggerData,
+		FilterPayload:       filterPayloadMap,
+		DagParentTaskRunIds: dagParentTaskRunIds,
 	}
 }
 
@@ -117,11 +121,12 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 	triggers["filter_payload"] = t.FilterPayload
 
 	return &V1StepRunData{
-		Input:         t.Input,
-		TriggeredBy:   "manual",
-		Parents:       parents,
-		Triggers:      triggers,
-		StepRunErrors: stepRunErrors,
+		Input:               t.Input,
+		TriggeredBy:         "manual",
+		Parents:             parents,
+		Triggers:            triggers,
+		StepRunErrors:       stepRunErrors,
+		DagParentTaskRunIds: t.DagParentTaskRunIds,
 	}
 }
 
@@ -156,6 +161,9 @@ type V1StepRunData struct {
 
 	// errors in upstream steps (only used in on-failure step)
 	StepRunErrors map[string]string `json:"step_run_errors,omitempty"`
+
+	// task run external IDs of parent tasks in a durable DAG orchestration
+	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
 }
 
 func (v1 *V1StepRunData) Bytes() []byte {

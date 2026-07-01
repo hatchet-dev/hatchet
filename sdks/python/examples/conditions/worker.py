@@ -161,8 +161,35 @@ def sum(input: EmptyModel, ctx: Context) -> RandomSum:
 # !!
 
 
+cancel_if_workflow = hatchet.workflow(name="CancelIfWorkflow")
+
+
+@cancel_if_workflow.task()
+async def start_cancel_if(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=2)
+
+
+@cancel_if_workflow.task(
+    parents=[start_cancel_if],
+    cancel_if=[
+        ParentCondition(parent=start_cancel_if, expression="output.random_number > 1")
+    ],
+)
+async def cancel_if(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=3)  # should not run
+
+
+@cancel_if_workflow.task(
+    parents=[cancel_if],
+)
+async def downstream_skip(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=3)  # should not run
+
+
 def main() -> None:
-    worker = hatchet.worker("dag-worker", workflows=[task_condition_workflow])
+    worker = hatchet.worker(
+        "dag-worker", workflows=[task_condition_workflow, cancel_if_workflow]
+    )
 
     worker.start()
 

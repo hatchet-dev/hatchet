@@ -121,7 +121,8 @@ INSERT INTO "WorkflowVersion" (
     "kind",
     "defaultPriority",
     "createWorkflowVersionOpts",
-    "inputJsonSchema"
+    "inputJsonSchema",
+    "isUsingDagOperator"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -136,7 +137,8 @@ INSERT INTO "WorkflowVersion" (
     coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
     sqlc.narg('defaultPriority') :: integer,
     sqlc.narg('createWorkflowVersionOpts')::jsonb,
-    sqlc.narg('inputJsonSchema')::jsonb
+    sqlc.narg('inputJsonSchema')::jsonb,
+    coalesce(sqlc.narg('isUsingDagOperator')::boolean, false)
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -287,7 +289,8 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable"
+    "isDurable",
+    "isDagOrchestrator"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -303,7 +306,8 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
-    coalesce(sqlc.narg('isDurable')::boolean, false)
+    coalesce(sqlc.narg('isDurable')::boolean, false),
+    coalesce(sqlc.narg('isDagOrchestrator')::boolean, false)
 ) RETURNING *;
 
 -- name: CreateStepSlotRequests :exec

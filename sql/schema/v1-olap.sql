@@ -220,6 +220,7 @@ CREATE TABLE v1_tasks_olap (
     dag_inserted_at TIMESTAMPTZ,
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
+    is_dag_orchestrator BOOLEAN NOT NULL DEFAULT FALSE,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
