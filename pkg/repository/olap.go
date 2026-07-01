@@ -878,17 +878,13 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		count int64
 	)
 
-	// A pgx.Tx must not be used concurrently, so we run the count query against the pool.
-	g, gctx := errgroup.WithContext(ctx)
+	rows, err = r.queries.ListTasksOlap(ctx, tx, params)
 
-	g.Go(func() error {
-		var countErr error
-		count, countErr = r.queries.CountTasks(gctx, r.readPool, countParams)
+	if err != nil {
+		return nil, 0, err
+	}
 
-		return countErr
-	})
-
-	rows, err = r.queries.ListTasksOlap(gctx, tx, params)
+	count, err = r.queries.CountTasks(ctx, tx, countParams)
 
 	if err != nil {
 		return nil, 0, err
@@ -964,10 +960,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	if err := commit(ctx); err != nil {
-		return nil, 0, err
-	}
-
-	if err := g.Wait(); err != nil {
 		return nil, 0, err
 	}
 
@@ -1235,15 +1227,12 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		count          int64
 	)
 
-	// A pgx.Tx must not be used concurrently; run count on the pool in the background while we do tx work.
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		var countErr error
-		count, countErr = r.queries.CountWorkflowRuns(gctx, r.readPool, countParams)
-		return countErr
-	})
-
 	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err = r.queries.CountWorkflowRuns(ctx, tx, countParams)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1321,11 +1310,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	}
 
 	if err := commit(ctx); err != nil {
-		return nil, 0, err
-	}
-
-	// Join the count goroutine before returning.
-	if err := g.Wait(); err != nil {
 		return nil, 0, err
 	}
 
