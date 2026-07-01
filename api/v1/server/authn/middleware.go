@@ -60,7 +60,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
-	if a.config.Auth.NoAuthEnabled && a.config.Auth.CustomAuthenticator == nil {
+	if a.config.Auth.NoAuthEnabled {
 		return a.handleNoAuthBypass(c)
 	}
 
