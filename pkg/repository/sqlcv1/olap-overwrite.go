@@ -171,7 +171,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 const fetchWorkflowRunIds = `-- name: FetchWorkflowRunIds :many
 WITH candidates AS (
 	SELECT *
-	FROM v1_runs_olap
+	FROM v1_runs_olap r
 	WHERE
 		tenant_id = $1::uuid
 		AND readable_status = ANY($2::v1_readable_status_olap[])
@@ -211,20 +211,18 @@ WITH candidates AS (
 					AND lt.external_id = $11::UUID
 			)
 		)
+		-- fixme: this might be really slow
+		AND NOT EXISTS (
+			SELECT 1
+			FROM v1_tasks_olap t
+			WHERE
+				t.external_id = r.parent_task_external_id
+				AND COALESCE(t.is_dag_orchestrator, FALSE)
+				AND t.tenant_id = r.tenant_id
+		)
 	ORDER BY inserted_at DESC, id DESC
-	LIMIT $9::integer * 2
+	LIMIT $9::integer
 	OFFSET $8::integer
-), dag_orchestrators AS (
-	SELECT c.*
-	FROM candidates c
-	JOIN v1_tasks_olap t ON (c.id, c.inserted_at) = (t.id, t.inserted_at)
-	WHERE t.is_dag_orchestrator
-), dag_orchestrator_subtasks AS (
-	SELECT *
-	FROM candidates
-	WHERE parent_task_external_id IN (
-		SELECT external_id FROM dag_orchestrators
-	)
 )
 
 SELECT
@@ -232,17 +230,9 @@ SELECT
 	c.inserted_at,
 	c.kind,
 	c.external_id,
-	EXISTS (
-		SELECT 1
-		FROM dag_orchestrators d
-		WHERE (d.id, d.inserted_at) = (c.id, c.inserted_at)
-	) AS is_dag_orchestrator
+	COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator
 FROM candidates c
-WHERE (c.id, c.inserted_at) NOT IN (
-	SELECT id, inserted_at
-	FROM dag_orchestrator_subtasks
-)
-LIMIT $9::integer
+LEFT JOIN v1_tasks_olap t ON (c.id, c.inserted_at) = (t.id, t.inserted_at)
 `
 
 type FetchWorkflowRunIdsParams struct {
