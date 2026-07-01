@@ -28,8 +28,14 @@ export function AppLayout({
   const hasFooter = Boolean(footer);
   const hasBanner = Boolean(banner);
   const gridRows = cn(
-    hasBanner && (hasFooter ? 'grid-rows-[auto_64px_minmax(0,1fr)_auto]' : 'grid-rows-[auto_64px_minmax(0,1fr)]'),
-    !hasBanner && (hasFooter ? 'grid-rows-[64px_minmax(0,1fr)_auto]' : 'grid-rows-[64px_minmax(0,1fr)]'),
+    hasBanner &&
+      (hasFooter
+        ? 'grid-rows-[auto_64px_minmax(0,1fr)_auto]'
+        : 'grid-rows-[auto_64px_minmax(0,1fr)]'),
+    !hasBanner &&
+      (hasFooter
+        ? 'grid-rows-[64px_minmax(0,1fr)_auto]'
+        : 'grid-rows-[64px_minmax(0,1fr)]'),
   );
   return (
     <div

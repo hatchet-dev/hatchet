@@ -552,7 +552,11 @@ function AuthenticatedInner() {
     <PostHogProvider user={currentUser}>
       <SupportChat user={currentUser}>
         <AppLayout
-          banner={meta?.noAuthEnabled ? <NoAuthBanner /> : undefined}
+          banner={
+            meta && 'noAuthEnabled' in meta && meta.noAuthEnabled ? (
+              <NoAuthBanner />
+            ) : undefined
+          }
           header={
             <TopNav
               user={currentUser}
