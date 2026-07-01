@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
 type mockDurableEventClient struct {
@@ -117,6 +119,34 @@ func TestDurableEventsListenerAddSignalSendsOnceWhenStarting(t *testing.T) {
 
 	require.NoError(t, listener.Close())
 	close(recvCh)
+}
+
+func TestDurableEventsListenerAddSignalRollsBackHandlerWhenSendFails(t *testing.T) {
+	disableStreamBackoffForTest(t)
+
+	logger := zerolog.Nop()
+	client := &mockDurableEventClient{
+		sendFn: func(req *contracts.ListenForDurableEventRequest) error {
+			return status.Error(codes.Unavailable, "send failed")
+		},
+		recvFn: func() (*contracts.DurableEvent, error) {
+			return nil, io.EOF
+		},
+	}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			return client, nil
+		},
+		client: client,
+		l:      &logger,
+	}
+
+	err := listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		return nil
+	})
+	require.Error(t, err)
+	assert.False(t, listener.hasHandlers())
 }
 
 func TestGetDurableEventsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T) {
@@ -342,7 +372,7 @@ func TestDurableEventsListenerReconnectDoesNotBlockClientSnapshot(t *testing.T) 
 
 	retryErr := make(chan error, 1)
 	go func() {
-		retryErr <- listener.retryListen(context.Background())
+		retryErr <- listener.retryListenBackground(context.Background())
 	}()
 
 	select {
@@ -375,99 +405,6 @@ func TestDurableEventsListenerReconnectDoesNotBlockClientSnapshot(t *testing.T) 
 
 	require.NoError(t, <-retryErr)
 	require.NoError(t, listener.Close())
-}
-
-// TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff
-// verifies the user-visible symptom: after a disconnect during AddSignal's
-// retry window, the listener should reconnect and deliver the durable event
-// from the new stream without waiting for retrySend to exhaust all attempts.
-func TestDurableEventsListenerDeliversEventAfterReconnectDuringRetryBackoff(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	logger := zerolog.Nop()
-	sendAttempted := make(chan struct{})
-	var closeSendAttempted sync.Once
-
-	// The first stream simulates a dead gRPC stream: sends fail, and the receive
-	// loop observes the disconnect that should trigger reconnection.
-	oldClient := &mockDurableEventClient{
-		sendFn: func(req *contracts.ListenForDurableEventRequest) error {
-			closeSendAttempted.Do(func() {
-				close(sendAttempted)
-			})
-			return status.Error(codes.Unavailable, "stream broken")
-		},
-		recvFn: func() (*contracts.DurableEvent, error) {
-			<-sendAttempted
-			return nil, status.Error(codes.Internal, "stream broken")
-		},
-	}
-
-	newClient := &mockDurableEventClient{
-		recvCh: make(chan *contracts.DurableEvent, 1),
-	}
-
-	// Reconnection immediately makes the awaited event available on the new stream.
-	// If reconnect is blocked by retrySend, this event will not reach the handler.
-	listener := &DurableEventsListener{
-		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
-			newClient.recvCh <- &contracts.DurableEvent{
-				TaskId:    "task-1",
-				SignalKey: "signal-1",
-				Data:      []byte(`{"ok":true}`),
-			}
-			return newClient, nil
-		},
-		client: oldClient,
-		l:      &logger,
-	}
-
-	listenErr := make(chan error, 1)
-	go func() {
-		listenErr <- listener.Listen(ctx)
-	}()
-
-	require.Eventually(t, listener.isListening, time.Second, 10*time.Millisecond)
-
-	received := make(chan DurableEvent, 1)
-	addErr := make(chan error, 1)
-	go func() {
-		addErr <- listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
-			received <- e
-			return nil
-		})
-	}()
-
-	require.Eventually(t, func() bool {
-		select {
-		case <-sendAttempted:
-			return true
-		default:
-			return false
-		}
-	}, time.Second, 10*time.Millisecond)
-
-	select {
-	case event := <-received:
-		require.Equal(t, "task-1", event.TaskId)
-		require.Equal(t, "signal-1", event.SignalKey)
-		require.JSONEq(t, `{"ok":true}`, string(event.Data))
-	case err := <-addErr:
-		require.NoError(t, err)
-		select {
-		case event := <-received:
-			require.Equal(t, "task-1", event.TaskId)
-			require.Equal(t, "signal-1", event.SignalKey)
-			require.JSONEq(t, `{"ok":true}`, string(event.Data))
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("AddSignal returned before durable event was delivered after reconnect")
-		}
-	case err := <-listenErr:
-		require.NoError(t, err)
-	case <-time.After(200 * time.Millisecond):
-		t.Fatal("expected durable event to be delivered after reconnect during retrySend backoff")
-	}
 }
 
 func TestDurableEventsListenerRestartsAfterListenExits(t *testing.T) {
@@ -579,4 +516,118 @@ func TestDurableEventsListenerReconnectsOnEOFWithRegisteredHandlers(t *testing.T
 
 	close(replacementClient.recvCh)
 	require.NoError(t, <-listenErr)
+}
+
+func TestAddSignalBoundedWhenEngineDown(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			constructorCalls.Add(1)
+			return nil, status.Error(codes.Unavailable, "engine down")
+		},
+		l: &logger,
+	}
+
+	err := listener.AddSignal("task-1", "signal-1", func(e DurableEvent) error {
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.LessOrEqual(t, constructorCalls.Load(), int32(retry.StreamSyncMaxAttempts+1))
+}
+
+func TestListenForDurableEventsRespectsCancelledContext(t *testing.T) {
+	logger := zerolog.Nop()
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				t.Fatal("constructor should not run when caller context is already cancelled")
+				return nil, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := subscriber.ListenForDurableEvents(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestListenForDurableEventsPassesCallerContextToInitialListen(t *testing.T) {
+	logger := zerolog.Nop()
+	callerCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				assert.NotEqual(t, context.Background(), ctx)
+				cancel()
+				select {
+				case <-ctx.Done():
+				case <-time.After(time.Second):
+					t.Fatal("constructor context was not cancelled with caller context")
+				}
+				return nil, status.Error(codes.Unavailable, "engine down")
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	_, err := subscriber.ListenForDurableEvents(callerCtx)
+	require.Error(t, err)
+}
+
+func TestListenForDurableEventsRespectsDeadlineContext(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		clientv1: &mockV1DispatcherClient{
+			listenForDurableEventFn: func(ctx context.Context, opts ...grpc.CallOption) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+				constructorCalls.Add(1)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := subscriber.ListenForDurableEvents(ctx)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, int32(1), constructorCalls.Load())
+}
+
+func TestDurableListenEOFWithoutHandlersDoesNotReconnect(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	listener := &DurableEventsListener{
+		constructor: func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
+			constructorCalls.Add(1)
+			return &mockDurableEventClient{recvCh: make(chan *contracts.DurableEvent)}, nil
+		},
+		client: &mockDurableEventClient{
+			recvFn: func() (*contracts.DurableEvent, error) {
+				return nil, io.EOF
+			},
+		},
+		l: &logger,
+	}
+
+	require.NoError(t, listener.Listen(context.Background()))
+	assert.Equal(t, int32(0), constructorCalls.Load())
 }

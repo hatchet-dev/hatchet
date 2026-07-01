@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry"
@@ -20,6 +21,7 @@ import (
 
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	sharedcontracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
@@ -223,6 +225,9 @@ type actionListenerImpl struct {
 
 	listenClient dispatchercontracts.Dispatcher_ListenClient
 
+	actionStream     *reconnectingStream[dispatchercontracts.Dispatcher_ListenClient]
+	actionStreamOnce sync.Once
+
 	workerId string
 
 	l *zerolog.Logger
@@ -308,7 +313,7 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 	// subscribe to the worker
 	listener, err := d.client.ListenV2(d.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
 		WorkerId: resp.WorkerId,
-	})
+	}, grpc_retry.Disable())
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not subscribe to the worker: %w", err)
@@ -328,218 +333,375 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 
 func (a *actionListenerImpl) Actions(ctx context.Context) (<-chan *Action, <-chan error, error) {
 	ch := make(chan *Action)
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 
 	a.l.Debug().Ctx(ctx).Msgf("Starting to listen for actions")
 
-	// update the worker with a last heartbeat time every 4 seconds as long as the worker is connected
-	go func() {
-		heartbeatInterval := 4 * time.Second
-		timer := time.NewTicker(100 * time.Millisecond)
-		defer timer.Stop()
-
-		// set last heartbeat to 5 seconds ago so that the first heartbeat is sent immediately
-		lastHeartbeat := time.Now().Add(-5 * time.Second)
-		firstHeartbeat := true
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-timer.C:
-				if now := time.Now().UTC(); lastHeartbeat.Add(heartbeatInterval).Before(now) {
-					a.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", a.workerId)
-
-					_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
-						WorkerId:    a.workerId,
-						HeartbeatAt: timestamppb.New(now),
-					})
-
-					if err != nil {
-						a.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
-
-						// if the heartbeat method is unimplemented, don't continue to send heartbeats
-						if status.Code(err) == codes.Unimplemented {
-							return
-						}
-					}
-
-					// detect heartbeat delays caused by CPU contention or other scheduling issues,
-					// but skip the first heartbeat since lastHeartbeat is artificially backdated
-					if !firstHeartbeat {
-						actualInterval := now.Sub(lastHeartbeat)
-						// add 1 second to the heartbeat interval to account for the time it takes to send the heartbeat
-						if actualInterval > heartbeatInterval+1*time.Second {
-							a.l.Warn().Ctx(ctx).Msgf(
-								"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
-								a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
-							)
-						}
-					}
-
-					firstHeartbeat = false
-					lastHeartbeat = now
-				}
-			}
-		}
-	}()
-
-	go func() {
-		retries := 0
-
-		for retries < DefaultActionListenerRetryCount {
-			assignedAction, err := a.listenClient.Recv()
-
-			if err != nil {
-				// if context is cancelled, unsubscribe and close the channel
-				if ctx.Err() != nil {
-					a.l.Debug().Ctx(ctx).Msgf("Context cancelled, closing channel")
-
-					defer close(ch)
-					defer close(errCh)
-
-					err := a.listenClient.CloseSend()
-
-					if err != nil {
-						a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
-					}
-
-					return
-				}
-
-				retries++
-
-				// if this is an unimplemented error, default to v1
-				if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
-					a.l.Debug().Ctx(ctx).Msgf("Falling back to v1 listener strategy")
-					a.listenerStrategy = ListenerStrategyV1
-				}
-
-				err = a.retrySubscribe(ctx)
-
-				if err != nil {
-					a.l.Error().Ctx(ctx).Msgf("Failed to resubscribe: %v", err)
-					errCh <- fmt.Errorf("failed to resubscribe: %w", err)
-				}
-
-				time.Sleep(DefaultActionListenerRetryInterval)
-
-				continue
-			}
-
-			retries = 0
-
-			var actionType ActionType
-
-			switch assignedAction.ActionType {
-			case dispatchercontracts.ActionType_START_STEP_RUN:
-				actionType = ActionTypeStartStepRun
-			case dispatchercontracts.ActionType_CANCEL_STEP_RUN:
-				actionType = ActionTypeCancelStepRun
-			case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
-				actionType = ActionTypeStartGetGroupKey
-			default:
-				a.l.Error().Ctx(ctx).Msgf("Unknown action type: %s", assignedAction.ActionType)
-				continue
-			}
-
-			a.l.Debug().Ctx(ctx).Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
-
-			unquoted := assignedAction.ActionPayload
-
-			var additionalMetadata map[string]string
-
-			if assignedAction.AdditionalMetadata != nil {
-				// Try to unmarshal as map[string]string first
-				var rawMap map[string]interface{}
-				if err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &rawMap); err != nil {
-					// If that fails, try to unmarshal as a single string
-					a.l.Error().Ctx(ctx).Err(err).Msgf("could not unmarshal additional metadata")
-					continue
-				} else {
-					// Only keep string values from the map
-					additionalMetadata = make(map[string]string)
-					for k, v := range rawMap {
-						if strVal, ok := v.(string); ok {
-							additionalMetadata[k] = strVal
-						}
-					}
-				}
-			}
-
-			ch <- &Action{
-				TenantId:                   assignedAction.TenantId,
-				WorkflowRunId:              assignedAction.WorkflowRunId,
-				GetGroupKeyRunId:           assignedAction.GetGroupKeyRunId,
-				WorkerId:                   a.workerId,
-				JobId:                      assignedAction.JobId,
-				JobName:                    assignedAction.JobName,
-				JobRunId:                   assignedAction.JobRunId,
-				StepId:                     assignedAction.TaskId,
-				StepName:                   assignedAction.TaskName,
-				StepRunId:                  assignedAction.TaskRunExternalId,
-				ActionId:                   assignedAction.ActionId,
-				ActionType:                 actionType,
-				ActionPayload:              []byte(unquoted),
-				RetryCount:                 assignedAction.RetryCount,
-				AdditionalMetadata:         additionalMetadata,
-				ChildIndex:                 assignedAction.ChildWorkflowIndex,
-				ChildKey:                   assignedAction.ChildWorkflowKey,
-				ParentWorkflowRunId:        assignedAction.ParentWorkflowRunId,
-				Priority:                   assignedAction.Priority,
-				WorkflowId:                 assignedAction.WorkflowId,
-				WorkflowVersionId:          assignedAction.WorkflowVersionId,
-				TriggeringEventExternalId:  assignedAction.TriggeringEventExternalId,
-				TriggeringEventKey:         assignedAction.TriggeringEventKey,
-				DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
-			}
-		}
-
-		errCh <- fmt.Errorf("could not subscribe to the worker after %d retries", retries)
-
-		defer close(ch)
-		defer close(errCh)
-
-		err := a.listenClient.CloseSend()
-
-		if err != nil {
-			a.l.Error().Ctx(ctx).Msgf("Failed to close send: %v", err)
-		}
-	}()
+	go a.heartbeatLoop(ctx)
+	go a.actionLoop(ctx, ch, errCh)
 
 	return ch, errCh, nil
 }
 
-func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
-	retries := 0
+type actionReconnectState struct {
+	consecutiveNoProgress int
+	reconnectAttempt      int
+	degraded              bool
+}
 
-	for retries < DefaultActionListenerRetryCount {
-		var err error
-		var listenClient dispatchercontracts.Dispatcher_ListenClient
+func (s *actionReconnectState) reset() {
+	s.consecutiveNoProgress = 0
+	s.reconnectAttempt = 0
+}
 
-		if a.listenerStrategy == ListenerStrategyV1 {
-			listenClient, err = a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
-				WorkerId: a.workerId,
+func (a *actionListenerImpl) heartbeatLoop(ctx context.Context) {
+	heartbeatInterval := 4 * time.Second
+	timer := time.NewTicker(100 * time.Millisecond)
+	defer timer.Stop()
+
+	lastHeartbeat := time.Now().Add(-5 * time.Second)
+	firstHeartbeat := true
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			now := time.Now().UTC()
+			if lastHeartbeat.Add(heartbeatInterval).After(now) {
+				continue
+			}
+
+			a.l.Debug().Ctx(ctx).Msgf("updating worker %s heartbeat", a.workerId)
+
+			_, err := a.client.Heartbeat(a.ctx.newContext(ctx), &dispatchercontracts.HeartbeatRequest{
+				WorkerId:    a.workerId,
+				HeartbeatAt: timestamppb.New(now),
 			})
-		} else if a.listenerStrategy == ListenerStrategyV2 {
-			listenClient, err = a.client.ListenV2(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
-				WorkerId: a.workerId,
-			})
+
+			if err != nil {
+				a.l.Error().Ctx(ctx).Err(err).Msgf("could not update worker %s heartbeat", a.workerId)
+
+				if status.Code(err) == codes.Unimplemented {
+					return
+				}
+			}
+
+			if !firstHeartbeat {
+				actualInterval := now.Sub(lastHeartbeat)
+				if actualInterval > heartbeatInterval+1*time.Second {
+					a.l.Warn().Ctx(ctx).Msgf(
+						"worker %s heartbeat interval delay (%s >> %s), possible CPU resource contention",
+						a.workerId, actualInterval.Round(time.Millisecond), heartbeatInterval+1*time.Second,
+					)
+				}
+			}
+
+			firstHeartbeat = false
+			lastHeartbeat = now
+		}
+	}
+}
+
+func (a *actionListenerImpl) actionLoop(ctx context.Context, ch chan<- *Action, errCh chan<- error) {
+	defer close(ch)
+	defer close(errCh)
+	defer func() {
+		if err := a.actionStreamCore().Close(); err != nil {
+			a.l.Error().Ctx(ctx).Err(err).Msg("failed to close action listener stream")
+		}
+	}()
+
+	state := actionReconnectState{}
+
+	for {
+		if ctx.Err() != nil {
+			a.l.Debug().Ctx(ctx).Msgf("Context cancelled, closing channel")
+			return
 		}
 
+		listenClient, _, ok := a.actionStreamCore().getClientSnapshot()
+		if !ok {
+			sendListenerError(ctx, errCh, fmt.Errorf("action listener stream is not connected"))
+			return
+		}
+
+		assignedAction, err := listenClient.Recv()
 		if err != nil {
-			retries++
-			a.l.Error().Ctx(ctx).Err(err).Msgf("could not subscribe to the worker")
-			time.Sleep(DefaultActionListenerRetryInterval)
+			if a.reconnectActionStream(ctx, err, errCh, &state) {
+				continue
+			}
+
+			return
+		}
+
+		a.logActionListenerRecovered(ctx, &state, "recv")
+		state.reset()
+
+		action, ok := a.actionFromAssigned(ctx, assignedAction)
+		if !ok {
 			continue
 		}
 
-		a.listenClient = listenClient
+		select {
+		case ch <- action:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 
-		return nil
+func (a *actionListenerImpl) actionStreamCore() *reconnectingStream[dispatchercontracts.Dispatcher_ListenClient] {
+	a.actionStreamOnce.Do(func() {
+		a.actionStream = newReconnectingStream(
+			a.subscribeActionStream,
+			func(client dispatchercontracts.Dispatcher_ListenClient) error {
+				return client.CloseSend()
+			},
+			nil,
+		)
+
+		if a.listenClient != nil {
+			a.actionStream.setInitialClient(a.listenClient)
+		}
+	})
+
+	return a.actionStream
+}
+
+func (a *actionListenerImpl) subscribeActionStream(ctx context.Context) (dispatchercontracts.Dispatcher_ListenClient, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
-	return fmt.Errorf("could not subscribe to the worker after %d retries", retries)
+	var listenClient dispatchercontracts.Dispatcher_ListenClient
+	var err error
+
+	switch a.listenerStrategy {
+	case ListenerStrategyV1:
+		listenClient, err = a.client.Listen(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
+			WorkerId: a.workerId,
+		}, grpc_retry.Disable())
+	case ListenerStrategyV2:
+		listenClient, err = a.client.ListenV2(a.ctx.newContext(ctx), &dispatchercontracts.WorkerListenRequest{
+			WorkerId: a.workerId,
+		}, grpc_retry.Disable())
+	default:
+		return nil, fmt.Errorf("unknown listener strategy %s", a.listenerStrategy)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	a.listenClient = listenClient
+	return listenClient, nil
+}
+
+func (a *actionListenerImpl) reconnectActionStream(ctx context.Context, err error, errCh chan<- error, state *actionReconnectState) bool {
+	enteringDegraded := false
+
+	if a.listenerStrategy == ListenerStrategyV2 && status.Code(err) == codes.Unimplemented {
+		a.l.Debug().Ctx(ctx).Msgf("Falling back to v1 listener strategy")
+		a.listenerStrategy = ListenerStrategyV1
+		state.consecutiveNoProgress++
+	} else {
+		decision := classifyStreamRecvError(ctx, err, streamEOFRetries)
+		switch decision {
+		case retry.StreamDecisionStop:
+			sendListenerError(ctx, errCh, err)
+			return false
+		case retry.StreamDecisionNoProgress:
+			state.consecutiveNoProgress++
+			if state.consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+				sendListenerError(ctx, errCh, fmt.Errorf("stream made no progress after %d consecutive errors: %w", state.consecutiveNoProgress, err))
+				return false
+			}
+			enteringDegraded = true
+		default:
+			state.consecutiveNoProgress++
+			enteringDegraded = true
+		}
+	}
+
+	a.logActionListenerDegraded(ctx, err, enteringDegraded, state)
+
+	subscribeErr := a.retrySubscribe(ctx)
+	if subscribeErr == nil {
+		a.logActionListenerRecovered(ctx, state, "resubscribe")
+		state.reset()
+		return true
+	}
+
+	return a.handleActionResubscribeError(ctx, subscribeErr, errCh, state)
+}
+
+func (a *actionListenerImpl) handleActionResubscribeError(ctx context.Context, err error, errCh chan<- error, state *actionReconnectState) bool {
+	if a.listenerStrategy == ListenerStrategyV1 && status.Code(err) == codes.Unimplemented {
+		a.l.Error().Ctx(ctx).Err(err).Msg("Failed to resubscribe")
+		sendListenerError(ctx, errCh, fmt.Errorf("failed to resubscribe: %w", err))
+		return false
+	}
+
+	if streamDecisionStopsReconnect(retry.ClassifyStreamError(ctx, err)) {
+		a.l.Error().Ctx(ctx).Err(err).Msg("Failed to resubscribe")
+		sendListenerError(ctx, errCh, fmt.Errorf("failed to resubscribe: %w", err))
+		return false
+	}
+
+	if shouldLogReconnectMilestone(state.reconnectAttempt + 1) {
+		a.l.Warn().Ctx(ctx).
+			Err(err).
+			Str("worker_id", a.workerId).
+			Str("listener_strategy", string(a.listenerStrategy)).
+			Str("error_code", streamErrorCode(err)).
+			Int("reconnect_attempt", state.reconnectAttempt+1).
+			Int("consecutive_no_progress", state.consecutiveNoProgress).
+			Int("max_consecutive_no_progress", maxConsecutiveStreamNoProgress).
+			Msg("action listener reconnect attempt continuing")
+	}
+
+	if state.consecutiveNoProgress >= maxConsecutiveStreamNoProgress {
+		sendListenerError(ctx, errCh, fmt.Errorf("failed to resubscribe after %d consecutive errors: %w", state.consecutiveNoProgress, err))
+		return false
+	}
+
+	state.reconnectAttempt++
+	return true
+}
+
+func (a *actionListenerImpl) logActionListenerDegraded(ctx context.Context, err error, enteringDegraded bool, state *actionReconnectState) {
+	if !enteringDegraded || state.degraded {
+		return
+	}
+
+	state.degraded = true
+	a.l.Warn().Ctx(ctx).
+		Err(err).
+		Str("worker_id", a.workerId).
+		Str("listener_strategy", string(a.listenerStrategy)).
+		Str("error_code", streamErrorCode(err)).
+		Msg("action listener entering reconnect mode")
+}
+
+func (a *actionListenerImpl) logActionListenerRecovered(ctx context.Context, state *actionReconnectState, source string) {
+	if !state.degraded {
+		return
+	}
+
+	a.l.Info().Ctx(ctx).
+		Str("worker_id", a.workerId).
+		Str("listener_strategy", string(a.listenerStrategy)).
+		Str("recovery_source", source).
+		Msg("action listener recovered from reconnect mode")
+	state.degraded = false
+}
+
+func (a *actionListenerImpl) actionFromAssigned(ctx context.Context, assignedAction *dispatchercontracts.AssignedAction) (*Action, bool) {
+	var actionType ActionType
+
+	switch assignedAction.ActionType {
+	case dispatchercontracts.ActionType_START_STEP_RUN:
+		actionType = ActionTypeStartStepRun
+	case dispatchercontracts.ActionType_CANCEL_STEP_RUN:
+		actionType = ActionTypeCancelStepRun
+	case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
+		actionType = ActionTypeStartGetGroupKey
+	default:
+		a.l.Error().Ctx(ctx).Msgf("Unknown action type: %s", assignedAction.ActionType)
+		return nil, false
+	}
+
+	a.l.Debug().Ctx(ctx).Msgf("Received action type: %s for action: %s", actionType, assignedAction.ActionId)
+
+	additionalMetadata, ok := a.parseAdditionalMetadata(ctx, assignedAction)
+	if !ok {
+		return nil, false
+	}
+
+	return &Action{
+		TenantId:                   assignedAction.TenantId,
+		WorkflowRunId:              assignedAction.WorkflowRunId,
+		GetGroupKeyRunId:           assignedAction.GetGroupKeyRunId,
+		WorkerId:                   a.workerId,
+		JobId:                      assignedAction.JobId,
+		JobName:                    assignedAction.JobName,
+		JobRunId:                   assignedAction.JobRunId,
+		StepId:                     assignedAction.TaskId,
+		StepName:                   assignedAction.TaskName,
+		StepRunId:                  assignedAction.TaskRunExternalId,
+		ActionId:                   assignedAction.ActionId,
+		ActionType:                 actionType,
+		ActionPayload:              []byte(assignedAction.ActionPayload),
+		RetryCount:                 assignedAction.RetryCount,
+		AdditionalMetadata:         additionalMetadata,
+		ChildIndex:                 assignedAction.ChildWorkflowIndex,
+		ChildKey:                   assignedAction.ChildWorkflowKey,
+		ParentWorkflowRunId:        assignedAction.ParentWorkflowRunId,
+		Priority:                   assignedAction.Priority,
+		WorkflowId:                 assignedAction.WorkflowId,
+		WorkflowVersionId:          assignedAction.WorkflowVersionId,
+		TriggeringEventExternalId:  assignedAction.TriggeringEventExternalId,
+		TriggeringEventKey:         assignedAction.TriggeringEventKey,
+		DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
+	}, true
+}
+
+func (a *actionListenerImpl) parseAdditionalMetadata(ctx context.Context, assignedAction *dispatchercontracts.AssignedAction) (map[string]string, bool) {
+	if assignedAction.AdditionalMetadata == nil {
+		return nil, true
+	}
+
+	var rawMap map[string]interface{}
+	if err := json.Unmarshal([]byte(*assignedAction.AdditionalMetadata), &rawMap); err != nil {
+		a.l.Error().Ctx(ctx).Err(err).Msgf("could not unmarshal additional metadata")
+		return nil, false
+	}
+
+	additionalMetadata := make(map[string]string)
+	for k, v := range rawMap {
+		if strVal, ok := v.(string); ok {
+			additionalMetadata[k] = strVal
+		}
+	}
+
+	return additionalMetadata, true
+}
+
+func streamErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	if st, ok := status.FromError(err); ok {
+		return st.Code().String()
+	}
+
+	return "unknown"
+}
+
+func shouldLogReconnectMilestone(attempt int) bool {
+	return attempt == 1 || attempt%5 == 0
+}
+
+func (a *actionListenerImpl) retrySubscribe(ctx context.Context) error {
+	return a.actionStreamCore().retryConnectBackground(
+		ctx,
+		func(err error, attempt int) {
+			if !shouldLogReconnectMilestone(attempt) {
+				return
+			}
+
+			a.l.Warn().Ctx(ctx).
+				Err(err).
+				Str("worker_id", a.workerId).
+				Str("listener_strategy", string(a.listenerStrategy)).
+				Str("error_code", streamErrorCode(err)).
+				Int("reconnect_attempt", attempt).
+				Msg("action listener reconnect attempt continuing")
+		},
+		"failed to resubscribe after %d consecutive no-progress errors: %w",
+	)
 }
 
 func (a *actionListenerImpl) Unregister() error {
