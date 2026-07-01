@@ -76,6 +76,16 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
+func parseRetentionDuration(name, value string) (time.Duration, error) {
+	retentionPeriod, err := time.ParseDuration(value)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s %s: %w", name, value, err)
+	}
+
+	return retentionPeriod, nil
+}
+
 type ConfigLoader struct {
 	directory string
 }
@@ -319,10 +329,22 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+	_, err = parseRetentionDuration("default tenant retention period", scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+		return nil, err
+	}
+
+	corePartitionRetention, err := parseRetentionDuration("core partition retention", scf.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
+	}
+
+	olapPartitionRetention, err := parseRetentionDuration("OLAP partition retention", scf.Runtime.Limits.OLAPPartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
 	}
 
 	taskLimits := repov1.TaskOperationLimits{
@@ -362,8 +384,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ddlPool,
 		&l,
 		cf.CacheDuration,
-		retentionPeriod,
-		retentionPeriod,
+		corePartitionRetention,
+		olapPartitionRetention,
 		scf.Runtime.MaxInternalRetryCount,
 		taskLimits,
 		payloadStoreOpts,
