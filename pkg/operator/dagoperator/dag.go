@@ -28,8 +28,8 @@ func isDagCancelledErr(err error) bool {
 }
 
 type dag struct {
-	requestCh  chan<- *v1contracts.DurableTaskRequest
-	matchRepo  repository.MatchRepository
+	requestCh   chan<- *v1contracts.DurableTaskRequest
+	matchRepo   repository.MatchRepository
 	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
 
 	tasks           []*task
@@ -468,4 +468,3 @@ func (d *dag) registerSkipIfWatch(t *task) {
 
 	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: true})
 }
-

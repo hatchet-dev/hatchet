@@ -163,7 +163,6 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 	d.Logger().Debug().Strs("actions", actions).Msg("updated dag operator worker actions from workflows")
 }
 
-
 func (d *DAGOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
 	release := d.RecordTask()
 	defer release()

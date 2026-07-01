@@ -277,7 +277,6 @@ func pollActions(ctx context.Context, sender requestSender, l *zerolog.Logger, c
 	return resp.Actions, nil
 }
 
-
 func (h *HTTPOperator) HandleAction(ctx context.Context, action *contracts.AssignedAction) error {
 	// Track this task so Cleanup drains it before the operator shuts down.
 	release := h.RecordTask()
