@@ -544,6 +544,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		alerter = errors.NoOpAlerter{}
 	}
 
+	cleanupSecurityCheck := func() {}
+
 	if cf.SecurityCheck.Enabled {
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
 			Enabled:  cf.SecurityCheck.Enabled,
@@ -552,7 +554,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:  version,
 		}, dc.V1.SecurityCheck())
 
-		go securityCheck.Check()
+		securityCheckCtx, cancel := context.WithCancel(context.Background())
+		cleanupSecurityCheck = cancel
+
+		go securityCheck.Start(securityCheckCtx)
 	}
 
 	var analyticsEmitter analytics.Analytics
@@ -789,6 +794,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		cleanupSecurityCheck()
 
 		cleanupConcurrencyOutbox()
 
