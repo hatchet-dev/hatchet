@@ -6,12 +6,6 @@ import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
-type PendingInvitesData = {
-  inviteCount: number;
-  tenantInvites: TenantInvite[];
-  organizationInvites: OrganizationInvite[];
-};
-
 export const pendingInvitesQuery = (
   isCloudEnabled: boolean,
   isControlPlaneEnabled: boolean,
@@ -71,34 +65,6 @@ export const usePendingInvites = (opts?: {
     });
   }, [queryClient]);
 
-  // Drop a processed invite from the cache synchronously so consumers of
-  // inviteCount (auto-open effect, notification badge) don't act on a stale
-  // count while the post-accept refetch is still in flight.
-  const removeInviteFromCache = useCallback(
-    (inviteId: string) => {
-      queryClient.setQueriesData<PendingInvitesData>(
-        { queryKey: ['pending-invites'] },
-        (data) => {
-          if (!data) {
-            return data;
-          }
-          const tenantInvites = data.tenantInvites.filter(
-            (inv) => inv.metadata.id !== inviteId,
-          );
-          const organizationInvites = data.organizationInvites.filter(
-            (inv) => inv.metadata.id !== inviteId,
-          );
-          return {
-            inviteCount: tenantInvites.length + organizationInvites.length,
-            tenantInvites,
-            organizationInvites,
-          };
-        },
-      );
-    },
-    [queryClient],
-  );
-
   const get = useCallback(
     () =>
       query
@@ -120,7 +86,6 @@ export const usePendingInvites = (opts?: {
     isLoading: isCloudLoading || query.isLoading,
     isLoaded: query.isSuccess,
     invalidate,
-    removeInviteFromCache,
     get,
   };
 };

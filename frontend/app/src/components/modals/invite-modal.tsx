@@ -33,11 +33,8 @@ interface InviteModalProps {
 }
 
 export function InviteModal({ isOpen, onClose }: InviteModalProps) {
-  const {
-    pendingInvitesQuery,
-    invalidate: invalidatePendingInvites,
-    removeInviteFromCache,
-  } = usePendingInvites();
+  const { pendingInvitesQuery, invalidate: invalidatePendingInvites } =
+    usePendingInvites();
   const { tenantMemberships } = useUserUniverse();
   const { setTenant } = useTenantDetails();
 
@@ -62,7 +59,6 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     tenantInvites,
     organizationInvites,
     invalidatePendingInvites,
-    removeInviteFromCache,
     onClose,
     onConfirmation: () => setPhase('confirmation'),
   });
@@ -197,7 +193,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                         </TableCell>
                         <TableCell className="text-right">
                           <InviteActions
-                            disabled={pendingId !== undefined}
+                            disabled={pendingId === invite.metadata.id}
                             onAccept={() =>
                               handleTenantAccept(
                                 invite.metadata.id,
@@ -236,7 +232,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                         </TableCell>
                         <TableCell className="text-right">
                           <InviteActions
-                            disabled={pendingId !== undefined}
+                            disabled={pendingId === invite.metadata.id}
                             onAccept={() => handleOrgAccept(invite.metadata.id)}
                             onDecline={() =>
                               handleOrgReject(invite.metadata.id)
