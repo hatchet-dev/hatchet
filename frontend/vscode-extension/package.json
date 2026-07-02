@@ -2,7 +2,7 @@
   "name": "hatchet",
   "displayName": "Hatchet",
   "description": "Visualize Hatchet workflow DAGs inline in your editor",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "hatchet",
   "license": "MIT",
   "repository": {
@@ -39,7 +39,9 @@
     "watch": "webpack --mode development --watch",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.webview.json --noEmit",
     "package": "vsce package --no-dependencies",
-    "publish": "vsce publish --no-dependencies"
+    "publish": "vsce publish --no-dependencies",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -51,6 +53,7 @@
     "typescript": "^5.8.2"
   },
   "devDependencies": {
+    "@hatchet-dev/typescript-sdk": "1.24.3",
     "@types/dagre": "^0.7.52",
     "@types/node": "^20.17.28",
     "@types/react": "^18.3.20",
@@ -65,6 +68,7 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "ts-loader": "^9.5.2",
+    "vitest": "^2.1.9",
     "webpack": "^5.99.9",
     "webpack-cli": "^6.0.1"
   },

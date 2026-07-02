@@ -2468,3 +2468,92 @@ CREATE TABLE tenant_entitlement (
 
     CONSTRAINT tenant_entitlement_pkey PRIMARY KEY (tenant_id)
 );
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'INSERT',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint
+        )
+    FROM new_table nt
+    JOIN v1_step_concurrency sc ON sc.id = nt.strategy_id
+    WHERE sc.parent_strategy_id IS NULL;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_insert_outbox
+AFTER INSERT ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_insert_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_delete_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || dr.tenant_id::text || '.' || dr.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'DELETE',
+            'key', dr.key,
+            'priority', dr.priority,
+            'taskId', dr.task_id,
+            'taskInsertedAt', dr.task_inserted_at,
+            'taskRetryCount', dr.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM dr.schedule_timeout_at) * 1000)::bigint
+        )
+    FROM deleted_rows dr
+    JOIN v1_step_concurrency sc ON sc.id = dr.strategy_id
+    WHERE sc.parent_strategy_id IS NULL;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_delete_outbox
+AFTER DELETE ON v1_concurrency_slot
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_delete_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_update_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'UPDATE',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint,
+            'isFilled', nt.is_filled
+        )
+    FROM new_table nt
+    JOIN v1_step_concurrency sc ON sc.id = nt.strategy_id
+    WHERE sc.parent_strategy_id IS NULL
+        AND nt.is_filled = FALSE;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_update_outbox
+AFTER UPDATE ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();

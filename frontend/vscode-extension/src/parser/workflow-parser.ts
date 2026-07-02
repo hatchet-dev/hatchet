@@ -33,6 +33,13 @@ export interface WorkflowDeclaration {
    * needed for parsing tasks on the wrapper's returned object.
    */
   annotation?: WorkflowFactoryAnnotation;
+  /**
+   * When set, the DAG is built from this declaration's own scope — a function
+   * body whose task calls are always in the same file. The panel resolves it
+   * directly and skips the cross-file LSP reference step (which would find no
+   * task references on a function name and mislabel it as a degraded fallback).
+   */
+  localOnly?: boolean;
 }
 
 function getPropertyValue(
@@ -125,15 +132,193 @@ function extractWorkflowNameFromArgs(call: ts.CallExpression): string | undefine
 }
 
 /**
- * Parse a TypeScript source file and return all Hatchet workflow declarations.
- *
- * Two-pass approach:
- *   Pass 1 – collect workflow variable names:
- *     • `const X = *.workflow({ name })` (built-in Hatchet pattern)
- *     • `const X = annotatedFn(...)` where `annotatedFn` appears in
- *       `annotatedFunctions`
- *   Pass 2 – collect task declarations on known workflow variables, honouring
- *     each variable's annotation metadata for method name and parents prop.
+ * Methods that register a task (a DAG node) on a Hatchet workflow/builder
+ * object. Detection is *task-first*: any variable that receives one of these
+ * calls is treated as a workflow, regardless of how it was constructed (direct
+ * `hatchet.workflow(...)`, an awaited factory/builder, several wrappers deep).
+ * Extend the set via an `@hatchet-task-method` annotation for custom methods.
+ */
+const DEFAULT_TASK_METHODS = ['task', 'durableTask'];
+
+interface CollectedWorkflow {
+  varName: string;
+  name: string;
+  declarationLine: number;
+  declarationCharacter: number;
+  tasks: ParsedTask[];
+  annotation?: WorkflowFactoryAnnotation;
+}
+
+/**
+ * Core, task-shape-based collection used by both the fast detector and the full
+ * parser. A workflow is any variable that is *either* constructed as one
+ * (`*.workflow(...)` / an annotated factory usage) *or* simply has task-method
+ * calls attached to it. The DAG is built from those task calls; a constructed
+ * workflow with no local tasks falls back to a factory's captured body tasks.
+ */
+function collectWorkflows(
+  sourceFile: ts.SourceFile,
+  annotatedFunctions: ReadonlyMap<string, WorkflowFactoryAnnotation>,
+): CollectedWorkflow[] {
+  const taskMethods = new Set<string>(DEFAULT_TASK_METHODS);
+  for (const ann of annotatedFunctions.values()) {
+    if (ann.taskMethod) taskMethods.add(ann.taskMethod);
+  }
+
+  const lineCharOf = (node: ts.Node) =>
+    sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+
+  // ── Pass A: classify variable declarations ──────────────────────────────
+  // Workflows discovered by construction, plus the position of every const/let
+  // declaration (so a task-first variable can be placed on its declaration).
+  const wfVars = new Map<
+    string,
+    { name: string; declarationLine: number; declarationCharacter: number; annotation?: WorkflowFactoryAnnotation }
+  >();
+  const declPos = new Map<string, { line: number; character: number }>();
+
+  function visitDecls(node: ts.Node): void {
+    if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (!ts.isIdentifier(decl.name)) continue;
+        const varName = decl.name.text;
+        const namePos = lineCharOf(decl.name);
+        if (!declPos.has(varName)) {
+          declPos.set(varName, { line: namePos.line, character: namePos.character });
+        }
+        const init = decl.initializer;
+        if (!init) continue;
+
+        // Direct `*.workflow(...)`. Skip when inside an annotated factory — its
+        // DAG surfaces on the factory's usage site instead.
+        if (isWorkflowCall(init) && !isInsideAnnotatedFactory(decl, annotatedFunctions)) {
+          const name = resolveWorkflowName(init, sourceFile, varName);
+          if (name) {
+            wfVars.set(varName, {
+              name,
+              declarationLine: namePos.line,
+              declarationCharacter: namePos.character,
+            });
+          }
+          continue;
+        }
+
+        // Usage of an annotated factory: `const x = factory(...)` / `await factory(...)`.
+        const call = ts.isAwaitExpression(init) ? init.expression : init;
+        if (ts.isCallExpression(call)) {
+          const calleeName = getCalleeIdentifierName(call);
+          const ann = calleeName ? annotatedFunctions.get(calleeName) : undefined;
+          if (ann) {
+            wfVars.set(varName, {
+              name: extractWorkflowNameFromArgs(call) ?? varName,
+              declarationLine: namePos.line,
+              declarationCharacter: namePos.character,
+              annotation: ann,
+            });
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visitDecls);
+  }
+  visitDecls(sourceFile);
+
+  // ── Pass B: collect task calls grouped by receiver variable ─────────────
+  const tasksByVar = new Map<string, ParsedTask[]>();
+  const firstTaskLine = new Map<string, number>();
+  const anonCounters = new Map<string, number>();
+  const genAnon = (v: string): string => {
+    const c = (anonCounters.get(v) ?? 0) + 1;
+    anonCounters.set(v, c);
+    return `${v}_task_${c}`;
+  };
+
+  function recordTask(call: ts.CallExpression, taskVarId: string | undefined, line: number): void {
+    const expr = call.expression;
+    if (!ts.isPropertyAccessExpression(expr)) return;
+    const receiver = expr.expression;
+    if (!ts.isIdentifier(receiver)) return;
+    if (!taskMethods.has(expr.name.text)) return;
+    // Tasks defined inside an annotated factory belong to the factory's usage
+    // site (surfaced via the captured annotation tasks), not the inner object.
+    if (isInsideAnnotatedFactory(call, annotatedFunctions)) return;
+
+    const receiverVar = receiver.text;
+    const parentsProp = wfVars.get(receiverVar)?.annotation?.taskParentsProp ?? 'parents';
+
+    let displayName: string | undefined;
+    let parentVarIds: string[] = [];
+    const firstArg = call.arguments[0];
+    if (!firstArg) return;
+
+    if (ts.isStringLiteral(firstArg) || ts.isNoSubstitutionTemplateLiteral(firstArg)) {
+      // Positional-name form: wf.task('step1', { parents: [...] })
+      displayName = firstArg.text;
+      const optsArg = call.arguments[1];
+      if (optsArg && ts.isObjectLiteralExpression(optsArg)) {
+        const parentsExpr = getPropertyValue(optsArg, parentsProp);
+        parentVarIds = parentsExpr ? extractParentIds(parentsExpr) : [];
+      }
+    } else if (ts.isObjectLiteralExpression(firstArg)) {
+      // Options-object form: wf.task({ name: 'step1', parents: [...] })
+      const nameExpr = getPropertyValue(firstArg, 'name');
+      displayName = getStringLiteral(nameExpr) ?? taskVarId ?? genAnon(receiverVar);
+      const parentsExpr = getPropertyValue(firstArg, parentsProp);
+      parentVarIds = parentsExpr ? extractParentIds(parentsExpr) : [];
+    } else {
+      return;
+    }
+    if (!displayName) return;
+
+    const varId = taskVarId ?? sanitizeVarId(displayName);
+    if (!tasksByVar.has(receiverVar)) tasksByVar.set(receiverVar, []);
+    tasksByVar.get(receiverVar)!.push({ varId, displayName, parentVarIds, declarationLine: line });
+    if (!firstTaskLine.has(receiverVar)) firstTaskLine.set(receiverVar, line);
+  }
+
+  function visitTasks(node: ts.Node): void {
+    if (ts.isExpressionStatement(node) && ts.isCallExpression(node.expression)) {
+      recordTask(node.expression, undefined, lineCharOf(node).line);
+    } else if (ts.isVariableStatement(node)) {
+      for (const decl of node.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.initializer && ts.isCallExpression(decl.initializer)) {
+          recordTask(decl.initializer, decl.name.text, lineCharOf(node).line);
+          break;
+        }
+      }
+    }
+    ts.forEachChild(node, visitTasks);
+  }
+  visitTasks(sourceFile);
+
+  // ── Merge: a workflow is either constructed as one or has tasks attached ──
+  const names = new Set<string>([...wfVars.keys(), ...tasksByVar.keys()]);
+  const results: CollectedWorkflow[] = [];
+  for (const varName of names) {
+    const wf = wfVars.get(varName);
+    const collected = tasksByVar.get(varName) ?? [];
+    const tasks = collected.length > 0 ? collected : wf?.annotation?.tasks ?? [];
+
+    let name: string;
+    let declarationLine: number;
+    let declarationCharacter: number;
+    if (wf) {
+      ({ name, declarationLine, declarationCharacter } = wf);
+    } else {
+      // Task-first only: a variable that merely receives task calls.
+      const pos = declPos.get(varName);
+      name = varName;
+      declarationLine = pos?.line ?? firstTaskLine.get(varName) ?? 0;
+      declarationCharacter = pos?.character ?? 0;
+    }
+    results.push({ varName, name, declarationLine, declarationCharacter, tasks, annotation: wf?.annotation });
+  }
+  return results;
+}
+
+/**
+ * Parse a TypeScript source file and return all Hatchet workflow declarations
+ * together with their task DAGs.
  */
 export function parseWorkflows(
   sourceText: string,
@@ -148,176 +333,12 @@ export function parseWorkflows(
     ts.ScriptKind.TS,
   );
 
-  const workflowVars = new Map<
-    string,
-    { name: string; declarationLine: number; annotation?: WorkflowFactoryAnnotation }
-  >();
-
-  function visitForWorkflows(node: ts.Node): void {
-    if (ts.isVariableStatement(node)) {
-      for (const decl of node.declarationList.declarations) {
-        if (!ts.isIdentifier(decl.name)) continue;
-        const varName = decl.name.text;
-        const init = decl.initializer;
-        if (!init) continue;
-
-        // A direct `*.workflow(...)` call. Skip it when it lives inside an
-        // annotated factory — its DAG is surfaced on the factory's usage site
-        // instead, so we don't want a second lens on the inner call.
-        if (isWorkflowCall(init) && !isInsideAnnotatedFactory(node, annotatedFunctions)) {
-          const workflowName = resolveWorkflowName(init, sourceFile, varName);
-          if (workflowName) {
-            const line = sourceFile.getLineAndCharacterOfPosition(
-              node.getStart(sourceFile),
-            ).line;
-            workflowVars.set(varName, { name: workflowName, declarationLine: line });
-          }
-        }
-
-        // A usage of an annotated factory: `const x = factory(...)` or
-        // `const x = await factory(...)`.
-        const factoryCall = ts.isAwaitExpression(init) ? init.expression : init;
-        if (ts.isCallExpression(factoryCall)) {
-          const calleeName = getCalleeIdentifierName(factoryCall);
-          if (calleeName) {
-            const ann = annotatedFunctions.get(calleeName);
-            if (ann) {
-              const workflowName =
-                extractWorkflowNameFromArgs(factoryCall) ?? varName;
-              const line = sourceFile.getLineAndCharacterOfPosition(
-                node.getStart(sourceFile),
-              ).line;
-              workflowVars.set(varName, {
-                name: workflowName,
-                declarationLine: line,
-                annotation: ann,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    ts.forEachChild(node, visitForWorkflows);
-  }
-
-  visitForWorkflows(sourceFile);
-
-  if (workflowVars.size === 0) {
-    return [];
-  }
-
-  const tasksByWorkflow = new Map<string, ParsedTask[]>();
-  const anonCounters = new Map<string, number>();
-
-  function visitForTasks(node: ts.Node): void {
-    let callExpr: ts.CallExpression | undefined;
-    let taskVarId: string | undefined;
-    let statementLine = 0;
-
-    if (ts.isExpressionStatement(node) && ts.isCallExpression(node.expression)) {
-      callExpr = node.expression;
-      statementLine = sourceFile.getLineAndCharacterOfPosition(
-        node.getStart(sourceFile),
-      ).line;
-    } else if (ts.isVariableStatement(node)) {
-      for (const decl of node.declarationList.declarations) {
-        if (
-          ts.isIdentifier(decl.name) &&
-          decl.initializer &&
-          ts.isCallExpression(decl.initializer)
-        ) {
-          callExpr = decl.initializer;
-          taskVarId = decl.name.text;
-          statementLine = sourceFile.getLineAndCharacterOfPosition(
-            node.getStart(sourceFile),
-          ).line;
-          break;
-        }
-      }
-    }
-
-    if (callExpr) {
-      const parsed = tryParseTaskCall(callExpr, taskVarId, statementLine);
-      if (parsed) {
-        const { workflowVar, task } = parsed;
-        if (!tasksByWorkflow.has(workflowVar)) {
-          tasksByWorkflow.set(workflowVar, []);
-        }
-        tasksByWorkflow.get(workflowVar)!.push(task);
-      }
-    }
-
-    ts.forEachChild(node, visitForTasks);
-  }
-
-  function tryParseTaskCall(
-    call: ts.CallExpression,
-    taskVarId: string | undefined,
-    declarationLine: number,
-  ): { workflowVar: string; task: ParsedTask } | undefined {
-    const expr = call.expression;
-    if (!ts.isPropertyAccessExpression(expr)) return undefined;
-
-    const receiver = expr.expression;
-    if (!ts.isIdentifier(receiver)) return undefined;
-    const workflowVar = receiver.text;
-    const wfEntry = workflowVars.get(workflowVar);
-    if (!wfEntry) return undefined;
-
-    const taskMethod = wfEntry.annotation?.taskMethod ?? 'task';
-    const taskParentsProp = wfEntry.annotation?.taskParentsProp ?? 'parents';
-
-    if (expr.name.text !== taskMethod) return undefined;
-
-    const firstArg = call.arguments[0];
-    if (!firstArg) return undefined;
-
-    let displayName: string | undefined;
-    let parentVarIds: string[] = [];
-
-    if (ts.isStringLiteral(firstArg) || ts.isNoSubstitutionTemplateLiteral(firstArg)) {
-      // Positional-name form: wf.task('step1', { parents: [...] })
-      displayName = firstArg.text;
-      const optsArg = call.arguments[1];
-      if (optsArg && ts.isObjectLiteralExpression(optsArg)) {
-        const parentsExpr = getPropertyValue(optsArg, taskParentsProp);
-        parentVarIds = parentsExpr ? extractParentIds(parentsExpr) : [];
-      }
-    } else if (ts.isObjectLiteralExpression(firstArg)) {
-      // Options-object form: wf.task({ name: 'step1', parents: [...] })
-      const displayNameExpr = getPropertyValue(firstArg, 'name');
-      displayName =
-        getStringLiteral(displayNameExpr) ?? taskVarId ?? generateAnonId(workflowVar);
-      const parentsExpr = getPropertyValue(firstArg, taskParentsProp);
-      parentVarIds = parentsExpr ? extractParentIds(parentsExpr) : [];
-    }
-
-    if (!displayName) return undefined;
-
-    const varId = taskVarId ?? sanitizeVarId(displayName);
-    return { workflowVar, task: { varId, displayName, parentVarIds, declarationLine } };
-  }
-
-  function generateAnonId(workflowVar: string): string {
-    const count = (anonCounters.get(workflowVar) ?? 0) + 1;
-    anonCounters.set(workflowVar, count);
-    return `${workflowVar}_task_${count}`;
-  }
-
-  visitForTasks(sourceFile);
-
-  const results: ParsedWorkflow[] = [];
-
-  for (const [varName, { name, declarationLine, annotation }] of workflowVars) {
-    const collected = tasksByWorkflow.get(varName) ?? [];
-    // When a factory usage has no tasks of its own, fall back to the DAG built
-    // inside the factory body (captured on the annotation).
-    const tasks = collected.length > 0 ? collected : annotation?.tasks ?? [];
-    results.push({ name, varName, declarationLine, tasks });
-  }
-
-  return results;
+  return collectWorkflows(sourceFile, annotatedFunctions).map((w) => ({
+    name: w.name,
+    varName: w.varName,
+    declarationLine: w.declarationLine,
+    tasks: w.tasks,
+  }));
 }
 
 /**
@@ -401,12 +422,10 @@ function sanitizeVarId(name: string): string {
 }
 
 /**
- * Fast, Pass-1-only scan: return one `WorkflowDeclaration` per workflow
- * variable found in the source.  No task scanning — suitable for CodeLens.
- *
- * Detects both the built-in `.workflow({name})` pattern and calls to
- * `@hatchet-workflow`-annotated factory functions listed in
- * `annotatedFunctions`.
+ * Fast scan: return one `WorkflowDeclaration` per workflow variable found —
+ * suitable for CodeLens placement. Task-shape-based, so it also surfaces
+ * workflows reached through awaited factories/builders, not just direct
+ * `.workflow({name})` calls or annotated factories.
  */
 export function detectTsWorkflowDeclarations(
   sourceText: string,
@@ -421,60 +440,11 @@ export function detectTsWorkflowDeclarations(
     ts.ScriptKind.TS,
   );
 
-  const result: WorkflowDeclaration[] = [];
-
-  function visit(node: ts.Node): void {
-    if (ts.isVariableStatement(node)) {
-      for (const decl of node.declarationList.declarations) {
-        if (!ts.isIdentifier(decl.name)) continue;
-        const varName = decl.name.text;
-        const init = decl.initializer;
-        if (!init) continue;
-
-        // Direct `*.workflow(...)` — skip when inside an annotated factory
-        // (surfaced on the factory's usage site instead).
-        if (isWorkflowCall(init)) {
-          if (isInsideAnnotatedFactory(node, annotatedFunctions)) continue;
-          const workflowName = resolveWorkflowName(init, sourceFile, varName);
-          if (!workflowName) continue;
-
-          const namePos = sourceFile.getLineAndCharacterOfPosition(
-            decl.name.getStart(sourceFile),
-          );
-          result.push({
-            name: workflowName,
-            varName,
-            declarationLine: namePos.line,
-            declarationCharacter: namePos.character,
-          });
-          continue;
-        }
-
-        // Usage of an annotated factory, optionally awaited.
-        const factoryCall = ts.isAwaitExpression(init) ? init.expression : init;
-        if (ts.isCallExpression(factoryCall)) {
-          const calleeName = getCalleeIdentifierName(factoryCall);
-          if (!calleeName) continue;
-          const ann = annotatedFunctions.get(calleeName);
-          if (!ann) continue;
-
-          const workflowName = extractWorkflowNameFromArgs(factoryCall) ?? varName;
-          const namePos = sourceFile.getLineAndCharacterOfPosition(
-            decl.name.getStart(sourceFile),
-          );
-          result.push({
-            name: workflowName,
-            varName,
-            declarationLine: namePos.line,
-            declarationCharacter: namePos.character,
-            annotation: ann,
-          });
-        }
-      }
-    }
-    ts.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-  return result;
+  return collectWorkflows(sourceFile, annotatedFunctions).map((w) => ({
+    name: w.name,
+    varName: w.varName,
+    declarationLine: w.declarationLine,
+    declarationCharacter: w.declarationCharacter,
+    annotation: w.annotation,
+  }));
 }
