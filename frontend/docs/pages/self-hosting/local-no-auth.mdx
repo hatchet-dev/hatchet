@@ -5,8 +5,7 @@ import { Callout } from "nextra/components";
 No-auth mode lets you run a local Hatchet instance without signing in to the dashboard or minting your own API token. It is intended purely for local development.
 
 <Callout type="error" emoji="🚫">
-  Never enable no-auth mode in production or on any instance reachable by
-  untrusted clients. It removes authentication from the dashboard and REST API.
+  No-auth mode should strictly be used for local development and testing. Please don't enable this on a production system which can be accessed by untrusted clients.
 </Callout>
 
 ## What it does
@@ -17,9 +16,9 @@ No-auth mode lets you run a local Hatchet instance without signing in to the das
 
 ## Workers still use an API token
 
-The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. No-auth mode provides a **default token** so you don't have to create one:
+The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. No-auth mode provides a default token so you don't have to create one:
 
-- The token is signed by a **dedicated no-auth keyset**, separate from the instance's main keyset. The server only trusts this keyset when no-auth mode is enabled, so the default token is inert on any instance that hasn't loaded it.
+- The token is signed by a dedicated no-auth keyset, separate from the instance's main keyset. The server only trusts this keyset when no-auth mode is enabled, so the default token is inert on any instance that hasn't loaded it.
 - It is scoped to the seed default tenant.
 
 Point your worker at it via `HATCHET_CLIENT_TOKEN`.
@@ -34,9 +33,9 @@ hatchet server start --no-auth-mode
 
 This prints the default token to use as `HATCHET_CLIENT_TOKEN`.
 
-### Hatchet Lite (run directly)
+### Hatchet Lite
 
-When running the `hatchet-lite` image directly (not through the CLI), set `SERVER_AUTH_NO_AUTH_ENABLED=true`:
+When running the `hatchet-lite` image, set `SERVER_AUTH_NO_AUTH_ENABLED=true`:
 
 ```sh
 docker run -e SERVER_AUTH_NO_AUTH_ENABLED=true ... ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
@@ -45,7 +44,7 @@ docker run -e SERVER_AUTH_NO_AUTH_ENABLED=true ... ghcr.io/hatchet-dev/hatchet/h
 On startup the container generates the no-auth keyset and mints the default worker token. Grab it either from the container logs or from the config volume:
 
 ```sh
-docker logs <hatchet-lite-container>              # printed under "no-auth mode: worker API token"
+docker logs <hatchet-lite-container> # printed under "no-auth mode: worker API token"
 # or
 docker exec <hatchet-lite-container> cat ./config/noauth-token
 ```
@@ -79,7 +78,7 @@ hatchet-admin keyset --key-dir /path/to/keys create-noauth-keys
 hatchet-admin token create --no-auth
 ```
 
-## How it stays safe
+## Key security awareness implementations
 
 - Defaults to **off**; must be explicitly enabled.
 - The no-auth keyset is generated per instance and trusted only when no-auth mode is on, so the default token cannot authenticate against a normal deployment.
