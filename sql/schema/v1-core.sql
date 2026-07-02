@@ -902,10 +902,7 @@ BEGIN
         parent_to_child_strategy_ids pcs
     ON CONFLICT (strategy_id, workflow_version_id, workflow_run_id) DO NOTHING;
 
-    -- Reactivate the strategy and refresh last_active_at so the 1-day stale-deactivation sweep measures
-    -- time since the last task run. We refresh when the strategy is inactive OR its last_active_at is more
-    -- than an hour stale, so a busy strategy rewrites its row at most once an hour (not on every task)
-    -- while keeping last_active_at within an hour of the last run -- ample precision for a 1-day threshold.
+    -- If the v1_step_concurrency strategy is not active, we set it to active.
     WITH inactive_strategies AS (
         SELECT
             strategy.*
