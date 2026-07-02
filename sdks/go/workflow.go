@@ -169,6 +169,7 @@ type workflowConfig struct {
 	defaultPriority *RunPriority
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
+	defaultFilters  []types.DefaultFilter
 	idempotency     *IdempotencyConfig
 }
 
@@ -279,6 +280,7 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		Concurrency:    config.concurrency,
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,
+		DefaultFilters: config.defaultFilters,
 	}
 
 	if config.defaultPriority != nil {
@@ -312,7 +314,6 @@ type taskConfig struct {
 	scheduleTimeout        time.Duration
 	onCron                 []string
 	onEvents               []string
-	defaultFilters         []types.DefaultFilter
 	concurrency            []*types.Concurrency
 	rateLimits             []*types.RateLimit
 	isDurable              bool
@@ -368,9 +369,9 @@ func WithEvents(events ...string) TaskOption {
 	}
 }
 
-// WithFilters sets default filters for event-triggered tasks.
-func WithFilters(filters ...types.DefaultFilter) TaskOption {
-	return func(config *taskConfig) {
+// WithDefaultFilters sets default filters for event-triggered workflows or standalone tasks.
+func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
+	return func(config *workflowConfig) {
 		config.defaultFilters = filters
 	}
 }

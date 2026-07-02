@@ -114,6 +114,8 @@ func TestDurableSleepCancelReplay(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	pollUntilRunStatus(t, ctx, sharedClient, ref.RunId, string(rest.V1TaskStatusRUNNING))
+
 	result, err := ref.Result()
 	require.NoError(t, err)
 	replayElapsed := time.Since(replayStart).Seconds()
@@ -526,4 +528,40 @@ func TestDurableMemoNowCaching(t *testing.T) {
 	m2 := resultMap(t, result2, "memo-now-caching")
 
 	assert.Equal(t, m1["start_time"], m2["start_time"])
+}
+
+func TestDurableErrorOnErrorInChild(t *testing.T) {
+	ctx := newTestContext(t)
+
+	errorMsg := "error in child task " + uuid.NewString()
+
+	result, err := testErrorRaisingDurableParent.Run(ctx, ErrorRaisingInput{ErrorMessage: errorMsg})
+	require.NoError(t, err)
+
+	var output map[string]any
+	err = result.Into(&output)
+	require.NoError(t, err)
+
+	require.True(t, output["child_raised"].(bool), "expected child_raised to be true")
+	childErrorStr, _ := output["child_error_str"].(string)
+	assert.Contains(t, childErrorStr, errorMsg)
+
+	childRunID, _ := output["child_run_external_id"].(string)
+	parentRunID, _ := output["parent_run_external_id"].(string)
+
+	pollUntil(t, ctx, func() (bool, error) {
+		childStatus, err := sharedClient.Runs().GetStatus(ctx, childRunID)
+		if err != nil {
+			return false, err
+		}
+		return *childStatus == rest.V1TaskStatusFAILED, nil
+	})
+
+	pollUntil(t, ctx, func() (bool, error) {
+		parentStatus, err := sharedClient.Runs().GetStatus(ctx, parentRunID)
+		if err != nil {
+			return false, err
+		}
+		return *parentStatus == rest.V1TaskStatusCOMPLETED, nil
+	})
 }

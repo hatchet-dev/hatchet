@@ -43,6 +43,12 @@ class DurableTasksApi:
     @validate_call
     def v1_durable_task_event_log_list(
         self,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         durable_task: Annotated[
             str,
             Field(
@@ -76,6 +82,8 @@ class DurableTasksApi:
 
         Lists all event log entries for a durable task.
 
+        :param tenant: The tenant id (required)
+        :type tenant: str
         :param durable_task: The durable task external id (required)
         :type durable_task: str
         :param offset: The number of event log entries to skip
@@ -105,6 +113,7 @@ class DurableTasksApi:
         """  # noqa: E501
 
         _param = self._v1_durable_task_event_log_list_serialize(
+            tenant=tenant,
             durable_task=durable_task,
             offset=offset,
             limit=limit,
@@ -132,6 +141,12 @@ class DurableTasksApi:
     @validate_call
     def v1_durable_task_event_log_list_with_http_info(
         self,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         durable_task: Annotated[
             str,
             Field(
@@ -165,6 +180,8 @@ class DurableTasksApi:
 
         Lists all event log entries for a durable task.
 
+        :param tenant: The tenant id (required)
+        :type tenant: str
         :param durable_task: The durable task external id (required)
         :type durable_task: str
         :param offset: The number of event log entries to skip
@@ -194,6 +211,7 @@ class DurableTasksApi:
         """  # noqa: E501
 
         _param = self._v1_durable_task_event_log_list_serialize(
+            tenant=tenant,
             durable_task=durable_task,
             offset=offset,
             limit=limit,
@@ -221,6 +239,12 @@ class DurableTasksApi:
     @validate_call
     def v1_durable_task_event_log_list_without_preload_content(
         self,
+        tenant: Annotated[
+            str,
+            Field(
+                min_length=36, strict=True, max_length=36, description="The tenant id"
+            ),
+        ],
         durable_task: Annotated[
             str,
             Field(
@@ -254,6 +278,8 @@ class DurableTasksApi:
 
         Lists all event log entries for a durable task.
 
+        :param tenant: The tenant id (required)
+        :type tenant: str
         :param durable_task: The durable task external id (required)
         :type durable_task: str
         :param offset: The number of event log entries to skip
@@ -283,6 +309,7 @@ class DurableTasksApi:
         """  # noqa: E501
 
         _param = self._v1_durable_task_event_log_list_serialize(
+            tenant=tenant,
             durable_task=durable_task,
             offset=offset,
             limit=limit,
@@ -305,6 +332,7 @@ class DurableTasksApi:
 
     def _v1_durable_task_event_log_list_serialize(
         self,
+        tenant,
         durable_task,
         offset,
         limit,
@@ -328,6 +356,8 @@ class DurableTasksApi:
         _body_params: Optional[bytes] = None
 
         # process the path parameters
+        if tenant is not None:
+            _path_params["tenant"] = tenant
         if durable_task is not None:
             _path_params["durable-task"] = durable_task
         # process the query parameters
@@ -354,7 +384,7 @@ class DurableTasksApi:
 
         return self.api_client.param_serialize(
             method="GET",
-            resource_path="/api/v1/stable/durable-tasks/{durable-task}",
+            resource_path="/api/v1/stable/tenants/{tenant}/durable-tasks/{durable-task}",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

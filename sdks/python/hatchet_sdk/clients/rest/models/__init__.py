@@ -206,6 +206,7 @@ from hatchet_sdk.clients.rest.models.tenant_step_run_queue_metrics import (
     TenantStepRunQueueMetrics,
 )
 from hatchet_sdk.clients.rest.models.tenant_version import TenantVersion
+from hatchet_sdk.clients.rest.models.trigger_run_result import TriggerRunResult
 from hatchet_sdk.clients.rest.models.trigger_workflow_run_request import (
     TriggerWorkflowRunRequest,
 )

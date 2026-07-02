@@ -27,7 +27,7 @@ func (r *optimisticSchedulingRepositoryImpl) StartTx(ctx context.Context) (*Opti
 }
 
 func (r *optimisticSchedulingRepositoryImpl) TriggerFromEvents(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []EventTriggerOpts) ([]*sqlcv1.V1QueueItem, *TriggerFromEventsResult, error) {
-	pre, post := r.m.Meter(ctx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
+	pre, post := r.m.Meter(ctx, tx.tx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
 		return nil, nil, err

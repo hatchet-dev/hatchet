@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
@@ -52,6 +53,17 @@ func runWithDatabase(t *testing.T, test func(conf *database.Layer) error) {
 	t.Setenv("SERVER_MSGQUEUE_RABBITMQ_URL", "amqp://user:password@localhost:5672/")
 
 	testutils.RunTestWithDatabase(t, test)
+}
+
+// newTestOutbox builds a pgoutbox.Outbox for tests against the migrated test database. The
+// outbox table and triggers are created by migrations, so auto-migration is disabled.
+func newTestOutbox(t *testing.T, conf *database.Layer) pgoutbox.Outbox {
+	t.Helper()
+
+	o, err := pgoutbox.NewOutbox(t.Context(), conf.Pool, pgoutbox.WithAutoMigrate(false))
+	require.NoError(t, err)
+
+	return o
 }
 
 func requireSchedulerSchema(t *testing.T, ctx context.Context, conf *database.Layer) {
@@ -192,6 +204,7 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			newTestOutbox(t, conf),
 			&l,
 			100,                  // singleQueueLimit
 			20,                   // schedulerConcurrencyRateLimit
@@ -202,6 +215,8 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 			5*time.Millisecond,   // schedulerAdvisoryLockTimeout
 			false,                // optimisticSchedulingEnabled
 			1,                    // optimisticSlots
+			true,
+			nil, // promGate
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -237,6 +252,7 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			newTestOutbox(t, conf),
 			&l,
 			100,
 			20,
@@ -247,6 +263,8 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 			5*time.Millisecond,
 			false,
 			1,
+			true,
+			nil,
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -278,6 +296,7 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			newTestOutbox(t, conf),
 			&l,
 			100,
 			20,
@@ -288,6 +307,8 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 			5*time.Millisecond,
 			false,
 			1,
+			true,
+			nil,
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -333,6 +354,7 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			newTestOutbox(t, conf),
 			&l,
 			100,
 			20,
@@ -343,6 +365,8 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 			5*time.Millisecond,
 			false,
 			1,
+			true,
+			nil,
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()

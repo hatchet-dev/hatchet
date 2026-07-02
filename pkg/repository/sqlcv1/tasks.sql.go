@@ -911,7 +911,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
@@ -926,7 +927,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_retry_queue_item rqi
     JOIN
@@ -941,7 +943,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
@@ -959,7 +962,8 @@ WITH queued_tasks AS (
         sc.strategy,
         cs.key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_concurrency_slot cs
     JOIN
@@ -985,7 +989,8 @@ WITH queued_tasks AS (
         COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
         COALESCE(cs.key, '') as key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_task_runtime tr
     JOIN
@@ -1013,7 +1018,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM queued_tasks
 
 UNION ALL
@@ -1026,7 +1032,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM retry_queued_tasks
 
 UNION ALL
@@ -1039,7 +1046,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM rate_limited_queued_tasks
 
 UNION ALL
@@ -1052,7 +1060,8 @@ SELECT
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
 
 UNION ALL
@@ -1065,19 +1074,21 @@ SELECT
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM running_tasks
 `
 
 type GetTenantTaskStatsRow struct {
-	TaskStatus     string             `json:"task_status"`
-	StepReadableID string             `json:"step_readable_id"`
-	Queue          string             `json:"queue"`
-	Expression     pgtype.Text        `json:"expression"`
-	Strategy       pgtype.Text        `json:"strategy"`
-	Key            pgtype.Text        `json:"key"`
-	Count          int64              `json:"count"`
-	Oldest         pgtype.Timestamptz `json:"oldest"`
+	TaskStatus             string             `json:"task_status"`
+	StepReadableID         string             `json:"step_readable_id"`
+	Queue                  string             `json:"queue"`
+	Expression             pgtype.Text        `json:"expression"`
+	Strategy               pgtype.Text        `json:"strategy"`
+	Key                    pgtype.Text        `json:"key"`
+	Count                  int64              `json:"count"`
+	Oldest                 pgtype.Timestamptz `json:"oldest"`
+	OldestExcludingRetries pgtype.Timestamptz `json:"oldest_excluding_retries"`
 }
 
 func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetTenantTaskStatsRow, error) {
@@ -1098,6 +1109,7 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid
 			&i.Key,
 			&i.Count,
 			&i.Oldest,
+			&i.OldestExcludingRetries,
 		); err != nil {
 			return nil, err
 		}
@@ -2051,6 +2063,7 @@ WITH tasks_on_inactive_workers AS (
         AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE($2::integer, 1000)
+    FOR UPDATE OF runtime SKIP LOCKED
 )
 SELECT
     v1_task.id,
@@ -2105,6 +2118,8 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = $1::uuid
         AND timeout_at <= NOW()
+        -- evicted tasks are not eligible for timeout
+        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT

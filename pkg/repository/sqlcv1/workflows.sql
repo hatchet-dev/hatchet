@@ -661,6 +661,7 @@ WHERE "id" = @cronTriggerId::uuid
 WITH latest_version AS (
     SELECT "id" FROM "WorkflowVersion"
     WHERE "workflowId" = @workflowId::uuid
+        AND "deletedAt" IS NULL
     ORDER BY "order" DESC
     LIMIT 1
 ),

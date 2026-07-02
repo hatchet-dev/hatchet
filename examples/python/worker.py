@@ -49,6 +49,8 @@ from examples.durable.worker import (
     wait_for_two_events_second_pushed_first,
     durable_child_key_dedup_replay,
     durable_spawn_many_dags,
+    error_raising_task,
+    error_raising_durable_parent,
 )
 from examples.durable_event.worker import (
     durable_event_task,
@@ -198,6 +200,8 @@ def main() -> None:
             durable_spawn_many_dags,
             idempotent_task,
             idempotent_task_short_window,
+            error_raising_durable_parent,
+            error_raising_task,
         ],
         lifespan=lifespan,
     )

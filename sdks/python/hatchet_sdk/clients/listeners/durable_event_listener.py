@@ -115,17 +115,21 @@ class DurableTaskEventLogEntryResult(BaseModel):
     durable_task_external_id: str
     node_id: int
     payload: JSONSerializableMapping | None
+    is_failure: bool = False
+    error_message: str | None = None
 
     @classmethod
     def from_proto(cls, proto: DurableTaskEventLogEntryCompletedResponse) -> Self:
         payload: JSONSerializableMapping | None = None
-        if proto.payload:
+        if not proto.is_failure and proto.payload:
             payload = json.loads(proto.payload.decode("utf-8"))
 
         return cls(
             durable_task_external_id=proto.ref.durable_task_external_id,
             node_id=proto.ref.node_id,
             payload=payload,
+            is_failure=proto.is_failure,
+            error_message=proto.error_message or None,
         )
 
 
@@ -252,12 +256,13 @@ class DurableEventListener:
             await self._conn.close()
 
     async def _request_iterator(self) -> AsyncIterator[DurableTaskRequest]:
-        if not self._request_queue:
+        queue = self._request_queue
+        if queue is None:
             raise RuntimeError("Request queue not initialized")
 
         while self._running:
             with suppress(asyncio.TimeoutError):
-                yield await asyncio.wait_for(self._request_queue.get(), timeout=1.0)
+                yield await asyncio.wait_for(queue.get(), timeout=1.0)
 
     async def _send_loop(self) -> None:
         while self._running:
@@ -400,7 +405,7 @@ class DurableEventListener:
                         node_id=memo_ack.ref.node_id,
                         branch_id=memo_ack.ref.branch_id,
                         memo_already_existed=memo_ack.memo_already_existed,
-                        memo_result_payload=memo_ack.memo_result_payload,
+                        memo_result_payload=memo_ack.memo_result_payload or None,
                     )
                 )
         elif response.HasField("wait_for_ack"):
@@ -519,6 +524,50 @@ class DurableEventListener:
         )
         await self._request_queue.put(request)
 
+    async def _send_run_children_event(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+        event: RunChildrenEvent,
+    ) -> DurableTaskEventRunAck:
+        trigger_opts_list = [
+            self.admin_client._create_workflow_run_request(
+                workflow_name=child.workflow_name,
+                input=child.input,
+                options=child.run_workflow_opts,
+            )
+            for child in event.children
+        ]
+
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        all_run_entries: list[DurableTaskRunAckEntry] = []
+        key = (durable_task_external_id, invocation_count)
+
+        for chunk in self.admin_client.chunk_workflow_runs(trigger_opts_list):
+            future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
+            self._pending_event_acks[key] = future
+
+            trigger_req = DurableTaskTriggerRunsRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                trigger_opts=chunk,
+            )
+            await self._request_queue.put(DurableTaskRequest(trigger_runs=trigger_req))
+
+            chunk_ack = await future
+            if not isinstance(chunk_ack, DurableTaskEventRunAck):
+                raise TypeError(f"Expected run ack, got {type(chunk_ack).__name__}")
+
+            all_run_entries.extend(chunk_ack.run_entries)
+
+        return DurableTaskEventRunAck(
+            invocation_count=invocation_count,
+            durable_task_external_id=durable_task_external_id,
+            run_entries=all_run_entries,
+        )
+
     async def send_event(
         self,
         durable_task_external_id: str,
@@ -528,31 +577,20 @@ class DurableEventListener:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
 
+        if isinstance(event, RunChildrenEvent):
+            return await self._send_run_children_event(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                event=event,
+            )
+
         key = (durable_task_external_id, invocation_count)
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
         request: DurableTaskRequest
 
-        if isinstance(event, RunChildrenEvent):
-            trigger_opts_list = [
-                self.admin_client._create_workflow_run_request(
-                    workflow_name=child.workflow_name,
-                    input=child.input,
-                    options=child.run_workflow_opts,
-                )
-                for child in event.children
-            ]
-
-            trigger_req = DurableTaskTriggerRunsRequest(
-                durable_task_external_id=durable_task_external_id,
-                invocation_count=invocation_count,
-                trigger_opts=trigger_opts_list,
-            )
-
-            request = DurableTaskRequest(trigger_runs=trigger_req)
-
-        elif isinstance(event, WaitForEvent):
+        if isinstance(event, WaitForEvent):
             wait_req = DurableTaskWaitForRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
@@ -597,6 +635,7 @@ class DurableEventListener:
             future: asyncio.Future[DurableTaskEventLogEntryResult] = asyncio.Future()
             self._pending_callbacks[key] = future
             await self._poll_worker_status()
+            return await future
 
         return await self._pending_callbacks[key]
 

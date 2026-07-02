@@ -172,8 +172,8 @@ func (p *Populator) traverseNode(c echo.Context, node *resource) error {
 
 				populated = true
 			} else if populated && child.ParentID != node.ResourceID {
-				// if the parent ID is not the same as the resource ID, throw an error
-				return fmt.Errorf("resource %s could not be populated", node.ResourceKey)
+				// the child belongs to a different parent than the one in the URL — unauthorized
+				return echo.NewHTTPError(http.StatusForbidden, "not authorized to access this resource")
 			}
 		}
 	}

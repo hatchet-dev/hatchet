@@ -97,13 +97,14 @@ export function CodeEditor({
     configureJsonSchema,
   ]);
 
-  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
+  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : 'vs';
 
   return (
     <div
       className={cn(
         className,
         'relative h-fit w-full overflow-hidden rounded-lg',
+        'border border-border',
       )}
     >
       <Editor

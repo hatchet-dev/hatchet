@@ -159,6 +159,11 @@ export function TriggerWorkflowForm({
         workflowName: selectedWorkflow.workflow.name,
         input: data.input,
         additionalMetadata: data.addlMeta,
+        // note: see backend implementation - this is a hack
+        // because all we need on the FE to redirect is the id of the run
+        // and not any details, so we can short-circuit some OLAP DB lookups and
+        // avoid race conditions this way
+        return_only_id: true,
       });
 
       return res.data;

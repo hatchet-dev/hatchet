@@ -163,7 +163,7 @@ const config = {
     useEffect(() => {
       const themeParam = router.query.theme;
 
-      if (themeParam === "dark" || themeParam === "light") {
+      if (themeParam === "dark" || themeParam === "light" || themeParam === "system") {
         setTheme(themeParam);
       }
     }, [router.query.theme, setTheme]);
@@ -244,6 +244,7 @@ const config = {
       return {
         dark: "Dark",
         light: "Light",
+        system: "System",
       };
     },
   },

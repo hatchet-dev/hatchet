@@ -1,12 +1,11 @@
 PATH
   remote: ../src
   specs:
-    hatchet-sdk (0.4.0)
+    hatchet-sdk (0.3.1)
       concurrent-ruby (>= 1.1)
       faraday (~> 2.0)
       faraday-multipart
       google-protobuf (~> 4.0)
-      googleapis-common-protos-types (~> 1.0)
       grpc (~> 1.60)
       json (~> 2.0)
       marcel
@@ -26,13 +25,13 @@ GEM
       multipart-post (~> 2.0)
     faraday-net_http (3.4.3)
       net-http (~> 0.5)
-    google-protobuf (4.35.0)
+    google-protobuf (4.35.1)
       bigdecimal
       rake (~> 13.3)
-    google-protobuf (4.35.0-arm64-darwin)
+    google-protobuf (4.35.1-arm64-darwin)
       bigdecimal
       rake (~> 13.3)
-    google-protobuf (4.35.0-x86_64-linux-gnu)
+    google-protobuf (4.35.1-x86_64-linux-gnu)
       bigdecimal
       rake (~> 13.3)
     googleapis-common-protos-types (1.22.0)
@@ -46,7 +45,7 @@ GEM
     grpc (1.80.0-x86_64-linux-gnu)
       google-protobuf (>= 3.25, < 5.0)
       googleapis-common-protos-types (~> 1.0)
-    json (2.19.7)
+    json (2.19.9)
     logger (1.7.0)
     marcel (1.2.1)
     multipart-post (2.4.1)

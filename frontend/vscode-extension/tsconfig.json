@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "lib": ["ES2020"],
+    "lib": [
+      "ES2020"
+    ],
     "module": "commonjs",
     "moduleResolution": "node",
     "strict": true,
@@ -12,7 +14,9 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@hatchet-dev/dag-visualizer": ["./src/dag-visualizer/index.ts"]
+      "@hatchet-dev/dag-visualizer": [
+        "./src/dag-visualizer/index.ts"
+      ]
     }
   },
   "include": [
@@ -22,5 +26,10 @@
     "src/panel/**/*.ts",
     "src/analysis/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist", "src/webview"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/webview",
+    "src/**/__tests__/**"
+  ]
 }

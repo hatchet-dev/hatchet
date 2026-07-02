@@ -132,6 +132,8 @@ RSpec.describe Hatchet::WorkerRuntime::DurableEventListener do
       completed = instance_double(
         "DurableTaskEventLogEntryCompletedResponse",
         payload: "{\"ok\":true}",
+        is_failure: false,
+        error_message: nil,
         ref: instance_double(
           "DurableEventLogEntryRef",
           durable_task_external_id: "task1",
@@ -142,6 +144,8 @@ RSpec.describe Hatchet::WorkerRuntime::DurableEventListener do
       result = listener.send(:parse_entry_completed, completed)
 
       expect(result[:payload]).to eq({ "ok" => true })
+      expect(result[:is_failure]).to be false
+      expect(result[:error_message]).to be_nil
     end
   end
 end

@@ -28,11 +28,13 @@ type TaskExternalIdNodeIdBranchId struct {
 }
 
 type SatisfiedEventWithPayload struct {
-	Result          []byte
-	BranchID        int64
-	NodeID          int64
-	InvocationCount int32
-	TaskExternalId  uuid.UUID
+	Result                []byte
+	ChildTaskIsFailure    bool
+	ChildTaskErrorMessage *string
+	BranchID              int64
+	NodeID                int64
+	InvocationCount       int32
+	TaskExternalId        uuid.UUID
 }
 
 type BaseIngestEventOpts struct {
@@ -75,6 +77,8 @@ type IngestMemoResult struct {
 
 type IngestTriggerRunsEntry struct {
 	ResultPayload         []byte
+	ChildTaskIsFailure    bool
+	ChildTaskErrorMessage *string
 	NodeId                int64
 	BranchId              int64
 	WorkflowRunExternalId uuid.UUID
@@ -521,12 +525,19 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 
 		payload := payloads[retrieveOpt]
 
+		var childTaskErrorMessage *string
+		if row.ChildTaskErrorMessage.Valid {
+			childTaskErrorMessage = &row.ChildTaskErrorMessage.String
+		}
+
 		result = append(result, &SatisfiedEventWithPayload{
-			TaskExternalId:  row.TaskExternalID,
-			NodeID:          row.NodeID,
-			BranchID:        row.BranchID,
-			InvocationCount: row.InvocationCount,
-			Result:          payload,
+			TaskExternalId:        row.TaskExternalID,
+			NodeID:                row.NodeID,
+			BranchID:              row.BranchID,
+			InvocationCount:       row.InvocationCount,
+			Result:                payload,
+			ChildTaskIsFailure:    row.ChildTaskIsFailure,
+			ChildTaskErrorMessage: childTaskErrorMessage,
 		})
 	}
 
@@ -1054,6 +1065,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
+		if populateErr := r.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts.TriggerRuns.TriggerOpts); populateErr != nil {
+			return nil, fmt.Errorf("failed to populate external ids for workflow: %w", populateErr)
+		}
+
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 
 		nonSkipOffset := int64(0)
@@ -1210,6 +1225,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				workflowRunExternalId = *entry.Entry.ChildTaskExternalID
 			}
 
+			var childTaskErrorMessage *string
+
+			if entry.Entry.ChildTaskErrorMessage.Valid {
+				childTaskErrorMessage = &entry.Entry.ChildTaskErrorMessage.String
+			}
+
 			entries[i] = &IngestTriggerRunsEntry{
 				NodeId:                entry.Entry.NodeID,
 				BranchId:              entry.Entry.BranchID,
@@ -1217,6 +1238,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				AlreadyExisted:        entry.AlreadyExisted,
 				ResultPayload:         entry.ResultPayload,
 				WorkflowRunExternalId: workflowRunExternalId,
+				ChildTaskIsFailure:    entry.Entry.ChildTaskIsFailure,
+				ChildTaskErrorMessage: childTaskErrorMessage,
 			}
 		}
 

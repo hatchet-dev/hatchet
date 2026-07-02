@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds support for defining **idempotency keys** on workflows and standalone tasks via an `idempotency` option, which ensures that they're only run once in a provided time window, based on a CEL expression. Triggers that collide with an existing run raise an `IdempotencyCollisionError` containing the existing run's ID.
 
+## [0.3.1] - 2026-06-12
+
+### Fixed
+
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
+
 ## [0.3.0] - 2026-04-28
 
 ### Added

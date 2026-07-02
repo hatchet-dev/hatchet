@@ -34,17 +34,20 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	observabilityEnabled := u.config.Observability.Enabled
 
+	prometheusServerEnabled := u.config.Prometheus.PrometheusServerURL != ""
+
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
 			Schemes: &authTypes,
 		},
-		PylonAppId:           &pylonAppID,
-		Posthog:              posthogConfig,
-		AllowSignup:          &u.config.Runtime.AllowSignup,
-		AllowInvites:         &u.config.Runtime.AllowInvites,
-		AllowCreateTenant:    &u.config.Runtime.AllowCreateTenant,
-		AllowChangePassword:  &u.config.Runtime.AllowChangePassword,
-		ObservabilityEnabled: &observabilityEnabled,
+		PylonAppId:              &pylonAppID,
+		Posthog:                 posthogConfig,
+		AllowSignup:             &u.config.Runtime.AllowSignup,
+		AllowInvites:            &u.config.Runtime.AllowInvites,
+		AllowCreateTenant:       &u.config.Runtime.AllowCreateTenant,
+		AllowChangePassword:     &u.config.Runtime.AllowChangePassword,
+		ObservabilityEnabled:    &observabilityEnabled,
+		PrometheusServerEnabled: &prometheusServerEnabled,
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil
