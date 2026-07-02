@@ -17,12 +17,14 @@ export function useInviteActions({
   tenantInvites,
   organizationInvites,
   invalidatePendingInvites,
+  removeInviteFromCache,
   onClose,
   onConfirmation,
 }: {
   tenantInvites: TenantInvite[];
   organizationInvites: OrganizationInvite[];
   invalidatePendingInvites: () => void;
+  removeInviteFromCache: (inviteId: string) => void;
   onClose: () => void;
   onConfirmation: () => void;
 }) {
@@ -45,6 +47,11 @@ export function useInviteActions({
   // since React state updates are deferred until the next render.
   const processedIdsRef = useRef<Set<string>>(new Set());
   const acceptedTenantInfosRef = useRef<AcceptedTenantInfo[]>([]);
+  // Synchronous re-entry guard: the pendingId state that disables buttons
+  // lags a render, so a rapid second click would call mutate() again and
+  // react-query would drop the first call's callbacks (including the one
+  // that closes the modal).
+  const pendingIdRef = useRef<string>();
 
   const checkCompletion = useCallback(
     (nextProcessedIds: Set<string>, nextAccepted: AcceptedTenantInfo[]) => {
@@ -93,14 +100,17 @@ export function useInviteActions({
       await acceptTenantFn({ invite: data.inviteId });
       return { tenantId: data.tenantId, tenantName: data.tenantName };
     },
-    onSuccess: async ({ tenantId, tenantName }) => {
-      await invalidateUserUniverse();
+    onSuccess: ({ tenantId, tenantName }) => {
       const next = [
         ...acceptedTenantInfosRef.current,
         { id: tenantId, name: tenantName },
       ];
       acceptedTenantInfosRef.current = next;
       setAcceptedTenantInfos(next);
+      // Deliberately not awaited: closing the modal must not wait on the
+      // memberships refetch. The confirmation step shows a loading state
+      // until the new tenant appears.
+      void invalidateUserUniverse();
     },
     onError: handleApiError,
   });
@@ -115,6 +125,10 @@ export function useInviteActions({
 
   const handleTenantAccept = useCallback(
     (inviteId: string, tenantId: string, tenantName: string) => {
+      if (pendingIdRef.current) {
+        return;
+      }
+      pendingIdRef.current = inviteId;
       setErrors([]);
       setPendingId(inviteId);
       acceptTenantMutation.mutate(
@@ -126,10 +140,14 @@ export function useInviteActions({
               tenant_id: tenantId,
             });
             const nextProcessedIds = markProcessed(inviteId);
+            removeInviteFromCache(inviteId);
             invalidatePendingInvites();
             checkCompletion(nextProcessedIds, acceptedTenantInfosRef.current);
           },
-          onSettled: () => setPendingId(undefined),
+          onSettled: () => {
+            pendingIdRef.current = undefined;
+            setPendingId(undefined);
+          },
         },
       );
     },
@@ -137,6 +155,7 @@ export function useInviteActions({
       acceptTenantMutation,
       capture,
       markProcessed,
+      removeInviteFromCache,
       invalidatePendingInvites,
       checkCompletion,
     ],
@@ -144,6 +163,10 @@ export function useInviteActions({
 
   const handleTenantReject = useCallback(
     (inviteId: string) => {
+      if (pendingIdRef.current) {
+        return;
+      }
+      pendingIdRef.current = inviteId;
       setErrors([]);
       setPendingId(inviteId);
       rejectTenantMutation.mutate(
@@ -154,10 +177,14 @@ export function useInviteActions({
               invite_id: inviteId,
             });
             const nextProcessedIds = markProcessed(inviteId);
+            removeInviteFromCache(inviteId);
             invalidatePendingInvites();
             checkCompletion(nextProcessedIds, acceptedTenantInfosRef.current);
           },
-          onSettled: () => setPendingId(undefined),
+          onSettled: () => {
+            pendingIdRef.current = undefined;
+            setPendingId(undefined);
+          },
         },
       );
     },
@@ -165,6 +192,7 @@ export function useInviteActions({
       rejectTenantMutation,
       capture,
       markProcessed,
+      removeInviteFromCache,
       invalidatePendingInvites,
       checkCompletion,
     ],
@@ -172,20 +200,30 @@ export function useInviteActions({
 
   const handleOrgAccept = useCallback(
     (inviteId: string) => {
+      if (pendingIdRef.current) {
+        return;
+      }
+      pendingIdRef.current = inviteId;
       setErrors([]);
       setPendingId(inviteId);
       acceptOrgInviteMutation.mutate(
         { inviteId },
         {
-          onSuccess: async () => {
-            await invalidateUserUniverse();
+          onSuccess: () => {
+            // Deliberately not awaited: closing the modal must not wait on
+            // the memberships refetch.
+            void invalidateUserUniverse();
             capture('onboarding_org_invite_accepted', { invite_id: inviteId });
             const nextProcessedIds = markProcessed(inviteId);
+            removeInviteFromCache(inviteId);
             invalidatePendingInvites();
             checkCompletion(nextProcessedIds, acceptedTenantInfosRef.current);
           },
           onError: handleApiError,
-          onSettled: () => setPendingId(undefined),
+          onSettled: () => {
+            pendingIdRef.current = undefined;
+            setPendingId(undefined);
+          },
         },
       );
     },
@@ -194,6 +232,7 @@ export function useInviteActions({
       invalidateUserUniverse,
       capture,
       markProcessed,
+      removeInviteFromCache,
       invalidatePendingInvites,
       checkCompletion,
       handleApiError,
@@ -202,6 +241,10 @@ export function useInviteActions({
 
   const handleOrgReject = useCallback(
     (inviteId: string) => {
+      if (pendingIdRef.current) {
+        return;
+      }
+      pendingIdRef.current = inviteId;
       setErrors([]);
       setPendingId(inviteId);
       rejectOrgInviteMutation.mutate(
@@ -210,11 +253,15 @@ export function useInviteActions({
           onSuccess: () => {
             capture('onboarding_org_invite_rejected', { invite_id: inviteId });
             const nextProcessedIds = markProcessed(inviteId);
+            removeInviteFromCache(inviteId);
             invalidatePendingInvites();
             checkCompletion(nextProcessedIds, acceptedTenantInfosRef.current);
           },
           onError: handleApiError,
-          onSettled: () => setPendingId(undefined),
+          onSettled: () => {
+            pendingIdRef.current = undefined;
+            setPendingId(undefined);
+          },
         },
       );
     },
@@ -222,6 +269,7 @@ export function useInviteActions({
       rejectOrgInviteMutation,
       capture,
       markProcessed,
+      removeInviteFromCache,
       invalidatePendingInvites,
       checkCompletion,
       handleApiError,
@@ -231,6 +279,7 @@ export function useInviteActions({
   const reset = useCallback(() => {
     processedIdsRef.current = new Set();
     acceptedTenantInfosRef.current = [];
+    pendingIdRef.current = undefined;
     setPendingId(undefined);
     setProcessedIds(new Set());
     setAcceptedTenantInfos([]);
