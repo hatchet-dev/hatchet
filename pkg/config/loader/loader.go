@@ -565,7 +565,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())
-		cleanupSecurityCheck = cancel
+		cleanupSecurityCheck = func() {
+			cancel()
+			securityCheck.Shutdown()
+		}
 
 		go securityCheck.Start(securityCheckCtx)
 	}

@@ -21,6 +21,7 @@ const checkInterval = time.Hour
 type SecurityCheck interface {
 	Check()
 	Start(ctx context.Context)
+	Shutdown()
 }
 
 type DefaultSecurityCheck struct {
@@ -90,6 +91,14 @@ func (a DefaultSecurityCheck) Start(ctx context.Context) {
 }
 
 func (a DefaultSecurityCheck) Check() {
+	a.report(5 * time.Second)
+}
+
+func (a DefaultSecurityCheck) Shutdown() {
+	a.report(1 * time.Second)
+}
+
+func (a DefaultSecurityCheck) report(timeout time.Duration) {
 	if !a.Enabled {
 		return
 	}
@@ -108,7 +117,7 @@ func (a DefaultSecurityCheck) Check() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	params := url.Values{}
