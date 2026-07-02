@@ -39,6 +39,11 @@ type ConfigFile struct {
 	MaxConnLifetime time.Duration `mapstructure:"maxConnLifetime" json:"maxConnLifetime,omitempty" default:"15m"`
 	MaxConnIdleTime time.Duration `mapstructure:"maxConnIdleTime" json:"maxConnIdleTime,omitempty" default:"1m"`
 
+	// ApplicationNamePrefix is prepended to the pgx application_name as "<prefix>:<otel service name>"
+	// so connections in pg_stat_activity can be attributed to a deployment. In Kubernetes this is
+	// populated with the pod namespace via the downward API (K8S_POD_NAMESPACE).
+	ApplicationNamePrefix string `mapstructure:"applicationNamePrefix" json:"applicationNamePrefix,omitempty" default:""`
+
 	Seed SeedConfigFile `mapstructure:"seed" json:"seed,omitempty"`
 
 	Logger shared.LoggerConfigFile `mapstructure:"logger" json:"logger,omitempty"`
@@ -95,6 +100,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
+	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
 
 	_ = v.BindEnv("pgbouncerUrl", "DATABASE_PGBOUNCER_URL")
 	_ = v.BindEnv("ddlPoolMaxConns", "DATABASE_DDL_POOL_MAX_CONNS")
