@@ -1157,11 +1157,8 @@ type TaskStats map[string]TaskStat
 type TaskStatusStat struct {
 	Concurrency *[]ConcurrencyStat `json:"concurrency,omitempty"`
 	Oldest      *time.Time         `json:"oldest,omitempty"`
-
-	// OldestExcludingRetries The oldest task in this status that is on its first attempt (no prior retries).
-	OldestExcludingRetries *time.Time        `json:"oldestExcludingRetries,omitempty"`
-	Queues                 *map[string]int64 `json:"queues,omitempty"`
-	Total                  *int64            `json:"total,omitempty"`
+	Queues      *map[string]int64  `json:"queues,omitempty"`
+	Total       *int64             `json:"total,omitempty"`
 }
 
 // Tenant defines model for Tenant.
