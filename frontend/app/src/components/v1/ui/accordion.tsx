@@ -17,9 +17,10 @@ const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> & {
     hideChevron?: boolean;
+    headerClassName?: string;
   }
->(({ className, children, hideChevron, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex">
+>(({ className, children, hideChevron, headerClassName, ...props }, ref) => (
+  <AccordionPrimitive.Header className={cn('flex', headerClassName)}>
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(

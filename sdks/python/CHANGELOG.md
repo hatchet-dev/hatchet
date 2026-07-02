@@ -5,6 +5,23 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.15] - 2026-07-02
+
+### Added
+
+- Adds `oldest_excluding_retries` to the task stats response
+
+### Changed
+
+- Rolled back required SDK dependencies to the state at `v1.29.5`.
+
+
+## [1.33.14] - 2026-06-26
+
+### Fixed
+
+- Updates the bulk spawn methods on the internal admin client to dynamically chunk bulk-spawned workflows by the protobuf message size, to avoid hitting gRPC limits on large bulk spawns.
+
 ## [1.33.13] - 2026-06-26
 
 ### Fixed

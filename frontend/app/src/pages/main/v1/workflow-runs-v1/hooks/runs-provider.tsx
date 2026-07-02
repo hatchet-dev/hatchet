@@ -235,6 +235,7 @@ export const RunsProvider = ({
     workflow,
     parentTaskExternalId,
     createdAfter: filters.apiFilters.since,
+    createdBefore: filters.apiFilters.until,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     showQueueMetrics,
   });
