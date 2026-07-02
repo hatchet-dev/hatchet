@@ -528,6 +528,8 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 					entry.BranchId,
 					entry.NodeId,
 					entry.ResultPayload,
+					entry.ChildTaskIsFailure,
+					entry.ChildTaskErrorMessage,
 				); err != nil {
 					return fmt.Errorf("failed to deliver callback completion for node %d: %w", entry.NodeId, err)
 				}
@@ -542,6 +544,8 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 				result.MemoResult.BranchId,
 				result.MemoResult.NodeId,
 				result.MemoResult.ResultPayload,
+				false,
+				nil,
 			); err != nil {
 				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.MemoResult.NodeId, err)
 			}
@@ -555,6 +559,8 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 				result.WaitForResult.BranchId,
 				result.WaitForResult.NodeId,
 				result.WaitForResult.ResultPayload,
+				false,
+				nil,
 			); err != nil {
 				return fmt.Errorf("failed to deliver callback completion for node %d: %w", result.WaitForResult.NodeId, err)
 			}
@@ -1049,38 +1055,52 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 }
 
 func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInvocation, cb *v1.SatisfiedEventWithPayload) error {
+	ref := &contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: cb.TaskExternalId.String(),
+		InvocationCount:       cb.InvocationCount,
+		BranchId:              cb.BranchID,
+		NodeId:                cb.NodeID,
+	}
+	resp := &contracts.DurableTaskEventLogEntryCompletedResponse{
+		Ref:     ref,
+		Payload: cb.Result,
+	}
+	if cb.ChildTaskIsFailure {
+		resp.Payload = nil
+		resp.IsFailure = true
+		resp.ErrorMessage = cb.ChildTaskErrorMessage
+	}
 	return invocation.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_EntryCompleted{
-			EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
-				Ref: &contracts.DurableEventLogEntryRef{
-					DurableTaskExternalId: cb.TaskExternalId.String(),
-					InvocationCount:       cb.InvocationCount,
-					BranchId:              cb.BranchID,
-					NodeId:                cb.NodeID,
-				},
-				Payload: cb.Result,
-			},
+			EntryCompleted: resp,
 		},
 	})
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte) error {
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, isFailure bool, errorMessage *string) error {
 	inv, ok := d.durableInvocations.Load(taskExternalId)
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
 	}
 
+	ref := &contracts.DurableEventLogEntryRef{
+		DurableTaskExternalId: taskExternalId.String(),
+		InvocationCount:       invocationCount,
+		BranchId:              branchId,
+		NodeId:                nodeId,
+	}
+	resp := &contracts.DurableTaskEventLogEntryCompletedResponse{
+		Ref:     ref,
+		Payload: payload,
+	}
+	if isFailure {
+		resp.Payload = nil
+		resp.IsFailure = true
+		resp.ErrorMessage = errorMessage
+	}
 	return inv.send(&contracts.DurableTaskResponse{
 		Message: &contracts.DurableTaskResponse_EntryCompleted{
-			EntryCompleted: &contracts.DurableTaskEventLogEntryCompletedResponse{
-				Ref: &contracts.DurableEventLogEntryRef{
-					DurableTaskExternalId: taskExternalId.String(),
-					InvocationCount:       invocationCount,
-					BranchId:              branchId,
-					NodeId:                nodeId,
-				},
-				Payload: payload,
-			},
+			EntryCompleted: resp,
 		},
 	})
 }

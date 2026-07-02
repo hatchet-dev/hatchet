@@ -10,6 +10,17 @@
  * ---------------------------------------------------------------
  */
 
+export enum TenantMemberRoleType {
+  OWNER = "OWNER",
+  ADMIN = "ADMIN",
+  MEMBER = "MEMBER",
+}
+
+export enum AuditLogActorType {
+  User = "user",
+  ApiKey = "api_key",
+}
+
 export enum CouponFrequency {
   Once = "once",
   Recurring = "recurring",
@@ -30,6 +41,7 @@ export enum SubscriptionPlanCode {
   Free = "free",
   Starter = "starter",
   Growth = "growth",
+  Migration = "migration",
   Developer = "developer",
   Team = "team",
   Scale = "scale",
@@ -72,6 +84,7 @@ export enum TenantStatusType {
 
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
+  MEMBER = "MEMBER",
 }
 
 export interface APIControlPlaneMetadata {
@@ -238,6 +251,8 @@ export interface OrganizationTenant {
   archivedAt?: string;
   /** Control-plane deployment location for this tenant. */
   region?: ShardRegionKey;
+  /** Tags applied to this tenant that control which org members can access it */
+  tags?: string[];
 }
 
 export interface OrganizationTenantList {
@@ -254,6 +269,8 @@ export interface CreateNewTenantForOrganizationRequest {
    * @example "aws:us-west-2"
    */
   region?: ShardRegionKey;
+  /** Optional tags to apply to the tenant. Management tokens can only create tenants with tags that are a subset of the token's own tags. */
+  tags?: string[];
 }
 
 export interface CreateManagementTokenRequest {
@@ -261,6 +278,8 @@ export interface CreateManagementTokenRequest {
   name: string;
   /** @default "30D" */
   duration?: ManagementTokenDuration;
+  /** Optional tags to scope this token. When set, the token can only access or create tenants whose tags are a subset of these tags. An empty or omitted list grants full access to the org. */
+  tags?: string[];
 }
 
 export interface CreateManagementTokenResponse {
@@ -281,7 +300,17 @@ export interface ManagementToken {
    * @format date-time
    */
   expiresAt?: string;
+  /** Tags that scope this token to a subset of tenants. Empty means full org access. */
+  tags?: string[];
 }
+
+export interface SetTagsRequest {
+  /** Full replacement list of tags. Passing an empty array removes all tags. */
+  tags: string[];
+}
+
+/** Current tags */
+export type TagList = string[];
 
 export interface CreateOrganizationSsoDomainRequest {
   /** @format uri */
@@ -299,6 +328,8 @@ export interface OrganizationInvite {
    * @format uuid
    */
   organizationId: string;
+  /** The name of the organization */
+  organizationName?: string;
   /**
    * The email of the inviter
    * @format email
@@ -716,6 +747,10 @@ export interface Coupon {
 export interface OrganizationEntitlements {
   /** @example false */
   canSSO: boolean;
+  /** @example false */
+  prometheusMetrics: boolean;
+  /** @example false */
+  auditLogs: boolean;
 }
 
 /**
@@ -724,3 +759,96 @@ export interface OrganizationEntitlements {
  * @example "aws:us-west-2"
  */
 export type ShardRegionKey = string;
+
+/** Request body for adding existing org members to a specific tenant, bypassing tag matching. */
+export interface AddOrgMembersToTenantRequest {
+  /** IDs of org members to add to the tenant. */
+  memberIds: string[];
+}
+
+export interface AuditLog {
+  /**
+   * The ID of the audit log
+   * @format uuid
+   */
+  id: string;
+  /**
+   * The timestamp at which the audit log was inserted
+   * @format date-time
+   */
+  insertedAt: string;
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The type of the actor */
+  actorType: AuditLogActorType;
+  /**
+   * The ID of the actor
+   * @format uuid
+   */
+  actorId: string;
+  /** The action that was performed */
+  action: string;
+  /** The correlation ID */
+  correlationId?: string;
+  /** The ID of the resource */
+  resourceId: string;
+  /** The type of the resource */
+  resourceType: string;
+  /** The IP address of the actor */
+  ipAddress?: string;
+  /** The user agent of the actor */
+  userAgent?: string;
+}
+
+export interface AuditLogList {
+  rows: AuditLog[];
+}
+
+export interface UserGroup {
+  metadata: APIResourceMeta;
+  /** Name of the user group */
+  name: string;
+  /** Tenant role granted to group members when synced to a matching tenant */
+  role: TenantMemberRoleType;
+  /** Tags that determine which tenants this group's members can access */
+  tags: string[];
+  /** Number of organization members in this group */
+  memberCount: number;
+}
+
+export type UserGroupList = UserGroup[];
+
+export interface CreateUserGroupRequest {
+  /**
+   * Name of the user group
+   * @minLength 1
+   */
+  name: string;
+  /** Tenant role to grant members when synced to a matching tenant */
+  role: TenantMemberRoleType;
+}
+
+export interface UpdateUserGroupRequest {
+  /**
+   * New name for the user group
+   * @minLength 1
+   */
+  name?: string;
+  /** New tenant role to grant members */
+  role?: TenantMemberRoleType;
+}
+
+export interface UserGroupMemberList {
+  rows: OrganizationMember[];
+}
+
+export interface AddUserGroupMemberRequest {
+  /**
+   * The organization member to add to the user group
+   * @format uuid
+   */
+  organizationMemberId: string;
+}

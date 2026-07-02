@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
+        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -94,7 +94,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
+        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -125,7 +125,7 @@ jobs:
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
+        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
@@ -227,6 +227,10 @@ jobs:
   old-engine-new-sdk:
     runs-on: ubicloud-standard-4
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -277,7 +281,7 @@ jobs:
           sleep 30
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
+        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -289,6 +293,8 @@ jobs:
           echo "HATCHET_CLIENT_NAMESPACE=old-engine-new-sdk-rb-${SHORT_SHA}" >> $GITHUB_ENV
 
       - name: Run unit tests
+        id: unit-tests
+        continue-on-error: true
         env:
           HATCHET_CLIENT_TLS_STRATEGY: none
           HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
@@ -298,13 +304,15 @@ jobs:
           bundle exec rspec --format documentation --tag ~integration
 
       - name: Run integration tests
+        id: integration-tests
+        continue-on-error: true
         env:
           HATCHET_CLIENT_TLS_STRATEGY: none
           HATCHET_CLIENT_WORKER_HEALTHCHECK_ENABLED: "true"
         run: bundle exec rspec spec/integration/ --format documentation --tag integration
 
       - name: Set up Ruby for examples
-        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
+        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
         with:
           ruby-version: "3.2"
           bundler-cache: true
@@ -332,6 +340,8 @@ jobs:
           exit 1
 
       - name: Run e2e tests
+        id: e2e-tests
+        continue-on-error: true
         working-directory: ./sdks/ruby/examples
         env:
           HATCHET_CLIENT_TLS_STRATEGY: none
@@ -369,6 +379,14 @@ jobs:
           name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-api-logs
           path: /tmp/api.log
 
+      - name: Comment on PR
+        if: always() && (steps.unit-tests.outcome == 'failure' || steps.integration-tests.outcome == 'failure' || steps.e2e-tests.outcome == 'failure') && github.event_name == 'pull_request'
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "⚠️ **Optional test failure**: The \`old-engine-new-sdk\` (Ruby) job failed on this PR. This check is non-mandatory and does not block merging, but may be worth investigating. [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Teardown
         if: always()
         working-directory: .
@@ -388,7 +406,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@c4e5b1316158f92e3d49443a9d58b31d25ac0f8f # v1.306.0
+        uses: ruby/setup-ruby@afeafc3d1ab54a631816aba4c914a0081c12ff2f # v1.310.0
         with:
           ruby-version: "3.2"
           bundler-cache: true

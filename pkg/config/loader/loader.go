@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -40,6 +41,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/smtp"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
@@ -72,6 +74,16 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 
 	_, err := loaderutils.LoadConfigFromViper(f, configFile, files...)
 	return configFile, err
+}
+
+func parseRetentionDuration(name, value string) (time.Duration, error) {
+	retentionPeriod, err := time.ParseDuration(value)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s %s: %w", name, value, err)
+	}
+
+	return retentionPeriod, nil
 }
 
 type ConfigLoader struct {
@@ -179,6 +191,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		return err
 	}
@@ -193,10 +210,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		l.Info().Msgf("main pool will connect through pgbouncer")
 	}
 
+	// application_name shows up in pg_stat_activity, letting us attribute connections
+	// and idle transactions to a specific service (and shard namespace) on shared
+	// postgres instances.
+	appName := scf.OpenTelemetry.ServiceName
+	if cf.ApplicationNamePrefix != "" {
+		appName = cf.ApplicationNamePrefix + ":" + appName
+	}
+
 	config, err := pgxpool.ParseConfig(mainPoolUrl)
 	if err != nil {
 		return nil, err
 	}
+
+	setPgxApplicationName(config, appName)
 
 	config.AfterConnect = pgxpoolConnAfterConnect
 
@@ -262,6 +289,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
 		}
 
+		setPgxApplicationName(readReplicaConfig, appName+":read-replica")
+
 		if cf.ReadReplicaMaxConns != 0 {
 			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
 		}
@@ -298,6 +327,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
 
+	setPgxApplicationName(ddlConfig, appName+":ddl")
+
 	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
 	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
 	ddlConfig.MaxConnLifetime = cf.MaxConnLifetime
@@ -312,10 +343,22 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+	_, err = parseRetentionDuration("default tenant retention period", scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+		return nil, err
+	}
+
+	corePartitionRetention, err := parseRetentionDuration("core partition retention", scf.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
+	}
+
+	olapPartitionRetention, err := parseRetentionDuration("OLAP partition retention", scf.Runtime.Limits.OLAPPartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
 	}
 
 	taskLimits := repov1.TaskOperationLimits{
@@ -355,8 +398,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ddlPool,
 		&l,
 		cf.CacheDuration,
-		retentionPeriod,
-		retentionPeriod,
+		corePartitionRetention,
+		olapPartitionRetention,
 		scf.Runtime.MaxInternalRetryCount,
 		taskLimits,
 		payloadStoreOpts,
@@ -515,6 +558,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		alerter = errors.NoOpAlerter{}
 	}
 
+	cleanupSecurityCheck := func() {}
+
 	if cf.SecurityCheck.Enabled {
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
 			Enabled:  cf.SecurityCheck.Enabled,
@@ -523,7 +568,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:  version,
 		}, dc.V1.SecurityCheck())
 
-		go securityCheck.Check()
+		securityCheckCtx, cancel := context.WithCancel(context.Background())
+		cleanupSecurityCheck = cancel
+
+		go securityCheck.Start(securityCheckCtx)
 	}
 
 	var analyticsEmitter analytics.Analytics
@@ -727,8 +775,17 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
+	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
+
+	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
+	}
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
@@ -739,20 +796,27 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
+		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
+		promGate,
 	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
+		cleanupSecurityCheck()
+
+		cleanupConcurrencyOutbox()
+
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
@@ -817,6 +881,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
+		PrometheusGate:         promGate,
 		Observability:          cf.Observability,
 		Email:                  emailSvc,
 		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.FrontendURL, emailSvc),
@@ -1009,6 +1074,16 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 	return nil
 }
 
+// setPgxApplicationName sets application_name on the pool config unless the
+// connection string already provided one explicitly.
+func setPgxApplicationName(config *pgxpool.Config, appName string) {
+	if config.ConnConfig.RuntimeParams["application_name"] != "" {
+		return
+	}
+
+	config.ConnConfig.RuntimeParams["application_name"] = appName
+}
+
 func newOTelPgxTracer() *otelpgx.Tracer {
 	return otelpgx.NewTracer(
 		otelpgx.WithDisableSQLStatementInAttributes(),
@@ -1046,4 +1121,25 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
+
+	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
+	// method which should be used instead of the non-scoped versions.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(
+		ctx,
+		pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithDefaultExpiration(24*time.Hour),
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err) // nolint:govet
+	}
+
+	return concurrencyOutbox, cancel, nil
 }

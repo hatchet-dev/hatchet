@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -383,7 +384,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		}
 	}
 
-	if _, err = ddlConn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+	if _, err = ddlConn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
 		releaseCreateConn()
 		return fmt.Errorf("failed to set lock_timeout: %w", err)
 	}
@@ -449,8 +450,7 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			release()
 		}
 
-		// Set a short lock_timeout so we fail fast rather than blocking behind ANALYZE.
-		if _, err = conn.Exec(ctx, "SET lock_timeout = '5s'"); err != nil {
+		if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
 			releaseConn()
 			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
 		}
@@ -468,6 +468,10 @@ func (r *TaskRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			}
 			return err
 		} else if isPendingDetach(err) {
+			if _, resetErr := conn.Exec(ctx, "SET lock_timeout = 0"); resetErr != nil {
+				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+			}
+
 			_, err = conn.Exec(
 				ctx,
 				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
@@ -705,6 +709,10 @@ func (r *TaskRepositoryImpl) verifyAllTasksFinalized(ctx context.Context, tx sql
 	return finalizedRootExternalIds, finalizedDAGToStepCount, nil
 }
 
+func createTaskUniqueKey(t TaskIdInsertedAtRetryCount) string {
+	return fmt.Sprintf("%d:%d", t.Id, t.RetryCount)
+}
+
 func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error) {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CompleteTasks")
 	defer span.End()
@@ -733,7 +741,10 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 
 	defer rollback()
 
-	taskIdRetryCounts = uniqueSet(taskIdRetryCounts)
+	taskIdRetryCounts = listutils.UniqBy(
+		taskIdRetryCounts,
+		createTaskUniqueKey,
+	)
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, taskIdRetryCounts)
@@ -861,7 +872,7 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		}
 	}
 
-	tasks = uniqueSet(tasks)
+	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
 
 	retriedTasks := make([]RetriedTask, 0)
 
@@ -1161,7 +1172,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 
 func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
-	tasks = uniqueSet(tasks)
+	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
 
 	// release queue items
 	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
@@ -3434,13 +3445,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepIdsInDAGs) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
-			Stepids:  sqlchelpers.UniqueSet(stepIdsInDAGs),
+		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
+			Stepids:  listutils.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", listErr)
 		}
 
 		for _, match := range additionalMatches {
@@ -3778,21 +3789,6 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 			Kinds:           kinds,
 		},
 	)
-}
-
-func uniqueSet(taskIdRetryCounts []TaskIdInsertedAtRetryCount) []TaskIdInsertedAtRetryCount {
-	unique := make(map[string]struct{})
-	res := make([]TaskIdInsertedAtRetryCount, 0)
-
-	for _, task := range taskIdRetryCounts {
-		k := fmt.Sprintf("%d:%d", task.Id, task.RetryCount)
-		if _, ok := unique[k]; !ok {
-			unique[k] = struct{}{}
-			res = append(res, task)
-		}
-	}
-
-	return res
 }
 
 func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error) {
@@ -4156,10 +4152,11 @@ type TaskStat struct {
 
 // TaskStatusStat represents statistics for a specific task status (queued or running)
 type TaskStatusStat struct {
-	Total       int64             `json:"total"`
-	Oldest      *time.Time        `json:"oldest,omitempty"`
-	Queues      map[string]int64  `json:"queues,omitempty"`
-	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+	Total                  int64             `json:"total"`
+	Oldest                 *time.Time        `json:"oldest,omitempty"`
+	OldestExcludingRetries *time.Time        `json:"oldest_excluding_retries,omitempty"`
+	Queues                 map[string]int64  `json:"queues,omitempty"`
+	Concurrency            []ConcurrencyStat `json:"concurrency,omitempty"`
 }
 
 // ConcurrencyStat represents concurrency information for a task
@@ -4187,6 +4184,7 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 		key := row.Key.String
 		count := row.Count
 		oldest := row.Oldest
+		oldestExcludingRetries := row.OldestExcludingRetries
 
 		taskStat, ok := result[stepReadableId]
 		if !ok {
@@ -4209,6 +4207,10 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
 			}
+
+			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
+				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
+			}
 		case "running":
 			if taskStat.Running == nil {
 				taskStat.Running = &TaskStatusStat{}
@@ -4218,6 +4220,10 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
+			}
+
+			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
+				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
 			}
 		}
 

@@ -152,12 +152,20 @@ export function useOrganizations() {
       organizationId: string;
       name: string;
       duration?: ManagementTokenDuration;
+      tags?: string[];
     }) => {
-      const body: { name: string; duration?: ManagementTokenDuration } = {
+      const body: {
+        name: string;
+        duration?: ManagementTokenDuration;
+        tags?: string[];
+      } = {
         name: data.name,
       };
       if (data.duration != null) {
         body.duration = data.duration;
+      }
+      if (data.tags && data.tags.length > 0) {
+        body.tags = data.tags;
       }
       return orgApi
         .managementTokenCreateMutation(data.organizationId)
@@ -236,9 +244,10 @@ export function useOrganizations() {
       name: string,
       duration: ManagementTokenDuration | undefined,
       onSuccess: (data: CreateManagementTokenResponse) => void,
+      tags?: string[],
     ) => {
       createTokenMutation.mutate(
-        { organizationId, name, duration },
+        { organizationId, name, duration, tags },
         {
           onSuccess: (data) => {
             onSuccess(data);
