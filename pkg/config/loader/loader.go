@@ -210,10 +210,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		l.Info().Msgf("main pool will connect through pgbouncer")
 	}
 
+	// application_name shows up in pg_stat_activity, letting us attribute connections
+	// and idle transactions to a specific service (and shard namespace) on shared
+	// postgres instances.
+	appName := scf.OpenTelemetry.ServiceName
+	if cf.ApplicationNamePrefix != "" {
+		appName = cf.ApplicationNamePrefix + ":" + appName
+	}
+
 	config, err := pgxpool.ParseConfig(mainPoolUrl)
 	if err != nil {
 		return nil, err
 	}
+
+	setPgxApplicationName(config, appName)
 
 	config.AfterConnect = pgxpoolConnAfterConnect
 
@@ -279,6 +289,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
 		}
 
+		setPgxApplicationName(readReplicaConfig, appName+":read-replica")
+
 		if cf.ReadReplicaMaxConns != 0 {
 			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
 		}
@@ -314,6 +326,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
+
+	setPgxApplicationName(ddlConfig, appName+":ddl")
 
 	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
 	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
@@ -544,6 +558,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		alerter = errors.NoOpAlerter{}
 	}
 
+	cleanupSecurityCheck := func() {}
+
 	if cf.SecurityCheck.Enabled {
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
 			Enabled:  cf.SecurityCheck.Enabled,
@@ -552,7 +568,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:  version,
 		}, dc.V1.SecurityCheck())
 
-		go securityCheck.Check()
+		securityCheckCtx, cancel := context.WithCancel(context.Background())
+		cleanupSecurityCheck = cancel
+
+		go securityCheck.Start(securityCheckCtx)
 	}
 
 	var analyticsEmitter analytics.Analytics
@@ -789,6 +808,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		cleanupSecurityCheck()
 
 		cleanupConcurrencyOutbox()
 
@@ -1051,6 +1072,16 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 
 	l.Info().Msgf("%s instance timezone verified: %s", dbLabel, dbTimezone)
 	return nil
+}
+
+// setPgxApplicationName sets application_name on the pool config unless the
+// connection string already provided one explicitly.
+func setPgxApplicationName(config *pgxpool.Config, appName string) {
+	if config.ConnConfig.RuntimeParams["application_name"] != "" {
+		return
+	}
+
+	config.ConnConfig.RuntimeParams["application_name"] = appName
 }
 
 func newOTelPgxTracer() *otelpgx.Tracer {

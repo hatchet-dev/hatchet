@@ -17,7 +17,7 @@ import re  # noqa: F401
 import json
 
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.concurrency_stat import ConcurrencyStat
 from typing import Optional, Set
@@ -33,7 +33,16 @@ class TaskStatusStat(BaseModel):
     queues: Optional[Dict[str, StrictInt]] = None
     concurrency: Optional[List[ConcurrencyStat]] = None
     oldest: Optional[datetime] = None
-    __properties: ClassVar[List[str]] = ["total", "queues", "concurrency", "oldest"]
+    oldest_excluding_retries: Optional[datetime] = Field(
+        default=None, alias="oldestExcludingRetries"
+    )
+    __properties: ClassVar[List[str]] = [
+        "total",
+        "queues",
+        "concurrency",
+        "oldest",
+        "oldestExcludingRetries",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -100,6 +109,7 @@ class TaskStatusStat(BaseModel):
                     else None
                 ),
                 "oldest": obj.get("oldest"),
+                "oldestExcludingRetries": obj.get("oldestExcludingRetries"),
             }
         )
         return _obj
