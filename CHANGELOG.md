@@ -1,12 +1,8 @@
-## [0.90.14] - 2026-07-02
+## [Unreleased]
 
-Hatchet v0.90.14 is a patch release containing a single database migration to addresses failing `UserSession` cleanups.
+### Highlights
 
-### Upgrade Notes
-
-Upgrading your stack to `v0.90.14` (e.g. by bumping `sharedConfig.image.tag` in the Helm chart, or your image tags in Docker Compose) will apply the migration automatically on engine startup — no extra steps required.
-
-Alternatively, since there are no code changes in this release, you can run the migration standalone against your database with `ghcr.io/hatchet-dev/hatchet/hatchet-migrate:v0.90.14` and keep your existing engine version. If you're on a version older than `v0.90.13`, note this will also apply any other pending migrations up to `v0.90.14`.
+- Fixes timeouts in `UserSession` cleanup jobs by adding an index via a new `hatchet-migrate` migration.
 
 ## [0.90.13] - 2026-06-29
 
