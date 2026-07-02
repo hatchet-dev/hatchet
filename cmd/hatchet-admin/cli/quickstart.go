@@ -246,6 +246,17 @@ func generateKeys(generated *generatedConfigFiles) error {
 			generated.sc.Encryption.JWT.PrivateJWTKeyset = string(privateEc256)
 			generated.sc.Encryption.JWT.PublicJWTKeyset = string(publicEc256)
 		}
+
+		if generated.sc.Auth.NoAuthEnabled && (overwrite || generated.sc.Auth.NoAuthJWT.PrivateJWTKeyset == "" || generated.sc.Auth.NoAuthJWT.PublicJWTKeyset == "") {
+			noAuthPrivate, noAuthPublic, _, err := encryption.GenerateJWTKeysets([]byte(generated.sc.Encryption.MasterKeyset))
+
+			if err != nil {
+				return err
+			}
+
+			generated.sc.Auth.NoAuthJWT.PrivateJWTKeyset = string(noAuthPrivate)
+			generated.sc.Auth.NoAuthJWT.PublicJWTKeyset = string(noAuthPublic)
+		}
 	}
 
 	// generate jwt keys

@@ -599,7 +599,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	if auth.NoAuthEnabled {
-		l.Warn().Msg("SERVER_AUTH_NO_AUTH_ENABLED is set: authentication is DISABLED and all requests run as the seed default tenant and admin user. Never enable this in production.")
+		l.Warn().Msg("SERVER_AUTH_NO_AUTH_ENABLED is set: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never enable this in production.")
+
+		// no-auth mode is single-tenant; disabling these also hides the corresponding dashboard UI
+		cf.Runtime.AllowCreateTenant = false
+		cf.Runtime.AllowSignup = false
+		cf.Runtime.AllowInvites = false
 	}
 
 	if cf.Auth.Google.Enabled {
@@ -645,12 +650,24 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	// create a new JWT manager
+	var jwtManagerOpts []token.JWTManagerOpt
+
+	if cf.Auth.NoAuthEnabled {
+		noAuthEncryptionSvc, noAuthErr := LoadNoAuthEncryptionSvc(cf)
+
+		if noAuthErr != nil {
+			return nil, nil, fmt.Errorf("could not load no-auth encryption service: %w", noAuthErr)
+		}
+
+		jwtManagerOpts = append(jwtManagerOpts, token.WithNoAuthVerifier(noAuthEncryptionSvc))
+	}
+
 	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
 		ServerURL:            cf.Runtime.ServerURL,
-	})
+	}, jwtManagerOpts...)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
@@ -946,6 +963,58 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	}
 
 	return encryptionSvc, nil
+}
+
+// LoadNoAuthEncryptionSvc loads the dedicated no-auth JWT keyset, signed against the instance master key.
+func LoadNoAuthEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
+	if cf.Encryption.MasterKeyset == "" && cf.Encryption.MasterKeysetFile == "" {
+		return nil, fmt.Errorf("no-auth mode requires a local master keyset")
+	}
+
+	masterKeyset := cf.Encryption.MasterKeyset
+
+	if cf.Encryption.MasterKeysetFile != "" {
+		masterKeysetBytes, err := loaderutils.GetFileBytes(cf.Encryption.MasterKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load master keyset file: %w", err)
+		}
+
+		masterKeyset = string(masterKeysetBytes)
+	}
+
+	hasKeys := (cf.Auth.NoAuthJWT.PublicJWTKeyset != "" || cf.Auth.NoAuthJWT.PublicJWTKeysetFile != "") &&
+		(cf.Auth.NoAuthJWT.PrivateJWTKeyset != "" || cf.Auth.NoAuthJWT.PrivateJWTKeysetFile != "")
+
+	if !hasKeys {
+		return nil, fmt.Errorf("no-auth mode requires a no-auth JWT keyset (set SERVER_AUTH_NO_AUTH_JWT_PRIVATE_KEYSET[_FILE] and SERVER_AUTH_NO_AUTH_JWT_PUBLIC_KEYSET[_FILE])")
+	}
+
+	privateJWT := cf.Auth.NoAuthJWT.PrivateJWTKeyset
+
+	if cf.Auth.NoAuthJWT.PrivateJWTKeysetFile != "" {
+		privateJWTBytes, err := loaderutils.GetFileBytes(cf.Auth.NoAuthJWT.PrivateJWTKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load no-auth private jwt keyset file: %w", err)
+		}
+
+		privateJWT = string(privateJWTBytes)
+	}
+
+	publicJWT := cf.Auth.NoAuthJWT.PublicJWTKeyset
+
+	if cf.Auth.NoAuthJWT.PublicJWTKeysetFile != "" {
+		publicJWTBytes, err := loaderutils.GetFileBytes(cf.Auth.NoAuthJWT.PublicJWTKeysetFile)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not load no-auth public jwt keyset file: %w", err)
+		}
+
+		publicJWT = string(publicJWTBytes)
+	}
+
+	return encryption.NewLocalEncryption([]byte(masterKeyset), []byte(privateJWT), []byte(publicJWT))
 }
 
 func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string, grpcInsecure bool) (*clientv1.GRPCClientFactory, error) {

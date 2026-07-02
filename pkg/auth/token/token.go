@@ -29,21 +29,46 @@ type jwtManagerImpl struct {
 	opts       *TokenOpts
 	tokenRepo  v1.APITokenRepository
 	verifier   jwt.Verifier
+	// noAuthVerifier verifies the default local no-auth token, signed by a separate keyset.
+	noAuthVerifier jwt.Verifier
 }
 
-func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
+type JWTManagerOpt func(*jwtManagerImpl) error
+
+func WithNoAuthVerifier(noAuthEncryptionSvc encryption.EncryptionService) JWTManagerOpt {
+	return func(j *jwtManagerImpl) error {
+		verifier, err := jwt.NewVerifier(noAuthEncryptionSvc.GetPublicJWTHandle())
+
+		if err != nil {
+			return fmt.Errorf("failed to create no-auth JWT Verifier: %v", err)
+		}
+
+		j.noAuthVerifier = verifier
+		return nil
+	}
+}
+
+func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
 	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Verifier: %v", err)
 	}
 
-	return &jwtManagerImpl{
+	m := &jwtManagerImpl{
 		encryption: encryptionSvc,
 		opts:       opts,
 		tokenRepo:  tokenRepo,
 		verifier:   verifier,
-	}, nil
+	}
+
+	for _, opt := range mgrOpts {
+		if err := opt(m); err != nil {
+			return nil, err
+		}
+	}
+
+	return m, nil
 }
 
 type Token struct {
@@ -118,6 +143,10 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	}
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
+
+	if err != nil && j.noAuthVerifier != nil {
+		verifiedJwt, err = j.noAuthVerifier.VerifyAndDecode(token, validator)
+	}
 
 	if err != nil {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to verify and decode JWT: %v", err)

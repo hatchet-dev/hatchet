@@ -16,15 +16,21 @@ const defaultTenantID = "707d0855-80ab-4e1f-a156-f1c4546cbf52"
 func (d *DockerDriver) createHatchetToken(ctx context.Context, hatchetLiteOpts *HatchetLiteOpts) (string, error) {
 	containerName := canonicalContainerName(hatchetLiteOpts.projectName, hatchetLiteOpts.hatchetName)
 
+	cmd := []string{
+		"./hatchet-admin",
+		"token",
+		"create",
+		"--config", "./config",
+		"--tenant-id", defaultTenantID,
+		"--expiresIn", (100 * 365 * 24 * time.Hour).String(),
+	}
+
+	if hatchetLiteOpts.noAuthEnabled {
+		cmd = append(cmd, "--no-auth")
+	}
+
 	execConfig := container.ExecOptions{
-		Cmd: []string{
-			"./hatchet-admin",
-			"token",
-			"create",
-			"--config", "./config",
-			"--tenant-id", defaultTenantID,
-			"--expiresIn", (100 * 365 * 24 * time.Hour).String(),
-		},
+		Cmd:          cmd,
 		AttachStdout: true,
 		AttachStderr: true,
 	}

@@ -14,6 +14,7 @@ var (
 	encryptionKeyDir        string
 	cloudKMSCredentialsPath string
 	cloudKMSKeyURI          string
+	keysetWithNoAuth        bool
 )
 
 var keysetCmd = &cobra.Command{
@@ -72,6 +73,13 @@ func init() {
 		"",
 		"URI of the key in the CloudKMS repository",
 	)
+
+	keysetCreateLocalKeysetsCmd.PersistentFlags().BoolVar(
+		&keysetWithNoAuth,
+		"no-auth",
+		false,
+		"also generate a dedicated JWT keyset for local no-auth mode",
+	)
 }
 
 func runCreateLocalKeysets() error {
@@ -106,6 +114,12 @@ func runCreateLocalKeysets() error {
 		if err != nil {
 			return err
 		}
+
+		if keysetWithNoAuth {
+			if err := writeNoAuthKeyset(masterKeyBytes); err != nil {
+				return err
+			}
+		}
 	} else {
 		fmt.Println("Master Key Bytes:")
 		fmt.Println(string(masterKeyBytes))
@@ -118,9 +132,37 @@ func runCreateLocalKeysets() error {
 
 		fmt.Println("Insecure Public Handle EC256 Keyset:")
 		fmt.Println(string(insecurePublicHandleEc256))
+
+		if keysetWithNoAuth {
+			noAuthPrivate, noAuthPublic, _, genErr := encryption.GenerateJWTKeysets(masterKeyBytes)
+
+			if genErr != nil {
+				return genErr
+			}
+
+			fmt.Println("No-Auth Private EC256 Keyset:")
+			fmt.Println(string(noAuthPrivate))
+
+			fmt.Println("No-Auth Public EC256 Keyset:")
+			fmt.Println(string(noAuthPublic))
+		}
 	}
 
 	return nil
+}
+
+func writeNoAuthKeyset(masterKeyBytes []byte) error {
+	privateEc256, publicEc256, _, err := encryption.GenerateJWTKeysets(masterKeyBytes)
+
+	if err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(encryptionKeyDir+"/noauth_private_ec256.key", privateEc256, 0600); err != nil {
+		return err
+	}
+
+	return os.WriteFile(encryptionKeyDir+"/noauth_public_ec256.key", publicEc256, 0600)
 }
 
 func runCreateCloudKMSJWTKeyset() error {

@@ -81,6 +81,23 @@ func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []b
 	return masterKey, privateEc256, publicEc256, insecurePublicHandleEc256, nil
 }
 
+// GenerateJWTKeysets creates a new JWT keyset encrypted with an existing master key.
+func GenerateJWTKeysets(masterKey []byte) (privateEc256 []byte, publicEc256 []byte, insecurePublicHandleEc256 []byte, err error) {
+	masterHandle, err := InsecureHandleFromBytes(masterKey)
+
+	if err != nil {
+		return
+	}
+
+	a, err := aead.New(masterHandle)
+
+	if err != nil {
+		return
+	}
+
+	return generateJWTKeysets(a)
+}
+
 func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
 	aeadTemplate := aead.AES256GCMKeyTemplate()
 

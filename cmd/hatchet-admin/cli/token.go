@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
@@ -19,6 +20,7 @@ var (
 	tokenTenantIdStr string
 	tokenName        string
 	expiresIn        time.Duration
+	tokenNoAuth      bool
 )
 
 var tokenCmd = &cobra.Command{
@@ -65,18 +67,28 @@ func init() {
 		"Expiration duration for the API token",
 	)
 
+	tokenCreateAPICmd.PersistentFlags().BoolVar(
+		&tokenNoAuth,
+		"no-auth",
+		false,
+		"sign the token with the no-auth keyset for the default tenant (local no-auth mode)",
+	)
 }
 
 func runCreateAPIToken(expiresIn time.Duration) error {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
-	cleanup, server, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
+	var cf *server.ServerConfigFile
+
+	cleanup, srv, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable rabbitmq since it's not needed to create the api token
 		scf.MessageQueue.Enabled = false
 
 		// disable security checks since we're not running the server
 		scf.SecurityCheck.Enabled = false
+
+		cf = scf
 	})
 
 	if err != nil {
@@ -85,16 +97,41 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	defer cleanup() // nolint:errcheck
 
-	defer server.Disconnect() // nolint:errcheck
+	defer srv.Disconnect() // nolint:errcheck
 
 	expiresAt := time.Now().UTC().Add(expiresIn)
 
-	tenantId, err := tenantIDForTokenCreate(server.Seed.DefaultTenantID)
+	jwtManager := srv.Auth.JWTManager
+
+	tenantId, err := tenantIDForTokenCreate(srv.Seed.DefaultTenantID)
 	if err != nil {
 		return err
 	}
 
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	if tokenNoAuth {
+		// no-auth tokens are always scoped to the seed default tenant and signed by the no-auth keyset
+		tenantId, err = uuid.Parse(srv.Seed.DefaultTenantID)
+		if err != nil {
+			return err
+		}
+
+		noAuthEncryptionSvc, encErr := loader.LoadNoAuthEncryptionSvc(cf)
+		if encErr != nil {
+			return encErr
+		}
+
+		jwtManager, err = token.NewJWTManager(noAuthEncryptionSvc, srv.V1.APIToken(), &token.TokenOpts{
+			Issuer:               cf.Runtime.ServerURL,
+			Audience:             cf.Runtime.ServerURL,
+			GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
+			ServerURL:            cf.Runtime.ServerURL,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	defaultTok, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err
