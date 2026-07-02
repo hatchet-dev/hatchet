@@ -34,9 +34,7 @@ class TaskStatusStat(BaseModel):
     concurrency: Optional[List[ConcurrencyStat]] = None
     oldest: Optional[datetime] = None
     oldest_excluding_retries: Optional[datetime] = Field(
-        default=None,
-        description="The oldest task in this status that is on its first attempt (no prior retries).",
-        alias="oldestExcludingRetries",
+        default=None, alias="oldestExcludingRetries"
     )
     __properties: ClassVar[List[str]] = [
         "total",
