@@ -626,12 +626,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	if auth.NoAuthEnabled {
 		l.Warn().Msg("SERVER_AUTH_NO_AUTH_ENABLED is set: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never enable this in production.")
-
-		// no-auth mode is single-tenant; disabling these also hides the corresponding dashboard UI
-		cf.Runtime.AllowCreateTenant = false
-		cf.Runtime.AllowSignup = false
-		cf.Runtime.AllowInvites = false
 	}
+
+	applyNoAuthConfigOverrides(cf)
 
 	if cf.Auth.Google.Enabled {
 		if cf.Auth.Google.ClientID == "" {
@@ -991,7 +988,16 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	return encryptionSvc, nil
 }
 
-// LoadNoAuthEncryptionSvc loads the dedicated no-auth JWT keyset, signed against the instance master key.
+func applyNoAuthConfigOverrides(cf *server.ServerConfigFile) {
+	if !cf.Auth.NoAuthEnabled {
+		return
+	}
+
+	cf.Runtime.AllowCreateTenant = false
+	cf.Runtime.AllowSignup = false
+	cf.Runtime.AllowInvites = false
+}
+
 func LoadNoAuthEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
 	if cf.Encryption.MasterKeyset == "" && cf.Encryption.MasterKeysetFile == "" {
 		return nil, fmt.Errorf("no-auth mode requires a local master keyset")
