@@ -547,11 +547,21 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	cleanupSecurityCheck := func() {}
 
 	if cf.SecurityCheck.Enabled {
+		var oauthProviders []string
+		if cf.Auth.Google.Enabled {
+			oauthProviders = append(oauthProviders, "google")
+		}
+		if cf.Auth.Github.Enabled {
+			oauthProviders = append(oauthProviders, "github")
+		}
+
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
-			Enabled:  cf.SecurityCheck.Enabled,
-			Endpoint: cf.SecurityCheck.Endpoint,
-			Logger:   &l,
-			Version:  version,
+			Enabled:        cf.SecurityCheck.Enabled,
+			Endpoint:       cf.SecurityCheck.Endpoint,
+			Logger:         &l,
+			Version:        version,
+			MQKind:         cf.MessageQueue.Kind,
+			OAuthProviders: oauthProviders,
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())

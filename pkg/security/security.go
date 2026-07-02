@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -25,19 +29,46 @@ type DefaultSecurityCheck struct {
 	Logger   *zerolog.Logger
 	Version  string
 	Repo     v1.SecurityCheckRepository
+
+	MQKind         string
+	OAuthProviders []string
+
+	startTime time.Time
 }
 
 func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepository) SecurityCheck {
 	return DefaultSecurityCheck{
-		Enabled:  opts.Enabled,
-		Endpoint: opts.Endpoint,
-		Logger:   opts.Logger,
-		Version:  opts.Version,
-		Repo:     repo,
+		Enabled:        opts.Enabled,
+		Endpoint:       opts.Endpoint,
+		Logger:         opts.Logger,
+		Version:        opts.Version,
+		Repo:           repo,
+		MQKind:         opts.MQKind,
+		OAuthProviders: opts.OAuthProviders,
+		startTime:      time.Now(),
 	}
 }
 
-// Start runs an initial check, then repeats every checkInterval until ctx is cancelled.
+func detectEnvironment() string {
+	switch {
+	case os.Getenv("GITHUB_ACTIONS") == "true":
+		return "github_actions"
+	case os.Getenv("CI") != "":
+		return "ci"
+	case os.Getenv("KUBERNETES_SERVICE_HOST") != "":
+		return "kubernetes"
+	case dockerEnv():
+		return "docker"
+	default:
+		return "unknown"
+	}
+}
+
+func dockerEnv() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
+}
+
 func (a DefaultSecurityCheck) Start(ctx context.Context) {
 	if !a.Enabled {
 		return
@@ -80,7 +111,19 @@ func (a DefaultSecurityCheck) Check() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	reqURL := fmt.Sprintf("%s/check?version=%s&tag=%s", a.Endpoint, a.Version, ident)
+	params := url.Values{}
+	params.Set("version", a.Version)
+	params.Set("tag", ident)
+	params.Set("uptime_seconds", strconv.FormatInt(int64(time.Since(a.startTime).Seconds()), 10))
+	params.Set("environment", detectEnvironment())
+	if a.MQKind != "" {
+		params.Set("mq_kind", a.MQKind)
+	}
+	if len(a.OAuthProviders) > 0 {
+		params.Set("oauth_providers", strings.Join(a.OAuthProviders, ","))
+	}
+
+	reqURL := fmt.Sprintf("%s/check?%s", a.Endpoint, params.Encode())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		a.Logger.Debug().Msgf("Error creating security check request: %s", err)
