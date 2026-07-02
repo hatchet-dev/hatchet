@@ -433,6 +433,10 @@ TaskStatusStat:
     oldest:
       type: string
       format: date-time
+    oldestExcludingRetries:
+      type: string
+      format: date-time
+      description: The oldest task in this status that is on its first attempt (no prior retries).
   type: object
 
 ConcurrencyStat:
