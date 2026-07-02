@@ -48,10 +48,24 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 	},
 }
 
+var keysetCreateNoAuthKeysCmd = &cobra.Command{
+	Use:   "create-noauth-keys",
+	Short: "generate a no-auth JWT keyset from an existing local master key.",
+	Run: func(cmd *cobra.Command, args []string) {
+		err := runCreateNoAuthKeys()
+
+		if err != nil {
+			log.Printf("Fatal: could not run [keyset create-noauth-keys] command: %v", err)
+			os.Exit(1)
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(keysetCmd)
 	keysetCmd.AddCommand(keysetCreateLocalKeysetsCmd)
 	keysetCmd.AddCommand(keysetCreateCloudKMSJWTCmd)
+	keysetCmd.AddCommand(keysetCreateNoAuthKeysCmd)
 
 	keysetCmd.PersistentFlags().StringVar(
 		&encryptionKeyDir,
@@ -149,6 +163,20 @@ func runCreateLocalKeysets() error {
 	}
 
 	return nil
+}
+
+func runCreateNoAuthKeys() error {
+	if encryptionKeyDir == "" {
+		return fmt.Errorf("--key-dir is required")
+	}
+
+	masterKeyBytes, err := os.ReadFile(encryptionKeyDir + "/master.key")
+
+	if err != nil {
+		return fmt.Errorf("could not read master key: %w", err)
+	}
+
+	return writeNoAuthKeyset(masterKeyBytes)
 }
 
 func writeNoAuthKeyset(masterKeyBytes []byte) error {

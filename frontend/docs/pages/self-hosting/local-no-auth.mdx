@@ -2,46 +2,85 @@ import { Callout } from "nextra/components";
 
 # Local No-Auth Mode
 
-No-auth mode disables authentication on the Hatchet dashboard and REST API so you can run a local instance without signing in or minting a bearer token for every request. It is intended purely for local development.
+No-auth mode lets you run a local Hatchet instance without signing in to the dashboard or minting your own API token. It is intended purely for local development.
 
 <Callout type="error" emoji="🚫">
   Never enable no-auth mode in production or on any instance reachable by
-  untrusted clients. It removes all authentication from the API and dashboard.
+  untrusted clients. It removes authentication from the dashboard and REST API.
 </Callout>
 
 ## What it does
 
-When enabled, no-auth mode resolves every unauthenticated dashboard and REST API request to the seeded admin user (`ADMIN_EMAIL`, default `admin@example.com`). Concretely:
+- **Dashboard** loads without a login screen; requests run as the seeded admin user (`ADMIN_EMAIL`, default `admin@example.com`).
+- **REST API** calls succeed without a bearer token or session cookie.
+- **Single tenant.** Everything runs against the seed default tenant, so tenant creation, signup and invites are disabled (and hidden in the dashboard).
 
-- **Dashboard** loads without a login screen.
-- **REST API** calls succeed without a bearer token or session cookie. The tenant is taken from the request URL, and the admin user is authorized against it exactly as a signed-in owner would be.
+## Workers still use an API token
 
-## What it does **not** change
+The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. No-auth mode provides a **default token** so you don't have to create one:
 
-The gRPC engine is unaffected. Workers and SDK clients still authenticate with an API token as usual, and **the token's tenant is authoritative**. This is deliberate in the sense that it means there are no surprises about which tenant a worker runs against.
+- The token is signed by a **dedicated no-auth keyset**, separate from the instance's main keyset. The server only trusts this keyset when no-auth mode is enabled, so the default token is inert on any instance that hasn't loaded it.
+- It is scoped to the seed default tenant.
 
-So the usual multi-tenant flow works normally:
-
-1. Open the dashboard (no login required) and create a tenant.
-2. Create an API token in that tenant.
-3. Configure your worker or SDK client with that token — its workflows run in that tenant.
+Point your worker at it via `HATCHET_CLIENT_TOKEN`.
 
 ## Enabling it
 
 ### Hatchet CLI
 
-Pass `--no-auth-mode` to `hatchet server start`:
-
 ```sh
 hatchet server start --no-auth-mode
 ```
 
-### Environment variable
+This prints the default token to use as `HATCHET_CLIENT_TOKEN`.
 
-Set the following on both the API and engine:
+### Hatchet Lite (run directly)
+
+When running the `hatchet-lite` image directly (not through the CLI), set `SERVER_AUTH_NO_AUTH_ENABLED=true`:
+
+```sh
+docker run -e SERVER_AUTH_NO_AUTH_ENABLED=true ... ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+```
+
+On startup the container generates the no-auth keyset and mints the default worker token. Grab it either from the container logs or from the config volume:
+
+```sh
+docker logs <hatchet-lite-container>              # printed under "no-auth mode: worker API token"
+# or
+docker exec <hatchet-lite-container> cat ./config/noauth-token
+```
+
+Then point your worker at it:
+
+```sh
+export HATCHET_CLIENT_TOKEN="<token>"
+```
+
+The token has the server address baked in, so no other client configuration is needed.
+
+### Docker Compose
+
+Set on the API and engine:
 
 ```sh
 SERVER_AUTH_NO_AUTH_ENABLED=true
+SERVER_AUTH_NO_AUTH_JWT_PRIVATE_KEYSET_FILE=/path/to/noauth_private_ec256.key
+SERVER_AUTH_NO_AUTH_JWT_PUBLIC_KEYSET_FILE=/path/to/noauth_public_ec256.key
 ```
 
-This maps to `auth.noAuthEnabled` in the server config file.
+Generate the no-auth keyset alongside your local keys, then mint the default token:
+
+```sh
+# generate the keyset (add --no-auth to create-local-keys, or from an existing master key)
+hatchet-admin keyset --key-dir /path/to/keys create-local-keys --no-auth
+hatchet-admin keyset --key-dir /path/to/keys create-noauth-keys
+
+# mint the default token for the seed default tenant
+hatchet-admin token create --no-auth
+```
+
+## How it stays safe
+
+- Defaults to **off**; must be explicitly enabled.
+- The no-auth keyset is generated per instance and trusted only when no-auth mode is on, so the default token cannot authenticate against a normal deployment.
+- The server logs a prominent warning on startup, and the dashboard shows a persistent banner, while it is active.

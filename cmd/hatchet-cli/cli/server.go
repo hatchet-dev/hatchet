@@ -87,7 +87,10 @@ var startCmd = &cobra.Command{
 
 		additionalMessage := ""
 		if noAuthMode {
-			additionalMessage = "No-auth mode is enabled: authentication is disabled. Use for local development only."
+			additionalMessage = fmt.Sprintf(
+				"No-auth mode is enabled (local development only).\nDefault API token for workers (HATCHET_CLIENT_TOKEN):\n%s",
+				result.Token,
+			)
 		}
 
 		// Render styled output
