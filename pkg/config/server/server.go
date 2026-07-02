@@ -633,10 +633,9 @@ type AuthConfig struct {
 
 	CustomAuthenticator CustomAuthenticator
 
-	// NoAuthEnabled, when true, disables API/UI authentication and resolves every request to
-	// NoAuthUserEmail. Only honored when CustomAuthenticator is nil.
-	NoAuthEnabled   bool
-	NoAuthUserEmail string
+	// NoAuthEnabled, when true, disables API/UI authentication and resolves every request to the
+	// seed admin user.
+	NoAuthEnabled bool
 
 	// Operations listed here bypass the tenant RBAC check. Use this for
 	// extension operations (e.g. cloud) that handle their own authorization

@@ -7,7 +7,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Generate config files (also generates the no-auth keyset when SERVER_AUTH_NO_AUTH_ENABLED is set)
+# Generate config files
 ./hatchet-admin quickstart --skip certs --generated-config-dir ./config --overwrite=false
 
 # In no-auth mode, mint and surface the default worker token

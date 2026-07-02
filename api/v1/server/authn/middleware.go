@@ -147,7 +147,7 @@ func (a *AuthN) handleNoAuthBypass(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	user, err := a.config.V1.User().GetUserByEmail(ctx, a.config.Auth.NoAuthUserEmail)
+	user, err := a.config.V1.User().GetUserByEmail(ctx, a.config.Seed.AdminEmail)
 
 	if err != nil {
 		a.l.Error().Ctx(ctx).Err(err).Msg("no-auth mode: could not resolve default user")
