@@ -803,6 +803,8 @@ func BindAllEnv(v *viper.Viper) {
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
+	_ = v.BindEnv("runtime.limits.corePartitionRetention", "SERVER_LIMITS_CORE_PARTITION_RETENTION")
+	_ = v.BindEnv("runtime.limits.olapPartitionRetention", "SERVER_LIMITS_OLAP_PARTITION_RETENTION")
 
 	_ = v.BindEnv("runtime.limits.defaultTaskRunLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultTaskRunAlarmLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT")

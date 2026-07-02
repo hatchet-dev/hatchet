@@ -4,6 +4,8 @@ import "time"
 
 type LimitConfigFile struct {
 	DefaultTenantRetentionPeriod string `mapstructure:"defaultTenantRetentionPeriod" json:"defaultTenantRetentionPeriod,omitempty" default:"720h"`
+	CorePartitionRetention       string `mapstructure:"corePartitionRetention" json:"corePartitionRetention,omitempty"`
+	OLAPPartitionRetention       string `mapstructure:"olapPartitionRetention" json:"olapPartitionRetention,omitempty"`
 
 	DefaultWorkflowRunLimit      int32         `mapstructure:"defaultWorkflowRunLimit" json:"defaultWorkflowRunLimit,omitempty" default:"2000"`
 	DefaultWorkflowRunAlarmLimit int32         `mapstructure:"defaultWorkflowRunAlarmLimit" json:"defaultWorkflowRunAlarmLimit,omitempty" default:"1600"`
@@ -31,4 +33,22 @@ type LimitConfigFile struct {
 
 	DefaultIncomingWebhookLimit      int32 `mapstructure:"defaultIncomingWebhookLimit" json:"defaultIncomingWebhookLimit,omitempty" default:"5"`
 	DefaultIncomingWebhookAlarmLimit int32 `mapstructure:"defaultIncomingWebhookAlarmLimit" json:"defaultIncomingWebhookALarmLimit,omitempty" default:"4"`
+}
+
+// CorePartitionRetentionOrDefault returns the core partition retention override or the tenant default.
+func (c LimitConfigFile) CorePartitionRetentionOrDefault() string {
+	if c.CorePartitionRetention != "" {
+		return c.CorePartitionRetention
+	}
+
+	return c.DefaultTenantRetentionPeriod
+}
+
+// OLAPPartitionRetentionOrDefault returns the OLAP partition retention override or the tenant default.
+func (c LimitConfigFile) OLAPPartitionRetentionOrDefault() string {
+	if c.OLAPPartitionRetention != "" {
+		return c.OLAPPartitionRetention
+	}
+
+	return c.DefaultTenantRetentionPeriod
 }
