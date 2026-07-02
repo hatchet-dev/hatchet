@@ -237,10 +237,7 @@ CREATE TABLE v1_step_concurrency (
     step_id UUID NOT NULL,
     -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    -- last_active_at is refreshed whenever a slot is created for this strategy. The stale-deactivation
-    -- sweep only deactivates a strategy once it has had no slots AND last_active_at is over a day old, so
-    -- a strategy used periodically is never deactivated (and so never pays a cold start). Mirrors how
-    -- v1_queue.last_active gates the 1-day queue activity window.
+    -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.
     last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
