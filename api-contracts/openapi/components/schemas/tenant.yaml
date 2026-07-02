@@ -433,6 +433,9 @@ TaskStatusStat:
     oldest:
       type: string
       format: date-time
+    oldestExcludingRetries:
+      type: string
+      format: date-time
   type: object
 
 ConcurrencyStat:
