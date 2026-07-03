@@ -1,18 +1,45 @@
 describe('side panel: full height', () => {
-  it('docs side panel fills the available vertical space', () => {
+  it('scheduled run side panel fills the available vertical space', () => {
     cy.viewport(1280, 800);
     cy.login('owner');
 
-    // Force an empty state so the "Learn about scheduled runs" docs button is always present.
-    cy.intercept('GET', '/api/v1/tenants/*/workflows/scheduled*', {
-      statusCode: 200,
-      body: { rows: [], pagination: { num_pages: 1 } },
-    }).as('scheduledRuns');
+    const workflowId = 'a0000000-0000-0000-0000-000000000001';
+    const scheduledRunId = 'b0000000-0000-0000-0000-000000000002';
+    const now = '2026-01-01T00:00:00.000Z';
 
+    // Stub a registered workflow so the no-workflows onboarding placeholder
+    // does not replace the scheduled runs table.
     cy.intercept('GET', '/api/v1/tenants/*/workflows*', {
       statusCode: 200,
-      body: { rows: [], pagination: { num_pages: 1 } },
+      body: {
+        rows: [
+          {
+            metadata: { id: workflowId, createdAt: now, updatedAt: now },
+            name: 'test-workflow',
+          },
+        ],
+        pagination: { num_pages: 1 },
+      },
     }).as('workflows');
+
+    // Stub a scheduled run so a row is available to open the side panel.
+    cy.intercept('GET', '/api/v1/tenants/*/workflows/scheduled*', {
+      statusCode: 200,
+      body: {
+        rows: [
+          {
+            metadata: { id: scheduledRunId, createdAt: now, updatedAt: now },
+            tenantId: '00000000-0000-0000-0000-000000000000',
+            workflowVersionId: workflowId,
+            workflowId,
+            workflowName: 'test-workflow',
+            triggerAt: '2026-12-31T00:00:00.000Z',
+            method: 'API',
+          },
+        ],
+        pagination: { num_pages: 1 },
+      },
+    }).as('scheduledRuns');
 
     cy.visit('/');
     cy.location('pathname', { timeout: 30000 })
@@ -30,16 +57,17 @@ describe('side panel: full height', () => {
 
     cy.wait(['@scheduledRuns', '@workflows']);
 
-    cy.contains('button', 'Learn about scheduled runs')
-      .should('be.visible')
-      .click();
+    // Clicking the run row opens the scheduled run details side panel.
+    cy.contains(scheduledRunId).should('be.visible').click();
 
     cy.get('[data-cy="side-panel"]').should('be.visible');
 
-    // And the docs iframe should fill the content box (excluding padding).
-    cy.get('[data-cy="side-panel-content"] iframe').then(($iframe) => {
-      const iframeH = $iframe[0].getBoundingClientRect().height;
-      expect(iframeH, 'iframe height').to.be.closeTo(570, 10);
+    // The panel content should fill the available vertical space, extending
+    // to the bottom of the viewport.
+    cy.get('[data-cy="side-panel-content"]').then(($content) => {
+      const rect = $content[0].getBoundingClientRect();
+      expect(rect.bottom, 'content bottom').to.be.closeTo(800, 10);
+      expect(rect.height, 'content height').to.be.greaterThan(500);
     });
   });
 });
