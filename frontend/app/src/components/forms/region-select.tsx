@@ -35,7 +35,7 @@ export function RegionSelect({
     <div className="grid gap-2">
       <Label htmlFor={id}>Region</Label>
       <p className="text-sm text-muted-foreground">
-        Choose where your first tenant is deployed.
+        Choose where this tenant is deployed.
       </p>
       <Select
         value={value}

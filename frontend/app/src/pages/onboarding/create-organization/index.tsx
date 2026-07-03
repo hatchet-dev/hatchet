@@ -72,7 +72,11 @@ export default function CreateOrganization() {
           defaultOrganizationName={user ? deriveDefaultOrgName(user) : ''}
           defaultTenantName="development"
           afterSave={({ tenant }) => {
-            queryClient.prefetchQuery(queries.controlPlane.subscriptionPlans());
+            void queryClient
+              .prefetchQuery(queries.controlPlane.subscriptionPlans())
+              .catch(() => {
+                // Ignore prefetch errors; subscription plans will be fetched on demand if needed.
+              });
             return redirectOrNavigate({
               to: appRoutes.tenantOverviewRoute.to,
               params: { tenant: tenant.id },
