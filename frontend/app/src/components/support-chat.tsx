@@ -16,18 +16,11 @@ export const usePylon = () => {
   const { meta } = useApiMeta();
 
   const show = useCallback(() => {
-    (window as any).Pylon('show');
+    (window as any).Pylon?.('show');
   }, []);
 
-  if (!meta?.pylonAppId) {
-    return {
-      enabled: false,
-      show: () => {},
-    };
-  }
-
   return {
-    enabled: true,
+    enabled: Boolean(meta?.pylonAppId),
     show,
   };
 };

@@ -9,12 +9,11 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import {
   formatShardDeploymentKey,
   shardDeploymentKey,
 } from '@/lib/shard-deployment-key';
-
-const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
 type RegionSelectProps = {
   shards: OrganizationAvailableShard[];
