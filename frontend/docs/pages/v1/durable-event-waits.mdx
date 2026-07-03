@@ -3,6 +3,7 @@ import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import HumanInLoopDiagram from "@/components/HumanInLoopDiagramWrapper";
+import LookbackWindowDiagram from "@/components/LookbackWindowDiagramWrapper";
 
 # Durable Event Waits
 
@@ -72,6 +73,8 @@ Event waits can also optionally look back in time for recent events that have co
 
 As a simple example, if you're establishing an event wait with a CEL expression like `input.user_id == 1234`, then you know that `{"user_id": 1234}` is present on the event payload, so you might use the string `user_id:1234` as the scope, **both when establishing the wait and pushing the event.**
 
+<LookbackWindowDiagram />
+
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
 
@@ -87,10 +90,16 @@ As a simple example, if you're establishing an event wait with a CEL expression 
 </Tabs.Tab>
 <Tabs.Tab title="Go">
 
-{/* TODO-DOCS: Go example here */}
+<Callout type="info">
+  Lookback window support for the Go SDK is coming soon. Join our
+  [Discord](https://hatchet.run/discord) to stay up to date.
+</Callout>
 
 </Tabs.Tab>
   <Tabs.Tab title="Ruby">
-    {/* TODO-DOCS: Ruby example here */}
+    <Callout type="info">
+      Lookback window support for the Ruby SDK is coming soon. Join our
+      [Discord](https://hatchet.run/discord) to stay up to date.
+    </Callout>
   </Tabs.Tab>
 </UniversalTabs>

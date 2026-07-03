@@ -73,7 +73,24 @@ You can push an event to Hatchet by calling the `push` method on the Hatchet eve
 
 ## Event Filters
 
-Events can be _filtered_ in Hatchet, which allows you to push events to Hatchet and only trigger task runs from them in certain cases. **If you enable filters on a workflow, your workflow will be triggered once for each matching filter on any incoming event with a matching scope** (more on scopes below).
+Events can be _filtered_ in Hatchet, which allows you to push events to Hatchet and only trigger task runs from them in certain cases. **If you enable filters on a workflow, your workflow will be triggered once for each matching filter on any incoming event with a matching scope** (see [Understanding scopes](#understanding-scopes) below).
+
+### Understanding scopes
+
+Every filter has a required `scope`, which is an arbitrary string that acts as a grouping key for filters. Its purpose is to narrow down the set of candidate filters an event is evaluated against: when you push an event with a `scope`, Hatchet only considers filters whose scope is an exact match for the event's scope, and then triggers the workflow once for each of those filters whose expression evaluates to `true`.
+
+Concretely, for a workflow with event triggers:
+
+- If the workflow has **no filters**, matching events trigger it as usual, and scopes have no effect.
+- If the workflow has **one or more filters**, an incoming event will only trigger it if the event's scope exactly matches the scope of at least one filter, _and_ that filter's expression evaluates to `true` for the event. An event pushed without a scope, or with a scope that doesn't match any of the workflow's filters, will not trigger the workflow at all.
+
+Scopes are most useful when you want per-entity filtering, such as in a multi-tenant application where each of your customers should have their own filtering rules. For instance, you might create one filter per customer with a scope like `customer:1234`, each with its own expression and payload. When an event arrives for that customer, you push it with `scope="customer:1234"`, and it's evaluated only against that customer's filters — not against every filter registered for the workflow.
+
+<Callout type="info">
+  The examples below use a placeholder scope like `foobarbaz` for simplicity. In
+  a real application, a scope is typically an identifier for the entity the
+  filter belongs to, such as a customer, user, or organization id.
+</Callout>
 
 ### Basic Usage
 

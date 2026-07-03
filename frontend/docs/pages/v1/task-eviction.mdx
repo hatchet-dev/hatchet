@@ -2,10 +2,13 @@ import { snippets } from "@/lib/generated/snippets";
 import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
+import TaskEvictionDiagram from "@/components/TaskEvictionDiagramWrapper";
 
 # Task Eviction
 
 Since durable tasks are often waiting for sleeps, events, or child runs, they spend much of their time inactive. When this happens, the durable task no longer needs to hold a slot on the worker until the thing it's waiting for completes. Hatchet has the option to **evict** durable tasks from workers when they're in one of these waiting states, in order to free up slots on the worker. This allows the worker to pick up additional durable tasks, and then resume the original one from where it left off when the wait is satisfied, without keeping the idle task around.
+
+<TaskEvictionDiagram />
 
 <Callout type="info">
   It's important to note that eviction is a fundamental difference between
