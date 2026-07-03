@@ -93,14 +93,17 @@ export function useInviteActions({
       await acceptTenantFn({ invite: data.inviteId });
       return { tenantId: data.tenantId, tenantName: data.tenantName };
     },
-    onSuccess: async ({ tenantId, tenantName }) => {
-      await invalidateUserUniverse();
+    onSuccess: ({ tenantId, tenantName }) => {
       const next = [
         ...acceptedTenantInfosRef.current,
         { id: tenantId, name: tenantName },
       ];
       acceptedTenantInfosRef.current = next;
       setAcceptedTenantInfos(next);
+      // Deliberately not awaited: closing the modal must not wait on the
+      // memberships refetch. The confirmation step shows a loading state
+      // until the new tenant appears.
+      void invalidateUserUniverse();
     },
     onError: handleApiError,
   });
@@ -177,8 +180,10 @@ export function useInviteActions({
       acceptOrgInviteMutation.mutate(
         { inviteId },
         {
-          onSuccess: async () => {
-            await invalidateUserUniverse();
+          onSuccess: () => {
+            // Deliberately not awaited: closing the modal must not wait on
+            // the memberships refetch.
+            void invalidateUserUniverse();
             capture('onboarding_org_invite_accepted', { invite_id: inviteId });
             const nextProcessedIds = markProcessed(inviteId);
             invalidatePendingInvites();

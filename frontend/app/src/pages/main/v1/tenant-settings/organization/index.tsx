@@ -1515,7 +1515,6 @@ function TenantAccordionItem({
     ...tenantInviteListQuery(tenant.id),
     enabled: isExpanded,
   });
-  const { isCloudEnabled } = useUserUniverse();
   const { isControlPlaneEnabled } = useControlPlane();
 
   const tenantMembers = membersQuery.data?.rows || [];
@@ -1523,8 +1522,9 @@ function TenantAccordionItem({
 
   const canManageTenantMembers =
     canManageOrganization ||
-    // if both cloud and the control plane are disabled, we're on the OSS and tenant admins / owners can invite members to their tenants
-    (!(isCloudEnabled || isControlPlaneEnabled) && Boolean(tenant.canManage));
+    // without the control plane, tenant admins/owners can invite members directly
+    // (org-based "Add Member" isn't available), whether they're on OSS or on cloud
+    (!isControlPlaneEnabled && Boolean(tenant.canManage));
 
   return (
     <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
@@ -1564,7 +1564,9 @@ function TenantAccordionItem({
         <div className="space-y-5">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-medium">Members</h4>
-            {canManageOrganization && organizationId ? (
+            {canManageOrganization &&
+            organizationId &&
+            isControlPlaneEnabled ? (
               <Button
                 onClick={() =>
                   globalEmitter.emit('add-org-member-to-tenant', {
@@ -1687,7 +1689,9 @@ function TenantMemberList({
                   member={member}
                   tenantId={tenantId}
                   onEditRoleClick={
-                    member.manually_added ? setMemberToEdit : () => {}
+                    !isControlPlaneEnabled || member.manually_added
+                      ? setMemberToEdit
+                      : () => {}
                   }
                   onChangePasswordClick={() => {}}
                   onDeleteSuccess={onMembersChanged}

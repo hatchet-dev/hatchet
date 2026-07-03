@@ -12,8 +12,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const checkInterval = time.Hour
+
 type SecurityCheck interface {
 	Check()
+	Start(ctx context.Context)
 }
 
 type DefaultSecurityCheck struct {
@@ -31,6 +34,27 @@ func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepositor
 		Logger:   opts.Logger,
 		Version:  opts.Version,
 		Repo:     repo,
+	}
+}
+
+// Start runs an initial check, then repeats every checkInterval until ctx is cancelled.
+func (a DefaultSecurityCheck) Start(ctx context.Context) {
+	if !a.Enabled {
+		return
+	}
+
+	a.Check()
+
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			a.Check()
+		}
 	}
 }
 

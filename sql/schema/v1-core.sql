@@ -237,6 +237,8 @@ CREATE TABLE v1_step_concurrency (
     step_id UUID NOT NULL,
     -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
@@ -907,12 +909,13 @@ BEGIN
             v1_step_concurrency strategy ON strategy.workflow_id = cs.workflow_id AND strategy.workflow_version_id = cs.workflow_version_id AND strategy.id = cs.strategy_id
         WHERE
             strategy.is_active = FALSE
+            OR strategy.last_active_at < NOW() - INTERVAL '1 hour'
         ORDER BY
             strategy.id
         FOR UPDATE
     )
     UPDATE v1_step_concurrency strategy
-    SET is_active = TRUE
+    SET is_active = TRUE, last_active_at = NOW()
     FROM inactive_strategies
     WHERE
         strategy.workflow_id = inactive_strategies.workflow_id AND
@@ -2526,3 +2529,34 @@ AFTER DELETE ON v1_concurrency_slot
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_concurrency_slot_delete_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_update_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'UPDATE',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint,
+            'isFilled', nt.is_filled
+        )
+    FROM new_table nt
+    JOIN v1_step_concurrency sc ON sc.id = nt.strategy_id
+    WHERE sc.parent_strategy_id IS NULL
+        AND nt.is_filled = FALSE;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_update_outbox
+AFTER UPDATE ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();
