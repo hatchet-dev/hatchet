@@ -150,7 +150,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
-      - name: Pull and push authdisabled (:dev) images
+      - name: Pull and push dev images
         run: |
           for img in hatchet-api hatchet-engine hatchet-admin hatchet-lite; do
             docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64

@@ -26,7 +26,7 @@ jobs:
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -61,7 +61,7 @@ jobs:
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64 \
@@ -101,7 +101,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}
-      - name: Combine :dev
+      - name: Combine dev image
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-amd64
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-api-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -131,7 +131,7 @@ jobs:
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -166,7 +166,7 @@ jobs:
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64 \
@@ -206,7 +206,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}
-      - name: Combine :dev
+      - name: Combine dev image
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-amd64
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -236,7 +236,7 @@ jobs:
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/amd64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64 \
@@ -271,7 +271,7 @@ jobs:
             --build-arg VERSION=${{steps.tag_name.outputs.tag}} \
             --platform linux/arm64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             -t ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64 \
@@ -311,7 +311,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{steps.tag_name.outputs.tag}}
-      - name: Combine :dev
+      - name: Combine dev image
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-amd64
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:${{steps.tag_name.outputs.tag}}-arm64
@@ -537,7 +537,7 @@ jobs:
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
@@ -624,7 +624,7 @@ jobs:
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:arm64 \
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:arm64 \
             .
-      - name: Build authdisabled (:dev)
+      - name: Build dev image
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite \
@@ -682,7 +682,7 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64 \
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}
-      - name: Combine :dev
+      - name: Combine dev image
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-amd64
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:${{steps.tag_name.outputs.tag}}-arm64
