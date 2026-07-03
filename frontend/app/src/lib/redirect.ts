@@ -10,10 +10,9 @@ export function useRedirectOrNavigate() {
       const redirectTo = sessionStorage.getItem(REDIRECT_TARGET_KEY);
       if (redirectTo) {
         sessionStorage.removeItem(REDIRECT_TARGET_KEY);
-        navigate({ to: redirectTo, replace: true } as never);
-      } else {
-        navigate(fallbackOpts as never);
+        return navigate({ to: redirectTo, replace: true } as never);
       }
+      return navigate(fallbackOpts as never);
     },
     [navigate],
   );

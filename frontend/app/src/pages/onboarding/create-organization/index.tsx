@@ -73,7 +73,7 @@ export default function CreateOrganization() {
           defaultTenantName="development"
           afterSave={({ tenant }) => {
             queryClient.prefetchQuery(queries.controlPlane.subscriptionPlans());
-            redirectOrNavigate({
+            return redirectOrNavigate({
               to: appRoutes.tenantOverviewRoute.to,
               params: { tenant: tenant.id },
               replace: true,
