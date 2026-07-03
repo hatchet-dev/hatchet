@@ -53,7 +53,7 @@ function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
       </DropdownMenuItem>
       <DropdownMenuItem variant="interactive" asChild>
         <a
-          href="https://hatchet.run/office-hours"
+          href="https://cal.com/team/hatchet/talk-to-us"
           target="_blank"
           rel="noopener noreferrer"
         >

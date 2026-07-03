@@ -1,8 +1,8 @@
 import { columns, statusKey, WorkerColumn } from './components/worker-columns';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
-import step3Graphic from '@/assets/illustrations/step-3.svg';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
@@ -28,25 +28,23 @@ const workersQuerySchema = z
   }));
 
 export default function Workers() {
+  return (
+    <WorkflowsGuard
+      title="No workers found"
+      description="Deploy workers on Kubernetes, Porter, Railway, Render, ECS, or any container platform. They automatically connect to Hatchet and can scale up or down based on workload."
+      docs={{
+        href: docsPages.v1.workers.href,
+        description: 'Learn about workers',
+      }}
+    >
+      <WorkersTable />
+    </WorkflowsGuard>
+  );
+}
+
+function WorkersTable() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { refetchInterval } = useRefetchInterval();
-
-  const workflowCountQuery = useQuery(
-    queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
-  );
-  const activeWorkersQuery = useQuery(
-    queries.workers.list(tenantId, {
-      limit: 1,
-      statuses: ['ACTIVE', 'INACTIVE'] as WorkerStatus[],
-    }),
-  );
-
-  const hasWorkflows =
-    workflowCountQuery.isSuccess &&
-    (workflowCountQuery.data?.rows?.length ?? 0) > 0;
-  const hasActiveOrInactiveWorkers =
-    activeWorkersQuery.isSuccess &&
-    (activeWorkersQuery.data?.rows?.length ?? 0) > 0;
 
   const paramKey = 'workers-table';
   const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
@@ -93,36 +91,8 @@ export default function Workers() {
     listWorkersQuery.data?.pagination?.num_pages ??
     Math.ceil(rows.length / limit);
 
-  if (
-    listWorkersQuery.isLoading ||
-    !workflowCountQuery.isSuccess ||
-    !activeWorkersQuery.isSuccess
-  ) {
+  if (listWorkersQuery.isLoading) {
     return <Loading />;
-  }
-
-  if (!hasWorkflows && !hasActiveOrInactiveWorkers) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <EmptyState
-          graphic={
-            <img
-              src={step3Graphic}
-              alt=""
-              aria-hidden="true"
-              className="h-64 w-auto opacity-90"
-            />
-          }
-          graphicPosition="bottom"
-          title="No workers found"
-          description="Deploy workers on Kubernetes, Porter, Railway, Render, ECS, or any container platform. They automatically connect to Hatchet and can scale up or down based on workload."
-          links={[
-            { href: docsPages.v1.workers.href, label: 'Learn about workers', external: true },
-            { href: 'https://hatchet.run/office-hours', label: 'Book office hours', external: true },
-          ]}
-        />
-      </div>
-    );
   }
 
   return (

@@ -104,7 +104,7 @@ export function SupportSection() {
           <CardHeader className="p-4 border-b border-border/50 ">
             <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
               <a
-                href="https://hatchet.run/office-hours"
+                href="https://cal.com/team/hatchet/talk-to-us"
                 target="_blank"
                 rel="noreferrer"
                 className="group inline-flex items-center gap-1 hover:text-primary"

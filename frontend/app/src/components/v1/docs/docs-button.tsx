@@ -18,7 +18,9 @@ function buildUrl(
   queryParams?: Record<string, string>,
   scrollTo?: string,
 ): string {
-  const qs = queryParams ? '?' + new URLSearchParams(queryParams).toString() : '';
+  const qs = queryParams
+    ? '?' + new URLSearchParams(queryParams).toString()
+    : '';
   const hash = scrollTo ? '#' + scrollTo : '';
   return doc.href + qs + hash;
 }
@@ -35,7 +37,11 @@ export const DocsButton = ({
   switch (variant) {
     case 'button':
       return (
-        <Button asChild leftIcon={<BookOpenText className="size-4" />} variant="outline">
+        <Button
+          asChild
+          leftIcon={<BookOpenText className="size-4" />}
+          variant="outline"
+        >
           <a href={url} target="_blank" rel="noreferrer">
             <span>{label}</span>
           </a>

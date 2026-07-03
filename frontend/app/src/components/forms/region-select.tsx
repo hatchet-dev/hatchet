@@ -14,7 +14,7 @@ import {
   shardDeploymentKey,
 } from '@/lib/shard-deployment-key';
 
-const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
+const OFFICE_HOURS_URL = 'https://cal.com/team/hatchet/talk-to-us';
 
 type RegionSelectProps = {
   shards: OrganizationAvailableShard[];

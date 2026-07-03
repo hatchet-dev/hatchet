@@ -70,8 +70,16 @@ export function TenantResourceLimitsTable({
               ? 'Resource limits cap the number of active runs and tasks in your tenant. Set SERVER_ENFORCE_LIMITS=true to enable them.'
               : 'Resource limits cap the number of active runs and tasks in your tenant.'
           }
-          docPage={showDocsOnEmpty ? docsPages['self-hosting']['configuration-options'] : undefined}
-          docLabel={showDocsOnEmpty ? 'Learn about engine configuration options' : undefined}
+          docPage={
+            showDocsOnEmpty
+              ? docsPages['self-hosting']['configuration-options']
+              : undefined
+          }
+          docLabel={
+            showDocsOnEmpty
+              ? 'Learn about engine configuration options'
+              : undefined
+          }
         />
       )}
     </section>

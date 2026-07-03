@@ -101,7 +101,7 @@ import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
+const OFFICE_HOURS_URL = 'https://cal.com/team/hatchet/talk-to-us';
 
 function formatTimeoutMs(ms: number): string {
   if (ms <= 0) {

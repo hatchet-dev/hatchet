@@ -116,7 +116,7 @@ function getPlanChangeErrorMessage(error: unknown) {
   return fallback;
 }
 
-const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
+const OFFICE_HOURS_URL = 'https://cal.com/team/hatchet/talk-to-us';
 
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
@@ -591,7 +591,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 </a>{' '}
                 or{' '}
                 <a
-                  href="https://hatchet.run/office-hours"
+                  href="https://cal.com/team/hatchet/talk-to-us"
                   className="text-primary/70 hover:text-primary hover:underline"
                 >
                   contact us

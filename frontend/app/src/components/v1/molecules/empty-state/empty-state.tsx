@@ -1,4 +1,5 @@
 import { DocPage } from '@/components/v1/docs/docs-button';
+import { Button } from '@/components/v1/ui/button';
 import { ExternalLink } from 'lucide-react';
 
 type EmptyStateActionBase = {
@@ -7,7 +8,7 @@ type EmptyStateActionBase = {
   description?: string;
 };
 
-type EmptyStateAction = EmptyStateActionBase &
+export type EmptyStateAction = EmptyStateActionBase &
   (
     | { href: string; external?: boolean; onClick?: never }
     | { onClick: () => void; href?: never; external?: never }
@@ -19,9 +20,11 @@ type InlineLink = {
   external?: boolean;
 };
 
+type EmptyStateButton = { label: string; onClick: () => void };
+
 type EmptyStateProps = {
   title: string;
-  description: string;
+  description?: string;
   docPage?: DocPage;
   docLabel?: string;
   links?: InlineLink[];
@@ -29,27 +32,32 @@ type EmptyStateProps = {
   graphicPosition?: 'top' | 'bottom';
   filterHint?: string;
   actions?: EmptyStateAction[];
+  buttons?: EmptyStateButton[];
 };
 
 const actionCardClass =
-  'flex items-start gap-3 rounded-lg border border-border bg-background p-4 hover:bg-muted/50 transition-colors text-left no-underline cursor-pointer flex-1 basis-44';
+  'flex min-w-0 flex-1 basis-44 cursor-pointer flex-col items-start gap-1.5 rounded-lg border border-[#053970]/[0.16] bg-[#005c9e]/[0.02] px-4 py-3 text-left no-underline transition-all hover:border-[#004c8c]/10 hover:bg-white hover:shadow-[0_3px_2px_rgba(0,0,0,0.01),0_8px_11px_rgba(0,0,0,0.03),0_24px_16px_rgba(0,0,0,0.01)] dark:border-[#97c4ff]/[0.16] dark:bg-[#82b9ff]/[0.07] dark:hover:border-[#86bbff]/[0.08] dark:hover:bg-[#8dbfff]/[0.13]';
 
 function ActionCardInner({ action }: { action: EmptyStateAction }) {
   return (
     <>
-      {action.icon && (
-        <span className="mt-0.5 flex-shrink-0 text-muted-foreground">
-          {action.icon}
+      <span className="flex w-full items-center gap-2">
+        {action.icon && (
+          <span className="flex-shrink-0 text-muted-foreground">
+            {action.icon}
+          </span>
+        )}
+        <span className="truncate text-xs font-medium text-foreground">
+          {action.label}
         </span>
-      )}
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-medium text-foreground">{action.label}</span>
-        {action.description && (
-          <span className="text-xs text-muted-foreground">{action.description}</span>
+        {'external' in action && action.external && (
+          <ExternalLink className="ml-auto size-3 flex-shrink-0 text-muted-foreground" />
         )}
       </span>
-      {'external' in action && action.external && (
-        <ExternalLink className="ml-auto size-3 flex-shrink-0 text-muted-foreground" />
+      {action.description && (
+        <span className="text-xs leading-normal text-muted-foreground">
+          {action.description}
+        </span>
       )}
     </>
   );
@@ -58,7 +66,11 @@ function ActionCardInner({ action }: { action: EmptyStateAction }) {
 function ActionCard({ action }: { action: EmptyStateAction }) {
   if ('onClick' in action && action.onClick) {
     return (
-      <button type="button" onClick={action.onClick} className={actionCardClass}>
+      <button
+        type="button"
+        onClick={action.onClick}
+        className={actionCardClass}
+      >
         <ActionCardInner action={action} />
       </button>
     );
@@ -66,7 +78,12 @@ function ActionCard({ action }: { action: EmptyStateAction }) {
 
   if (action.external) {
     return (
-      <a href={action.href} target="_blank" rel="noreferrer" className={actionCardClass}>
+      <a
+        href={action.href}
+        target="_blank"
+        rel="noreferrer"
+        className={actionCardClass}
+      >
         <ActionCardInner action={action} />
       </a>
     );
@@ -89,6 +106,7 @@ export function EmptyState({
   graphicPosition = 'top',
   filterHint,
   actions,
+  buttons,
 }: EmptyStateProps) {
   const graphicNode = graphic && <div>{graphic}</div>;
 
@@ -99,7 +117,11 @@ export function EmptyState({
       {filterHint && (
         <p className="text-xs italic text-muted-foreground/70">{filterHint}</p>
       )}
-      <p className="max-w-sm text-center text-sm text-muted-foreground">{description}</p>
+      {description && (
+        <p className="max-w-sm text-center text-sm text-muted-foreground">
+          {description}
+        </p>
+      )}
       {!actions && links && links.length > 0 && (
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           {links.map((link, i) => (
@@ -126,6 +148,15 @@ export function EmptyState({
           {docLabel}
           <ExternalLink className="size-3" />
         </a>
+      )}
+      {buttons && buttons.length > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {buttons.map((btn, i) => (
+            <Button key={i} variant="outline" size="sm" onClick={btn.onClick}>
+              {btn.label}
+            </Button>
+          ))}
+        </div>
       )}
       {actions && actions.length > 0 && (
         <div className="mt-1 flex w-full max-w-lg flex-row flex-wrap gap-3">

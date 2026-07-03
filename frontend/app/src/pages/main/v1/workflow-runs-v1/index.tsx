@@ -1,19 +1,21 @@
 import { RunsTable } from './components/runs-table';
 import { RunsProvider } from './hooks/runs-provider';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
-import { usePylon } from '@/components/support-chat';
+import { useOnboardingActions } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Loading } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { BookOpen, Calendar, MessageCircle, Rocket } from 'lucide-react';
 import { useMemo } from 'react';
 
 export default function Tasks() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
-  const pylon = usePylon();
+  const actions = useOnboardingActions({
+    href: docsPages.v1.quickstart.href,
+    description: 'Learn about running tasks',
+  });
 
   const since24h = useMemo(
     () => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
@@ -45,46 +47,7 @@ export default function Tasks() {
         <EmptyState
           title="No runs found"
           description="Runs are individual executions of your tasks and workflows. Dispatch a task to see runs appear here."
-          actions={[
-            {
-              icon: <Rocket className="size-4" />,
-              label: 'Get started',
-              description: 'Follow our onboarding guide',
-              href: `/tenants/${tenantId}/overview`,
-            },
-            {
-              icon: <BookOpen className="size-4" />,
-              label: 'Read the docs',
-              description: 'Learn about running tasks',
-              href: docsPages.v1.quickstart.href,
-              external: true,
-            },
-            ...(pylon.enabled
-              ? [
-                  {
-                    icon: <MessageCircle className="size-4" />,
-                    label: 'Talk to us',
-                    description: 'Chat with our support team',
-                    onClick: pylon.show,
-                  } as const,
-                ]
-              : [
-                  {
-                    icon: <MessageCircle className="size-4" />,
-                    label: 'Join Discord',
-                    description: 'Chat with the Hatchet community',
-                    href: 'https://discord.com/invite/ZMeUafwH89',
-                    external: true,
-                  } as const,
-                ]),
-            {
-              icon: <Calendar className="size-4" />,
-              label: 'Book office hours',
-              description: 'Schedule time with the Hatchet team',
-              href: 'https://hatchet.run/office-hours',
-              external: true,
-            },
-          ]}
+          actions={actions}
         />
       </div>
     );

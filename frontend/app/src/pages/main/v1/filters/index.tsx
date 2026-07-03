@@ -7,16 +7,32 @@ import {
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
 import { useFilters } from './hooks/use-filters';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
 
-export default function Filters() {
+export default function FiltersPage() {
+  return (
+    <WorkflowsGuard
+      title="No filters found"
+      description="Event filters route incoming events to specific workflows based on payload conditions."
+      docs={{
+        href: `${docsPages.v1.events.href}#event-filters`,
+        description: 'Learn about event filters',
+      }}
+    >
+      <Filters />
+    </WorkflowsGuard>
+  );
+}
+
+function Filters() {
   const sidePanel = useSidePanel();
 
   const {

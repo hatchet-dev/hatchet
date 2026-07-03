@@ -21,8 +21,8 @@ import {
   SNSActions,
 } from '../ingestors/components/sns-integrations-columns';
 import { PrometheusMetricsSettings } from './components/prometheus-metrics-settings';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';

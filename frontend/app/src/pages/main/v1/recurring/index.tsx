@@ -7,12 +7,13 @@ import {
   metadataKey,
 } from './components/recurring-columns';
 import { useCrons } from './hooks/use-crons';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
@@ -21,7 +22,22 @@ import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
 import { useMemo, useState } from 'react';
 
-export default function CronsTable() {
+export default function CronsPage() {
+  return (
+    <WorkflowsGuard
+      title="No recurring runs found"
+      description="Recurring runs trigger workflows automatically on a cron schedule."
+      docs={{
+        href: docsPages.v1['cron-runs'].href,
+        description: 'Learn about cron jobs',
+      }}
+    >
+      <CronsTable />
+    </WorkflowsGuard>
+  );
+}
+
+function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);

@@ -10,6 +10,7 @@ import {
   webhookUpdateFormSchema,
 } from './hooks/use-webhooks';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -45,7 +46,22 @@ import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-export default function Webhooks() {
+export default function WebhooksPage() {
+  return (
+    <WorkflowsGuard
+      title="No webhooks found"
+      description="Webhooks allow external services to trigger your workflows via HTTP requests."
+      docs={{
+        href: docsPages.v1.webhooks.href,
+        description: 'Learn about webhooks',
+      }}
+    >
+      <Webhooks />
+    </WorkflowsGuard>
+  );
+}
+
+function Webhooks() {
   const { data, isLoading } = useWebhooks();
 
   const webhookColumns = useMemo(
@@ -114,8 +130,8 @@ export default function Webhooks() {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex w-full flex-row justify-end">
+    <div className="flex h-full flex-col">
+      <div className="mb-4 flex w-full shrink-0 flex-row justify-end">
         <CreateWebhookModal />
       </div>
       {data && data.length > 0 ? (
@@ -125,12 +141,14 @@ export default function Webhooks() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <EmptyState
-          title="No webhooks found"
-          description="Webhooks allow external services to trigger your workflows via HTTP requests."
-          docPage={docsPages.v1.webhooks}
-          docLabel="Learn about webhooks"
-        />
+        <div className="flex flex-1 items-center justify-center">
+          <EmptyState
+            title="No webhooks found"
+            description="Webhooks allow external services to trigger your workflows via HTTP requests."
+            docPage={docsPages.v1.webhooks}
+            docLabel="Learn about webhooks"
+          />
+        </div>
       )}
     </div>
   );

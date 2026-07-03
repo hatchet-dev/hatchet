@@ -5,9 +5,10 @@ import {
 } from './components/rate-limit-columns';
 import { useRateLimits } from './hooks/use-rate-limits';
 import { RateLimitWithMetadata } from './hooks/use-rate-limits';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api from '@/lib/api';
@@ -18,7 +19,18 @@ import { VisibilityState } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 export default function RateLimits() {
-  return <RateLimitsTable />;
+  return (
+    <WorkflowsGuard
+      title="No rate limits found"
+      description="Rate limits cap how many times a task can run within a time window to prevent resource exhaustion."
+      docs={{
+        href: docsPages.v1['rate-limits'].href,
+        description: 'Learn about rate limits',
+      }}
+    >
+      <RateLimitsTable />
+    </WorkflowsGuard>
+  );
 }
 
 function RateLimitsTable() {

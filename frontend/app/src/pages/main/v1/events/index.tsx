@@ -1,4 +1,5 @@
 import { useFilters } from '../filters/hooks/use-filters';
+import { RunsEmptyGraphic } from '../workflow-runs-v1/components/runs-empty-graphic';
 import { RunsTable } from '../workflow-runs-v1/components/runs-table';
 import { RunsProvider } from '../workflow-runs-v1/hooks/runs-provider';
 import {
@@ -12,9 +13,10 @@ import {
   workflowKey,
 } from './components/event-columns';
 import { useEvents } from './hooks/use-events';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
@@ -29,6 +31,21 @@ import { CheckIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 export default function Events() {
+  return (
+    <WorkflowsGuard
+      title="No events found"
+      description="Events are payloads you push to Hatchet to trigger workflows. Push an event to see it appear here."
+      docs={{
+        href: docsPages.v1.events.href,
+        description: 'Learn about event triggers',
+      }}
+    >
+      <EventsTable />
+    </WorkflowsGuard>
+  );
+}
+
+function EventsTable() {
   const [openMetadataPopover, setOpenMetadataPopover] = useState<string | null>(
     null,
   );
@@ -53,6 +70,10 @@ export default function Events() {
     workflowRunStatusFilters,
     isRefetching,
     resetFilters,
+    timeRangeConfig,
+    hasActiveFilters,
+    isDefaultOneDayWindow,
+    setTimeWindow,
   } = useEvents({
     key: 'table',
   });
@@ -87,6 +108,12 @@ export default function Events() {
         columns={tableColumns}
         data={events}
         filters={[
+          {
+            columnId: 'eventCreatedAt',
+            title: 'Time Range',
+            type: ToolbarType.TimeRange,
+            timeRangeConfig,
+          },
           {
             columnId: keyKey,
             title: EventColumn.key,
@@ -139,12 +166,30 @@ export default function Events() {
         }}
         onResetFilters={resetFilters}
         emptyState={
-          <EmptyState
-            title="No events found"
-            description="Events are payloads you push to Hatchet to trigger workflows. No events have been received yet."
-            docPage={docsPages.v1.events}
-            docLabel="Learn about events"
-          />
+          hasActiveFilters ? (
+            <EmptyState
+              graphic={<RunsEmptyGraphic />}
+              title="No events matching your filters"
+              buttons={[{ label: 'Clear filters', onClick: resetFilters }]}
+            />
+          ) : (
+            <EmptyState
+              title="No events found"
+              description="Events are payloads you push to Hatchet to trigger workflows. No events have been received yet."
+              docPage={docsPages.v1.events}
+              docLabel="Learn about events"
+              buttons={
+                isDefaultOneDayWindow
+                  ? [
+                      {
+                        label: 'Search past 7 days',
+                        onClick: () => setTimeWindow('7d'),
+                      },
+                    ]
+                  : undefined
+              }
+            />
+          )
         }
       />
     </>

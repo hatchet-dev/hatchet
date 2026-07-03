@@ -159,7 +159,7 @@ export function BillingRequired({
               </div>
 
               <a
-                href="https://hatchet.run/office-hours"
+                href="https://cal.com/team/hatchet/talk-to-us"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full"

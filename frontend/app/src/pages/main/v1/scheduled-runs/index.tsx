@@ -9,12 +9,13 @@ import {
   metadataKey,
 } from './components/scheduled-runs-columns';
 import { useScheduledRuns } from './hooks/use-scheduled-runs';
-import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -46,7 +47,24 @@ interface ScheduledWorkflowRunsTableProps {
   showMetrics?: boolean;
 }
 
-export default function ScheduledRunsTable({
+export default function ScheduledRunsPage(
+  props: ScheduledWorkflowRunsTableProps,
+) {
+  return (
+    <WorkflowsGuard
+      title="No scheduled runs found"
+      description="Scheduled runs let you dispatch a workflow at a specific future date and time."
+      docs={{
+        href: docsPages.v1['scheduled-runs'].href,
+        description: 'Learn about scheduled runs',
+      }}
+    >
+      <ScheduledRunsTable {...props} />
+    </WorkflowsGuard>
+  );
+}
+
+function ScheduledRunsTable({
   workflowId,
   initColumnVisibility = {
     createdAt: false,
