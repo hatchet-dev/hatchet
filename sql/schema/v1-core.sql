@@ -2488,8 +2488,7 @@ BEGIN
             'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint
         )
     FROM new_table nt
-    JOIN v1_step_concurrency sc ON sc.id = nt.strategy_id
-    WHERE sc.parent_strategy_id IS NULL;
+    WHERE nt.parent_strategy_id IS NULL;
 
     RETURN NULL;
 END;
@@ -2517,8 +2516,7 @@ BEGIN
             'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM dr.schedule_timeout_at) * 1000)::bigint
         )
     FROM deleted_rows dr
-    JOIN v1_step_concurrency sc ON sc.id = dr.strategy_id
-    WHERE sc.parent_strategy_id IS NULL;
+    WHERE dr.parent_strategy_id IS NULL;
 
     RETURN NULL;
 END;
@@ -2547,8 +2545,7 @@ BEGIN
             'isFilled', nt.is_filled
         )
     FROM new_table nt
-    JOIN v1_step_concurrency sc ON sc.id = nt.strategy_id
-    WHERE sc.parent_strategy_id IS NULL
+    WHERE nt.parent_strategy_id IS NULL
         AND nt.is_filled = FALSE;
 
     RETURN NULL;
