@@ -18,11 +18,14 @@ function buildUrl(
   queryParams?: Record<string, string>,
   scrollTo?: string,
 ): string {
-  const qs = queryParams
-    ? '?' + new URLSearchParams(queryParams).toString()
-    : '';
-  const hash = scrollTo ? '#' + scrollTo : '';
-  return doc.href + qs + hash;
+  const url = new URL(doc.href);
+  for (const [key, value] of Object.entries(queryParams ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  if (scrollTo) {
+    url.hash = scrollTo;
+  }
+  return url.toString();
 }
 
 export const DocsButton = ({

@@ -7,6 +7,7 @@ import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { BookOpen, Calendar, MessageCircle, Rocket } from 'lucide-react';
+import { useMemo } from 'react';
 
 type OnboardingDocs = {
   href: string;
@@ -15,46 +16,47 @@ type OnboardingDocs = {
 
 export function useOnboardingActions(docs: OnboardingDocs) {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
-  const pylon = usePylon();
+  const { enabled: pylonEnabled, show: showPylon } = usePylon();
 
-  const actions: EmptyStateAction[] = [
-    {
-      icon: <Rocket className="size-4" />,
-      label: 'Get started',
-      description: 'Follow our onboarding guide',
-      href: `/tenants/${tenantId}/overview`,
-    },
-    {
-      icon: <BookOpen className="size-4" />,
-      label: 'Read the docs',
-      description: docs.description,
-      href: docs.href,
-      external: true,
-    },
-    pylon.enabled
-      ? {
-          icon: <MessageCircle className="size-4" />,
-          label: 'Talk to us',
-          description: 'Chat with our support team',
-          onClick: pylon.show,
-        }
-      : {
-          icon: <MessageCircle className="size-4" />,
-          label: 'Join Discord',
-          description: 'Chat with the Hatchet community',
-          href: DISCORD_INVITE_URL,
-          external: true,
-        },
-    {
-      icon: <Calendar className="size-4" />,
-      label: 'Book office hours',
-      description: 'Schedule time with the Hatchet team',
-      href: OFFICE_HOURS_URL,
-      external: true,
-    },
-  ];
-
-  return actions;
+  return useMemo<EmptyStateAction[]>(
+    () => [
+      {
+        icon: <Rocket className="size-4" />,
+        label: 'Get started',
+        description: 'Follow our onboarding guide',
+        href: `/tenants/${tenantId}/overview`,
+      },
+      {
+        icon: <BookOpen className="size-4" />,
+        label: 'Read the docs',
+        description: docs.description,
+        href: docs.href,
+        external: true,
+      },
+      pylonEnabled
+        ? {
+            icon: <MessageCircle className="size-4" />,
+            label: 'Talk to us',
+            description: 'Chat with our support team',
+            onClick: showPylon,
+          }
+        : {
+            icon: <MessageCircle className="size-4" />,
+            label: 'Join Discord',
+            description: 'Chat with the Hatchet community',
+            href: DISCORD_INVITE_URL,
+            external: true,
+          },
+      {
+        icon: <Calendar className="size-4" />,
+        label: 'Book office hours',
+        description: 'Schedule time with the Hatchet team',
+        href: OFFICE_HOURS_URL,
+        external: true,
+      },
+    ],
+    [tenantId, docs.href, docs.description, pylonEnabled, showPylon],
+  );
 }
 
 type WorkflowsGuardProps = {
