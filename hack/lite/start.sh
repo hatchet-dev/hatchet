@@ -10,7 +10,7 @@ fi
 # Generate config files
 ./hatchet-admin quickstart --skip certs --generated-config-dir ./config --overwrite=false
 
-# In authdisabled (:dev) builds, mint and surface the default worker token
+# In authdisabled builds, mint and surface the default worker token
 if ./hatchet-admin authdisabled; then
   if [ ! -s ./config/authdisabled-token ]; then
     ./hatchet-admin token create --config ./config --name authdisabled-default > ./config/authdisabled-token
