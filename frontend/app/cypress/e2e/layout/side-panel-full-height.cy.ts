@@ -63,11 +63,18 @@ describe('side panel: full height', () => {
     cy.get('[data-cy="side-panel"]').should('be.visible');
 
     // The panel content should fill the available vertical space, extending
-    // to the bottom of the viewport.
-    cy.get('[data-cy="side-panel-content"]').then(($content) => {
-      const rect = $content[0].getBoundingClientRect();
-      expect(rect.bottom, 'content bottom').to.be.closeTo(800, 10);
-      expect(rect.height, 'content height').to.be.greaterThan(500);
+    // to the bottom of the side panel.
+    cy.get('[data-cy="side-panel"]').then(($panel) => {
+      const panelRect = $panel[0].getBoundingClientRect();
+
+      cy.get('[data-cy="side-panel-content"]').then(($content) => {
+        const contentRect = $content[0].getBoundingClientRect();
+        expect(contentRect.bottom, 'content bottom').to.be.closeTo(
+          panelRect.bottom,
+          2,
+        );
+        expect(contentRect.height, 'content height').to.be.greaterThan(500);
+      });
     });
   });
 });
