@@ -52,6 +52,9 @@ const (
 	startingGrpcPort             = 7077
 	hatchetInternalDashboardPort = 8888
 	hatchetInternalGrpcPort      = 7077
+
+	defaultLiteImageRepo = "ghcr.io/hatchet-dev/hatchet/hatchet-lite"
+	devLiteImageRepo     = "ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev"
 )
 
 type HatchetLiteOpts struct {
@@ -63,6 +66,7 @@ type HatchetLiteOpts struct {
 	serviceName           string
 	overrideDashboardPort int
 	overrideGrpcPort      int
+	imageRepo             string
 	imageTag              string
 	pullPolicy            pullPolicy
 }
@@ -73,8 +77,17 @@ func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
 		hatchetName:  defaulthatchetName,
 		projectName:  defaultprojectName,
 		serviceName:  defaultserviceName,
+		imageRepo:    defaultLiteImageRepo,
 		imageTag:     "latest",
 		pullPolicy:   pullPolicyAlways,
+	}
+}
+
+// WithDevImage runs the auth-disabled hatchet-lite-dev image instead of hatchet-lite.
+func WithDevImage() HatchetLiteOpt {
+	return func(o *HatchetLiteOpts) error {
+		o.imageRepo = devLiteImageRepo
+		return nil
 	}
 }
 
@@ -389,7 +402,7 @@ func (d *DockerDriver) stopPostgresContainer(ctx context.Context, opts *HatchetL
 }
 
 func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string, dashboardPort, grpcPort int, sharedLabels map[string]string) error {
-	imageName := "ghcr.io/hatchet-dev/hatchet/hatchet-lite:" + opts.imageTag
+	imageName := opts.imageRepo + ":" + opts.imageTag
 	containerName := canonicalContainerName(opts.projectName, opts.hatchetName)
 
 	if err := d.pullImageWithPolicy(ctx, imageName, opts.pullPolicy); err != nil {

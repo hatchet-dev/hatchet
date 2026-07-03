@@ -27,10 +27,16 @@ Point your worker at it via `HATCHET_CLIENT_TOKEN`.
 
 ## Running it
 
-Use the `:dev` tag of the image you'd normally run — e.g. `hatchet-lite`:
+The easiest way is the Hatchet CLI, which runs the `hatchet-lite-dev` image:
 
 ```sh
-docker run ghcr.io/hatchet-dev/hatchet/hatchet-lite:dev
+hatchet server dev-start
+```
+
+Or run the image directly:
+
+```sh
+docker run ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:latest
 ```
 
 On startup the container mints the default worker token and prints it, and also writes it to the config volume. Grab it from the logs or the volume:
@@ -47,7 +53,7 @@ Then point your worker at it:
 export HATCHET_CLIENT_TOKEN="<token>"
 ```
 
-The `hatchet-api` / `hatchet-engine` images have `:dev` variants too; the Hatchet CLI can run the dev stack with `hatchet server start --tag dev`.
+The `hatchet-api`, `hatchet-engine` and `hatchet-admin` images have `-dev` variants too (`ghcr.io/hatchet-dev/hatchet/hatchet-<component>-dev`).
 
 ## Building it yourself
 
