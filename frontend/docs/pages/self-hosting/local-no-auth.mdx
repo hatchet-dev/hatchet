@@ -2,14 +2,14 @@ import { Callout } from "nextra/components";
 
 # Auth-disabled (dev) images
 
-Hatchet publishes a set of `:dev` images built with authentication compiled out, so you can run a local instance without signing in to the dashboard or minting your own API token. This is a **compile-time** property of the `:dev` images — it cannot be turned on by configuration, and the regular (versioned) images can never disable authentication.
+Hatchet publishes a set of `-dev` images (`hatchet-lite-dev`, `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev`) built with authentication compiled out, so you can run a local instance without signing in to the dashboard or minting your own API token. This is a **compile-time** property of the `-dev` images — it cannot be turned on by configuration, and the regular images can never disable authentication.
 
 <Callout type="error" emoji="🚫">
-  The `:dev` images are for local development and testing only. Never run them on
+  The `-dev` images are for local development and testing only. Never run them on
   a system reachable by untrusted clients.
 </Callout>
 
-## What the `:dev` images do
+## What the `-dev` images do
 
 - **Dashboard** loads without a login screen; requests run as the seeded admin user (`ADMIN_EMAIL`, default `admin@example.com`).
 - **REST API** calls succeed without a bearer token or session cookie.
@@ -18,9 +18,9 @@ Hatchet publishes a set of `:dev` images built with authentication compiled out,
 
 ## Workers still use an API token
 
-The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. The `:dev` images embed a fixed keyset and mint a **default token** signed by it, so you don't have to create one:
+The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. The `-dev` images embed a fixed keyset and mint a **default token** signed by it, so you don't have to create one:
 
-- The keyset is embedded (via `go:embed`) only in `:dev` builds. The regular images never compile it in, so the default token is inert against any normal deployment.
+- The keyset is embedded (via `go:embed`) only in `-dev` builds. The regular images never compile it in, so the default token is inert against any normal deployment.
 - The token is scoped to the seed default tenant.
 
 Point your worker at it via `HATCHET_CLIENT_TOKEN`.
@@ -57,7 +57,7 @@ The `hatchet-api`, `hatchet-engine` and `hatchet-admin` images have `-dev` varia
 
 ## Building it yourself
 
-The `:dev` images are the regular Docker builds with the `authdisabled` Go build tag:
+The `-dev` images are the regular Docker builds with the `authdisabled` Go build tag:
 
 ```sh
 docker build -f build/package/servers.dockerfile \
