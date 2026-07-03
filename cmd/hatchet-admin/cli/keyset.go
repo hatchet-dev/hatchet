@@ -14,7 +14,6 @@ var (
 	encryptionKeyDir        string
 	cloudKMSCredentialsPath string
 	cloudKMSKeyURI          string
-	keysetWithNoAuth        bool
 )
 
 var keysetCmd = &cobra.Command{
@@ -48,24 +47,10 @@ var keysetCreateCloudKMSJWTCmd = &cobra.Command{
 	},
 }
 
-var keysetCreateNoAuthKeysCmd = &cobra.Command{
-	Use:   "create-noauth-keys",
-	Short: "generate a no-auth JWT keyset from an existing local master key.",
-	Run: func(cmd *cobra.Command, args []string) {
-		err := runCreateNoAuthKeys()
-
-		if err != nil {
-			log.Printf("Fatal: could not run [keyset create-noauth-keys] command: %v", err)
-			os.Exit(1)
-		}
-	},
-}
-
 func init() {
 	rootCmd.AddCommand(keysetCmd)
 	keysetCmd.AddCommand(keysetCreateLocalKeysetsCmd)
 	keysetCmd.AddCommand(keysetCreateCloudKMSJWTCmd)
-	keysetCmd.AddCommand(keysetCreateNoAuthKeysCmd)
 
 	keysetCmd.PersistentFlags().StringVar(
 		&encryptionKeyDir,
@@ -86,13 +71,6 @@ func init() {
 		"key-uri",
 		"",
 		"URI of the key in the CloudKMS repository",
-	)
-
-	keysetCreateLocalKeysetsCmd.PersistentFlags().BoolVar(
-		&keysetWithNoAuth,
-		"no-auth",
-		false,
-		"also generate a dedicated JWT keyset for local no-auth mode",
 	)
 }
 
@@ -128,12 +106,6 @@ func runCreateLocalKeysets() error {
 		if err != nil {
 			return err
 		}
-
-		if keysetWithNoAuth {
-			if err := writeNoAuthKeyset(masterKeyBytes); err != nil {
-				return err
-			}
-		}
 	} else {
 		fmt.Println("Master Key Bytes:")
 		fmt.Println(string(masterKeyBytes))
@@ -146,51 +118,9 @@ func runCreateLocalKeysets() error {
 
 		fmt.Println("Insecure Public Handle EC256 Keyset:")
 		fmt.Println(string(insecurePublicHandleEc256))
-
-		if keysetWithNoAuth {
-			noAuthPrivate, noAuthPublic, _, genErr := encryption.GenerateJWTKeysets(masterKeyBytes)
-
-			if genErr != nil {
-				return genErr
-			}
-
-			fmt.Println("No-Auth Private EC256 Keyset:")
-			fmt.Println(string(noAuthPrivate))
-
-			fmt.Println("No-Auth Public EC256 Keyset:")
-			fmt.Println(string(noAuthPublic))
-		}
 	}
 
 	return nil
-}
-
-func runCreateNoAuthKeys() error {
-	if encryptionKeyDir == "" {
-		return fmt.Errorf("--key-dir is required")
-	}
-
-	masterKeyBytes, err := os.ReadFile(encryptionKeyDir + "/master.key")
-
-	if err != nil {
-		return fmt.Errorf("could not read master key: %w", err)
-	}
-
-	return writeNoAuthKeyset(masterKeyBytes)
-}
-
-func writeNoAuthKeyset(masterKeyBytes []byte) error {
-	privateEc256, publicEc256, _, err := encryption.GenerateJWTKeysets(masterKeyBytes)
-
-	if err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(encryptionKeyDir+"/noauth_private_ec256.key", privateEc256, 0600); err != nil {
-		return err
-	}
-
-	return os.WriteFile(encryptionKeyDir+"/noauth_public_ec256.key", publicEc256, 0600)
 }
 
 func runCreateCloudKMSJWTKeyset() error {

@@ -6,7 +6,7 @@ type AppLayoutProps = {
   children: ReactNode;
   footer?: ReactNode;
   /**
-   * Rendered as a full-width strip above the header on every page (e.g. no-auth mode warning).
+   * Rendered as a full-width strip above the header on every page (e.g. authdisabled warning).
    */
   banner?: ReactNode;
   /**

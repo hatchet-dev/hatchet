@@ -1,54 +1,44 @@
 import { Callout } from "nextra/components";
 
-# Local No-Auth Mode
+# Auth-disabled (dev) images
 
-No-auth mode lets you run a local Hatchet instance without signing in to the dashboard or minting your own API token. It is intended purely for local development.
+Hatchet publishes a set of `:dev` images built with authentication compiled out, so you can run a local instance without signing in to the dashboard or minting your own API token. This is a **compile-time** property of the `:dev` images — it cannot be turned on by configuration, and the regular (versioned) images can never disable authentication.
 
 <Callout type="error" emoji="🚫">
-  No-auth mode should strictly be used for local development and testing. Please
-  don't enable this on a production system which can be accessed by untrusted
-  clients.
+  The `:dev` images are for local development and testing only. Never run them on
+  a system reachable by untrusted clients.
 </Callout>
 
-## What it does
+## What the `:dev` images do
 
 - **Dashboard** loads without a login screen; requests run as the seeded admin user (`ADMIN_EMAIL`, default `admin@example.com`).
 - **REST API** calls succeed without a bearer token or session cookie.
 - **Single tenant.** Everything runs against the seed default tenant, so tenant creation, signup and invites are disabled (and hidden in the dashboard).
+- The dashboard shows a persistent banner and the server logs a warning while authentication is disabled.
 
 ## Workers still use an API token
 
-The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. No-auth mode provides a default token so you don't have to create one:
+The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. The `:dev` images embed a fixed keyset and mint a **default token** signed by it, so you don't have to create one:
 
-- The token is signed by a dedicated no-auth keyset, separate from the instance's main keyset. The server only trusts this keyset when no-auth mode is enabled, so the default token is inert on any instance that hasn't loaded it.
-- It is scoped to the seed default tenant.
+- The keyset is embedded (via `go:embed`) only in `:dev` builds. The regular images never compile it in, so the default token is inert against any normal deployment.
+- The token is scoped to the seed default tenant.
 
 Point your worker at it via `HATCHET_CLIENT_TOKEN`.
 
-## Enabling it
+## Running it
 
-### Hatchet CLI
+Use the `:dev` tag of the image you'd normally run — e.g. `hatchet-lite`:
 
 ```sh
-hatchet server start --no-auth-mode
+docker run ghcr.io/hatchet-dev/hatchet/hatchet-lite:dev
 ```
 
-This prints the default token to use as `HATCHET_CLIENT_TOKEN`.
-
-### Hatchet Lite
-
-When running the `hatchet-lite` image, set `SERVER_AUTH_NO_AUTH_ENABLED=true`:
+On startup the container mints the default worker token and prints it, and also writes it to the config volume. Grab it from the logs or the volume:
 
 ```sh
-docker run -e SERVER_AUTH_NO_AUTH_ENABLED=true ... ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
-```
-
-On startup the container generates the no-auth keyset and mints the default worker token. Grab it either from the container logs or from the config volume:
-
-```sh
-docker logs <hatchet-lite-container> # printed under "no-auth mode: worker API token"
+docker logs <hatchet-lite-container>              # printed under "authdisabled build: worker API token"
 # or
-docker exec <hatchet-lite-container> cat ./config/noauth-token
+docker exec <hatchet-lite-container> cat ./config/authdisabled-token
 ```
 
 Then point your worker at it:
@@ -57,31 +47,15 @@ Then point your worker at it:
 export HATCHET_CLIENT_TOKEN="<token>"
 ```
 
-The token has the server address baked in, so no other client configuration is needed.
+The `hatchet-api` / `hatchet-engine` images have `:dev` variants too; the Hatchet CLI can run the dev stack with `hatchet server start --tag dev`.
 
-### Docker Compose
+## Building it yourself
 
-Set on the API and engine:
-
-```sh
-SERVER_AUTH_NO_AUTH_ENABLED=true
-SERVER_AUTH_NO_AUTH_JWT_PRIVATE_KEYSET_FILE=/path/to/noauth_private_ec256.key
-SERVER_AUTH_NO_AUTH_JWT_PUBLIC_KEYSET_FILE=/path/to/noauth_public_ec256.key
-```
-
-Generate the no-auth keyset alongside your local keys, then mint the default token:
+The `:dev` images are the regular Docker builds with the `authdisabled` Go build tag:
 
 ```sh
-# generate the keyset (add --no-auth to create-local-keys, or from an existing master key)
-hatchet-admin keyset --key-dir /path/to/keys create-local-keys --no-auth
-hatchet-admin keyset --key-dir /path/to/keys create-noauth-keys
-
-# mint the default token for the seed default tenant
-hatchet-admin token create --no-auth
+docker build -f build/package/servers.dockerfile \
+  --build-arg SERVER_TARGET=api \
+  --build-arg GO_BUILD_TAGS=authdisabled \
+  .
 ```
-
-## Key security awareness implementations
-
-- Defaults to **off**; must be explicitly enabled.
-- The no-auth keyset is generated per instance and trusted only when no-auth mode is on, so the default token cannot authenticate against a normal deployment.
-- The server logs a prominent warning on startup, and the dashboard shows a persistent banner, while it is active.

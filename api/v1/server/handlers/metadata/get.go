@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 )
 
 func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetRequestObject) (gen.MetadataGetResponseObject, error) {
@@ -36,7 +37,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	prometheusServerEnabled := u.config.Prometheus.PrometheusServerURL != ""
 
-	noAuthEnabled := u.config.Auth.NoAuthEnabled
+	authDisabled := authmode.Disabled
 
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
@@ -50,7 +51,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		AllowChangePassword:     &u.config.Runtime.AllowChangePassword,
 		ObservabilityEnabled:    &observabilityEnabled,
 		PrometheusServerEnabled: &prometheusServerEnabled,
-		NoAuthEnabled:           &noAuthEnabled,
+		AuthDisabled:            &authDisabled,
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil

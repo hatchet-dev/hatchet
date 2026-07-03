@@ -44,6 +44,9 @@ ARG VERSION=v0.1.0-alpha.0
 # can be set to "api", "engine", "admin" or "lite"
 ARG SERVER_TARGET
 
+# optional go build tags, e.g. "authdisabled" for :dev images
+ARG GO_BUILD_TAGS=""
+
 # check if the target is empty or not set to api, engine, lite, or admin
 RUN if [ -z "$SERVER_TARGET" ] || [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ] && [ "$SERVER_TARGET" != "lite" ] && [ "$SERVER_TARGET" != "migrate" ]; then \
     echo "SERVER_TARGET must be set to 'api', 'engine', 'admin', 'lite', or 'migrate'"; \
@@ -59,7 +62,7 @@ RUN oapi-codegen -config ./api/v1/server/oas/gen/codegen.yaml ./bin/oas/openapi.
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=$GOPATH/pkg/mod \
-    go build -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET}
+    go build -tags="${GO_BUILD_TAGS}" -ldflags="-w -s -X 'main.Version=${VERSION}'" -a -o ./bin/hatchet-${SERVER_TARGET} ./cmd/hatchet-${SERVER_TARGET}
 
 # Deployment environment
 # ----------------------

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tink-crypto/tink-go/jwt"
+	"github.com/tink-crypto/tink-go/keyset"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -25,41 +26,71 @@ type TokenOpts struct {
 }
 
 type jwtManagerImpl struct {
-	encryption encryption.EncryptionService
-	opts       *TokenOpts
-	tokenRepo  v1.APITokenRepository
-	verifier   jwt.Verifier
-	// noAuthVerifier verifies the default local no-auth token, signed by a separate keyset.
-	noAuthVerifier jwt.Verifier
+	privateHandle *keyset.Handle
+	opts          *TokenOpts
+	tokenRepo     v1.APITokenRepository
+	verifier      jwt.Verifier
+	// authDisabledVerifier verifies the default token signed by the embedded authdisabled keyset.
+	authDisabledVerifier jwt.Verifier
 }
 
 type JWTManagerOpt func(*jwtManagerImpl) error
 
-func WithNoAuthVerifier(noAuthEncryptionSvc encryption.EncryptionService) JWTManagerOpt {
+// WithAuthDisabledVerifier additionally trusts tokens signed by the given (embedded authdisabled)
+// public keyset. Only used in authdisabled builds.
+func WithAuthDisabledVerifier(publicKeyset []byte) JWTManagerOpt {
 	return func(j *jwtManagerImpl) error {
-		verifier, err := jwt.NewVerifier(noAuthEncryptionSvc.GetPublicJWTHandle())
+		handle, err := encryption.InsecureHandleFromBytes(publicKeyset)
 
 		if err != nil {
-			return fmt.Errorf("failed to create no-auth JWT Verifier: %v", err)
+			return fmt.Errorf("failed to read authdisabled public keyset: %v", err)
 		}
 
-		j.noAuthVerifier = verifier
+		verifier, err := jwt.NewVerifier(handle)
+
+		if err != nil {
+			return fmt.Errorf("failed to create authdisabled JWT Verifier: %v", err)
+		}
+
+		j.authDisabledVerifier = verifier
 		return nil
 	}
 }
 
 func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
-	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
+	return newJWTManager(encryptionSvc.GetPrivateJWTHandle(), encryptionSvc.GetPublicJWTHandle(), tokenRepo, opts, mgrOpts...)
+}
+
+// NewJWTManagerFromKeysets builds a JWTManager directly from cleartext JWT keysets, used to sign
+// the default token with the embedded authdisabled keyset.
+func NewJWTManagerFromKeysets(privateKeyset, publicKeyset []byte, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
+	privateHandle, err := encryption.InsecureHandleFromBytes(privateKeyset)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read private keyset: %v", err)
+	}
+
+	publicHandle, err := encryption.InsecureHandleFromBytes(publicKeyset)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read public keyset: %v", err)
+	}
+
+	return newJWTManager(privateHandle, publicHandle, tokenRepo, opts, mgrOpts...)
+}
+
+func newJWTManager(privateHandle, publicHandle *keyset.Handle, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
+	verifier, err := jwt.NewVerifier(publicHandle)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Verifier: %v", err)
 	}
 
 	m := &jwtManagerImpl{
-		encryption: encryptionSvc,
-		opts:       opts,
-		tokenRepo:  tokenRepo,
-		verifier:   verifier,
+		privateHandle: privateHandle,
+		opts:          opts,
+		tokenRepo:     tokenRepo,
+		verifier:      verifier,
 	}
 
 	for _, opt := range mgrOpts {
@@ -79,7 +110,7 @@ type Token struct {
 
 func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *uuid.UUID, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
-	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
+	signer, err := jwt.NewSigner(j.privateHandle)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Signer: %v", err)
@@ -144,8 +175,8 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
 
-	if err != nil && j.noAuthVerifier != nil {
-		verifiedJwt, err = j.noAuthVerifier.VerifyAndDecode(token, validator)
+	if err != nil && j.authDisabledVerifier != nil {
+		verifiedJwt, err = j.authDisabledVerifier.VerifyAndDecode(token, validator)
 	}
 
 	if err != nil {

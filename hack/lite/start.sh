@@ -10,14 +10,14 @@ fi
 # Generate config files
 ./hatchet-admin quickstart --skip certs --generated-config-dir ./config --overwrite=false
 
-# In no-auth mode, mint and surface the default worker token
-if [ "$SERVER_AUTH_NO_AUTH_ENABLED" = "true" ] || [ "$SERVER_AUTH_NO_AUTH_ENABLED" = "t" ]; then
-  if [ ! -s ./config/noauth-token ]; then
-    ./hatchet-admin token create --config ./config --no-auth --name noauth-default > ./config/noauth-token
+# In authdisabled (:dev) builds, mint and surface the default worker token
+if ./hatchet-admin authdisabled; then
+  if [ ! -s ./config/authdisabled-token ]; then
+    ./hatchet-admin token create --config ./config --name authdisabled-default > ./config/authdisabled-token
   fi
-  echo "=================== no-auth mode: worker API token ==================="
-  echo "Set HATCHET_CLIENT_TOKEN to the value below (also at ./config/noauth-token):"
-  cat ./config/noauth-token
+  echo "================ authdisabled build: worker API token ==============="
+  echo "Set HATCHET_CLIENT_TOKEN to the value below (also at ./config/authdisabled-token):"
+  cat ./config/authdisabled-token
   echo
   echo "====================================================================="
 fi

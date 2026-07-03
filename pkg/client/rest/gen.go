@@ -422,8 +422,8 @@ type APIMeta struct {
 	AllowSignup *bool        `json:"allowSignup,omitempty"`
 	Auth        *APIMetaAuth `json:"auth,omitempty"`
 
-	// NoAuthEnabled whether or not authentication is disabled (local no-auth mode) on this instance
-	NoAuthEnabled *bool `json:"noAuthEnabled,omitempty"`
+	// AuthDisabled whether or not authentication is disabled (authdisabled build) on this instance
+	AuthDisabled *bool `json:"authDisabled,omitempty"`
 
 	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`

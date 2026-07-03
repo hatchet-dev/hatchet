@@ -454,14 +454,6 @@ type ConfigFileAuth struct {
 	// SetEmailVerified controls whether the user's email is automatically set to verified
 	SetEmailVerified bool `mapstructure:"setEmailVerified" json:"setEmailVerified,omitempty" default:"false"`
 
-	// NoAuthEnabled disables dashboard/REST authentication (local development only). Workers still
-	// use an API token over gRPC; the default no-auth token is signed by NoAuthJWT.
-	NoAuthEnabled bool `mapstructure:"noAuthEnabled" json:"noAuthEnabled,omitempty" default:"false"`
-
-	// NoAuthJWT signs and verifies the default no-auth token. Trusted only when NoAuthEnabled is set,
-	// so the default token is inert on instances that do not load this keyset.
-	NoAuthJWT ConfigFileAuthNoAuthJWT `mapstructure:"noAuthJWT" json:"noAuthJWT,omitempty"`
-
 	// Configuration options for the cookie
 	Cookie ConfigFileAuthCookie `mapstructure:"cookie" json:"cookie,omitempty"`
 
@@ -470,14 +462,6 @@ type ConfigFileAuth struct {
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 
 	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
-}
-
-// ConfigFileAuthNoAuthJWT holds the dedicated no-auth JWT keyset (base64 raw-encoded JSON, master-encrypted).
-type ConfigFileAuthNoAuthJWT struct {
-	PublicJWTKeyset      string `mapstructure:"publicJWTKeyset" json:"publicJWTKeyset,omitempty"`
-	PublicJWTKeysetFile  string `mapstructure:"publicJWTKeysetFile" json:"publicJWTKeysetFile,omitempty"`
-	PrivateJWTKeyset     string `mapstructure:"privateJWTKeyset" json:"privateJWTKeyset,omitempty"`
-	PrivateJWTKeysetFile string `mapstructure:"privateJWTKeysetFile" json:"privateJWTKeysetFile,omitempty"`
 }
 
 type ConfigFileAuthControlPlaneExchangeToken struct {
@@ -632,10 +616,6 @@ type AuthConfig struct {
 	ExchangeTokenClient exchangetoken.ExchangeTokenClient
 
 	CustomAuthenticator CustomAuthenticator
-
-	// NoAuthEnabled, when true, disables API/UI authentication and resolves every request to the
-	// seed admin user.
-	NoAuthEnabled bool
 
 	// Operations listed here bypass the tenant RBAC check. Use this for
 	// extension operations (e.g. cloud) that handle their own authorization
@@ -873,11 +853,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.restrictedEmailDomains", "SERVER_AUTH_RESTRICTED_EMAIL_DOMAINS")
 	_ = v.BindEnv("auth.basicAuthEnabled", "SERVER_AUTH_BASIC_AUTH_ENABLED")
 	_ = v.BindEnv("auth.setEmailVerified", "SERVER_AUTH_SET_EMAIL_VERIFIED")
-	_ = v.BindEnv("auth.noAuthEnabled", "SERVER_AUTH_NO_AUTH_ENABLED")
-	_ = v.BindEnv("auth.noAuthJWT.publicJWTKeyset", "SERVER_AUTH_NO_AUTH_JWT_PUBLIC_KEYSET")
-	_ = v.BindEnv("auth.noAuthJWT.publicJWTKeysetFile", "SERVER_AUTH_NO_AUTH_JWT_PUBLIC_KEYSET_FILE")
-	_ = v.BindEnv("auth.noAuthJWT.privateJWTKeyset", "SERVER_AUTH_NO_AUTH_JWT_PRIVATE_KEYSET")
-	_ = v.BindEnv("auth.noAuthJWT.privateJWTKeysetFile", "SERVER_AUTH_NO_AUTH_JWT_PRIVATE_KEYSET_FILE")
 	_ = v.BindEnv("auth.cookie.name", "SERVER_AUTH_COOKIE_NAME")
 	_ = v.BindEnv("auth.cookie.domain", "SERVER_AUTH_COOKIE_DOMAIN")
 	_ = v.BindEnv("auth.cookie.secrets", "SERVER_AUTH_COOKIE_SECRETS")

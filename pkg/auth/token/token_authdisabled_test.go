@@ -40,43 +40,40 @@ func (s *stubAPITokenRepository) DeleteAPIToken(ctx context.Context, tenantId, i
 	return nil
 }
 
-func TestNoAuthTokenTrustedOnlyWithVerifier(t *testing.T) {
+func TestAuthDisabledTokenTrustedOnlyWithVerifier(t *testing.T) {
 	master, mainPriv, mainPub, _, err := encryption.GenerateLocalKeys()
 	require.NoError(t, err)
 
-	noAuthPriv, noAuthPub, _, err := encryption.GenerateJWTKeysets(master)
+	adPriv, adPub, err := encryption.GenerateInsecureJWTKeyset()
 	require.NoError(t, err)
 
 	mainEnc, err := encryption.NewLocalEncryption(master, mainPriv, mainPub)
 	require.NoError(t, err)
 
-	noAuthEnc, err := encryption.NewLocalEncryption(master, noAuthPriv, noAuthPub)
-	require.NoError(t, err)
-
 	repo := &stubAPITokenRepository{}
 	opts := &token.TokenOpts{Issuer: "hatchet", Audience: "hatchet", ServerURL: "http://localhost:8080"}
 
-	mgrWithNoAuth, err := token.NewJWTManager(mainEnc, repo, opts, token.WithNoAuthVerifier(noAuthEnc))
+	mgrWithAuthDisabled, err := token.NewJWTManager(mainEnc, repo, opts, token.WithAuthDisabledVerifier(adPub))
 	require.NoError(t, err)
 
 	mgrPlain, err := token.NewJWTManager(mainEnc, repo, opts)
 	require.NoError(t, err)
 
-	noAuthMinter, err := token.NewJWTManager(noAuthEnc, repo, opts)
+	minter, err := token.NewJWTManagerFromKeysets(adPriv, adPub, repo, opts)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 	tenantID := uuid.New()
 
-	noAuthTok, err := noAuthMinter.GenerateTenantToken(ctx, tenantID, "noauth", false, nil)
+	adTok, err := minter.GenerateTenantToken(ctx, tenantID, "authdisabled", false, nil)
 	require.NoError(t, err)
 
-	gotTenant, _, err := mgrWithNoAuth.ValidateTenantToken(ctx, noAuthTok.Token)
-	assert.NoError(t, err, "no-auth token should validate when the no-auth verifier is loaded")
+	gotTenant, _, err := mgrWithAuthDisabled.ValidateTenantToken(ctx, adTok.Token)
+	assert.NoError(t, err, "embedded-keyset token should validate in an authdisabled build")
 	assert.Equal(t, tenantID, gotTenant)
 
-	_, _, err = mgrPlain.ValidateTenantToken(ctx, noAuthTok.Token)
-	assert.Error(t, err, "no-auth token must be rejected without the no-auth verifier")
+	_, _, err = mgrPlain.ValidateTenantToken(ctx, adTok.Token)
+	assert.Error(t, err, "embedded-keyset token must be rejected without the authdisabled verifier")
 
 	mainTok, err := mgrPlain.GenerateTenantToken(ctx, tenantID, "main", false, nil)
 	require.NoError(t, err)
@@ -84,6 +81,6 @@ func TestNoAuthTokenTrustedOnlyWithVerifier(t *testing.T) {
 	_, _, err = mgrPlain.ValidateTenantToken(ctx, mainTok.Token)
 	assert.NoError(t, err, "main token should validate on a plain manager")
 
-	_, _, err = mgrWithNoAuth.ValidateTenantToken(ctx, mainTok.Token)
-	assert.NoError(t, err, "main token should validate on a no-auth manager")
+	_, _, err = mgrWithAuthDisabled.ValidateTenantToken(ctx, mainTok.Token)
+	assert.NoError(t, err, "main token should validate on an authdisabled manager")
 }

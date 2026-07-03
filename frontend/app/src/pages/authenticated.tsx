@@ -1,7 +1,7 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
-import { NoAuthBanner } from '@/components/layout/no-auth-banner';
+import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
 import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
@@ -553,8 +553,8 @@ function AuthenticatedInner() {
       <SupportChat user={currentUser}>
         <AppLayout
           banner={
-            meta && 'noAuthEnabled' in meta && meta.noAuthEnabled ? (
-              <NoAuthBanner />
+            meta && 'authDisabled' in meta && meta.authDisabled ? (
+              <AuthDisabledBanner />
             ) : undefined
           }
           header={

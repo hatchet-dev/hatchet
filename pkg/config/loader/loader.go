@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
@@ -640,14 +641,13 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	auth := server.AuthConfig{
 		RestrictedEmailDomains: getStrArr(cf.Auth.RestrictedEmailDomains),
 		ConfigFile:             cf.Auth,
-		NoAuthEnabled:          cf.Auth.NoAuthEnabled,
 	}
 
-	if auth.NoAuthEnabled {
-		l.Warn().Msg("SERVER_AUTH_NO_AUTH_ENABLED is set: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never enable this in production.")
-	}
+	if authmode.Disabled {
+		l.Warn().Msg("This is an authdisabled build: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never use this in production.")
 
-	applyNoAuthConfigOverrides(cf)
+		applyAuthDisabledOverrides(&cf.Runtime)
+	}
 
 	if cf.Auth.Google.Enabled {
 		if cf.Auth.Google.ClientID == "" {
@@ -694,14 +694,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	// create a new JWT manager
 	var jwtManagerOpts []token.JWTManagerOpt
 
-	if cf.Auth.NoAuthEnabled {
-		noAuthEncryptionSvc, noAuthErr := LoadNoAuthEncryptionSvc(cf)
-
-		if noAuthErr != nil {
-			return nil, nil, fmt.Errorf("could not load no-auth encryption service: %w", noAuthErr)
-		}
-
-		jwtManagerOpts = append(jwtManagerOpts, token.WithNoAuthVerifier(noAuthEncryptionSvc))
+	if authmode.Disabled {
+		jwtManagerOpts = append(jwtManagerOpts, token.WithAuthDisabledVerifier(authmode.EmbeddedPublicKeyset()))
 	}
 
 	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
@@ -1009,65 +1003,10 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	return encryptionSvc, nil
 }
 
-func applyNoAuthConfigOverrides(cf *server.ServerConfigFile) {
-	if !cf.Auth.NoAuthEnabled {
-		return
-	}
-
-	cf.Runtime.AllowCreateTenant = false
-	cf.Runtime.AllowSignup = false
-	cf.Runtime.AllowInvites = false
-}
-
-func LoadNoAuthEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionService, error) {
-	if cf.Encryption.MasterKeyset == "" && cf.Encryption.MasterKeysetFile == "" {
-		return nil, fmt.Errorf("no-auth mode requires a local master keyset")
-	}
-
-	masterKeyset := cf.Encryption.MasterKeyset
-
-	if cf.Encryption.MasterKeysetFile != "" {
-		masterKeysetBytes, err := loaderutils.GetFileBytes(cf.Encryption.MasterKeysetFile)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not load master keyset file: %w", err)
-		}
-
-		masterKeyset = string(masterKeysetBytes)
-	}
-
-	hasKeys := (cf.Auth.NoAuthJWT.PublicJWTKeyset != "" || cf.Auth.NoAuthJWT.PublicJWTKeysetFile != "") &&
-		(cf.Auth.NoAuthJWT.PrivateJWTKeyset != "" || cf.Auth.NoAuthJWT.PrivateJWTKeysetFile != "")
-
-	if !hasKeys {
-		return nil, fmt.Errorf("no-auth mode requires a no-auth JWT keyset (set SERVER_AUTH_NO_AUTH_JWT_PRIVATE_KEYSET[_FILE] and SERVER_AUTH_NO_AUTH_JWT_PUBLIC_KEYSET[_FILE])")
-	}
-
-	privateJWT := cf.Auth.NoAuthJWT.PrivateJWTKeyset
-
-	if cf.Auth.NoAuthJWT.PrivateJWTKeysetFile != "" {
-		privateJWTBytes, err := loaderutils.GetFileBytes(cf.Auth.NoAuthJWT.PrivateJWTKeysetFile)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not load no-auth private jwt keyset file: %w", err)
-		}
-
-		privateJWT = string(privateJWTBytes)
-	}
-
-	publicJWT := cf.Auth.NoAuthJWT.PublicJWTKeyset
-
-	if cf.Auth.NoAuthJWT.PublicJWTKeysetFile != "" {
-		publicJWTBytes, err := loaderutils.GetFileBytes(cf.Auth.NoAuthJWT.PublicJWTKeysetFile)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not load no-auth public jwt keyset file: %w", err)
-		}
-
-		publicJWT = string(publicJWTBytes)
-	}
-
-	return encryption.NewLocalEncryption([]byte(masterKeyset), []byte(privateJWT), []byte(publicJWT))
+func applyAuthDisabledOverrides(rt *server.ConfigFileRuntime) {
+	rt.AllowCreateTenant = false
+	rt.AllowSignup = false
+	rt.AllowInvites = false
 }
 
 func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string, grpcInsecure bool) (*clientv1.GRPCClientFactory, error) {

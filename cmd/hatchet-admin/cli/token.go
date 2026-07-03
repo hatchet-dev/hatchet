@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
@@ -20,7 +21,6 @@ var (
 	tokenTenantIdStr string
 	tokenName        string
 	expiresIn        time.Duration
-	tokenNoAuth      bool
 )
 
 var tokenCmd = &cobra.Command{
@@ -66,13 +66,6 @@ func init() {
 		90*24*time.Hour,
 		"Expiration duration for the API token",
 	)
-
-	tokenCreateAPICmd.PersistentFlags().BoolVar(
-		&tokenNoAuth,
-		"no-auth",
-		false,
-		"sign the token with the no-auth keyset for the default tenant (local no-auth mode)",
-	)
 }
 
 func runCreateAPIToken(expiresIn time.Duration) error {
@@ -108,19 +101,14 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 		return err
 	}
 
-	if tokenNoAuth {
-		// no-auth tokens are always scoped to the seed default tenant and signed by the no-auth keyset
+	if authmode.Disabled {
+		// authdisabled builds mint the default-tenant token signed by the embedded keyset
 		tenantId, err = uuid.Parse(srv.Seed.DefaultTenantID)
 		if err != nil {
 			return err
 		}
 
-		noAuthEncryptionSvc, encErr := loader.LoadNoAuthEncryptionSvc(cf)
-		if encErr != nil {
-			return encErr
-		}
-
-		jwtManager, err = token.NewJWTManager(noAuthEncryptionSvc, srv.V1.APIToken(), &token.TokenOpts{
+		jwtManager, err = token.NewJWTManagerFromKeysets(authmode.EmbeddedPrivateKeyset(), authmode.EmbeddedPublicKeyset(), srv.V1.APIToken(), &token.TokenOpts{
 			Issuer:               cf.Runtime.ServerURL,
 			Audience:             cf.Runtime.ServerURL,
 			GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,

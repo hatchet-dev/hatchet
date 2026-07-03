@@ -65,7 +65,6 @@ type HatchetLiteOpts struct {
 	overrideGrpcPort      int
 	imageTag              string
 	pullPolicy            pullPolicy
-	noAuthEnabled         bool
 }
 
 func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
@@ -119,14 +118,6 @@ func WithCreateTokenCallback(cb func(string)) HatchetLiteOpt {
 func WithPortsCallback(cb func(dashboardPort, grpcPort int)) HatchetLiteOpt {
 	return func(o *HatchetLiteOpts) error {
 		o.portsCb = cb
-		return nil
-	}
-}
-
-// WithNoAuthMode disables authentication on the local server (local development only).
-func WithNoAuthMode(enabled bool) HatchetLiteOpt {
-	return func(o *HatchetLiteOpts) error {
-		o.noAuthEnabled = enabled
 		return nil
 	}
 }
@@ -438,10 +429,6 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 		"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
 		"SERVER_DEFAULT_ENGINE_VERSION=V1",
 		"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
-	}
-
-	if opts.noAuthEnabled {
-		env = append(env, "SERVER_AUTH_NO_AUTH_ENABLED=t")
 	}
 
 	containerConfig := &container.Config{
