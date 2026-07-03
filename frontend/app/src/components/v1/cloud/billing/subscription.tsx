@@ -33,6 +33,7 @@ import {
   SubscriptionPeriod,
   Coupon,
 } from '@/lib/api/generated/control-plane/data-contracts';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { useApiError } from '@/lib/hooks';
 import queryClient from '@/query-client';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -115,8 +116,6 @@ function getPlanChangeErrorMessage(error: unknown) {
 
   return fallback;
 }
-
-const OFFICE_HOURS_URL = 'https://cal.com/team/hatchet/talk-to-us';
 
 export const Subscription: React.FC<SubscriptionProps> = ({
   active,
@@ -591,7 +590,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
                 </a>{' '}
                 or{' '}
                 <a
-                  href="https://cal.com/team/hatchet/talk-to-us"
+                  href={OFFICE_HOURS_URL}
                   className="text-primary/70 hover:text-primary hover:underline"
                 >
                   contact us

@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
-export default function Tasks() {
+export default function RunsPage() {
   const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const actions = useOnboardingActions({
     href: docsPages.v1.quickstart.href,
@@ -34,14 +34,18 @@ export default function Tasks() {
     }),
   );
 
-  if (!workflowCountQuery.isSuccess || !recentRunsQuery.isSuccess) {
+  if (workflowCountQuery.isLoading || recentRunsQuery.isLoading) {
     return <Loading />;
   }
 
   const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
   const hasRecentRuns = (recentRunsQuery.data?.rows?.length ?? 0) > 0;
 
-  if (!hasWorkflows && !hasRecentRuns) {
+  // Fail open on probe errors: the table's own error handling is more useful
+  // than trapping the user on the onboarding placeholder.
+  const probesErrored = workflowCountQuery.isError || recentRunsQuery.isError;
+
+  if (!probesErrored && !hasWorkflows && !hasRecentRuns) {
     return (
       <div className="flex h-full items-center justify-center">
         <EmptyState

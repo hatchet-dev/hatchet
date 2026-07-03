@@ -5,6 +5,7 @@ import {
   CardTitle,
 } from '@/components/v1/ui/card';
 import { Separator } from '@/components/v1/ui/separator';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { ArrowRightIcon } from '@radix-ui/react-icons';
 import { BiBook, BiMessageSquareDetail } from 'react-icons/bi';
 import { RiDiscordFill, RiGithubFill, RiSlackFill } from 'react-icons/ri';
@@ -104,7 +105,7 @@ export function SupportSection() {
           <CardHeader className="p-4 border-b border-border/50 ">
             <CardTitle className="font-mono font-normal tracking-wider uppercase text-xs text-muted-foreground whitespace-nowrap">
               <a
-                href="https://cal.com/team/hatchet/talk-to-us"
+                href={OFFICE_HOURS_URL}
                 target="_blank"
                 rel="noreferrer"
                 className="group inline-flex items-center gap-1 hover:text-primary"

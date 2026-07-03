@@ -2,6 +2,7 @@ import { EmptyState, EmptyStateAction } from './empty-state';
 import { usePylon } from '@/components/support-chat';
 import { Loading } from '@/components/v1/ui/loading';
 import { queries } from '@/lib/api';
+import { DISCORD_INVITE_URL, OFFICE_HOURS_URL } from '@/lib/external-links';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
@@ -41,14 +42,14 @@ export function useOnboardingActions(docs: OnboardingDocs) {
           icon: <MessageCircle className="size-4" />,
           label: 'Join Discord',
           description: 'Chat with the Hatchet community',
-          href: 'https://discord.com/invite/ZMeUafwH89',
+          href: DISCORD_INVITE_URL,
           external: true,
         },
     {
       icon: <Calendar className="size-4" />,
       label: 'Book office hours',
       description: 'Schedule time with the Hatchet team',
-      href: 'https://cal.com/team/hatchet/talk-to-us',
+      href: OFFICE_HOURS_URL,
       external: true,
     },
   ];
@@ -78,13 +79,15 @@ export function WorkflowsGuard({
     queries.workflows.list(tenantId, { limit: 1, offset: 0 }),
   );
 
-  if (!workflowCountQuery.isSuccess) {
+  if (workflowCountQuery.isLoading) {
     return <Loading />;
   }
 
   const hasWorkflows = (workflowCountQuery.data?.rows?.length ?? 0) > 0;
 
-  if (hasWorkflows) {
+  // Fail open on probe errors: the page's own error handling is more useful
+  // than trapping the user on the onboarding placeholder.
+  if (workflowCountQuery.isError || hasWorkflows) {
     return <>{children}</>;
   }
 
