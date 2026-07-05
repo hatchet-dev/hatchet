@@ -2,11 +2,10 @@ import { Callout } from "nextra/components";
 
 # Auth-disabled (dev) images
 
-Hatchet publishes a set of dev images (`hatchet-lite-dev`, `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev`) built with authentication compiled out, so you can run a local instance without signing in to the dashboard or minting your own API token. This is a **compile-time** property of the dev images — it cannot be turned on by configuration, and the regular images can never disable authentication.
+Hatchet publishes a set of dev images (`hatchet-lite-dev`, `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev`) built with authentication compiled out, so you can run a local instance without signing in to the dashboard or minting your own API token.
 
 <Callout type="error" emoji="🚫">
-  The dev images are for local development and testing only. Never run them on
-  a system reachable by untrusted clients.
+  The dev images are for local development and testing only.
 </Callout>
 
 ## What the dev images do
@@ -14,11 +13,10 @@ Hatchet publishes a set of dev images (`hatchet-lite-dev`, `hatchet-api-dev`, `h
 - **Dashboard** loads without a login screen; requests run as the seeded admin user (`ADMIN_EMAIL`, default `admin@example.com`).
 - **REST API** calls succeed without a bearer token or session cookie.
 - **Single tenant.** Everything runs against the seed default tenant, so tenant creation, signup and invites are disabled (and hidden in the dashboard).
-- The dashboard shows a persistent banner and the server logs a warning while authentication is disabled.
 
 ## Workers still use an API token
 
-The gRPC engine is unchanged — workers and SDK clients still authenticate with an API token. The dev images embed a fixed keyset and mint a **default token** signed by it, so you don't have to create one:
+The gRPC engine is unchanged - workers and SDK clients still authenticate with an API token. The dev images embed a fixed keyset and mint a default token signed by it, so you don't have to create one:
 
 - The keyset is embedded (via `go:embed`) only in dev builds. The regular images never compile it in, so the default token is inert against any normal deployment.
 - The token is scoped to the seed default tenant.
@@ -27,18 +25,18 @@ Point your worker at it via `HATCHET_CLIENT_TOKEN`.
 
 ## Running it
 
-The easiest way is the Hatchet CLI, which starts a Postgres container and the `hatchet-lite-dev` image for you:
+The easiest way is the Hatchet CLI's `--disable-auth` flag, which starts a Postgres container and the `hatchet-lite-dev` image for you:
 
 ```sh
-hatchet server dev-start
+hatchet server start --disable-auth
 ```
 
-To run it yourself (Docker Compose, Kubernetes, etc.), follow the [Hatchet Lite](/self-hosting/hatchet-lite) guide but swap the image for `ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:latest`. The dev image still needs an external Postgres and the usual server configuration — the only difference is that authentication is compiled out.
+To run it yourself, follow the [Hatchet Lite](/self-hosting/hatchet-lite) guide but swap the image for `ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:latest`. The dev image still needs an external Postgres and the usual server configuration - the only difference is that authentication is compiled out.
 
 On startup the container mints the default worker token, prints it, and writes it to the config volume. Grab it from the logs or the volume:
 
 ```sh
-docker logs <hatchet-lite-container>              # printed under "authdisabled build: worker API token"
+docker logs <hatchet-lite-container> # printed under "authdisabled build: worker API token"
 # or
 docker exec <hatchet-lite-container> cat ./config/authdisabled-token
 ```
@@ -50,14 +48,3 @@ export HATCHET_CLIENT_TOKEN="<token>"
 ```
 
 The `hatchet-api`, `hatchet-engine` and `hatchet-admin` images have dev variants too (`ghcr.io/hatchet-dev/hatchet/hatchet-<component>-dev`).
-
-## Building it yourself
-
-The dev images are the regular Docker builds with the `authdisabled` Go build tag:
-
-```sh
-docker build -f build/package/servers.dockerfile \
-  --build-arg SERVER_TARGET=api \
-  --build-arg GO_BUILD_TAGS=authdisabled \
-  .
-```

@@ -6,6 +6,7 @@ export default {
   },
   "hatchet-lite": "Hatchet Lite",
   "docker-compose": "Docker Compose",
+  "auth-disabled-images": "Auth-Disabled Dev Images",
   "-- Kubernetes": {
     type: "separator",
     title: "Kubernetes",
@@ -20,7 +21,6 @@ export default {
     title: "Managing Hatchet",
   },
   "configuration-options": "Engine Configuration Options",
-  "auth-disabled-images": "Auth-Disabled Dev Images",
   "using-pgbouncer": "Using PgBouncer",
   "prometheus-metrics": {
     title: "Prometheus Metrics",

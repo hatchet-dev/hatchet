@@ -40,34 +40,27 @@ var startCmd = &cobra.Command{
   hatchet server start --pull-policy never
 
   # Only pull images if they are not already available locally
-  hatchet server start --pull-policy missing`,
+  hatchet server start --pull-policy missing
+
+  # Start with authentication disabled (runs the hatchet-lite-dev image, local development only)
+  hatchet server start --disable-auth`,
 	Run: func(cmd *cobra.Command, args []string) {
-		runServerStart(cmd, false)
+		runServerStart(cmd)
 	},
 }
 
-var devStartCmd = &cobra.Command{
-	Use:   "dev-start",
-	Short: "Start a local auth-disabled Hatchet server (hatchet-lite-dev) using Docker",
-	Long:  `Start a local Hatchet server with authentication disabled, using the hatchet-lite-dev image. Intended for local development only: the dashboard needs no login and a default worker token is printed.`,
-	Example: `  # Start an auth-disabled local server
-  hatchet server dev-start`,
-	Run: func(cmd *cobra.Command, args []string) {
-		runServerStart(cmd, true)
-	},
-}
-
-func runServerStart(cmd *cobra.Command, dev bool) {
+func runServerStart(cmd *cobra.Command) {
 	dashboardPort, _ := cmd.Flags().GetInt("dashboard-port")
 	grpcPort, _ := cmd.Flags().GetInt("grpc-port")
 	projectName, _ := cmd.Flags().GetString("project-name")
 	profileName, _ := cmd.Flags().GetString("profile")
 	tag, _ := cmd.Flags().GetString("tag")
 	pullPolicy, _ := cmd.Flags().GetString("pull-policy")
+	disableAuth, _ := cmd.Flags().GetBool("disable-auth")
 
 	opts := []docker.HatchetLiteOpt{}
 
-	if dev {
+	if disableAuth {
 		opts = append(opts, docker.WithDevImage())
 	}
 
@@ -217,17 +210,16 @@ func addServerStartFlags(cmd *cobra.Command) {
 	cmd.Flags().StringP("profile", "n", "local", "Name for the local profile (default: local)")
 	cmd.Flags().StringP("tag", "t", "latest", `Image tag for the hatchet-lite container (e.g. "v0.83.1")`)
 	cmd.Flags().String("pull-policy", "always", `Image pull policy: "always", "missing", or "never"`)
+	cmd.Flags().Bool("disable-auth", false, "Disable authentication by running the hatchet-lite-dev image (local development only)")
 }
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
 
 	serverCmd.AddCommand(startCmd)
-	serverCmd.AddCommand(devStartCmd)
 	serverCmd.AddCommand(stopCmd)
 
 	addServerStartFlags(startCmd)
-	addServerStartFlags(devStartCmd)
 
 	stopCmd.Flags().StringP("project-name", "p", "", "Docker project name for containers (default: hatchet-cli)")
 }
