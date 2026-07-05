@@ -44,7 +44,7 @@ ARG VERSION=v0.1.0-alpha.0
 # can be set to "api", "engine", "admin" or "lite"
 ARG SERVER_TARGET
 
-# optional go build tags, e.g. "authdisabled" for :dev images
+# optional go build tags, e.g. "authdisabled" for dev images
 ARG GO_BUILD_TAGS=""
 
 # check if the target is empty or not set to api, engine, lite, or admin

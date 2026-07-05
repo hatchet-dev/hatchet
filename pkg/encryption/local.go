@@ -81,36 +81,6 @@ func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []b
 	return masterKey, privateEc256, publicEc256, insecurePublicHandleEc256, nil
 }
 
-// GenerateInsecureJWTKeyset creates a cleartext (unencrypted) ES256 JWT keyset. Only for the
-// committed authdisabled keyset, which is embedded into dev builds and never used in production.
-func GenerateInsecureJWTKeyset() (privateEc256 []byte, publicEc256 []byte, err error) {
-	privateHandle, err := keyset.NewHandle(jwt.ES256Template())
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create new keyset handle with ES256 template: %w", err)
-	}
-
-	privateEc256, err = insecureBytesFromHandle(privateHandle)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	publicHandle, err := privateHandle.Public()
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get public keyset: %w", err)
-	}
-
-	publicEc256, err = insecureBytesFromHandle(publicHandle)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return privateEc256, publicEc256, nil
-}
-
 func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
 	aeadTemplate := aead.AES256GCMKeyTemplate()
 

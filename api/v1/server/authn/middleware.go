@@ -159,14 +159,6 @@ func (a *AuthN) handleAuthDisabledBypass(c echo.Context) error {
 	c.Set("user", user)
 	c.Set("auth_strategy", "authdisabled")
 
-	ctx = context.WithValue(ctx, analytics.UserIDKey, user.ID)
-	ctx = context.WithValue(ctx, analytics.SourceKey, analytics.SourceUI)
-
-	span := trace.SpanFromContext(ctx)
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "user.id", Value: user.ID})
-
-	c.SetRequest(c.Request().WithContext(ctx))
-
 	return nil
 }
 

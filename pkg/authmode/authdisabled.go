@@ -4,8 +4,6 @@ package authmode
 
 import _ "embed"
 
-// Disabled reports whether this binary was built with authentication disabled (the `authdisabled`
-// build tag). Only `:dev` images are built this way; production builds have Disabled == false.
 const Disabled = true
 
 //go:embed keyset/private_ec256.key

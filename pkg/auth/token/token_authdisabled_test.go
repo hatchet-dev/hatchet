@@ -3,7 +3,9 @@
 package token_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -11,6 +13,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tink-crypto/tink-go/insecurecleartextkeyset"
+	"github.com/tink-crypto/tink-go/jwt"
+	"github.com/tink-crypto/tink-go/keyset"
 
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
@@ -44,8 +49,7 @@ func TestAuthDisabledTokenTrustedOnlyWithVerifier(t *testing.T) {
 	master, mainPriv, mainPub, _, err := encryption.GenerateLocalKeys()
 	require.NoError(t, err)
 
-	adPriv, adPub, err := encryption.GenerateInsecureJWTKeyset()
-	require.NoError(t, err)
+	adPriv, adPub := generateInsecureJWTKeyset(t)
 
 	mainEnc, err := encryption.NewLocalEncryption(master, mainPriv, mainPub)
 	require.NoError(t, err)
@@ -83,4 +87,28 @@ func TestAuthDisabledTokenTrustedOnlyWithVerifier(t *testing.T) {
 
 	_, _, err = mgrWithAuthDisabled.ValidateTenantToken(ctx, mainTok.Token)
 	assert.NoError(t, err, "main token should validate on an authdisabled manager")
+}
+
+func generateInsecureJWTKeyset(t *testing.T) (private, public []byte) {
+	t.Helper()
+
+	privateHandle, err := keyset.NewHandle(jwt.ES256Template())
+	require.NoError(t, err)
+
+	publicHandle, err := privateHandle.Public()
+	require.NoError(t, err)
+
+	return insecureKeysetBytes(t, privateHandle), insecureKeysetBytes(t, publicHandle)
+}
+
+func insecureKeysetBytes(t *testing.T, kh *keyset.Handle) []byte {
+	t.Helper()
+
+	buf := new(bytes.Buffer)
+	require.NoError(t, insecurecleartextkeyset.Write(kh, keyset.NewJSONWriter(buf)))
+
+	out := make([]byte, base64.RawStdEncoding.EncodedLen(buf.Len()))
+	base64.RawStdEncoding.Encode(out, buf.Bytes())
+
+	return out
 }

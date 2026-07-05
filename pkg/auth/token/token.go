@@ -26,18 +26,15 @@ type TokenOpts struct {
 }
 
 type jwtManagerImpl struct {
-	privateHandle *keyset.Handle
-	opts          *TokenOpts
-	tokenRepo     v1.APITokenRepository
-	verifier      jwt.Verifier
-	// authDisabledVerifier verifies the default token signed by the embedded authdisabled keyset.
+	privateHandle        *keyset.Handle
+	opts                 *TokenOpts
+	tokenRepo            v1.APITokenRepository
+	verifier             jwt.Verifier
 	authDisabledVerifier jwt.Verifier
 }
 
 type JWTManagerOpt func(*jwtManagerImpl) error
 
-// WithAuthDisabledVerifier additionally trusts tokens signed by the given (embedded authdisabled)
-// public keyset. Only used in authdisabled builds.
 func WithAuthDisabledVerifier(publicKeyset []byte) JWTManagerOpt {
 	return func(j *jwtManagerImpl) error {
 		handle, err := encryption.InsecureHandleFromBytes(publicKeyset)
@@ -61,8 +58,6 @@ func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APIT
 	return newJWTManager(encryptionSvc.GetPrivateJWTHandle(), encryptionSvc.GetPublicJWTHandle(), tokenRepo, opts, mgrOpts...)
 }
 
-// NewJWTManagerFromKeysets builds a JWTManager directly from cleartext JWT keysets, used to sign
-// the default token with the embedded authdisabled keyset.
 func NewJWTManagerFromKeysets(privateKeyset, publicKeyset []byte, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
 	privateHandle, err := encryption.InsecureHandleFromBytes(privateKeyset)
 
