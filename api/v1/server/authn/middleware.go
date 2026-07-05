@@ -61,7 +61,7 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
-	if authmode.Disabled {
+	if authmode.Disabled || a.config.Runtime.AuthDisabled {
 		return a.handleAuthDisabledBypass(c)
 	}
 

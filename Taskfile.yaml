@@ -10,6 +10,26 @@ tasks:
       - task: generate-docs
       - task: set-env-all
       - task: seed-dev
+  dashboard:embed:
+    desc: Build the frontend and embed it into the hatchetembed package (github.com/hatchet-dev/hatchet/hatchetembed).
+    # Only rebuilds when a frontend source file has actually changed (checksum fingerprint).
+    method: checksum
+    sources:
+      - frontend/app/src/**/*
+      - frontend/app/public/**/*
+      - frontend/app/index.html
+      - frontend/app/package.json
+      - frontend/app/vite.config.ts
+      - frontend/app/tsconfig*.json
+      - frontend/app/tailwind.config.js
+      - frontend/app/postcss.config.js
+    generates:
+      - hatchetembed/dashboard/**/*
+    cmds:
+      - pnpm --dir frontend/app exec vite build --sourcemap false
+      - rm -rf hatchetembed/dashboard
+      - mkdir -p hatchetembed/dashboard
+      - cp -R frontend/app/dist/. hatchetembed/dashboard/
   set-env-db:
     cmds:
       - |
@@ -343,6 +363,8 @@ tasks:
         msg: "{{.TAG}} is already an annotated tag."
       - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
         msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
+      - sh: ./hack/ci/check-version-matches-tag.sh {{.TAG}}
+        msg: "pkg/version/version.go must be bumped to {{.TAG}} (the engine reports it to SDKs and hatchetembed embeds it)."
     prompt: Create new release for tag {{.TAG}}?
     cmds:
       # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.
@@ -353,11 +375,13 @@ tasks:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
     cmds:
       - |
+        set -e
         current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         IFS='.' read -r major minor patch <<< "${current#v}"
         patch=$((patch + 1))
         next="v${major}.${minor}.${patch}"
         echo "Bumping ${current} → ${next}"
+        ./hack/ci/check-version-matches-tag.sh "${next}"
         git tag "${next}"
         git push origin "${next}"
 
@@ -365,11 +389,13 @@ tasks:
     desc: Bump minor version (e.g. v0.83.16 → v0.84.0) and push the tag
     cmds:
       - |
+        set -e
         current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         IFS='.' read -r major minor patch <<< "${current#v}"
         minor=$((minor + 1))
         next="v${major}.${minor}.0"
         echo "Bumping ${current} → ${next}"
+        ./hack/ci/check-version-matches-tag.sh "${next}"
         git tag "${next}"
         git push origin "${next}"
 
@@ -377,6 +403,7 @@ tasks:
     desc: Bump to next alpha pre-release (e.g. v0.83.16 → v0.83.16-alpha.0, or v0.83.16-alpha.0 → v0.83.16-alpha.1)
     cmds:
       - |
+        set -e
         current=$(git describe --tags --abbrev=0 --match='v[0-9]*.[0-9]*.[0-9]*')
         base="${current%%-alpha.*}"
         if [[ "${current}" == *-alpha.* ]]; then
@@ -386,5 +413,6 @@ tasks:
           next="${base}-alpha.0"
         fi
         echo "Bumping ${current} → ${next}"
+        ./hack/ci/check-version-matches-tag.sh "${next}"
         git tag "${next}"
         git push origin "${next}"

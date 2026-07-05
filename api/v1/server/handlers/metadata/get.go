@@ -37,7 +37,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	prometheusServerEnabled := u.config.Prometheus.PrometheusServerURL != ""
 
-	authDisabled := authmode.Disabled
+	authDisabled := authmode.Disabled || u.config.Runtime.AuthDisabled
 
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{

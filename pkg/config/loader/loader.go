@@ -643,8 +643,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		ConfigFile:             cf.Auth,
 	}
 
-	if authmode.Disabled {
-		l.Warn().Msg("This is an authdisabled build: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never use this in production.")
+	if authmode.Disabled || cf.Runtime.AuthDisabled {
+		l.Warn().Msg("Authentication is DISABLED: dashboard/REST requests run as the seed admin user. Never use this in production.")
 
 		applyAuthDisabledOverrides(&cf.Runtime)
 	}

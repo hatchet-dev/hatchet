@@ -49,7 +49,7 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
-	if authmode.Disabled && rbac.OperationIn(r.OperationID, authDisabledDeniedOperations) {
+	if (authmode.Disabled || a.config.Runtime.AuthDisabled) && rbac.OperationIn(r.OperationID, authDisabledDeniedOperations) {
 		return echo.NewHTTPError(http.StatusForbidden, "This operation is disabled while authentication is disabled")
 	}
 
