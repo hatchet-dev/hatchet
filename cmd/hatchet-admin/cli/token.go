@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
-	"github.com/hatchet-dev/hatchet/pkg/auth/token"
 	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -72,16 +71,12 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
-	var cf *server.ServerConfigFile
-
 	cleanup, srv, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable rabbitmq since it's not needed to create the api token
 		scf.MessageQueue.Enabled = false
 
 		// disable security checks since we're not running the server
 		scf.SecurityCheck.Enabled = false
-
-		cf = scf
 	})
 
 	if err != nil {
@@ -94,32 +89,19 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	expiresAt := time.Now().UTC().Add(expiresIn)
 
-	jwtManager := srv.Auth.JWTManager
-
 	tenantId, err := tenantIDForTokenCreate(srv.Seed.DefaultTenantID)
 	if err != nil {
 		return err
 	}
 
 	if authmode.Disabled {
-		// authdisabled builds mint the default-tenant token signed by the embedded keyset
 		tenantId, err = uuid.Parse(srv.Seed.DefaultTenantID)
-		if err != nil {
-			return err
-		}
-
-		jwtManager, err = token.NewJWTManagerFromKeysets(authmode.EmbeddedPrivateKeyset(), authmode.EmbeddedPublicKeyset(), srv.V1.APIToken(), &token.TokenOpts{
-			Issuer:               cf.Runtime.ServerURL,
-			Audience:             cf.Runtime.ServerURL,
-			GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
-			ServerURL:            cf.Runtime.ServerURL,
-		})
 		if err != nil {
 			return err
 		}
 	}
 
-	defaultTok, err := jwtManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err

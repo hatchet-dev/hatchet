@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tink-crypto/tink-go/jwt"
-	"github.com/tink-crypto/tink-go/keyset"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
@@ -26,75 +25,25 @@ type TokenOpts struct {
 }
 
 type jwtManagerImpl struct {
-	privateHandle        *keyset.Handle
-	opts                 *TokenOpts
-	tokenRepo            v1.APITokenRepository
-	verifier             jwt.Verifier
-	authDisabledVerifier jwt.Verifier
+	encryption encryption.EncryptionService
+	opts       *TokenOpts
+	tokenRepo  v1.APITokenRepository
+	verifier   jwt.Verifier
 }
 
-type JWTManagerOpt func(*jwtManagerImpl) error
-
-func WithAuthDisabledVerifier(publicKeyset []byte) JWTManagerOpt {
-	return func(j *jwtManagerImpl) error {
-		handle, err := encryption.InsecureHandleFromBytes(publicKeyset)
-
-		if err != nil {
-			return fmt.Errorf("failed to read authdisabled public keyset: %v", err)
-		}
-
-		verifier, err := jwt.NewVerifier(handle)
-
-		if err != nil {
-			return fmt.Errorf("failed to create authdisabled JWT Verifier: %v", err)
-		}
-
-		j.authDisabledVerifier = verifier
-		return nil
-	}
-}
-
-func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
-	return newJWTManager(encryptionSvc.GetPrivateJWTHandle(), encryptionSvc.GetPublicJWTHandle(), tokenRepo, opts, mgrOpts...)
-}
-
-func NewJWTManagerFromKeysets(privateKeyset, publicKeyset []byte, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
-	privateHandle, err := encryption.InsecureHandleFromBytes(privateKeyset)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read private keyset: %v", err)
-	}
-
-	publicHandle, err := encryption.InsecureHandleFromBytes(publicKeyset)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to read public keyset: %v", err)
-	}
-
-	return newJWTManager(privateHandle, publicHandle, tokenRepo, opts, mgrOpts...)
-}
-
-func newJWTManager(privateHandle, publicHandle *keyset.Handle, tokenRepo v1.APITokenRepository, opts *TokenOpts, mgrOpts ...JWTManagerOpt) (JWTManager, error) {
-	verifier, err := jwt.NewVerifier(publicHandle)
+func NewJWTManager(encryptionSvc encryption.EncryptionService, tokenRepo v1.APITokenRepository, opts *TokenOpts) (JWTManager, error) {
+	verifier, err := jwt.NewVerifier(encryptionSvc.GetPublicJWTHandle())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Verifier: %v", err)
 	}
 
-	m := &jwtManagerImpl{
-		privateHandle: privateHandle,
-		opts:          opts,
-		tokenRepo:     tokenRepo,
-		verifier:      verifier,
-	}
-
-	for _, opt := range mgrOpts {
-		if err := opt(m); err != nil {
-			return nil, err
-		}
-	}
-
-	return m, nil
+	return &jwtManagerImpl{
+		encryption: encryptionSvc,
+		opts:       opts,
+		tokenRepo:  tokenRepo,
+		verifier:   verifier,
+	}, nil
 }
 
 type Token struct {
@@ -105,7 +54,7 @@ type Token struct {
 
 func (j *jwtManagerImpl) createToken(ctx context.Context, tenantId uuid.UUID, name string, id *uuid.UUID, expires *time.Time) (*Token, error) {
 	// Retrieve the JWT Signer primitive from privateKeysetHandle.
-	signer, err := jwt.NewSigner(j.privateHandle)
+	signer, err := jwt.NewSigner(j.encryption.GetPrivateJWTHandle())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create JWT Signer: %v", err)
@@ -169,10 +118,6 @@ func (j *jwtManagerImpl) ValidateTenantToken(ctx context.Context, token string) 
 	}
 
 	verifiedJwt, err := j.verifier.VerifyAndDecode(token, validator)
-
-	if err != nil && j.authDisabledVerifier != nil {
-		verifiedJwt, err = j.authDisabledVerifier.VerifyAndDecode(token, validator)
-	}
 
 	if err != nil {
 		return uuid.Nil, uuid.Nil, fmt.Errorf("failed to verify and decode JWT: %v", err)

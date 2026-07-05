@@ -2,7 +2,10 @@
 
 package authmode
 
-import _ "embed"
+import (
+	"bytes"
+	_ "embed"
+)
 
 const Disabled = true
 
@@ -12,6 +15,8 @@ var privateKeyset []byte
 //go:embed keyset/public_ec256.key
 var publicKeyset []byte
 
-func EmbeddedPrivateKeyset() []byte { return privateKeyset }
+// TrimSpace guards against an editor adding a trailing newline to the committed keyset files,
+// which would corrupt the base64.
+func EmbeddedPrivateKeyset() []byte { return bytes.TrimSpace(privateKeyset) }
 
-func EmbeddedPublicKeyset() []byte { return publicKeyset }
+func EmbeddedPublicKeyset() []byte { return bytes.TrimSpace(publicKeyset) }

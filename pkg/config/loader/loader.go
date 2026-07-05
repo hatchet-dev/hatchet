@@ -691,19 +691,22 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
 	}
 
-	// create a new JWT manager
-	var jwtManagerOpts []token.JWTManagerOpt
+	jwtEncryptionSvc := encryptionSvc
 
 	if authmode.Disabled {
-		jwtManagerOpts = append(jwtManagerOpts, token.WithAuthDisabledVerifier(authmode.EmbeddedPublicKeyset()))
+		jwtEncryptionSvc, err = encryption.NewInsecureJWTEncryption(authmode.EmbeddedPrivateKeyset(), authmode.EmbeddedPublicKeyset())
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not load authdisabled keyset: %w", err)
+		}
 	}
 
-	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
+	auth.JWTManager, err = token.NewJWTManager(jwtEncryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
 		ServerURL:            cf.Runtime.ServerURL,
-	}, jwtManagerOpts...)
+	})
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
@@ -1007,6 +1010,7 @@ func applyAuthDisabledOverrides(rt *server.ConfigFileRuntime) {
 	rt.AllowCreateTenant = false
 	rt.AllowSignup = false
 	rt.AllowInvites = false
+	rt.AllowChangePassword = false
 }
 
 func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string, grpcInsecure bool) (*clientv1.GRPCClientFactory, error) {

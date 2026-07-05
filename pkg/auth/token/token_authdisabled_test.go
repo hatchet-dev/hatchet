@@ -45,48 +45,48 @@ func (s *stubAPITokenRepository) DeleteAPIToken(ctx context.Context, tenantId, i
 	return nil
 }
 
-func TestAuthDisabledTokenTrustedOnlyWithVerifier(t *testing.T) {
+// TestAuthDisabledKeysetIsolation is the security invariant behind authdisabled mode: the main
+// (production) JWT manager can never validate a token signed by the embedded authdisabled keyset,
+// and vice versa. The embedded token is only accepted via the separate authdisabled manager, which
+// is only wired up (in the gRPC middleware) behind the compile-time authmode.Disabled constant.
+func TestAuthDisabledKeysetIsolation(t *testing.T) {
 	master, mainPriv, mainPub, _, err := encryption.GenerateLocalKeys()
 	require.NoError(t, err)
 
-	adPriv, adPub := generateInsecureJWTKeyset(t)
-
 	mainEnc, err := encryption.NewLocalEncryption(master, mainPriv, mainPub)
+	require.NoError(t, err)
+
+	adPriv, adPub := generateInsecureJWTKeyset(t)
+	adEnc, err := encryption.NewInsecureJWTEncryption(adPriv, adPub)
 	require.NoError(t, err)
 
 	repo := &stubAPITokenRepository{}
 	opts := &token.TokenOpts{Issuer: "hatchet", Audience: "hatchet", ServerURL: "http://localhost:8080"}
 
-	mgrWithAuthDisabled, err := token.NewJWTManager(mainEnc, repo, opts, token.WithAuthDisabledVerifier(adPub))
+	mainMgr, err := token.NewJWTManager(mainEnc, repo, opts)
 	require.NoError(t, err)
 
-	mgrPlain, err := token.NewJWTManager(mainEnc, repo, opts)
-	require.NoError(t, err)
-
-	minter, err := token.NewJWTManagerFromKeysets(adPriv, adPub, repo, opts)
+	adMgr, err := token.NewJWTManager(adEnc, repo, opts)
 	require.NoError(t, err)
 
 	ctx := context.Background()
 	tenantID := uuid.New()
 
-	adTok, err := minter.GenerateTenantToken(ctx, tenantID, "authdisabled", false, nil)
+	adTok, err := adMgr.GenerateTenantToken(ctx, tenantID, "authdisabled", false, nil)
 	require.NoError(t, err)
 
-	gotTenant, _, err := mgrWithAuthDisabled.ValidateTenantToken(ctx, adTok.Token)
-	assert.NoError(t, err, "embedded-keyset token should validate in an authdisabled build")
+	gotTenant, _, err := adMgr.ValidateTenantToken(ctx, adTok.Token)
+	assert.NoError(t, err, "embedded-keyset token should validate on the authdisabled manager")
 	assert.Equal(t, tenantID, gotTenant)
 
-	_, _, err = mgrPlain.ValidateTenantToken(ctx, adTok.Token)
-	assert.Error(t, err, "embedded-keyset token must be rejected without the authdisabled verifier")
+	_, _, err = mainMgr.ValidateTenantToken(ctx, adTok.Token)
+	assert.Error(t, err, "the main JWT manager must reject the embedded-keyset token")
 
-	mainTok, err := mgrPlain.GenerateTenantToken(ctx, tenantID, "main", false, nil)
+	mainTok, err := mainMgr.GenerateTenantToken(ctx, tenantID, "main", false, nil)
 	require.NoError(t, err)
 
-	_, _, err = mgrPlain.ValidateTenantToken(ctx, mainTok.Token)
-	assert.NoError(t, err, "main token should validate on a plain manager")
-
-	_, _, err = mgrWithAuthDisabled.ValidateTenantToken(ctx, mainTok.Token)
-	assert.NoError(t, err, "main token should validate on an authdisabled manager")
+	_, _, err = adMgr.ValidateTenantToken(ctx, mainTok.Token)
+	assert.Error(t, err, "the authdisabled manager must reject a main-keyset token")
 }
 
 func generateInsecureJWTKeyset(t *testing.T) (private, public []byte) {
