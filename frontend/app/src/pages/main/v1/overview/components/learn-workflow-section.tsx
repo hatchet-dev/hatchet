@@ -9,7 +9,11 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { TriggerWorkflowForm } from '@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form';
-import { CheckIcon, ChevronRightIcon } from '@radix-ui/react-icons';
+import {
+  CheckIcon,
+  ChevronRightIcon,
+  ExternalLinkIcon,
+} from '@radix-ui/react-icons';
 import { useEffect, useState, type ReactNode } from 'react';
 
 export const workflowStepOptions = {
@@ -50,6 +54,7 @@ export function LearnWorkflowSection({
   onFinish,
   installMethod,
   onInstallMethodChange,
+  authDisabled,
 }: {
   tenantName?: string;
   selectedTab: WorkflowStepKey;
@@ -69,6 +74,7 @@ export function LearnWorkflowSection({
   onFinish: () => void;
   installMethod: InstallMethod;
   onInstallMethodChange: (installMethod: InstallMethod) => void;
+  authDisabled?: boolean;
 }) {
   const profileName = tenantName?.trim() || 'local';
   const escapeForDoubleQuotes = (value: string) =>
@@ -167,7 +173,46 @@ export function LearnWorkflowSection({
     },
     {
       ...workflowStepOptions.profile,
-      content: (
+      content: authDisabled ? (
+        <>
+          <p className="text-sm">
+            Authentication is disabled, but workers still authenticate over gRPC
+            with an API token.
+          </p>
+          <p className="text-sm">
+            Use the default token printed when the server started (also written
+            to the config volume), then add it to a CLI profile:
+          </p>
+          <CodeHighlighter
+            className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+            code={`hatchet profile add --name "${escapeForDoubleQuotes(
+              profileName,
+            )}" --token "<token>"`}
+            language="shell"
+            copy
+          />
+          <a
+            href="https://docs.hatchet.run/self-hosting/auth-disabled-images#running-it"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-fit items-center gap-1.5 text-sm font-medium text-brand underline-offset-4 hover:underline"
+          >
+            How to retrieve the token
+            <ExternalLinkIcon className="size-3.5" />
+          </a>
+          <Button
+            variant="outline"
+            size="default"
+            className="w-fit gap-2 bg-muted/70"
+            onClick={() =>
+              onSelectedTabChange(workflowStepOptions.quickstart.value)
+            }
+          >
+            Continue
+            <ChevronRightIcon className="size-3 text-foreground/50" />
+          </Button>
+        </>
+      ) : (
         <>
           <p className="text-sm">
             Add a Hatchet CLI profile using an API token.

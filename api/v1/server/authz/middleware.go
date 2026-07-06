@@ -88,7 +88,9 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	return nil
 }
 
-// identity/membership mutations blocked in authdisabled builds (on top of the Allow* runtime flags)
+// identity/membership mutations and API token management are blocked in authdisabled builds
+// (on top of the Allow* runtime flags). The only token in an authdisabled instance is the
+// embedded-keyset worker token minted at boot; users cannot create, list, or revoke tokens.
 var authDisabledDeniedOperations = []string{
 	"TenantInviteAccept",
 	"TenantInviteReject",
@@ -96,6 +98,9 @@ var authDisabledDeniedOperations = []string{
 	"TenantInviteDelete",
 	"TenantMemberUpdate",
 	"TenantMemberDelete",
+	"ApiTokenCreate",
+	"ApiTokenList",
+	"ApiTokenUpdateRevoke",
 }
 
 var restrictedWithBearerToken = []string{

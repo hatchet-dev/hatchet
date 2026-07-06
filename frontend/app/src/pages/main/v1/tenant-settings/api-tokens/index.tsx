@@ -2,10 +2,12 @@ import { SettingsPageHeader } from '../components/settings-page-header';
 import { TokenActions } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@/components/v1/ui/dialog';
+import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -14,11 +16,13 @@ import { useState, useMemo } from 'react';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
+  const authDisabled = useAuthDisabled();
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [revokeToken, setRevokeToken] = useState<APIToken | null>(null);
 
   const listTokensQuery = useQuery({
     ...queries.tokens.list(tenantId),
+    enabled: !authDisabled,
   });
 
   const tokenColumns = useMemo(
@@ -54,6 +58,23 @@ export default function APITokens() {
     [],
   );
 
+  if (authDisabled) {
+    return (
+      <div className="h-full w-full flex-grow">
+        <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <SettingsPageHeader
+            title="API token settings"
+            description="API tokens are unavailable while authentication is disabled."
+          />
+          <EmptyState
+            title="API tokens are disabled"
+            description="This instance runs with authentication disabled. Workers use the token printed at startup — creating additional tokens is not available."
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -77,10 +98,10 @@ export default function APITokens() {
             rowKey={(row) => row.metadata.id}
           />
         ) : (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            No API tokens found. Create a token to allow workers to connect to
-            and communicate with the Hatchet Engine.
-          </div>
+          <EmptyState
+            title="No API tokens found"
+            description="API tokens authenticate your workers and applications with the Hatchet API."
+          />
         )}
 
         {showTokenDialog && (

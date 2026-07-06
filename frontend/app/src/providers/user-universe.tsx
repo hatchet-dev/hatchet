@@ -141,9 +141,12 @@ export function UserUniverseProvider({
 
   const queryClient = useQueryClient();
 
+  // invalidate (not reset): resetting wipes tenantMemberships to null mid-
+  // refetch, which churns every effect keyed on it (e.g. the invite modal
+  // auto-open in authenticated.tsx) and flickers isLoaded app-wide.
   const invalidate = useCallback(
     () =>
-      queryClient.resetQueries({
+      queryClient.invalidateQueries({
         queryKey: ['user-universe'],
       }),
     [queryClient],
