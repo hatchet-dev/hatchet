@@ -224,6 +224,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			t.isCancelled = true
 		} else if skip {
 			t.isSkipped = true
+			t.output = map[string]interface{}{"skipped": true}
 		}
 
 		t.nodeId = result.NodeId
