@@ -750,10 +750,14 @@ AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
+ALTER TABLE "StepBatchConfig" ADD COLUMN IF NOT EXISTS "broadcastOutput" BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
+ALTER TABLE "StepBatchConfig" DROP COLUMN IF EXISTS "broadcastOutput";
+
 DROP TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
 DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
