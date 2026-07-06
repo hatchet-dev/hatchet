@@ -24,6 +24,7 @@ export function sideNavItems(opts: {
   managedWorkerEnabled?: boolean;
   isCloudEnabled?: boolean;
   orgId?: string;
+  authDisabled?: boolean;
 }): SideNavSection[] {
   return [
     {
@@ -279,16 +280,22 @@ export function sideNavItems(opts: {
             />
           ),
         },
-        {
-          key: 'settings-api-tokens',
-          name: 'API Tokens',
-          to: appRoutes.tenantSettingsApiTokensRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiKey2Line
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
+        // API tokens are unavailable in authdisabled instances (the only token is the
+        // embedded-keyset worker token minted at boot).
+        ...(opts.authDisabled
+          ? []
+          : [
+              {
+                key: 'settings-api-tokens',
+                name: 'API Tokens',
+                to: appRoutes.tenantSettingsApiTokensRoute.to,
+                icon: ({ collapsed }: { collapsed: boolean }) => (
+                  <RiKey2Line
+                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
+                  />
+                ),
+              },
+            ]),
         ...(opts.canBill && opts.orgId
           ? [
               {
