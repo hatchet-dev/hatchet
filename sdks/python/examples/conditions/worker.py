@@ -5,6 +5,8 @@ from datetime import timedelta
 
 from pydantic import BaseModel
 
+from typing import Any
+
 from hatchet_sdk import (
     Context,
     EmptyModel,
@@ -14,6 +16,7 @@ from hatchet_sdk import (
     UserEventCondition,
     or_,
 )
+from hatchet_sdk.runnables.workflow import BaseWorkflow
 
 hatchet = Hatchet()
 
@@ -186,10 +189,145 @@ async def downstream_skip(input: EmptyModel, ctx: Context) -> StepOutput:
     return StepOutput(random_number=3)  # should not run
 
 
+skip_if_sleep_workflow = hatchet.workflow(name="SkipIfSleepWorkflow")
+
+
+@skip_if_sleep_workflow.task()
+def sis_start(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=1)
+
+
+@skip_if_sleep_workflow.task(
+    parents=[sis_start],
+    wait_for=[UserEventCondition(event_key="skip_if_sleep:proceed")],
+    skip_if=[SleepCondition(timedelta(seconds=8))],
+)
+def sis_target(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=2)
+
+
+skip_if_or_workflow = hatchet.workflow(name="SkipIfOrGroupWorkflow")
+
+
+@skip_if_or_workflow.task()
+def sio_start(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+@skip_if_or_workflow.task(
+    parents=[sio_start],
+    skip_if=[
+        or_(
+            ParentCondition(parent=sio_start, expression="output.random_number >= 1"),
+            ParentCondition(parent=sio_start, expression="output.random_number > 1000"),
+        )
+    ],
+)
+def sio_target(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=2)
+
+
+cancel_if_event_workflow = hatchet.workflow(name="CancelIfEventWorkflow")
+
+
+@cancel_if_event_workflow.task()
+def cie_start(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=1)
+
+
+@cancel_if_event_workflow.task(
+    parents=[cie_start],
+    wait_for=[SleepCondition(timedelta(seconds=30))],
+    cancel_if=[UserEventCondition(event_key="cancel_if_event:abort")],
+)
+def cie_target(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=2)
+
+
+@cancel_if_event_workflow.task(parents=[cie_target])
+def cie_downstream(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=3)  # should not run
+
+
+cancel_if_sleep_workflow = hatchet.workflow(name="CancelIfSleepWorkflow")
+
+
+@cancel_if_sleep_workflow.task()
+def cis_start(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=1)
+
+
+@cancel_if_sleep_workflow.task(
+    parents=[cis_start],
+    wait_for=[UserEventCondition(event_key="cancel_if_sleep:proceed")],
+    cancel_if=[SleepCondition(timedelta(seconds=8))],
+)
+def cis_target(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=2)
+
+
+@cancel_if_sleep_workflow.task(parents=[cis_target])
+def cis_downstream(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=3)  # should not run
+
+
+cancel_if_or_workflow = hatchet.workflow(name="CancelIfOrGroupWorkflow")
+
+
+@cancel_if_or_workflow.task()
+def cio_start(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=1)
+
+
+@cancel_if_or_workflow.task(
+    parents=[cio_start],
+    wait_for=[UserEventCondition(event_key="cancel_if_or:proceed")],
+    cancel_if=[
+        or_(
+            UserEventCondition(event_key="cancel_if_or:abort"),
+            SleepCondition(timedelta(seconds=8)),
+        )
+    ],
+)
+def cio_target(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=2)
+
+
+@cancel_if_or_workflow.task(parents=[cio_target])
+def cio_downstream(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=3)  # should not run
+
+
+wait_for_event_only_workflow = hatchet.workflow(name="WaitForEventOnlyWorkflow")
+
+
+@wait_for_event_only_workflow.task()
+def wfe_start(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=1)
+
+
+@wait_for_event_only_workflow.task(
+    parents=[wfe_start],
+    wait_for=[UserEventCondition(event_key="wait_for_event_only:go")],
+)
+def wfe_target(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=5)
+
+
+condition_workflows: list[BaseWorkflow[Any]] = [
+    task_condition_workflow,
+    cancel_if_workflow,
+    skip_if_sleep_workflow,
+    skip_if_or_workflow,
+    cancel_if_event_workflow,
+    cancel_if_sleep_workflow,
+    cancel_if_or_workflow,
+    wait_for_event_only_workflow,
+]
+
+
 def main() -> None:
-    worker = hatchet.worker(
-        "dag-worker", workflows=[task_condition_workflow, cancel_if_workflow]
-    )
+    worker = hatchet.worker("dag-worker", workflows=condition_workflows)
 
     worker.start()
 

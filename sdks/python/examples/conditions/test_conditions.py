@@ -2,7 +2,18 @@ import asyncio
 
 import pytest
 
-from examples.conditions.worker import task_condition_workflow, cancel_if_workflow
+from examples.conditions.worker import (
+    cancel_if_event_workflow,
+    cancel_if_or_workflow,
+    cancel_if_sleep_workflow,
+    cancel_if_workflow,
+    skip_if_or_workflow,
+    skip_if_sleep_workflow,
+    task_condition_workflow,
+    wait_for_event_only_workflow,
+    sis_target,
+    sio_target,
+)
 from examples.test_utils import wait_for_running_status
 from hatchet_sdk import Hatchet, RunStatus
 
@@ -64,3 +75,83 @@ async def test_cancel_if(hatchet: Hatchet) -> None:
     ## fixme: need to modify the `task_runs` field in the `get_details` response
     ## to correctly case on the durable task dag like we did in the rest api, so this looks like a
     ## dag made up of four tasks, and not just the parent durable task.
+    assert False
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_skip_if_sleep_skips_when_sleep_wins(hatchet: Hatchet) -> None:
+    result = skip_if_sleep_workflow.run()
+
+    assert result[sis_target.name] == {"skipped": True}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_skip_if_sleep_runs_when_event_wins(hatchet: Hatchet) -> None:
+    ref = skip_if_sleep_workflow.run(wait_for_result=False)
+
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    await asyncio.sleep(3)
+
+    await hatchet.event.aio_push("skip_if_sleep:proceed", {})
+
+    result = await ref.aio_result()
+
+    assert result[sis_target.name].get("skipped") is not True
+    assert result[sis_target.name]["random_number"] == 2
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_skip_if_or_group_parent(hatchet: Hatchet) -> None:
+    result = skip_if_or_workflow.run()
+
+    assert result[sio_target.name] == {"skipped": True}
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
+    ref = cancel_if_event_workflow.run(wait_for_result=False)
+
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    await asyncio.sleep(3)
+    hatchet.event.push("cancel_if_event:abort", {})
+
+    with pytest.raises(Exception):
+        await ref.aio_result()
+
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+    assert details.status == RunStatus.CANCELLED
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
+    ref = cancel_if_sleep_workflow.run(wait_for_result=False)
+
+    with pytest.raises(Exception):
+        await ref.aio_result()
+
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+    assert details.status == RunStatus.CANCELLED
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_cancel_if_or_group(hatchet: Hatchet) -> None:
+    ref = cancel_if_or_workflow.run(wait_for_result=False)
+
+    with pytest.raises(Exception):
+        await ref.aio_result()
+
+    details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+    assert details.status == RunStatus.CANCELLED
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_wait_for_user_event(hatchet: Hatchet) -> None:
+    ref = wait_for_event_only_workflow.run(wait_for_result=False)
+
+    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    await asyncio.sleep(2)
+    await hatchet.event.aio_push("wait_for_event_only:go", {})
+
+    result = await ref.aio_result()
+
+    assert result["wfe_target"]["random_number"] == 5
