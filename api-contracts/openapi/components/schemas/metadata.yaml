@@ -37,6 +37,10 @@ APIMeta:
       type: boolean
       description: whether or not authentication is disabled (authdisabled build) on this instance
       example: false
+    authDisabledToken:
+      type: string
+      description: the embedded worker API token, only set on authdisabled builds
+      example: eyJhbGciOiJFUzI1NiIs...
 
 APIMetaAuth:
   type: object

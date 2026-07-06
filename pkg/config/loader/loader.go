@@ -693,20 +693,27 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	jwtEncryptionSvc := encryptionSvc
 
+	tokenOpts := &token.TokenOpts{
+		Issuer:               cf.Runtime.ServerURL,
+		Audience:             cf.Runtime.ServerURL,
+		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
+		ServerURL:            cf.Runtime.ServerURL,
+	}
+
 	if authmode.Disabled {
 		jwtEncryptionSvc, err = encryption.NewInsecureJWTEncryption(authmode.EmbeddedPrivateKeyset(), authmode.EmbeddedPublicKeyset())
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not load authdisabled keyset: %w", err)
 		}
+
+		tokenOpts.Issuer = authmode.EmbeddedTokenIssuer
+		tokenOpts.Audience = authmode.EmbeddedTokenAudience
+		tokenOpts.ServerURL = authmode.EmbeddedTokenServerURL
+		tokenOpts.GRPCBroadcastAddress = authmode.EmbeddedTokenGRPCAddress
 	}
 
-	auth.JWTManager, err = token.NewJWTManager(jwtEncryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
-		Issuer:               cf.Runtime.ServerURL,
-		Audience:             cf.Runtime.ServerURL,
-		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
-		ServerURL:            cf.Runtime.ServerURL,
-	})
+	auth.JWTManager, err = token.NewJWTManager(jwtEncryptionSvc, dc.V1.APIToken(), tokenOpts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)

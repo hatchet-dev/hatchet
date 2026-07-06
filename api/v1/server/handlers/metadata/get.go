@@ -54,5 +54,11 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		AuthDisabled:            &authDisabled,
 	}
 
+	if authDisabled {
+		if embeddedToken := authmode.EmbeddedToken(); embeddedToken != "" {
+			meta.AuthDisabledToken = &embeddedToken
+		}
+	}
+
 	return gen.MetadataGet200JSONResponse(meta), nil
 }

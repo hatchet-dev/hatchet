@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -100,5 +102,43 @@ func SeedDatabase(dc *database.Layer) error {
 		}
 	}
 
+	if authmode.Disabled {
+		if err := seedAuthDisabledToken(dc); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// seedAuthDisabledToken registers the embedded token's row so it passes the DB check in
+// ValidateTenantToken. Idempotent.
+func seedAuthDisabledToken(dc *database.Layer) error {
+	ctx := context.Background()
+
+	tokenID, err := uuid.Parse(authmode.EmbeddedTokenID)
+	if err != nil {
+		return fmt.Errorf("invalid embedded token ID: %w", err)
+	}
+
+	if _, getErr := dc.V1.APIToken().GetAPITokenById(ctx, tokenID); getErr == nil {
+		return nil
+	}
+
+	tenantID, err := uuid.Parse(authmode.EmbeddedTokenTenantID)
+	if err != nil {
+		return fmt.Errorf("invalid embedded token tenant ID: %w", err)
+	}
+
+	name := "authdisabled-default"
+
+	_, err = dc.V1.APIToken().CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
+		ID:        tokenID,
+		ExpiresAt: time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
+		TenantId:  &tenantID,
+		Name:      &name,
+		Internal:  true,
+	})
+
+	return err
 }

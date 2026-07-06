@@ -1310,6 +1310,11 @@ export interface APIMeta {
    * @example false
    */
   authDisabled?: boolean;
+  /**
+   * the embedded worker API token, only set on authdisabled builds
+   * @example "eyJhbGciOiJFUzI1NiIs..."
+   */
+  authDisabledToken?: string;
 }
 
 export interface APIMetaIntegration {

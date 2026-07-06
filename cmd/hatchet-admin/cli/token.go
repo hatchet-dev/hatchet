@@ -68,6 +68,12 @@ func init() {
 }
 
 func runCreateAPIToken(expiresIn time.Duration) error {
+	// authdisabled builds don't mint tokens; print the single embedded one.
+	if authmode.Disabled {
+		fmt.Println(authmode.EmbeddedToken())
+		return nil
+	}
+
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
@@ -92,13 +98,6 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 	tenantId, err := tenantIDForTokenCreate(srv.Seed.DefaultTenantID)
 	if err != nil {
 		return err
-	}
-
-	if authmode.Disabled {
-		tenantId, err = uuid.Parse(srv.Seed.DefaultTenantID)
-		if err != nil {
-			return err
-		}
 	}
 
 	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)

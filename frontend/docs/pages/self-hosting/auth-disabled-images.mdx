@@ -16,10 +16,11 @@ Hatchet publishes a set of dev images (`hatchet-lite-dev`, `hatchet-api-dev`, `h
 
 ## Workers still use an API token
 
-The gRPC engine is unchanged - workers and SDK clients still authenticate with an API token. The dev images embed a fixed keyset and creates a default token signed by it:
+The gRPC engine is unchanged - workers and SDK clients still authenticate with an API token. The dev images ship a single, fixed token that is the same on every auth-disabled instance:
 
-- The keyset is embedded (via `go:embed`) only in dev builds. The regular images never compile it in, so the default token is inert against any normal deployment.
-- The token is scoped to the seeded default tenant.
+- The token (and the keyset that signs it) is embedded (via `go:embed`) only in dev builds. The regular images never compile it in, so the token is inert against any normal deployment.
+- It is scoped to the seed default tenant and does not expire.
+- View it in the dashboard (the red banner has a **View worker token** button, and it is prefilled in the onboarding "Set your profile" step), or fetch it from the running container.
 
 Point your worker at it via `HATCHET_CLIENT_TOKEN`.
 
@@ -33,7 +34,7 @@ hatchet server start --disable-auth
 
 To run it yourself, follow the [Hatchet Lite](/self-hosting/hatchet-lite) guide but swap the image for `ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev:latest`. The dev image still needs an external Postgres and the usual server configuration - the only difference is that authentication is compiled out.
 
-On startup the container creates the default worker token, prints it, and writes it to the config volume. Grab it from the logs or the volume:
+On startup the container prints the embedded worker token and writes it to the config volume. Grab it from the logs or the volume:
 
 ```sh
 docker logs <hatchet-lite-container> # printed under "authdisabled build: worker API token"
