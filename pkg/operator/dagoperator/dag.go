@@ -41,9 +41,17 @@ type dag struct {
 	pendingWaitAcks []*pendingWaitAck
 }
 
+type conditionKind int
+
+const (
+	conditionKindWait conditionKind = iota
+	conditionKindSkip
+	conditionKindCancel
+)
+
 type pendingWaitAck struct {
-	task     *task
-	isSkipIf bool
+	task *task
+	kind conditionKind
 }
 
 type task struct {
@@ -66,10 +74,15 @@ type task struct {
 	waitNodeId      int64
 	waitBranchId    int64
 
-	skipIfWatchRegistered bool
-	skipIfWatchFired      bool
-	skipIfNodeId          int64
-	skipIfBranchId        int64
+	skipWatchRegistered bool
+	skipWatchFired      bool
+	skipWatchNodeId     int64
+	skipWatchBranchId   int64
+
+	cancelWatchRegistered bool
+	cancelWatchFired      bool
+	cancelWatchNodeId     int64
+	cancelWatchBranchId   int64
 
 	stepConditions []*sqlcv1.V1StepMatchCondition
 
@@ -168,18 +181,25 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			}
 
 			if !cancelled {
-				if d.hasSkipIfUserEventConditions(t) && !t.skipIfWatchRegistered {
-					d.registerSkipIfWatch(t)
-					t.skipIfWatchRegistered = true
+				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
+					d.registerCondition(t, conditionKindSkip)
+					t.skipWatchRegistered = true
 				}
 
-				if t.skipIfWatchFired {
+				if d.hasEventOrSleepConditions(t, conditionKindCancel) && !t.cancelWatchRegistered {
+					d.registerCondition(t, conditionKindCancel)
+					t.cancelWatchRegistered = true
+				}
+
+				if t.cancelWatchFired {
+					cancelled = true
+				} else if t.skipWatchFired {
 					skip = true
 				}
 
-				if !skip && d.hasWaitConditions(t) && !t.isWaitSatisfied {
+				if !skip && !cancelled && d.hasEventOrSleepConditions(t, conditionKindWait) && !t.isWaitSatisfied {
 					if !t.isWaiting {
-						d.registerWaitFor(t)
+						d.registerCondition(t, conditionKindWait)
 						t.isWaiting = true
 					}
 					continue
@@ -230,10 +250,14 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 		// so acks arrive in the same order we sent the WAITFOR requests.
 		ack := d.pendingWaitAcks[0]
 		d.pendingWaitAcks = d.pendingWaitAcks[1:]
-		if ack.isSkipIf {
-			ack.task.skipIfNodeId = ref.GetNodeId()
-			ack.task.skipIfBranchId = ref.GetBranchId()
-		} else {
+		switch ack.kind {
+		case conditionKindSkip:
+			ack.task.skipWatchNodeId = ref.GetNodeId()
+			ack.task.skipWatchBranchId = ref.GetBranchId()
+		case conditionKindCancel:
+			ack.task.cancelWatchNodeId = ref.GetNodeId()
+			ack.task.cancelWatchBranchId = ref.GetBranchId()
+		default:
 			ack.task.waitNodeId = ref.GetNodeId()
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
@@ -248,8 +272,13 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 		branchId := ref.GetBranchId()
 
 		for _, t := range d.tasks {
-			if t.skipIfWatchRegistered && !t.skipIfWatchFired && t.skipIfNodeId == nodeId && t.skipIfBranchId == branchId {
-				t.skipIfWatchFired = true
+			if t.skipWatchRegistered && !t.skipWatchFired && t.skipWatchNodeId == nodeId && t.skipWatchBranchId == branchId {
+				t.skipWatchFired = true
+				return
+			}
+
+			if t.cancelWatchRegistered && !t.cancelWatchFired && t.cancelWatchNodeId == nodeId && t.cancelWatchBranchId == branchId {
+				t.cancelWatchFired = true
 				return
 			}
 
@@ -377,23 +406,39 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 	return false, false, nil
 }
 
-func (d *dag) hasWaitConditions(t *task) bool {
+func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchConditionAction {
+	switch kind {
+	case conditionKindSkip:
+		return sqlcv1.V1MatchConditionActionSKIP
+	case conditionKindCancel:
+		return sqlcv1.V1MatchConditionActionCANCEL
+	default:
+		return sqlcv1.V1MatchConditionActionQUEUE
+	}
+}
+
+func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
+	action := getMatchConditionActionForWatchKind(kind)
+
 	for _, c := range t.stepConditions {
-		if c.Action == sqlcv1.V1MatchConditionActionSKIP {
+		if c.Action != action {
 			continue
 		}
+
 		if c.Kind == sqlcv1.V1StepMatchConditionKindSLEEP || c.Kind == sqlcv1.V1StepMatchConditionKindUSEREVENT {
 			return true
 		}
 	}
+
 	return false
 }
 
-func (d *dag) registerWaitFor(t *task) {
+func (d *dag) registerCondition(t *task, kind conditionKind) {
+	action := getMatchConditionActionForWatchKind(kind)
 	conditions := &v1contracts.DurableEventListenerConditions{}
 
 	for _, c := range t.stepConditions {
-		if c.Action == sqlcv1.V1MatchConditionActionSKIP {
+		if c.Action != action {
 			continue
 		}
 		switch c.Kind {
@@ -427,44 +472,5 @@ func (d *dag) registerWaitFor(t *task) {
 		},
 	}
 
-	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: false})
-}
-
-func (d *dag) hasSkipIfUserEventConditions(t *task) bool {
-	for _, c := range t.stepConditions {
-		if c.Kind == sqlcv1.V1StepMatchConditionKindUSEREVENT && c.Action == sqlcv1.V1MatchConditionActionSKIP {
-			return true
-		}
-	}
-	return false
-}
-
-func (d *dag) registerSkipIfWatch(t *task) {
-	conditions := &v1contracts.DurableEventListenerConditions{}
-
-	for _, c := range t.stepConditions {
-		if c.Kind != sqlcv1.V1StepMatchConditionKindUSEREVENT || c.Action != sqlcv1.V1MatchConditionActionSKIP {
-			continue
-		}
-		conditions.UserEventConditions = append(conditions.UserEventConditions, &v1contracts.UserEventMatchCondition{
-			Base: &v1contracts.BaseMatchCondition{
-				ReadableDataKey: c.ReadableDataKey,
-				OrGroupId:       c.OrGroupID.String(),
-				Expression:      c.Expression.String,
-			},
-			UserEventKey: c.EventKey.String,
-		})
-	}
-
-	d.requestCh <- &v1contracts.DurableTaskRequest{
-		Message: &v1contracts.DurableTaskRequest_WaitFor{
-			WaitFor: &v1contracts.DurableTaskWaitForRequest{
-				DurableTaskExternalId: d.externalId.String(),
-				InvocationCount:       d.invocationCount,
-				WaitForConditions:     conditions,
-			},
-		},
-	}
-
-	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, isSkipIf: true})
+	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, kind: kind})
 }
