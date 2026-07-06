@@ -161,14 +161,15 @@ func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analyt
 	}
 
 	// The event-time bounds always come from the aggregator, never from
-	// caller properties.
-	delete(merged, "first_event_at")
-	delete(merged, "last_event_at")
+	// caller properties. The aggregate_ prefix keeps them from colliding
+	// with caller-owned property names.
+	delete(merged, "aggregate_first_event_at")
+	delete(merged, "aggregate_last_event_at")
 	if !firstEventAt.IsZero() {
-		merged["first_event_at"] = firstEventAt
+		merged["aggregate_first_event_at"] = firstEventAt
 	}
 	if !lastEventAt.IsZero() {
-		merged["last_event_at"] = lastEventAt
+		merged["aggregate_last_event_at"] = lastEventAt
 	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantID)

@@ -450,8 +450,8 @@ func TestFlush_CountWithoutMarkers(t *testing.T) {
 	tenantID := uuid.New()
 	agg.Count(Event, Create, tenantID, nil, 1)
 
-	// Construct the flush-boundary state where an event was counted in this
-	// window but its markers were consumed by the previous flush.
+	// Construct the boundary state where an event was counted in this
+	// interval but its markers were consumed by the previous flush.
 	agg.counters.Range(func(_, v any) bool {
 		e := v.(*counterEntry)
 		e.firstEventAtNanos.Store(0)

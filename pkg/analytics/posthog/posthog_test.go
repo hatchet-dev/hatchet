@@ -49,20 +49,24 @@ func TestFlushCount_GeneratedEventTimesWin(t *testing.T) {
 	last := first.Add(time.Minute)
 
 	p.flushCount(analytics.Worker, analytics.Register, uuid.New(), nil, 5, first, last, analytics.Properties{
-		"first_event_at":   "spoofed",
-		"last_event_at":    "spoofed",
-		"runtime_language": "go",
+		"aggregate_first_event_at": "spoofed",
+		"aggregate_last_event_at":  "spoofed",
+		"first_event_at":           "caller-owned",
+		"runtime_language":         "go",
 	})
 
 	capture := captureFrom(t, fake)
-	if capture.Properties["first_event_at"] != first {
-		t.Errorf("expected generated first_event_at %v, got %v", first, capture.Properties["first_event_at"])
+	if capture.Properties["aggregate_first_event_at"] != first {
+		t.Errorf("expected generated aggregate_first_event_at %v, got %v", first, capture.Properties["aggregate_first_event_at"])
 	}
-	if capture.Properties["last_event_at"] != last {
-		t.Errorf("expected generated last_event_at %v, got %v", last, capture.Properties["last_event_at"])
+	if capture.Properties["aggregate_last_event_at"] != last {
+		t.Errorf("expected generated aggregate_last_event_at %v, got %v", last, capture.Properties["aggregate_last_event_at"])
 	}
 	if capture.Properties["count"] != int64(5) {
 		t.Errorf("expected count 5, got %v", capture.Properties["count"])
+	}
+	if capture.Properties["first_event_at"] != "caller-owned" {
+		t.Errorf("expected caller-owned first_event_at to pass through, got %v", capture.Properties["first_event_at"])
 	}
 	if capture.Properties["runtime_language"] != "go" {
 		t.Errorf("expected runtime_language to pass through, got %v", capture.Properties["runtime_language"])
@@ -74,15 +78,15 @@ func TestFlushCount_UnknownEventTimesOmitted(t *testing.T) {
 	p := newTestAnalytics(fake)
 
 	p.flushCount(analytics.Worker, analytics.Register, uuid.New(), nil, 1, time.Time{}, time.Time{}, analytics.Properties{
-		"first_event_at": "spoofed",
-		"last_event_at":  "spoofed",
+		"aggregate_first_event_at": "spoofed",
+		"aggregate_last_event_at":  "spoofed",
 	})
 
 	capture := captureFrom(t, fake)
-	if v, ok := capture.Properties["first_event_at"]; ok {
-		t.Errorf("expected no first_event_at, got %v", v)
+	if v, ok := capture.Properties["aggregate_first_event_at"]; ok {
+		t.Errorf("expected no aggregate_first_event_at, got %v", v)
 	}
-	if v, ok := capture.Properties["last_event_at"]; ok {
-		t.Errorf("expected no last_event_at, got %v", v)
+	if v, ok := capture.Properties["aggregate_last_event_at"]; ok {
+		t.Errorf("expected no aggregate_last_event_at, got %v", v)
 	}
 }

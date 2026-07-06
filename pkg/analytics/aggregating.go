@@ -31,9 +31,7 @@ type counterEntry struct {
 
 // The first marker is set once and the last marker only advances
 func (e *counterEntry) observe(nanos int64) {
-	if e.firstEventAtNanos.Load() == 0 {
-		e.firstEventAtNanos.CompareAndSwap(0, nanos)
-	}
+	e.firstEventAtNanos.CompareAndSwap(0, nanos)
 
 	for {
 		last := e.lastEventAtNanos.Load()
@@ -198,7 +196,7 @@ func (a *Aggregator) flush() {
 			// marker whose count was already flushed. A bucket's first
 			// event is never misplaced, because Count fills the markers
 			// before publishing a new bucket, so the earliest
-			// first_event_at in a bucket's lifetime is exact. Preventing
+			// firstEventAt in a bucket's lifetime is exact. Preventing
 			// the misplacement would require Count to take a lock.
 			firstNanos := e.firstEventAtNanos.Swap(0)
 			lastNanos := e.lastEventAtNanos.Swap(0)
