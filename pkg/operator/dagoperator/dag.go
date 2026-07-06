@@ -128,16 +128,23 @@ func dagDurableTask(
 		}
 	}
 
-	if d.err == nil {
-		for _, t := range d.tasks {
-			if t.isCancelled {
-				d.err = &dagCancelledError{taskActionId: t.actionId}
-				break
-			}
+	if d.err != nil {
+		return d.err
+	}
+
+	for _, t := range d.tasks {
+		if t.isFailed {
+			return fmt.Errorf("child task %q failed: %s", t.actionId, t.errorMessage)
 		}
 	}
 
-	return d.err
+	for _, t := range d.tasks {
+		if t.isCancelled {
+			return &dagCancelledError{taskActionId: t.actionId}
+		}
+	}
+
+	return nil
 }
 
 func (d *dag) taskEmitter(ctx context.Context) error {
@@ -164,7 +171,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 
 		cancelled := false
 		for _, p := range t.parents {
-			if p.isCancelled {
+			if p.isCancelled || p.isFailed {
 				cancelled = true
 				break
 			}
@@ -297,9 +304,6 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 			if m.EntryCompleted.GetIsFailure() && !t.isCancelled {
 				t.isFailed = true
 				t.errorMessage = m.EntryCompleted.GetErrorMessage()
-				if d.err == nil {
-					d.err = fmt.Errorf("child task %q failed: %s", t.actionId, t.errorMessage)
-				}
 			} else if payload := m.EntryCompleted.GetPayload(); len(payload) > 0 {
 				outputData := make(map[string]interface{})
 				if err := json.Unmarshal(payload, &outputData); err == nil {
