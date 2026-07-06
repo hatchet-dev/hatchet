@@ -5,9 +5,10 @@ import {
 } from './components/rate-limit-columns';
 import { useRateLimits } from './hooks/use-rate-limits';
 import { RateLimitWithMetadata } from './hooks/use-rate-limits';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api from '@/lib/api';
@@ -18,7 +19,18 @@ import { VisibilityState } from '@tanstack/react-table';
 import { useMemo } from 'react';
 
 export default function RateLimits() {
-  return <RateLimitsTable />;
+  return (
+    <WorkflowsGuard
+      title="No rate limits found"
+      description="Rate limits cap how many times a task can run within a time window to prevent resource exhaustion."
+      docs={{
+        href: docsPages.v1['rate-limits'].href,
+        description: 'Learn about rate limits',
+      }}
+    >
+      <RateLimitsTable />
+    </WorkflowsGuard>
+  );
 }
 
 function RateLimitsTable() {
@@ -86,15 +98,12 @@ function RateLimitsTable() {
       }}
       onResetFilters={resetFilters}
       emptyState={
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No rate limits found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1['rate-limits']}
-              label="Learn about rate limits"
-            />
-          </div>
-        </div>
+        <EmptyState
+          title="No rate limits found"
+          description="Rate limits cap how many times a task can run within a time window to prevent resource exhaustion."
+          docPage={docsPages.v1['rate-limits']}
+          docLabel="Learn about rate limits"
+        />
       }
     />
   );

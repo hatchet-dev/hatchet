@@ -85,6 +85,22 @@ func (c *ChildWorkflowSignalCreatedData) Bytes() []byte {
 // GenerateExternalIdsForWorkflow generates external ids and additional looks up child workflows and whether they
 // already exist.
 func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := s.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts); err != nil {
+		return err
+	}
+
+	return commit(ctx)
+}
+
+func (s *sharedRepository) populateExternalIdsForWorkflow(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	// get child workflow data first
 	optsWithParents := make([]*WorkflowNameTriggerOpts, 0, len(opts))
 
@@ -99,7 +115,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 	}
 
 	if len(optsWithParents) > 0 {
-		err := s.generateExternalIdsForChildWorkflows(ctx, tenantId, optsWithParents)
+		err := s.generateExternalIdsForChildWorkflows(ctx, tx, tenantId, optsWithParents)
 
 		if err != nil {
 			return err
@@ -109,15 +125,7 @@ func (s *sharedRepository) PopulateExternalIdsForWorkflow(ctx context.Context, t
 	return nil
 }
 
-func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
-	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, s.pool, s.l)
-
-	if err != nil {
-		return err
-	}
-
-	defer rollback()
-
+func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
 	externalIds := make([]uuid.UUID, 0, len(opts))
 	spawnKeyToOpt := make(map[string]*WorkflowNameTriggerOpts)
 
@@ -259,10 +267,6 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 	)
 
 	if err != nil {
-		return err
-	}
-
-	if err := commit(ctx); err != nil {
 		return err
 	}
 

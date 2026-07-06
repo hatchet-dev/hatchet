@@ -514,7 +514,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 }
 
 func (s *Scheduler) loopReplenish(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := randomticker.NewRandomTicker(1000*time.Millisecond, 1500*time.Millisecond)
 	defer ticker.Stop()
 
 	for {

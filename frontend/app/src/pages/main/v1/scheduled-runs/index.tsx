@@ -9,12 +9,13 @@ import {
   metadataKey,
 } from './components/scheduled-runs-columns';
 import { useScheduledRuns } from './hooks/use-scheduled-runs';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -46,7 +47,24 @@ interface ScheduledWorkflowRunsTableProps {
   showMetrics?: boolean;
 }
 
-export default function ScheduledRunsTable({
+export default function ScheduledRunsPage(
+  props: ScheduledWorkflowRunsTableProps,
+) {
+  return (
+    <WorkflowsGuard
+      title="No scheduled runs found"
+      description="Scheduled runs let you dispatch a workflow at a specific future date and time."
+      docs={{
+        href: docsPages.v1['scheduled-runs'].href,
+        description: 'Learn about scheduled runs',
+      }}
+    >
+      <ScheduledRunsTable {...props} />
+    </WorkflowsGuard>
+  );
+}
+
+function ScheduledRunsTable({
   workflowId,
   initColumnVisibility = {
     createdAt: false,
@@ -294,15 +312,12 @@ export default function ScheduledRunsTable({
 
       <DataTable
         emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No runs found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.v1['scheduled-runs']}
-                label="Learn about scheduled runs"
-              />
-            </div>
-          </div>
+          <EmptyState
+            title="No scheduled runs found"
+            description="Scheduled runs let you dispatch a workflow at a specific future date and time."
+            docPage={docsPages.v1['scheduled-runs']}
+            docLabel="Learn about scheduled runs"
+          />
         }
         error={error}
         isLoading={isLoading}
