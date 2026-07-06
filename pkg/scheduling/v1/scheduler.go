@@ -647,9 +647,7 @@ type batchedQueueItemResult struct {
 	rateLimitNack func()
 }
 
-// tryAssignChunk assigns a chunk of queue items for a single action_id.
-// This is used by the regular queue scheduler path (v1_queue_item).
-func (s *Scheduler) tryAssignChunk(
+func (s *Scheduler) tryAssignBatch(
 	ctx context.Context,
 	actionId string,
 	qis []*sqlcv1.V1QueueItem,
@@ -937,7 +935,7 @@ func (s *Scheduler) tryAssignBatchQueueItem(
 		return res, nil
 	}
 
-	// Default to 1 standard slot — same fallback as tryAssignChunk — since batch flush
+	// Default to 1 standard slot — same fallback as tryAssignBatch — since batch flush
 	// scheduling skips the regular slot-request lookup path.
 	requests := map[string]int32{v1.SlotTypeDefault: 1}
 
@@ -1237,7 +1235,7 @@ func (s *Scheduler) tryAssign(
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignChunk(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, stepIdsToBatchConfig, taskIdsToLabelOverrides)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, stepIdsToBatchConfig, taskIdsToLabelOverrides)
 
 					if err != nil {
 						return err
