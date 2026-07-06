@@ -1023,3 +1023,34 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 	}
 	return items, nil
 }
+
+const listDurableOrchestratorChildTaskExternalIds = `-- name: ListDurableOrchestratorChildTaskExternalIds :many
+SELECT DISTINCT e.child_task_external_id
+FROM v1_lookup_table l
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (l.task_id, l.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+WHERE
+    l.external_id = ANY($1::uuid[])
+    AND e.kind = 'RUN'
+    AND e.child_task_external_id IS NOT NULL
+`
+
+func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Context, db DBTX, externalids []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listDurableOrchestratorChildTaskExternalIds, externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var child_task_external_id uuid.UUID
+		if err := rows.Scan(&child_task_external_id); err != nil {
+			return nil, err
+		}
+		items = append(items, child_task_external_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

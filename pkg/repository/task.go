@@ -4318,6 +4318,8 @@ type WorkflowRunDetails struct {
 	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 	InputPayload        []byte
 	AdditionalMetadata  []byte
+
+	OrchestratorStatus *statusutils.V1RunStatus // used for dag orchestrator to override the dag status
 }
 
 func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error) {
@@ -4327,14 +4329,34 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
 	}
 
-	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []uuid.UUID{externalId})
+	if len(flat) == 0 {
+		return nil, nil
+	}
+
+	childExternalIds, err := r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{externalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list durable orchestrator child task external ids: %w", err)
+	}
+
+	isOperatorDAG := len(childExternalIds) > 0
+	rootExternalIds := []uuid.UUID{externalId}
+	rootExternalIds = append(rootExternalIds, childExternalIds...)
+
+	if isOperatorDAG {
+		childFlat, err := r.FlattenExternalIds(ctx, tenantId, childExternalIds)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to flatten durable orchestrator child external ids: %w", err)
+		}
+
+		flat = append(flat, childFlat...)
+	}
+
+	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, rootExternalIds)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list finalized workflow runs: %w", err)
-	}
-
-	if len(flat) == 0 {
-		return nil, nil
 	}
 
 	var inputRetrieveOpt RetrievePayloadOpts
@@ -4409,6 +4431,8 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		externalIdToIsEvicted[stat.ExternalID] = stat.IsEvicted
 	}
 
+	var orchestratorStatus *statusutils.V1RunStatus
+
 	for _, task := range flat {
 		isRunning := externalIdToIsRunning[task.ExternalID]
 		isEvicted := externalIdToIsEvicted[task.ExternalID]
@@ -4418,6 +4442,12 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			status = statusutils.V1RunStatusEvicted
 		} else if isRunning {
 			status = statusutils.V1RunStatusRunning
+		}
+
+		if isOperatorDAG && task.ExternalID == externalId {
+			s := status
+			orchestratorStatus = &s
+			continue
 		}
 
 		// default everything to QUEUED
@@ -4435,30 +4465,37 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			InputPayload:        input,
 			ReadableIdToDetails: taskRunDetails,
 			AdditionalMetadata:  additionalMeta,
+			OrchestratorStatus:  orchestratorStatus,
 		}, nil
 	}
 
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
-	finalizedRun := finalizedWorkflowRuns[0]
 
-	for _, event := range finalizedRun.OutputEvents {
-		outputs[event.StepReadableID] = event.Output
-		errors[event.StepReadableID] = event.ErrorMessage
+	for _, finalizedRun := range finalizedWorkflowRuns {
+		for _, event := range finalizedRun.OutputEvents {
+			status, err := statusutils.V1RunStatusFromEventType(event.EventType)
 
-		status, err := statusutils.V1RunStatusFromEventType(event.EventType)
+			if err != nil {
+				r.l.Error().Ctx(ctx).Msgf("failed to parse event type %s: %v", event.EventType, err)
+				statusPtr := statusutils.V1RunStatusQueued
+				status = &statusPtr
+			}
 
-		if err != nil {
-			r.l.Error().Ctx(ctx).Msgf("failed to parse event type %s: %v", event.EventType, err)
-			statusPtr := statusutils.V1RunStatusQueued
-			status = &statusPtr
-		}
+			if isOperatorDAG && event.IsDagOrchestrator {
+				orchestratorStatus = status
+				continue
+			}
 
-		taskRunDetails[StepReadableId(event.StepReadableID)] = TaskRunDetails{
-			OutputPayload: event.Output,
-			Status:        *status,
-			Error:         &event.ErrorMessage,
-			ExternalId:    event.TaskExternalId,
+			outputs[event.StepReadableID] = event.Output
+			errors[event.StepReadableID] = event.ErrorMessage
+
+			taskRunDetails[StepReadableId(event.StepReadableID)] = TaskRunDetails{
+				OutputPayload: event.Output,
+				Status:        *status,
+				Error:         &event.ErrorMessage,
+				ExternalId:    event.TaskExternalId,
+			}
 		}
 	}
 
@@ -4466,6 +4503,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		InputPayload:        input,
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
+		OrchestratorStatus:  orchestratorStatus,
 	}, nil
 }
 

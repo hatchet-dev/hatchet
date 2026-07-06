@@ -530,15 +530,22 @@ func (a *AdminServiceImpl) GetRunDetails(ctx context.Context, req *contracts.Get
 		}
 	}
 
+	var derivedWorkflowRunStatus *statusutils.V1RunStatus
+
+	if details.OrchestratorStatus != nil {
+		derivedWorkflowRunStatus = details.OrchestratorStatus
+		statuses = []statusutils.V1RunStatus{*details.OrchestratorStatus}
+	} else {
+		derivedWorkflowRunStatus, err = statusutils.DeriveWorkflowRunStatus(ctx, statuses)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not derive workflow run status: %w", err)
+		}
+	}
+
 	done := !listutils.Any(statuses, "QUEUED") && !listutils.Any(statuses, "RUNNING") && !listutils.Any(statuses, "EVICTED")
 
 	anyEvicted := listutils.Any(statuses, "EVICTED")
-
-	derivedWorkflowRunStatus, err := statusutils.DeriveWorkflowRunStatus(ctx, statuses)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not derive workflow run status: %w", err)
-	}
 
 	derivedStatusPtr, err := derivedWorkflowRunStatus.ToProto()
 

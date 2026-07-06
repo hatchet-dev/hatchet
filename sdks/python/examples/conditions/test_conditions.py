@@ -72,11 +72,6 @@ async def test_cancel_if(hatchet: Hatchet) -> None:
 
     assert details.status == RunStatus.CANCELLED
 
-    ## fixme: need to modify the `task_runs` field in the `get_details` response
-    ## to correctly case on the durable task dag like we did in the rest api, so this looks like a
-    ## dag made up of four tasks, and not just the parent durable task.
-    assert False
-
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_skip_if_sleep_skips_when_sleep_wins(hatchet: Hatchet) -> None:
