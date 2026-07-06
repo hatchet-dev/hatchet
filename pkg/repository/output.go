@@ -203,6 +203,8 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("no entries found in match data")
 }
 
+const TaskCancelledErrorMessage = "task was cancelled"
+
 func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {
@@ -222,7 +224,7 @@ func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 				return true, &event.ErrorMessage, nil
 			}
 			if event.EventType == sqlcv1.V1TaskEventTypeCANCELLED {
-				msg := "task was cancelled"
+				msg := TaskCancelledErrorMessage
 				return true, &msg, nil
 			}
 		}

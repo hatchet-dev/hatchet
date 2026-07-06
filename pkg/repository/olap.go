@@ -659,6 +659,7 @@ func (r *OLAPRepositoryImpl) ReadWorkflowRun(ctx context.Context, workflowRunExt
 			return nil, err
 		}
 
+		taskMetadata = make([]TaskMetadata, 0, len(childRows))
 		for _, child := range childRows {
 			taskMetadata = append(taskMetadata, TaskMetadata{
 				TaskID:         child.ID,

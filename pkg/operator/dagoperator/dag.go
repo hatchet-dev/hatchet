@@ -302,8 +302,12 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 			t.isCompleted = true
 
 			if m.EntryCompleted.GetIsFailure() && !t.isCancelled {
-				t.isFailed = true
-				t.errorMessage = m.EntryCompleted.GetErrorMessage()
+				if m.EntryCompleted.GetErrorMessage() == repository.TaskCancelledErrorMessage {
+					t.isCancelled = true
+				} else {
+					t.isFailed = true
+					t.errorMessage = m.EntryCompleted.GetErrorMessage()
+				}
 			} else if payload := m.EntryCompleted.GetPayload(); len(payload) > 0 {
 				outputData := make(map[string]interface{})
 				if err := json.Unmarshal(payload, &outputData); err == nil {

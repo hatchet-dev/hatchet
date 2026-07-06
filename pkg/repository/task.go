@@ -269,6 +269,9 @@ type TaskRepository interface {
 
 	ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, error)
 
+	// ListDurableOrchestratorChildOutputEvents returns the terminal output events of the child tasks spawned by a DAG orchestrator.
+	ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error)
+
 	// ListTaskParentOutputs is a method to return the output of a task's parent and grandparent tasks. This is for v0 compatibility
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
@@ -1222,6 +1225,20 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 		TenantID: tenantId,
 		Ids:      tasks,
 	})
+}
+
+func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error) {
+	childExternalIds, err := r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list durable orchestrator child task external ids: %w", err)
+	}
+
+	if len(childExternalIds) == 0 {
+		return nil, nil
+	}
+
+	return r.listTaskOutputEvents(ctx, r.pool, tenantId, childExternalIds)
 }
 
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {

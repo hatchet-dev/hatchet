@@ -1089,7 +1089,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 			return err
 		}
 
-		events, err := s.taskEventsToWorkflowRunEvent(tenantId, finalizedWorkflowRuns)
+		events, err := s.taskEventsToWorkflowRunEvent(iterCtx, tenantId, finalizedWorkflowRuns)
 
 		// Release the reference to finalizedWorkflowRuns so GC can reclaim the large
 		// payload byte slices while we're sending events (which can be slow due to
@@ -1195,17 +1195,48 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 	return nil
 }
 
-func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
+func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenantId uuid.UUID, finalizedWorkflowRuns []*v1.ListFinalizedWorkflowRunsResponse) ([]*contracts.WorkflowRunEvent, error) {
 	res := make([]*contracts.WorkflowRunEvent, 0)
+
+	leafResult := func(event *v1.TaskOutputEvent) *contracts.StepRunResult {
+		switch event.EventType {
+		case sqlcv1.V1TaskEventTypeCOMPLETED:
+			out := string(event.Output)
+			return &contracts.StepRunResult{
+				TaskRunExternalId: event.TaskExternalId.String(),
+				TaskName:          event.StepReadableID,
+				JobRunId:          event.TaskExternalId.String(),
+				Output:            &out,
+			}
+		case sqlcv1.V1TaskEventTypeFAILED:
+			return &contracts.StepRunResult{
+				TaskRunExternalId: event.TaskExternalId.String(),
+				TaskName:          event.StepReadableID,
+				JobRunId:          event.TaskExternalId.String(),
+				Error:             &event.ErrorMessage,
+			}
+		case sqlcv1.V1TaskEventTypeCANCELLED:
+			msg := event.ErrorMessage
+			if msg == "" {
+				msg = v1.TaskCancelledErrorMessage
+			}
+			return &contracts.StepRunResult{
+				TaskRunExternalId: event.TaskExternalId.String(),
+				TaskName:          event.StepReadableID,
+				JobRunId:          event.TaskExternalId.String(),
+				Error:             &msg,
+			}
+		}
+		return nil
+	}
 
 	for _, wr := range finalizedWorkflowRuns {
 		status := contracts.WorkflowRunEventType_WORKFLOW_RUN_EVENT_TYPE_FINISHED
 		stepRunResults := make([]*contracts.StepRunResult, 0)
 
 		for _, event := range wr.OutputEvents {
-			switch event.EventType {
-			case sqlcv1.V1TaskEventTypeCOMPLETED:
-				if event.IsDagOrchestrator {
+			if event.IsDagOrchestrator {
+				if event.EventType == sqlcv1.V1TaskEventTypeCOMPLETED {
 					var stepOutputs map[string]json.RawMessage
 					if err := json.Unmarshal(event.Output, &stepOutputs); err == nil {
 						for stepName, stepOutput := range stepOutputs {
@@ -1219,33 +1250,25 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(tenantId uuid.UUID, finali
 						}
 						continue
 					}
-				}
+				} else {
+					childEvents, err := s.repov1.Tasks().ListDurableOrchestratorChildOutputEvents(ctx, tenantId, event.TaskExternalId)
+					if err != nil {
+						return nil, fmt.Errorf("failed to list orchestrator child output events: %w", err)
+					}
 
-				out := string(event.Output)
-				stepRunResults = append(stepRunResults, &contracts.StepRunResult{
-					TaskRunExternalId: event.TaskExternalId.String(),
-					TaskName:          event.StepReadableID,
-					JobRunId:          event.TaskExternalId.String(),
-					Output:            &out,
-				})
-			case sqlcv1.V1TaskEventTypeFAILED:
-				stepRunResults = append(stepRunResults, &contracts.StepRunResult{
-					TaskRunExternalId: event.TaskExternalId.String(),
-					TaskName:          event.StepReadableID,
-					JobRunId:          event.TaskExternalId.String(),
-					Error:             &event.ErrorMessage,
-				})
-			case sqlcv1.V1TaskEventTypeCANCELLED:
-				msg := event.ErrorMessage
-				if msg == "" {
-					msg = "task was cancelled"
+					if len(childEvents) > 0 {
+						for _, ce := range childEvents {
+							if r := leafResult(ce); r != nil {
+								stepRunResults = append(stepRunResults, r)
+							}
+						}
+						continue
+					}
 				}
-				stepRunResults = append(stepRunResults, &contracts.StepRunResult{
-					TaskRunExternalId: event.TaskExternalId.String(),
-					TaskName:          event.StepReadableID,
-					JobRunId:          event.TaskExternalId.String(),
-					Error:             &msg,
-				})
+			}
+
+			if r := leafResult(event); r != nil {
+				stepRunResults = append(stepRunResults, r)
 			}
 		}
 
