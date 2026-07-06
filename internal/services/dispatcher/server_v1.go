@@ -1250,10 +1250,6 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		},
 	}}
 
-	if err := d.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, triggerOpts); err != nil {
-		return nil, fmt.Errorf("failed to populate external ids: %w", err)
-	}
-
 	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
 		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
 			TenantId:        tenantId,
