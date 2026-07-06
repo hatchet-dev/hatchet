@@ -624,6 +624,13 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 
 		concurrencyRepo := r.Scheduler().Concurrency()
 
+		// The stale-deactivation sweep only considers strategies whose last_active_at is over 25
+		// hours old (last_active_at is otherwise refreshed at most once per hour on slot inserts).
+		// The strategy was just created with last_active_at=NOW(), so backdate it to simulate a
+		// strategy that has genuinely been idle for the deactivation window.
+		_, err = conf.Pool.Exec(ctx, `UPDATE v1_step_concurrency SET last_active_at = NOW() - INTERVAL '26 hours' WHERE id = $1`, strat.ID)
+		require.NoError(t, err)
+
 		// Make the strategy "cold": with no slots yet, the stale-deactivation sweep flips it to
 		// is_active=FALSE. This mirrors a strategy that has been idle for the deactivation window.
 		require.NoError(t, concurrencyRepo.DeactivateStaleStepConcurrency(ctx, tenantId))

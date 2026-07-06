@@ -1143,7 +1143,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
@@ -1158,7 +1159,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_retry_queue_item rqi
     JOIN
@@ -1173,7 +1175,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
@@ -1191,7 +1194,8 @@ WITH queued_tasks AS (
         sc.strategy,
         cs.key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_concurrency_slot cs
     JOIN
@@ -1217,7 +1221,8 @@ WITH queued_tasks AS (
         COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
         COALESCE(cs.key, '') as key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_task_runtime tr
     JOIN
@@ -1245,7 +1250,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM queued_tasks
 
 UNION ALL
@@ -1258,7 +1264,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM retry_queued_tasks
 
 UNION ALL
@@ -1271,7 +1278,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM rate_limited_queued_tasks
 
 UNION ALL
@@ -1284,7 +1292,8 @@ SELECT
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
 
 UNION ALL
@@ -1297,7 +1306,8 @@ SELECT
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM running_tasks;
 
 -- name: FindOldestRunningTask :one
