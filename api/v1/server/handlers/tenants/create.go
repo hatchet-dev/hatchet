@@ -1,6 +1,7 @@
 package tenants
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -97,17 +98,23 @@ func (t *TenantService) TenantCreate(ctx echo.Context, request gen.TenantCreateR
 
 	ctx.Set("tenant", tenant)
 
+	t.dispatchTenantCreateAnalyticsEvent(ctx.Request().Context(), tenant)
+
+	return gen.TenantCreate200JSONResponse(
+		*transformers.ToTenant(tenant, t.config.Runtime.ServerURL),
+	), nil
+}
+
+func (t *TenantService) dispatchTenantCreateAnalyticsEvent(ctx context.Context, tenant *sqlcv1.Tenant) {
+	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenant.ID)
+
 	t.config.Analytics.Enqueue(
-		ctx.Request().Context(),
+		ctx,
 		analytics.Tenant, analytics.Create,
-		tenantId.String(),
+		tenant.ID.String(),
 		map[string]interface{}{
 			"name": tenant.Name,
 			"slug": tenant.Slug,
 		},
 	)
-
-	return gen.TenantCreate200JSONResponse(
-		*transformers.ToTenant(tenant, t.config.Runtime.ServerURL),
-	), nil
 }
