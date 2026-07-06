@@ -154,10 +154,21 @@ func (p *PosthogAnalytics) Count(ctx context.Context, resource analytics.Resourc
 	p.aggregator.Count(resource, action, tid, tokenID, 1, merged)
 }
 
-func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, properties analytics.Properties) {
+func (p *PosthogAnalytics) flushCount(resource analytics.Resource, action analytics.Action, tenantID uuid.UUID, tokenID *uuid.UUID, count int64, firstEventAt, lastEventAt time.Time, properties analytics.Properties) {
 	merged := analytics.Properties{"count": count}
 	for k, v := range properties {
 		merged[k] = v
+	}
+
+	// The event-time bounds always come from the aggregator, never from
+	// caller properties.
+	delete(merged, "first_event_at")
+	delete(merged, "last_event_at")
+	if !firstEventAt.IsZero() {
+		merged["first_event_at"] = firstEventAt
+	}
+	if !lastEventAt.IsZero() {
+		merged["last_event_at"] = lastEventAt
 	}
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, analytics.TenantIDKey, tenantID)
