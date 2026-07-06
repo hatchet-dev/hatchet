@@ -35,8 +35,8 @@ func main() {
 	}
 
 	issuedAt := time.Now().UTC()
-	// effectively never; the validator requires an exp claim so we can't omit it
-	expiresAt := time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
+	// far enough out to be effectively never for a local dev token; the validator requires an exp
+	expiresAt := time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)
 	audience := authmode.EmbeddedTokenAudience
 	issuer := authmode.EmbeddedTokenIssuer
 	subject := authmode.EmbeddedTokenTenantID

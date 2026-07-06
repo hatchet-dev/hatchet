@@ -134,7 +134,7 @@ func seedAuthDisabledToken(dc *database.Layer) error {
 
 	_, err = dc.V1.APIToken().CreateAPIToken(ctx, &v1.CreateAPITokenOpts{
 		ID:        tokenID,
-		ExpiresAt: time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC),
+		ExpiresAt: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
 		TenantId:  &tenantID,
 		Name:      &name,
 		Internal:  true,
