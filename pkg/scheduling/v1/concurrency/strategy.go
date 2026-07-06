@@ -407,6 +407,9 @@ type walMessage struct {
 	ScheduleTimeoutAtMs int64     `json:"scheduleTimeoutAtMs"`
 	Priority            int32     `json:"priority"`
 	TaskRetryCount      int32     `json:"taskRetryCount"`
+
+	// only populated by UPDATE messages
+	IsFilled bool `json:"isFilled"`
 }
 
 func (c *ConcurrencyStrategy) buildIndex(ctx context.Context) error {
@@ -598,7 +601,9 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 				if currentRunningSlot.taskRetryCount < msg.TaskRetryCount {
 					superseded = append(superseded, currentRunningSlot)
 					sq.running.delete(msg.TaskId)
-					sq.running.insert(walMessageToSlot(msg))
+
+					// place the new slot in the queued index, so it goes through the regular promotion pipeline
+					sq.queued.insert(walMessageToSlot(msg))
 				} else if currentRunningSlot.taskRetryCount != msg.TaskRetryCount {
 					superseded = append(superseded, walMessageToSlot(msg))
 				}
@@ -613,6 +618,19 @@ func applyWAL(sq *subQueue, msgs []walMessage) []slot {
 				}
 			} else {
 				sq.queued.insert(walMessageToSlot(msg))
+			}
+		case "UPDATE":
+			// UPDATE never represents a duplicate row - it's the same physical v1_concurrency_slot row
+			// being resynced in place (a retry-reset: task_retry_count/schedule_timeout_at/priority
+			// changed, is_filled reset to FALSE). Unlike INSERT, nothing is ever superseded/cancelled
+			// here - just move the slot into whichever index matches msg.IsFilled.
+			newSlot := walMessageToSlot(msg)
+			if msg.IsFilled {
+				sq.queued.delete(msg.TaskId)
+				sq.running.insert(newSlot)
+			} else {
+				sq.running.delete(msg.TaskId)
+				sq.queued.insert(newSlot)
 			}
 		case "DELETE":
 			// note: since we're processing a DELETE, it's already been removed from the database, we're just

@@ -16,7 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from typing import Any, ClassVar, Dict, List, Optional
 from hatchet_sdk.clients.rest.models.api_resource_meta import APIResourceMeta
 from hatchet_sdk.clients.rest.models.tenant import Tenant
@@ -39,7 +39,17 @@ class TenantMember(BaseModel):
     tenant: Optional[Tenant] = Field(
         default=None, description="The tenant associated with this tenant member."
     )
-    __properties: ClassVar[List[str]] = ["metadata", "user", "role", "tenant"]
+    manually_added: Optional[StrictBool] = Field(
+        default=None,
+        description="Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.",
+    )
+    __properties: ClassVar[List[str]] = [
+        "metadata",
+        "user",
+        "role",
+        "tenant",
+        "manually_added",
+    ]
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -116,6 +126,7 @@ class TenantMember(BaseModel):
                     if obj.get("tenant") is not None
                     else None
                 ),
+                "manually_added": obj.get("manually_added"),
             }
         )
         return _obj

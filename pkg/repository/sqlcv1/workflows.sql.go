@@ -268,7 +268,7 @@ VALUES (
     $5::text,
     $6::uuid,
     $7::integer
-) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 `
 
 type CreateStepConcurrencyParams struct {
@@ -299,6 +299,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		&i.WorkflowVersionID,
 		&i.StepID,
 		&i.IsActive,
+		&i.LastActiveAt,
 		&i.Strategy,
 		&i.Expression,
 		&i.TenantID,
@@ -653,7 +654,7 @@ WITH inserted_wcs AS (
           wv."id" = $2::uuid
           AND j."kind" = 'DEFAULT'
     ) s, inserted_wcs wcs
-    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 )
 SELECT
     wcs.id,

@@ -2589,6 +2589,8 @@ export interface TaskStatusStat {
   concurrency?: ConcurrencyStat[];
   /** @format date-time */
   oldest?: string;
+  /** @format date-time */
+  oldestExcludingRetries?: string;
 }
 
 export interface TaskStat {

@@ -1064,6 +1064,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
+		if populateErr := r.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts.TriggerRuns.TriggerOpts); populateErr != nil {
+			return nil, fmt.Errorf("failed to populate external ids for workflow: %w", populateErr)
+		}
+
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
 
 		nonSkipOffset := int64(0)
