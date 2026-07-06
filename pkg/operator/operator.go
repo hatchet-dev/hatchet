@@ -54,6 +54,7 @@ type DAGStepTriggerRequest struct {
 	DagParentTaskRunIds  []uuid.UUID
 	IsSkipped            bool
 	IsCancelled          bool
+	DesiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
 }
 
 type DAGStepTriggerResult struct {

@@ -229,7 +229,8 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	}
 
 	var payloadWrapper struct {
-		Input json.RawMessage `json:"input"`
+		Input               json.RawMessage               `json:"input"`
+		DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
 	}
 	workflowInput := "{}"
 	if err := json.Unmarshal([]byte(action.ActionPayload), &payloadWrapper); err == nil && len(payloadWrapper.Input) > 0 {
@@ -247,6 +248,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 			DagParentTaskRunIds:  parentTaskRunIds,
 			IsSkipped:            isSkipped,
 			IsCancelled:          isCancelled,
+			DesiredWorkerLabels:  payloadWrapper.DesiredWorkerLabels,
 		})
 	}
 

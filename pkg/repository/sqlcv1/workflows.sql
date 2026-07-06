@@ -532,6 +532,21 @@ WITH inserted_wcs AS (
         WHERE
           wv."id" = @workflowVersionId::uuid
           AND j."kind" = 'DEFAULT'
+          -- For DAG-operator workflows the orchestrator task represents the run, so the
+          -- workflow-level concurrency slot must be held by the orchestrator step alone.
+          -- Attaching the strategy to the child steps as well would let a run's own children
+          -- contend with their parent for the same slot and deadlock. Fall back to all steps
+          -- for workflows that have no orchestrator (the non-operator path).
+          AND (
+            s."isDagOrchestrator"
+            OR NOT EXISTS (
+              SELECT 1
+              FROM "Step" s2
+              JOIN "Job" j2 ON s2."jobId" = j2."id"
+              WHERE j2."workflowVersionId" = wv."id"
+                AND s2."isDagOrchestrator"
+            )
+          )
     ) s, inserted_wcs wcs
     RETURNING *
 )

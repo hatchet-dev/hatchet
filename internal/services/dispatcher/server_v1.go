@@ -1248,6 +1248,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			DagParentTaskRunIds:  req.DagParentTaskRunIds,
 			IsSkipped:            req.IsSkipped,
 			IsCancelled:          req.IsCancelled,
+			DesiredWorkerLabels:  req.DesiredWorkerLabels,
 		},
 	}}
 

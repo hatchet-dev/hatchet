@@ -830,11 +830,14 @@ func (r *sharedRepository) triggerWorkflows(
 		useOperatorPath := orchestratorStep != nil && tuple.targetActionId == nil
 
 		if useOperatorPath {
+			orchestratorInput := r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds)
+			orchestratorInput.DesiredWorkerLabels = tuple.desiredWorkerLabels
+
 			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
 				ExternalId:                tuple.externalId,
 				WorkflowRunId:             tuple.externalId,
 				StepId:                    orchestratorStep.ID,
-				Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
+				Input:                     orchestratorInput,
 				AdditionalMetadata:        tuple.additionalMetadata,
 				InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
 				DesiredWorkerId:           tuple.desiredWorkerId,

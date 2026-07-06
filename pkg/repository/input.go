@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
 type TaskInput struct {
@@ -15,6 +17,10 @@ type TaskInput struct {
 
 	// task run external IDs of parent tasks in a durable DAG orchestration
 	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
+
+	// run-level desired worker labels, carried on the DAG orchestrator task so it can
+	// propagate them to the child steps it triggers (child steps route to the same worker pool)
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
 }
 
 func (s *sharedRepository) DesiredWorkerId(t *TaskInput) *uuid.UUID {
