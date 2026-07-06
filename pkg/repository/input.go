@@ -133,6 +133,7 @@ func (s *sharedRepository) ToV1StepRunData(t *TaskInput) *V1StepRunData {
 		Triggers:            triggers,
 		StepRunErrors:       stepRunErrors,
 		DagParentTaskRunIds: t.DagParentTaskRunIds,
+		DesiredWorkerLabels: t.DesiredWorkerLabels,
 	}
 }
 
@@ -170,6 +171,10 @@ type V1StepRunData struct {
 
 	// task run external IDs of parent tasks in a durable DAG orchestration
 	DagParentTaskRunIds []uuid.UUID `json:"dag_parent_task_run_ids,omitempty"`
+
+	// run-level desired worker labels, carried on the DAG orchestrator task so it can
+	// propagate them to the child steps it triggers
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels,omitempty"`
 }
 
 func (v1 *V1StepRunData) Bytes() []byte {
