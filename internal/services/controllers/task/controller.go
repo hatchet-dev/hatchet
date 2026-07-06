@@ -56,7 +56,7 @@ type TasksControllerImpl struct {
 	opsPoolPollInterval                      time.Duration
 	opsPoolJitter                            time.Duration
 	timeoutTaskOperations                    *operation.TenantOperationPool
-	timeoutBatchedQueueItemOperations     *operation.TenantOperationPool
+	timeoutBatchedQueueItemOperations        *operation.TenantOperationPool
 	reassignTaskOperations                   *operation.TenantOperationPool
 	retryTaskOperations                      *operation.TenantOperationPool
 	emitSleepOperations                      *operation.TenantOperationPool

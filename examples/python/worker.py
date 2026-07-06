@@ -6,6 +6,11 @@ from examples.batch_assign.worker import (
     batch_simple,
     batch_single,
     batch_ordered,
+    batch_broadcast,
+    batch_cancel,
+    batch_child_spawn,
+    child_batch,
+    child
 )
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,
@@ -128,6 +133,11 @@ def main() -> None:
             batch_large,
             batch_single,
             batch_ordered,
+            batch_broadcast,
+            batch_child_spawn,
+            child_batch,
+            child,
+            batch_cancel,
             bulk_child_wf,
             bulk_parent_wf,
             concurrency_limit_workflow,
