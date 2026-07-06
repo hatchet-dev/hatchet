@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"time"
@@ -16,11 +17,26 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
+const (
+	// queuePollInterval is the base polling interval for a queue loop.
+	queuePollInterval = 1 * time.Second
+
+	// emptyPollsBeforeBackoff is the number of consecutive polls which return no queue items
+	// before the loop starts backing off. Enqueues wake the loop immediately via notifyQueueCh,
+	// so backing off only delays polls of queues with no work.
+	emptyPollsBeforeBackoff = 3
+
+	// maxQueuePollInterval caps the backed-off polling interval.
+	maxQueuePollInterval = 30 * time.Second
+)
+
 type Queuer struct {
 	repo       v1.QueueRepository
 	optimistic v1.OptimisticSchedulingRepository
 	tenantId   uuid.UUID
 	queueName  string
+
+	promGate *prometheus.Gate
 
 	l *zerolog.Logger
 
@@ -47,6 +63,36 @@ type Queuer struct {
 	unassignedMu mutex
 
 	hasRateLimits bool
+
+	// consecutiveEmptyPolls counts loop iterations whose refill returned no items. It is only
+	// accessed from the loopQueue goroutine.
+	consecutiveEmptyPolls int
+}
+
+// nextPollInterval returns the duration until the next poll of the queue. The interval doubles
+// for every consecutive empty poll beyond emptyPollsBeforeBackoff (capped at
+// maxQueuePollInterval), and always includes up to 50% random jitter. Jitter prevents queue
+// loops created in the same batch (e.g. on lease acquisition or after a cron sweep touches many
+// queues at once) from staying phase-locked and stampeding the connection pool in bursts.
+func (q *Queuer) nextPollInterval() time.Duration {
+	interval := queuePollInterval
+
+	if q.consecutiveEmptyPolls > emptyPollsBeforeBackoff {
+		shift := q.consecutiveEmptyPolls - emptyPollsBeforeBackoff
+
+		// 2^5 = 32x already exceeds any reasonable cap; avoid overflow on long idle streaks
+		if shift > 5 {
+			shift = 5
+		}
+
+		interval = queuePollInterval << shift
+
+		if interval > maxQueuePollInterval {
+			interval = maxQueuePollInterval
+		}
+	}
+
+	return interval + rand.N(interval/2) //nolint:gosec
 }
 
 func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Scheduler, resultsCh chan<- *QueueResults) *Queuer {
@@ -70,6 +116,7 @@ func newQueuer(conf *sharedConfig, tenantId uuid.UUID, queueName string, s *Sche
 		optimistic:    conf.repo.Optimistic(),
 		tenantId:      tenantId,
 		queueName:     queueName,
+		promGate:      conf.promGate,
 		l:             &queueLogger,
 		s:             s,
 		limit:         defaultLimit,
@@ -128,7 +175,19 @@ func (q *Queuer) queue(ctx context.Context) {
 }
 
 func (q *Queuer) loopQueue(ctx context.Context) {
-	ticker := time.NewTicker(1 * time.Second)
+	timer := time.NewTimer(q.nextPollInterval())
+	defer timer.Stop()
+
+	resetTimer := func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+
+		timer.Reset(q.nextPollInterval())
+	}
 
 	q.l.Debug().Ctx(ctx).Int("limit", q.limit).Msg("starting queue loop")
 
@@ -138,14 +197,20 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		case carrier = <-q.notifyQueueCh:
 		}
+
+		// re-arm immediately so early `continue` paths below can't stall the loop; re-armed
+		// again after the refill once the empty-poll streak is known
+		resetTimer()
 
 		q.l.Debug().Ctx(ctx).Msg("queue loop tick")
 
 		prometheus.QueueInvocations.Inc()
-		prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
+		if q.promGate.Enabled(ctx, q.tenantId) {
+			prometheus.TenantQueueInvocations.WithLabelValues(q.tenantId.String()).Inc()
+		}
 
 		ctx, span := telemetry.NewSpanWithCarrier(ctx, "queue", carrier)
 
@@ -176,6 +241,15 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
+
+		if len(qis) == 0 {
+			q.consecutiveEmptyPolls++
+		} else {
+			q.consecutiveEmptyPolls = 0
+		}
+
+		// re-arm with the interval reflecting the latest empty-poll streak
+		resetTimer()
 
 		// NOTE: we don't terminate early out of this loop because calling `tryAssign` is necessary
 		// for calling the scheduling extensions.
@@ -292,12 +366,16 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 					q.l.Warn().Ctx(ctx).Msgf("flushing items to database took longer than 100ms (%d items in %s)", numFlushed, time.Since(startFlush))
 				}
 
+				tenantMetricsEnabled := q.promGate.Enabled(ctx, q.tenantId)
+
 				if numFlushed > 0 {
 					now := time.Now()
 
 					for _, assignedItem := range ar.assigned {
 						prometheus.AssignedTasks.Inc()
-						prometheus.TenantAssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
+						if tenantMetricsEnabled {
+							prometheus.TenantAssignedTasks.WithLabelValues(q.tenantId.String()).Inc()
+						}
 
 						qi := assignedItem.QueueItem
 
@@ -309,25 +387,33 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 						}
 
 						prometheus.QueuedToAssigned.Inc()
-						prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
+						if tenantMetricsEnabled {
+							prometheus.TenantQueuedToAssigned.WithLabelValues(q.tenantId.String()).Inc()
+						}
 
 						timeInQueueSeconds := now.Sub(qi.TaskInsertedAt.Time).Seconds()
 
 						if timeInQueueSeconds > 0 {
 							prometheus.QueuedToAssignedTimeBuckets.Observe(timeInQueueSeconds)
-							prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
+							if tenantMetricsEnabled {
+								prometheus.TenantQueuedToAssignedTimeBuckets.WithLabelValues(q.tenantId.String()).Observe(timeInQueueSeconds)
+							}
 						}
 					}
 				}
 
 				for range ar.schedulingTimedOut {
 					prometheus.SchedulingTimedOut.Inc()
-					prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
+					if tenantMetricsEnabled {
+						prometheus.TenantSchedulingTimedOut.WithLabelValues(q.tenantId.String()).Inc()
+					}
 				}
 
 				for range ar.rateLimited {
 					prometheus.RateLimited.Inc()
-					prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
+					if tenantMetricsEnabled {
+						prometheus.TenantRateLimited.WithLabelValues(q.tenantId.String()).Inc()
+					}
 				}
 			}(r)
 		}
@@ -521,9 +607,17 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 	ctx, span := telemetry.NewSpan(ctx, "flush-to-database")
 	defer span.End()
 
+	itemCount := assignResultsItemCount(r)
+
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		telemetry.AttributeKV{Key: "batch.item_count", Value: itemCount},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.schedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.rateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.rateLimitedToMove)},
 	)
 
 	begin := time.Now()
@@ -679,6 +773,15 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 
 	chWriteDuration := time.Since(checkpoint)
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "duration.write_ms", Value: writeDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.nack_ms", Value: nackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.ack_ms", Value: ackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.channel_write_ms", Value: chWriteDuration.Milliseconds()},
+	)
+
 	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
@@ -690,7 +793,23 @@ func (q *Queuer) flushToDatabase(ctx context.Context, r *assignResults) int {
 			"ack_duration", ackDuration,
 		).Dur(
 			"ch_write_duration", chWriteDuration,
-		).Msgf("flushing %d items to database took longer than 100ms", len(r.assigned)+len(r.unassigned)+len(r.schedulingTimedOut))
+		).Int(
+			"item_count", itemCount,
+		).Int(
+			"assigned", len(r.assigned),
+		).Int(
+			"unassigned", len(r.unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.schedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.rateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.rateLimitedToMove),
+		).Int(
+			"succeeded", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
 	return len(succeeded) + len(r.buffered) + len(r.batched) + len(r.schedulingTimedOut)
@@ -774,9 +893,17 @@ func (q *Queuer) flushToDatabaseOptimistic(
 	ctx, span := telemetry.NewSpan(ctx, "Queuer.flushToDatabaseOptimistic")
 	defer span.End()
 
+	itemCount := assignResultsItemCount(r)
+
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: q.tenantId.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: q.queueName},
+		telemetry.AttributeKV{Key: "batch.item_count", Value: itemCount},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.schedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.rateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.rateLimitedToMove)},
 	)
 
 	q.l.Debug().Ctx(ctx).Int("assigned", len(r.assigned)).Int("unassigned", len(r.unassigned)).Int("scheduling_timed_out", len(r.schedulingTimedOut)).Msg("flushing to database")
@@ -896,6 +1023,16 @@ func (q *Queuer) flushToDatabaseOptimistic(
 
 	chWriteDuration := time.Since(checkpoint)
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "result.succeeded_local", Value: len(succeededLocal)},
+		telemetry.AttributeKV{Key: "duration.write_ms", Value: writeDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.nack_ms", Value: nackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.ack_ms", Value: ackDuration.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.channel_write_ms", Value: chWriteDuration.Milliseconds()},
+	)
+
 	q.l.Debug().Ctx(ctx).Int("succeeded", len(succeeded)).Int("failed", len(failed)).Msg("flushed to database")
 
 	if time.Since(begin) > 100*time.Millisecond {
@@ -907,7 +1044,25 @@ func (q *Queuer) flushToDatabaseOptimistic(
 			"ack_duration", ackDuration,
 		).Dur(
 			"ch_write_duration", chWriteDuration,
-		).Msgf("flushing %d items to database took longer than 100ms", len(r.assigned)+len(r.unassigned)+len(r.schedulingTimedOut))
+		).Int(
+			"item_count", itemCount,
+		).Int(
+			"assigned", len(r.assigned),
+		).Int(
+			"unassigned", len(r.unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.schedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.rateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.rateLimitedToMove),
+		).Int(
+			"succeeded", len(succeeded),
+		).Int(
+			"failed", len(failed),
+		).Int(
+			"succeeded_local", len(succeededLocal),
+		).Msgf("flushing %d items to database took longer than 100ms", itemCount)
 	}
 
 	return succeededLocal, &QueueResults{
@@ -917,4 +1072,8 @@ func (q *Queuer) flushToDatabaseOptimistic(
 		RateLimited:        append(opts.RateLimited, opts.RateLimitedToMove...),
 		Unassigned:         r.unassigned,
 	}, nil
+}
+
+func assignResultsItemCount(r *assignResults) int {
+	return len(r.assigned) + len(r.unassigned) + len(r.schedulingTimedOut) + len(r.rateLimited) + len(r.rateLimitedToMove)
 }

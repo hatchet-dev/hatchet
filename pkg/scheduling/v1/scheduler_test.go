@@ -5,6 +5,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -560,6 +561,75 @@ func TestScheduler_Replenish_DoesNotLockUnackedMuBeforeActionLocks(t *testing.T)
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for replenish to complete (possible deadlock)")
 	}
+}
+
+func TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	const (
+		assignBudget = 2100 * time.Millisecond // no more than one lost replenish cycle
+		numProbers   = 64
+		probeFor     = 10 * time.Second
+	)
+	qis := []*sqlcv1.V1QueueItem{testQI(tenantId, "missing", 1)}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		s.loopReplenish(ctx)
+	}()
+	time.Sleep(1100 * time.Millisecond)
+
+	// A single sequential prober always loses the race to reacquire actionsMu against
+	// an immediately-relocking writer, so it only ever observes one lost cycle. Many
+	// concurrent probers, as in production with many actions/queue items in flight,
+	// give some of them a chance to lose the race across multiple consecutive cycles.
+	probeCtx, stopProbing := context.WithTimeout(context.Background(), probeFor)
+	defer stopProbing()
+
+	var (
+		mu         sync.Mutex
+		maxLatency time.Duration
+		wg         sync.WaitGroup
+	)
+
+	for i := 0; i < numProbers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for probeCtx.Err() == nil {
+				start := time.Now()
+				_, _, _ = s.tryAssignChunk(context.Background(), "missing", qis, 0, nil, nil, nil, nil, nil)
+				d := time.Since(start)
+
+				mu.Lock()
+				if d > maxLatency {
+					maxLatency = d
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	cancel()
+	<-loopDone
+
+	t.Logf("max latency observed: %s", maxLatency)
+	require.LessOrEqual(t, maxLatency, assignBudget,
+		"tryAssignBatch was starved by repeated replenish timeouts: max latency %s", maxLatency)
 }
 
 func TestScheduler_TryAssignBatch_AssignsUntilExhausted(t *testing.T) {

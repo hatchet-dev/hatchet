@@ -17,6 +17,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+const concurrencyLeasesChBuffer = 1024
+
 // LeaseManager is responsible for leases on multiple queues and multiplexing
 // queue results to callers. It is still tenant-scoped.
 type LeaseManager struct {
@@ -49,7 +51,7 @@ type LeaseManager struct {
 func newLeaseManager(conf *sharedConfig, tenantId uuid.UUID) (*LeaseManager, notifierCh[*v1.ListActiveWorkersResult], notifierCh[string], notifierCh[*sqlcv1.V1StepConcurrency], chan []*sqlcv1.ListDistinctBatchResourcesRow) {
 	workersCh := make(notifierCh[*v1.ListActiveWorkersResult])
 	queuesCh := make(notifierCh[string])
-	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency])
+	concurrencyLeasesCh := make(notifierCh[*sqlcv1.V1StepConcurrency], concurrencyLeasesChBuffer)
 	batchesCh := make(chan []*sqlcv1.ListDistinctBatchResourcesRow)
 
 	return &LeaseManager{
@@ -103,12 +105,27 @@ func (l *LeaseManager) sendConcurrencyLeases(concurrencyLeases []*sqlcv1.V1StepC
 		}
 	}()
 
+	// a full refresh supersedes anything still queued, so drain stale messages first
+	if !isIncremental {
+		l.drainConcurrencyLeasesCh()
+	}
+
 	select {
 	case l.concurrencyLeasesCh <- notifierMsg[*sqlcv1.V1StepConcurrency]{
 		items:         concurrencyLeases,
 		isIncremental: isIncremental,
 	}:
 	default:
+	}
+}
+
+func (l *LeaseManager) drainConcurrencyLeasesCh() {
+	for {
+		select {
+		case <-l.concurrencyLeasesCh:
+		default:
+			return
+		}
 	}
 }
 
@@ -439,6 +456,10 @@ func (l *LeaseManager) acquireConcurrencyLeases(ctx context.Context) error {
 
 	return nil
 }
+
+// notifyNewConcurrencyStrategy acquires a lease for a single strategy on-demand and hands it to the
+// lease channel, which spins up its ConcurrencyManager. Mirrors notifyNewQueue. No-op if we already
+// hold the lease.
 func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strategyId int64) error {
 	l.processMu.RLock()
 	defer l.processMu.RUnlock()
@@ -476,12 +497,12 @@ func (l *LeaseManager) notifyNewConcurrencyStrategy(ctx context.Context, strateg
 	}
 
 	if len(lease) == 0 || lease[0].ResourceId == "" {
+		// the lease is owned by another scheduler; it will manage this strategy
 		return nil
 	}
 
 	l.concurrencyLeases = append(l.concurrencyLeases, lease...)
 
-	// send the new concurrency strategy to the channel
 	l.sendConcurrencyLeases([]*sqlcv1.V1StepConcurrency{strategy}, true)
 
 	return nil

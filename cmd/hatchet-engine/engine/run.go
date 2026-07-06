@@ -202,6 +202,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+			schedulerv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -254,6 +255,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
+			task.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -289,6 +291,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
 			olap.WithMQQos(sc.Operations.OLAPMQQos),
 			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
+			olap.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -349,6 +352,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
+			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -371,6 +375,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
+			ingestor.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -386,6 +391,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			admin.WithAnalytics(sc.Analytics),
+			admin.WithPrometheusGate(sc.PrometheusGate),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create admin service: %w", err)
@@ -400,6 +406,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			adminv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -632,6 +639,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
+				task.WithPrometheusGate(sc.PrometheusGate),
 			)
 
 			if err != nil {
@@ -669,6 +677,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
 				olap.WithMQQos(sc.Operations.OLAPMQQos),
 				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
+				olap.WithPrometheusGate(sc.PrometheusGate),
 			)
 
 			if err != nil {
@@ -744,6 +753,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+			schedulerv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -780,6 +790,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
+			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -803,6 +814,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
+			ingestor.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -818,6 +830,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			admin.WithAnalytics(sc.Analytics),
+			admin.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -833,6 +846,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			adminv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {

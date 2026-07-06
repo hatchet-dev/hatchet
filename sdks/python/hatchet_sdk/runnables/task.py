@@ -110,7 +110,7 @@ class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
         | AbstractAsyncContextManager[T_co]
     ): ...
 
-    def __name__(self) -> str: ...
+    __name__: str
 
 
 class Depends(Generic[T, TWorkflowInput]):

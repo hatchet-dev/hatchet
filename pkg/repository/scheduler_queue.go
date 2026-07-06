@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -276,6 +277,16 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	ctx, span := telemetry.NewSpan(ctx, "mark-queue-items-processed")
 	defer span.End()
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantId.String()},
+		telemetry.AttributeKV{Key: "is_optimistic", Value: isOptimistic},
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(r.Assigned)},
+		telemetry.AttributeKV{Key: "batch.unassigned", Value: len(r.Unassigned)},
+		telemetry.AttributeKV{Key: "batch.scheduling_timed_out", Value: len(r.SchedulingTimedOut)},
+		telemetry.AttributeKV{Key: "batch.rate_limited", Value: len(r.RateLimited)},
+		telemetry.AttributeKV{Key: "batch.rate_limited_to_move", Value: len(r.RateLimitedToMove)},
+	)
+
 	start := time.Now()
 	checkpoint := start
 
@@ -343,6 +354,11 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		qisToMoveToRateLimited = append(qisToMoveToRateLimited, row.ID)
 		qisToMoveToRateLimitedRQAfter = append(qisToMoveToRateLimitedRQAfter, sqlchelpers.TimestamptzFromTime(*row.NextRefillAt))
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch.ids_to_unqueue", Value: len(idsToUnqueue)},
+		telemetry.AttributeKV{Key: "batch.tasks_to_release", Value: len(tasksToRelease)},
+	)
 
 	if len(qisToMoveToRateLimited) > 0 {
 		_, err = d.queries.MoveRateLimitedQueueItems(ctx, tx, sqlcv1.MoveRateLimitedQueueItemsParams{
@@ -487,7 +503,17 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		failed = append(failed, assignedItem)
 	}
 
-	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
+	sinceStart := time.Since(start)
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "result.succeeded", Value: len(succeeded)},
+		telemetry.AttributeKV{Key: "result.failed", Value: len(failed)},
+		telemetry.AttributeKV{Key: "duration.total_ms", Value: sinceStart.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.bulk_queue_ms", Value: timeAfterBulkQueueItems.Milliseconds()},
+		telemetry.AttributeKV{Key: "duration.update_tasks_ms", Value: timeAfterUpdateStepRuns.Milliseconds()},
+	)
+
+	if sinceStart > 100*time.Millisecond {
 		d.l.Warn().Dur(
 			"duration", sinceStart,
 		).Dur(
@@ -498,6 +524,20 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			"assigned", len(succeeded),
 		).Int(
 			"failed", len(failed),
+		).Int(
+			"unassigned", len(r.Unassigned),
+		).Int(
+			"scheduling_timed_out", len(r.SchedulingTimedOut),
+		).Int(
+			"rate_limited", len(r.RateLimited),
+		).Int(
+			"rate_limited_to_move", len(r.RateLimitedToMove),
+		).Int(
+			"ids_to_unqueue", len(idsToUnqueue),
+		).Int(
+			"tasks_to_release", len(tasksToRelease),
+		).Bool(
+			"is_optimistic", isOptimistic,
 		).Msgf(
 			"marking queue items processed took longer than 100ms",
 		)
@@ -753,7 +793,7 @@ func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx
 	stepIdsToLookup := make([]uuid.UUID, 0, len(stepIds))
 	stepIdToLabels := make(map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow)
 
-	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+	uniqueStepIds := listutils.Uniq(stepIds)
 
 	for _, stepId := range uniqueStepIds {
 		if value, found := d.stepIdLabelsCache.Get(stepId); found {
@@ -802,7 +842,7 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	ctx, span := telemetry.NewSpan(ctx, "get-step-slot-requests")
 	defer span.End()
 
-	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+	uniqueStepIds := listutils.Uniq(stepIds)
 
 	stepIdsToLookup := make([]uuid.UUID, 0, len(uniqueStepIds))
 	stepIdToRequests := make(map[uuid.UUID]map[string]int32, len(uniqueStepIds))
@@ -859,7 +899,7 @@ func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, stepIds []uui
 	ctx, span := telemetry.NewSpan(ctx, "get-step-batch-configs")
 	defer span.End()
 
-	uniqueStepIds := sqlchelpers.UniqueSet(stepIds)
+	uniqueStepIds := listutils.Uniq(stepIds)
 	res := make(map[string]bool, len(uniqueStepIds))
 
 	for _, stepID := range uniqueStepIds {

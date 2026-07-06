@@ -15,7 +15,6 @@ import grpc
 from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
-from grpc.aio import UnaryUnaryCall
 from prometheus_client import Gauge, generate_latest
 
 from hatchet_sdk.client import Client
@@ -25,7 +24,6 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
     ActionEventResponse,
-    StepActionEvent,
 )
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action, ActionType
@@ -105,9 +103,7 @@ class WorkerActionListenerProcess:
         self.event_send_loop_task: asyncio.Task[None] | None = None
         self._stop_event_task: asyncio.Task[None] | None = None
         self.running_step_runs: dict[str, float] = {}
-        self.step_action_events: set[
-            asyncio.Task[UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None]
-        ] = set()
+        self.step_action_events: set[asyncio.Task[ActionEventResponse | None]] = set()
 
         if self.debug:
             logger.setLevel(logging.DEBUG)

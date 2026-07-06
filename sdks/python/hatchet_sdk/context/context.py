@@ -554,7 +554,16 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        await asyncio.to_thread(self.put_stream, data)
+        try:
+            ix = self._increment_stream_index()
+
+            await self._event_client.aio_stream(
+                data=data,
+                step_run_id=self._step_run_id,
+                index=ix,
+            )
+        except Exception:
+            logger.exception("error putting stream event")
 
     def refresh_timeout(self, increment_by: Duration) -> None:
         """
@@ -791,6 +800,7 @@ class DurableContext(Context):
         self._wait_index = 0
         self._durable_eviction_manager = durable_eviction_manager
         self._engine_version = engine_version
+        self._send_event_lock = asyncio.Lock()
 
     @property
     def _durable_listener(self) -> DurableEventListener:
@@ -856,11 +866,12 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
-            invocation_count=self.invocation_count,
-            event=WaitForEvent(wait_for_conditions=conditions_proto, label=label),
-        )
+        async with self._send_event_lock:
+            ack = await listener.send_event(
+                durable_task_external_id=self.step_run_id,
+                invocation_count=self.invocation_count,
+                event=WaitForEvent(wait_for_conditions=conditions_proto, label=label),
+            )
 
         if not isinstance(ack, DurableTaskEventWaitForAck):
             raise TypeError(f"Expected wait-for ack, got {type(ack).__name__}")
@@ -1019,20 +1030,21 @@ class DurableContext(Context):
 
         await self._ensure_stream_started()
 
-        ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
-            invocation_count=self.invocation_count,
-            event=RunChildrenEvent(
-                children=[
-                    RunChildEvent(
-                        workflow_name=c.workflow_name,
-                        input=c.input,
-                        run_workflow_opts=c.options,
-                    )
-                    for c in configs
-                ]
-            ),
-        )
+        async with self._send_event_lock:
+            ack = await listener.send_event(
+                durable_task_external_id=self.step_run_id,
+                invocation_count=self.invocation_count,
+                event=RunChildrenEvent(
+                    children=[
+                        RunChildEvent(
+                            workflow_name=c.workflow_name,
+                            input=c.input,
+                            run_workflow_opts=c.options,
+                        )
+                        for c in configs
+                    ]
+                ),
+            )
 
         if not isinstance(ack, DurableTaskEventRunAck):
             raise TypeError(f"Expected run ack, got {type(ack).__name__}")
@@ -1123,11 +1135,12 @@ class DurableContext(Context):
 
         key = _compute_memo_key(self.step_run_id, *args, **kwargs)
 
-        ack = await listener.send_event(
-            durable_task_external_id=run_external_id,
-            invocation_count=self.invocation_count,
-            event=MemoEvent(memo_key=key, result=None),
-        )
+        async with self._send_event_lock:
+            ack = await listener.send_event(
+                durable_task_external_id=run_external_id,
+                invocation_count=self.invocation_count,
+                event=MemoEvent(memo_key=key, result=None),
+            )
 
         if not isinstance(ack, DurableTaskEventMemoAck):
             raise TypeError(f"Expected memo ack, got {type(ack).__name__}")
@@ -1137,7 +1150,7 @@ class DurableContext(Context):
                 "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "
             )
 
-        if ack.memo_already_existed and ack.memo_result_payload is not None:
+        if ack.memo_already_existed and ack.memo_result_payload:
             serialized_result = ack.memo_result_payload
             result = adapter.validate_json(
                 serialized_result, context=HATCHET_PYDANTIC_SENTINEL

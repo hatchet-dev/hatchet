@@ -101,6 +101,7 @@ interface LogViewerProps {
   taskStatus?: V1TaskStatus;
   onViewRun?: (taskExternalId: string) => void;
   emptyMessage?: string;
+  emptyComponent?: React.ReactNode;
   showAttempt?: boolean;
   showTaskName?: boolean;
 }
@@ -233,6 +234,7 @@ export function LogViewer({
   taskStatus,
   onViewRun,
   emptyMessage,
+  emptyComponent,
   showAttempt = true,
   showTaskName = false,
 }: LogViewerProps) {
@@ -342,6 +344,13 @@ export function LogViewer({
 
   const isEmpty = logs.length === 0;
   if (isEmpty) {
+    if (emptyComponent) {
+      return (
+        <div className={cn(heightClass, 'flex items-center justify-center')}>
+          {emptyComponent}
+        </div>
+      );
+    }
     return (
       <div
         className={cn(

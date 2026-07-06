@@ -25,6 +25,7 @@ import (
 	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/syncx"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
@@ -157,6 +158,7 @@ type DispatcherOpts struct {
 	workflowRunBufferSize               int
 	streamEventBufferTimeout            time.Duration
 	dispatcherId                        uuid.UUID
+	promGate                            *prometheus.Gate
 }
 
 func defaultDispatcherOpts() *DispatcherOpts {
@@ -254,6 +256,12 @@ func WithAnalytics(a analytics.Analytics) DispatcherOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) DispatcherOpt {
+	return func(opts *DispatcherOpts) {
+		opts.promGate = gate
+	}
+}
+
 func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 	opts := defaultDispatcherOpts()
 
@@ -309,7 +317,7 @@ func New(fs ...DispatcherOpt) (*DispatcherImpl, error) {
 		analytics:                           opts.analytics,
 		streamEventBufferTimeout:            opts.streamEventBufferTimeout,
 		version:                             opts.version,
-		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics),
+		serviceV1:                           newDispatcherService(opts.repov1, opts.mqv1, v, opts.l, opts.dispatcherId, opts.analytics, opts.promGate),
 	}, nil
 }
 

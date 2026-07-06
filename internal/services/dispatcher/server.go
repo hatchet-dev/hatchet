@@ -133,6 +133,14 @@ func (s *DispatcherImpl) UpsertWorkerLabels(ctx context.Context, request *contra
 		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
 	}
 
+	// Confirm the worker belongs to the auth-tenant before mutating its labels.
+	if _, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenant.ID, workerId); err != nil { //nolint
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "worker not found: %s", request.WorkerId)
+		}
+		return nil, err
+	}
+
 	_, err = s.upsertLabels(ctx, workerId, request.Labels)
 
 	if err != nil {
@@ -634,6 +642,14 @@ func (s *DispatcherImpl) Unsubscribe(ctx context.Context, request *contracts.Wor
 	workerId, err := uuid.Parse(request.WorkerId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid worker ID format: %s", request.WorkerId)
+	}
+
+	// Confirm the worker belongs to the auth-tenant before unsubscribing.
+	if _, err := s.repov1.Workers().GetWorkerForEngine(ctx, tenant.ID, workerId); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, status.Errorf(codes.NotFound, "worker not found: %s", request.WorkerId)
+		}
+		return nil, err
 	}
 
 	// remove the worker from the connection pool

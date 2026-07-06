@@ -304,7 +304,8 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	for _, strategy := range strategiesSet {
-		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+		c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
+		newArr = append(newArr, c)
 	}
 
 	t.concurrencyStrategies = newArr
@@ -320,7 +321,8 @@ func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrenc
 		}
 	}
 
-	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+	c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
+	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
 }
 
 func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv1.ListDistinctBatchResourcesRow) {
@@ -451,9 +453,11 @@ func (t *tenantManager) replenish(ctx context.Context) {
 
 func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int64) {
 	strategyIdsMap := make(map[int64]struct{}, len(strategyIds))
+	unmatchedIds := make(map[int64]struct{}, len(strategyIds))
 
 	for _, id := range strategyIds {
 		strategyIdsMap[id] = struct{}{}
+		unmatchedIds[id] = struct{}{}
 	}
 
 	t.concurrencyMu.RLock()
@@ -462,6 +466,8 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 		if _, ok := strategyIdsMap[c.strategy.ID]; !ok {
 			continue
 		}
+
+		delete(unmatchedIds, c.strategy.ID)
 
 		c.notify(ctx)
 
@@ -513,6 +519,14 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 	}
 
 	t.concurrencyMu.RUnlock()
+
+	if len(unmatchedIds) > 0 {
+		leaseCtx := context.WithoutCancel(ctx)
+
+		for id := range unmatchedIds {
+			go t.notifyNewConcurrencyStrategy(leaseCtx, id)
+		}
+	}
 }
 
 func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) {

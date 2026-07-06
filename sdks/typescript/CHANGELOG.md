@@ -5,6 +5,18 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.3] - 2026-06-17
+
+### Removed
+
+- Removed the unused `_isV1` field and `isV1` getter from `HatchetClient`. The getter always returned a hardcoded value and was not referenced anywhere in the codebase.
+
+## [1.24.2] - 2026-06-15
+
+### Fixed
+
+- Fixed a bug where the durable event listener's request iterator could survive a stream reconnect and drain items from the new queue into the dead stream, causing durable tasks to hang indefinitely after an engine restart. The iterator now captures its queue and abort signal at creation time and terminates cleanly when the connection is replaced.
+
 ## [1.24.1] - 2026-06-12
 
 ### Fixed

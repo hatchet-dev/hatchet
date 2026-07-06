@@ -16,7 +16,7 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 from typing import Any, ClassVar, Dict, List, Optional
 from typing import Optional, Set
 from typing_extensions import Self
@@ -37,11 +37,16 @@ class V1TriggerWorkflowRunRequest(BaseModel):
     priority: Optional[StrictInt] = Field(
         default=None, description="The priority of the workflow run."
     )
+    return_only_id: Optional[StrictBool] = Field(
+        default=None,
+        description="A boolean flag indicating whether to only return the id of the created run.",
+    )
     __properties: ClassVar[List[str]] = [
         "workflowName",
         "input",
         "additionalMetadata",
         "priority",
+        "return_only_id",
     ]
 
     model_config = ConfigDict(
@@ -98,6 +103,7 @@ class V1TriggerWorkflowRunRequest(BaseModel):
                 "input": obj.get("input"),
                 "additionalMetadata": obj.get("additionalMetadata"),
                 "priority": obj.get("priority"),
+                "return_only_id": obj.get("return_only_id"),
             }
         )
         return _obj
