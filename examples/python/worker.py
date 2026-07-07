@@ -9,6 +9,7 @@ from examples.batch_assign.worker import (
     batch_broadcast,
     batch_cancel,
     batch_child_spawn,
+    batch_child_batch_spawn,
     child_batch,
     child
 )
@@ -135,6 +136,7 @@ def main() -> None:
             batch_ordered,
             batch_broadcast,
             batch_child_spawn,
+            batch_child_batch_spawn,
             child_batch,
             child,
             batch_cancel,

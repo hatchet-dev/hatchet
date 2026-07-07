@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import timedelta
 
@@ -156,7 +157,7 @@ async def child(input: SimpleInput, context: Context) -> dict[str, Any]:
 
 @hatchet.batch_task(
     batch_max_size=10,
-    batch_max_interval=timedelta(seconds=10),
+    batch_max_interval=timedelta(seconds=60),
     input_validator=SimpleInput,
     broadcast_output=True,
 )
@@ -165,14 +166,28 @@ async def child_batch(inp: dict[str, SimpleInput], context: Context) -> dict[str
 
 @hatchet.batch_task(
     batch_max_size=10,
-    batch_max_interval=timedelta(seconds=10),
+    batch_max_interval=timedelta(seconds=60),
     input_validator=SimpleInput,
     broadcast_output=False,
     execution_timeout=timedelta(seconds=60)
 )
 async def batch_child_spawn(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
     return {
-        id: await child_batch.aio_run(inp) | await child.aio_run(SimpleInput(Message="blahblah")) for id, inp in inp.items()
+        id: await child.aio_run(SimpleInput(Message="blahblah")) for id, inp in inp.items()
+    }
+
+@hatchet.batch_task(
+    batch_max_size=10,
+    batch_max_interval=timedelta(seconds=60),
+    input_validator=SimpleInput,
+    broadcast_output=False,
+    execution_timeout=timedelta(seconds=60)
+)
+async def batch_child_batch_spawn(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
+    async def inner(id, inp):
+        return id, await child_batch.aio_run(inp)
+    return {
+        id: result for id, result in await asyncio.gather(*(inner(id, inp) for id, inp in inp.items()))
     }
 
 def main() -> None:
@@ -188,6 +203,7 @@ def main() -> None:
             batch_broadcast,
             batch_cancel,
             batch_child_spawn,
+            batch_child_batch_spawn,
             child_batch,
             child
         ],

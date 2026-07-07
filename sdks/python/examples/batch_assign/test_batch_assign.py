@@ -18,6 +18,7 @@ from examples.batch_assign.worker import (
     batch_broadcast,
     batch_cancel,
     batch_child_spawn,
+    batch_child_batch_spawn,
 )
 
 
@@ -157,4 +158,14 @@ async def test_child_spawning() -> None:
         *[batch_child_spawn.aio_run(SimpleInput(Message="hello")) for i in range(count)]
     )
 
-    assert not any(results)
+    assert all(results)
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_child_batch_spawning() -> None:
+    count = 10
+
+    results = await asyncio.gather(
+        *[batch_child_batch_spawn.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+    )
+
+    assert all(results)
