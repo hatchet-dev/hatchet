@@ -11,7 +11,7 @@ from examples.batch_assign.worker import (
     batch_child_spawn,
     batch_child_batch_spawn,
     child_batch,
-    child
+    child,
 )
 from examples.bug_tests.payload_bug_on_replay.worker import (
     payload_initial_cancel_bug_workflow,

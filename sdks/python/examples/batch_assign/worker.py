@@ -149,11 +149,10 @@ async def batch_cancel(_: dict[str, SimpleInput], context: Context) -> dict[str,
     return {}
 
 
-@hatchet.task(
-    input_validator=SimpleInput
-)
+@hatchet.task(input_validator=SimpleInput)
 async def child(input: SimpleInput, context: Context) -> dict[str, Any]:
     return {"blahblah": len(input.Message)}
+
 
 @hatchet.batch_task(
     batch_max_size=10,
@@ -164,31 +163,43 @@ async def child(input: SimpleInput, context: Context) -> dict[str, Any]:
 async def child_batch(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
     return inp
 
-@hatchet.batch_task(
-    batch_max_size=10,
-    batch_max_interval=timedelta(seconds=60),
-    input_validator=SimpleInput,
-    broadcast_output=False,
-    execution_timeout=timedelta(seconds=60)
-)
-async def batch_child_spawn(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
-    return {
-        id: await child.aio_run(SimpleInput(Message="blahblah")) for id, inp in inp.items()
-    }
 
 @hatchet.batch_task(
     batch_max_size=10,
     batch_max_interval=timedelta(seconds=60),
     input_validator=SimpleInput,
     broadcast_output=False,
-    execution_timeout=timedelta(seconds=60)
+    execution_timeout=timedelta(seconds=60),
 )
-async def batch_child_batch_spawn(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
-    async def inner(id, inp):
-        return id, await child_batch.aio_run(inp)
+async def batch_child_spawn(
+    inp: dict[str, SimpleInput], context: Context
+) -> dict[str, Any]:
     return {
-        id: result for id, result in await asyncio.gather(*(inner(id, inp) for id, inp in inp.items()))
+        id: await child.aio_run(SimpleInput(Message="blahblah"))
+        for id, inp in inp.items()
     }
+
+
+@hatchet.batch_task(
+    batch_max_size=10,
+    batch_max_interval=timedelta(seconds=60),
+    input_validator=SimpleInput,
+    broadcast_output=False,
+    execution_timeout=timedelta(seconds=60),
+)
+async def batch_child_batch_spawn(
+    inp: dict[str, SimpleInput], context: Context
+) -> dict[str, Any]:
+    async def inner(id: str, inp: SimpleInput) -> Any:
+        return id, await child_batch.aio_run(inp)
+
+    return {
+        id: result
+        for id, result in await asyncio.gather(
+            *(inner(id, inp) for id, inp in inp.items())
+        )
+    }
+
 
 def main() -> None:
     worker = hatchet.worker(
@@ -205,7 +216,7 @@ def main() -> None:
             batch_child_spawn,
             batch_child_batch_spawn,
             child_batch,
-            child
+            child,
         ],
         slots=25,
     )

@@ -150,6 +150,7 @@ async def test_cancel_semantics() -> None:
     )
     assert not any(results)
 
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_child_spawning() -> None:
     count = 10
@@ -160,12 +161,16 @@ async def test_child_spawning() -> None:
 
     assert all(results)
 
+
 @pytest.mark.asyncio(loop_scope="session")
 async def test_child_batch_spawning() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_child_batch_spawn.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+        *[
+            batch_child_batch_spawn.aio_run(SimpleInput(Message="hello"))
+            for i in range(count)
+        ]
     )
 
     assert all(results)
