@@ -1,5 +1,3 @@
-"""Tests for DurableEventListener reconnection logic."""
-
 from __future__ import annotations
 
 import asyncio
@@ -14,14 +12,21 @@ import pytest
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DEFAULT_RECONNECT_INTERVAL,
     DurableEventListener,
+    DurableTaskEventWaitForAck,
+    WaitForEvent,
 )
+from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
+    DurableEventLogEntryRef,
+    DurableTaskEventWaitForAckResponse,
+    DurableTaskRequest,
+    DurableTaskResponse,
+)
+from hatchet_sdk.contracts.v1.shared.condition_pb2 import DurableEventListenerConditions
 
 _MODULE = "hatchet_sdk.clients.listeners.durable_event_listener"
 
 
 class ControllableStream:
-    """Async iterator whose lifetime can be controlled from tests."""
-
     def __init__(self) -> None:
         self._queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
 
@@ -52,8 +57,6 @@ def _make_grpc_error(code: grpc.StatusCode, details: str = "") -> grpc.aio.AioRp
 
 
 class _Harness:
-    """Sets up a DurableEventListener with fully mocked gRPC dependencies."""
-
     def __init__(self) -> None:
         config = MagicMock()
         config.token = "test-token"
@@ -126,9 +129,6 @@ async def harness() -> AsyncIterator[_Harness]:
     await h.teardown()
 
 
-# ── reconnection on stream EOF ──
-
-
 async def test_opens_new_stream_after_eof(harness: _Harness) -> None:
     harness.add_eof_stream()
     harness.add_hanging_stream()
@@ -148,9 +148,6 @@ async def test_multiple_eof_reconnects(harness: _Harness) -> None:
     await asyncio.sleep(0.3)
 
     assert harness.call_count >= 4
-
-
-# ── reconnection on gRPC error ──
 
 
 async def test_reconnects_on_unavailable(harness: _Harness) -> None:
@@ -187,9 +184,6 @@ async def test_reconnects_on_generic_exception(harness: _Harness) -> None:
     assert harness.call_count >= 2
 
 
-# ── does NOT reconnect on CANCELLED ──
-
-
 async def test_breaks_out_on_grpc_cancelled(harness: _Harness) -> None:
     err = _make_grpc_error(grpc.StatusCode.CANCELLED, "cancelled")
     harness.add_error_stream(err)
@@ -201,9 +195,6 @@ async def test_breaks_out_on_grpc_cancelled(harness: _Harness) -> None:
     assert harness.call_count == 1
 
 
-# ── does NOT reconnect after stop ──
-
-
 async def test_no_reconnect_after_stop(harness: _Harness) -> None:
     harness.add_hanging_stream()
 
@@ -212,9 +203,6 @@ async def test_no_reconnect_after_stop(harness: _Harness) -> None:
     await asyncio.sleep(0.15)
 
     assert harness.call_count == 1
-
-
-# ── _fail_pending_acks correctness ──
 
 
 async def test_fail_pending_acks_clears_event_acks(harness: _Harness) -> None:
@@ -231,22 +219,13 @@ async def test_fail_pending_acks_clears_event_acks(harness: _Harness) -> None:
         future.result()
 
 
-async def test_pending_callbacks_survive_disconnect(
-    harness: _Harness,
-) -> None:
-    """Pending callbacks should survive a disconnect.
-
-    Callbacks represent server-side durable event log entries that persist
-    across connections. After reconnection, _poll_worker_status re-reports
-    them and GetSatisfiedDurableEvents delivers completions on the new stream.
-    """
+async def test_pending_callbacks_survive_disconnect(harness: _Harness) -> None:
     harness.add_eof_stream()
     harness.add_hanging_stream()
 
     await harness.start()
 
     future: asyncio.Future[object] = asyncio.get_event_loop().create_future()
-    # Swallow the exception that stop() will set during teardown
     future.add_done_callback(
         lambda f: f.exception() if f.done() and not f.cancelled() else None
     )
@@ -254,21 +233,13 @@ async def test_pending_callbacks_survive_disconnect(
 
     await asyncio.sleep(0.15)
 
-    assert not future.done(), (
-        "_pending_callbacks were failed on disconnect — "
-        "callbacks should survive reconnection so the polling path can deliver them"
-    )
+    assert not future.done()
     assert ("task1", 1, 0, 1) in harness.listener._pending_callbacks
 
 
 async def test_fail_pending_acks_clears_eviction_acks_on_disconnect(
     harness: _Harness,
 ) -> None:
-    """Pending eviction acks should be failed on disconnect.
-
-    If _fail_pending_acks does not clear _pending_eviction_acks, eviction
-    acknowledgments will hang indefinitely after a reconnection.
-    """
     harness.add_eof_stream()
     harness.add_hanging_stream()
 
@@ -279,18 +250,10 @@ async def test_fail_pending_acks_clears_eviction_acks_on_disconnect(
 
     await asyncio.sleep(0.15)
 
-    assert future.done(), (
-        "_pending_eviction_acks were not failed on disconnect — "
-        "eviction acks will hang forever after reconnection"
-    )
+    assert future.done()
 
 
-# ── pending event acks rejected on EOF (integration) ──
-
-
-async def test_event_acks_rejected_when_stream_ends(
-    harness: _Harness,
-) -> None:
+async def test_event_acks_rejected_when_stream_ends(harness: _Harness) -> None:
     stream1 = ControllableStream()
     harness.streams.append(stream1)
     harness.add_hanging_stream()
@@ -309,9 +272,7 @@ async def test_event_acks_rejected_when_stream_ends(
         future.result()
 
 
-async def test_event_acks_rejected_when_stream_errors(
-    harness: _Harness,
-) -> None:
+async def test_event_acks_rejected_when_stream_errors(harness: _Harness) -> None:
     stream1 = ControllableStream()
     harness.streams.append(stream1)
     harness.add_hanging_stream()
@@ -330,12 +291,7 @@ async def test_event_acks_rejected_when_stream_errors(
         future.result()
 
 
-# ── worker re-registration ──
-
-
-async def test_request_queue_exists_after_each_connect(
-    harness: _Harness,
-) -> None:
+async def test_request_queue_exists_after_each_connect(harness: _Harness) -> None:
     harness.add_eof_stream()
     harness.add_hanging_stream()
 
@@ -346,14 +302,7 @@ async def test_request_queue_exists_after_each_connect(
     assert harness.listener._request_queue is not None
 
 
-# ── connect failure during reconnect ──
-
-
-async def test_survives_connect_failure_and_keeps_running(
-    harness: _Harness,
-) -> None:
-    """When _connect() fails during reconnection, the receive loop should
-    not crash. It should continue running and try reconnecting again."""
+async def test_survives_connect_failure_and_keeps_running(harness: _Harness) -> None:
     stream1 = ControllableStream()
     harness.streams.append(stream1)
     harness.add_hanging_stream()
@@ -372,9 +321,6 @@ async def test_survives_connect_failure_and_keeps_running(
     setattr(mod, "new_conn", original_new_conn)
 
     assert harness.listener._running is True
-
-
-# ── listener state after reconnect ──
 
 
 async def test_still_running_after_reconnect(harness: _Harness) -> None:
@@ -400,3 +346,99 @@ async def test_has_new_stream_after_reconnect(harness: _Harness) -> None:
     await asyncio.sleep(0.15)
 
     assert harness.listener._stream is not old_stream
+
+
+def _wait_for_event() -> WaitForEvent:
+    return WaitForEvent(
+        wait_for_conditions=DurableEventListenerConditions(), label=None
+    )
+
+
+def _drain_queue(queue: asyncio.Queue[DurableTaskRequest]) -> list[DurableTaskRequest]:
+    items = []
+    while not queue.empty():
+        items.append(queue.get_nowait())
+    return items
+
+
+async def test_send_event_during_reconnect_gap_survives(harness: _Harness) -> None:
+    s1 = ControllableStream()
+    harness.streams.append(s1)
+    s2 = harness.add_hanging_stream()
+
+    await harness.start()
+    await asyncio.sleep(0.05)
+
+    with patch(f"{_MODULE}.DEFAULT_RECONNECT_INTERVAL", 0.3):
+        s1.end()
+        await asyncio.sleep(0.05)
+
+        send_task = asyncio.create_task(
+            harness.listener.send_event("marker-task", 7, _wait_for_event())
+        )
+        await asyncio.sleep(0.05)
+        assert not send_task.done()
+
+        await asyncio.sleep(0.5)
+
+    assert harness.call_count >= 2
+
+    queue = harness.listener._request_queue
+    assert queue is not None
+    carried_over = [
+        req
+        for req in _drain_queue(queue)
+        if req.HasField("wait_for")
+        and req.wait_for.durable_task_external_id == "marker-task"
+    ]
+    assert carried_over, (
+        "request enqueued during the reconnect gap was dropped — "
+        "the durable run would hang forever awaiting its ack"
+    )
+
+    s2.push(
+        DurableTaskResponse(
+            wait_for_ack=DurableTaskEventWaitForAckResponse(
+                ref=DurableEventLogEntryRef(
+                    durable_task_external_id="marker-task",
+                    invocation_count=7,
+                    node_id=2,
+                    branch_id=0,
+                )
+            )
+        )
+    )
+
+    ack = await asyncio.wait_for(send_task, timeout=1.0)
+    assert isinstance(ack, DurableTaskEventWaitForAck)
+    assert ack.node_id == 2
+    assert ack.invocation_count == 7
+
+
+async def test_send_event_ack_timeout_raises(harness: _Harness) -> None:
+    harness.add_hanging_stream()
+    await harness.start()
+
+    harness.listener._EVENT_ACK_TIMEOUT_S = 0.05
+
+    with pytest.raises(TimeoutError, match="durable event ack"):
+        await harness.listener.send_event("task-1", 1, _wait_for_event())
+
+    assert ("task-1", 1) not in harness.listener._pending_event_acks
+
+
+async def test_send_event_eviction_cancel_propagates_not_timeout(
+    harness: _Harness,
+) -> None:
+    harness.add_hanging_stream()
+    await harness.start()
+
+    send_task = asyncio.create_task(
+        harness.listener.send_event("task-1", 1, _wait_for_event())
+    )
+    await asyncio.sleep(0.05)
+
+    harness.listener.cleanup_task_state("task-1", 1)
+
+    with pytest.raises(asyncio.CancelledError):
+        await send_task

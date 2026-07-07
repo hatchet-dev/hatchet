@@ -124,6 +124,8 @@ export const userUniverseQuery = ({
         };
   },
   enabled: isCloudLoaded,
+  refetchInterval: 30_000,
+  staleTime: 30_000,
 });
 
 export function UserUniverseProvider({

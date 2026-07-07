@@ -60,6 +60,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
+import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useApiError } from '@/lib/hooks';
 import {
@@ -100,8 +101,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
-
-const OFFICE_HOURS_URL = 'https://hatchet.run/office-hours';
 
 function formatTimeoutMs(ms: number): string {
   if (ms <= 0) {
