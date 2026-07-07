@@ -27,7 +27,7 @@ async def test_flushes_when_batch_size_is_reached() -> None:
     inputs = ["alpha", "bravo", "charlie"]
 
     results = await asyncio.gather(
-        *[batch_simple.aio_run(SimpleInput(Message=msg)) for msg in inputs]
+        *[batch_simple.aio_run(SimpleInput(message=msg)) for msg in inputs]
     )
 
     assert len(results) == 3
@@ -38,7 +38,7 @@ async def test_flushes_when_batch_size_is_reached() -> None:
 async def test_flushes_when_fewer_items_buffered_than_batch_size() -> None:
     inputs = ["delta", "echo"]
 
-    futures = [batch_simple.aio_run(SimpleInput(Message=msg)) for msg in inputs]
+    futures = [batch_simple.aio_run(SimpleInput(message=msg)) for msg in inputs]
     await asyncio.sleep(0.5)
     results = await asyncio.gather(*futures)
 
@@ -48,10 +48,10 @@ async def test_flushes_when_fewer_items_buffered_than_batch_size() -> None:
 @pytest.mark.asyncio(loop_scope="session")
 async def test_partitions_batches_by_key_when_batch_size_reached() -> None:
     inputs = [
-        KeyedInput(Message="alpha", group="tenant-1"),
-        KeyedInput(Message="bravo", group="tenant-1"),
-        KeyedInput(Message="charlie", group="tenant-2"),
-        KeyedInput(Message="delta", group="tenant-2"),
+        KeyedInput(message="alpha", group="tenant-1"),
+        KeyedInput(message="bravo", group="tenant-1"),
+        KeyedInput(message="charlie", group="tenant-2"),
+        KeyedInput(message="delta", group="tenant-2"),
     ]
 
     results = await asyncio.gather(*[batch_keyed.aio_run(inp) for inp in inputs])
@@ -61,16 +61,16 @@ async def test_partitions_batches_by_key_when_batch_size_reached() -> None:
         assert result["batchKey"] == inp.group
         assert result["batchSize"] == 2
         assert result["uniqueKeys"] == 1
-        assert result["uppercase"] == inp.Message.upper()
+        assert result["uppercase"] == inp.message.upper()
 
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_flushes_keyed_batches_independently_when_interval_elapses() -> None:
     inputs = [
-        KeyedInput(Message="echo", group="tenant-1"),
-        KeyedInput(Message="foxtrot", group="tenant-1"),
-        KeyedInput(Message="golf", group="tenant-1"),
-        KeyedInput(Message="hotel", group="tenant-2"),
+        KeyedInput(message="echo", group="tenant-1"),
+        KeyedInput(message="foxtrot", group="tenant-1"),
+        KeyedInput(message="golf", group="tenant-1"),
+        KeyedInput(message="hotel", group="tenant-2"),
     ]
 
     results = await asyncio.gather(
@@ -110,7 +110,7 @@ async def test_handles_batch_size_of_one_without_keys() -> None:
     inputs = ["india", "juliet"]
 
     results = await asyncio.gather(
-        *[batch_single.aio_run(SimpleInput(Message=msg)) for msg in inputs]
+        *[batch_single.aio_run(SimpleInput(message=msg)) for msg in inputs]
     )
 
     assert [r["batchSize"] for r in results] == [1, 1]
@@ -135,7 +135,7 @@ async def test_broadcasted_return() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_broadcast.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+        *[batch_broadcast.aio_run(SimpleInput(message="hello")) for i in range(count)]
     )
     assert len(results) == 10
     assert all(r["sum"] == 50 for r in results)
@@ -146,7 +146,7 @@ async def test_cancel_semantics() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_cancel.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+        *[batch_cancel.aio_run(SimpleInput(message="hello")) for i in range(count)]
     )
     assert not any(results)
 
@@ -156,7 +156,7 @@ async def test_child_spawning() -> None:
     count = 10
 
     results = await asyncio.gather(
-        *[batch_child_spawn.aio_run(SimpleInput(Message="hello")) for i in range(count)]
+        *[batch_child_spawn.aio_run(SimpleInput(message="hello")) for i in range(count)]
     )
 
     assert all(results)
@@ -168,7 +168,7 @@ async def test_child_batch_spawning() -> None:
 
     results = await asyncio.gather(
         *[
-            batch_child_batch_spawn.aio_run(SimpleInput(Message="hello"))
+            batch_child_batch_spawn.aio_run(SimpleInput(message="hello"))
             for i in range(count)
         ]
     )

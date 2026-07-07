@@ -15,11 +15,11 @@ class OrderedInput(BaseModel):
 
 
 class SimpleInput(BaseModel):
-    Message: str
+    message: str
 
 
 class KeyedInput(BaseModel):
-    Message: str
+    message: str
     group: str
 
 
@@ -36,7 +36,7 @@ async def batch_simple(
     tasks: dict[str, SimpleInput], context: Context
 ) -> dict[str, Any]:
     return {
-        id: {"TransformedMessage": inp.Message.upper()} for id, inp in tasks.items()
+        id: {"TransformedMessage": inp.message.upper()} for id, inp in tasks.items()
     }
 
 
@@ -53,7 +53,7 @@ async def batch_keyed(tasks: dict[str, KeyedInput], context: Context) -> dict[st
             "batchKey": inp.group,
             "batchSize": len(tasks),
             "uniqueKeys": unique_keys,
-            "uppercase": inp.Message.upper(),
+            "uppercase": inp.message.upper(),
         }
         for id, inp in tasks.items()
     }
@@ -75,7 +75,7 @@ async def batch_keyed_interval(
             "batchKey": inp.group,
             "batchSize": len(tasks),
             "uniqueKeys": unique_keys,
-            "payload": inp.Message,
+            "payload": inp.message,
         }
         for id, inp in tasks.items()
     }
@@ -110,7 +110,7 @@ async def batch_single(
     tasks: dict[str, SimpleInput], context: Context
 ) -> dict[str, Any]:
     return {
-        id: {"original": inp.Message, "batchSize": len(tasks)}
+        id: {"original": inp.message, "batchSize": len(tasks)}
         for id, inp in tasks.items()
     }
 
@@ -135,7 +135,7 @@ async def batch_ordered(
 async def batch_broadcast(
     tasks: dict[str, SimpleInput], context: Context
 ) -> dict[str, Any]:
-    return {"sum": sum(len(i.Message) for _, i in tasks.items())}
+    return {"sum": sum(len(i.message) for _, i in tasks.items())}
 
 
 @hatchet.batch_task(
@@ -151,7 +151,7 @@ async def batch_cancel(_: dict[str, SimpleInput], context: Context) -> dict[str,
 
 @hatchet.task(input_validator=SimpleInput)
 async def child(input: SimpleInput, context: Context) -> dict[str, Any]:
-    return {"blahblah": len(input.Message)}
+    return {"blahblah": len(input.message)}
 
 
 @hatchet.batch_task(
@@ -175,7 +175,7 @@ async def batch_child_spawn(
     inp: dict[str, SimpleInput], context: Context
 ) -> dict[str, Any]:
     return {
-        id: await child.aio_run(SimpleInput(Message="blahblah"))
+        id: await child.aio_run(SimpleInput(message="blahblah"))
         for id, inp in inp.items()
     }
 
