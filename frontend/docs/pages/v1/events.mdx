@@ -86,12 +86,6 @@ Concretely, for a workflow with event triggers:
 
 Scopes are most useful when you want per-entity filtering, such as in a multi-tenant application where each of your customers should have their own filtering rules. For instance, you might create one filter per customer with a scope like `customer:1234`, each with its own expression and payload. When an event arrives for that customer, you push it with `scope="customer:1234"`, and it's evaluated only against that customer's filters — not against every filter registered for the workflow.
 
-<Callout type="info">
-  The examples below use a placeholder scope like `foobarbaz` for simplicity. In
-  a real application, a scope is typically an identifier for the entity the
-  filter belongs to, such as a customer, user, or organization id.
-</Callout>
-
 ### Basic Usage
 
 There are two ways to create filters in Hatchet.
@@ -137,9 +131,10 @@ You also can create event filters by using the `filters` clients on the SDKs:
 </UniversalTabs>
 
 <Callout type="warning">
-  Note the `scope` argument to the filter is required **both when creating a
-  filter, and when pushing events**. If the scope on filter creation does not
-  match the scope provided when pushing events, the filter will not apply.
+  Note the [`scope`](#understanding-scopes) argument to the filter is required
+  **both when creating a filter, and when pushing events**. If the scope on
+  filter creation does not match the scope provided when pushing events, the
+  filter will not apply.
 </Callout>
 
 Then, push an event that uses the filter to determine whether to run. For instance, this run will be skipped, since the payload does not match the expression:

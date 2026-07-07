@@ -51,11 +51,9 @@ When working with cancellation in Hatchet tasks, consider the following best pra
 
 2. **Cancellation Checks**: Regularly check for cancellation signals within long-running tasks or loops. This allows the task to respond to cancellation in a timely manner and avoid unnecessary processing.
 
-3. **Asynchronous Operations**: If a task performs asynchronous operations, such as network requests or file I/O, consider passing the cancellation signal to those operations. Many libraries and APIs support cancellation through the `AbortSignal` interface.
+3. **Cancellation Propagation**: If a task invokes other functions or libraries, consider propagating the cancellation signal to those dependencies. This ensures that cancellation is handled consistently throughout the task.
 
 4. **Error Handling**: Handle cancellation errors appropriately. Distinguish between cancellation errors and other types of errors to provide meaningful error messages and take appropriate actions.
-
-5. **Cancellation Propagation**: If a task invokes other functions or libraries, consider propagating the cancellation signal to those dependencies. This ensures that cancellation is handled consistently throughout the task.
 
 ## Additional Features
 

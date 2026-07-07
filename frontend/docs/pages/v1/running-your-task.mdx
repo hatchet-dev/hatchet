@@ -58,7 +58,7 @@ On the other hand, fire-and-forget-style triggering enqueues a task without wait
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab title="Python">
 
-Call `run` with `wait_for_result=False` on a `Task` or `Workflow` object to enqueue it fire-and-forget. This returns a `WorkflowRunRef` you can use to access the run ID and result later. (The older `run_no_wait` method is deprecated in favor of `run(wait_for_result=False)`.)
+Call `run` with `wait_for_result=False` on a `Task` or `Workflow` object to enqueue it fire-and-forget. This returns a `WorkflowRunRef` you can use to access the run ID and result later.
 
 <Snippet src={snippets.python.trigger_methods.workflow.sync} />
 

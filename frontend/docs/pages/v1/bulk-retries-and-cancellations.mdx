@@ -49,9 +49,9 @@ The first way to bulk cancel or replay runs is by providing a list of run ids. T
   <Tabs.Tab title="Typescript">
 
 <Callout type="info">
-  Just like in the Python SDK, the mechanics of bulk replaying and bulk
-  cancelling tasks are exactly the same. The only change would be replacing e.g.
-  `hatchet.runs.cancel` with `hatchet.runs.replay`.
+  The mechanics of bulk replaying and bulk cancelling tasks are exactly the
+  same. The only change would be replacing e.g. `hatchet.runs.cancel` with
+  `hatchet.runs.replay`.
 </Callout>
 
     First, we'll start by fetching a task via the REST API.
@@ -70,9 +70,9 @@ The first way to bulk cancel or replay runs is by providing a list of run ids. T
   <Tabs.Tab title="Go">
 
 <Callout type="info">
-  Just like in the Python SDK, the mechanics of bulk replaying and bulk
-  cancelling tasks are exactly the same. The only change would be replacing e.g.
-  `client.Runs().Cancel` with `client.Runs().Replay`.
+  The mechanics of bulk replaying and bulk cancelling tasks are exactly the
+  same. The only change would be replacing e.g. `client.Runs().Cancel` with
+  `client.Runs().Replay`.
 </Callout>
 
     First, we'll start by fetching a task via the REST API.
@@ -89,9 +89,25 @@ The first way to bulk cancel or replay runs is by providing a list of run ids. T
 
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
+
+<Callout type="info">
+  The mechanics of bulk replaying and bulk cancelling tasks are exactly the
+  same. The only change would be replacing e.g. `hatchet.runs.bulk_cancel` with
+  `hatchet.runs.bulk_replay`.
+</Callout>
+
+    First, we'll start by fetching a task via the REST API.
+
     <Snippet src={snippets.ruby.bulk_operations.cancel.setup} />
+
+    Now that we have a task, we'll get runs for it, so that we can use them to bulk cancel by run id.
+
     <Snippet src={snippets.ruby.bulk_operations.cancel.list_runs} />
+
+    And finally, we can cancel the runs in bulk.
+
     <Snippet src={snippets.ruby.bulk_operations.cancel.cancel_by_run_ids} />
+
   </Tabs.Tab>
 </UniversalTabs>
 
@@ -128,7 +144,13 @@ The example below provides some filters you might use to cancel or replay runs i
 
   </Tabs.Tab>
   <Tabs.Tab title="Ruby">
+
+The example below provides some filters you might use to cancel or replay runs in bulk. Importantly, these filters are very similar to the filters you can use in the Hatchet Dashboard to filter which task runs are displaying.
+
     <Snippet src={snippets.ruby.bulk_operations.cancel.cancel_by_filters} />
+
+    Running this request will cancel all task runs matching the filters provided.
+
   </Tabs.Tab>
 </UniversalTabs>
 

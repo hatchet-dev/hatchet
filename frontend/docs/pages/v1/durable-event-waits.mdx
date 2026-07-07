@@ -3,7 +3,6 @@ import { Snippet } from "@/components/code";
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "@/components/UniversalTabs";
 import HumanInLoopDiagram from "@/components/HumanInLoopDiagramWrapper";
-import LookbackWindowDiagram from "@/components/LookbackWindowDiagramWrapper";
 
 # Durable Event Waits
 
@@ -72,8 +71,6 @@ In general, you'll want to match the payload of the incoming event to some data 
 Event waits can also optionally look back in time for recent events that have come in, which is often useful for preventing race conditions. An important caveat is that in order look up previous events, the wait must also be established alongside a **scope**, which must also be pushed with the event itself. The scope serves as a hint to help Hatchet narrow down the pool of candidate events.
 
 As a simple example, if you're establishing an event wait with a CEL expression like `input.user_id == 1234`, then you know that `{"user_id": 1234}` is present on the event payload, so you might use the string `user_id:1234` as the scope, **both when establishing the wait and pushing the event.**
-
-<LookbackWindowDiagram />
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]} variant="hidden">
   <Tabs.Tab title="Python">
