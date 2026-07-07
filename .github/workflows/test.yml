@@ -749,7 +749,7 @@ jobs:
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
-      - name: Build non-dev lite image
+      - name: Build non-dev images
         run: |
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=lite --platform linux/amd64 -t hatchet-lite-tmp:amd64 . &
@@ -757,49 +757,13 @@ jobs:
             --build-arg SERVER_TARGET=admin --platform linux/amd64 -t hatchet-admin-tmp:amd64 . &
           DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
             --build-arg SERVER_TARGET=migrate --platform linux/amd64 -t hatchet-migrate-tmp:amd64 . &
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=api --platform linux/amd64 -t hatchet-api:ci . &
           wait
           DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
             --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
             --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
             --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
             --platform linux/amd64 -t hatchet-lite:ci .
-      - name: Assert non-dev lite has auth ENABLED
-        run: |
-          set -uo pipefail
-          docker network create hatchet-smoke
-          docker run -d --name hatchet-smoke-pg --network hatchet-smoke \
-            -e POSTGRES_USER=hatchet -e POSTGRES_PASSWORD=hatchet -e POSTGRES_DB=hatchet \
-            postgres:15.6
-          for i in $(seq 1 30); do
-            docker exec hatchet-smoke-pg pg_isready -U hatchet >/dev/null 2>&1 && break
-            sleep 2
-          done
-          docker run -d --name hatchet-smoke-lite --network hatchet-smoke \
-            -e DATABASE_URL="postgresql://hatchet:hatchet@hatchet-smoke-pg:5432/hatchet?sslmode=disable" \
-            -e SERVER_GRPC_BIND_ADDRESS=0.0.0.0 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7070 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -p 8888:8888 \
-            hatchet-lite:ci
-          for i in $(seq 1 60); do
-            curl -fsS http://localhost:8888/api/live >/dev/null 2>&1 && break
-            sleep 2
-          done
-          if ! curl -fsS http://localhost:8888/api/live >/dev/null 2>&1; then
-            echo "::error::non-dev lite never became ready"; exit 1
-          fi
-          META=$(curl -fsS http://localhost:8888/api/v1/meta)
-          echo "$META"
-          if ! echo "$META" | python3 -c "import sys,json; sys.exit(0 if json.load(sys.stdin).get('authDisabled') is not True else 1)"; then
-            echo "::error::non-dev lite reports authDisabled=true - GO_BUILD_TAGS is misconfigured"; exit 1
-          fi
-          CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8888/api/v1/tenants/00000000-0000-0000-0000-000000000000/workers)
-          if [ "$CODE" != "401" ] && [ "$CODE" != "403" ]; then
-            echo "::error::unauthenticated tenant request returned $CODE (expected 401/403) - auth is not enforced"; exit 1
-          fi
-          echo "non-dev lite has auth enabled (authDisabled=false, unauthenticated request rejected with $CODE)"
-      - name: Dump lite logs on failure
-        if: failure()
-        run: docker logs hatchet-smoke-lite 2>&1 | tail -100 || true
+      - name: Assert non-dev api and lite have auth ENABLED
+        run: bash hack/ci/assert-auth-enabled.sh

@@ -1,1 +1,2 @@
 *.key -text
+*.jwt -text
