@@ -14,7 +14,7 @@
     "prettier:fix": "prettier \"(pages|components)/**/*.{tsx,mdx,js,ts}\" --write",
     "generate-llms": "tsx scripts/generate-llms.ts",
     "test-search": "tsx scripts/test-search-quality.ts",
-    "generate-examples": "cd ../snippets/ && python3 generate.py "
+    "generate-examples": "cd ../snippets/ && python -X utf8 generate.py || python3 -X utf8 generate.py"
   },
   "repository": {
     "type": "git",
@@ -40,12 +40,12 @@
     "estree-util-value-to-estree": "^3.4.0",
     "js-yaml": "^4.1.1",
     "loops": "^5.0.1",
-    "lucide-react": "^0.459.0",
+    "lucide-react": "^1.7.0",
     "minisearch": "^7.2.0",
-    "next": "^14.2.35",
+    "next": "^15.5.18",
     "nextra": "^3.3.1",
     "nextra-theme-docs": "^3.3.1",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.13",
     "posthog-js": "^1.272.1",
     "posthog-node": "^5.24.15",
     "react": "^18.3.1",
@@ -55,13 +55,13 @@
     "recharts": "^2.15.4",
     "shiki": "^1.29.2",
     "swagger-ui-react": "^5.29.3",
-    "tailwind-merge": "^2.6.0",
+    "tailwind-merge": "^3.5.0",
     "tailwindcss": "^3.4.18",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "18.11.10",
+    "@types/node": "18.19.130",
     "@types/react": "^18.3.26",
     "@types/react-dom": "^18.3.7",
     "postcss-import": "^16.1.1",
@@ -80,9 +80,13 @@
       "prismjs": "^1.30.0",
       "mdast-util-to-hast": ">=13.2.1",
       "tar": "^7.5.8",
-      "lodash": "^4.17.23",
-      "lodash-es": "^4.17.23",
-      "swagger-ui-react>js-yaml": "4.1.1"
+      "lodash": "^4.18.0",
+      "lodash-es": "^4.18.0",
+      "swagger-ui-react>js-yaml": "4.1.1",
+      "axios": "^1.15.2",
+      "uuid": "^13.0.1",
+      "@xmldom/xmldom": "^0.8.13",
+      "follow-redirects": "^1.16.0"
     }
   }
 }

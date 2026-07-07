@@ -390,6 +390,8 @@ WITH expired_runtimes AS (
     WHERE
         tenant_id = @tenantId::uuid
         AND timeout_at <= NOW()
+        -- evicted tasks are not eligible for timeout
+        AND evicted_at IS NULL
     ORDER BY
         task_id, task_inserted_at, retry_count
     LIMIT
@@ -425,11 +427,13 @@ WITH tasks_on_inactive_workers AS (
         v1_task_runtime runtime ON w."id" = runtime.worker_id
     WHERE
         w."tenantId" = @tenantId::uuid
+        AND w."tenantId" = runtime.tenant_id
         AND w."lastHeartbeatAt" < NOW() - INTERVAL '30 seconds'
         -- evicted tasks are not eligible for re-assignment
         AND runtime.evicted_at IS NULL
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000)
+    FOR UPDATE OF runtime SKIP LOCKED
 )
 SELECT
     v1_task.id,
@@ -476,7 +480,7 @@ WITH input AS (
         ) AS subquery
 )
 SELECT
-    t.external_id,
+    t.external_id as task_external_id,
     e.*
 FROM
     v1_lookup_table l
@@ -511,7 +515,8 @@ WITH input AS (
         e.data,
 		e.task_id,
 		e.task_inserted_at,
-        e.inserted_at
+        e.inserted_at,
+        e.external_id
     FROM
         v1_task_event e
     JOIN
@@ -526,7 +531,8 @@ SELECT
 	e.id,
     e.inserted_at,
 	e.event_key,
-	e.data
+	e.data,
+    e.external_id
 FROM
 	events_to_lock e
 WHERE
@@ -646,7 +652,10 @@ WITH RECURSIVE augmented_tasks AS (
         t.parent_task_inserted_at,
         t.step_index,
         t.child_index,
-        t.child_key
+        t.child_key,
+        t.desired_worker_label,
+        t.triggering_event_external_id,
+        t.triggering_event_key
     FROM
         v1_task t
     WHERE
@@ -692,6 +701,9 @@ SELECT
     t.step_index,
     t.child_index,
     t.child_key,
+    t.desired_worker_label,
+    t.triggering_event_external_id,
+    t.triggering_event_key,
     j."kind" as "jobKind",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
@@ -724,7 +736,8 @@ WITH input AS (
         t.workflow_id,
         e.id AS task_event_id,
         e.inserted_at AS task_event_inserted_at,
-        e.data AS output
+        e.data AS output,
+        e.external_id AS output_event_external_id
     FROM
         v1_task t1
     JOIN
@@ -758,7 +771,8 @@ SELECT
     task_outputs.task_event_id,
     task_outputs.task_event_inserted_at,
     task_outputs.workflow_run_id,
-    task_outputs.output
+    task_outputs.output,
+    task_outputs.output_event_external_id
 FROM
     task_outputs
 JOIN
@@ -1100,12 +1114,19 @@ WHERE (task_id, task_inserted_at, retry_count) IN (
 WITH locked_cs AS (
     SELECT cs.task_id, cs.task_inserted_at, cs.task_retry_count
     FROM v1_concurrency_slot cs
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM v1_task vt
-        WHERE cs.task_id = vt.id
-            AND cs.task_inserted_at = vt.inserted_at
-    )
+    WHERE
+        NOT EXISTS (
+            SELECT 1
+            FROM v1_task vt
+            WHERE cs.task_id = vt.id
+                AND cs.task_inserted_at = vt.inserted_at
+        )
+        OR EXISTS (
+            SELECT 1
+            FROM "Tenant" t
+            WHERE t."id" = cs.tenant_id
+                AND t."deletedAt" IS NOT NULL
+        )
     ORDER BY cs.task_id, cs.task_inserted_at, cs.task_retry_count, cs.strategy_id
     LIMIT @batchSize::int
     FOR UPDATE SKIP LOCKED
@@ -1122,7 +1143,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
@@ -1137,7 +1159,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_retry_queue_item rqi
     JOIN
@@ -1152,7 +1175,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
@@ -1170,7 +1194,8 @@ WITH queued_tasks AS (
         sc.strategy,
         cs.key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_concurrency_slot cs
     JOIN
@@ -1196,7 +1221,8 @@ WITH queued_tasks AS (
         COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
         COALESCE(cs.key, '') as key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_task_runtime tr
     JOIN
@@ -1224,7 +1250,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM queued_tasks
 
 UNION ALL
@@ -1237,7 +1264,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM retry_queued_tasks
 
 UNION ALL
@@ -1250,7 +1278,8 @@ SELECT
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM rate_limited_queued_tasks
 
 UNION ALL
@@ -1263,7 +1292,8 @@ SELECT
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
 
 UNION ALL
@@ -1276,7 +1306,8 @@ SELECT
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM running_tasks;
 
 -- name: FindOldestRunningTask :one

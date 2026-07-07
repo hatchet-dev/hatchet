@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/hatchet-dev/pgoutbox"
 	pgxzero "github.com/jackc/pgx-zerolog"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/tracelog"
 	"github.com/rs/zerolog"
@@ -39,6 +41,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/postmark"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email/smtp"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	"github.com/hatchet-dev/hatchet/pkg/repository/cache"
 	"github.com/hatchet-dev/hatchet/pkg/repository/debugger"
@@ -71,6 +74,16 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 
 	_, err := loaderutils.LoadConfigFromViper(f, configFile, files...)
 	return configFile, err
+}
+
+func parseRetentionDuration(name, value string) (time.Duration, error) {
+	retentionPeriod, err := time.ParseDuration(value)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s %s: %w", name, value, err)
+	}
+
+	return retentionPeriod, nil
 }
 
 type ConfigLoader struct {
@@ -162,15 +175,55 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 		conn.TypeMap().RegisterType(t)
 
+		if uuidType, ok := conn.TypeMap().TypeForName("uuid"); ok {
+			var uuidrangeOID uint32
+			err = conn.QueryRow(ctx, "SELECT oid FROM pg_type WHERE typname = 'uuidrange'").Scan(&uuidrangeOID)
+			if err != nil && err != pgx.ErrNoRows {
+				return fmt.Errorf("loading uuidrange oid: %w", err)
+			}
+			if err == nil {
+				conn.TypeMap().RegisterType(&pgtype.Type{
+					Name:  "uuidrange",
+					OID:   uuidrangeOID,
+					Codec: &pgtype.RangeCodec{ElementType: uuidType},
+				})
+			}
+		}
+
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		return err
 	}
 
-	config, err := pgxpool.ParseConfig(databaseUrl)
+	// Determine which URL the main pool should use:
+	// - If DATABASE_PGBOUNCER_URL is set, main pool connects through pgbouncer
+	// - Otherwise, main pool connects directly via DATABASE_URL
+	mainPoolUrl := databaseUrl
+	if cf.PgBouncerURL != "" {
+		mainPoolUrl = cf.PgBouncerURL
+
+		l.Info().Msgf("main pool will connect through pgbouncer")
+	}
+
+	// application_name shows up in pg_stat_activity, letting us attribute connections
+	// and idle transactions to a specific service (and shard namespace) on shared
+	// postgres instances.
+	appName := scf.OpenTelemetry.ServiceName
+	if cf.ApplicationNamePrefix != "" {
+		appName = cf.ApplicationNamePrefix + ":" + appName
+	}
+
+	config, err := pgxpool.ParseConfig(mainPoolUrl)
 	if err != nil {
 		return nil, err
 	}
+
+	setPgxApplicationName(config, appName)
 
 	config.AfterConnect = pgxpoolConnAfterConnect
 
@@ -236,6 +289,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
 		}
 
+		setPgxApplicationName(readReplicaConfig, appName+":read-replica")
+
 		if cf.ReadReplicaMaxConns != 0 {
 			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
 		}
@@ -264,46 +319,46 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 	}
 
-	// A small direct pool for DDL operations that cannot go through pgbouncer
-	// (e.g. DETACH PARTITION CONCURRENTLY which cannot run inside a transaction block).
-	var directPool *pgxpool.Pool
-
-	if cf.PgBouncerEnabled && cf.DirectDatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_PGBOUNCER_ENABLED is set but DATABASE_DIRECT_URL is not; " +
-			"a direct PostgreSQL connection is required for DDL operations like DETACH PARTITION CONCURRENTLY")
+	// Create a separate direct pool using DATABASE_URL for DDL operations. These operations are
+	// critical and cannot use the main pool if it's routed through pgbouncer, so a separate pool
+	// is justified.
+	ddlConfig, err := pgxpool.ParseConfig(databaseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
 
-	if cf.DirectDatabaseURL != "" {
-		directConfig, err := pgxpool.ParseConfig(cf.DirectDatabaseURL)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse direct database url: %w", err)
-		}
+	setPgxApplicationName(ddlConfig, appName+":ddl")
 
-		if cf.DirectDatabaseMaxConns != 0 {
-			directConfig.MaxConns = int32(cf.DirectDatabaseMaxConns) // nolint: gosec
-		}
+	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
+	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
+	ddlConfig.MaxConnLifetime = cf.MaxConnLifetime
+	ddlConfig.MaxConnIdleTime = cf.MaxConnIdleTime
+	ddlConfig.AfterConnect = pgxpoolConnAfterConnect
+	ddlConfig.ConnConfig.Tracer = newOTelPgxTracer()
 
-		if cf.DirectDatabaseMinConns != 0 {
-			directConfig.MinConns = int32(cf.DirectDatabaseMinConns) // nolint: gosec
-		}
-
-		directConfig.MaxConnLifetime = cf.MaxConnLifetime
-		directConfig.MaxConnIdleTime = cf.MaxConnIdleTime
-		directConfig.AfterConnect = pgxpoolConnAfterConnect
-		directConfig.ConnConfig.Tracer = newOTelPgxTracer()
-
-		directPool, err = pgxpool.NewWithConfig(context.Background(), directConfig)
-		if err != nil {
-			return nil, fmt.Errorf("could not connect to direct database: %w", err)
-		}
+	ddlPool, err := pgxpool.NewWithConfig(context.Background(), ddlConfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not connect to direct database: %w", err)
 	}
 
 	ch := cache.New(cf.CacheDuration)
 
-	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+	_, err = parseRetentionDuration("default tenant retention period", scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+		return nil, err
+	}
+
+	corePartitionRetention, err := parseRetentionDuration("core partition retention", scf.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
+	}
+
+	olapPartitionRetention, err := parseRetentionDuration("OLAP partition retention", scf.Runtime.Limits.OLAPPartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
 	}
 
 	taskLimits := repov1.TaskOperationLimits{
@@ -330,7 +385,7 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ExternalCutoverBatchSize:             scf.PayloadStore.ExternalCutoverBatchSize,
 		ExternalCutoverNumConcurrentOffloads: scf.PayloadStore.ExternalCutoverNumConcurrentOffloads,
 		InlineStoreTTL:                       &inlineStoreTTL,
-		EnableImmediateOffloads:              scf.PayloadStore.EnableImmediateOffloads,
+		EnableWindowSizeOptimization:         scf.PayloadStore.EnableWindowSizeOptimization,
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
@@ -340,11 +395,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	v1, cleanupV1 := repov1.NewRepository(
 		pool,
-		directPool,
+		ddlPool,
 		&l,
 		cf.CacheDuration,
-		retentionPeriod,
-		retentionPeriod,
+		corePartitionRetention,
+		olapPartitionRetention,
 		scf.Runtime.MaxInternalRetryCount,
 		taskLimits,
 		payloadStoreOpts,
@@ -363,13 +418,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupV1()
 		},
-		Pool:       pool,
-		QueuePool:  pool,
-		DirectPool: directPool,
-		V1:         v1,
-		Seed:       cf.Seed,
+		Pool:    pool,
+		DDLPool: ddlPool,
+		V1:      v1,
+		Seed:    cf.Seed,
 	}, nil
-
 }
 
 type ServerConfigFileOverride func(*server.ServerConfigFile)
@@ -417,6 +470,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		cookie.WithCookieDomain(cf.Auth.Cookie.Domain),
 		cookie.WithCookieName(cf.Auth.Cookie.Name),
 		cookie.WithCookieSecrets(getStrArr(cf.Auth.Cookie.Secrets)...),
+		cookie.WithLogger(&l),
 	)
 
 	if err != nil {
@@ -504,15 +558,33 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		alerter = errors.NoOpAlerter{}
 	}
 
+	cleanupSecurityCheck := func() {}
+
 	if cf.SecurityCheck.Enabled {
+		var oauthProviders []string
+		if cf.Auth.Google.Enabled {
+			oauthProviders = append(oauthProviders, "google")
+		}
+		if cf.Auth.Github.Enabled {
+			oauthProviders = append(oauthProviders, "github")
+		}
+
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
-			Enabled:  cf.SecurityCheck.Enabled,
-			Endpoint: cf.SecurityCheck.Endpoint,
-			Logger:   &l,
-			Version:  version,
+			Enabled:        cf.SecurityCheck.Enabled,
+			Endpoint:       cf.SecurityCheck.Endpoint,
+			Logger:         &l,
+			Version:        version,
+			MQKind:         cf.MessageQueue.Kind,
+			OAuthProviders: oauthProviders,
 		}, dc.V1.SecurityCheck())
 
-		defer securityCheck.Check()
+		securityCheckCtx, cancel := context.WithCancel(context.Background())
+		cleanupSecurityCheck = func() {
+			cancel()
+			securityCheck.Shutdown()
+		}
+
+		go securityCheck.Start(securityCheckCtx)
 	}
 
 	var analyticsEmitter analytics.Analytics
@@ -716,30 +788,48 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	v := validator.NewDefaultValidator()
 
+	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
+
+	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err)
+	}
+
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,
 		cf.Runtime.SchedulerConcurrencyRateLimit,
 		cf.Runtime.SchedulerConcurrencyPollingMinInterval,
 		cf.Runtime.SchedulerConcurrencyPollingMaxInterval,
+		cf.Runtime.SchedulerCheckActiveMinInterval,
+		cf.Runtime.SchedulerCheckActiveMaxInterval,
 		cf.Runtime.SchedulerAdvisoryLockTimeout,
 		cf.Runtime.OptimisticSchedulingEnabled,
 		cf.Runtime.OptimisticSchedulingSlots,
+		cf.Runtime.ConcurrencyInMemoryIndexEnabled,
+		promGate,
 	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create scheduling pool (v1): %w", err)
 	}
 
-	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension())
+	schedulingPoolV1.Extensions.Add(v1.NewPrometheusExtension(promGate))
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
 
+		cleanupSecurityCheck()
+
+		cleanupConcurrencyOutbox()
+
 		if err := cleanupSchedulingPoolV1(); err != nil {
 			return fmt.Errorf("error cleaning up scheduling pool (v1): %w", err)
 		}
+
 		if err := cleanup1(); err != nil {
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
@@ -780,6 +870,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not load internal client: %w", err)
 	}
 
+	if cf.Runtime.FrontendURL == "" {
+		cf.Runtime.FrontendURL = cf.Runtime.ServerURL
+	}
+
 	return cleanup, &server.ServerConfig{
 		Alerter:                alerter,
 		Analytics:              analyticsEmitter,
@@ -800,9 +894,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Ingestor:               ing,
 		OpenTelemetry:          cf.OpenTelemetry,
 		Prometheus:             cf.Prometheus,
+		PrometheusGate:         promGate,
 		Observability:          cf.Observability,
 		Email:                  emailSvc,
-		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.ServerURL, emailSvc),
+		TenantAlerter:          alerting.New(dc.V1, encryptionSvc, cf.Runtime.FrontendURL, emailSvc),
 		AdditionalOAuthConfigs: additionalOAuthConfigs,
 		AdditionalLoggers:      cf.AdditionalLoggers,
 		EnableDataRetention:    cf.EnableDataRetention,
@@ -813,6 +908,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Operations:             cf.OLAP,
 		CronOperations:         cf.CronOperations,
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
+		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
 }
 
@@ -991,6 +1087,16 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 	return nil
 }
 
+// setPgxApplicationName sets application_name on the pool config unless the
+// connection string already provided one explicitly.
+func setPgxApplicationName(config *pgxpool.Config, appName string) {
+	if config.ConnConfig.RuntimeParams["application_name"] != "" {
+		return
+	}
+
+	config.ConnConfig.RuntimeParams["application_name"] = appName
+}
+
 func newOTelPgxTracer() *otelpgx.Tracer {
 	return otelpgx.NewTracer(
 		otelpgx.WithDisableSQLStatementInAttributes(),
@@ -1028,4 +1134,25 @@ func firstNWords(s string, n int) string {
 		end += next + 1
 	}
 	return strings.ToUpper(strings.TrimSpace(s[:end]))
+}
+
+func newConcurrencyOutbox(pool *pgxpool.Pool, l zerolog.Logger) (pgoutbox.Outbox, func(), error) {
+	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
+
+	// the scheduler's outbox shares the same database connection pool, this means that we need to be
+	// careful not to cause deadlocks by opening a tx inside of a tx. The outbox methods all have a tx-scoped
+	// method which should be used instead of the non-scoped versions.
+	concurrencyOutbox, err := pgoutbox.NewOutbox(
+		ctx,
+		pool,
+		pgoutbox.WithAutoMigrate(false),
+		pgoutbox.WithLogger(l),
+		pgoutbox.WithDefaultExpiration(24*time.Hour),
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create concurrency outbox: %w", err) // nolint:govet
+	}
+
+	return concurrencyOutbox, cancel, nil
 }

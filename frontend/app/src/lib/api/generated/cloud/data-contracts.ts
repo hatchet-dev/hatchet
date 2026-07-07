@@ -10,6 +10,19 @@
  * ---------------------------------------------------------------
  */
 
+export enum UserOfferType {
+  YCAlumni = "YC Alumni",
+  YCCurrentBatch = "YC Current Batch",
+  Startup = "Startup",
+  Custom = "Custom",
+}
+
+export enum UserOfferStage {
+  Requested = "Requested",
+  Approved = "Approved",
+  Redeemed = "Redeemed",
+}
+
 export enum AuditLogActorType {
   User = "user",
   ApiKey = "api_key",
@@ -35,6 +48,7 @@ export enum TenantStatusType {
 
 export enum OrganizationMemberRoleType {
   OWNER = "OWNER",
+  MEMBER = "MEMBER",
 }
 
 export enum TemplateOptions {
@@ -123,6 +137,11 @@ export interface APICloudMetadata {
    * @example 3600000
    */
   inactivityLogoutMs?: number;
+  /**
+   * when set, the dashboard may prompt users to continue on this frontend host (same path)
+   * @example "https://cloud.hatchet.run"
+   */
+  redirectFrontendHost?: string;
 }
 
 export type APIErrors = any;
@@ -367,7 +386,10 @@ export interface TenantPaymentMethod {
   brand: string;
   /** The last 4 digits of the card. */
   last4?: string;
-  /** The expiration date of the card. */
+  /**
+   * The expiration date of the card.
+   * @format date-time
+   */
   expiration?: string;
   /** The description of the payment method. */
   description?: string;
@@ -867,6 +889,8 @@ export interface OrganizationInvite {
    * @format uuid
    */
   organizationId: string;
+  /** The name of the organization */
+  organizationName?: string;
   /**
    * The email of the inviter
    * @format email
@@ -957,6 +981,45 @@ export interface AuditLog {
 
 export interface AuditLogList {
   rows: AuditLog[];
+}
+
+export interface RedeemOfferRequest {
+  /**
+   * The organization to apply the offer credit to.
+   * @format uuid
+   */
+  organizationId: string;
+  /** The Attio record ID of the offer to redeem. */
+  offerRecordId: string;
+  /** Shipping address for welcome kit delivery. */
+  address?: string;
+}
+
+export interface RedeemOfferResponse {
+  /** The amount of credit applied in cents. */
+  appliedCents: number;
+  /** The Attio record ID of the redeemed offer. */
+  offerRecordId: string;
+}
+
+export interface UserOffer {
+  /** The Attio record ID of the offer. */
+  recordId: string;
+  /** The current stage of the offer. */
+  stage?: UserOfferStage;
+  /** The type of the offer. */
+  type?: UserOfferType;
+  /** The credit amount in cents. */
+  creditAmountCents?: number;
+  /**
+   * The expiration date of the offer.
+   * @format date-time
+   */
+  expiresAt?: string;
+  /** Number of months until the offer credit expires after redemption. */
+  expiresInMonths?: number;
+  /** Whether the offer includes a welcome kit. */
+  includesWelcomeKit?: boolean;
 }
 
 export type AutumnWebhookEvent = AutumnCustomerProductsUpdatedEvent;
@@ -1108,4 +1171,10 @@ export interface AutumnProductItem {
 export interface AutumnProductItemDisplay {
   primary_text?: string;
   secondary_text?: string;
+}
+
+/** Request body for adding existing org members to a specific tenant, bypassing tag matching. */
+export interface AddOrganizationMembersToTenantRequest {
+  /** IDs of org members to add to the tenant. */
+  memberIds: string[];
 }

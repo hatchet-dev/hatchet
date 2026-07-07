@@ -44,7 +44,7 @@ async def legacy_aio_start(worker: Worker) -> None:
     main_pid = os.getpid()
 
     logger.info("------------------------------------------")
-    logger.info("STARTING HATCHET (legacy mode)...")
+    logger.info("starting hatchet (legacy mode)...")
     logger.debug(f"worker runtime starting on PID: {main_pid}")
 
     worker._status = WorkerStatus.STARTING
@@ -69,7 +69,7 @@ async def legacy_aio_start(worker: Worker) -> None:
 
     # Create separate queues for durable workers
     durable_action_queue: Queue[Action | STOP_LOOP_TYPE] = worker._ctx.Queue()
-    durable_event_queue: Queue[ActionEvent] = worker._ctx.Queue()
+    durable_event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = worker._ctx.Queue()
 
     lifespan_context = None
     if worker._lifespan:
@@ -179,6 +179,8 @@ def _legacy_start_action_listener(
                 worker._handle_kill,
                 worker._client.debug,
                 worker._labels,
+                worker._worker_id_queue,
+                worker._stop_listener_event,
             ),
         )
         process.start()

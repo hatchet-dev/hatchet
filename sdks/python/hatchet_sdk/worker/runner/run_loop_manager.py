@@ -26,7 +26,7 @@ class WorkerActionRunLoopManager:
         durable_slots: int,
         config: ClientConfig,
         action_queue: "Queue[Action | STOP_LOOP_TYPE]",
-        event_queue: "Queue[ActionEvent]",
+        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
         debug: bool,
@@ -57,8 +57,8 @@ class WorkerActionRunLoopManager:
         self.client = Client(config=self.config, debug=self.debug)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
         self.log_sender = AsyncLogSender(self.client.event)
-        self.log_task = self.loop.create_task(self.log_sender.consume())
 
+        self.log_sender.start()
         self.start()
 
     def start(self) -> None:
@@ -75,7 +75,7 @@ class WorkerActionRunLoopManager:
             )()
 
     async def _async_start(self) -> None:
-        logger.info("starting runner...")
+        logger.info("starting action runner...")
         self.loop = asyncio.get_running_loop()
         # needed for graceful termination
         k = self.loop.create_task(self._start_action_loop())
@@ -85,7 +85,7 @@ class WorkerActionRunLoopManager:
         self.killing = True
 
         self.action_queue.put(STOP_LOOP)
-        self.log_sender.publish(STOP_LOOP)
+        self.log_sender.stop()
 
     async def evict_all_waiting_durable_runs(self) -> None:
         if self.runner:
@@ -109,7 +109,10 @@ class WorkerActionRunLoopManager:
             engine_version=self.engine_version,
         )
 
-        logger.debug(f"'{self.name}' waiting for {list(self.action_registry.keys())}")
+        logger.debug(
+            f"'{self.name}' found the following actions registered: {list(self.action_registry.keys())}"
+        )
+        logger.info(f"'{self.name}' started, waiting for tasks...")
         while not self.killing:
             action = await self._get_action()
             if action == STOP_LOOP:
@@ -127,7 +130,8 @@ class WorkerActionRunLoopManager:
             return
 
         logger.info("gracefully exiting runner...")
-
+        await self.evict_all_waiting_durable_runs()
+        await self.wait_for_tasks()
         self.cleanup()
 
         # Wait for 1 second to allow last calls to flush. These are calls which have been

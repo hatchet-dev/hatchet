@@ -1,9 +1,13 @@
-import { useTheme } from '@/components/hooks/use-theme';
-import { DocPage } from '@/components/v1/docs/docs-button';
+import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import { V1Event, V1Filter, ScheduledWorkflows } from '@/lib/api';
 import { ExpandedEventContent } from '@/pages/main/v1/events';
 import { FilterDetailView } from '@/pages/main/v1/filters/components/filter-detail-view';
 import { ExpandedScheduledRunContent } from '@/pages/main/v1/scheduled-runs/components/expanded-scheduled-run-content';
+import {
+  SpanDetail,
+  GroupDetail,
+} from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/span-detail';
+import type { SpanGroupInfo } from '@/pages/main/v1/workflow-runs-v1/$run/v2components/step-run-detail/observability/timeline/trace-timeline-utils';
 import {
   TaskRunDetail,
   TabOption,
@@ -19,16 +23,10 @@ import {
   useState,
 } from 'react';
 
-type SidePanelContent =
-  | {
-      isDocs: false;
-      component: React.ReactNode;
-      actions?: React.ReactNode;
-    }
-  | {
-      isDocs: true;
-      component: React.ReactNode;
-    };
+type SidePanelContent = {
+  component: React.ReactNode;
+  actions?: React.ReactNode;
+};
 
 type SidePanelData = {
   content: SidePanelContent | null;
@@ -42,13 +40,6 @@ type SidePanelData = {
 };
 
 type UseSidePanelProps =
-  | {
-      type: 'docs';
-      content: DocPage;
-      queryParams?: Record<string, string>;
-      // fixme: make this type safe based on the hashes available in the doc
-      scrollTo?: string;
-    }
   | {
       type: 'task-run-details';
       content: {
@@ -74,6 +65,21 @@ type UseSidePanelProps =
       content: {
         scheduledRun: ScheduledWorkflows;
       };
+    }
+  | {
+      type: 'span-details';
+      content: {
+        span: OtelSpanTree;
+        onSpanSelect?: (span: OtelSpanTree) => void;
+        onClose?: () => void;
+      };
+    }
+  | {
+      type: 'group-details';
+      content: {
+        group: SpanGroupInfo;
+        onClose?: () => void;
+      };
     };
 
 function SidePanelTaskRunDetail(props: {
@@ -88,13 +94,28 @@ function SidePanelTaskRunDetail(props: {
   );
 }
 
+function SidePanelSpanDetail(
+  props: Omit<React.ComponentProps<typeof SpanDetail>, 'onOpenTaskRun'>,
+) {
+  const { open } = useSidePanel();
+  return (
+    <SpanDetail
+      {...props}
+      onOpenTaskRun={(taskRunId) =>
+        open({
+          type: 'task-run-details',
+          content: { taskRunId, showViewTaskRunButton: true },
+        })
+      }
+    />
+  );
+}
+
 function useSidePanelData(): SidePanelData {
   const [isOpen, setIsOpen] = useState(false);
   const [history, setHistory] = useState<UseSidePanelProps[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const location = useLocation();
-  const { theme: rawTheme } = useTheme();
-  const theme = ['dark', 'light'].includes(rawTheme) ? rawTheme : 'dark';
 
   const props =
     currentIndex >= 0 && currentIndex < history.length
@@ -117,56 +138,39 @@ function useSidePanelData(): SidePanelData {
     switch (panelType) {
       case 'task-run-details':
         return {
-          isDocs: false,
           component: <SidePanelTaskRunDetail {...props.content} />,
         };
       case 'event-details':
         return {
-          isDocs: false,
           component: <ExpandedEventContent event={props.content.event} />,
         };
       case 'filter-detail':
         return {
-          isDocs: false,
           component: (
             <FilterDetailView filterId={props.content.filter.metadata.id} />
           ),
         };
       case 'scheduled-run-details':
         return {
-          isDocs: false,
           component: (
             <ExpandedScheduledRunContent
               scheduledRun={props.content.scheduledRun}
             />
           ),
         };
-      case 'docs':
-        const query = props.queryParams ?? {};
-        query.theme = theme;
-
-        const queryString = new URLSearchParams(query).toString();
-        const url =
-          `${props.content.href}?${queryString}` +
-          (props.scrollTo ? `#${props.scrollTo}` : '');
-
+      case 'span-details':
         return {
-          isDocs: true,
-          component: (
-            <div className="size-full p-4">
-              <iframe
-                src={url}
-                className="inset-0 size-full w-full rounded-md border border-slate-800"
-                loading="lazy"
-              />
-            </div>
-          ),
+          component: <SidePanelSpanDetail {...props.content} />,
+        };
+      case 'group-details':
+        return {
+          component: <GroupDetail {...props.content} />,
         };
       default:
         const exhaustiveCheck: never = panelType;
         throw new Error(`Unhandled action type: ${exhaustiveCheck}`);
     }
-  }, [props, theme]);
+  }, [props]);
 
   const open = useCallback(
     (newProps: UseSidePanelProps) => {

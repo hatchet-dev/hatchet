@@ -1,22 +1,43 @@
-import {
-  columns,
-  nameKey,
-  WorkflowColumn,
-} from './components/workflow-columns';
+import { columns, WorkflowColumn } from './components/workflow-columns';
 import { useWorkflows } from './hooks/use-workflows';
-import { DocsButton } from '@/components/v1/docs/docs-button';
-import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
+import {
+  SearchBarWithFilters,
+  type SearchSuggestion,
+} from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { Loading } from '@/components/v1/ui/loading.tsx';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { docsPages } from '@/lib/generated/docs';
+import { appRoutes } from '@/router';
+import { useParams } from '@tanstack/react-router';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMemo } from 'react';
 
-export default function WorkflowTable() {
-  const { tenantId } = useCurrentTenantId();
+const noopAutocomplete = () => ({ suggestions: [] as SearchSuggestion[] });
+const noopApplySuggestion = (query: string) => query;
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+export default function WorkflowsPage() {
+  return (
+    <WorkflowsGuard
+      title="No workflows found"
+      description="Workflows define sequences of tasks that execute together. Create your first workflow to start orchestrating work."
+      docs={{
+        href: docsPages.v1.quickstart.href,
+        description: 'Learn about workflows and tasks',
+      }}
+    >
+      <WorkflowTable />
+    </WorkflowsGuard>
+  );
+}
+
+function WorkflowTable() {
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
+
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:workflows', {});
 
   const {
     workflows,
@@ -30,36 +51,44 @@ export default function WorkflowTable() {
     columnFilters,
     setColumnFilters,
     resetFilters,
+    search,
+    setSearch,
   } = useWorkflows({
     key: 'workflows-table',
   });
 
+  const autocompleteContext = useMemo(() => ({}), []);
+
   if (isLoading) {
     return <Loading />;
   }
+
+  const searchBar = (
+    <SearchBarWithFilters
+      value={search}
+      onChange={setSearch}
+      onSubmit={setSearch}
+      getAutocomplete={noopAutocomplete}
+      applySuggestion={noopApplySuggestion}
+      autocompleteContext={autocompleteContext}
+      placeholder="Search workflows by name..."
+    />
+  );
 
   return (
     <DataTable
       columns={columns(tenantId)}
       data={workflows}
       emptyState={
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No workflows found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.quickstart}
-              label="Learn about creating workflows and tasks"
-            />
-          </div>
-        </div>
+        <EmptyState
+          filterHint="Try changing your search or filters."
+          title="No workflows found"
+          description="Workflows define sequences of tasks that execute together."
+          docPage={docsPages.v1.quickstart}
+          docLabel="Learn about workflows"
+        />
       }
-      filters={[
-        {
-          columnId: nameKey,
-          title: WorkflowColumn.name,
-          type: ToolbarType.Search,
-        },
-      ]}
+      searchBar={searchBar}
       columnVisibility={columnVisibility}
       setColumnVisibility={setColumnVisibility}
       pagination={pagination}

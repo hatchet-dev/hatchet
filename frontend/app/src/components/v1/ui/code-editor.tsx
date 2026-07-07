@@ -2,7 +2,6 @@ import CopyToClipboard from './copy-to-clipboard';
 import { useTheme } from '@/components/hooks/use-theme';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
-import 'monaco-themes/themes/Pastels on Dark.json';
 import { useCallback, useEffect, useId, useRef } from 'react';
 
 interface CodeEditorProps {
@@ -98,13 +97,14 @@ export function CodeEditor({
     configureJsonSchema,
   ]);
 
-  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : '';
+  const editorTheme = theme === 'dark' ? 'pastels-on-dark' : 'vs';
 
   return (
     <div
       className={cn(
         className,
         'relative h-fit w-full overflow-hidden rounded-lg',
+        'border border-border',
       )}
     >
       <Editor

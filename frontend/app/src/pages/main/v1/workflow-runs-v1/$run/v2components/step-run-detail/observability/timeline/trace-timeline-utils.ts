@@ -1,8 +1,4 @@
-import {
-  getDisplayName,
-  getStableKey,
-  hasErrorInTree,
-} from '../utils/span-tree-utils';
+import { getStableKey, hasErrorInTree } from '../utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 
 const GROUP_THRESHOLD = 5;
@@ -88,7 +84,7 @@ export function groupSiblings(
 
   const byName = new Map<string, OtelSpanTree[]>();
   for (const child of children) {
-    const name = getDisplayName(child);
+    const name = child.spanName;
     if (!byName.has(name)) {
       byName.set(name, []);
     }
@@ -102,7 +98,7 @@ export function groupSiblings(
   const emittedGroups = new Set<string>();
 
   for (const child of children) {
-    const name = getDisplayName(child);
+    const name = child.spanName;
     const siblings = byName.get(name)!;
 
     if (siblings.length <= GROUP_THRESHOLD) {

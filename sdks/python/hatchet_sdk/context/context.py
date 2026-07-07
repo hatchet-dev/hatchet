@@ -354,6 +354,9 @@ class Context:
 
         :return: True if the workflow was triggered by an event, False otherwise.
         """
+        if self._action.triggering_event_external_id is not None:
+            return True
+
         return self._data.triggered_by == "event"
 
     @property
@@ -541,7 +544,16 @@ class Context:
         :param data: The data to send to the Hatchet API. Can be a string or bytes.
         :return: None
         """
-        await asyncio.to_thread(self.put_stream, data)
+        try:
+            ix = self._increment_stream_index()
+
+            await self._event_client.aio_stream(
+                data=data,
+                step_run_id=self._step_run_id,
+                index=ix,
+            )
+        except Exception:
+            logger.exception("error putting stream event")
 
     def refresh_timeout(self, increment_by: Duration) -> None:
         """
@@ -681,6 +693,14 @@ class Context:
     def task_name(self) -> str:
         return self._task_name
 
+    @property
+    def triggering_event_id(self) -> str | None:
+        return self._action.triggering_event_external_id
+
+    @property
+    def triggering_event_key(self) -> str | None:
+        return self._action.triggering_event_key
+
     def fetch_task_run_error(
         self,
         task: Task[TWorkflowInput, R],
@@ -770,6 +790,7 @@ class DurableContext(Context):
         self._wait_index = 0
         self._durable_eviction_manager = durable_eviction_manager
         self._engine_version = engine_version
+        self._send_event_lock = asyncio.Lock()
 
     @property
     def _durable_listener(self) -> DurableEventListener:
@@ -807,12 +828,14 @@ class DurableContext(Context):
         self,
         signal_key: str,
         *conditions: SleepCondition | UserEventCondition | OrGroup,
+        label: str | None = None,
     ) -> dict[str, Any]:
         """
         Durably wait for either a sleep or an event.
 
         :param signal_key: The key to use for the durable event. This is used to identify the event in the Hatchet API.
         :param *conditions: The conditions to wait for. Can be a SleepCondition or UserEventCondition.
+        :param label: An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the  dashboard.
 
         :return: A dictionary containing the results of the wait.
 
@@ -833,11 +856,12 @@ class DurableContext(Context):
         conditions_proto = build_conditions_proto(
             flat_conditions, self.runs_client.client_config
         )
-        ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
-            invocation_count=self.invocation_count,
-            event=WaitForEvent(wait_for_conditions=conditions_proto),
-        )
+        async with self._send_event_lock:
+            ack = await listener.send_event(
+                durable_task_external_id=self.step_run_id,
+                invocation_count=self.invocation_count,
+                event=WaitForEvent(wait_for_conditions=conditions_proto, label=label),
+            )
 
         if not isinstance(ack, DurableTaskEventWaitForAck):
             raise TypeError(f"Expected wait-for ack, got {type(ack).__name__}")
@@ -860,11 +884,18 @@ class DurableContext(Context):
 
         return result.payload or {}
 
-    async def aio_sleep_for(self, duration: Duration) -> SleepResult:
+    async def aio_sleep_for(
+        self, duration: Duration, label: str | None = None
+    ) -> SleepResult:
         """
         Lightweight wrapper for durable sleep. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a sleep condition.
 
         For more complicated conditions, use `ctx.aio_wait_for` directly.
+
+        :param duration: The duration to sleep for. Should be a timedelta object.
+        :param label: An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
+
+        :return: A SleepResult object containing the actual duration slept, which may be different from the requested duration in cases of durable eviction and resumption.
         """
         _warn_if_str_duration(duration, stacklevel=2)
 
@@ -873,6 +904,7 @@ class DurableContext(Context):
         res = await self.aio_wait_for(
             f"sleep:{timedelta_to_expr(duration)}-{wait_index}",
             SleepCondition(duration=duration),
+            label=label,
         )
 
         ## lots of implicit use of engine semantics / internal logic here.
@@ -897,6 +929,9 @@ class DurableContext(Context):
         expression: str | None = None,
         *,
         payload_validator: type[TPayload],
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
+        label: str | None = None,
     ) -> TPayload: ...
 
     @overload
@@ -904,6 +939,11 @@ class DurableContext(Context):
         self,
         key: str,
         expression: str | None = None,
+        *,
+        payload_validator: None = None,
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
+        label: str | None = None,
     ) -> dict[str, Any]: ...
 
     async def aio_wait_for_event(
@@ -912,6 +952,9 @@ class DurableContext(Context):
         expression: str | None = None,
         *,
         payload_validator: type[Any] | None = None,
+        scope: str | None = None,
+        lookback_window: timedelta | None = None,
+        label: str | None = None,
     ) -> Any:
         """
         Lightweight wrapper for waiting for a user event. Allows for shorthand usage of `ctx.aio_wait_for` when specifying a user event condition.
@@ -921,15 +964,33 @@ class DurableContext(Context):
         :param key: The event key to wait for.
         :param expression: An optional CEL expression to filter events.
         :param payload_validator: An optional type (e.g. a Pydantic model, dataclass, or TypedDict) to validate the event payload against. If provided, the payload will be validated and returned as an instance of this type.
+        :param scope: An optional scope to filter events. If provided, only events with a matching scope will be considered when looking for matches. This is required if `lookback_window` is provided (if you wish to consider events that were pushed before the wait was established as valid).
+        :param lookback_window: An optional lookback window to consider when waiting for events. If provided, events that were pushed within this time window before the wait was established will be considered as valid matches. This is useful for avoiding race conditions between event pushes and waits.
+        :param label: An optional label to attach to the wait. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
 
+        :raises ValueError: If only one of `scope` or `lookback_window` is provided without the other.
         :return: The payload of the event, validated against the provided payload_validator if it was given, or as a raw dictionary if no payload_validator was provided.
         """
 
+        if (lookback_window and not scope) or (scope and not lookback_window):
+            raise ValueError(
+                "Both `lookback_window` and scope must be provided together"
+            )
+
         wait_index = self._increment_wait_index()
+        consider_events_since = (
+            (await self.aio_now()) - lookback_window if lookback_window else None
+        )
 
         result = await self.aio_wait_for(
             f"event:{key}-{wait_index}",
-            UserEventCondition(event_key=key, expression=expression),
+            UserEventCondition(
+                event_key=key,
+                expression=expression,
+                scope=scope,
+                consider_events_since=consider_events_since,
+            ),
+            label=label,
         )
 
         ## lots of implicit use of engine semantics / internal logic here.
@@ -959,20 +1020,21 @@ class DurableContext(Context):
 
         await self._ensure_stream_started()
 
-        ack = await listener.send_event(
-            durable_task_external_id=self.step_run_id,
-            invocation_count=self.invocation_count,
-            event=RunChildrenEvent(
-                children=[
-                    RunChildEvent(
-                        workflow_name=c.workflow_name,
-                        input=c.input,
-                        run_workflow_opts=c.options,
-                    )
-                    for c in configs
-                ]
-            ),
-        )
+        async with self._send_event_lock:
+            ack = await listener.send_event(
+                durable_task_external_id=self.step_run_id,
+                invocation_count=self.invocation_count,
+                event=RunChildrenEvent(
+                    children=[
+                        RunChildEvent(
+                            workflow_name=c.workflow_name,
+                            input=c.input,
+                            run_workflow_opts=c.options,
+                        )
+                        for c in configs
+                    ]
+                ),
+            )
 
         if not isinstance(ack, DurableTaskEventRunAck):
             raise TypeError(f"Expected run ack, got {type(ack).__name__}")
@@ -1007,6 +1069,9 @@ class DurableContext(Context):
                 branch_id=branch_id,
                 invocation_count=self.invocation_count,
             )
+
+        if result.is_failure:
+            raise TaskRunError.deserialize(result.error_message or "child task failed")
 
         return result.payload or {}
 
@@ -1060,11 +1125,12 @@ class DurableContext(Context):
 
         key = _compute_memo_key(self.step_run_id, *args, **kwargs)
 
-        ack = await listener.send_event(
-            durable_task_external_id=run_external_id,
-            invocation_count=self.invocation_count,
-            event=MemoEvent(memo_key=key, result=None),
-        )
+        async with self._send_event_lock:
+            ack = await listener.send_event(
+                durable_task_external_id=run_external_id,
+                invocation_count=self.invocation_count,
+                event=MemoEvent(memo_key=key, result=None),
+            )
 
         if not isinstance(ack, DurableTaskEventMemoAck):
             raise TypeError(f"Expected memo ack, got {type(ack).__name__}")
@@ -1074,7 +1140,7 @@ class DurableContext(Context):
                 "memo key found in durable storage but no data was returned. rerunning the function to recompute the value. "
             )
 
-        if ack.memo_already_existed and ack.memo_result_payload is not None:
+        if ack.memo_already_existed and ack.memo_result_payload:
             serialized_result = ack.memo_result_payload
             result = adapter.validate_json(
                 serialized_result, context=HATCHET_PYDANTIC_SENTINEL
@@ -1115,14 +1181,17 @@ class DurableContext(Context):
 
         return now.ts
 
-    async def aio_sleep_until(self, wake_at: datetime) -> SleepResult:
+    async def aio_sleep_until(
+        self, wake_at: datetime, label: str | None = None
+    ) -> SleepResult:
         """
         Durably sleep until a specific timestamp.
 
         :param wake_at: The timestamp to sleep until.
+        :param label: An optional label to attach to the sleep. This is useful for debugging and observability purposes, and will be propagated to the event log on the dashboard.
 
         :return: A SleepResult containing the actual duration slept, which may be different from the intended duration if the workflow was evicted and resumed.
         """
         now = await self.aio_now()
 
-        return await self.aio_sleep_for(wake_at - now)
+        return await self.aio_sleep_for(wake_at - now, label=label)

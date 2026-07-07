@@ -9,7 +9,7 @@ on:
 
 jobs:
   frontend:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -19,11 +19,25 @@ jobs:
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Setup pnpm
+        uses: pnpm/action-setup@d15e628ca66d93ee5f352c71671a7bc6a97af5c9 # v6.0.8
+        with:
+          version: 10.16.1
+          run_install: false
+      - name: Install frontend dependencies
+        working-directory: frontend/app
+        run: pnpm install --frozen-lockfile
+      - name: Test frontend
+        working-directory: frontend/app
+        run: pnpm run test:unit
       - name: Build frontend
         run: docker build -f ./build/package/frontend.dockerfile .
 
   api:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -31,7 +45,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   api-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -39,7 +53,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api
 
   engine:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -47,7 +61,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   engine-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -55,7 +69,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
   admin:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -63,7 +77,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   admin-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -71,7 +85,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin
 
   migrate:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -79,7 +93,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   migrate-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -87,7 +101,7 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=migrate
 
   lite-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -127,7 +141,7 @@ jobs:
             .
 
   lite-amd:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -167,7 +181,7 @@ jobs:
             .
 
   dashboard-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -191,7 +205,7 @@ jobs:
             .
 
   dashboard-amd:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -215,7 +229,7 @@ jobs:
             .
 
   loadtest:
-    runs-on: ubicloud-standard-4
+    runs-on: ubuntu-latest
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -223,7 +237,7 @@ jobs:
         run: docker build -f ./build/package/loadtest.dockerfile .
 
   loadtest-arm:
-    runs-on: ubicloud-standard-4-arm
+    runs-on: hatchet-arm64-2
     steps:
       - name: Clone repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

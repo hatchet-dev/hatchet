@@ -48,11 +48,13 @@ type Repository interface {
 	SNS() SNSRepository
 	TenantInvite() TenantInviteRepository
 	TenantLimit() TenantLimitRepository
+	TenantEntitlement() TenantEntitlementRepository
 	TenantAlertingSettings() TenantAlertingRepository
 	Tenant() TenantRepository
 	User() UserRepository
 	UserSession() UserSessionRepository
 	WorkflowSchedules() WorkflowScheduleRepository
+	Sync() SyncRepository
 }
 
 type repositoryImpl struct {
@@ -82,16 +84,17 @@ type repositoryImpl struct {
 	sns               SNSRepository
 	tenantInvite      TenantInviteRepository
 	tenantLimit       TenantLimitRepository
+	tenantEntitlement TenantEntitlementRepository
 	tenantAlerting    TenantAlertingRepository
 	tenant            TenantRepository
 	user              UserRepository
 	userSession       UserSessionRepository
 	workflowSchedules WorkflowScheduleRepository
+	sync              SyncRepository
 }
 
 func NewRepository(
-	pool *pgxpool.Pool,
-	directPool *pgxpool.Pool,
+	pool, ddlPool *pgxpool.Pool,
 	l *zerolog.Logger,
 	cacheDuration time.Duration,
 	taskRetentionPeriod, olapRetentionPeriod time.Duration,
@@ -104,7 +107,7 @@ func NewRepository(
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, directPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 
@@ -135,11 +138,13 @@ func NewRepository(
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
 		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, cacheDuration),
+		tenantEntitlement: newTenantEntitlementRepository(shared),
 		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
 		tenant:            newTenantRepository(shared, cacheDuration),
 		user:              newUserRepository(shared),
 		userSession:       newUserSessionRepository(shared),
 		workflowSchedules: newWorkflowScheduleRepository(shared),
+		sync:              NewSyncRepository(pool, l),
 	}
 
 	return impl, func() error {
@@ -273,6 +278,10 @@ func (r *repositoryImpl) TenantLimit() TenantLimitRepository {
 	return r.tenantLimit
 }
 
+func (r *repositoryImpl) TenantEntitlement() TenantEntitlementRepository {
+	return r.tenantEntitlement
+}
+
 func (r *repositoryImpl) TenantAlertingSettings() TenantAlertingRepository {
 	return r.tenantAlerting
 }
@@ -291,4 +300,8 @@ func (r *repositoryImpl) UserSession() UserSessionRepository {
 
 func (r *repositoryImpl) WorkflowSchedules() WorkflowScheduleRepository {
 	return r.workflowSchedules
+}
+
+func (r *repositoryImpl) Sync() SyncRepository {
+	return r.sync
 }

@@ -13,39 +13,32 @@ type SimpleTableColumn<T> = {
   cellRenderer: (row: T) => React.ReactNode;
 };
 
-type SimpleTableProps<
-  T extends {
-    metadata: {
-      id: string;
-    };
-  },
-> = {
+type SimpleTableProps<T> = {
   columns: SimpleTableColumn<T>[];
   data: T[];
+  rowKey: (row: T, index: number) => string;
 };
 
-export function SimpleTable<
-  T extends {
-    metadata: {
-      id: string;
-    };
-  },
->({ columns, data }: SimpleTableProps<T>) {
+export function SimpleTable<T>({ columns, data, rowKey }: SimpleTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
+    <div className="overflow-auto rounded-md border bg-background">
       <Table>
         <TableHeader>
           <TableRow>
             {columns.map(({ columnLabel }) => (
-              <TableHead key={columnLabel}>{columnLabel}</TableHead>
+              <TableHead key={columnLabel} className="pr-8">
+                {columnLabel}
+              </TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {data.map((row) => (
-            <TableRow key={row.metadata.id}>
+          {data.map((row, i) => (
+            <TableRow key={rowKey(row, i)}>
               {columns.map(({ columnLabel, cellRenderer }) => (
-                <TableCell key={columnLabel}>{cellRenderer(row)}</TableCell>
+                <TableCell key={columnLabel} className="pr-8">
+                  {cellRenderer(row)}
+                </TableCell>
               ))}
             </TableRow>
           ))}

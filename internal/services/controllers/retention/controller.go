@@ -21,30 +21,32 @@ type RetentionController interface {
 }
 
 type RetentionControllerImpl struct {
-	l               *zerolog.Logger
-	repo            v1.Repository
-	dv              datautils.DataDecoderValidator
-	s               gocron.Scheduler
-	tenantAlerter   *alerting.TenantAlertManager
-	a               *hatcheterrors.Wrapped
-	p               *partition.Partition
-	dataRetention   bool
-	workerRetention bool
-	queueRetention  bool
+	l                    *zerolog.Logger
+	repo                 v1.Repository
+	dv                   datautils.DataDecoderValidator
+	s                    gocron.Scheduler
+	tenantAlerter        *alerting.TenantAlertManager
+	a                    *hatcheterrors.Wrapped
+	p                    *partition.Partition
+	dataRetention        bool
+	workerRetention      bool
+	queueRetention       bool
+	userSessionRetention bool
 }
 
 type RetentionControllerOpt func(*RetentionControllerOpts)
 
 type RetentionControllerOpts struct {
-	l               *zerolog.Logger
-	repo            v1.Repository
-	dv              datautils.DataDecoderValidator
-	ta              *alerting.TenantAlertManager
-	alerter         hatcheterrors.Alerter
-	p               *partition.Partition
-	dataRetention   bool
-	workerRetention bool
-	queueRetention  bool
+	l                    *zerolog.Logger
+	repo                 v1.Repository
+	dv                   datautils.DataDecoderValidator
+	ta                   *alerting.TenantAlertManager
+	alerter              hatcheterrors.Alerter
+	p                    *partition.Partition
+	dataRetention        bool
+	workerRetention      bool
+	queueRetention       bool
+	userSessionRetention bool
 }
 
 func defaultRetentionControllerOpts() *RetentionControllerOpts {
@@ -52,12 +54,13 @@ func defaultRetentionControllerOpts() *RetentionControllerOpts {
 	alerter := hatcheterrors.NoOpAlerter{}
 
 	return &RetentionControllerOpts{
-		l:               &logger,
-		dv:              datautils.NewDataDecoderValidator(),
-		alerter:         alerter,
-		dataRetention:   true,
-		queueRetention:  true,
-		workerRetention: false,
+		l:                    &logger,
+		dv:                   datautils.NewDataDecoderValidator(),
+		alerter:              alerter,
+		dataRetention:        true,
+		queueRetention:       true,
+		workerRetention:      false,
+		userSessionRetention: true,
 	}
 }
 
@@ -141,28 +144,35 @@ func New(fs ...RetentionControllerOpt) (*RetentionControllerImpl, error) {
 	a.WithData(map[string]interface{}{"service": "retention-controller"})
 
 	return &RetentionControllerImpl{
-		l:               opts.l,
-		repo:            opts.repo,
-		dv:              opts.dv,
-		s:               s,
-		tenantAlerter:   opts.ta,
-		a:               a,
-		p:               opts.p,
-		dataRetention:   opts.dataRetention,
-		workerRetention: opts.workerRetention,
-		queueRetention:  opts.queueRetention,
+		l:                    opts.l,
+		repo:                 opts.repo,
+		dv:                   opts.dv,
+		s:                    s,
+		tenantAlerter:        opts.ta,
+		a:                    a,
+		p:                    opts.p,
+		dataRetention:        opts.dataRetention,
+		workerRetention:      opts.workerRetention,
+		queueRetention:       opts.queueRetention,
+		userSessionRetention: opts.userSessionRetention,
 	}, nil
 }
 
 func (rc *RetentionControllerImpl) Start() (func() error, error) {
 	rc.l.Debug().Msg("starting retention controller")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	var err error
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer func() {
+		if err != nil {
+			cancel(err)
+		}
+	}()
 
 	if rc.queueRetention {
 		queueInterval := time.Second * 60
 
-		_, err := rc.s.NewJob(
+		_, err = rc.s.NewJob(
 			gocron.DurationJob(queueInterval),
 			gocron.NewTask(
 				rc.runDeleteMessageQueueItems(ctx),
@@ -170,15 +180,45 @@ func (rc *RetentionControllerImpl) Start() (func() error, error) {
 		)
 
 		if err != nil {
-			cancel()
 			return nil, fmt.Errorf("could not set up runDeleteMessageQueueItems: %w", err)
+		}
+	}
+
+	if rc.workerRetention {
+		workerInterval := 24 * time.Hour
+
+		_, err = rc.s.NewJob(
+			gocron.DurationJob(workerInterval),
+			gocron.NewTask(
+				rc.runCleanupOldWorkers(ctx),
+			),
+			gocron.WithSingletonMode(gocron.LimitModeReschedule),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not set up runCleanupOldWorkers: %w", err)
+		}
+	}
+
+	if rc.userSessionRetention {
+		userSessionInterval := 1 * time.Hour
+
+		_, err = rc.s.NewJob(
+			gocron.DurationJob(userSessionInterval),
+			gocron.NewTask(
+				rc.runCleanupUserSessions(ctx),
+			),
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("could not set up runCleanupUserSessions: %w", err)
 		}
 	}
 
 	rc.s.Start()
 
 	cleanup := func() error {
-		cancel()
+		cancel(nil)
 
 		if err := rc.s.Shutdown(); err != nil {
 			return fmt.Errorf("could not shutdown scheduler: %w", err)

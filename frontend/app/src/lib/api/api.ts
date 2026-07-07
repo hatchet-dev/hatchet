@@ -6,6 +6,25 @@ import { Api as ControlPlaneApi } from './generated/control-plane/Api';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
+import { validate as validateUuid } from 'uuid';
+
+type HttpErrorLike = {
+  status?: unknown;
+  response?: {
+    status?: unknown;
+  };
+};
+
+export function getApiErrorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const maybeError = error as HttpErrorLike;
+  const status = maybeError.status ?? maybeError.response?.status;
+
+  return typeof status === 'number' ? status : undefined;
+}
 
 // Extend Axios config with custom fields injected by the API code generator.
 // https://www.typescriptlang.org/docs/handbook/declaration-merging.html
@@ -18,12 +37,16 @@ declare module 'axios' {
     // Explicitly identifies which tenant's exchange token should be used.
     // When set, the interceptor skips the localStorage fallback.
     xTenantId?: string;
+    // Forces the exchange token interceptor to run even for non-tenant-scoped
+    // endpoints (e.g. /api/v1/billing/plans).
+    useExchangeToken?: boolean;
   }
   // InternalAxiosRequestConfig is what the interceptor receives after Axios
   // merges defaults, so the fields must be declared here too.
   interface InternalAxiosRequestConfig {
     xResources?: string[];
     xTenantId?: string;
+    useExchangeToken?: boolean;
   }
 }
 
@@ -42,8 +65,9 @@ export const controlPlaneApi = new ControlPlaneApi({
 });
 
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
+cloudApi.instance.interceptors.request.use(exchangeTokenInterceptor);
 
-export const LAST_TENANT_STORAGE_KEY = 'lastTenant';
+export const CONTROL_PLANE_TENANT_STORAGE_KEY = 'controlPlaneLastTenant';
 
 type StoredTenantLike = {
   metadata?: {
@@ -53,7 +77,7 @@ type StoredTenantLike = {
 
 function readStoredTenantId(): string | null {
   try {
-    const raw = localStorage.getItem(LAST_TENANT_STORAGE_KEY);
+    const raw = localStorage.getItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
     if (!raw) {
       return null;
     }
@@ -62,6 +86,35 @@ function readStoredTenantId(): string | null {
   } catch {
     return null;
   }
+}
+
+function readTenantIdFromPathname(pathname: string): string | null {
+  const segments = pathname.split('/').filter(Boolean);
+  const tenantSegmentIndex = segments.indexOf('tenants');
+  if (tenantSegmentIndex === -1) {
+    return null;
+  }
+
+  const tenantId = segments[tenantSegmentIndex + 1];
+  if (!tenantId || !validateUuid(tenantId)) {
+    return null;
+  }
+
+  return tenantId;
+}
+
+export function readTenantIdFromLocation(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return readTenantIdFromPathname(window.location.pathname);
+}
+
+export function resolveExchangeTokenTenantId(
+  config: Pick<InternalAxiosRequestConfig, 'xTenantId'>,
+): string | null {
+  return config.xTenantId ?? readTenantIdFromLocation() ?? readStoredTenantId();
 }
 
 /**
@@ -109,16 +162,16 @@ export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
 ) {
   const resources = config.xResources ?? [];
-  if (!resources.includes('tenant')) {
+  if (!resources.includes('tenant') && !config.useExchangeToken) {
     return config;
   }
 
   const cpEnabled = await resolveControlPlaneEnabled();
 
-  // xTenantId takes precedence — callers that know the tenant ID at request
-  // time set it explicitly to avoid relying on the localStorage fallback. this prevents race
-  // conditions where the interceptor checks localStorage before it's updated with the new tenant ID.
-  const tenantId = config.xTenantId ?? readStoredTenantId();
+  // xTenantId takes precedence — callers that intentionally target a tenant
+  // other than the current page tenant set it explicitly. Otherwise the
+  // interceptor uses the tenant encoded in window.location, then storage.
+  const tenantId = resolveExchangeTokenTenantId(config);
 
   if (!cpEnabled) {
     return config;

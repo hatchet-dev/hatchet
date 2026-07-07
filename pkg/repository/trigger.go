@@ -25,6 +25,8 @@ import (
 type EventTriggerOpts struct {
 	ExternalId uuid.UUID
 
+	SeenAt time.Time
+
 	Key string
 
 	Data []byte
@@ -129,6 +131,9 @@ type createDAGOpts struct {
 	AdditionalMetadata []byte
 
 	ParentTaskExternalID *uuid.UUID
+
+	// (optional) overrides for desired worker labels, propagated to all downstream tasks
+	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
 }
 
 type TriggerRepository interface {
@@ -270,7 +275,7 @@ type WorkflowAndScope struct {
 }
 
 func (r *TriggerRepositoryImpl) TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error) {
-	pre, post := r.m.Meter(ctx, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
+	pre, post := r.m.Meter(ctx, nil, sqlcv1.LimitResourceEVENT, tenantId, int32(len(opts))) // nolint: gosec
 
 	if err := pre(); err != nil {
 		return nil, err
@@ -566,21 +571,23 @@ func (t *TriggeredByEvent) ToMetadata(additionalMetadata []byte) []byte {
 }
 
 type triggerTuple struct {
-	desiredWorkerId      *uuid.UUID
-	childKey             *string
-	childIndex           *int64
-	parentTaskInsertedAt *time.Time
-	parentTaskId         *int64
-	parentExternalId     *uuid.UUID
-	priority             *int32
-	externalId           uuid.UUID
-	workflowVersionId    uuid.UUID
-	workflowName         string
-	workflowId           uuid.UUID
-	additionalMetadata   []byte
-	filterPayload        []byte
-	input                []byte
-	desiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
+	desiredWorkerId           *uuid.UUID
+	childKey                  *string
+	childIndex                *int64
+	parentTaskInsertedAt      *time.Time
+	parentTaskId              *int64
+	parentExternalId          *uuid.UUID
+	priority                  *int32
+	externalId                uuid.UUID
+	workflowVersionId         uuid.UUID
+	workflowName              string
+	workflowId                uuid.UUID
+	additionalMetadata        []byte
+	filterPayload             []byte
+	input                     []byte
+	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
+	triggeringEventExternalId *uuid.UUID
+	triggeringEventKey        *string
 }
 
 type createCoreUserEventOpts struct {
@@ -614,13 +621,13 @@ func (r *sharedRepository) triggerWorkflows(
 		workflowVersionIds = append(workflowVersionIds, id)
 	}
 
-	var listStepsTx sqlcv1.DBTX = r.pool
+	var preflightTx sqlcv1.DBTX = r.pool
 
 	if existingTx != nil {
-		listStepsTx = existingTx.tx
+		preflightTx = existingTx.tx
 	}
 
-	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, listStepsTx, tenantId, workflowVersionIds)
+	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
@@ -655,7 +662,7 @@ func (r *sharedRepository) triggerWorkflows(
 		countTasks += len(steps)
 	}
 
-	preTask, postTask := r.m.Meter(ctx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
+	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
 		return nil, nil, err
@@ -664,7 +671,7 @@ func (r *sharedRepository) triggerWorkflows(
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepsWithAdditionalMatchConditions) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, preflightTx, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  stepsWithAdditionalMatchConditions,
 			Tenantid: tenantId,
 		})
@@ -822,6 +829,7 @@ func (r *sharedRepository) triggerWorkflows(
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
 					priority             pgtype.Int4
+					triggeringEventKey   pgtype.Text
 				)
 
 				if tuple.parentExternalId != nil {
@@ -861,6 +869,13 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
+				if tuple.triggeringEventKey != nil {
+					triggeringEventKey = pgtype.Text{
+						String: *tuple.triggeringEventKey,
+						Valid:  true,
+					}
+				}
+
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
 					Conditions:           conditions,
@@ -877,6 +892,8 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
 					TriggerPriority:             priority,
+					TriggerEventExternalId:      tuple.triggeringEventExternalId,
+					TriggerEventKey:             triggeringEventKey,
 				})
 			case len(step.Parents) == 0:
 				// if we have additional match conditions, create a match instead of triggering a workflow for this step
@@ -925,6 +942,7 @@ func (r *sharedRepository) triggerWorkflows(
 						childIndex           pgtype.Int8
 						childKey             pgtype.Text
 						priority             pgtype.Int4
+						triggeringEventKey   pgtype.Text
 					)
 
 					if tuple.parentExternalId != nil {
@@ -964,6 +982,13 @@ func (r *sharedRepository) triggerWorkflows(
 						}
 					}
 
+					if tuple.triggeringEventKey != nil {
+						triggeringEventKey = pgtype.Text{
+							String: *tuple.triggeringEventKey,
+							Valid:  true,
+						}
+					}
+
 					eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 						Kind:                 sqlcv1.V1MatchKindTRIGGER,
 						Conditions:           groupConditions,
@@ -980,6 +1005,8 @@ func (r *sharedRepository) triggerWorkflows(
 						TriggerChildIndex:           childIndex,
 						TriggerChildKey:             childKey,
 						TriggerPriority:             priority,
+						TriggerEventExternalId:      tuple.triggeringEventExternalId,
+						TriggerEventKey:             triggeringEventKey,
 					})
 				} else {
 					labels := tuple.desiredWorkerLabels
@@ -989,21 +1016,23 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 
 					opt := CreateTaskOpts{
-						ExternalId:           taskExternalId,
-						WorkflowRunId:        tuple.externalId,
-						StepId:               step.ID,
-						Input:                r.newTaskInput(tuple.input, nil, tuple.filterPayload),
-						AdditionalMetadata:   tuple.additionalMetadata,
-						InitialState:         sqlcv1.V1TaskInitialStateQUEUED,
-						DesiredWorkerId:      tuple.desiredWorkerId,
-						ParentTaskExternalId: tuple.parentExternalId,
-						ParentTaskId:         tuple.parentTaskId,
-						ParentTaskInsertedAt: tuple.parentTaskInsertedAt,
-						StepIndex:            stepIndex,
-						ChildIndex:           tuple.childIndex,
-						ChildKey:             tuple.childKey,
-						Priority:             tuple.priority,
-						DesiredWorkerLabels:  labels,
+						ExternalId:                taskExternalId,
+						WorkflowRunId:             tuple.externalId,
+						StepId:                    step.ID,
+						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload),
+						AdditionalMetadata:        tuple.additionalMetadata,
+						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+						DesiredWorkerId:           tuple.desiredWorkerId,
+						ParentTaskExternalId:      tuple.parentExternalId,
+						ParentTaskId:              tuple.parentTaskId,
+						ParentTaskInsertedAt:      tuple.parentTaskInsertedAt,
+						StepIndex:                 stepIndex,
+						ChildIndex:                tuple.childIndex,
+						ChildKey:                  tuple.childKey,
+						Priority:                  tuple.priority,
+						DesiredWorkerLabels:       labels,
+						TriggeringEventExternalId: tuple.triggeringEventExternalId,
+						TriggeringEventKey:        tuple.triggeringEventKey,
 					}
 
 					if isDag {
@@ -1056,6 +1085,7 @@ func (r *sharedRepository) triggerWorkflows(
 					childIndex           pgtype.Int8
 					childKey             pgtype.Text
 					priority             pgtype.Int4
+					triggeringEventKey   pgtype.Text
 				)
 
 				if tuple.parentExternalId != nil {
@@ -1094,6 +1124,13 @@ func (r *sharedRepository) triggerWorkflows(
 					}
 				}
 
+				if tuple.triggeringEventKey != nil {
+					triggeringEventKey = pgtype.Text{
+						String: *tuple.triggeringEventKey,
+						Valid:  true,
+					}
+				}
+
 				// create an event match
 				eventMatches[tuple.externalId] = append(eventMatches[tuple.externalId], CreateMatchOpts{
 					Kind:                 sqlcv1.V1MatchKindTRIGGER,
@@ -1111,6 +1148,8 @@ func (r *sharedRepository) triggerWorkflows(
 					TriggerChildIndex:           childIndex,
 					TriggerChildKey:             childKey,
 					TriggerPriority:             priority,
+					TriggerEventExternalId:      tuple.triggeringEventExternalId,
+					TriggerEventKey:             triggeringEventKey,
 				})
 			}
 		}
@@ -1126,6 +1165,7 @@ func (r *sharedRepository) triggerWorkflows(
 				WorkflowName:         tuple.workflowName,
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
+				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
 			})
 		}
 	}
@@ -1364,6 +1404,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	workflowVersionIds := make([]uuid.UUID, 0, len(opts))
 	parentTaskExternalIds := make([]uuid.UUID, 0, len(opts))
 	dagIdToOpt := make(map[uuid.UUID]createDAGOpts, 0)
+	desiredWorkerLabels := make([][]byte, 0, len(opts))
 
 	unix := time.Now().UnixMilli()
 
@@ -1380,6 +1421,18 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			parentTaskExternalIds = append(parentTaskExternalIds, *opt.ParentTaskExternalID)
 		}
 
+		var desiredWorkerLabelsBytes []byte
+		var err error
+
+		if len(opt.DesiredWorkerLabels) > 0 {
+			desiredWorkerLabelsBytes, err = json.Marshal(opt.DesiredWorkerLabels)
+			if err != nil {
+				return nil, fmt.Errorf("could not marshal desired worker labels: %w", err)
+			}
+		}
+
+		desiredWorkerLabels = append(desiredWorkerLabels, desiredWorkerLabelsBytes)
+
 		dagIdToOpt[opt.ExternalId] = opt
 	}
 
@@ -1390,6 +1443,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		Workflowids:           workflowIds,
 		Workflowversionids:    workflowVersionIds,
 		Parenttaskexternalids: parentTaskExternalIds,
+		Desiredworkerlabels:   desiredWorkerLabels,
 	})
 
 	if err != nil {
@@ -1435,17 +1489,11 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			AdditionalMetadata: additionalMeta,
 		})
 
-		parentTaskExternalID := uuid.UUID{}
-
-		if opt.ParentTaskExternalID != nil {
-			parentTaskExternalID = *opt.ParentTaskExternalID
-		}
-
 		res = append(res, &DAGWithData{
 			V1Dag:                dag,
 			Input:                input,
 			AdditionalMetadata:   additionalMeta,
-			ParentTaskExternalID: &parentTaskExternalID,
+			ParentTaskExternalID: opt.ParentTaskExternalID,
 			TotalTasks:           len(opt.TaskIds),
 			TaskExternalIDs:      opt.TaskIds,
 			TaskStepReadableIDs:  opt.TaskStepReadableIds,
@@ -1549,6 +1597,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}
 	}
 
@@ -1568,6 +1617,7 @@ func (r *sharedRepository) registerChildWorkflows(
 			InsertedAt: event.InsertedAt,
 			Type:       sqlcv1.V1PayloadTypeTASKEVENTDATA,
 			TenantId:   tenantId,
+			ExternalId: event.ExternalID,
 		}]
 
 		if !ok {
@@ -2028,15 +2078,13 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 
 	eventExternalIdsToPayloads := make(map[uuid.UUID][]byte)
 
-	seenAt := time.Now().UTC() // TODO: propagate this to caller, and figure out how we should be setting this
-
 	eventKeys := make([]string, 0, len(opts))
 	uniqueEventKeys := make(map[string]struct{})
 
 	for _, opt := range opts {
 		createCoreEventsTenantIds = append(createCoreEventsTenantIds, tenantId)
 		createCoreEventsExternalIds = append(createCoreEventsExternalIds, opt.ExternalId)
-		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(seenAt))
+		createCoreEventsSeenAts = append(createCoreEventsSeenAts, sqlchelpers.TimestamptzFromTime(opt.SeenAt))
 		createCoreEventsKeys = append(createCoreEventsKeys, opt.Key)
 		eventExternalIdsToPayloads[opt.ExternalId] = opt.Data
 		createCoreEventsAdditionalMetadatas = append(createCoreEventsAdditionalMetadatas, opt.AdditionalMetadata)
@@ -2191,14 +2239,16 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 				externalId := uuid.New()
 
 				triggerOpts = append(triggerOpts, triggerTuple{
-					workflowVersionId:  workflow.WorkflowVersionId,
-					workflowId:         workflow.WorkflowId,
-					workflowName:       workflow.WorkflowName,
-					externalId:         externalId,
-					input:              opt.Data,
-					additionalMetadata: additionalMetadata,
-					priority:           opt.Priority,
-					filterPayload:      decision.FilterPayload,
+					workflowVersionId:         workflow.WorkflowVersionId,
+					workflowId:                workflow.WorkflowId,
+					workflowName:              workflow.WorkflowName,
+					externalId:                externalId,
+					input:                     opt.Data,
+					additionalMetadata:        additionalMetadata,
+					priority:                  opt.Priority,
+					filterPayload:             decision.FilterPayload,
+					triggeringEventExternalId: &opt.ExternalId,
+					triggeringEventKey:        &opt.Key,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
@@ -2399,13 +2449,16 @@ func (r *sharedRepository) NewTriggerTaskData(
 
 	if parentTask != nil {
 		parentExternalId := parentTask.ExternalID
-		childIndex := int64(*req.ChildIndex)
 
 		t.ParentExternalId = &parentExternalId
 		t.ParentTaskId = &parentTask.ID
 		t.ParentTaskInsertedAt = &parentTask.InsertedAt.Time
-		t.ChildIndex = &childIndex
 		t.ChildKey = req.ChildKey
+
+		if req.ChildIndex != nil {
+			childIndex := int64(*req.ChildIndex)
+			t.ChildIndex = &childIndex
+		}
 
 		t.AdditionalMetadata = injectParentIDs(
 			t.AdditionalMetadata,

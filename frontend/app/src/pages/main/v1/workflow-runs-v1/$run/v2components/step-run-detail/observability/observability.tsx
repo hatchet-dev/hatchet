@@ -18,7 +18,6 @@ import {
   TraceSearchInput,
   type TraceAutocompleteContext,
 } from '@/components/v1/cloud/observability/trace-search';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { Loading } from '@/components/v1/ui/loading';
 import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
 import useCloud from '@/hooks/use-cloud';
@@ -28,8 +27,8 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
-import { Activity } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Activity, ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 function hasAtLeastOneElement<T>(arr: T[]): arr is [T, ...T[]] {
   return arr.length > 0;
@@ -299,24 +298,6 @@ export const Observability = (props: ObservabilityProps) => {
     return markContextOnly(filtered, relevantSpanIds);
   }, [spanTrees, parsedQuery, relevantSpanIds]);
 
-  const handleAddFilter = useCallback(
-    (key: string, value: string) => {
-      const token = `${key}:${value}`;
-      const trimmed = queryString.trim();
-      setQueryString(trimmed ? `${trimmed} ${token}` : token);
-    },
-    [queryString, setQueryString],
-  );
-
-  const handleRemoveFilter = useCallback(
-    (key: string, value: string) => {
-      const token = `${key}:${value}`;
-      const parts = queryString.split(/\s+/).filter((p) => p !== token);
-      setQueryString(parts.join(' '));
-    },
-    [queryString, setQueryString],
-  );
-
   if (!tracesQuery.isFetched) {
     return <Loading />;
   }
@@ -349,11 +330,15 @@ export const Observability = (props: ObservabilityProps) => {
               </>
             }
             actions={
-              <DocsButton
-                doc={docsPages['self-hosting']['configuration-options']}
-                label="View setup guide"
-                variant="text"
-              />
+              <a
+                href={docsPages['self-hosting']['configuration-options'].href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+              >
+                View setup guide
+                <ExternalLink className="size-3" />
+              </a>
             }
           />
         ) : (
@@ -370,11 +355,15 @@ export const Observability = (props: ObservabilityProps) => {
               </>
             }
             actions={
-              <DocsButton
-                doc={docsPages.v1.opentelemetry}
-                label="View instrumentation docs"
-                variant="text"
-              />
+              <a
+                href={docsPages.v1.opentelemetry.href}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+              >
+                View instrumentation docs
+                <ExternalLink className="size-3" />
+              </a>
             }
           />
         )}
@@ -408,20 +397,21 @@ export const Observability = (props: ObservabilityProps) => {
             </>
           }
           actions={
-            <DocsButton
-              doc={docsPages.v1.opentelemetry}
-              label="View instrumentation docs"
-              variant="text"
-            />
+            <a
+              href={docsPages.v1.opentelemetry.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+            >
+              View instrumentation docs
+              <ExternalLink className="size-3" />
+            </a>
           }
         />
       )}
       <TaskRunTrace
         spanTrees={filteredTrees}
         isRunning={isRunning}
-        activeFilters={parsedQuery}
-        onAddFilter={handleAddFilter}
-        onRemoveFilter={handleRemoveFilter}
         contextTaskRunId={props.taskRunId}
         onClearFilters={queryString ? () => setQueryString('') : undefined}
       />

@@ -1,7 +1,7 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import useCloud from '@/hooks/use-cloud';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
+import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
@@ -17,17 +17,21 @@ export function MemberActions({
   member,
   onChangePasswordClick,
   onEditRoleClick,
+  tenantId,
+  onDeleteSuccess,
 }: {
   member: TenantMember;
   onChangePasswordClick: (member: TenantMember) => void;
   onEditRoleClick: (member: TenantMember) => void;
+  tenantId: string;
+  onDeleteSuccess?: () => void;
 }) {
   const { user } = useOutletContext<UserContextType>();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
-  const { tenantId } = useCurrentTenantId();
   const { meta } = useApiMeta();
   const { isCloudEnabled } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const { tenantMemberDeleteMutation } = useTenantApi();
   const deleteMemberMutation = useMutation({
@@ -39,13 +43,23 @@ export function MemberActions({
       queryClient.invalidateQueries({
         queryKey: ['tenant-member:list', tenantId],
       });
+      onDeleteSuccess?.();
+      setShowDeleteDialog(false);
     },
-    onError: handleApiError,
+    onError: (error: unknown) => {
+      handleApiError(error as Parameters<typeof handleApiError>[0]);
+      setShowDeleteDialog(false);
+    },
   });
 
   const isOwnerRole = member.role === 'OWNER';
 
+  // outside the control plane there's no tag-based membership, so every
+  // member is implicitly "manually added"
+  const isManuallyAdded = !isControlPlaneEnabled || member.manually_added;
+
   const canDeleteMember =
+    isManuallyAdded &&
     member.user.email !== user?.email &&
     meta?.allowInvites &&
     !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
@@ -53,7 +67,7 @@ export function MemberActions({
   const canChangePassword =
     member.user.email === user?.email && meta?.allowChangePassword;
 
-  const canEditRole = member.user.email !== user?.email;
+  const canEditRole = isManuallyAdded && member.user.email !== user?.email;
 
   return (
     <>

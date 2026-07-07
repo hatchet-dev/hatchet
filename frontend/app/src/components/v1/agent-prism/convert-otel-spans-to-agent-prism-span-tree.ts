@@ -163,7 +163,7 @@ export interface TaskSummaryForSynthesis {
   startedAt?: string;
 }
 
-export type WorkflowRunTiming = {
+type WorkflowRunTiming = {
   createdAt: string;
   startedAt?: string;
 };

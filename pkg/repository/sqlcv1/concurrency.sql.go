@@ -109,9 +109,44 @@ func (q *Queries) CheckStrategyActive(ctx context.Context, db DBTX, arg CheckStr
 	return isActive, err
 }
 
+const deactivateStaleStepConcurrency = `-- name: DeactivateStaleStepConcurrency :exec
+WITH tenant_step_concurrencies AS (
+    SELECT sc.id
+    FROM v1_step_concurrency sc
+    WHERE sc.tenant_id = $1::UUID
+        AND sc.is_active = TRUE
+        -- we use 25 hours because there's a 1-hour cache on updating last_active_at
+        AND sc.last_active_at < NOW() - INTERVAL '25 hours'
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            WHERE
+                cs.strategy_id = sc.id
+                AND cs.tenant_id = $1::UUID -- tenant id filter to force index usage
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM v1_concurrency_slot cs
+            JOIN v1_workflow_concurrency_slot wcs
+            ON (wcs.strategy_id, wcs.workflow_version_id, wcs.workflow_run_id)
+                = (cs.parent_strategy_id, cs.workflow_version_id, cs.workflow_run_id)
+            WHERE cs.strategy_id = sc.id
+        )
+    FOR UPDATE SKIP LOCKED
+)
+
+UPDATE v1_step_concurrency sc
+SET is_active = FALSE
+FROM tenant_step_concurrencies
+WHERE sc.id = tenant_step_concurrencies.id
+`
+
+func (q *Queries) DeactivateStaleStepConcurrency(ctx context.Context, db DBTX, tenantid uuid.UUID) error {
+	_, err := db.Exec(ctx, deactivateStaleStepConcurrency, tenantid)
+	return err
+}
+
 const getConcurrencyStrategyById = `-- name: GetConcurrencyStrategyById :one
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
 FROM
     v1_step_concurrency sc
 WHERE
@@ -134,6 +169,7 @@ func (q *Queries) GetConcurrencyStrategyById(ctx context.Context, db DBTX, arg G
 		&i.WorkflowVersionID,
 		&i.StepID,
 		&i.IsActive,
+		&i.LastActiveAt,
 		&i.Strategy,
 		&i.Expression,
 		&i.TenantID,
@@ -187,7 +223,7 @@ func (q *Queries) GetWorkflowConcurrencyQueueCounts(ctx context.Context, db DBTX
 
 const listActiveConcurrencyStrategies = `-- name: ListActiveConcurrencyStrategies :many
 SELECT
-    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
+    sc.id, sc.parent_strategy_id, sc.workflow_id, sc.workflow_version_id, sc.step_id, sc.is_active, sc.last_active_at, sc.strategy, sc.expression, sc.tenant_id, sc.max_concurrency
 FROM
     v1_step_concurrency sc
 JOIN
@@ -213,6 +249,7 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsActive,
+			&i.LastActiveAt,
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
@@ -228,9 +265,87 @@ func (q *Queries) ListActiveConcurrencyStrategies(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const listConcurrencySlotsForIndexing = `-- name: ListConcurrencySlotsForIndexing :many
+SELECT
+    sort_id,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    key,
+    priority,
+    tenant_id,
+    strategy_id,
+    is_filled,
+    schedule_timeout_at
+FROM v1_concurrency_slot
+WHERE tenant_id = $1::UUID
+AND strategy_id = $2::BIGINT
+AND (key, sort_id) > ($3::TEXT, $4::BIGINT)
+ORDER BY key ASC, sort_id ASC
+LIMIT $5::int
+`
+
+type ListConcurrencySlotsForIndexingParams struct {
+	Tenantid   uuid.UUID `json:"tenantid"`
+	Strategyid int64     `json:"strategyid"`
+	LastKey    string    `json:"lastKey"`
+	LastSortId int64     `json:"lastSortId"`
+	Limit      int32     `json:"limit"`
+}
+
+type ListConcurrencySlotsForIndexingRow struct {
+	SortID            pgtype.Int8        `json:"sort_id"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount    int32              `json:"task_retry_count"`
+	Key               string             `json:"key"`
+	Priority          int32              `json:"priority"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	StrategyID        int64              `json:"strategy_id"`
+	IsFilled          bool               `json:"is_filled"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+}
+
+func (q *Queries) ListConcurrencySlotsForIndexing(ctx context.Context, db DBTX, arg ListConcurrencySlotsForIndexingParams) ([]*ListConcurrencySlotsForIndexingRow, error) {
+	rows, err := db.Query(ctx, listConcurrencySlotsForIndexing,
+		arg.Tenantid,
+		arg.Strategyid,
+		arg.LastKey,
+		arg.LastSortId,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListConcurrencySlotsForIndexingRow
+	for rows.Next() {
+		var i ListConcurrencySlotsForIndexingRow
+		if err := rows.Scan(
+			&i.SortID,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.TaskRetryCount,
+			&i.Key,
+			&i.Priority,
+			&i.TenantID,
+			&i.StrategyID,
+			&i.IsFilled,
+			&i.ScheduleTimeoutAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConcurrencyStrategiesByStepId = `-- name: ListConcurrencyStrategiesByStepId :many
 SELECT
-    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+    id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 FROM
     v1_step_concurrency
 WHERE
@@ -259,6 +374,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsActive,
+			&i.LastActiveAt,
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
@@ -275,7 +391,7 @@ func (q *Queries) ListConcurrencyStrategiesByStepId(ctx context.Context, db DBTX
 }
 
 const listConcurrencyStrategiesByWorkflowVersionId = `-- name: ListConcurrencyStrategiesByWorkflowVersionId :many
-SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.strategy, c.expression, c.tenant_id, c.max_concurrency, s."readableId" AS step_readable_id
+SELECT c.id, c.parent_strategy_id, c.workflow_id, c.workflow_version_id, c.step_id, c.is_active, c.last_active_at, c.strategy, c.expression, c.tenant_id, c.max_concurrency, s."readableId" AS step_readable_id
 FROM v1_step_concurrency c
 JOIN "Step" s ON s.id = c.step_id
 WHERE
@@ -305,6 +421,7 @@ type ListConcurrencyStrategiesByWorkflowVersionIdRow struct {
 	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
 	StepID            uuid.UUID             `json:"step_id"`
 	IsActive          bool                  `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
 	Strategy          V1ConcurrencyStrategy `json:"strategy"`
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`
@@ -328,12 +445,46 @@ func (q *Queries) ListConcurrencyStrategiesByWorkflowVersionId(ctx context.Conte
 			&i.WorkflowVersionID,
 			&i.StepID,
 			&i.IsActive,
+			&i.LastActiveAt,
 			&i.Strategy,
 			&i.Expression,
 			&i.TenantID,
 			&i.MaxConcurrency,
 			&i.StepReadableID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTenantsWithManyStepConcurrencies = `-- name: ListTenantsWithManyStepConcurrencies :many
+SELECT tenant_id, COUNT(*) AS total
+FROM v1_step_concurrency
+WHERE is_active = TRUE
+GROUP BY tenant_id
+HAVING COUNT(*) > $1::BIGINT
+`
+
+type ListTenantsWithManyStepConcurrenciesRow struct {
+	TenantID uuid.UUID `json:"tenant_id"`
+	Total    int64     `json:"total"`
+}
+
+func (q *Queries) ListTenantsWithManyStepConcurrencies(ctx context.Context, db DBTX, threshold int64) ([]*ListTenantsWithManyStepConcurrenciesRow, error) {
+	rows, err := db.Query(ctx, listTenantsWithManyStepConcurrencies, threshold)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListTenantsWithManyStepConcurrenciesRow
+	for rows.Next() {
+		var i ListTenantsWithManyStepConcurrenciesRow
+		if err := rows.Scan(&i.TenantID, &i.Total); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1189,4 +1340,93 @@ func (q *Queries) TryAdvisoryLock(ctx context.Context, db DBTX, key int64) (bool
 	var locked bool
 	err := row.Scan(&locked)
 	return locked, err
+}
+
+const tryAdvisoryLockMany = `-- name: TryAdvisoryLockMany :many
+WITH keys AS (
+    SELECT UNNEST($1::BIGINT[]) AS key
+), ordered_keys AS (
+    SELECT key
+    FROM keys
+    ORDER BY key
+)
+
+SELECT key::BIGINT, pg_try_advisory_xact_lock(key)::BOOLEAN AS "acquired"
+FROM ordered_keys
+`
+
+type TryAdvisoryLockManyRow struct {
+	Key      int64 `json:"key"`
+	Acquired bool  `json:"acquired"`
+}
+
+func (q *Queries) TryAdvisoryLockMany(ctx context.Context, db DBTX, keys []int64) ([]*TryAdvisoryLockManyRow, error) {
+	rows, err := db.Query(ctx, tryAdvisoryLockMany, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*TryAdvisoryLockManyRow
+	for rows.Next() {
+		var i TryAdvisoryLockManyRow
+		if err := rows.Scan(&i.Key, &i.Acquired); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateConcurrencySlotIsFilled = `-- name: UpdateConcurrencySlotIsFilled :one
+UPDATE v1_concurrency_slot
+SET is_filled = $1
+WHERE task_id = $2
+  AND task_inserted_at = $3
+  AND task_retry_count = $4
+  AND strategy_id = $5
+RETURNING sort_id, task_id, task_inserted_at, task_retry_count, external_id, tenant_id, workflow_id, workflow_version_id, workflow_run_id, strategy_id, parent_strategy_id, priority, key, is_filled, next_parent_strategy_ids, next_strategy_ids, next_keys, queue_to_notify, schedule_timeout_at
+`
+
+type UpdateConcurrencySlotIsFilledParams struct {
+	IsFilled       bool               `json:"is_filled"`
+	TaskID         int64              `json:"task_id"`
+	TaskInsertedAt pgtype.Timestamptz `json:"task_inserted_at"`
+	TaskRetryCount int32              `json:"task_retry_count"`
+	StrategyID     int64              `json:"strategy_id"`
+}
+
+func (q *Queries) UpdateConcurrencySlotIsFilled(ctx context.Context, db DBTX, arg UpdateConcurrencySlotIsFilledParams) (*V1ConcurrencySlot, error) {
+	row := db.QueryRow(ctx, updateConcurrencySlotIsFilled,
+		arg.IsFilled,
+		arg.TaskID,
+		arg.TaskInsertedAt,
+		arg.TaskRetryCount,
+		arg.StrategyID,
+	)
+	var i V1ConcurrencySlot
+	err := row.Scan(
+		&i.SortID,
+		&i.TaskID,
+		&i.TaskInsertedAt,
+		&i.TaskRetryCount,
+		&i.ExternalID,
+		&i.TenantID,
+		&i.WorkflowID,
+		&i.WorkflowVersionID,
+		&i.WorkflowRunID,
+		&i.StrategyID,
+		&i.ParentStrategyID,
+		&i.Priority,
+		&i.Key,
+		&i.IsFilled,
+		&i.NextParentStrategyIds,
+		&i.NextStrategyIds,
+		&i.NextKeys,
+		&i.QueueToNotify,
+		&i.ScheduleTimeoutAt,
+	)
+	return &i, err
 }

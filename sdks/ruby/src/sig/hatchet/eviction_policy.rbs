@@ -1,0 +1,14 @@
+module Hatchet
+  class EvictionPolicy
+    attr_reader ttl: Numeric?
+    attr_reader allow_capacity_eviction: bool
+    attr_reader priority: Integer
+
+    def initialize: (ttl: Numeric?, ?allow_capacity_eviction: bool, ?priority: Integer) -> void
+    def ==: (untyped other) -> bool
+    def eql?: (untyped other) -> bool
+    def hash: () -> Integer
+  end
+
+  DEFAULT_DURABLE_TASK_EVICTION_POLICY: EvictionPolicy
+end

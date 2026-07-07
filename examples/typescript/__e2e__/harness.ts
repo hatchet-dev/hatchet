@@ -78,9 +78,13 @@ export async function poll<T>(
   const start = Date.now();
 
   while (true) {
-    const value = await fn();
-    if (shouldStop(value)) {
-      return value;
+    try {
+      const value = await fn();
+      if (shouldStop(value)) {
+        return value;
+      }
+    } catch {
+      // retry on transient errors
     }
     if (Date.now() - start > timeoutMs) {
       throw new Error(`Timed out waiting for ${label} after ${timeoutMs}ms`);

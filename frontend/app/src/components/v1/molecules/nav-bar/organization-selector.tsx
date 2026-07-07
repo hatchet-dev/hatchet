@@ -1,3 +1,4 @@
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   Command,
@@ -6,7 +7,12 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/v1/ui/command';
-import { TooltipProvider } from '@/components/v1/ui/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantMember } from '@/lib/api';
@@ -53,12 +59,32 @@ function OrganizationGroup({
   onClose,
   onNavigate,
 }: OrganizationGroupProps) {
+  const { setTenant } = useTenantDetails();
+
+  const firstTenant = useMemo(
+    () =>
+      [...tenants]
+        .sort(
+          (a, b) =>
+            a.tenant?.name
+              ?.toLowerCase()
+              .localeCompare(b.tenant?.name?.toLowerCase() ?? '') ?? 0,
+        )
+        .find((membership) => membership.tenant)?.tenant,
+    [tenants],
+  );
+
   const handleSettingsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onClose();
+
+    if (firstTenant) {
+      setTenant(firstTenant, { navigate: false });
+    }
+
     onNavigate({
-      to: appRoutes.organizationsRoute.to,
+      to: appRoutes.organizationsIndexRoute.to,
       params: {
         organization: organization.metadata.id,
       },
@@ -139,18 +165,29 @@ function OrganizationGroup({
               }}
               className="cursor-pointer pl-6 text-sm hover:bg-accent focus:bg-accent"
             >
-              <div className="flex w-full items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-5 w-5 items-center justify-center">
+              <div className="flex w-full min-w-0 items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center">
                     <div className="h-2 w-2 rounded-full bg-green-500" />
                   </div>
-                  <span className="text-muted-foreground">
-                    {membership.tenant?.name}
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="min-w-0 flex-1 truncate text-left text-muted-foreground">
+                        {membership.tenant?.name}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="right"
+                      className="max-w-[min(24rem,calc(100vw-2rem))] break-words"
+                    >
+                      {membership.tenant?.name}
+                    </TooltipContent>
+                  </Tooltip>
+                  <TenantRegionBadge region={membership.tenant?.region} />
                 </div>
                 <CheckIcon
                   className={cn(
-                    'size-4',
+                    'size-4 shrink-0',
                     currentTenant?.slug === membership.tenant?.slug
                       ? 'opacity-100'
                       : 'opacity-0',
@@ -267,8 +304,17 @@ export function OrganizationSelector({
     isTenantArchivedInOrg,
   ]);
 
+  const hasNoTenant = memberships.length === 0 && organizations.length > 0;
   const triggerDisabled =
-    !isTenantLoaded || !isOrganizationsLoaded || memberships.length === 0;
+    !isTenantLoaded ||
+    !isOrganizationsLoaded ||
+    (memberships.length === 0 && organizations.length === 0);
+
+  const triggerLabel = hasNoTenant
+    ? organizations.length === 1
+      ? organizations[0].name
+      : 'Select organization'
+    : (tenant?.name ?? 'Loading tenant…');
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -289,9 +335,8 @@ export function OrganizationSelector({
           >
             <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <BuildingOffice2Icon className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">
-                {tenant?.name ?? 'Loading tenant…'}
-              </span>
+              <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
+              {!hasNoTenant && <TenantRegionBadge region={tenant?.region} />}
             </div>
             {(!isTenantLoaded || !isOrganizationsLoaded) && !open ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground/70" />

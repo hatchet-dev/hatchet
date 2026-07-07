@@ -27,10 +27,10 @@ func (t *WorkerService) workerGetV1(ctx echo.Context, tenant *sqlcv1.Tenant, req
 		return nil, err
 	}
 
-	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsByWorkerId(
+	workerIdToActions, err := t.config.V1.Workers().GetWorkerActionsForWorkers(
 		reqCtx,
 		worker.Worker.TenantId,
-		[]uuid.UUID{worker.Worker.ID},
+		[]sqlcv1.Worker{worker.Worker},
 	)
 
 	if err != nil {

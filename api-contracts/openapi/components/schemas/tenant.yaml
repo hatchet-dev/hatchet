@@ -20,6 +20,12 @@ Tenant:
     environment:
       $ref: "#/TenantEnvironment"
       description: The environment type of the tenant.
+    serverUrl:
+      type: string
+      description: The server URL for the tenant (includes scheme)
+    region:
+      type: string
+      description: Control-plane shard region for the tenant (e.g. aws:us-west-2).
   required:
     - metadata
     - name
@@ -198,6 +204,9 @@ TenantMember:
     tenant:
       $ref: "#/Tenant"
       description: The tenant associated with this tenant member.
+    manually_added:
+      type: boolean
+      description: Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
   required:
     - metadata
     - user
@@ -422,6 +431,9 @@ TaskStatusStat:
       items:
         $ref: "#/ConcurrencyStat"
     oldest:
+      type: string
+      format: date-time
+    oldestExcludingRetries:
       type: string
       format: date-time
   type: object

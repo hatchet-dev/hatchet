@@ -21,7 +21,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/retention"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
-	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc"
 	"github.com/hatchet-dev/hatchet/internal/services/health"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
@@ -84,9 +83,14 @@ func init() {
 	}
 }
 
-func Run(ctx context.Context, cf *loader.ConfigLoader, version string) error {
+func Run(
+	ctx context.Context,
+	cf *loader.ConfigLoader,
+	version string,
+	overrides ...loader.ServerConfigFileOverride,
+) error {
 
-	serverCleanup, server, err := cf.CreateServerFromConfig(version)
+	serverCleanup, server, err := cf.CreateServerFromConfig(version, overrides...)
 	if err != nil {
 		return fmt.Errorf("could not load server config: %w", err)
 	}
@@ -153,6 +157,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	p.AddCleanupMethods(cleanup)
 
 	var h *health.Health
+	var healthCleanup func() error
 	healthProbes := sc.HasService("health")
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -160,10 +165,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
 		}
-		cleanup.Add(
-			cleanupHealth,
-			"health",
-		)
+		healthCleanup = cleanupHealth
 	}
 
 	var localScheduler *schedulerv1.Scheduler
@@ -200,6 +202,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+			schedulerv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -252,6 +255,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			task.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			task.WithPgxStatsLoggerConfig(&sc.AdditionalLoggers.PgxStats),
 			task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
+			task.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -285,6 +289,9 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap.WithOperationsConfig(sc.Operations),
 			olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 			olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+			olap.WithMQQos(sc.Operations.OLAPMQQos),
+			olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
+			olap.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -345,6 +352,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
+			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -355,20 +363,6 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not start dispatcher: %w", err)
 		}
-
-		dv1, err := dispatcherv1.NewDispatcherService(
-			dispatcherv1.WithRepository(sc.V1),
-			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
-			dispatcherv1.WithLogger(sc.Logger),
-			dispatcherv1.WithDispatcherId(d.DispatcherId()),
-			dispatcherv1.WithAnalytics(sc.Analytics),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create dispatcher (v1): %w", err)
-		}
-
-		d.SetDurableCallbackHandler(dv1.DeliverDurableEventLogEntryCompletion)
 
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
@@ -381,6 +375,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
+			ingestor.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -396,6 +391,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			admin.WithAnalytics(sc.Analytics),
+			admin.WithPrometheusGate(sc.PrometheusGate),
 		)
 		if err != nil {
 			return fmt.Errorf("could not create admin service: %w", err)
@@ -410,6 +406,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			adminv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -420,7 +417,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
-			grpc.WithDispatcherV1(dv1),
+			grpc.WithDispatcherV1(d.V1()),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
@@ -428,6 +425,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+			grpc.WithShutdownTimeout(sc.Runtime.GRPCShutdownTimeout),
 		}
 
 		if sc.Observability.Enabled {
@@ -463,6 +461,10 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		cleanupGrpcApi := func() error {
+			// hang up long-lived subscriber streams first so that GracefulStop does not
+			// block on them until the pod is killed
+			d.CancelStreamSessions()
+
 			g := new(errgroup.Group)
 
 			g.Go(func() error {
@@ -509,6 +511,13 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 	}
 
+	// the health server is shut down as late as possible so that readiness and
+	// liveness probes (and the load balancer health check) observe the not-ready
+	// state for the entire teardown
+	if healthCleanup != nil {
+		cleanup.Add(healthCleanup, "health")
+	}
+
 	cleanup.Add(
 		telemetryShutdown,
 		"telemetry",
@@ -553,6 +562,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 	healthProbes := sc.Runtime.Healthcheck
 	var h *health.Health
+	var healthCleanup func() error
 
 	if healthProbes {
 		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
@@ -562,7 +572,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
 		}
-		cleanup.Add(clean, "health")
+		healthCleanup = clean
 	}
 
 	if sc.HasService("all") || sc.HasService("controllers") {
@@ -629,6 +639,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				task.WithOpsPoolJitter(sc.Operations),
 				task.WithReplayEnabled(sc.Runtime.ReplayEnabled),
 				task.WithAnalyzeCronInterval(sc.CronOperations.TaskAnalyzeCronInterval),
+				task.WithPrometheusGate(sc.PrometheusGate),
 			)
 
 			if err != nil {
@@ -664,6 +675,9 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 				olap.WithPrometheusMetricsEnabled(sc.Prometheus.Enabled),
 				olap.WithAnalyzeCronInterval(sc.CronOperations.OLAPAnalyzeCronInterval),
 				olap.WithOLAPStatusUpdateBatchSizeLimits(sizeLimits),
+				olap.WithMQQos(sc.Operations.OLAPMQQos),
+				olap.WithMaxRequeueCount(sc.MQMaxDeathCount),
+				olap.WithPrometheusGate(sc.PrometheusGate),
 			)
 
 			if err != nil {
@@ -739,6 +753,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			schedulerv1.WithPartition(p),
 			schedulerv1.WithQueueLoggerConfig(&sc.AdditionalLoggers.Queue),
 			schedulerv1.WithSchedulerPool(sc.SchedulingPoolV1),
+			schedulerv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -775,6 +790,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			dispatcher.WithStreamEventBufferTimeout(sc.Runtime.StreamEventBufferTimeout),
 			dispatcher.WithVersion(sc.Version),
 			dispatcher.WithAnalytics(sc.Analytics),
+			dispatcher.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -787,20 +803,6 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			return fmt.Errorf("could not start dispatcher: %w", err)
 		}
 
-		dv1, err := dispatcherv1.NewDispatcherService(
-			dispatcherv1.WithRepository(sc.V1),
-			dispatcherv1.WithMessageQueue(sc.MessageQueueV1),
-			dispatcherv1.WithLogger(sc.Logger),
-			dispatcherv1.WithDispatcherId(d.DispatcherId()),
-			dispatcherv1.WithAnalytics(sc.Analytics),
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not create dispatcher (v1): %w", err)
-		}
-
-		d.SetDurableCallbackHandler(dv1.DeliverDurableEventLogEntryCompletion)
-
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
@@ -812,6 +814,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			ingestor.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			ingestor.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			ingestor.WithAnalytics(sc.Analytics),
+			ingestor.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -827,6 +830,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			admin.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			admin.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
 			admin.WithAnalytics(sc.Analytics),
+			admin.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -842,6 +846,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			adminv1.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
 			adminv1.WithGrpcTriggersEnabled(sc.Runtime.GRPCTriggerWritesEnabled),
 			adminv1.WithGrpcTriggerSlots(sc.Runtime.GRPCTriggerWriteSlots),
+			adminv1.WithPrometheusGate(sc.PrometheusGate),
 		)
 
 		if err != nil {
@@ -852,7 +857,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithConfig(sc),
 			grpc.WithIngestor(ei),
 			grpc.WithDispatcher(d),
-			grpc.WithDispatcherV1(dv1),
+			grpc.WithDispatcherV1(d.V1()),
 			grpc.WithAdmin(adminSvc),
 			grpc.WithAdminV1(adminv1Svc),
 			grpc.WithLogger(sc.Logger),
@@ -860,6 +865,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpc.WithTLSConfig(sc.TLSConfig),
 			grpc.WithPort(sc.Runtime.GRPCPort),
 			grpc.WithBindAddress(sc.Runtime.GRPCBindAddress),
+			grpc.WithShutdownTimeout(sc.Runtime.GRPCShutdownTimeout),
 		}
 
 		if sc.Observability.Enabled {
@@ -895,6 +901,10 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		}
 
 		grpcApiCleanup := func() error {
+			// hang up long-lived subscriber streams first so that GracefulStop does not
+			// block on them until the pod is killed
+			d.CancelStreamSessions()
+
 			g := new(errgroup.Group)
 
 			g.Go(func() error {
@@ -938,6 +948,13 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			grpcApiCleanup,
 			"grpc",
 		)
+	}
+
+	// the health server is shut down as late as possible so that readiness and
+	// liveness probes (and the load balancer health check) observe the not-ready
+	// state for the entire teardown
+	if healthCleanup != nil {
+		cleanup.Add(healthCleanup, "health")
 	}
 
 	cleanup.Add(

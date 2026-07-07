@@ -22,8 +22,8 @@ import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -40,14 +40,19 @@ const CreateTenantInviteForm = ({
   className,
   ...props
 }: CreateTenantInviteFormProps) => {
-  const availableRoles = props.isCloudEnabled
-    ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
-    : [TenantMemberRole.OWNER, TenantMemberRole.ADMIN, TenantMemberRole.MEMBER];
-
-  const schema = z.object({
-    email: z.string().email('Invalid email address'),
-    role: z.enum(availableRoles as [TenantMemberRole, ...TenantMemberRole[]]),
-  });
+  const schema = useMemo(() => {
+    const availableRoles = props.isCloudEnabled
+      ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
+      : [
+          TenantMemberRole.OWNER,
+          TenantMemberRole.ADMIN,
+          TenantMemberRole.MEMBER,
+        ];
+    return z.object({
+      email: z.string().email('Invalid email address'),
+      role: z.enum(availableRoles as [TenantMemberRole, ...TenantMemberRole[]]),
+    });
+  }, [props.isCloudEnabled]);
 
   const {
     register,
@@ -99,8 +104,8 @@ const CreateTenantInviteForm = ({
                 name="role"
                 render={({ field }) => {
                   return (
-                    <Select onValueChange={field.onChange} {...field}>
-                      <SelectTrigger className="w-[180px]">
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger className="w-[180px] focus:ring-0 focus-visible:ring-0">
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -144,12 +149,16 @@ export const CreateTenantInviteModal = ({
     setFieldErrors,
   });
 
+  const queryClient = useQueryClient();
   const organizationId = getOrganizationIdForTenant(tenantId);
 
   const { tenantInviteCreateMutation } = useTenantApi();
   const createMutation = useMutation({
     ...tenantInviteCreateMutation(tenantId),
     onSuccess: (invite) => {
+      queryClient.invalidateQueries({
+        queryKey: ['tenant-invite:list', tenantId],
+      });
       onCreated(invite);
       onClose();
     },

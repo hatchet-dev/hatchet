@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMatchRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
 import { useCallback, useMemo, useState } from 'react';
+import invariant from 'tiny-invariant';
 
 type Plan = 'free' | 'starter' | 'growth';
 
@@ -21,11 +22,13 @@ type Plan = 'free' | 'starter' | 'growth';
  * Hook to get current tenant ID from route params
  *
  * @deprecated Prefer using route params directly via `useParams({ from: appRoutes.tenantRoute.to })`
- * This hook is maintained for backward compatibility during migration.
+ * on tenant-routed pages, or `useAppContext()` when the active tenant may be
+ * derived from other route state such as organizations.
  */
 export function useCurrentTenantId() {
-  const params = useParams({ from: appRoutes.tenantRoute.to });
-  const tenantId = params.tenant;
+  const { tenantId } = useAppContext();
+
+  invariant(tenantId, 'Could not resolve an active tenant');
 
   return { tenantId };
 }
@@ -47,12 +50,16 @@ export function useTenantDetails() {
   const matchRoute = useMatchRoute();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
-  const [, setLastTenant] = useAtom(lastTenantAtom);
+  const [lastTenantValue, setLastTenant] = useAtom(lastTenantAtom);
   const tenantParamInPath = params.tenant;
 
   const setTenant = useCallback(
-    (tenant: Tenant) => {
+    (tenant: Tenant, options?: { navigate?: boolean }) => {
       setLastTenant(tenant);
+
+      if (options?.navigate === false) {
+        return;
+      }
 
       const isOnTenantRoute = Boolean(
         matchRoute({
@@ -98,7 +105,7 @@ export function useTenantDetails() {
     },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ['user:*'] });
-      invalidateUserUniverse();
+      await invalidateUserUniverse();
       if (data.metadata.id) {
         setTenant(data);
       }
@@ -134,16 +141,32 @@ export function useTenantDetails() {
 
   const { cloud, isCloudEnabled } = useCloud();
 
+  const organizationId = useMemo(() => {
+    if (!appContext.isUserUniverseLoaded || !appContext.organizations) {
+      return undefined;
+    }
+
+    return appContext.organizations.find((organization) =>
+      organization.tenants.some(
+        (organizationTenant) => organizationTenant.id === tenant?.metadata?.id,
+      ),
+    )?.metadata.id;
+  }, [
+    appContext.isUserUniverseLoaded,
+    appContext.organizations,
+    tenant?.metadata?.id,
+  ]);
+
   const billingState = useQuery({
-    ...queries.cloud.billing(tenant?.metadata?.id || ''),
-    enabled: !!tenant?.metadata?.id && isCloudEnabled && !!cloud?.canBill,
+    ...queries.controlPlane.billing(organizationId || ''),
+    enabled: !!organizationId && isCloudEnabled && !!cloud?.canBill,
     refetchInterval: pollBilling ? 1000 : false,
     retry: false,
   });
 
   const paymentMethodsQuery = useQuery({
-    ...queries.cloud.paymentMethods(tenant?.metadata?.id || ''),
-    enabled: !!tenant && !!cloud?.canBill,
+    ...queries.controlPlane.paymentMethods(organizationId || ''),
+    enabled: !!organizationId && !!cloud?.canBill,
     retry: false,
   });
 
@@ -205,6 +228,8 @@ export function useTenantDetails() {
     },
     limit: resourcePolicyQuery,
     billing: billingContext,
+    organizationId,
     can,
+    lastTenantId: lastTenantValue?.metadata.id,
   };
 }

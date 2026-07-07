@@ -9,7 +9,8 @@ import {
   WebhookUpdateFormData,
   webhookUpdateFormSchema,
 } from './hooks/use-webhooks';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -30,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
+import { Switch } from '@/components/v1/ui/switch';
 import {
   V1CreateWebhookRequest,
   V1Webhook,
@@ -44,7 +46,22 @@ import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-export default function Webhooks() {
+export default function WebhooksPage() {
+  return (
+    <WorkflowsGuard
+      title="No webhooks found"
+      description="Webhooks allow external services to trigger your workflows via HTTP requests."
+      docs={{
+        href: docsPages.v1.webhooks.href,
+        description: 'Learn about webhooks',
+      }}
+    >
+      <Webhooks />
+    </WorkflowsGuard>
+  );
+}
+
+function Webhooks() {
   const { data, isLoading } = useWebhooks();
 
   const webhookColumns = useMemo(
@@ -113,21 +130,24 @@ export default function Webhooks() {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex w-full flex-row justify-end">
+    <div className="flex h-full flex-col">
+      <div className="mb-4 flex w-full shrink-0 flex-row justify-end">
         <CreateWebhookModal />
       </div>
       {data && data.length > 0 ? (
-        <SimpleTable columns={webhookColumns} data={data} />
+        <SimpleTable
+          columns={webhookColumns}
+          data={data}
+          rowKey={(row) => row.metadata.id}
+        />
       ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No webhooks found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.webhooks}
-              label="Learn about triggering runs from webhooks"
-            />
-          </div>
+        <div className="flex flex-1 items-center justify-center">
+          <EmptyState
+            title="No webhooks found"
+            description="Webhooks allow external services to trigger your workflows via HTTP requests."
+            docPage={docsPages.v1.webhooks}
+            docLabel="Learn about webhooks"
+          />
         </div>
       )}
     </div>
@@ -151,6 +171,7 @@ const buildWebhookPayload = (data: WebhookFormData): V1CreateWebhookRequest => {
   const basePayload = {
     scopeExpression: data.scopeExpression || undefined,
     staticPayload: parseStaticPayload(data.staticPayload),
+    returnEventAsResponsePayload: data.returnEventAsResponsePayload ?? true,
   };
 
   switch (data.sourceName) {
@@ -397,6 +418,7 @@ const CreateWebhookModal = () => {
       eventKeyExpression: 'input.id',
       username: '',
       password: '',
+      returnEventAsResponsePayload: true,
     },
   });
 
@@ -404,6 +426,7 @@ const CreateWebhookModal = () => {
   const authType = watch('authType');
   const webhookName = watch('name');
   const eventKeyExpression = watch('eventKeyExpression');
+  const returnEventAsResponsePayload = watch('returnEventAsResponsePayload');
 
   /* Update default event key expression when source changes */
   useEffect(() => {
@@ -651,6 +674,28 @@ const CreateWebhookModal = () => {
             </div>
           </div>
 
+          <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="returnEventAsResponsePayload"
+                className="text-sm font-medium"
+              >
+                Return event as response payload
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the triggered event will be returned as the HTTP
+                response body. Otherwise, the response will be an empty 204 OK.
+              </p>
+            </div>
+            <Switch
+              id="returnEventAsResponsePayload"
+              checked={returnEventAsResponsePayload ?? true}
+              onCheckedChange={(checked) =>
+                setValue('returnEventAsResponsePayload', checked)
+              }
+            />
+          </div>
+
           <div className="space-y-4">
             <div className="space-y-4 border-l-2 border-gray-200 pl-4">
               {sourceName === V1WebhookSourceName.GENERIC && (
@@ -723,6 +768,8 @@ export const EditWebhookModal = ({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<WebhookUpdateFormData>({
@@ -733,8 +780,12 @@ export const EditWebhookModal = ({
       staticPayload: webhook.staticPayload
         ? JSON.stringify(webhook.staticPayload, null, 2)
         : '',
+      returnEventAsResponsePayload:
+        webhook.returnEventAsResponsePayload ?? true,
     },
   });
+
+  const returnEventAsResponsePayload = watch('returnEventAsResponsePayload');
 
   useEffect(() => {
     if (open) {
@@ -744,6 +795,8 @@ export const EditWebhookModal = ({
         staticPayload: webhook.staticPayload
           ? JSON.stringify(webhook.staticPayload, null, 2)
           : '',
+        returnEventAsResponsePayload:
+          webhook.returnEventAsResponsePayload ?? true,
       });
     }
   }, [webhook, open, reset]);
@@ -759,6 +812,8 @@ export const EditWebhookModal = ({
             eventKeyExpression: data.eventKeyExpression,
             scopeExpression: data.scopeExpression ?? '',
             staticPayload: staticPayload ?? {},
+            returnEventAsResponsePayload:
+              data.returnEventAsResponsePayload ?? true,
           },
         },
         {
@@ -845,6 +900,28 @@ export const EditWebhookModal = ({
             <p className="text-xs text-muted-foreground">
               JSON object to merge into the webhook payload.
             </p>
+          </div>
+
+          <div className="flex flex-row items-center justify-between rounded-lg border border-border p-4">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="edit-returnEventAsResponsePayload"
+                className="text-sm font-medium"
+              >
+                Return event as response payload
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                When enabled, the triggered event will be returned as the HTTP
+                response body. Otherwise, the response will be an empty 204 OK.
+              </p>
+            </div>
+            <Switch
+              id="edit-returnEventAsResponsePayload"
+              checked={returnEventAsResponsePayload ?? true}
+              onCheckedChange={(checked) =>
+                setValue('returnEventAsResponsePayload', checked)
+              }
+            />
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

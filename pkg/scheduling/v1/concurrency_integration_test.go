@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -18,25 +19,27 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1/concurrency"
 )
 
 // concurrencyTestSetup holds the common state for concurrency integration tests.
 type concurrencyTestSetup struct {
-	tenantId        uuid.UUID
-	strategy        *sqlcv1.V1StepConcurrency
-	concurrencyRepo repo.ConcurrencyRepository
+	tenantId          uuid.UUID
+	strategy          *sqlcv1.V1StepConcurrency
+	concurrencyRepo   repo.ConcurrencyRepository
+	workflowId        uuid.UUID
+	workflowVersionId uuid.UUID
 }
 
-// setupStepConcurrencyTest creates a tenant, workflow with a single step-level concurrency
-// strategy, and inserts numTasks tasks. Returns the setup needed to call RunConcurrencyStrategy.
-func setupStepConcurrencyTest(
+// setupStepConcurrencyStrategy creates a tenant and a workflow with a single step-level concurrency
+// strategy, but inserts no tasks. Use createConcurrencyTasks to add tasks afterwards.
+func setupStepConcurrencyStrategy(
 	t *testing.T,
 	ctx context.Context,
 	conf *database.Layer,
 	name string,
 	strategyType string,
 	maxRuns int32,
-	numTasks int,
 ) *concurrencyTestSetup {
 	t.Helper()
 
@@ -71,9 +74,6 @@ func setupStepConcurrencyTest(
 	})
 	require.NoError(t, err)
 
-	workflowId := wfVersion.WorkflowVersion.WorkflowId
-	workflowVersionId := wfVersion.WorkflowVersion.ID
-
 	strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
 	require.NoError(t, err)
 	require.Len(t, strategies, 1)
@@ -83,14 +83,31 @@ func setupStepConcurrencyTest(
 	require.Equal(t, maxRuns, strat.MaxConcurrency)
 	require.False(t, strat.ParentStrategyID.Valid, "step-level concurrency should have no parent")
 
+	return &concurrencyTestSetup{
+		tenantId:          tenantId,
+		strategy:          strat,
+		concurrencyRepo:   r.Scheduler().Concurrency(),
+		workflowId:        wfVersion.WorkflowVersion.WorkflowId,
+		workflowVersionId: wfVersion.WorkflowVersion.ID,
+	}
+}
+
+// createConcurrencyTasks inserts numTasks queued tasks that share a single concurrency key against
+// the setup's strategy. The v1_concurrency_slot insert trigger emits the WAL the in-memory index
+// consumes.
+func createConcurrencyTasks(t *testing.T, ctx context.Context, conf *database.Layer, s *concurrencyTestSetup, numTasks int) {
+	t.Helper()
+
+	queries := sqlcv1.New()
+
 	taskParams := newCreateTasksParams(numTasks)
 	for i := 0; i < numTasks; i++ {
-		taskParams.Tenantids[i] = tenantId
+		taskParams.Tenantids[i] = s.tenantId
 		taskParams.Queues[i] = "default"
 		taskParams.Actionids[i] = "test:run"
-		taskParams.Stepids[i] = strat.StepID
+		taskParams.Stepids[i] = s.strategy.StepID
 		taskParams.Stepreadableids[i] = "my-task"
-		taskParams.Workflowids[i] = workflowId
+		taskParams.Workflowids[i] = s.workflowId
 		taskParams.Scheduletimeouts[i] = "5m"
 		taskParams.Priorities[i] = 1
 		taskParams.Stickies[i] = string(sqlcv1.V1StickyStrategyNONE)
@@ -100,21 +117,33 @@ func setupStepConcurrencyTest(
 		taskParams.Additionalmetadatas[i] = []byte(`{}`)
 		taskParams.InitialStates[i] = string(sqlcv1.V1TaskInitialStateQUEUED)
 		taskParams.Concurrencyparentstrategyids[i] = []pgtype.Int8{{}}
-		taskParams.ConcurrencyStrategyIds[i] = []int64{strat.ID}
+		taskParams.ConcurrencyStrategyIds[i] = []int64{s.strategy.ID}
 		taskParams.ConcurrencyKeys[i] = []string{"test-key"}
-		taskParams.WorkflowVersionIds[i] = workflowVersionId
+		taskParams.WorkflowVersionIds[i] = s.workflowVersionId
 		taskParams.WorkflowRunIds[i] = uuid.New()
 	}
 
 	tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
 	require.NoError(t, err)
 	require.Len(t, tasks, numTasks)
+}
 
-	return &concurrencyTestSetup{
-		tenantId:        tenantId,
-		strategy:        strat,
-		concurrencyRepo: r.Scheduler().Concurrency(),
-	}
+// setupStepConcurrencyTest creates a tenant, workflow with a single step-level concurrency
+// strategy, and inserts numTasks tasks. Returns the setup needed to call RunConcurrencyStrategy.
+func setupStepConcurrencyTest(
+	t *testing.T,
+	ctx context.Context,
+	conf *database.Layer,
+	name string,
+	strategyType string,
+	maxRuns int32,
+	numTasks int,
+) *concurrencyTestSetup {
+	t.Helper()
+
+	s := setupStepConcurrencyStrategy(t, ctx, conf, name, strategyType, maxRuns)
+	createConcurrencyTasks(t, ctx, conf, s, numTasks)
+	return s
 }
 
 // newCreateTasksParams allocates a CreateTasksParams with all slices pre-sized to n.
@@ -210,6 +239,88 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Queued, 2, "CANCEL_IN_PROGRESS should queue maxRuns newest tasks")
 		require.Len(t, res.Cancelled, 3, "CANCEL_IN_PROGRESS should cancel excess oldest tasks")
+
+		return nil
+	})
+}
+
+// TestConcurrency_CancelInProgress_InMemory exercises the new outbox-backed in-memory index for
+// CANCEL_IN_PROGRESS: it keeps the best maxRuns slots under the comparator (priority, then
+// inserted_at, then taskId) running and cancels the rest with CONCURRENCY_LIMIT. With equal-priority
+// tasks this comes down to maxRuns running and the remainder cancelled.
+func TestConcurrency_CancelInProgress_InMemory(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		// create the strategy first, with no tasks yet
+		s := setupStepConcurrencyStrategy(t, ctx, conf, "cip-inmem-test", "CANCEL_IN_PROGRESS", 2)
+
+		l := zerolog.Nop()
+		outbox := newTestOutbox(t, conf)
+		cs := concurrency.NewConcurrencyStrategy(ctx, s.concurrencyRepo, s.strategy, outbox, &l)
+
+		// The first Run blocks until the async index build finishes (against the currently-empty slot
+		// table) and drains any pending WAL. Running it before inserting tasks guarantees the build
+		// completes first, so the subsequent INSERT WAL messages are processed fresh rather than
+		// double-counted against an index that already hydrated them.
+		_, err := cs.Run(ctx)
+		require.NoError(t, err)
+
+		// now insert 5 tasks sharing one concurrency key; the insert trigger emits INSERT WAL.
+		createConcurrencyTasks(t, ctx, conf, s, 5)
+
+		// drain the WAL through the in-memory CANCEL_IN_PROGRESS decide step.
+		res, err := cs.Run(ctx)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 2, "CANCEL_IN_PROGRESS in-memory should queue maxRuns tasks")
+		require.Len(t, res.Cancelled, 3, "CANCEL_IN_PROGRESS in-memory should cancel the excess tasks")
+		for _, c := range res.Cancelled {
+			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason,
+				"excess tasks should be cancelled with CONCURRENCY_LIMIT")
+		}
+
+		return nil
+	})
+}
+
+// TestConcurrency_CancelNewest_InMemory exercises the new outbox-backed in-memory index for
+// CANCEL_NEWEST: it fills maxRuns slots from the queued backlog (priority, then inserted_at, then
+// taskId) and cancels the rest with CONCURRENCY_LIMIT, never preempting running work. With
+// equal-priority tasks this comes down to maxRuns running and the remainder cancelled.
+func TestConcurrency_CancelNewest_InMemory(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		// create the strategy first, with no tasks yet
+		s := setupStepConcurrencyStrategy(t, ctx, conf, "cn-inmem-test", "CANCEL_NEWEST", 2)
+
+		l := zerolog.Nop()
+		outbox := newTestOutbox(t, conf)
+		cs := concurrency.NewConcurrencyStrategy(ctx, s.concurrencyRepo, s.strategy, outbox, &l)
+
+		// The first Run blocks until the async index build finishes (against the currently-empty slot
+		// table) and drains any pending WAL. Running it before inserting tasks guarantees the build
+		// completes first, so the subsequent INSERT WAL messages are processed fresh rather than
+		// double-counted against an index that already hydrated them.
+		_, err := cs.Run(ctx)
+		require.NoError(t, err)
+
+		// now insert 5 tasks sharing one concurrency key; the insert trigger emits INSERT WAL.
+		createConcurrencyTasks(t, ctx, conf, s, 5)
+
+		// drain the WAL through the in-memory CANCEL_NEWEST decide step.
+		res, err := cs.Run(ctx)
+		require.NoError(t, err)
+		require.Len(t, res.Queued, 2, "CANCEL_NEWEST in-memory should queue maxRuns tasks")
+		require.Len(t, res.Cancelled, 3, "CANCEL_NEWEST in-memory should cancel the excess tasks")
+		for _, c := range res.Cancelled {
+			require.Equal(t, repo.CancelledReasonConcurrencyLimit, c.CancelledReason,
+				"excess tasks should be cancelled with CONCURRENCY_LIMIT")
+		}
 
 		return nil
 	})
@@ -368,16 +479,25 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 
 		l := zerolog.Nop()
+		// the outbox table and v1_concurrency_slot triggers are provided by migrations; mirror
+		// production by disabling pgoutbox's auto-migration.
+		outbox, err := pgoutbox.NewOutbox(t.Context(), conf.Pool, pgoutbox.WithAutoMigrate(false))
+		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			outbox,
 			&l,
 			100,
 			20,
 			5*time.Millisecond,
 			6*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
 			5*time.Millisecond,
 			false,
 			1,
+			true,
+			nil,
 		)
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
@@ -434,5 +554,170 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 
 		}
 		return nil
+	})
+}
+
+// TestConcurrency_ColdStrategyScheduledPromptly is a regression test for cold-start scheduling
+// latency on concurrency-keyed tasks.
+//
+// A concurrency strategy that has been idle long enough to be deactivated (is_active=FALSE, no
+// slots) has no ConcurrencyManager running in the scheduler. When the next task arrives, the
+// scheduler is notified via NotifyConcurrency (the in-process effect of the CheckTenantQueue /
+// NotifyTaskCreated message published on task creation). The scheduler must create a manager for
+// that strategy and schedule the waiting task.
+//
+// Before the fix, NotifyConcurrency only woke *already-running* managers, so a cold strategy was
+// not picked up until the periodic lease-acquisition poll (every 5s) happened to discover it -- the
+// "first run is slow, then warm" symptom (observed as intermittent 5-11s queued->started spikes).
+// After the fix, NotifyConcurrency acquires the lease on-demand and the new manager runs immediately.
+//
+// This test reproduces the cold path through the full SchedulingPool and asserts the task is queued
+// well within the 5s lease-poll window. Run against the pre-fix commit and it waits ~5s and fails the
+// deadline; against the fix it completes in milliseconds.
+func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
+	runWithDatabase(t, func(conf *database.Layer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		requireSchedulerSchema(t, ctx, conf)
+
+		r := conf.V1
+		queries := sqlcv1.New()
+
+		tenantId := uuid.New()
+		tenant, err := r.Tenant().CreateTenant(ctx, &repo.CreateTenantOpts{
+			ID:   &tenantId,
+			Name: "concurrency-cold-start-test",
+			Slug: fmt.Sprintf("concurrency-cold-start-test-%s", tenantId.String()),
+		})
+		require.NoError(t, err)
+
+		desc := "test workflow for cold-start scheduling"
+		groupRR := "GROUP_ROUND_ROBIN"
+		var maxRuns int32 = 10
+
+		wfVersion, err := r.Workflows().PutWorkflowVersion(ctx, tenantId, &repo.CreateWorkflowVersionOpts{
+			Name:        "concurrency-cold-start-test",
+			Description: &desc,
+			Tasks: []repo.CreateStepOpts{
+				{
+					ReadableId: "my-task",
+					Action:     "test:run",
+					Concurrency: []repo.CreateConcurrencyOpts{
+						{
+							MaxRuns:       &maxRuns,
+							LimitStrategy: &groupRR,
+							Expression:    "input.my_id",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		workflowId := wfVersion.WorkflowVersion.WorkflowId
+		workflowVersionId := wfVersion.WorkflowVersion.ID
+
+		strategies, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+		require.Len(t, strategies, 1)
+		strat := strategies[0]
+
+		concurrencyRepo := r.Scheduler().Concurrency()
+
+		// The stale-deactivation sweep only considers strategies whose last_active_at is over 25
+		// hours old (last_active_at is otherwise refreshed at most once per hour on slot inserts).
+		// The strategy was just created with last_active_at=NOW(), so backdate it to simulate a
+		// strategy that has genuinely been idle for the deactivation window.
+		_, err = conf.Pool.Exec(ctx, `UPDATE v1_step_concurrency SET last_active_at = NOW() - INTERVAL '26 hours' WHERE id = $1`, strat.ID)
+		require.NoError(t, err)
+
+		// Make the strategy "cold": with no slots yet, the stale-deactivation sweep flips it to
+		// is_active=FALSE. This mirrors a strategy that has been idle for the deactivation window.
+		require.NoError(t, concurrencyRepo.DeactivateStaleStepConcurrency(ctx, tenantId))
+
+		activeAfterDeactivate, err := queries.ListActiveConcurrencyStrategies(ctx, conf.Pool, tenantId)
+		require.NoError(t, err)
+		require.Len(t, activeAfterDeactivate, 0, "strategy must be inactive so no manager is leased at pool start")
+
+		// Start the scheduling pool. Its initial lease acquisition runs now and finds no active
+		// strategy, so no ConcurrencyManager exists for our strategy -- it is genuinely cold.
+		l := zerolog.Nop()
+		outbox, err := pgoutbox.NewOutbox(ctx, conf.Pool, pgoutbox.WithAutoMigrate(false))
+		require.NoError(t, err)
+		schedulingPool, cleanup, err := v1.NewSchedulingPool(
+			r.Scheduler(),
+			outbox,
+			&l,
+			100,
+			20,
+			10*time.Millisecond,
+			20*time.Millisecond,
+			50*time.Millisecond,
+			100*time.Millisecond,
+			5*time.Millisecond,
+			false,
+			1,
+			true,
+			nil,
+		)
+		require.NoError(t, err)
+		defer func() { _ = cleanup() }()
+
+		schedulingPool.SetTenants([]*sqlcv1.Tenant{tenant})
+		resultsChan := schedulingPool.GetConcurrencyResultsCh()
+
+		// A task arrives for the cold strategy. Creating the task inserts a concurrency slot, whose
+		// insert trigger reactivates the strategy in the DB (is_active=TRUE) -- but the scheduler does
+		// not know about it yet.
+		taskParams := newCreateTasksParams(1)
+		taskParams.Tenantids[0] = tenantId
+		taskParams.Queues[0] = "default"
+		taskParams.Actionids[0] = "test:run"
+		taskParams.Stepids[0] = strat.StepID
+		taskParams.Stepreadableids[0] = "my-task"
+		taskParams.Workflowids[0] = workflowId
+		taskParams.Scheduletimeouts[0] = "5m"
+		taskParams.Priorities[0] = 1
+		taskParams.Stickies[0] = string(sqlcv1.V1StickyStrategyNONE)
+		taskParams.Externalids[0] = uuid.New()
+		taskParams.Displaynames[0] = "cold-task"
+		taskParams.Inputs[0] = []byte(`{"my_id": "thread-1"}`)
+		taskParams.Additionalmetadatas[0] = []byte(`{}`)
+		taskParams.InitialStates[0] = string(sqlcv1.V1TaskInitialStateQUEUED)
+		taskParams.Concurrencyparentstrategyids[0] = []pgtype.Int8{{}}
+		taskParams.ConcurrencyStrategyIds[0] = []int64{strat.ID}
+		taskParams.ConcurrencyKeys[0] = []string{"thread-1"}
+		taskParams.WorkflowVersionIds[0] = workflowVersionId
+		taskParams.WorkflowRunIds[0] = uuid.New()
+
+		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
+		require.NoError(t, err)
+		require.Len(t, tasks, 1)
+
+		// This is exactly what the task-creation message does in production.
+		start := time.Now()
+		schedulingPool.NotifyConcurrency(ctx, tenantId, []int64{strat.ID})
+
+		// The fix must schedule the waiting task without waiting for the 5s lease-acquisition poll.
+		const coldStartDeadline = 2 * time.Second
+		deadline := time.NewTimer(coldStartDeadline)
+		defer deadline.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				t.Fatalf("context cancelled while waiting for cold strategy to be scheduled: %v", ctx.Err())
+			case <-deadline.C:
+				t.Fatalf("cold concurrency strategy was not scheduled within %s; "+
+					"the on-demand manager was not created (fell back to the periodic lease poll)", coldStartDeadline)
+			case res := <-resultsChan:
+				require.False(t, res.RunConcurrencyResult.FailedAdvisoryLock)
+				if len(res.RunConcurrencyResult.Queued) > 0 {
+					require.Len(t, res.RunConcurrencyResult.Queued, 1, "the single waiting task should be queued")
+					t.Logf("cold strategy scheduled in %s", time.Since(start))
+					return nil
+				}
+			}
+		}
 	})
 }

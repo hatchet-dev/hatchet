@@ -31,7 +31,7 @@ from hatchet_sdk.runnables.contextvars import task_count
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.workflow import BaseWorkflow
 from hatchet_sdk.types.labels import WorkerLabel, _warn_if_dict_worker_labels
-from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
+from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
 from hatchet_sdk.worker.action_listener_process import (
     ActionEvent,
     worker_action_listener_process,
@@ -112,9 +112,18 @@ class Worker:
         self._ctx = multiprocessing.get_context("spawn")
 
         self._action_queue: Queue[Action | STOP_LOOP_TYPE] = self._ctx.Queue()
-        self._event_queue: Queue[ActionEvent] = self._ctx.Queue()
+        self._event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] = self._ctx.Queue()
         self._durable_action_queue: Queue[Action | STOP_LOOP_TYPE] | None = None
-        self._durable_event_queue: Queue[ActionEvent] | None = None
+        self._durable_event_queue: Queue[ActionEvent | STOP_LOOP_TYPE] | None = None
+
+        # The listener subprocess writes its worker_id here once it has
+        # registered with the engine.  The worker reads it back so it can
+        # pause task assignment directly without going through the subprocess.
+        self._worker_id_queue: Queue[str] = self._ctx.Queue()
+
+        # Set by the parent to tell listener subprocesses to stop their action
+        # loops.  Using a multiprocessing.Event avoids sending OS signals.
+        self._stop_listener_event = self._ctx.Event()
 
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -260,7 +269,7 @@ class Worker:
         return self._action_queue
 
     @property
-    def event_queue(self) -> "Queue[ActionEvent]":
+    def event_queue(self) -> "Queue[ActionEvent | STOP_LOOP_TYPE]":
         warn(
             "The event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,
@@ -278,7 +287,7 @@ class Worker:
         return self._durable_action_queue
 
     @property
-    def durable_event_queue(self) -> "Queue[ActionEvent] | None":
+    def durable_event_queue(self) -> "Queue[ActionEvent | STOP_LOOP_TYPE] | None":
         warn(
             "The durable_event_queue property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,
@@ -478,8 +487,8 @@ class Worker:
         main_pid = os.getpid()
 
         logger.info("------------------------------------------")
-        logger.info("STARTING HATCHET...")
-        logger.debug(f"worker runtime starting on PID: {main_pid}")
+        logger.info("starting hatchet...")
+        logger.debug(f"worker starting on PID: {main_pid}")
 
         self._status = WorkerStatus.STARTING
 
@@ -605,6 +614,8 @@ class Worker:
                     self._handle_kill,
                     self._client.debug,
                     self._labels,
+                    self._worker_id_queue,
+                    self._stop_listener_event,
                 ),
             )
             process.start()
@@ -692,15 +703,16 @@ class Worker:
                 continue
 
     def _terminate_processes(self) -> None:
+        # Signal subprocesses to stop their action loops via the shared event
+        # rather than sending OS signals.
+        self._stop_listener_event.set()
+
         for process in [
             self._action_listener_process,
             self._durable_action_listener_process,
         ]:
             if process is not None and process.pid is not None:
                 try:
-                    if process.is_alive():
-                        os.kill(process.pid, signal.SIGQUIT)
-
                     process.join(timeout=5)
 
                     if process.is_alive():
@@ -724,6 +736,32 @@ class Worker:
 
         self._close_queues()
 
+    async def _pause_task_assignment(self) -> None:
+        """Pause task assignment at the engine level.
+
+        Reads the worker_id that the listener subprocess deposited at startup,
+        then calls the REST API to mark the worker as paused so the engine
+        stops routing new work here while in-flight tasks finish.
+        """
+        try:
+            worker_id = await asyncio.to_thread(self._worker_id_queue.get, timeout=10)
+        except Exception:
+            logger.warning("could not read worker_id; skipping pause")
+            return
+        logger.info("pausing task assignment...")
+        await self._client.workers.aio_pause(worker_id)
+        logger.info("task assignment paused")
+
+    def _stop_listener_action_loops(self) -> None:
+        """Tell listener subprocesses to stop their gRPC action streams.
+
+        Setting the event causes each subprocess's _wait_for_stop_event task
+        to fire _stop_action_loop(), which closes the stream without needing
+        an OS signal.  The event_send_loop keeps running so any in-flight
+        completion events can still be delivered.
+        """
+        self._stop_listener_event.set()
+
     async def exit_gracefully(self) -> None:
         logger.debug(f"gracefully stopping worker: {self.name}")
 
@@ -732,26 +770,29 @@ class Worker:
 
         self._killing = True
 
+        # tell the engine that the worker is paused
+        await self._pause_task_assignment()
+
+        # stop the gRPC stream — no new actions will be dispatched.
+        self._stop_listener_action_loops()
+
+        # wait for tasks to complete, needs the event queue so that completion tasks aren't dropped
         if self._action_runner:
-            # TODO-DURABLE: we nee to ensure that the worker is paused before calling this in all SDKs
-            await self._action_runner.evict_all_waiting_durable_runs()
-            await self._action_runner.wait_for_tasks()
             await self._action_runner.exit_gracefully()
 
-        # Also clean up the durable action runner (legacy mode)
         if self._legacy_durable_action_runner:
-            await self._legacy_durable_action_runner.evict_all_waiting_durable_runs()
-            await self._legacy_durable_action_runner.wait_for_tasks()
             await self._legacy_durable_action_runner.exit_gracefully()
 
-        if self._action_listener_process and self._action_listener_process.is_alive():
-            self._action_listener_process.kill()
+        # drain event_send_loop
+        self._event_queue.put(STOP_LOOP)
+        if self._durable_event_queue is not None:
+            self._durable_event_queue.put(STOP_LOOP)
 
-        if (
-            self._durable_action_listener_process
-            and self._durable_action_listener_process.is_alive()
-        ):
-            self._durable_action_listener_process.kill()
+        if self._durable_action_listener_process is not None:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self._durable_action_listener_process.join(),  # type: ignore[union-attr]
+            )
 
         try:
             await self._cleanup_lifespan()

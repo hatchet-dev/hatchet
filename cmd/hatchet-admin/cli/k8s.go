@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 	"github.com/pingcap/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
@@ -190,10 +189,9 @@ func runK8sQuickstart() error {
 	}
 
 	if k8sQuickstartOverwrite || res.encryptionMasterKeyset == "" || res.encryptionJwtPrivateKeyset == "" || res.encryptionJwtPublicKeyset == "" {
-		masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
-
-		if err != nil {
-			return err
+		masterKeyBytes, privateEc256, publicEc256, _, generationErr := encryption.GenerateLocalKeys()
+		if generationErr != nil {
+			return generationErr
 		}
 
 		res.encryptionMasterKeyset = string(masterKeyBytes)
@@ -255,10 +253,9 @@ func runCreateWorkerToken() error {
 
 	expiresAt := time.Now().UTC().Add(100 * 365 * 24 * time.Hour)
 
-	tenantId := tokenTenantId
-
-	if tenantId == uuid.Nil {
-		tenantId = uuid.MustParse(server.Seed.DefaultTenantID)
+	tenantId, err := tenantIDForTokenCreate(server.Seed.DefaultTenantID)
+	if err != nil {
+		return err
 	}
 
 	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)

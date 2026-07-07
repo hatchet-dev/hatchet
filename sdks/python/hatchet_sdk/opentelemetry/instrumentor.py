@@ -1,11 +1,13 @@
 import json
-from collections.abc import Callable, Collection, Coroutine, Sequence
+from collections.abc import Callable, Collection, Coroutine, Iterator, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import version
 from typing import Any, cast
 
 import grpc
 
+from hatchet_sdk.connection import load_channel_credentials
 from hatchet_sdk.contracts import workflows_pb2 as v0_workflow_protos
 from hatchet_sdk.utils.typing import JSONSerializableMapping
 
@@ -31,11 +33,13 @@ try:
         TracerProvider,
         get_tracer,
         get_tracer_provider,
+        set_span_in_context,
         set_tracer_provider,
     )
     from opentelemetry.trace.propagation.tracecontext import (
         TraceContextTextMapPropagator,
     )
+    from opentelemetry.trace.span import Span as ApiSpan
     from wrapt import wrap_function_wrapper  # type: ignore[import-untyped]
 except (RuntimeError, ImportError, ModuleNotFoundError) as e:
     raise ModuleNotFoundError(
@@ -162,6 +166,13 @@ def _create_traceparent() -> str | None:
     TraceContextTextMapPropagator().inject(carrier)
 
     return carrier.get("traceparent")
+
+
+def _create_traceparent_from_span(span: ApiSpan) -> str | None:
+    """Create a W3C traceparent string from a specific span, regardless of the active context."""
+    carrier: dict[str, str] = {}
+    TraceContextTextMapPropagator().inject(carrier, context=set_span_in_context(span))
+    return carrier.get(OTEL_TRACEPARENT_KEY)
 
 
 def parse_carrier_from_metadata(
@@ -347,12 +358,7 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
         endpoint = self.config.host_port
         insecure = self.config.tls_config.strategy == "none"
         headers = (("authorization", f"Bearer {self.config.token}"),)
-        credentials: grpc.ChannelCredentials | None = None
-
-        if self.config.tls_config.root_ca_file:
-            with open(self.config.tls_config.root_ca_file, "rb") as f:
-                root_certs = f.read()
-            credentials = grpc.ssl_channel_credentials(root_certificates=root_certs)
+        credentials = load_channel_credentials(self.config)
 
         otlp_exporter = OTLPSpanExporter(
             endpoint=endpoint,
@@ -396,6 +402,18 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             hatchet_sdk,
             "clients.events.EventClient.bulk_push",
             self._wrap_bulk_push_event,
+        )
+
+        wrap_function_wrapper(
+            hatchet_sdk,
+            "clients.events.EventClient.aio_push",
+            self._wrap_aio_push_event,
+        )
+
+        wrap_function_wrapper(
+            hatchet_sdk,
+            "clients.events.EventClient.aio_bulk_push",
+            self._wrap_aio_bulk_push_event,
         )
 
         wrap_function_wrapper(
@@ -644,6 +662,219 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
                 options,
             )
 
+    async def _wrap_aio_push_event(
+        self,
+        wrapped: Callable[..., Coroutine[None, None, Event]],
+        instance: EventClient,
+        args: tuple[
+            str,
+            JSONSerializableMapping,
+            PushEventOptions | None,
+            JSONSerializableMapping | None,
+            Priority | None,
+            str | None,
+        ],
+        kwargs: dict[
+            str,
+            str | JSONSerializableMapping | PushEventOptions | Priority | None,
+        ],
+    ) -> Event:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        event_key = cast(str, params[0])
+        payload = cast(JSONSerializableMapping, params[1])
+        options = cast(PushEventOptions | None, params[2])
+        additional_metadata = cast(JSONSerializableMapping | None, params[3])
+        priority = cast(Priority | None, params[4])
+        scope = cast(str | None, params[5])
+
+        additional_metadata = additional_metadata or (
+            options.additional_metadata if options else {}
+        )
+
+        priority_option = options.priority if options else None
+
+        if isinstance(priority_option, int):
+            priority_option = Priority(priority_option)
+
+        priority = priority or priority_option
+        scope = scope or (options.scope if options else None)
+
+        attributes = {
+            OTelAttribute.EVENT_KEY: event_key,
+            OTelAttribute.ACTION_PAYLOAD: json.dumps(payload, default=str),
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+                additional_metadata, default=str
+            ),
+            OTelAttribute.PRIORITY: priority,
+            OTelAttribute.FILTER_SCOPE: scope,
+        }
+
+        with self._tracer.start_as_current_span(
+            "hatchet.push_event",
+            attributes={
+                "instrumentor": "hatchet",
+                **{
+                    f"hatchet.{k.value}": v
+                    for k, v in attributes.items()
+                    if v
+                    and k not in self.config.otel.excluded_attributes
+                    and v != "{}"
+                    and v != "[]"
+                },
+            },
+            kind=SpanKind.PRODUCER,
+        ):
+            return await wrapped(
+                event_key,
+                payload,
+                None,
+                _inject_source_info(
+                    _inject_traceparent_into_metadata(dict(additional_metadata)),
+                ),
+                priority,
+                scope,
+            )
+
+    async def _wrap_aio_bulk_push_event(
+        self,
+        wrapped: Callable[
+            [list[BulkPushEventWithMetadata], BulkPushEventOptions | None],
+            Coroutine[None, None, list[Event]],
+        ],
+        instance: EventClient,
+        args: tuple[
+            list[BulkPushEventWithMetadata],
+            BulkPushEventOptions | None,
+        ],
+        kwargs: dict[
+            str, list[BulkPushEventWithMetadata] | BulkPushEventOptions | None
+        ],
+    ) -> list[Event]:
+        params = self.extract_bound_args(wrapped, args, kwargs)
+
+        bulk_events = cast(list[BulkPushEventWithMetadata], params[0])
+        options = cast(BulkPushEventOptions | None, params[1])
+
+        num_bulk_events = len(bulk_events)
+        unique_event_keys = {event.key for event in bulk_events}
+
+        with self._tracer.start_as_current_span(
+            "hatchet.bulk_push_event",
+            attributes={
+                "instrumentor": "hatchet",
+                "hatchet.num_events": num_bulk_events,
+                "hatchet.unique_event_keys": json.dumps(unique_event_keys, default=str),
+            },
+            kind=SpanKind.PRODUCER,
+        ):
+            bulk_events_with_meta = [
+                BulkPushEventWithMetadata(
+                    **event.model_dump(exclude={"additional_metadata"}),
+                    additional_metadata=_inject_source_info(
+                        _inject_traceparent_into_metadata(
+                            event.additional_metadata,
+                        )
+                    ),
+                )
+                for event in bulk_events
+            ]
+
+            return await wrapped(
+                bulk_events_with_meta,
+                options,
+            )
+
+    def _build_run_workflow_attributes(
+        self, config: WorkflowRunTriggerConfig
+    ) -> dict[str, Any]:
+        attributes = {
+            OTelAttribute.WORKFLOW_NAME: config.workflow_name,
+            OTelAttribute.ACTION_PAYLOAD: config.input,
+            OTelAttribute.PARENT_ID: config.options.parent_id,
+            OTelAttribute.PARENT_STEP_RUN_ID: config.options.parent_step_run_id,
+            OTelAttribute.CHILD_INDEX: config.options.child_index,
+            OTelAttribute.CHILD_KEY: config.options.child_key,
+            OTelAttribute.NAMESPACE: config.options.namespace,
+            OTelAttribute.ADDITIONAL_METADATA: json.dumps(
+                config.options.additional_metadata, default=str
+            ),
+            OTelAttribute.PRIORITY: config.options.priority,
+            OTelAttribute.DESIRED_WORKER_ID: config.options.desired_worker_id,
+            OTelAttribute.STICKY: config.options.sticky,
+            OTelAttribute.KEY: config.options.key,
+        }
+        return {
+            "instrumentor": "hatchet",
+            **{
+                f"hatchet.{k.value}": v
+                for k, v in attributes.items()
+                if v
+                and k not in self.config.otel.excluded_attributes
+                and v != "{}"
+                and v != "[]"
+            },
+        }
+
+    @contextmanager
+    def _enhanced_workflow_run_configs(
+        self,
+        workflow_run_configs: list[WorkflowRunTriggerConfig],
+    ) -> Iterator[list[WorkflowRunTriggerConfig]]:
+        """Yield the per-item trigger configs with an injected traceparent and
+        manage the lifecycle of any per-item spans.
+
+        When ``individual_run_spans_for_bulk_run`` is enabled, a dedicated
+        ``hatchet.run_workflow`` span is started for each item and that span's
+        traceparent is injected into the item's metadata. Otherwise the legacy
+        behaviour is preserved: no per-item spans are created and the active
+        (parent ``hatchet.run_workflows``) span's traceparent is injected.
+
+        Item spans are always ended when the context exits, and any exception
+        raised inside the context (e.g. by the wrapped bulk-run call) is
+        recorded on every item span before being re-raised.
+        """
+        individual_spans = self.config.otel.individual_run_spans_for_bulk_run
+        configs_with_meta: list[WorkflowRunTriggerConfig] = []
+        item_spans: list[ApiSpan] = []
+
+        try:
+            for config in workflow_run_configs:
+                traceparent: str | None = None
+                if individual_spans:
+                    item_span = self._tracer.start_span(
+                        "hatchet.run_workflow",
+                        attributes=self._build_run_workflow_attributes(config),
+                        kind=SpanKind.PRODUCER,
+                    )
+                    item_spans.append(item_span)
+                    traceparent = _create_traceparent_from_span(item_span)
+
+                configs_with_meta.append(
+                    WorkflowRunTriggerConfig(
+                        **config.model_dump(exclude={"options"}),
+                        options=TriggerWorkflowOptions(
+                            **config.options.model_dump(
+                                exclude={"additional_metadata"}
+                            ),
+                            additional_metadata=_inject_traceparent_into_metadata(
+                                config.options.additional_metadata,
+                                traceparent,
+                            ),
+                        ),
+                    )
+                )
+
+            yield configs_with_meta
+        except Exception as e:
+            for s in item_spans:
+                s.record_exception(e)
+                s.set_status(StatusCode.ERROR, str(e))
+            raise
+        finally:
+            for s in item_spans:
+                s.end()
+
     def _wrap_run_workflow(
         self,
         wrapped: Callable[
@@ -856,30 +1087,22 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config.workflow_name for config in workflow_run_configs
         }
 
-        with self._tracer.start_as_current_span(
-            "hatchet.run_workflows",
-            attributes={
-                "instrumentor": "hatchet",
-                "hatchet.num_workflows": num_workflows,
-                "hatchet.unique_workflow_names": json.dumps(
-                    unique_workflow_names, default=str
-                ),
-            },
-            kind=SpanKind.PRODUCER,
-        ):
-            workflow_run_configs_with_meta = [
-                WorkflowRunTriggerConfig(
-                    **config.model_dump(exclude={"options"}),
-                    options=TriggerWorkflowOptions(
-                        **config.options.model_dump(exclude={"additional_metadata"}),
-                        additional_metadata=_inject_traceparent_into_metadata(
-                            config.options.additional_metadata,
-                        ),
+        with (
+            self._tracer.start_as_current_span(
+                "hatchet.run_workflows",
+                attributes={
+                    "instrumentor": "hatchet",
+                    "hatchet.num_workflows": num_workflows,
+                    "hatchet.unique_workflow_names": json.dumps(
+                        unique_workflow_names, default=str
                     ),
-                )
-                for config in workflow_run_configs
-            ]
-
+                },
+                kind=SpanKind.PRODUCER,
+            ),
+            self._enhanced_workflow_run_configs(
+                workflow_run_configs
+            ) as workflow_run_configs_with_meta,
+        ):
             return wrapped(workflow_run_configs_with_meta)
 
     async def _wrap_async_run_workflows(
@@ -899,30 +1122,22 @@ class HatchetInstrumentor(BaseInstrumentor):  # type: ignore[misc]
             config.workflow_name for config in workflow_run_configs
         }
 
-        with self._tracer.start_as_current_span(
-            "hatchet.run_workflows",
-            attributes={
-                "instrumentor": "hatchet",
-                "hatchet.num_workflows": num_workflows,
-                "hatchet.unique_workflow_names": json.dumps(
-                    unique_workflow_names, default=str
-                ),
-            },
-            kind=SpanKind.PRODUCER,
-        ):
-            workflow_run_configs_with_meta = [
-                WorkflowRunTriggerConfig(
-                    **config.model_dump(exclude={"options"}),
-                    options=TriggerWorkflowOptions(
-                        **config.options.model_dump(exclude={"additional_metadata"}),
-                        additional_metadata=_inject_traceparent_into_metadata(
-                            config.options.additional_metadata,
-                        ),
+        with (
+            self._tracer.start_as_current_span(
+                "hatchet.run_workflows",
+                attributes={
+                    "instrumentor": "hatchet",
+                    "hatchet.num_workflows": num_workflows,
+                    "hatchet.unique_workflow_names": json.dumps(
+                        unique_workflow_names, default=str
                     ),
-                )
-                for config in workflow_run_configs
-            ]
-
+                },
+                kind=SpanKind.PRODUCER,
+            ),
+            self._enhanced_workflow_run_configs(
+                workflow_run_configs
+            ) as workflow_run_configs_with_meta,
+        ):
             return await wrapped(workflow_run_configs_with_meta)
 
     async def _wrap_aio_wait_for(

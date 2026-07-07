@@ -7,25 +7,43 @@ import {
   metadataKey,
 } from './components/recurring-columns';
 import { useCrons } from './hooks/use-crons';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { CronWorkflows } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-export default function CronsTable() {
+export default function CronsPage() {
+  return (
+    <WorkflowsGuard
+      title="No recurring runs found"
+      description="Recurring runs trigger workflows automatically on a cron schedule."
+      docs={{
+        href: docsPages.v1['cron-runs'].href,
+        description: 'Learn about cron jobs',
+      }}
+    >
+      <CronsTable />
+    </WorkflowsGuard>
+  );
+}
+
+function CronsTable() {
   const { tenantId } = useCurrentTenantId();
   const [triggerWorkflow, setTriggerWorkflow] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:recurring', {});
 
   const {
     crons,
@@ -44,6 +62,7 @@ export default function CronsTable() {
     updateCron,
     isUpdatePending,
     updatingCronId,
+    triggerNow,
   } = useCrons({
     key: 'table',
   });
@@ -68,6 +87,22 @@ export default function CronsTable() {
       refetch();
     }
   };
+
+  const tableColumns = useMemo(
+    () =>
+      columns({
+        tenantId,
+        onDeleteClick: handleDeleteClick,
+        onEnableClick,
+        onTriggerClick: (cron) => triggerNow(cron.metadata.id),
+        selectedJobId,
+        setSelectedJobId,
+        isUpdatePending,
+        updatingCronId,
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenantId, selectedJobId, isUpdatePending, updatingCronId, triggerNow],
+  );
 
   const filters: ToolbarFilters = [
     {
@@ -112,15 +147,7 @@ export default function CronsTable() {
       <DataTable
         error={error}
         isLoading={isLoading}
-        columns={columns({
-          tenantId,
-          onDeleteClick: handleDeleteClick,
-          onEnableClick,
-          selectedJobId,
-          setSelectedJobId,
-          isUpdatePending,
-          updatingCronId,
-        })}
+        columns={tableColumns}
         data={crons}
         filters={filters}
         showColumnToggle={true}
@@ -142,15 +169,12 @@ export default function CronsTable() {
         onResetFilters={resetFilters}
         showSelectedRows={false}
         emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No crons found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.v1['cron-runs']}
-                label="Learn about cron jobs in Hatchet"
-              />
-            </div>
-          </div>
+          <EmptyState
+            title="No recurring runs found"
+            description="Recurring runs trigger workflows automatically on a cron schedule."
+            docPage={docsPages.v1['cron-runs']}
+            docLabel="Learn about cron jobs"
+          />
         }
       />
     </>

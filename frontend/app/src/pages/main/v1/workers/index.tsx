@@ -1,17 +1,21 @@
 import { columns, statusKey, WorkerColumn } from './components/worker-columns';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { usePagination } from '@/hooks/use-pagination';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import { queries } from '@/lib/api';
+import { WorkerStatus } from '@/lib/api/generated/data-contracts';
 import { docsPages } from '@/lib/generated/docs';
+import { appRoutes } from '@/router';
 import { useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { VisibilityState } from '@tanstack/react-table';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { z } from 'zod';
 
 const workersQuerySchema = z
@@ -24,13 +28,28 @@ const workersQuerySchema = z
   }));
 
 export default function Workers() {
-  const { tenantId } = useCurrentTenantId();
+  return (
+    <WorkflowsGuard
+      title="No workers found"
+      description="Deploy workers on Kubernetes, Porter, Railway, Render, ECS, or any container platform. They automatically connect to Hatchet and can scale up or down based on workload."
+      docs={{
+        href: docsPages.v1.workers.href,
+        description: 'Learn about workers',
+      }}
+    >
+      <WorkersTable />
+    </WorkflowsGuard>
+  );
+}
+
+function WorkersTable() {
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { refetchInterval } = useRefetchInterval();
+
   const paramKey = 'workers-table';
-  const { pagination, setPagination, limit, offset, setPageSize } =
-    usePagination({
-      key: paramKey,
-    });
+  const [openLabelsPopover, setOpenLabelsPopover] = useState<string | null>(
+    null,
+  );
 
   const {
     state: { s: statuses },
@@ -39,29 +58,38 @@ export default function Workers() {
     resetFilters,
   } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
 
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const { pagination, setPagination, limit, offset, setPageSize } =
+    usePagination({
+      key: paramKey,
+      resetPageOnChange: [statuses],
+    });
+
+  const [columnVisibility, setColumnVisibility] =
+    useLocalStorageState<VisibilityState>('hatchet:columns:workers', {});
+
+  const handleSetOpenLabelsPopover = useCallback(
+    (id: string | null) => setOpenLabelsPopover(id),
+    [],
+  );
+
+  const tableColumns = useMemo(
+    () => columns(tenantId, openLabelsPopover, handleSetOpenLabelsPopover),
+    [tenantId, openLabelsPopover, handleSetOpenLabelsPopover],
+  );
 
   const listWorkersQuery = useQuery({
-    ...queries.workers.list(tenantId),
+    ...queries.workers.list(tenantId, {
+      offset,
+      limit,
+      statuses: statuses as WorkerStatus[],
+    }),
     refetchInterval,
   });
 
-  const data = useMemo(
-    () =>
-      listWorkersQuery.data?.rows
-        ?.filter((w) => w.status && statuses.includes(w.status))
-        ?.sort(
-          (a, b) =>
-            new Date(b.metadata?.createdAt).getTime() -
-            new Date(a.metadata?.createdAt).getTime(),
-        ) ?? [],
-    [listWorkersQuery.data?.rows, statuses],
-  );
-
-  const paginatedData = useMemo(
-    () => data.slice(offset, offset + limit),
-    [data, limit, offset],
-  );
+  const rows = listWorkersQuery.data?.rows ?? [];
+  const pageCount =
+    listWorkersQuery.data?.pagination?.num_pages ??
+    Math.ceil(rows.length / limit);
 
   if (listWorkersQuery.isLoading) {
     return <Loading />;
@@ -69,8 +97,8 @@ export default function Workers() {
 
   return (
     <DataTable
-      columns={columns(tenantId)}
-      data={paginatedData}
+      columns={tableColumns}
+      data={rows}
       filters={[
         {
           columnId: 'status',
@@ -84,15 +112,13 @@ export default function Workers() {
         },
       ]}
       emptyState={
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No workers found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.workers}
-              label="Learn about running workers"
-            />
-          </div>
-        </div>
+        <EmptyState
+          filterHint="Try changing your filters."
+          title="No workers found"
+          description="Workers are persistent processes that pull and execute your tasks. Connect a worker to start running workflows."
+          docPage={docsPages.v1.workers}
+          docLabel="Learn about workers"
+        />
       }
       columnFilters={columnFilters}
       setColumnFilters={setColumnFilters}
@@ -108,7 +134,7 @@ export default function Workers() {
       pagination={pagination}
       setPagination={setPagination}
       onSetPageSize={setPageSize}
-      pageCount={Math.ceil(data.length / limit)}
+      pageCount={pageCount}
     />
   );
 }

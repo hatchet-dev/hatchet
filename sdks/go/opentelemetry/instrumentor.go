@@ -32,10 +32,9 @@ type Instrumentor struct {
 }
 
 type instrumentorOptions struct {
-	tracerProvider *sdktrace.TracerProvider
-
-	enableCollector bool
+	tracerProvider  *sdktrace.TracerProvider
 	bspOptions      []sdktrace.BatchSpanProcessorOption
+	enableCollector bool
 }
 
 // InstrumentorOption configures the Instrumentor.

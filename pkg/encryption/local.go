@@ -59,26 +59,26 @@ func NewLocalEncryption(masterKey []byte, privateEc256 []byte, publicEc256 []byt
 	}, nil
 }
 
-func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []byte, err error) {
+func GenerateLocalKeys() (masterKey []byte, privateEc256 []byte, publicEc256 []byte, insecurePublicHandleEc256 []byte, err error) {
 	masterKey, masterHandle, err := generateLocalMasterKey()
 
 	if err != nil {
-		return nil, nil, nil, err
+		return
 	}
 
 	a, err := aead.New(masterHandle)
 
 	if err != nil {
-		return nil, nil, nil, err
+		return
 	}
 
-	privateEc256, publicEc256, err = generateJWTKeysets(a)
+	privateEc256, publicEc256, insecurePublicHandleEc256, err = generateJWTKeysets(a)
 
 	if err != nil {
-		return nil, nil, nil, err
+		return
 	}
 
-	return masterKey, privateEc256, publicEc256, nil
+	return masterKey, privateEc256, publicEc256, insecurePublicHandleEc256, nil
 }
 
 func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
@@ -101,7 +101,7 @@ func generateLocalMasterKey() ([]byte, *keyset.Handle, error) {
 
 // generateJWTKeysets creates the keysets for JWT signing and verification encrypted with the
 // masterKey. The masterKey can be from a remote KMS service or a local keyset.
-func generateJWTKeysets(masterKey tink.AEAD) (privateEc256 []byte, publicEc256 []byte, err error) {
+func generateJWTKeysets(masterKey tink.AEAD) (privateEc256 []byte, publicEc256 []byte, insecurePublicHandleEc256 []byte, err error) {
 	privateHandle, err := keyset.NewHandle(jwt.ES256Template())
 
 	if err != nil {
@@ -116,9 +116,13 @@ func generateJWTKeysets(masterKey tink.AEAD) (privateEc256 []byte, publicEc256 [
 	}
 
 	publicHandle, err := privateHandle.Public()
-
 	if err != nil {
 		err = fmt.Errorf("failed to get public keyset: %w", err)
+		return
+	}
+
+	insecurePublicHandleEc256, err = insecureBytesFromHandle(publicHandle)
+	if err != nil {
 		return
 	}
 

@@ -77,12 +77,16 @@ class DurableTaskEventWaitForAckResponse(_message.Message):
     def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ...) -> None: ...
 
 class DurableTaskEventLogEntryCompletedResponse(_message.Message):
-    __slots__ = ("ref", "payload")
+    __slots__ = ("ref", "payload", "is_failure", "error_message")
     REF_FIELD_NUMBER: _ClassVar[int]
     PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    IS_FAILURE_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
     ref: DurableEventLogEntryRef
     payload: bytes
-    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ...) -> None: ...
+    is_failure: bool
+    error_message: str
+    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ..., is_failure: bool = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "reason")
@@ -165,14 +169,16 @@ class DurableTaskTriggerRunsRequest(_message.Message):
     def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., trigger_opts: _Optional[_Iterable[_Union[_trigger_pb2.TriggerWorkflowRequest, _Mapping]]] = ...) -> None: ...
 
 class DurableTaskWaitForRequest(_message.Message):
-    __slots__ = ("invocation_count", "durable_task_external_id", "wait_for_conditions")
+    __slots__ = ("invocation_count", "durable_task_external_id", "wait_for_conditions", "label")
     INVOCATION_COUNT_FIELD_NUMBER: _ClassVar[int]
     DURABLE_TASK_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     WAIT_FOR_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
+    LABEL_FIELD_NUMBER: _ClassVar[int]
     invocation_count: int
     durable_task_external_id: str
     wait_for_conditions: _condition_pb2.DurableEventListenerConditions
-    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ...) -> None: ...
+    label: str
+    def __init__(self, invocation_count: _Optional[int] = ..., durable_task_external_id: _Optional[str] = ..., wait_for_conditions: _Optional[_Union[_condition_pb2.DurableEventListenerConditions, _Mapping]] = ..., label: _Optional[str] = ...) -> None: ...
 
 class DurableTaskRequest(_message.Message):
     __slots__ = ("register_worker", "memo", "trigger_runs", "wait_for", "evict_invocation", "worker_status", "complete_memo")

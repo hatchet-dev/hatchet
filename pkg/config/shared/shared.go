@@ -10,6 +10,9 @@ type TLSConfigFile struct {
 	TLSKeyFile    string `mapstructure:"tlsKeyFile" json:"tlsKeyFile,omitempty"`
 	TLSRootCA     string `mapstructure:"tlsRootCA" json:"tlsRootCA,omitempty"`
 	TLSRootCAFile string `mapstructure:"tlsRootCAFile" json:"tlsRootCAFile,omitempty"`
+
+	// TLSMinVersion sets the minimum TLS version ("1.2" or "1.3"). Defaults to TLS 1.3.
+	TLSMinVersion string `mapstructure:"tlsMinVersion" json:"tlsMinVersion,omitempty"`
 }
 
 type LoggerConfigFile struct {
@@ -46,6 +49,11 @@ type PrometheusConfigFile struct {
 
 	// Path is the path to bind the prometheus server to
 	Path string `mapstructure:"path" json:"path,omitempty" default:"/metrics"`
+
+	// TenantScoped gates the per-tenant Prometheus metrics endpoint on the
+	// tenant's prometheus_metrics entitlement. When false (default), metrics are
+	// served for all tenants (legacy/self-hosted behavior).
+	TenantScoped bool `mapstructure:"tenantScoped" json:"tenantScoped,omitempty" default:"false"`
 }
 
 // ObservabilityConfigFile configures the worker->engine OTel collector (the engine acting as a gRPC

@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { DISCORD_INVITE_URL, OFFICE_HOURS_URL } from '@/lib/external-links';
 import { cn } from '@/lib/utils';
 import { VersionInfo } from '@/pages/main/info/components/version-info';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
@@ -42,21 +43,13 @@ function HelpDropdownItems({ includeChat = true }: { includeChat?: boolean }) {
         </a>
       </DropdownMenuItem>
       <DropdownMenuItem variant="interactive" asChild>
-        <a
-          href="https://discord.com/invite/ZMeUafwH89"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer">
           <BiLogoDiscordAlt className="mr-2" />
           Join Discord
         </a>
       </DropdownMenuItem>
       <DropdownMenuItem variant="interactive" asChild>
-        <a
-          href="https://hatchet.run/office-hours"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={OFFICE_HOURS_URL} target="_blank" rel="noopener noreferrer">
           <BiCalendar className="mr-2" />
           Schedule Office Hours
         </a>
@@ -96,7 +89,6 @@ export function HelpDropdown({
         <SidebarButtonPrimaryAction
           name="Help"
           icon={<BiHelpCircle className="size-4 mr-2" />}
-          selected={open}
           className={cn(className)}
         />
       );
@@ -118,7 +110,6 @@ export function HelpDropdown({
               setOpen(true);
             }}
             aria-label="Open Support Chat"
-            selected={open}
           />
 
           <DropdownMenuTrigger asChild>
@@ -141,7 +132,6 @@ export function HelpDropdown({
         <SidebarButtonPrimaryAction
           name="Help & Support"
           icon={<BiHelpCircle className="size-4 mr-2" />}
-          selected={open}
           className={cn(className)}
         />
       );

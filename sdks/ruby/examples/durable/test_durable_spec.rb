@@ -1,25 +1,40 @@
 # frozen_string_literal: true
 
-require_relative "../spec_helper"
-require_relative "worker"
+require_relative '../spec_helper'
+require_relative 'worker'
 
-RSpec.describe "DurableWorkflow" do
-  it "completes a durable sleep then waits for event" do
+RSpec.describe 'DurableWorkflow' do
+  it 'completes a durable sleep then waits for event' do
     ref = DURABLE_WORKFLOW.run_no_wait
 
-    # Wait for the sleep to complete
-    sleep(DURABLE_SLEEP_TIME + 2)
+    wait_for_running_status(HATCHET, ref.workflow_run_id)
+    sleep(DURABLE_SLEEP_TIME + 3)
 
     # Push the event to unblock the durable task
-    HATCHET.events.create(key: DURABLE_EVENT_KEY, data: { "test" => true })
+    HATCHET.events.create(key: DURABLE_EVENT_KEY, data: { 'test' => true })
 
     result = ref.result
-    expect(result["durable_task"]["status"]).to eq("success")
+    expect(result['durable_task']['status']).to eq('success')
   end
 
-  it "handles multi-sleep in durable tasks" do
+  it 'handles multi-sleep in durable tasks' do
     result = WAIT_FOR_SLEEP_TWICE.run
 
-    expect(result["runtime"]).to be >= DURABLE_SLEEP_TIME
+    expect(result['runtime']).to be >= DURABLE_SLEEP_TIME
+  end
+
+  it 'durable parent catches error from failed child run' do
+    error_msg = "error in child task #{SecureRandom.uuid}"
+
+    result = ERROR_RAISING_DURABLE_PARENT.run({ 'error_message' => error_msg })
+
+    expect(result['child_raised']).to be true
+    expect(result['child_error_str']).to include(error_msg)
+
+    child = HATCHET.runs.poll(result['child_run_external_id'], interval: 0.5, timeout: 15)
+    parent = HATCHET.runs.poll(result['parent_run_external_id'], interval: 0.5, timeout: 15)
+
+    expect(child.status).to eq('FAILED')
+    expect(parent.status).to eq('COMPLETED')
   end
 end

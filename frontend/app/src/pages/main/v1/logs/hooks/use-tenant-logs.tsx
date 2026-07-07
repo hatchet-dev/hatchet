@@ -2,7 +2,6 @@ import { parseLogQuery } from '@/components/v1/cloud/logging/log-search/parser';
 import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
-import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   V1LogLine,
   V1LogLineOrderByDirection,
@@ -11,7 +10,9 @@ import {
 } from '@/lib/api';
 import api from '@/lib/api/api';
 import { useSearchParams } from '@/lib/router-helpers';
+import { appRoutes } from '@/router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -44,6 +45,7 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
     timestamp: row.createdAt,
     line: row.message,
     level: row.level,
+    metadata: row.metadata as Record<string, unknown> | undefined,
     attempt: row.attempt,
     taskExternalId: row.taskExternalId,
     taskDisplayName: row.taskDisplayName,
@@ -51,7 +53,7 @@ function mapToLogLines(rows: V1LogLine[]): LogLine[] {
 }
 
 export function useTenantLogs() {
-  const { tenantId } = useCurrentTenantId();
+  const { tenant: tenantId } = useParams({ from: appRoutes.tenantRoute.to });
   const { refetchInterval } = useRefetchInterval();
   const [searchParams, setSearchParams] = useSearchParams();
   const workflowsQuery = useQuery({
@@ -251,6 +253,18 @@ export function useTenantLogs() {
 
   const isCustomTimeRange = !!filters.since;
 
+  const hasActiveFilters =
+    (filters.q ?? '').trim() !== '' || isCustomTimeRange || filters.tw !== '1d';
+  const isDefaultOneDayWindow = !isCustomTimeRange && filters.tw === '1d';
+
+  const resetFilters = useCallback(() => {
+    setSearchParams((prev) => {
+      const next = Object.fromEntries(prev.entries());
+      delete next[FILTER_KEY];
+      return next;
+    });
+  }, [setSearchParams]);
+
   return {
     logs,
     isLoading: logsQuery.isLoading,
@@ -276,5 +290,8 @@ export function useTenantLogs() {
     setCustomSince,
     setCustomUntil,
     workflowNames: Object.keys(workflowNameToId),
+    hasActiveFilters,
+    isDefaultOneDayWindow,
+    resetFilters,
   };
 }

@@ -444,6 +444,13 @@ FROM triggersToUpdate
 WHERE "WorkflowTriggerCronRef"."id" = triggersToUpdate."id"
 ;
 
+-- name: DeleteOldDefaultCronTriggersForWorkflowVersion :exec
+DELETE FROM "WorkflowTriggerCronRef"
+USING "WorkflowTriggers"
+WHERE "WorkflowTriggerCronRef"."parentId" = "WorkflowTriggers"."id"
+    AND "WorkflowTriggers"."workflowVersionId" = @oldWorkflowVersionId::uuid
+    AND "WorkflowTriggerCronRef"."method" = 'DEFAULT';
+
 -- name: MoveScheduledTriggerToNewWorkflowTriggers :exec
 WITH triggersToUpdate AS (
     SELECT scheduledTrigger."id" FROM "WorkflowTriggerScheduledRef" scheduledTrigger
@@ -650,6 +657,7 @@ WHERE "id" = @cronTriggerId::uuid
 WITH latest_version AS (
     SELECT "id" FROM "WorkflowVersion"
     WHERE "workflowId" = @workflowId::uuid
+        AND "deletedAt" IS NULL
     ORDER BY "order" DESC
     LIMIT 1
 ),

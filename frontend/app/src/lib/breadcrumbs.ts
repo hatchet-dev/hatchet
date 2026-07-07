@@ -1,4 +1,4 @@
-export type TenantedPath =
+type TenantedPath =
   | '/tenants/:tenant/events'
   | '/tenants/:tenant/filters'
   | '/tenants/:tenant/webhooks'
@@ -17,19 +17,21 @@ export type TenantedPath =
   | '/tenants/:tenant/managed-workers/create'
   | '/tenants/:tenant/managed-workers/demo-template'
   | '/tenants/:tenant/managed-workers/:managed-worker'
-  | '/tenants/:tenant/tenant-settings/overview'
-  | '/tenants/:tenant/tenant-settings/api-tokens'
-  | '/tenants/:tenant/tenant-settings/github'
-  | '/tenants/:tenant/tenant-settings/members'
-  | '/tenants/:tenant/tenant-settings/alerting'
-  | '/tenants/:tenant/tenant-settings/billing-and-limits'
-  | '/tenants/:tenant/tenant-settings/ingestors'
+  | '/tenants/:tenant/settings/overview'
+  | '/tenants/:tenant/settings/api-tokens'
+  | '/tenants/:tenant/settings/github'
+  | '/tenants/:tenant/settings/members'
+  | '/tenants/:tenant/settings/alerting'
+  | '/tenants/:tenant/settings/billing-and-limits'
+  | '/tenants/:tenant/settings/ingestors'
+  | '/tenants/:tenant/settings/integrations'
+  | '/tenants/:tenant/settings/organization'
   | '/tenants/:tenant/workflow-runs'
   | '/tenants/:tenant/workflow-runs/:run'
   | '/tenants/:tenant/'
   | '/tenants/:tenant/workflows'
   | '/tenants/:tenant/workflows/:workflow'
-  | '/tenants/:tenant/tenant-settings';
+  | '/tenants/:tenant/settings';
 
 export interface BreadcrumbItem {
   label: string;
@@ -37,7 +39,10 @@ export interface BreadcrumbItem {
   isCurrentPage?: boolean;
 }
 
-const createRouteLabel = (path: TenantedPath): string => {
+const createRouteLabel = (
+  path: TenantedPath,
+  isCloudEnabled: boolean,
+): string => {
   switch (path) {
     case '/tenants/:tenant/events':
       return 'Events';
@@ -75,26 +80,30 @@ const createRouteLabel = (path: TenantedPath): string => {
       return 'Demo Template';
     case '/tenants/:tenant/managed-workers/:managed-worker':
       return 'Managed Worker Detail';
-    case '/tenants/:tenant/tenant-settings/overview':
-      return 'Overview';
-    case '/tenants/:tenant/tenant-settings/api-tokens':
+    case '/tenants/:tenant/settings/overview':
+      return 'General';
+    case '/tenants/:tenant/settings/api-tokens':
       return 'API Tokens';
-    case '/tenants/:tenant/tenant-settings/github':
+    case '/tenants/:tenant/settings/github':
       return 'GitHub';
-    case '/tenants/:tenant/tenant-settings/members':
+    case '/tenants/:tenant/settings/members':
       return 'Members';
-    case '/tenants/:tenant/tenant-settings/alerting':
+    case '/tenants/:tenant/settings/alerting':
       return 'Alerting';
-    case '/tenants/:tenant/tenant-settings/billing-and-limits':
+    case '/tenants/:tenant/settings/billing-and-limits':
       return 'Billing & Limits';
-    case '/tenants/:tenant/tenant-settings/ingestors':
+    case '/tenants/:tenant/settings/ingestors':
       return 'Ingestors';
+    case '/tenants/:tenant/settings/integrations':
+      return 'Integrations';
+    case '/tenants/:tenant/settings/organization':
+      return isCloudEnabled ? 'Organization' : 'Tenants';
     case '/tenants/:tenant/workflow-runs':
     case '/tenants/:tenant/workflow-runs/:run':
     case '/tenants/:tenant/':
     case '/tenants/:tenant/workflows':
     case '/tenants/:tenant/workflows/:workflow':
-    case '/tenants/:tenant/tenant-settings':
+    case '/tenants/:tenant/settings':
       return '';
     default:
       // eslint-disable-next-line no-case-declarations
@@ -106,6 +115,7 @@ const createRouteLabel = (path: TenantedPath): string => {
 function getTenantedPathLabel(
   pathSegments: string[],
   tenantId: string,
+  isCloudEnabled: boolean,
 ): string | null {
   const fullPath = '/' + pathSegments.join('/');
   const normalizedPath = fullPath.replace(
@@ -114,7 +124,10 @@ function getTenantedPathLabel(
   );
 
   try {
-    const label = createRouteLabel(normalizedPath as TenantedPath);
+    const label = createRouteLabel(
+      normalizedPath as TenantedPath,
+      isCloudEnabled,
+    );
     return label || null;
   } catch {
     return null;
@@ -136,6 +149,7 @@ function buildParentPath(
 export function generateBreadcrumbs(
   pathname: string,
   params?: Record<string, string>,
+  isCloudEnabled?: boolean,
 ): BreadcrumbItem[] {
   const breadcrumbs: BreadcrumbItem[] = [];
 
@@ -189,7 +203,11 @@ export function generateBreadcrumbs(
       continue;
     }
 
-    const label = getTenantedPathLabel(segments.slice(0, 2 + i + 1), tenantId);
+    const label = getTenantedPathLabel(
+      segments.slice(0, 2 + i + 1),
+      tenantId,
+      isCloudEnabled ?? false,
+    );
 
     if (label) {
       breadcrumbs.push({

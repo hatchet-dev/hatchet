@@ -1,4 +1,5 @@
 import { workflowKey, metadataKey } from '../components/recurring-columns';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
@@ -11,7 +12,9 @@ import api, {
   UpdateCronWorkflowTriggerRequest,
 } from '@/lib/api';
 import queryClient from '@/query-client';
+import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
@@ -29,10 +32,8 @@ const cronFilterSchema = z
 export const useCrons = ({ key }: UseCronsProps) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-    });
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const paramKey = `crons-${key}`;
   const {
@@ -44,6 +45,12 @@ export const useCrons = ({ key }: UseCronsProps) => {
     w: workflowKey,
     m: metadataKey,
   });
+
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+      resetPageOnChange: [selectedWorkflowIds, selectedMetadata],
+    });
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     ...queries.cronJobs.list(tenantId, {
@@ -78,6 +85,27 @@ export const useCrons = ({ key }: UseCronsProps) => {
       });
     },
   });
+
+  const triggerNowMutation = useMutation({
+    mutationFn: async (cronId: string) =>
+      api.workflowCronTrigger(tenantId, cronId),
+    onSuccess: (data) => {
+      const runId = data?.data?.externalId;
+      if (runId) {
+        navigate({
+          to: appRoutes.tenantRunRoute.to,
+          params: { tenant: tenantId, run: runId },
+        });
+      } else {
+        toast({ title: 'Run triggered successfully' });
+      }
+    },
+  });
+
+  const triggerNow = useCallback(
+    (cronId: string) => triggerNowMutation.mutate(cronId),
+    [triggerNowMutation],
+  );
 
   const updatingCronId = updateCronMutation.variables?.cronId;
 
@@ -135,5 +163,6 @@ export const useCrons = ({ key }: UseCronsProps) => {
     updateCron,
     isUpdatePending: updateCronMutation.isPending,
     updatingCronId,
+    triggerNow,
   };
 };

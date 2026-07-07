@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from docs.generator.shared import TMP_GEN_PATH
 
-FRONTEND_DOCS_RELATIVE_PATH = "../../frontend/docs/pages/sdks/python"
+FRONTEND_DOCS_RELATIVE_PATH = "../../frontend/docs/pages/reference/python"
 
 MD_EXTENSION = "md"
 MDX_EXTENSION = "mdx"
@@ -43,7 +43,7 @@ class Document(BaseModel):
         )
 
         mdx_out_path = path.replace(
-            TMP_GEN_PATH, "../../frontend/docs/pages/sdks/python"
+            TMP_GEN_PATH, "../../frontend/docs/pages/reference/python"
         )
         mdx_out_dir = os.path.dirname(mdx_out_path)
 

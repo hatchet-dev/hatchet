@@ -1,7 +1,7 @@
 import { seededUsers } from '../../support/seeded-users.generated';
 
 describe('Tenant Invite: decline', () => {
-  it('should redirect away from invites page after declining invite', () => {
+  it('should close the invite modal after declining all invites', () => {
     const ts = Date.now();
     const tenantName = `DeclineTenant${ts}`;
     const tenantSlug = `decline-tenant-${ts}`;
@@ -74,13 +74,11 @@ describe('Tenant Invite: decline', () => {
         });
       });
 
-    // Step 3: Logout
-    cy.get('button[aria-label="User Menu"]')
+    cy.get('button[aria-label="Open account menu"]')
       .filter(':visible')
-      .should('be.visible')
       .first()
       .click();
-    cy.contains('[role="menuitem"]', 'Log out').filter(':visible').click();
+    cy.contains('Log out').click();
     cy.location('pathname').should('include', '/auth/login');
 
     // Step 4: Login as member (who has pending invite)
@@ -95,33 +93,58 @@ describe('Tenant Invite: decline', () => {
           .click();
       });
 
-    // Should be redirected to invites page
-    cy.location('pathname', { timeout: 5000 }).should(
-      'eq',
-      '/onboarding/invites',
+    // Wait for navigation after sign in
+    cy.location('pathname', { timeout: 30000 }).should(
+      'match',
+      /\/tenants\/.+/,
     );
 
-    // Verify the invite is displayed
-    cy.contains(`invited to join the ${tenantName} tenant`).should(
-      'be.visible',
-    );
+    // The invite modal auto-opens when the member has pending invites.
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
 
-    // Step 5: Decline the invite - register intercept before clicking
-    cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
-    cy.contains(`invited to join the ${tenantName} tenant`)
-      .parent()
-      .contains('button', 'Decline')
-      .should('be.visible')
-      .click();
+    // Verify the invite is displayed in the modal
+    cy.contains(tenantName).should('be.visible');
 
-    // Wait for the reject API call to complete
-    cy.wait('@rejectInvite').its('response.statusCode').should('eq', 200);
+    // Step 5: Decline all invites
+    const declineAll = (remaining = 20) => {
+      if (remaining === 0) {
+        return;
+      }
+      // Use cy.document() (no retry) so we read the live DOM state at this exact
+      // moment without Cypress retrying for 15 s when the dialog has closed.
+      cy.document().then((doc) => {
+        const btn = doc.querySelector(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        );
+        if (!btn) {
+          return;
+        }
+        cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
+        // Also intercept the invites refetch that invalidatePendingInvites()
+        // triggers so we can wait for React to re-render before recursing.
+        cy.intercept('GET', '/api/v1/users/invites*').as('invitesRefetch');
+        // Click via a requeryable cy.get() chain: a refetch settling re-renders
+        // the modal, and a raw element captured above can detach from the DOM
+        // before the click lands (cy.wrap() cannot requery a detached node).
+        cy.get(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        )
+          .first()
+          .click({ force: true });
+        cy.wait('@rejectInvite').its('response.statusCode').should('eq', 200);
+        cy.wait('@invitesRefetch');
+        declineAll(remaining - 1);
+      });
+    };
+    declineAll();
 
-    // Step 6: Verify redirect away from invites page
-    // User should be redirected to authenticated route (which may further redirect)
+    // Step 6: Verify the modal closes after all invites are declined
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('not.exist');
+
+    // Should remain on a tenant page (modal closes in-place; no redirect)
     cy.location('pathname', { timeout: 10000 }).should(
-      'not.eq',
-      '/onboarding/invites',
+      'match',
+      /\/tenants\/.+/,
     );
   });
 });

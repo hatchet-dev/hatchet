@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -17,7 +19,11 @@ import (
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
+	outbox pgoutbox.Outbox
+
 	l *zerolog.Logger
+
+	promGate *prometheus.Gate
 
 	singleQueueLimit int
 
@@ -27,7 +33,13 @@ type sharedConfig struct {
 
 	schedulerConcurrencyPollingMaxInterval time.Duration
 
+	schedulerCheckActiveMinInterval time.Duration
+
+	schedulerCheckActiveMaxInterval time.Duration
+
 	schedulerAdvisoryLockTimeout time.Duration
+
+	concurrencyInMemoryIndexEnabled bool
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -49,14 +61,19 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
 	singleQueueLimit int,
 	schedulerConcurrencyRateLimit int,
 	schedulerConcurrencyPollingMinInterval time.Duration,
 	schedulerConcurrencyPollingMaxInterval time.Duration,
+	schedulerCheckActiveMinInterval time.Duration,
+	schedulerCheckActiveMaxInterval time.Duration,
 	schedulerAdvisoryLockTimeout time.Duration,
 	optimisticSchedulingEnabled bool,
 	optimisticSlots int,
+	concurrencyInMemoryIndexEnabled bool,
+	promGate *prometheus.Gate,
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
@@ -66,12 +83,17 @@ func NewSchedulingPool(
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
+			outbox:                                 outbox,
 			l:                                      l,
+			promGate:                               promGate,
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
 			schedulerConcurrencyPollingMaxInterval: schedulerConcurrencyPollingMaxInterval,
+			schedulerCheckActiveMinInterval:        schedulerCheckActiveMinInterval,
+			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
+			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,

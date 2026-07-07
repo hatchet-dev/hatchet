@@ -5,6 +5,121 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.3] - 2026-06-17
+
+### Removed
+
+- Removed the unused `_isV1` field and `isV1` getter from `HatchetClient`. The getter always returned a hardcoded value and was not referenced anywhere in the codebase.
+
+## [1.24.2] - 2026-06-15
+
+### Fixed
+
+- Fixed a bug where the durable event listener's request iterator could survive a stream reconnect and drain items from the new queue into the dead stream, causing durable tasks to hang indefinitely after an engine restart. The iterator now captures its queue and abort signal at creation time and terminates cleanly when the connection is replaced.
+
+## [1.24.1] - 2026-06-12
+
+### Fixed
+
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
+
+## [1.24.0] - 2026-06-11
+
+### Added
+
+- Added a `getDetails` method to `hatchet.runs` to retrieve task details.
+
+
+## [1.23.1] - 2026-06-09
+
+### Added
+
+- Added an `individualRunSpansForBulkRun` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`runWorkflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
+
+### Fixed
+
+- `WorkflowsClient.get()` now finds the exact workflow name match from list results instead of taking the first result, preventing incorrect workflow ID resolution when a name prefix-match returns multiple workflows.
+
+## [1.23.0] - 2026-05-27
+
+### Added
+
+- Fixes `cancellation_grace_period` and `cancellation_warning_threshold` not being propagated from client config to Hatchet config.
+- Adds `grpc_max_recv_message_length` and `grpc_max_send_message_length` to client config, also configurable via env vars. Defaults to 4MB.
+
+### Fixed
+
+- SDK import deprecation warnings to route via `process.emitWarning` with code `HATCHET_V0_REMOVED`.
+- `EventClient.BulkPush` call uses `options` argument as fallback when no `input` is present.
+
+## [1.22.4] - 2026-05-22
+
+### Fixed
+
+- Bumped `@anthropic-ai/claude-agent-sdk` to `^0.3.148` so Claude agent SDK integrations resolve the correct Linux native binary on glibc systems.
+- Updated the TypeScript Claude agent example to load the ESM-only Claude Agent SDK dynamically.
+
+## [1.22.3] - 2026-05-18
+
+### Fixed
+
+- Fixed `@openai/agents` import that was not inside try block and caused errors when installing with Bun.
+
+## [1.22.2] - 2026-05-13
+
+### Fixed
+
+- Fixed `DurableContext.waitForEvent` overload ordering so calls without a payload schema infer the untyped event payload return type.
+
+## [1.22.1] - 2026-05-05
+
+### Fixed
+
+Moved optional dependencies from `optionalDependencies` to `peerDependencies`.
+
+## [1.22.0] - 2026-04-28
+
+### Added
+
+- Adds `mcpTool` method to Workflow objects for integration with Claude and OpenAI agent SDKs. Requires Zod v4.
+- Bumps minimum Zod version to `3.25.0`. Zod schemas provided to the SDK must be Zod 4 schemas, but you can still use Zod 3 in your application
+  code.
+
+## [1.21.2] - 2026-04-22
+
+### Added
+
+- Adds `triggeringEventId` and `triggeringEventKey` to the `Context`
+
+## [1.21.1] - 2026-04-21
+
+### Fixed
+
+- Adds an optional `label` on durable event waits, which will propagate through to the dashboard
+
+## [1.21.0] - 2026-04-08
+
+### Added
+
+- runMany and runManyNoWait APIs for workflows and standalone tasks to support bulk runs with per-run options.
+- RunManyOpt input shape containing an input object and an options object.
+
+### Changed
+
+- Bulk docs to include runMany and runManyNoWait examples.
+
+## [1.20.1] - 2026-04-07
+
+### Fixed
+
+- Fixed duplicate child run deduplication when mixing `ctx.runChild()` and `workflow.runNoWait()` (or deeply nested recursive spawns). `Context.spawnIndex` and `ParentRunContextManager.childIndex` were tracked independently, causing both APIs to emit overlapping `childIndex` values and silently deduplicate children that should have been unique. The two counters now share a single source of truth via `AsyncLocalStorage`, and `incrementChildIndex` mutates the context object in place instead of replacing it with `enterWith`, which lost updates across `await` boundaries.
+
+## [1.20.0] - 2026-04-07
+
+### Added
+
+- Adds `scope` and `lookbackWindow` arguments for the `DurableContext.waitForEvent`, which allows durable tasks to look back in time for events that may have been emitted before the task started.
+
 ## [1.19.1] - 2026-03-25
 
 ### Changed

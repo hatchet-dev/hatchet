@@ -34,7 +34,7 @@ CREATE TYPE "JobRunStatus" AS ENUM (
 );
 
 -- CreateEnum
-CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY');
+CREATE TYPE "LeaseKind" AS ENUM ('WORKER', 'QUEUE', 'CONCURRENCY_STRATEGY', 'TABLE_PARTITION_MAINTENANCE');
 
 -- CreateEnum
 CREATE TYPE "LimitResource" AS ENUM (
@@ -485,6 +485,8 @@ CREATE TABLE "StepExpression" (
     CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key","stepId","kind")
 );
 
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepExpression_stepId_idx" ON "StepExpression" ("stepId");
+
 -- CreateTable
 CREATE TABLE "StepRateLimit" (
     "units" INTEGER NOT NULL,
@@ -864,6 +866,7 @@ CREATE TABLE "Worker" (
     "runtimeExtra" TEXT,
     "sdkVersion" TEXT,
     "durableTaskDispatcherId" UUID,
+    "actionHash" BYTEA,
 
     CONSTRAINT "Worker_pkey" PRIMARY KEY ("id")
 );
@@ -1440,6 +1443,9 @@ CREATE UNIQUE INDEX "Worker_webhookId_key" ON "Worker" ("webhookId" ASC);
 -- CreateIndex
 
 CREATE INDEX "Worker_tenantId_lastHeartbeatAt_idx" ON "Worker" ("tenantId", "lastHeartbeatAt");
+
+-- CreateIndex
+CREATE INDEX "Worker_tenantId_actionHash_idx" ON "Worker" ("tenantId", "actionHash");
 
 -- CreateIndex
 CREATE INDEX "WorkerAssignEvent_workerId_id_idx" ON "WorkerAssignEvent" ("workerId" ASC, "id" ASC);

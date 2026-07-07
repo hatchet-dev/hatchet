@@ -1,4 +1,3 @@
-import os
 from typing import Literal, cast, overload
 
 import grpc
@@ -6,15 +5,7 @@ import grpc
 from hatchet_sdk.config import ClientConfig
 
 
-@overload
-def new_conn(config: ClientConfig, aio: Literal[False]) -> grpc.Channel: ...
-
-
-@overload
-def new_conn(config: ClientConfig, aio: Literal[True]) -> grpc.aio.Channel: ...
-
-
-def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel:
+def load_channel_credentials(config: ClientConfig) -> grpc.ChannelCredentials | None:
     credentials: grpc.ChannelCredentials | None = None
 
     # load channel credentials
@@ -46,6 +37,20 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
             certificate_chain=certificate_chain,
         )
 
+    return credentials
+
+
+@overload
+def new_conn(config: ClientConfig, aio: Literal[False]) -> grpc.Channel: ...
+
+
+@overload
+def new_conn(config: ClientConfig, aio: Literal[True]) -> grpc.aio.Channel: ...
+
+
+def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel:
+    credentials = load_channel_credentials(config)
+
     start = grpc if not aio else grpc.aio
 
     channel_options: list[tuple[str, str | int]] = [
@@ -59,16 +64,7 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         ("grpc.default_compression_algorithm", grpc.Compression.Gzip),
     ]
 
-    # Set environment variable to disable fork support. Reference: https://github.com/grpc/grpc/issues/28557
-    # When steps execute via os.fork, we see `TSI_DATA_CORRUPTED` errors.
-    # needs to be the string "True" or "False"
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = str(config.grpc_enable_fork_support)
-
-    if config.grpc_enable_fork_support:
-        # See discussion: https://github.com/hatchet-dev/hatchet/pull/2057#discussion_r2243233357
-        os.environ["GRPC_POLL_STRATEGY"] = "poll"
-
-    if config.tls_config.strategy == "none":
+    if not credentials:
         conn = start.insecure_channel(
             target=config.host_port,
             options=channel_options,

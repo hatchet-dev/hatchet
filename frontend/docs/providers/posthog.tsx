@@ -37,6 +37,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         },
         disable_session_recording: true,
         persistence: "localStorage+cookie",
+        cross_subdomain_cookie: true,
         before_send: (event) => {
           // You can customize exception events for better grouping
           return event;

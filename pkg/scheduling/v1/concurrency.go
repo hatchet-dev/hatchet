@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/randomticker"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/scheduling/v1/concurrency"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -28,6 +29,9 @@ type ConcurrencyManager struct {
 	l *zerolog.Logger
 
 	strategy *sqlcv1.V1StepConcurrency
+
+	// concurrencyStrategy is the in-memory index + outbox-based approach
+	concurrencyStrategy *concurrency.ConcurrencyStrategy
 
 	tenantId uuid.UUID
 
@@ -48,6 +52,10 @@ type ConcurrencyManager struct {
 
 	maxPollingInterval time.Duration
 
+	minCheckActiveInterval time.Duration
+
+	maxCheckActiveInterval time.Duration
+
 	advisoryLock       *timeout_lock.KeyedTimeoutLock[int64]
 	advisoryParentLock *timeout_lock.KeyedTimeoutLock[int64]
 }
@@ -57,22 +65,35 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 	notifyConcurrencyCh := make(chan map[string]string, 2)
 
-	c := &ConcurrencyManager{
-		repo:                repo,
-		strategy:            strategy,
-		tenantId:            tenantId,
-		l:                   conf.l,
-		notifyConcurrencyCh: notifyConcurrencyCh,
-		resultsCh:           resultsCh,
-		notifyMu:            newMu(conf.l),
-		rateLimiter:         newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
-		minPollingInterval:  conf.schedulerConcurrencyPollingMinInterval,
-		maxPollingInterval:  conf.schedulerConcurrencyPollingMaxInterval,
-		advisoryLock:        advisoryLock,
-		advisoryParentLock:  advisoryParentLock,
-	}
+	l := conf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	var concurrencyStrategy *concurrency.ConcurrencyStrategy
+	if conf.concurrencyInMemoryIndexEnabled && !strategy.ParentStrategyID.Valid {
+		concurrencyStrategy = concurrency.NewConcurrencyStrategy(ctx, repo, strategy, conf.outbox, &l)
+	} else {
+		concurrency.NewNoOpFlusher(ctx, conf.outbox, strategy, &l)
+	}
+
+	c := &ConcurrencyManager{
+		repo:                   repo,
+		strategy:               strategy,
+		concurrencyStrategy:    concurrencyStrategy,
+		tenantId:               tenantId,
+		l:                      &l,
+		notifyConcurrencyCh:    notifyConcurrencyCh,
+		resultsCh:              resultsCh,
+		notifyMu:               newMu(&l),
+		rateLimiter:            newConcurrencyRateLimiter(conf.schedulerConcurrencyRateLimit),
+		minPollingInterval:     conf.schedulerConcurrencyPollingMinInterval,
+		maxPollingInterval:     conf.schedulerConcurrencyPollingMaxInterval,
+		minCheckActiveInterval: conf.schedulerCheckActiveMinInterval,
+		maxCheckActiveInterval: conf.schedulerCheckActiveMaxInterval,
+		advisoryLock:           advisoryLock,
+		advisoryParentLock:     advisoryParentLock,
+	}
+
 	cleanupMu := sync.Mutex{}
 	c.cleanup = func() {
 		cleanupMu.Lock()
@@ -88,6 +109,9 @@ func newConcurrencyManager(conf *sharedConfig, tenantId uuid.UUID, strategy *sql
 
 	go c.loopConcurrency(ctx)
 	go c.loopCheckActive(ctx)
+
+	// run once on startup instead of waiting for the first tick
+	c.notify(context.Background())
 
 	return c
 }
@@ -155,7 +179,8 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			telemetry.AttributeKV{Key: "tenant.id", Value: c.tenantId.String()},
 		)
 
-		if !c.rateLimiter.Allow() {
+		// only use the rateLimiter on the old polling path
+		if c.concurrencyStrategy == nil && !c.rateLimiter.Allow() {
 			span.End()
 			c.l.Debug().Ctx(ctx).Msgf("rate limit exceeded for strategy %d", c.strategy.ID)
 			continue
@@ -170,7 +195,14 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 			continue
 		}
 		start := time.Now()
-		results, err := c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
+
+		var results *v1.RunConcurrencyResult
+		var err error
+		if c.concurrencyStrategy != nil {
+			results, err = c.concurrencyStrategy.Run(ctx)
+		} else {
+			results, err = c.repo.RunConcurrencyStrategy(ctx, c.tenantId, c.strategy)
+		}
 		c.releaseStrategyLocks()
 		if err != nil {
 			span.End()
@@ -192,7 +224,11 @@ func (c *ConcurrencyManager) loopConcurrency(ctx context.Context) {
 }
 
 func (c *ConcurrencyManager) loopCheckActive(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := randomticker.NewRandomTicker(
+		c.minCheckActiveInterval,
+		c.maxCheckActiveInterval,
+	)
+	defer ticker.Stop()
 
 	for {
 		select {

@@ -10,6 +10,7 @@ import {
 import { HelpDropdown } from '@/components/v1/nav/help-dropdown';
 import {
   SidebarButtonPrimary,
+  SidebarButtonPrimaryAction,
   SidebarButtonSecondary,
 } from '@/components/v1/nav/sidebar-buttons';
 import { Button } from '@/components/v1/ui/button';
@@ -29,9 +30,10 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect,
 } from 'react';
 
-export interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
+interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
   navItems: SideNavSection[];
 }
 
@@ -44,13 +46,20 @@ export type SideNavChild = {
 export type SideNavItem = {
   key: string;
   name: string;
-  to: string;
   icon: (opts: { collapsed: boolean; active?: boolean }) => React.ReactNode;
   prefix?: string;
-  activeTo?: string;
+  displayAsActiveWhenThisRouteIsMatched?: string;
   activeFuzzy?: boolean;
   children?: SideNavChild[];
-};
+  params?: Record<string, string>;
+} & (
+  | {
+      to: string;
+    }
+  | {
+      onClick: () => void;
+    }
+);
 
 export type SideNavSection = {
   key: string;
@@ -58,6 +67,8 @@ export type SideNavSection = {
   itemsClassName: string;
   items: SideNavItem[];
 };
+
+const savedScrollTop = { current: 0 };
 
 export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
@@ -81,6 +92,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const didDragRef = useRef(false);
   const [showResizeToggle, setShowResizeToggle] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const onNavLinkClick = useCallback(() => {
     if (isWide) {
@@ -237,11 +249,12 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     () => (tenantId ? { tenant: tenantId } : undefined),
     [tenantId],
   );
-  const isActive = useCallback(
-    (to: string, fuzzy = false) =>
-      Boolean(matchRoute({ to, params: commonParams, fuzzy })),
-    [matchRoute, commonParams],
-  );
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = savedScrollTop.current;
+    }
+  }, []);
 
   const toggleCollapsed = useCallback(() => {
     setStoredCollapsed(!storedCollapsed);
@@ -343,9 +356,21 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                     )}
 
                     {section.items.map((item) => {
-                      const activeTo = item.activeTo ?? item.to;
+                      const itemParams = item.params ?? commonParams;
+                      const displayAsActiveWhenThisRouteIsMatched =
+                        item.displayAsActiveWhenThisRouteIsMatched ??
+                        ('to' in item ? item.to : null);
+
                       const activeFuzzy = item.activeFuzzy ?? false;
-                      const active = isActive(activeTo, activeFuzzy);
+                      const active = displayAsActiveWhenThisRouteIsMatched
+                        ? Boolean(
+                            matchRoute({
+                              to: displayAsActiveWhenThisRouteIsMatched,
+                              params: itemParams,
+                              fuzzy: activeFuzzy,
+                            }),
+                          )
+                        : false;
 
                       if (item.children && item.children.length > 0) {
                         return (
@@ -379,6 +404,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   <Link
                                     to={child.to}
                                     params={commonParams}
+                                    preload={false}
                                     onClick={onNavLinkClick}
                                   >
                                     {child.name}
@@ -403,10 +429,14 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             active && 'bg-slate-200 dark:bg-slate-800',
                           )}
                           onClick={() => {
-                            navigate({
-                              to: item.to,
-                              params: commonParams,
-                            });
+                            if ('onClick' in item) {
+                              item.onClick();
+                            } else {
+                              navigate({
+                                to: item.to,
+                                params: itemParams,
+                              });
+                            }
                             onNavLinkClick();
                           }}
                         >
@@ -420,8 +450,8 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             </div>
 
             {/* Fixed footer */}
-            <div className="w-full shrink-0 py-4">
-              <div className="flex w-full justify-center">
+            <div className="w-full shrink-0 py-2">
+              <div className="flex w-full flex-col items-center gap-1">
                 <HelpDropdown
                   variant="sidebar"
                   triggerVariant="icon"
@@ -436,7 +466,11 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           <>
             {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
             <div
+              ref={scrollRef}
               data-cy="v1-sidebar-scroll"
+              onScroll={() => {
+                savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
+              }}
               className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
               <div className="px-4 py-4">
@@ -447,31 +481,48 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                     </h2>
 
                     <div className={section.itemsClassName}>
-                      {section.items.map((item) => (
-                        <SidebarButtonPrimary
-                          key={item.key}
-                          onNavLinkClick={onNavLinkClick}
-                          to={item.to}
-                          params={commonParams}
-                          prefix={item.prefix}
-                          name={item.name}
-                          icon={item.icon({
-                            collapsed: false,
-                            active: isActive(item.to, item.activeFuzzy),
-                          })}
-                          collapsibleChildren={
-                            item.children?.map((child) => (
-                              <SidebarButtonSecondary
-                                key={child.key}
-                                onNavLinkClick={onNavLinkClick}
-                                to={child.to}
-                                params={commonParams}
-                                name={child.name}
-                              />
-                            )) ?? []
-                          }
-                        />
-                      ))}
+                      {section.items.map((item) => {
+                        const itemParams = item.params ?? commonParams;
+                        return 'onClick' in item ? (
+                          <SidebarButtonPrimaryAction
+                            key={item.key}
+                            name={item.name}
+                            icon={item.icon({ collapsed: false })}
+                            onClick={item.onClick}
+                            muted
+                          />
+                        ) : (
+                          <SidebarButtonPrimary
+                            key={item.key}
+                            onNavLinkClick={onNavLinkClick}
+                            to={item.to!}
+                            params={itemParams}
+                            prefix={item.prefix}
+                            name={item.name}
+                            icon={item.icon({
+                              collapsed: false,
+                              active: Boolean(
+                                matchRoute({
+                                  to: item.to!,
+                                  params: itemParams,
+                                  fuzzy: item.activeFuzzy,
+                                }),
+                              ),
+                            })}
+                            collapsibleChildren={
+                              item.children?.map((child) => (
+                                <SidebarButtonSecondary
+                                  key={child.key}
+                                  onNavLinkClick={onNavLinkClick}
+                                  to={child.to}
+                                  params={commonParams}
+                                  name={child.name}
+                                />
+                              )) ?? []
+                            }
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -481,7 +532,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
             {/* Fixed footer: tenant/org picker is always visible and takes up space */}
             <div
               data-cy="v1-sidebar-footer"
-              className="w-full shrink-0 border-t border-slate-200 px-4 py-4 dark:border-slate-800"
+              className="flex w-full shrink-0 flex-col gap-1 border-t border-slate-200 px-4 py-2 dark:border-slate-800"
             >
               <HelpDropdown
                 variant="sidebar"

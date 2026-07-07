@@ -6,6 +6,7 @@ INSERT INTO v1_incoming_webhook (
     event_key_expression,
     scope_expression,
     static_payload,
+    return_event_as_response_payload,
     auth_method,
     auth__basic__username,
     auth__basic__password,
@@ -23,6 +24,7 @@ INSERT INTO v1_incoming_webhook (
     @eventKeyExpression::TEXT,
     sqlc.narg('scopeExpression')::TEXT,
     sqlc.narg('staticPayload')::JSONB,
+    @returnEventAsResponsePayload::BOOLEAN,
     @authMethod::v1_incoming_webhook_auth_type,
     sqlc.narg('authBasicUsername')::TEXT,
     @authBasicPassword::BYTEA,
@@ -80,6 +82,7 @@ SET
     event_key_expression = COALESCE(sqlc.narg('eventKeyExpression')::TEXT, event_key_expression),
     scope_expression = NULLIF(COALESCE(sqlc.narg('scopeExpression')::TEXT, scope_expression), ''),
     static_payload = COALESCE(sqlc.narg('staticPayload')::JSONB, static_payload),
+    return_event_as_response_payload = COALESCE(sqlc.narg('returnEventAsResponsePayload')::BOOLEAN, return_event_as_response_payload),
     updated_at = CURRENT_TIMESTAMP
 WHERE
     tenant_id = @tenantId::UUID

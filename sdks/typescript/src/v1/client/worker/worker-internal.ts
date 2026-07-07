@@ -25,7 +25,7 @@ import {
   NonRetryableError,
 } from '@hatchet/v1/task';
 import { taskConditionsToPb } from '@hatchet/v1/conditions/transformer';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import * as z from 'zod/v4';
 
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
@@ -110,11 +110,11 @@ export class InternalWorker {
     this.enableHealthServer = client.config.healthcheck?.enabled ?? false;
     this.healthPort = client.config.healthcheck?.port ?? 8001;
 
-    process.on('SIGTERM', () => this.exitGracefully(true));
-    process.on('SIGINT', () => this.exitGracefully(true));
-
     this.killing = false;
     this.handle_kill = options.handleKill === undefined ? true : options.handleKill;
+
+    process.on('SIGTERM', () => this.exitGracefully(this.handle_kill));
+    process.on('SIGINT', () => this.exitGracefully(this.handle_kill));
 
     this.logger = client.config.logger(`Worker/${this.name}`, this.client.config.log_level);
 
@@ -346,7 +346,7 @@ export class InternalWorker {
       // Convert Zod schema to JSON Schema if provided
       let inputJsonSchema: Uint8Array | undefined;
       if (workflow.inputValidator) {
-        const jsonSchema = zodToJsonSchema(workflow.inputValidator as any);
+        const jsonSchema = z.toJSONSchema(workflow.inputValidator as any);
         inputJsonSchema = new TextEncoder().encode(JSON.stringify(jsonSchema));
       }
 

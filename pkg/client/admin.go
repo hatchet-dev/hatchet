@@ -36,6 +36,74 @@ type ChildWorkflowOpts struct {
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
 }
 
+// NewChildWorkflowTriggerRequest builds the trigger request used to start a child workflow.
+func NewChildWorkflowTriggerRequest(workflowName string, input interface{}, opts *ChildWorkflowOpts, sharedMeta map[string]string) (*v1contracts.TriggerWorkflowRequest, error) {
+	if opts == nil {
+		opts = &ChildWorkflowOpts{}
+	}
+
+	inputBytes, err := json.Marshal(input)
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal input: %w", err)
+	}
+
+	if opts.ChildIndex < math.MinInt32 || opts.ChildIndex > math.MaxInt32 {
+		return nil, fmt.Errorf("child index out of range")
+	}
+	childIndex := int32(opts.ChildIndex) // nolint:gosec
+
+	request := &v1contracts.TriggerWorkflowRequest{
+		Name:                    workflowName,
+		Input:                   string(inputBytes),
+		ParentId:                &opts.ParentId,
+		ParentTaskRunExternalId: &opts.ParentTaskRunId,
+		ChildIndex:              &childIndex,
+		ChildKey:                opts.ChildKey,
+		DesiredWorkerId:         opts.DesiredWorkerId,
+	}
+
+	additionalMetadata := mergeAdditionalMetadata(sharedMeta, opts.AdditionalMetadata)
+	if additionalMetadata != nil {
+		if err := WithRunMetadata(additionalMetadata)(request); err != nil {
+			return nil, fmt.Errorf("could not apply run metadata: %w", err)
+		}
+	}
+
+	if opts.Priority != nil {
+		if err := WithPriority(*opts.Priority)(request); err != nil {
+			return nil, fmt.Errorf("could not apply run priority: %w", err)
+		}
+	}
+
+	if opts.DesiredWorkerLabels != nil {
+		if err := WithDesiredWorkerLabels(opts.DesiredWorkerLabels)(request); err != nil {
+			return nil, fmt.Errorf("could not apply desired worker labels: %w", err)
+		}
+	}
+
+	return request, nil
+}
+
+func mergeAdditionalMetadata(sharedMeta map[string]string, opt *map[string]string) map[string]string {
+	if sharedMeta == nil && opt == nil {
+		return nil
+	}
+
+	additionalMeta := make(map[string]string)
+
+	for key, value := range sharedMeta {
+		additionalMeta[key] = value
+	}
+
+	if opt != nil {
+		for key, value := range *opt {
+			additionalMeta[key] = value
+		}
+	}
+
+	return additionalMeta
+}
+
 type WorkflowRun struct {
 	Name    string
 	Input   interface{}
@@ -63,6 +131,7 @@ type TaskRunDetails struct {
 	Status     rest.V1TaskStatus
 	Output     json.RawMessage
 	Error      *string
+	IsEvicted  bool
 }
 
 type RunDetails struct {
@@ -411,36 +480,14 @@ func (a *adminClientImpl) BulkRunWorkflow(workflows []*WorkflowRun) ([]string, e
 }
 
 func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{}, opts *ChildWorkflowOpts) (string, error) {
-	inputBytes, err := json.Marshal(input)
-
-	if err != nil {
-		return "", fmt.Errorf("could not marshal input: %w", err)
-	}
-
 	workflowName = client.ApplyNamespace(workflowName, &a.namespace)
 
-	childIndex := int32(opts.ChildIndex) // nolint: gosec
-
-	metadataBytes, err := a.getAdditionalMetaBytes(opts.AdditionalMetadata)
-
+	request, err := NewChildWorkflowTriggerRequest(workflowName, input, opts, a.sharedMeta)
 	if err != nil {
-		return "", fmt.Errorf("could not get additional metadata: %w", err)
+		return "", err
 	}
 
-	metadata := string(metadataBytes)
-
-	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), &v1contracts.TriggerWorkflowRequest{
-		Name:                    workflowName,
-		Input:                   string(inputBytes),
-		ParentId:                &opts.ParentId,
-		ParentTaskRunExternalId: &opts.ParentTaskRunId,
-		ChildIndex:              &childIndex,
-		ChildKey:                opts.ChildKey,
-		DesiredWorkerId:         opts.DesiredWorkerId,
-		AdditionalMetadata:      &metadata,
-		Priority:                opts.Priority,
-		DesiredWorkerLabels:     desiredWorkerLabelsToProto(opts.DesiredWorkerLabels),
-	})
+	res, err := a.client.TriggerWorkflow(a.ctx.newContext(context.Background()), request)
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
@@ -467,43 +514,14 @@ func (a *adminClientImpl) RunChildWorkflows(workflows []*RunChildWorkflowsOpts) 
 	triggerWorkflowRequests := make([]*v1contracts.TriggerWorkflowRequest, len(workflows))
 
 	for i, workflow := range workflows {
-		if workflow.Opts == nil {
-			workflow.Opts = &ChildWorkflowOpts{}
-		}
-
-		inputBytes, err := json.Marshal(workflow.Input)
-
-		if err != nil {
-			return nil, fmt.Errorf("could not marshal input: %w", err)
-		}
-
 		workflowName := client.ApplyNamespace(workflow.WorkflowName, &a.namespace)
 
-		if workflow.Opts.ChildIndex < math.MinInt32 || workflow.Opts.ChildIndex > math.MaxInt32 {
-			return nil, fmt.Errorf("child index out of range")
-		}
-		childIndex := int32(workflow.Opts.ChildIndex) // nolint: gosec
-
-		metadataBytes, err := a.getAdditionalMetaBytes(workflow.Opts.AdditionalMetadata)
-
+		request, err := NewChildWorkflowTriggerRequest(workflowName, workflow.Input, workflow.Opts, a.sharedMeta)
 		if err != nil {
-			return nil, fmt.Errorf("could not get additional metadata: %w", err)
+			return nil, err
 		}
 
-		metadata := string(metadataBytes)
-
-		triggerWorkflowRequests[i] = &v1contracts.TriggerWorkflowRequest{
-			Name:                    workflowName,
-			Input:                   string(inputBytes),
-			ParentId:                &workflow.Opts.ParentId,
-			ParentTaskRunExternalId: &workflow.Opts.ParentTaskRunId,
-			ChildIndex:              &childIndex,
-			ChildKey:                workflow.Opts.ChildKey,
-			DesiredWorkerId:         workflow.Opts.DesiredWorkerId,
-			AdditionalMetadata:      &metadata,
-			Priority:                workflow.Opts.Priority,
-			DesiredWorkerLabels:     desiredWorkerLabelsToProto(workflow.Opts.DesiredWorkerLabels),
-		}
+		triggerWorkflowRequests[i] = request
 
 	}
 
@@ -576,6 +594,7 @@ func (a *adminClientImpl) GetRunDetails(ctx context.Context, externalId uuid.UUI
 			Status:     taskStatusFromProto(detail.GetStatus()),
 			Output:     detail.GetOutput(),
 			Error:      errStr,
+			IsEvicted:  detail.GetIsEvicted(),
 		}
 	}
 
@@ -782,28 +801,6 @@ func (a *adminClientImpl) getJobOpts(jobName string, job *types.WorkflowJob) (*a
 	jobOpt.Steps = stepOpts
 
 	return jobOpt, nil
-}
-
-func (a *adminClientImpl) getAdditionalMetaBytes(opt *map[string]string) ([]byte, error) {
-	additionalMeta := make(map[string]string)
-
-	for key, value := range a.sharedMeta {
-		additionalMeta[key] = value
-	}
-
-	if opt != nil {
-		for key, value := range *opt {
-			additionalMeta[key] = value
-		}
-	}
-
-	metadataBytes, err := json.Marshal(additionalMeta)
-
-	if err != nil {
-		return nil, fmt.Errorf("could not marshal additional metadata: %w", err)
-	}
-
-	return metadataBytes, nil
 }
 
 func (h *adminClientImpl) saveOrLoadListener() (*WorkflowRunsListener, error) {

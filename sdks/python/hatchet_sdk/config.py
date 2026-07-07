@@ -1,12 +1,15 @@
 import json
+from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
 from logging import Logger, getLogger
 from typing import overload
 
+import tenacity
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from hatchet_sdk.logger import logger
 from hatchet_sdk.token import get_addresses_from_jwt, get_tenant_id_from_jwt
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 
@@ -85,6 +88,17 @@ class OpenTelemetryConfig(BaseSettings):
 
     include_task_name_in_start_step_run_span_name: bool = False
 
+    individual_run_spans_for_bulk_run: bool = Field(
+        default=False,
+        description=(
+            "If true, a child `hatchet.run_workflow` span is created for each "
+            "item in a bulk run (`run_workflows`), nested under the parent "
+            "`hatchet.run_workflows` span, and each item's traceparent points at "
+            "its own span. Defaults to false to preserve the existing span "
+            "structure for downstream OpenTelemetry collectors."
+        ),
+    )
+
 
 class HTTPMethod(str, Enum):
     GET = "GET"
@@ -94,6 +108,14 @@ class HTTPMethod(str, Enum):
     PATCH = "PATCH"
     HEAD = "HEAD"
     OPTIONS = "OPTIONS"
+
+
+def tenacity_before_sleep(retry_state: tenacity.RetryCallState) -> None:
+    """Called between tenacity retries."""
+    logger.debug(
+        f"retrying {retry_state.fn}: attempt "
+        f"{retry_state.attempt_number} ended with: {retry_state.outcome}",
+    )
 
 
 class TenacityConfig(BaseSettings):
@@ -115,6 +137,8 @@ class TenacityConfig(BaseSettings):
         default_factory=lambda: [HTTPMethod.GET, HTTPMethod.DELETE],
         description="HTTP methods to retry on transport errors when retry_transport_errors is enabled; excludes POST/PUT/PATCH by default due to idempotency concerns.",
     )
+    wait: type[tenacity.wait.wait_base] = tenacity.wait_exponential_jitter
+    before_sleep: Callable[[tenacity.RetryCallState], None] = tenacity_before_sleep
 
 
 DEFAULT_HOST_PORT = "localhost:7070"
@@ -155,7 +179,6 @@ class ClientConfig(BaseSettings):
     terminate_worker_after_num_tasks: int | None = None
     disable_log_capture: bool = False
     log_queue_size: int = 1000
-    grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
 

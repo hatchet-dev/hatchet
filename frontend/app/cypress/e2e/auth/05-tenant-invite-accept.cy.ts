@@ -78,12 +78,11 @@ describe('Tenant Invite: accept', () => {
         });
       });
 
-    cy.get('button[aria-label="User Menu"]')
+    cy.get('button[aria-label="Open account menu"]')
       .filter(':visible')
-      .should('be.visible')
       .first()
       .click();
-    cy.contains('[role="menuitem"]', 'Log out').filter(':visible').click();
+    cy.contains('Log out').click();
 
     cy.location('pathname').should('include', '/auth/login');
     cy.get('input#email').type(seededUsers.member.email);
@@ -96,44 +95,66 @@ describe('Tenant Invite: accept', () => {
           .should('be.enabled')
           .click();
       });
-    cy.location('pathname', { timeout: 5000 }).should(
-      'eq',
-      '/onboarding/invites',
+    cy.location('pathname', { timeout: 30000 }).should(
+      'match',
+      /\/tenants\/.+/,
     );
 
-    // Find the specific invite and accept it
-    cy.contains(`invited to join the ${tenant2Name} tenant`).should('exist');
+    // The invite modal auto-opens when the member has pending invites.
+    cy.get('[role="dialog"]', { timeout: 10000 }).should('be.visible');
 
-    // Step 4: Accept the invite - register intercept before clicking
+    // Accept the specific invite for tenant2Name
     cy.intercept('POST', '/api/v1/users/invites/accept').as('acceptInvite');
-    cy.contains(`invited to join the ${tenant2Name} tenant`)
-      .parent()
-      .contains('button', 'Accept')
+    cy.contains('td', tenant2Name)
+      .closest('tr')
+      .find('button[aria-label="Accept"]')
       .should('exist')
       .click();
 
-    // Wait for the accept API call to complete
     cy.wait('@acceptInvite').its('response.statusCode').should('eq', 200);
 
-    // Decline all remaining invites so the page redirects
+    // Wait for the accepted invite's row to be removed before looking for
+    // remaining Decline buttons. The state update (processedIds + phase change)
+    // is async; this assertion ensures React has flushed before we proceed.
+    cy.contains('td', tenant2Name).should('not.exist');
+
+    // Decline any remaining invites (defensive — normally none in CI).
     const declineAll = (remaining = 20) => {
-      cy.get('body').then(($body) => {
-        if (
-          remaining > 0 &&
-          $body.find('button:contains("Decline")').length > 0
-        ) {
-          cy.intercept('POST', '/api/v1/users/invites/reject').as(
-            'rejectInvite',
-          );
-          cy.contains('button', 'Decline').click({ force: true });
-          cy.wait('@rejectInvite');
-          declineAll(remaining - 1);
+      if (remaining === 0) {
+        return;
+      }
+      // Use cy.document() (no retry) so we read the live DOM state without
+      // Cypress retrying for 15 s when the dialog has transitioned away.
+      cy.document().then((doc) => {
+        const btn = doc.querySelector(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        );
+        if (!btn) {
+          return;
         }
+        cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
+        cy.intercept('GET', '/api/v1/users/invites*').as('invitesRefetch');
+        // Click via a requeryable cy.get() chain: a refetch settling re-renders
+        // the modal, and a raw element captured above can detach from the DOM
+        // before the click lands (cy.wrap() cannot requery a detached node).
+        cy.get(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        )
+          .first()
+          .click({ force: true });
+        cy.wait('@rejectInvite');
+        cy.wait('@invitesRefetch');
+        declineAll(remaining - 1);
       });
     };
     declineAll();
 
-    // Step 5: Verify redirect to the tenant page (no infinite loop)
+    // Confirmation step: click "Switch to <tenant>" to navigate
+    cy.contains(`Switch to ${tenant2Name}`, { timeout: 10000 })
+      .should('be.visible')
+      .click();
+
+    // Verify redirect to the tenant page
     cy.location('pathname', { timeout: 5000 }).should(
       'match',
       /\/tenants\/[^/]+/,

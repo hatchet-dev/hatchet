@@ -20,19 +20,31 @@ from hatchet_sdk.exceptions import NonDeterminismError
 hatchet = Hatchet()
 
 
-dag_child_workflow = hatchet.workflow(name="dag-child-workflow")
+class DagChildWorkflowInput(BaseModel):
+    child_index: int = 0
+    sleep_1_duration: int = 1
+    sleep_2_duration: int = 5
+
+
+dag_child_workflow = hatchet.workflow(
+    name="dag-child-workflow", input_validator=DagChildWorkflowInput
+)
 
 
 @dag_child_workflow.task()
-async def dag_child_1(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    await asyncio.sleep(1)
-    return {"result": "child1"}
+async def dag_child_1(
+    input: DagChildWorkflowInput, ctx: Context
+) -> dict[str, str | int]:
+    await asyncio.sleep(input.sleep_1_duration)
+    return {"result": "child1", "child_index": input.child_index}
 
 
 @dag_child_workflow.task(parents=[dag_child_1])
-async def dag_child_2(input: EmptyModel, ctx: Context) -> dict[str, str]:
-    await asyncio.sleep(5)
-    return {"result": "child2"}
+async def dag_child_2(
+    input: DagChildWorkflowInput, ctx: Context
+) -> dict[str, str | int]:
+    await asyncio.sleep(input.sleep_2_duration)
+    return {"result": "child2", "child_index": input.child_index}
 
 
 @hatchet.durable_task(execution_timeout=timedelta(seconds=10))
@@ -54,6 +66,45 @@ async def durable_spawn_dag(input: EmptyModel, ctx: DurableContext) -> dict[str,
         "spawn_duration": spawn_duration,
         "spawn_result": spawn_result,
     }
+
+
+class DurableSpawnManyDagsResultSingleton(BaseModel):
+    has_both_child_outputs: bool
+    child_index: int
+
+
+class DurableSpawnManyDagsResult(BaseModel):
+    results: list[DurableSpawnManyDagsResultSingleton]
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=10))
+async def durable_spawn_many_dags(
+    input: EmptyModel, ctx: DurableContext
+) -> DurableSpawnManyDagsResult:
+    results = await dag_child_workflow.aio_run_many(
+        [
+            dag_child_workflow.create_bulk_run_item(
+                input=DagChildWorkflowInput(
+                    sleep_1_duration=0,
+                    sleep_2_duration=0,
+                    child_index=i,
+                )
+            )
+            for i in range(20)
+        ]
+    )
+
+    return DurableSpawnManyDagsResult(
+        results=[
+            DurableSpawnManyDagsResultSingleton(
+                has_both_child_outputs=(
+                    "dag_child_1" in result and "dag_child_2" in result
+                ),
+                child_index=result["dag_child_1"]["child_index"],
+            )
+            for result in results
+        ]
+    )
 
 
 # > Create a durable workflow
@@ -251,6 +302,92 @@ async def durable_sleep_event_spawn(
     }
 
 
+class EventLookbackInput(BaseModel):
+    scope: str | None = None
+    user_id: int | None = None
+
+
+class LookbackEventPayload(BaseModel):
+    order: str
+
+
+class EventLookbackResult(BaseModel):
+    elapsed: float
+
+
+class EventLookbackResultWithEvent(EventLookbackResult):
+    event: LookbackEventPayload
+
+
+class TwoEventsResult(BaseModel):
+    event1: LookbackEventPayload
+    event2: LookbackEventPayload
+    elapsed: float
+
+
+@hatchet.durable_task(input_validator=EventLookbackInput)
+async def wait_for_event_lookback(
+    input: EventLookbackInput, ctx: DurableContext
+) -> EventLookbackResultWithEvent:
+    start = time.time()
+
+    # > Wait for event with lookback
+    event = await ctx.aio_wait_for_event(
+        key="user:create",
+        expression=f"input.user_id == {input.user_id}",
+        scope=f"user_id:{input.user_id}",
+        lookback_window=timedelta(minutes=1),
+        payload_validator=LookbackEventPayload,
+    )
+    # !!
+    return EventLookbackResultWithEvent(event=event, elapsed=time.time() - start)
+
+
+@hatchet.durable_task(input_validator=EventLookbackInput)
+async def wait_for_or_event_lookback(
+    input: EventLookbackInput, ctx: DurableContext
+) -> EventLookbackResult:
+    start = time.time()
+    now = await ctx.aio_now()
+    consider_events_since = now - timedelta(minutes=1)
+
+    await ctx.aio_wait_for(
+        "or-event-lookback",
+        or_(
+            SleepCondition(timedelta(seconds=SLEEP_TIME)),
+            UserEventCondition(
+                event_key=EVENT_KEY,
+                scope=input.scope,
+                consider_events_since=consider_events_since,
+            ),
+        ),
+    )
+
+    return EventLookbackResult(elapsed=time.time() - start)
+
+
+@hatchet.durable_task(input_validator=EventLookbackInput)
+async def wait_for_two_events_second_pushed_first(
+    input: EventLookbackInput, ctx: DurableContext
+) -> TwoEventsResult:
+    start = time.time()
+    event1 = await ctx.aio_wait_for_event(
+        "key1",
+        scope=input.scope,
+        lookback_window=timedelta(minutes=1),
+        payload_validator=LookbackEventPayload,
+        label="waiting for event 1",
+    )
+    event2 = await ctx.aio_wait_for_event(
+        "key2",
+        scope=input.scope,
+        lookback_window=timedelta(minutes=1),
+        payload_validator=LookbackEventPayload,
+        label="waiting for event 2",
+    )
+    return TwoEventsResult(event1=event1, event2=event2, elapsed=time.time() - start)
+
+
 class NonDeterminismOutput(BaseModel):
     attempt_number: int
     sleep_time: int
@@ -310,6 +447,40 @@ async def durable_replay_reset(
     )
 
 
+class ChildKeyDedupResult(BaseModel):
+    runtime: float
+    child_1_output: dict[str, str]
+    child_2_output: dict[str, str]
+    child_3_output: dict[str, str]
+
+
+@hatchet.durable_task(execution_timeout=timedelta(seconds=30))
+async def durable_child_key_dedup_replay(
+    input: EmptyModel, ctx: DurableContext
+) -> ChildKeyDedupResult:
+    start = time.time()
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    child_1_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=1), child_key="child-a"
+    )
+    child_2_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=2), child_key="child-b"
+    )
+    child_3_output = await spawn_child_task.aio_run(
+        DurableBulkSpawnInput(n=3), child_key="child-a"
+    )
+
+    await ctx.aio_sleep_for(timedelta(seconds=SLEEP_TIME))
+
+    return ChildKeyDedupResult(
+        child_1_output=child_1_output,
+        child_2_output=child_2_output,
+        child_3_output=child_3_output,
+        runtime=time.time() - start,
+    )
+
+
 class SleepResult(BaseModel):
     message: str
     duration: float
@@ -337,6 +508,43 @@ async def memo_task(input: MemoInput, ctx: DurableContext) -> SleepResult:
     return SleepResult(message=res.message, duration=time.time() - start)
 
 
+class ErrorRaisingTaskInput(BaseModel):
+    error_message: str
+
+
+class ErrorRaisingTaskOutput(BaseModel):
+    child_raised: bool
+    child_error_str: str | None
+
+
+@hatchet.task(input_validator=ErrorRaisingTaskInput)
+async def error_raising_task(input: ErrorRaisingTaskInput, ctx: Context) -> None:
+    raise ValueError(input.error_message)
+
+
+@hatchet.durable_task(input_validator=ErrorRaisingTaskInput)
+async def error_raising_durable_parent(
+    input: ErrorRaisingTaskInput, ctx: DurableContext
+) -> ErrorRaisingTaskOutput:
+    child_raised = False
+    child_error_str = None
+
+    try:
+        await error_raising_task.aio_run(
+            input=input,
+            wait_for_result=True,
+            additional_metadata=ctx.additional_metadata,
+        )
+    except Exception as e:
+        child_raised = True
+        child_error_str = str(e)
+
+    return ErrorRaisingTaskOutput(
+        child_raised=child_raised,
+        child_error_str=child_error_str,
+    )
+
+
 def main() -> None:
     worker = hatchet.worker(
         "durable-worker",
@@ -350,6 +558,13 @@ def main() -> None:
             durable_sleep_event_spawn,
             durable_non_determinism,
             durable_replay_reset,
+            durable_child_key_dedup_replay,
+            wait_for_event_lookback,
+            wait_for_or_event_lookback,
+            wait_for_two_events_second_pushed_first,
+            durable_spawn_many_dags,
+            error_raising_durable_parent,
+            error_raising_task,
         ],
     )
     worker.start()

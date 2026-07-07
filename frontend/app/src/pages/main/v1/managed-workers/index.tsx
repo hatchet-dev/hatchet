@@ -1,11 +1,20 @@
 import { BillingRequired } from './components/billing-required';
+import { ManagedWorkersGate } from './components/managed-workers-gate';
 import { ManagedWorkersTable } from './components/managed-workers-table';
 import { MonthlyUsageCard } from './components/monthly-usage-card';
 import { Button } from '@/components/v1/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/v1/ui/dialog';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
-import { cloudApi } from '@/lib/api/api';
+import { controlPlaneApi } from '@/lib/api/api';
 import { queries } from '@/lib/api/queries';
 import { managedCompute } from '@/lib/can/features/managed-compute';
 import { RejectReason } from '@/lib/can/shared/permission.base';
@@ -16,8 +25,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-export default function ManagedWorkers() {
-  const { tenant, billing, can } = useTenantDetails();
+function ManagedWorkersImpl() {
+  const { tenant, billing, can, organizationId } = useTenantDetails();
   const { tenantId } = useCurrentTenantId();
 
   const [portalLoading, setPortalLoading] = useState(false);
@@ -58,7 +67,10 @@ export default function ManagedWorkers() {
       if (!tenantId) {
         return;
       }
-      const link = await cloudApi.billingPortalLinkGet(tenantId);
+      if (!organizationId) {
+        return;
+      }
+      const link = await controlPlaneApi.billingPortalLinkGet(organizationId);
       window.open(link.data.url, '_blank');
     } catch (e) {
       handleApiError(e as any);
@@ -118,44 +130,6 @@ export default function ManagedWorkers() {
     }
   };
 
-  const UpgradeModal = () => {
-    if (!showUpgradeModal) {
-      return null;
-    }
-
-    return (
-      // TODO use correct modal component
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/70">
-        <div className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
-          <h3 className="mb-4 text-lg font-medium text-foreground">
-            Plan Upgrade Required
-          </h3>
-          <p className="mb-4 text-muted-foreground">
-            You've reached the maximum number of services ({workerPoolCount}/
-            {getWorkerPoolLimit()}) allowed on your current plan. Upgrade to
-            create more services.
-          </p>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setShowUpgradeModal(false)}
-            >
-              Cancel
-            </Button>
-            <Link
-              to={appRoutes.tenantSettingsBillingRoute.to}
-              params={{ tenant: tenantId }}
-            >
-              <Button leftIcon={<ArrowUpIcon className="size-4" />}>
-                Upgrade Plan
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -194,7 +168,42 @@ export default function ManagedWorkers() {
           />
         </div>
       </div>
-      <UpgradeModal />
+      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Plan Upgrade Required</DialogTitle>
+            <DialogDescription>
+              You've reached the maximum number of services ({workerPoolCount}/
+              {getWorkerPoolLimit()}) allowed on your current plan. Upgrade to
+              create more services.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowUpgradeModal(false)}
+            >
+              Cancel
+            </Button>
+            <Link
+              to={appRoutes.tenantSettingsBillingRoute.to}
+              params={{ tenant: tenantId }}
+            >
+              <Button leftIcon={<ArrowUpIcon className="size-4" />}>
+                Upgrade Plan
+              </Button>
+            </Link>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function ManagedWorkers() {
+  return (
+    <ManagedWorkersGate>
+      <ManagedWorkersImpl />
+    </ManagedWorkersGate>
   );
 }

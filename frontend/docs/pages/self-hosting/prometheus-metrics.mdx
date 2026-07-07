@@ -2,13 +2,11 @@ import { Callout } from "nextra/components";
 
 ## Prometheus Metrics for Hatchet
 
-<Callout type="warning">Only works with v1 tenants</Callout>
-
 This document provides an overview of the Prometheus metrics exposed by Hatchet, setup instructions for the metrics endpoint, and example PromQL queries to analyze them.
 
 ### Setup
 
-To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parantheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on both the `controllers` as well as `scheduler` deployments.
+To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on both the `controllers` as well as `scheduler` deployments.
 
 - Required
   - **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
@@ -60,21 +58,21 @@ Restart your Hatchet server after setting these variables to apply the changes.
 
 ### Global Metrics
 
-| Metric Name                          | Type      | Description                                                                       |
-| ------------------------------------ | --------- | --------------------------------------------------------------------------------- |
-| `hatchet_queue_invocations_total`    | Counter   | The total number of invocations of the queuer function                            |
-| `hatchet_created_tasks_total`        | Counter   | The total number of tasks created                                                 |
-| `hatchet_retried_tasks_total`        | Counter   | The total number of tasks retried                                                 |
-| `hatchet_succeeded_tasks_total`      | Counter   | The total number of tasks that succeeded                                          |
-| `hatchet_failed_tasks_total`         | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
-| `hatchet_skipped_tasks_total`        | Counter   | The total number of tasks that were skipped                                       |
-| `hatchet_cancelled_tasks_total`      | Counter   | The total number of tasks cancelled                                               |
-| `hatchet_assigned_tasks_total`       | Counter   | The total number of tasks assigned to a worker                                    |
-| `hatchet_scheduling_timed_out_total` | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
-| `hatchet_rate_limited_total`         | Counter   | The total number of tasks that were rate limited                                  |
-| `hatchet_queued_to_assigned_total`   | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
-| `hatchet_queued_to_assigned_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
-| `hatchet_reassigned_tasks_total`     | Counter   | The total number of tasks that were reassigned to a worker                        |
+| Metric Name                               | Type      | Description                                                                       |
+| ----------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| `hatchet_queue_invocations_total`         | Counter   | The total number of invocations of the queuer function                            |
+| `hatchet_created_tasks_total`             | Counter   | The total number of tasks created                                                 |
+| `hatchet_retried_tasks_total`             | Counter   | The total number of tasks retried                                                 |
+| `hatchet_succeeded_tasks_total`           | Counter   | The total number of tasks that succeeded                                          |
+| `hatchet_failed_tasks_total`              | Counter   | The total number of tasks that failed (in a final state, not including retries)   |
+| `hatchet_skipped_tasks_total`             | Counter   | The total number of tasks that were skipped                                       |
+| `hatchet_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                               |
+| `hatchet_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                    |
+| `hatchet_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled            |
+| `hatchet_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                  |
+| `hatchet_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
+| `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
+| `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
 
 #### Example PromQL Queries
 
@@ -88,8 +86,8 @@ rate(hatchet_queue_invocations_total[5m])
 
 ```promql
 # Calculates average queue time over the past 5 minutes, converted to ms
-rate(hatchet_queued_to_assigned_seconds_sum[5m])
-  / rate(hatchet_queued_to_assigned_seconds_count[5m])
+rate(hatchet_queued_to_assigned_time_seconds_sum[5m])
+  / rate(hatchet_queued_to_assigned_time_seconds_count[5m])
   * 1e3
 ```
 
@@ -104,7 +102,7 @@ rate(hatchet_failed_tasks_total[5m])
 
 ```promql
 sum by (le) (
-  rate(hatchet_queued_to_assigned_seconds_bucket[5m])
+  rate(hatchet_queued_to_assigned_time_seconds_bucket[5m])
 )
 ```
 
@@ -118,19 +116,19 @@ rate(hatchet_retried_tasks_total[5m])
 ##### 6. Task Assignment Rate
 
 ```promql
-rate(hatchet_assigned_tasks_total[5m])
+rate(hatchet_assigned_tasks[5m])
 ```
 
 ##### 7. Scheduling Timeout Rate
 
 ```promql
-rate(hatchet_scheduling_timed_out_total[5m])
+rate(hatchet_scheduling_timed_out[5m])
 ```
 
 ##### 8. Rate Limiting Impact
 
 ```promql
-rate(hatchet_rate_limited_total[5m])
+rate(hatchet_rate_limited[5m])
 ```
 
 ##### 9. Task Completion Ratio (Success vs Total)
@@ -156,13 +154,13 @@ rate(hatchet_skipped_tasks_total[5m])
 ##### 12. Queue Processing Efficiency (Assigned vs Created)
 
 ```promql
-rate(hatchet_assigned_tasks_total[5m]) / rate(hatchet_created_tasks_total[5m])
+rate(hatchet_assigned_tasks[5m]) / rate(hatchet_created_tasks_total[5m])
 ```
 
 ##### 13. Task Reassignment Rate
 
 ```promql
-rate(hatchet_reassigned_tasks_total[5m])
+rate(hatchet_reassigned_tasks[5m])
 ```
 
 ### Tenant Metrics
@@ -170,13 +168,13 @@ rate(hatchet_reassigned_tasks_total[5m])
 | Metric Name                                      | Type      | Description                                                                          |
 | ------------------------------------------------ | --------- | ------------------------------------------------------------------------------------ |
 | `hatchet_tenant_workflow_duration_milliseconds`  | Histogram | Duration of workflow execution in milliseconds (DAGs and single tasks)               |
-| `hatchet_tenant_queue_invocations_total`         | Counter   | The total number of invocations of the queuer function                               |
-| `hatchet_tenant_created_tasks_total`             | Counter   | The total number of tasks created                                                    |
-| `hatchet_tenant_retried_tasks_total`             | Counter   | The total number of tasks retried                                                    |
-| `hatchet_tenant_succeeded_tasks_total`           | Counter   | The total number of tasks that succeeded                                             |
-| `hatchet_tenant_failed_tasks_total`              | Counter   | The total number of tasks that failed (in a final state, not including retries)      |
-| `hatchet_tenant_skipped_tasks_total`             | Counter   | The total number of tasks that were skipped                                          |
-| `hatchet_tenant_cancelled_tasks_total`           | Counter   | The total number of tasks cancelled                                                  |
+| `hatchet_tenant_queue_invocations`               | Counter   | The total number of invocations of the queuer function                               |
+| `hatchet_tenant_created_tasks`                   | Counter   | The total number of tasks created                                                    |
+| `hatchet_tenant_retried_tasks`                   | Counter   | The total number of tasks retried                                                    |
+| `hatchet_tenant_succeeded_tasks`                 | Counter   | The total number of tasks that succeeded                                             |
+| `hatchet_tenant_failed_tasks`                    | Counter   | The total number of tasks that failed (in a final state, not including retries)      |
+| `hatchet_tenant_skipped_tasks`                   | Counter   | The total number of tasks that were skipped                                          |
+| `hatchet_tenant_cancelled_tasks`                 | Counter   | The total number of tasks cancelled                                                  |
 | `hatchet_tenant_assigned_tasks`                  | Counter   | The total number of tasks assigned to a worker                                       |
 | `hatchet_tenant_scheduling_timed_out`            | Counter   | The total number of tasks that timed out while waiting to be scheduled               |
 | `hatchet_tenant_rate_limited`                    | Counter   | The total number of tasks that were rate limited                                     |
@@ -210,23 +208,23 @@ histogram_quantile(0.95,
 ##### 3. Tenant Error Rate by Workflow
 
 ```promql
-rate(hatchet_tenant_failed_tasks_total[5m]) by (tenant_id)
+rate(hatchet_tenant_failed_tasks[5m]) by (tenant_id)
 /
-rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```
 
 ##### 4. Tenant Task Throughput
 
 ```promql
-rate(hatchet_tenant_succeeded_tasks_total[5m]) by (tenant_id)
+rate(hatchet_tenant_succeeded_tasks[5m]) by (tenant_id)
 ```
 
 ##### 5. Tenant Retry Rate
 
 ```promql
-rate(hatchet_tenant_retried_tasks_total[5m]) by (tenant_id)
+rate(hatchet_tenant_retried_tasks[5m]) by (tenant_id)
 /
-rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```
 
 ##### 6. Workflow Duration Distribution by Tenant
@@ -246,7 +244,7 @@ rate(hatchet_tenant_rate_limited[5m]) by (tenant_id)
 ##### 8. Per-Tenant Queue Utilization
 
 ```promql
-rate(hatchet_tenant_queue_invocations_total[5m]) by (tenant_id)
+rate(hatchet_tenant_queue_invocations[5m]) by (tenant_id)
 ```
 
 ##### 9. Tenant Scheduling Timeouts
@@ -260,7 +258,7 @@ rate(hatchet_tenant_scheduling_timed_out[5m]) by (tenant_id)
 ```promql
 rate(hatchet_tenant_assigned_tasks[5m]) by (tenant_id)
 /
-rate(hatchet_tenant_created_tasks_total[5m]) by (tenant_id)
+rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```
 
 ##### 11. Tenant Task Reassignment Rate
@@ -278,7 +276,7 @@ rate(hatchet_tenant_reassigned_tasks[5m]) by (tenant_id)
 ```promql
 topk(5,
   sum by (tenant_id) (
-    rate(hatchet_tenant_created_tasks_total[1h])
+    rate(hatchet_tenant_created_tasks[1h])
   )
 )
 ```

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -68,6 +70,10 @@ type CreateExternalSignalConditionOpt struct {
 
 	UserEventKey *string
 
+	UserEventScope *string
+
+	UserEventConsiderEventsSince *time.Time
+
 	SleepFor *string `validate:"omitempty,duration"`
 
 	Expression string
@@ -107,6 +113,12 @@ type CreateMatchOpts struct {
 	TriggerChildKey pgtype.Text
 
 	TriggerPriority pgtype.Int4
+
+	TriggerEventExternalId *uuid.UUID
+
+	TriggerEventKey pgtype.Text
+
+	TriggerDesiredWorkerLabels []byte
 
 	SignalTaskId *int64
 
@@ -158,6 +170,8 @@ type GroupMatchCondition struct {
 type SatisfiedEntry struct {
 	DurableTaskInsertedAt pgtype.Timestamptz
 	Data                  []byte
+	ChildTaskIsFailure    bool
+	ChildTaskErrorMessage *string
 	DurableTaskId         int64
 	NodeId                int64
 	BranchId              int64
@@ -444,22 +458,44 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		return res, nil
 	}
 
+	type eventIdWithTime struct {
+		id        uuid.UUID
+		timestamp time.Time
+	}
+
+	sortedEventIds := make([]eventIdWithTime, 0, len(matches))
+
+	for eventId := range matches {
+		sortedEventIds = append(sortedEventIds, eventIdWithTime{
+			id:        eventId,
+			timestamp: idsToEvents[eventId].EventTimestamp,
+		})
+	}
+
+	slices.SortFunc(sortedEventIds, func(a, b eventIdWithTime) int {
+		if a.timestamp.After(b.timestamp) {
+			return -1
+		} else if a.timestamp.Before(b.timestamp) {
+			return 1
+		}
+		return 0
+	})
+
 	matchIds := make([]int64, 0, len(matches))
 	conditionIds := make([]int64, 0, len(matches))
 	datas := make([][]byte, 0, len(matches))
 
-	for eventId, conditions := range matches {
-		for _, condition := range conditions {
-			event, ok := idsToEvents[eventId]
+	for _, eid := range sortedEventIds {
+		for _, condition := range matches[eid.id] {
+			event, ok := idsToEvents[eid.id]
 
 			if !ok {
-				m.l.Error().Ctx(ctx).Msgf("event with id %s not found", eventId)
+				m.l.Error().Ctx(ctx).Msgf("event with id %s not found", eid.id)
 				continue
 			}
 
 			matchIds = append(matchIds, condition.V1MatchID)
 			conditionIds = append(conditionIds, condition.ID)
-
 			datas = append(datas, event.Data)
 		}
 	}
@@ -529,6 +565,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 				TenantId:   tenantId,
+				ExternalId: dagData.ExternalID,
 			}
 		}
 
@@ -540,6 +577,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		dagIdsToInput := make(map[int64][]byte)
 		dagIdsToMetadata := make(map[int64][]byte)
+		dagIdsToDesiredWorkerLabels := make(map[int64][]byte)
 
 		for _, dagData := range dagInputDatas {
 			retrieveOpts := RetrievePayloadOpts{
@@ -547,6 +585,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				InsertedAt: dagData.DagInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDAGINPUT,
 				TenantId:   tenantId,
+				ExternalId: dagData.ExternalID,
 			}
 
 			payload, ok := payloads[retrieveOpts]
@@ -557,6 +596,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 			dagIdsToInput[dagData.DagID] = payload
 			dagIdsToMetadata[dagData.DagID] = dagData.AdditionalMetadata
+			dagIdsToDesiredWorkerLabels[dagData.DagID] = dagData.DesiredWorkerLabels
 		}
 
 		// determine which tasks to create based on step ids
@@ -608,12 +648,13 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					replayTaskOpts = append(replayTaskOpts, opt)
 				} else {
 					opt := CreateTaskOpts{
-						ExternalId:         *match.TriggerExternalID,
-						WorkflowRunId:      *match.TriggerWorkflowRunID,
-						StepId:             *match.TriggerStepID,
-						StepIndex:          int(match.TriggerStepIndex.Int64),
-						AdditionalMetadata: additionalMetadata,
-						InitialState:       sqlcv1.V1TaskInitialStateQUEUED,
+						ExternalId:                *match.TriggerExternalID,
+						WorkflowRunId:             *match.TriggerWorkflowRunID,
+						StepId:                    *match.TriggerStepID,
+						StepIndex:                 int(match.TriggerStepIndex.Int64),
+						AdditionalMetadata:        additionalMetadata,
+						InitialState:              sqlcv1.V1TaskInitialStateQUEUED,
+						TriggeringEventExternalId: match.TriggerEventExternalID,
 					}
 
 					switch matchData.Action() {
@@ -630,6 +671,30 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 					if match.TriggerDagID.Valid && match.TriggerDagInsertedAt.Valid {
 						opt.DagId = &match.TriggerDagID.Int64
 						opt.DagInsertedAt = match.TriggerDagInsertedAt
+
+						// Prefer labels stored on the match; fall back to the DAG for rows
+						// created before the migration added trigger_desired_worker_labels.
+						// fixme: remove this later when we've upgraded everyone and are sure there are no
+						// more dags with desired worker labels only on the dag row
+						rawLabels := match.TriggerDesiredWorkerLabels
+						if len(rawLabels) == 0 {
+							rawLabels = dagIdsToDesiredWorkerLabels[match.TriggerDagID.Int64]
+						}
+
+						if len(rawLabels) > 0 {
+							var labels []*sqlcv1.GetDesiredLabelsRow
+							if err := json.Unmarshal(rawLabels, &labels); err != nil {
+								m.l.Error().Err(err).Msgf("failed to unmarshal desired worker labels for dag id %d and dag inserted at %s", *opt.DagId, opt.DagInsertedAt.Time)
+							}
+
+							for i, l := range labels {
+								lCopy := *l
+								lCopy.StepId = *match.TriggerStepID
+								labels[i] = &lCopy
+							}
+
+							opt.DesiredWorkerLabels = labels
+						}
 					}
 
 					if match.TriggerParentTaskExternalID != nil {
@@ -654,6 +719,10 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 					if match.TriggerPriority.Valid {
 						opt.Priority = &match.TriggerPriority.Int32
+					}
+
+					if match.TriggerEventKey.Valid {
+						opt.TriggeringEventKey = &match.TriggerEventKey.String
 					}
 
 					createTaskOpts = append(createTaskOpts, opt)
@@ -694,6 +763,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 	durableTaskInsertedAts := make([]pgtype.Timestamptz, 0)
 	durableTaskNodeIds := make([]int64, 0)
 	durableTaskBranchIds := make([]int64, 0)
+	isFailures := make([]bool, 0)
+	errorMessages := make([]string, 0)
 	payloadsToStore := make([]StorePayloadOpts, 0)
 	idInsertedAtNodeIdToSatisfiedEntry := make(map[DurableTaskNodeIdKey]SatisfiedEntry)
 
@@ -713,6 +784,12 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				BranchId:              branchId.Int64,
 			}
 
+			isFailure, errorMessage, extractErr := ExtractFailureFromMatchData(match.McAggregatedData)
+
+			if extractErr != nil {
+				return nil, fmt.Errorf("failed to extract failure information from match data for durable task with external id %s, durable task id %d and durable task inserted at %s: %w", *durableTaskExternalId, durableTaskId.Int64, durableTaskInsertedAt.Time, extractErr)
+			}
+
 			cb := SatisfiedEntry{
 				DurableTaskExternalId: *durableTaskExternalId,
 				DurableTaskId:         durableTaskId.Int64,
@@ -720,6 +797,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				NodeId:                nodeId.Int64,
 				BranchId:              branchId.Int64,
 				Data:                  match.McAggregatedData,
+				ChildTaskIsFailure:    isFailure,
+				ChildTaskErrorMessage: errorMessage,
 			}
 
 			idInsertedAtNodeIdToSatisfiedEntry[key] = cb
@@ -728,6 +807,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			durableTaskInsertedAts = append(durableTaskInsertedAts, durableTaskInsertedAt)
 			durableTaskNodeIds = append(durableTaskNodeIds, nodeId.Int64)
 			durableTaskBranchIds = append(durableTaskBranchIds, branchId.Int64)
+			isFailures = append(isFailures, isFailure)
+
+			errorMsgToInsert := ""
+			if errorMessage != nil {
+				errorMsgToInsert = *errorMessage
+			}
+
+			errorMessages = append(errorMessages, errorMsgToInsert)
 		}
 	}
 
@@ -736,6 +823,8 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 		Branchids:              durableTaskBranchIds,
 		Durabletaskids:         durableTaskIds,
 		Durabletaskinsertedats: durableTaskInsertedAts,
+		Childtaskisfailures:    isFailures,
+		Childtaskerrormessages: errorMessages,
 	})
 
 	if err != nil {
@@ -775,7 +864,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 				InsertedAt: cb.InsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYRESULTDATA,
 				Payload:    initialEntry.Data,
-				ExternalId: cb.ExternalID,
+				ExternalId: cb.ResultPayloadExternalID,
 				TenantId:   tenantId,
 			})
 		}
@@ -868,18 +957,29 @@ func (m *sharedRepository) processCELExpressions(ctx context.Context, events []C
 			expr = "true"
 		}
 
-		ast, issues := m.env.Compile(expr)
+		hasher := fnv.New64a()
+		hasher.Write([]byte(expr))
+		exprHash := hasher.Sum64()
 
-		if issues != nil {
-			m.l.Error().Ctx(ctx).Msgf("failed to compile CEL expression: %s", issues.String())
-			continue
-		}
+		program, ok := m.celProgramCache.Get(exprHash)
 
-		program, err := m.env.Program(ast)
+		if !ok {
+			ast, issues := m.env.Compile(expr)
 
-		if err != nil {
-			m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
-			continue
+			if issues != nil && issues.Err() != nil {
+				m.l.Error().Ctx(ctx).Err(issues.Err()).Msgf("failed to compile CEL expression: %s", expr)
+				continue
+			}
+
+			compiled, err := m.env.Program(ast)
+
+			if err != nil {
+				m.l.Error().Ctx(ctx).Err(err).Msgf("failed to create CEL program: %s", expr)
+				continue
+			}
+
+			m.celProgramCache.Add(exprHash, compiled)
+			program = compiled
 		}
 
 		programs[condition.ID] = program
@@ -1016,6 +1116,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 		triggerChildIndices := make([]pgtype.Int8, len(dagMatches))
 		triggerChildKeys := make([]pgtype.Text, len(dagMatches))
 		triggerPriorities := make([]pgtype.Int4, len(dagMatches))
+		triggerEventExternalIds := make([]*uuid.UUID, len(dagMatches))
+		triggerEventKeys := make([]pgtype.Text, len(dagMatches))
+		triggerDesiredWorkerLabels := make([][]byte, len(dagMatches))
 
 		for i, match := range dagMatches {
 			dagTenantIds[i] = tenantId
@@ -1042,6 +1145,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 			triggerWorkflowRunIds[i] = match.TriggerWorkflowRunId
 
 			triggerExistingTaskInsertedAts[i] = match.TriggerExistingTaskInsertedAt
+			triggerEventExternalIds[i] = match.TriggerEventExternalId
+			triggerEventKeys[i] = match.TriggerEventKey
+			triggerDesiredWorkerLabels[i] = match.TriggerDesiredWorkerLabels
 		}
 
 		// Create matches in the database
@@ -1066,6 +1172,9 @@ func (m *sharedRepository) createEventMatches(ctx context.Context, tx sqlcv1.DBT
 				TriggerChildIndex:             triggerChildIndices,
 				TriggerChildKey:               triggerChildKeys,
 				TriggerPriorities:             triggerPriorities,
+				TriggerEventExternalIds:       triggerEventExternalIds,
+				TriggerEventKeys:              triggerEventKeys,
+				TriggerDesiredWorkerLabels:    triggerDesiredWorkerLabels,
 			},
 		)
 
@@ -1195,7 +1304,10 @@ func getConditionParam(tenantId uuid.UUID, createdMatchId int64, condition Group
 		Data:            condition.Data,
 	}
 
-	if condition.EventResourceHint != nil {
+	// fixme: checking that the EventResourceHint is not a zero-valued uuid is a workaround,
+	// but there's likely a bug somewhere upstream where it's set to that instead of being nil,
+	// which would be better to fix at the root
+	if condition.EventResourceHint != nil && *condition.EventResourceHint != uuid.Nil.String() {
 		param.EventResourceHint = sqlchelpers.TextFromStr(*condition.EventResourceHint)
 	}
 
@@ -1322,6 +1434,9 @@ func (m *sharedRepository) createAdditionalMatches(ctx context.Context, tx sqlcv
 				TriggerChildIndex:             match.TriggerChildIndex,
 				TriggerChildKey:               match.TriggerChildKey,
 				TriggerPriority:               match.TriggerPriority,
+				TriggerEventExternalId:        match.TriggerEventExternalID,
+				TriggerEventKey:               match.TriggerEventKey,
+				TriggerDesiredWorkerLabels:    match.TriggerDesiredWorkerLabels,
 			}
 
 			for _, condition := range conditions {

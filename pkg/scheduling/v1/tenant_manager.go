@@ -263,7 +263,8 @@ func (t *tenantManager) setConcurrencyStrategies(strategies []*sqlcv1.V1StepConc
 	}
 
 	for _, strategy := range strategiesSet {
-		newArr = append(newArr, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+		c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
+		newArr = append(newArr, c)
 	}
 
 	t.concurrencyStrategies = newArr
@@ -279,7 +280,8 @@ func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrenc
 		}
 	}
 
-	t.concurrencyStrategies = append(t.concurrencyStrategies, newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock))
+	c := newConcurrencyManager(t.cf, t.tenantId, strategy, t.concurrencyResultsCh, t.concurrencyAdvisoryLock, t.concurrencyParentAdvisoryLock)
+	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
@@ -292,9 +294,11 @@ func (t *tenantManager) replenish(ctx context.Context) {
 
 func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int64) {
 	strategyIdsMap := make(map[int64]struct{}, len(strategyIds))
+	unmatchedIds := make(map[int64]struct{}, len(strategyIds))
 
 	for _, id := range strategyIds {
 		strategyIdsMap[id] = struct{}{}
+		unmatchedIds[id] = struct{}{}
 	}
 
 	t.concurrencyMu.RLock()
@@ -303,6 +307,8 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 		if _, ok := strategyIdsMap[c.strategy.ID]; !ok {
 			continue
 		}
+
+		delete(unmatchedIds, c.strategy.ID)
 
 		c.notify(ctx)
 
@@ -354,6 +360,14 @@ func (t *tenantManager) notifyConcurrency(ctx context.Context, strategyIds []int
 	}
 
 	t.concurrencyMu.RUnlock()
+
+	if len(unmatchedIds) > 0 {
+		leaseCtx := context.WithoutCancel(ctx)
+
+		for id := range unmatchedIds {
+			go t.notifyNewConcurrencyStrategy(leaseCtx, id)
+		}
+	}
 }
 
 func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID) {
@@ -366,7 +380,7 @@ func (t *tenantManager) notifyNewWorker(ctx context.Context, workerId uuid.UUID)
 }
 
 func (t *tenantManager) notifyNewQueue(ctx context.Context, queueName string) {
-	t.l.Debug().Msgf("notifying new queue %s for tenant %s", queueName, t.tenantId)
+	t.l.Debug().Str("queue_name", queueName).Msg("notifying new queue")
 
 	err := t.leaseManager.notifyNewQueue(ctx, queueName)
 
@@ -386,21 +400,25 @@ func (t *tenantManager) notifyNewConcurrencyStrategy(ctx context.Context, strate
 }
 
 func (t *tenantManager) queue(ctx context.Context, queueNames []string) {
-	queueNamesMap := make(map[string]struct{}, len(queueNames))
-
-	for _, name := range queueNames {
-		queueNamesMap[name] = struct{}{}
-	}
-
 	t.queuersMu.RLock()
-
+	requested := make(map[string]struct{}, len(queueNames))
+	for _, name := range queueNames {
+		requested[name] = struct{}{}
+	}
+	// iterate t.queuers (not queueNames) to keep queueMu acquisition order consistent
+	// across goroutines, avoiding lock-ordering warnings from go-deadlock
 	for _, q := range t.queuers {
-		if _, ok := queueNamesMap[q.queueName]; ok {
+		if _, ok := requested[q.queueName]; ok {
 			q.queue(ctx)
+			delete(requested, q.queueName)
 		}
 	}
-
 	t.queuersMu.RUnlock()
+
+	// this function sends to a channel that acquires the queuersMu, so needs to be outside lock.
+	for name := range requested {
+		t.notifyNewQueue(ctx, name)
+	}
 }
 
 type AssignedItemWithTask struct {

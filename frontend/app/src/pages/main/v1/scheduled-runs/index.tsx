@@ -9,12 +9,13 @@ import {
   metadataKey,
 } from './components/scheduled-runs-columns';
 import { useScheduledRuns } from './hooks/use-scheduled-runs';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import {
   ToolbarFilters,
   ToolbarType,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
@@ -32,7 +34,7 @@ import { docsPages } from '@/lib/generated/docs';
 import { ChevronDownIcon } from '@radix-ui/react-icons';
 import { RowSelectionState, VisibilityState } from '@tanstack/react-table';
 import { Command } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface ScheduledWorkflowRunsTableProps {
   createdAfter?: string;
@@ -45,7 +47,24 @@ interface ScheduledWorkflowRunsTableProps {
   showMetrics?: boolean;
 }
 
-export default function ScheduledRunsTable({
+export default function ScheduledRunsPage(
+  props: ScheduledWorkflowRunsTableProps,
+) {
+  return (
+    <WorkflowsGuard
+      title="No scheduled runs found"
+      description="Scheduled runs let you dispatch a workflow at a specific future date and time."
+      docs={{
+        href: docsPages.v1['scheduled-runs'].href,
+        description: 'Learn about scheduled runs',
+      }}
+    >
+      <ScheduledRunsTable {...props} />
+    </WorkflowsGuard>
+  );
+}
+
+function ScheduledRunsTable({
   workflowId,
   initColumnVisibility = {
     createdAt: false,
@@ -61,7 +80,10 @@ export default function ScheduledRunsTable({
     useState<string | null>(null);
 
   const [columnVisibility, setColumnVisibility] =
-    useState<VisibilityState>(initColumnVisibility);
+    useLocalStorageState<VisibilityState>(
+      'hatchet:columns:scheduled-runs',
+      initColumnVisibility,
+    );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const {
@@ -81,6 +103,7 @@ export default function ScheduledRunsTable({
     selectedWorkflowIds,
     selectedStatuses,
     selectedMetadata,
+    triggerNow,
   } = useScheduledRuns({
     key: 'table',
     workflowId,
@@ -131,6 +154,32 @@ export default function ScheduledRunsTable({
     filter?: ScheduledWorkflowsBulkDeleteFilter;
   } | null>(null);
   const [isActionsOpen, setIsActionsOpen] = useState(false);
+
+  const tableColumns = useMemo(
+    () =>
+      columns({
+        tenantId,
+        onDeleteClick: (row) => {
+          setShowScheduledRunRevoke(row);
+        },
+        onRescheduleClick: (row) => {
+          setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
+        },
+        onTriggerClick: (row) => triggerNow(row.metadata.id),
+        selectedAdditionalMetaJobId,
+        handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
+        onRowClick: (row) => {
+          open({
+            type: 'scheduled-run-details',
+            content: {
+              scheduledRun: row,
+            },
+          });
+        },
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tenantId, selectedAdditionalMetaJobId],
+  );
 
   const effectiveWorkflowId = workflowId || selectedWorkflowIds[0];
   const hasActiveFilters =
@@ -263,37 +312,16 @@ export default function ScheduledRunsTable({
 
       <DataTable
         emptyState={
-          <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-            <p className="text-lg font-semibold">No runs found</p>
-            <div className="w-fit">
-              <DocsButton
-                doc={docsPages.v1['scheduled-runs']}
-                label="Learn about scheduled runs"
-              />
-            </div>
-          </div>
+          <EmptyState
+            title="No scheduled runs found"
+            description="Scheduled runs let you dispatch a workflow at a specific future date and time."
+            docPage={docsPages.v1['scheduled-runs']}
+            docLabel="Learn about scheduled runs"
+          />
         }
         error={error}
         isLoading={isLoading}
-        columns={columns({
-          tenantId,
-          onDeleteClick: (row) => {
-            setShowScheduledRunRevoke(row);
-          },
-          onRescheduleClick: (row) => {
-            setRescheduleParams({ scheduledRunIds: [row.metadata.id] });
-          },
-          selectedAdditionalMetaJobId,
-          handleSetSelectedAdditionalMetaJobId: setSelectedAdditionalMetaJobId,
-          onRowClick: (row) => {
-            open({
-              type: 'scheduled-run-details',
-              content: {
-                scheduledRun: row,
-              },
-            });
-          },
-        })}
+        columns={tableColumns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         data={scheduledRuns}

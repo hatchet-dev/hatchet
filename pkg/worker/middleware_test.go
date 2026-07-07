@@ -142,6 +142,10 @@ func (c *testHatchetContext) Worker() HatchetWorkerContext {
 	panic("not implemented")
 }
 
+func (c *testHatchetContext) DurableTaskInvocationCount() int32 {
+	return 0
+}
+
 func (c *testHatchetContext) FilterPayload() map[string]interface{} {
 	panic("not implemented")
 }
@@ -155,6 +159,14 @@ func (c *testHatchetContext) ChildIndex() *int32 {
 }
 
 func (c *testHatchetContext) ChildKey() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TriggeringEventId() *string {
+	panic("not implemented")
+}
+
+func (c *testHatchetContext) TriggeringEventKey() *string {
 	panic("not implemented")
 }
 

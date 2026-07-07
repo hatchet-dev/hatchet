@@ -134,7 +134,7 @@ func TestLoadCLI(t *testing.T) {
 				Duration:                 240 * time.Second,
 				Events:                   10,
 				Delay:                    0 * time.Second,
-				WorkerDelay:              120 * time.Second, // will write 1200 events before the worker is ready
+				WorkerDelay:              120 * time.Second, // will write about 1100 events before the worker is ready
 				Wait:                     120 * time.Second,
 				Concurrency:              0,
 				Slots:                    100,
@@ -145,7 +145,7 @@ func TestLoadCLI(t *testing.T) {
 				RlKeys:                   0,
 				RlLimit:                  0,
 				RlDurationUnit:           "",
-				AverageDurationThreshold: avgThreshold,
+				AverageDurationThreshold: 45 * time.Second, // includes intentional queue wait from WorkerDelay
 			},
 		},
 		{
@@ -169,8 +169,9 @@ func TestLoadCLI(t *testing.T) {
 		},
 	}
 
-	// TODO instead of waiting, figure out when the engine setup is complete
-	time.Sleep(startupSleep)
+	if err := harness.WaitEngineReady(t.Context(), startupSleep); err != nil {
+		t.Fatalf("failed to bring up engine in time: %s", err)
+	}
 
 	for _, tt := range tests {
 		tt := tt // pin the loop variable

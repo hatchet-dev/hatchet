@@ -1,0 +1,41 @@
+module Hatchet
+  module WorkerRuntime
+    module DurableEviction
+      module EvictionCause
+        TTL_EXCEEDED: Symbol
+        CAPACITY_PRESSURE: Symbol
+        WORKER_SHUTDOWN: Symbol
+      end
+
+      class DurableRunRecord
+        attr_reader key: String
+        attr_reader step_run_id: String
+        attr_reader invocation_count: Integer
+        attr_reader eviction_policy: EvictionPolicy?
+        attr_reader registered_at: Time
+        attr_accessor waiting_since: Time?
+        attr_accessor wait_kind: String?
+        attr_accessor wait_resource_id: String?
+        attr_accessor eviction_reason: String?
+        attr_accessor wait_count: Integer
+
+        def initialize: (key: String, step_run_id: String, invocation_count: Integer, eviction_policy: EvictionPolicy?, registered_at: Time) -> void
+        def waiting?: () -> bool
+      end
+
+      class DurableEvictionCache
+        def initialize: () -> void
+        def register_run: (String key, step_run_id: String, invocation_count: Integer, now: Time, eviction_policy: EvictionPolicy?) -> void
+        def unregister_run: (String key) -> void
+        def get: (String key) -> DurableRunRecord?
+        def all_waiting: () -> Array[DurableRunRecord]
+        def find_key_by_step_run_id: (String step_run_id) -> String?
+        def mark_waiting: (String key, now: Time, wait_kind: String, resource_id: String) -> void
+        def mark_active: (String key, now: Time) -> void
+        def select_eviction_candidate: (now: Time, durable_slots: Integer, reserve_slots: Integer, min_wait_for_capacity_eviction: Numeric) -> String?
+
+        def self.build_eviction_reason: (Symbol cause, DurableRunRecord rec, ?ttl: Numeric?) -> String
+      end
+    end
+  end
+end

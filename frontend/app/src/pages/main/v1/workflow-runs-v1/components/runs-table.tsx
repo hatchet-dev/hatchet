@@ -2,14 +2,15 @@ import { TabOption } from '../$run/v2components/step-run-detail/step-run-detail'
 import { TriggerWorkflowForm } from '../../workflows/$workflow/components/trigger-workflow-form';
 import { useRunsContext } from '../hooks/runs-provider';
 import { AdditionalMetadataProp } from '../hooks/use-runs-table-filters';
+import { RunsEmptyGraphic } from './runs-empty-graphic';
 import { V1WorkflowRunsMetricsView } from './task-runs-metrics';
 import { columns, TaskRunColumn } from './v1/task-runs-columns';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import {
   DataPoint,
   ZoomableChart,
 } from '@/components/v1/molecules/charts/zoomable';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import {
   Dialog,
@@ -24,7 +25,7 @@ import { Toaster } from '@/components/v1/ui/toaster';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
+import { queries, V1TaskStatus } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -129,7 +130,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         type: 'task-run-details',
         content: {
           taskRunId,
-          defaultOpenTab: TabOption.Output,
+          defaultOpenTab: TabOption.Activity,
           showViewTaskRunButton: true,
         },
       });
@@ -194,6 +195,17 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
 
   const isRunningFirstLoad = isRunsLoading || isStatusCountsLoading;
 
+  const allStatusCount = Object.values(V1TaskStatus).length;
+  const hasActiveFilters =
+    (filters.apiFilters.statuses?.length ?? allStatusCount) < allStatusCount ||
+    (filters.apiFilters.workflowIds?.length ?? 0) > 0 ||
+    (filters.apiFilters.additionalMetadata?.length ?? 0) > 0 ||
+    !!filters.apiFilters.runningFilter ||
+    filters.isCustomTimeRange ||
+    filters.timeWindow !== '1d';
+  const isDefaultOneDayWindow =
+    !filters.isCustomTimeRange && filters.timeWindow === '1d';
+
   const leftActions = [
     ...(!hideCounts
       ? [
@@ -253,15 +265,32 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       <div className="min-h-0 flex-1">
         <DataTable
           emptyState={
-            <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-              <p className="text-lg font-semibold">No runs found</p>
-              <div className="w-fit">
-                <DocsButton
-                  doc={docsPages.v1.quickstart}
-                  label={'Learn more about tasks'}
-                />
-              </div>
-            </div>
+            hasActiveFilters ? (
+              <EmptyState
+                graphic={<RunsEmptyGraphic />}
+                title="No runs matching your filters"
+                buttons={[
+                  { label: 'Clear filters', onClick: filters.resetFilters },
+                ]}
+              />
+            ) : (
+              <EmptyState
+                title="No runs found"
+                description="Runs are individual executions of your tasks and workflows. Dispatch a task to see runs appear here."
+                docPage={docsPages.v1.quickstart}
+                docLabel="Learn about running tasks"
+                buttons={
+                  isDefaultOneDayWindow
+                    ? [
+                        {
+                          label: 'Search past 7 days',
+                          onClick: () => filters.setTimeWindow('7d'),
+                        },
+                      ]
+                    : undefined
+                }
+              />
+            )
           }
           isLoading={isRunningFirstLoad}
           columns={tableColumns}

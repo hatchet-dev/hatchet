@@ -28,7 +28,6 @@ import (
 	adminv1 "github.com/hatchet-dev/hatchet/internal/services/admin/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher"
 	dispatchercontracts "github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	dispatcherv1 "github.com/hatchet-dev/hatchet/internal/services/dispatcher/v1"
 	"github.com/hatchet-dev/hatchet/internal/services/grpc/middleware"
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor"
 	eventcontracts "github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
@@ -60,12 +59,14 @@ type Server struct {
 	config        *server.ServerConfig
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
+	dispatcherv1  v1contracts.V1DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
+
+	shutdownTimeout time.Duration
 }
 
 type ServerOpt func(*ServerOpts)
@@ -79,12 +80,14 @@ type ServerOpts struct {
 	bindAddress   string
 	ingestor      ingestor.Ingestor
 	dispatcher    dispatcher.Dispatcher
-	dispatcherv1  dispatcherv1.DispatcherService
+	dispatcherv1  v1contracts.V1DispatcherServer
 	admin         admin.AdminService
 	adminv1       adminv1.AdminService
 	otelCollector otelcol.OTelCollector
 	tls           *tls.Config
 	insecure      bool
+
+	shutdownTimeout time.Duration
 }
 
 func defaultServerOpts() *ServerOpts {
@@ -98,6 +101,8 @@ func defaultServerOpts() *ServerOpts {
 		port:        7070,
 		bindAddress: "127.0.0.1",
 		insecure:    false,
+
+		shutdownTimeout: 10 * time.Second,
 	}
 }
 
@@ -155,13 +160,24 @@ func WithInsecure() ServerOpt {
 	}
 }
 
+// WithShutdownTimeout bounds how long the server waits for in-flight RPCs and
+// streams to drain on graceful shutdown before forcing a hard stop. Non-positive
+// values are ignored.
+func WithShutdownTimeout(timeout time.Duration) ServerOpt {
+	return func(opts *ServerOpts) {
+		if timeout > 0 {
+			opts.shutdownTimeout = timeout
+		}
+	}
+}
+
 func WithDispatcher(d dispatcher.Dispatcher) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.dispatcher = d
 	}
 }
 
-func WithDispatcherV1(d dispatcherv1.DispatcherService) ServerOpt {
+func WithDispatcherV1(d v1contracts.V1DispatcherServer) ServerOpt {
 	return func(opts *ServerOpts) {
 		opts.dispatcherv1 = d
 	}
@@ -218,6 +234,8 @@ func NewServer(fs ...ServerOpt) (*Server, error) {
 		otelCollector: opts.otelCollector,
 		tls:           opts.tls,
 		insecure:      opts.insecure,
+
+		shutdownTimeout: opts.shutdownTimeout,
 	}, nil
 }
 
@@ -366,7 +384,22 @@ func (s *Server) startGRPC() (func() error, error) {
 	}()
 
 	cleanup := func() error {
-		grpcServer.GracefulStop()
+		stopped := make(chan struct{})
+
+		go func() {
+			defer close(stopped)
+			grpcServer.GracefulStop()
+		}()
+
+		select {
+		case <-stopped:
+			s.l.Debug().Msg("grpc server stopped gracefully")
+		case <-time.After(s.shutdownTimeout):
+			s.l.Error().Msgf("grpc server did not drain within %s, forcing a hard stop", s.shutdownTimeout)
+			grpcServer.Stop()
+			<-stopped
+		}
+
 		return nil
 	}
 

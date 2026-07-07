@@ -3,19 +3,22 @@ import {
   statusKey,
   metadataKey,
 } from '../components/scheduled-runs-columns';
+import { useToast } from '@/components/v1/hooks/use-toast';
 import { FilterOption } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { useRefetchInterval } from '@/contexts/refetch-interval-context';
 import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import {
+import api, {
   queries,
   ScheduledRunStatus,
   ScheduledWorkflowsOrderByField,
   WorkflowRunOrderByDirection,
 } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { appRoutes } from '@/router';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
+import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
 type UseScheduledRunsProps = {
@@ -41,10 +44,8 @@ export const useScheduledRuns = ({
 }: UseScheduledRunsProps) => {
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-    });
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
   const paramKey = `scheduled-runs-${key}`;
   const {
@@ -60,6 +61,19 @@ export const useScheduledRuns = ({
 
   // todo: allow multiple workflow ids here
   const effectiveWorkflowId = workflowId || selectedWorkflowIds[0];
+
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+      resetPageOnChange: [
+        selectedWorkflowIds,
+        selectedStatuses,
+        selectedMetadata,
+        workflowId,
+        parentWorkflowRunId,
+        parentStepRunId,
+      ],
+    });
 
   const { data, isLoading, refetch, error, isRefetching } = useQuery({
     ...queries.scheduledRuns.list(tenantId, {
@@ -99,6 +113,27 @@ export const useScheduledRuns = ({
     );
   }, [workflowKeys]);
 
+  const triggerNowMutation = useMutation({
+    mutationFn: async (scheduledRunId: string) =>
+      api.workflowScheduledTrigger(tenantId, scheduledRunId),
+    onSuccess: (data) => {
+      const runId = data?.data?.externalId;
+      if (runId) {
+        navigate({
+          to: appRoutes.tenantRunRoute.to,
+          params: { tenant: tenantId, run: runId },
+        });
+      } else {
+        toast({ title: 'Run triggered successfully' });
+      }
+    },
+  });
+
+  const triggerNow = useCallback(
+    (scheduledRunId: string) => triggerNowMutation.mutate(scheduledRunId),
+    [triggerNowMutation],
+  );
+
   return {
     scheduledRuns,
     numPages,
@@ -116,5 +151,6 @@ export const useScheduledRuns = ({
     workflowKeyFilters,
     isRefetching,
     resetFilters,
+    triggerNow,
   };
 };

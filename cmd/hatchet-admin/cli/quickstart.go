@@ -232,7 +232,7 @@ func generateKeys(generated *generatedConfigFiles) error {
 
 	// if using local keys, generate master key
 	if !generated.sc.Encryption.CloudKMS.Enabled {
-		masterKeyBytes, privateEc256, publicEc256, err := encryption.GenerateLocalKeys()
+		masterKeyBytes, privateEc256, publicEc256, _, err := encryption.GenerateLocalKeys()
 
 		if err != nil {
 			return err
@@ -250,7 +250,7 @@ func generateKeys(generated *generatedConfigFiles) error {
 
 	// generate jwt keys
 	if generated.sc.Encryption.CloudKMS.Enabled && (overwrite || (generated.sc.Encryption.JWT.PublicJWTKeyset == "") || (generated.sc.Encryption.JWT.PrivateJWTKeyset == "")) {
-		privateEc256, publicEc256, err := encryption.GenerateJWTKeysetsFromCloudKMS(
+		privateEc256, publicEc256, _, err := encryption.GenerateJWTKeysetsFromCloudKMS(
 			generated.sc.Encryption.CloudKMS.KeyURI,
 			[]byte(generated.sc.Encryption.CloudKMS.CredentialsJSON),
 		)

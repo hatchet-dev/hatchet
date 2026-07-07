@@ -137,11 +137,11 @@ type TenantRepository interface {
 	GetInternalTenantForController(ctx context.Context, controllerPartitionId string) (*sqlcv1.Tenant, error)
 
 	// ListTenantsByPartition lists all tenants in the given partition
-	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error)
+	ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]uuid.UUID, error)
 
-	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error)
+	ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*sqlcv1.Tenant, error)
 
-	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error)
+	ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error)
 
 	// CreateEnginePartition creates a new partition for tenants within the engine
 	CreateControllerPartition(ctx context.Context) (string, error)
@@ -664,8 +664,14 @@ func (r *tenantRepository) UpdateControllerPartitionHeartbeat(ctx context.Contex
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeout to 5 seconds to avoid deadlocks
+	// set tx timeouts to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+
+	if err != nil {
+		return "", err
+	}
+
+	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -702,8 +708,14 @@ func (r *tenantRepository) UpdateWorkerPartitionHeartbeat(ctx context.Context, p
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeout to 5 seconds to avoid deadlocks
+	// set tx timeouts to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+
+	if err != nil {
+		return "", err
+	}
+
+	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -743,26 +755,20 @@ func (r *tenantRepository) GetInternalTenantForController(ctx context.Context, c
 	return tenant, nil
 }
 
-func (r *tenantRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
+func (r *tenantRepository) ListTenantsByControllerPartition(ctx context.Context, controllerPartitionId string) ([]uuid.UUID, error) {
 	if controllerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, sqlcv1.ListTenantsByControllerPartitionIdParams{
-		ControllerPartitionId: controllerPartitionId,
-		Majorversion:          majorVersion,
-	})
+	return r.queries.ListTenantsByControllerPartitionId(ctx, r.pool, controllerPartitionId)
 }
 
-func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
+func (r *tenantRepository) ListTenantsByWorkerPartition(ctx context.Context, workerPartitionId string) ([]*sqlcv1.Tenant, error) {
 	if workerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, sqlcv1.ListTenantsByTenantWorkerPartitionIdParams{
-		WorkerPartitionId: workerPartitionId,
-		Majorversion:      majorVersion,
-	})
+	return r.queries.ListTenantsByTenantWorkerPartitionId(ctx, r.pool, workerPartitionId)
 }
 
 func (r *tenantRepository) CreateControllerPartition(ctx context.Context) (string, error) {
@@ -821,8 +827,14 @@ func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context
 
 	defer sqlchelpers.DeferRollback(ctx, r.l, tx.Rollback)
 
-	// set tx timeout to 5 seconds to avoid deadlocks
+	// set tx timeouts to 5 seconds to avoid deadlocks
 	_, err = tx.Exec(ctx, "SET statement_timeout=5000")
+
+	if err != nil {
+		return "", err
+	}
+
+	_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=5000")
 
 	if err != nil {
 		return "", err
@@ -850,15 +862,12 @@ func (r *tenantRepository) UpdateSchedulerPartitionHeartbeat(ctx context.Context
 	return partition.ID, nil
 }
 
-func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string, majorVersion sqlcv1.TenantMajorEngineVersion) ([]*sqlcv1.Tenant, error) {
+func (r *tenantRepository) ListTenantsBySchedulerPartition(ctx context.Context, schedulerPartitionId string) ([]*sqlcv1.Tenant, error) {
 	if schedulerPartitionId == "" {
 		return nil, fmt.Errorf("partitionId is required")
 	}
 
-	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, sqlcv1.ListTenantsBySchedulerPartitionIdParams{
-		SchedulerPartitionId: schedulerPartitionId,
-		Majorversion:         majorVersion,
-	})
+	return r.queries.ListTenantsBySchedulerPartitionId(ctx, r.pool, schedulerPartitionId)
 }
 
 func (r *tenantRepository) CreateSchedulerPartition(ctx context.Context) (string, error) {
@@ -886,18 +895,9 @@ func (r *tenantRepository) RebalanceInactiveSchedulerPartitions(ctx context.Cont
 }
 
 func (r *tenantRepository) DeleteTenant(ctx context.Context, id uuid.UUID) error {
-	var tenant *sqlcv1.Tenant
+	tenant, err := r.queries.DeleteTenant(ctx, r.pool, id)
 
-	if len(r.deleteCallbacks) > 0 {
-		var err error
-		tenant, err = r.queries.GetTenantByID(ctx, r.pool, id)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := r.queries.DeleteTenant(ctx, r.pool, id); err != nil {
+	if err != nil {
 		return err
 	}
 

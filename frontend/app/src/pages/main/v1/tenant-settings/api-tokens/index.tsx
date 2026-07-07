@@ -1,11 +1,12 @@
+import { SettingsPageHeader } from '../components/settings-page-header';
 import { TokenActions } from './components/api-tokens-columns';
 import { CreateTokenDialog } from './components/create-token-dialog';
 import { RevokeTokenForm } from './components/revoke-token-form';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import { Dialog } from '@/components/v1/ui/dialog';
-import { Separator } from '@/components/v1/ui/separator';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
@@ -57,11 +58,12 @@ export default function APITokens() {
   return (
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-row items-center justify-between">
-          <h2 className="text-2xl font-semibold leading-tight text-foreground">
-            API Tokens
-          </h2>
+        <SettingsPageHeader
+          title="API token settings"
+          description="Create and revoke API tokens used by workers and external systems to authenticate with this tenant."
+        />
 
+        <div className="mb-4 flex flex-row items-baseline justify-end">
           <Button
             key="create-api-token"
             onClick={() => setShowTokenDialog(true)}
@@ -69,20 +71,17 @@ export default function APITokens() {
             Create API Token
           </Button>
         </div>
-        <p className="my-4 text-gray-700 dark:text-gray-300">
-          API tokens are used by workers to connect with the Hatchet API and
-          engine.
-        </p>
-        <Separator className="my-4" />
         {(listTokensQuery.data?.rows || []).length > 0 ? (
           <SimpleTable
             columns={tokenColumns}
             data={listTokensQuery.data?.rows || []}
+            rowKey={(row) => row.metadata.id}
           />
         ) : (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            No API tokens found. Create a token to allow workers to connect.
-          </div>
+          <EmptyState
+            title="No API tokens found"
+            description="API tokens authenticate your workers and applications with the Hatchet API."
+          />
         )}
 
         {showTokenDialog && (

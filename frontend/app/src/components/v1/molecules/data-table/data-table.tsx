@@ -54,6 +54,7 @@ interface DataTableProps<TData extends IDGetter<TData>, TValue> {
   filters?: ToolbarFilters;
   leftActions?: JSX.Element[];
   rightActions?: JSX.Element[];
+  searchBar?: JSX.Element;
   sorting?: SortingState;
   setSorting?: OnChangeFn<SortingState>;
   setSearch?: (search: string) => void;
@@ -105,6 +106,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
   filters = [],
   leftActions = [],
   rightActions = [],
+  searchBar,
   sorting,
   setSorting,
   columnFilters,
@@ -199,11 +201,28 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
         )}
         onClick={row.original.onClick}
       >
-        {row.getVisibleCells().map((cell) => (
-          <TableCell key={cell.id}>
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </TableCell>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          const shouldTruncate = (
+            cell.column.columnDef.meta as { truncate?: boolean } | undefined
+          )?.truncate;
+          return (
+            <TableCell
+              key={cell.id}
+              className={shouldTruncate ? 'overflow-hidden' : undefined}
+              style={
+                shouldTruncate ? { maxWidth: cell.column.getSize() } : undefined
+              }
+            >
+              {shouldTruncate ? (
+                <div className="truncate">
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
+              ) : (
+                flexRender(cell.column.columnDef.cell, cell.getContext())
+              )}
+            </TableCell>
+          );
+        })}
       </TableRow>
     );
   };
@@ -220,7 +239,7 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 h-10 flex flex-col size-full items-center pt-2 mb-2">
+      <div className="shrink-0 min-h-10 flex flex-col w-full items-center pt-2 mb-2">
         <div className="w-full">
           {tableActions?.selectedActionType && (
             <ConfirmActionModal
@@ -233,13 +252,14 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
               showColumnVisibility={false}
             />
           )}
-          {(leftActions || rightActions || filters.length > 0) && (
+          {(leftActions || rightActions || searchBar || filters.length > 0) && (
             <DataTableToolbar
               table={table}
               filters={filters}
               isLoading={isLoading}
               leftActions={leftActions}
               rightActions={rightActions}
+              searchBar={searchBar}
               showColumnToggle={showColumnToggle}
               hiddenFilters={hiddenFilters}
               columnKeyToName={columnKeyToName}
@@ -250,53 +270,47 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto relative">
-        <Table className="table-auto w-full relative z-10">
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      colSpan={header.colSpan}
-                      className="border-b bg-background"
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody className="w-full">
-            {!hasRows ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={columns.length} className="h-full">
-                  <div className="flex h-full w-full flex-col items-center justify-center pt-8">
-                    {emptyState || (
-                      <p className="text-lg font-semibold">No results.</p>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
+      {hasRows ? (
+        <div className="min-h-0 flex-1 overflow-auto relative">
+          <Table className="table-auto w-full relative z-10">
+            <TableHeader className="sticky top-0 z-10 bg-background">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className="border-b bg-background"
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody className="w-full">
+              {table.getRowModel().rows.map((row) => (
                 <React.Fragment key={row.id}>
                   {getTableRow(row)}
                   {row.getIsExpanded() &&
                     row.subRows.map((r) => getTableRow(r))}
                 </React.Fragment>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center py-8">
+          {emptyState || <p className="text-lg font-semibold">No results.</p>}
+        </div>
+      )}
       <div className="shrink-0 h-10 flex items-center pt-2">
         <div className="w-full">
           <DataTablePagination

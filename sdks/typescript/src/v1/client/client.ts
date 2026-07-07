@@ -19,7 +19,7 @@ import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import api, { Api } from '@hatchet/clients/rest';
 import { ConfigLoader } from '@hatchet/util/config-loader';
 import { DEFAULT_LOGGER } from '@hatchet/clients/hatchet-client/hatchet-logger';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { EventClient, LogLevel } from '@hatchet/clients/event/event-client';
 import { DispatcherClient } from '@hatchet/clients/dispatcher/dispatcher-client';
 import { Logger } from '@hatchet/util/logger';
@@ -118,12 +118,6 @@ export class HatchetClient<
   tenantId: string;
 
   logger: Logger;
-
-  _isV1: boolean | undefined = true;
-
-  get isV1() {
-    return true;
-  }
 
   /**
    * Creates a new Hatchet client instance.
@@ -388,7 +382,7 @@ export class HatchetClient<
   async runNoWait<I extends InputType = UnknownInputType, O extends OutputType = void>(
     workflow: BaseWorkflowDeclaration<I, O> | LegacyWorkflow | string,
     input: I,
-    options: RunOpts
+    options: RunOpts = {}
   ): Promise<WorkflowRunRef<O>> {
     const name = getWorkflowName(workflow);
     return this.admin.runWorkflow<I, O>(name, input, options);

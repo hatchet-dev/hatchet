@@ -164,7 +164,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
 
       {workflow.triggers.crons && workflow.triggers.crons.length > 0 && (
         <FieldGroup label="Cron Schedules">
-          <div className="space-y-2">
+          <div className="max-h-72 space-y-2 overflow-y-auto pr-2">
             {workflow.triggers.crons.map((cronTrigger) => (
               <div key={cronTrigger.cron}>
                 <Badge
@@ -201,16 +201,13 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
         .map((c) => ({
           stepReadableId: c.stepReadableId || 'N/A',
           ...c,
-          // hack for typing
-          metadata: {
-            id: '',
-          },
         }))
         .sort(
           (a, b) =>
             b.scope.localeCompare(a.scope) ||
             a.stepReadableId.localeCompare(b.stepReadableId),
         )}
+      rowKey={(row, i) => `${row.scope}-${row.stepReadableId}-${i}`}
       columns={[
         { columnLabel: 'Scope', cellRenderer: (row) => formatScope(row.scope) },
         { columnLabel: 'Task', cellRenderer: (row) => row.stepReadableId },

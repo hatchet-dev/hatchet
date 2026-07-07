@@ -200,23 +200,25 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Limit Configuration
 
-| Variable                                        | Description                     | Default Value |
-| ----------------------------------------------- | ------------------------------- | ------------- |
-| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` | Default tenant retention period | `720h`        |
-| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`            | Default worker limit            | `4`           |
-| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`      | Default worker alarm limit      | `2`           |
-| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`             | Default event limit             | `1000`        |
-| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`       | Default event alarm limit       | `750`         |
-| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`            | Default event window            | `24h`         |
-| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`              | Default cron limit              | `5`           |
-| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`        | Default cron alarm limit        | `2`           |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`          | Default schedule limit          | `1000`        |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`    | Default schedule alarm limit    | `750`         |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`          | Default task run limit          | `2000`        |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`    | Default task run alarm limit    | `1500`        |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`         | Default task run window         | `24h`         |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`       | Default worker slot limit       | `4000`        |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT` | Default worker slot alarm limit | `3000`        |
+| Variable                                        | Description                     | Default Value  |
+| ----------------------------------------------- | ------------------------------- | -------------- |
+| `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` | Default tenant retention period | `720h`         |
+| `SERVER_LIMITS_CORE_PARTITION_RETENTION`        | Core partition retention period | Tenant default |
+| `SERVER_LIMITS_OLAP_PARTITION_RETENTION`        | OLAP partition retention period | Tenant default |
+| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`            | Default worker limit            | `4`            |
+| `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`      | Default worker alarm limit      | `2`            |
+| `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`             | Default event limit             | `1000`         |
+| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`       | Default event alarm limit       | `750`          |
+| `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`            | Default event window            | `24h`          |
+| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`              | Default cron limit              | `5`            |
+| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`        | Default cron alarm limit        | `2`            |
+| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`          | Default schedule limit          | `1000`         |
+| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`    | Default schedule alarm limit    | `750`          |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`          | Default task run limit          | `2000`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`    | Default task run alarm limit    | `1500`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`         | Default task run window         | `24h`          |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`       | Default worker slot limit       | `4000`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT` | Default worker slot alarm limit | `3000`         |
 
 ## Alerting Configuration
 
@@ -293,6 +295,7 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_TLS_ROOT_CA`                                     | TLS root CA                      |               |
 | `SERVER_TLS_ROOT_CA_FILE`                                | Path to the TLS root CA file     |               |
 | `SERVER_TLS_SERVER_NAME`                                 | TLS server name                  |               |
+| `SERVER_TLS_MIN_VERSION`                                 | Minimum TLS version (1.2, 1.3)   | `1.3`         |
 | `SERVER_INTERNAL_CLIENT_BASE_STRATEGY`                   | Internal client TLS strategy     |               |
 | `SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE`               | Inherit base TLS config          | `true`        |
 | `SERVER_INTERNAL_CLIENT_TLS_BASE_CERT`                   | Internal client TLS cert         |               |
@@ -318,20 +321,23 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## OpenTelemetry Configuration
 
-| Variable                            | Description                                                | Default Value |
-| ----------------------------------- | ---------------------------------------------------------- | ------------- |
-| `SERVER_OTEL_SERVICE_NAME`          | Service name for OpenTelemetry                             |               |
-| `SERVER_OTEL_COLLECTOR_URL`         | Collector URL for OpenTelemetry                            |               |
-| `SERVER_OTEL_INSECURE`              | Whether to use an insecure connection to the collector URL |               |
-| `SERVER_OTEL_TRACE_ID_RATIO`        | OpenTelemetry trace ID ratio                               |               |
-| `SERVER_OTEL_COLLECTOR_AUTH`        | OpenTelemetry Collector Authorization header value         |               |
-| `SERVER_OTEL_METRICS_ENABLED`       | Enable OpenTelemetry metrics collection                    | `false`       |
-| `SERVER_PROMETHEUS_ENABLED`         | Enable Prometheus                                          | `false`       |
-| `SERVER_PROMETHEUS_ADDRESS`         | Prometheus address                                         | `:9090`       |
-| `SERVER_PROMETHEUS_PATH`            | Prometheus metrics path                                    | `/metrics`    |
-| `SERVER_PROMETHEUS_SERVER_URL`      | Prometheus server URL                                      |               |
-| `SERVER_PROMETHEUS_SERVER_USERNAME` | Prometheus server username                                 |               |
-| `SERVER_PROMETHEUS_SERVER_PASSWORD` | Prometheus server password                                 |               |
+For how to enable and use internal trace export with these settings, see [Internal OpenTelemetry traces](/self-hosting/opentelemetry).
+
+| Variable                                 | Description                                                                                                                            | Default Value |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `SERVER_OTEL_SERVICE_NAME`               | Service name for OpenTelemetry                                                                                                         |               |
+| `SERVER_OTEL_COLLECTOR_URL`              | Collector URL for OpenTelemetry                                                                                                        |               |
+| `SERVER_OTEL_INSECURE`                   | Whether to use an insecure connection to the collector URL                                                                             |               |
+| `SERVER_OTEL_TRACE_ID_RATIO`             | OpenTelemetry trace ID ratio                                                                                                           |               |
+| `SERVER_OTEL_COLLECTOR_AUTH`             | OpenTelemetry Collector Authorization header value                                                                                     |               |
+| `SERVER_OTEL_METRICS_ENABLED`            | Enable OpenTelemetry metrics collection                                                                                                | `false`       |
+| `SERVER_PROMETHEUS_ENABLED`              | Enable Prometheus                                                                                                                      | `false`       |
+| `SERVER_PROMETHEUS_ADDRESS`              | Prometheus address                                                                                                                     | `:9090`       |
+| `SERVER_PROMETHEUS_PATH`                 | Prometheus metrics path                                                                                                                | `/metrics`    |
+| `SERVER_PROMETHEUS_SERVER_URL`           | Prometheus server URL                                                                                                                  |               |
+| `SERVER_PROMETHEUS_SERVER_USERNAME`      | Prometheus server username                                                                                                             |               |
+| `SERVER_PROMETHEUS_SERVER_PASSWORD`      | Prometheus server password                                                                                                             |               |
+| `SERVER_PROMETHEUS_SERVER_TENANT_SCOPED` | Gate the per-tenant metrics endpoint on each tenant's Prometheus metrics entitlement; when `false`, metrics are served for all tenants | `false`       |
 
 ## Tenant Alerting Configuration
 

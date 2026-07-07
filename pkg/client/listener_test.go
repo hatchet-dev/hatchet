@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -31,6 +32,74 @@ type mockSubscribeClient struct {
 	closeSendFn func() error
 	sendFn      func(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error
 	recvFn      func() (*dispatchercontracts.WorkflowRunEvent, error)
+}
+
+type mockDispatcherClient struct {
+	subscribeToWorkflowRunsFn func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error)
+}
+
+func (m *mockDispatcherClient) Register(ctx context.Context, in *dispatchercontracts.WorkerRegisterRequest, opts ...grpc.CallOption) (*dispatchercontracts.WorkerRegisterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) Listen(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenClient, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) ListenV2(ctx context.Context, in *dispatchercontracts.WorkerListenRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_ListenV2Client, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) Heartbeat(ctx context.Context, in *dispatchercontracts.HeartbeatRequest, opts ...grpc.CallOption) (*dispatchercontracts.HeartbeatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SubscribeToWorkflowEvents(ctx context.Context, in *dispatchercontracts.SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowEventsClient, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+	if m.subscribeToWorkflowRunsFn != nil {
+		return m.subscribeToWorkflowRunsFn(ctx, opts...)
+	}
+
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SendStepActionEvent(ctx context.Context, in *dispatchercontracts.StepActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *dispatchercontracts.GroupKeyActionEvent, opts ...grpc.CallOption) (*dispatchercontracts.ActionEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) PutOverridesData(ctx context.Context, in *dispatchercontracts.OverridesData, opts ...grpc.CallOption) (*dispatchercontracts.OverridesDataResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) Unsubscribe(ctx context.Context, in *dispatchercontracts.WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*dispatchercontracts.WorkerUnsubscribeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) RefreshTimeout(ctx context.Context, in *dispatchercontracts.RefreshTimeoutRequest, opts ...grpc.CallOption) (*dispatchercontracts.RefreshTimeoutResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) ReleaseSlot(ctx context.Context, in *dispatchercontracts.ReleaseSlotRequest, opts ...grpc.CallOption) (*dispatchercontracts.ReleaseSlotResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) RestoreEvictedTask(ctx context.Context, in *dispatchercontracts.RestoreEvictedTaskRequest, opts ...grpc.CallOption) (*dispatchercontracts.RestoreEvictedTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) UpsertWorkerLabels(ctx context.Context, in *dispatchercontracts.UpsertWorkerLabelsRequest, opts ...grpc.CallOption) (*dispatchercontracts.UpsertWorkerLabelsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
+}
+
+func (m *mockDispatcherClient) GetVersion(ctx context.Context, in *dispatchercontracts.GetVersionRequest, opts ...grpc.CallOption) (*dispatchercontracts.GetVersionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "not implemented")
 }
 
 func (m *mockSubscribeClient) Send(req *dispatchercontracts.SubscribeToWorkflowRunsRequest) error {
@@ -82,6 +151,137 @@ func (m *mockSubscribeClient) RecvMsg(msg interface{}) error {
 	return nil
 }
 
+func TestWorkflowRunsListenerAddWorkflowRunSendsOnceWhenStarting(t *testing.T) {
+	logger := zerolog.Nop()
+	recvChan := make(chan *dispatchercontracts.WorkflowRunEvent)
+
+	client := &mockSubscribeClient{
+		recvChan: recvChan,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return client, nil
+		},
+		l: &logger,
+	}
+
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		return nil
+	}))
+	assert.Equal(t, int32(1), client.sendCount.Load())
+
+	require.NoError(t, listener.Close())
+	close(recvChan)
+}
+
+func TestGetWorkflowRunsListenerImmediateAddDoesNotOpenSecondStream(t *testing.T) {
+	logger := zerolog.Nop()
+	closeCh := make(chan struct{})
+	var closeOnce sync.Once
+
+	client := &mockSubscribeClient{
+		recvFn: func() (*dispatchercontracts.WorkflowRunEvent, error) {
+			<-closeCh
+			return nil, io.EOF
+		},
+		closeSendFn: func() error {
+			closeOnce.Do(func() {
+				close(closeCh)
+			})
+			return nil
+		},
+	}
+
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				constructorCalls.Add(1)
+				return client, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getWorkflowRunsListener(context.Background())
+	require.NoError(t, err)
+	require.True(t, listener.isListening())
+
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		return nil
+	}))
+
+	require.Equal(t, int32(1), constructorCalls.Load())
+	require.Equal(t, int32(1), client.sendCount.Load())
+
+	require.NoError(t, listener.Close())
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestGetWorkflowRunsListenerInternalCleanupDoesNotTerminallyCloseListener(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	constructorCalls := atomic.Int32{}
+
+	subscriber := &subscribeClientImpl{
+		client: &mockDispatcherClient{
+			subscribeToWorkflowRunsFn: func(ctx context.Context, opts ...grpc.CallOption) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+				if constructorCalls.Add(1) == 1 {
+					return initialClient, nil
+				}
+
+				return replacementClient, nil
+			},
+		},
+		l:   &logger,
+		ctx: newContextLoader("", nil),
+	}
+
+	listener, err := subscriber.getWorkflowRunsListener(context.Background())
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+
+	received := make(chan WorkflowRunEvent, 1)
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		received <- event
+		return nil
+	}))
+
+	require.Equal(t, int32(2), constructorCalls.Load())
+	require.Equal(t, int32(1), replacementClient.sendCount.Load())
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	select {
+	case event := <-received:
+		assert.Equal(t, "run-1", event.WorkflowRunId)
+	case <-time.After(time.Second):
+		t.Fatal("expected workflow run event after internal cleanup")
+	}
+
+	listener.RemoveWorkflowRun("run-1", "session-1")
+	close(replacementClient.recvChan)
+	require.Eventually(t, func() bool {
+		return !listener.isListening()
+	}, time.Second, 10*time.Millisecond)
+}
+
 func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {
 	// This test verifies that when Send() fails on a broken stream,
 	// retrySend will call retrySubscribe to establish a new stream
@@ -131,6 +331,68 @@ func TestRetrySend_ResubscribesOnSendFailure(t *testing.T) {
 
 	// Verify the working client received a send
 	assert.Equal(t, int32(1), workingClient.sendCount.Load(), "working client should have received exactly one send")
+}
+
+func TestWorkflowRunsListenerReconnectDoesNotBlockClientSnapshot(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorEntered := make(chan struct{})
+	releaseConstructor := make(chan struct{})
+	var closeConstructorEntered sync.Once
+
+	oldClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+	newClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			closeConstructorEntered.Do(func() {
+				close(constructorEntered)
+			})
+			<-releaseConstructor
+			return newClient, nil
+		},
+		client: oldClient,
+		l:      &logger,
+	}
+
+	retryErr := make(chan error, 1)
+	go func() {
+		retryErr <- listener.retrySubscribe(context.Background())
+	}()
+
+	select {
+	case <-constructorEntered:
+	case <-time.After(time.Second):
+		t.Fatal("reconnect did not reach constructor")
+	}
+
+	snapshotRead := make(chan struct {
+		client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
+		generation uint64
+	}, 1)
+	go func() {
+		client, generation := listener.getClientSnapshot()
+		snapshotRead <- struct {
+			client     dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient
+			generation uint64
+		}{client: client, generation: generation}
+	}()
+
+	select {
+	case snapshot := <-snapshotRead:
+		require.Same(t, oldClient, snapshot.client)
+		require.Equal(t, uint64(0), snapshot.generation)
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("getClientSnapshot blocked behind reconnect")
+	}
+
+	close(releaseConstructor)
+
+	require.NoError(t, <-retryErr)
+	require.NoError(t, listener.Close())
 }
 
 func TestRetrySend_FailsAfterMaxRetries(t *testing.T) {
@@ -273,9 +535,13 @@ func TestListen_DispatchesEventsToHandlers(t *testing.T) {
 	}
 
 	var receivedEvent atomic.Value
-	listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
-		receivedEvent.Store(event)
-		return nil
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				receivedEvent.Store(event)
+				return nil
+			},
+		},
 	})
 
 	// Start Listen in a goroutine
@@ -288,6 +554,11 @@ func TestListen_DispatchesEventsToHandlers(t *testing.T) {
 	recvChan <- &dispatchercontracts.WorkflowRunEvent{
 		WorkflowRunId: "run-1",
 	}
+
+	require.Eventually(t, func() bool {
+		return receivedEvent.Load() != nil
+	}, time.Second, 10*time.Millisecond)
+	listener.handlers.Delete("run-1")
 
 	// Close the channel to trigger EOF and cleanly end Listen
 	close(recvChan)
@@ -343,6 +614,147 @@ func TestListen_ExitsOnCanceled(t *testing.T) {
 	assert.NoError(t, err, "Listen should return nil on Canceled")
 }
 
+func TestWorkflowRunsListenerRestartsAfterListenExits(t *testing.T) {
+	logger := zerolog.Nop()
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			return replacementClient, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(context.Background())
+	}()
+
+	require.NoError(t, <-listenErr)
+	require.False(t, listener.isListening())
+
+	received := make(chan WorkflowRunEvent, 1)
+	require.NoError(t, listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
+		received <- event
+		return nil
+	}))
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	select {
+	case event := <-received:
+		assert.Equal(t, "run-1", event.WorkflowRunId)
+	case <-time.After(time.Second):
+		t.Fatal("expected workflow run event after listener restarted")
+	}
+
+	listener.RemoveWorkflowRun("run-1", "session-1")
+	close(replacementClient.recvChan)
+}
+
+func TestWorkflowRunsListenerReconnectsOnEOFWithRegisteredHandlers(t *testing.T) {
+	logger := zerolog.Nop()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+	replacementClient := &mockSubscribeClient{
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent, 1),
+	}
+	constructorCalls := atomic.Int32{}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return replacementClient, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	received := make(chan WorkflowRunEvent, 1)
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				received <- event
+				return nil
+			},
+		},
+	})
+
+	listenErr := make(chan error, 1)
+	go func() {
+		listenErr <- listener.Listen(ctx)
+	}()
+
+	require.Eventually(t, func() bool {
+		return constructorCalls.Load() == 1 && replacementClient.sendCount.Load() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	replacementClient.recvChan <- &dispatchercontracts.WorkflowRunEvent{
+		WorkflowRunId: "run-1",
+	}
+
+	select {
+	case event := <-received:
+		assert.Equal(t, "run-1", event.WorkflowRunId)
+	case <-time.After(time.Second):
+		t.Fatal("expected workflow run event after EOF reconnect")
+	}
+
+	listener.RemoveWorkflowRun("run-1", "session-1")
+	close(replacementClient.recvChan)
+	require.NoError(t, <-listenErr)
+}
+
+func TestWorkflowRunsListenerClosePreventsEOFReconnectAndAdd(t *testing.T) {
+	logger := zerolog.Nop()
+	constructorCalls := atomic.Int32{}
+
+	initialClient := &mockSubscribeClient{
+		recvErr: io.EOF,
+	}
+
+	listener := &WorkflowRunsListener{
+		constructor: func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+			constructorCalls.Add(1)
+			return &mockSubscribeClient{
+				recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+			}, nil
+		},
+		client: initialClient,
+		l:      &logger,
+	}
+
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				return nil
+			},
+		},
+	})
+
+	require.NoError(t, listener.Close())
+	require.NoError(t, listener.listen(context.Background()))
+	assert.Equal(t, int32(0), constructorCalls.Load())
+
+	err := listener.AddWorkflowRun("run-2", "session-2", func(event WorkflowRunEvent) error {
+		return nil
+	})
+	require.ErrorIs(t, err, errListenerClosed)
+}
+
 func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 	// Verifies that after a Recv error, Listen reconnects and reads from the new client.
 
@@ -372,9 +784,13 @@ func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 	}
 
 	var receivedEvent atomic.Value
-	listener.AddWorkflowRun("run-1", "session-1", func(event WorkflowRunEvent) error {
-		receivedEvent.Store(event)
-		return nil
+	listener.handlers.Store("run-1", &threadSafeHandlers{
+		handlers: map[string]WorkflowRunEventHandler{
+			"session-1": func(event WorkflowRunEvent) error {
+				receivedEvent.Store(event)
+				return nil
+			},
+		},
 	})
 
 	listenErr := make(chan error, 1)
@@ -386,6 +802,11 @@ func TestListen_ReconnectsAndUsesNewClient(t *testing.T) {
 	newRecvChan <- &dispatchercontracts.WorkflowRunEvent{
 		WorkflowRunId: "run-1",
 	}
+
+	require.Eventually(t, func() bool {
+		return receivedEvent.Load() != nil
+	}, time.Second, 10*time.Millisecond)
+	listener.handlers.Delete("run-1")
 	close(newRecvChan)
 
 	err := <-listenErr

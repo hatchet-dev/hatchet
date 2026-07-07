@@ -27,10 +27,16 @@ type WrappedTaskFn func(ctx worker.HatchetContext) (interface{}, error)
 // It takes a DurableHatchetContext and returns an interface{} result and an error.
 type DurableWrappedTaskFn func(ctx worker.DurableHatchetContext) (interface{}, error)
 
+// EvictionPolicyOpts holds eviction policy parameters for durable tasks.
+// Aliased to task.EvictionPolicyOpts so callers can set the policy directly on
+// the returned *task.DurableTaskDeclaration without a second shared type.
+type EvictionPolicyOpts = task.EvictionPolicyOpts
+
 // NamedFunction represents a function with its associated action ID
 type NamedFunction struct {
-	ActionID string
-	Fn       WrappedTaskFn
+	ActionID       string
+	Fn             WrappedTaskFn
+	EvictionPolicy *EvictionPolicyOpts
 }
 
 // WorkflowBase defines the common interface for all workflow types.
@@ -594,6 +600,21 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 
 	tasksToRegister := append(taskOpts, durableOpts...)
 
+	filters := make([]*contracts.DefaultFilter, 0, len(w.DefaultFilters))
+
+	for _, filter := range w.DefaultFilters {
+		data, err := json.Marshal(filter.Payload)
+		if err != nil {
+			continue
+		}
+
+		filters = append(filters, &contracts.DefaultFilter{
+			Expression: filter.Expression,
+			Scope:      filter.Scope,
+			Payload:    data,
+		})
+	}
+
 	req := &contracts.CreateWorkflowVersionRequest{
 		Tasks:           tasksToRegister,
 		Name:            w.name,
@@ -601,6 +622,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		CronTriggers:    w.OnCron,
 		CronInput:       w.CronInput,
 		DefaultPriority: w.DefaultPriority,
+		DefaultFilters:  filters,
 	}
 
 	if w.Version != nil {
@@ -680,7 +702,8 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		originalFn := w.durableTaskFuncs[taskName]
 
 		durableNamedFns[i] = NamedFunction{
-			ActionID: durableOpts[i].Action,
+			ActionID:       durableOpts[i].Action,
+			EvictionPolicy: task.EvictionPolicy,
 			Fn: func(ctx worker.HatchetContext) (interface{}, error) {
 				var input I
 				err := ctx.WorkflowInput(&input)

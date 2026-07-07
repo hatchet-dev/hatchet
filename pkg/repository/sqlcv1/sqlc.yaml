@@ -28,6 +28,7 @@ sql:
       - tenants.sql
       - tenant_invites.sql
       - tenant_limits.sql
+      - tenant_entitlements.sql
       - ticker.sql
       - filters.sql
       - payload-store.sql
@@ -36,6 +37,7 @@ sql:
       - interval_settings.sql
       - pg_health.sql
       - users.sql
+      - sync.sql
       - workflow_schedules.sql
       - durable_event_log.sql
     schema:
@@ -70,3 +72,6 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
               pointer: true
+          - db_type: "uuidrange"
+            go_type:
+              type: "UUIDRange"

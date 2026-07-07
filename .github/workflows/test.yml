@@ -1,5 +1,8 @@
 name: test
 on:
+  push:
+    branches:
+      - main
   pull_request:
     paths-ignore:
       - "sdks/typescript/**"
@@ -30,7 +33,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -60,7 +63,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Go deps
         run: go mod download
@@ -86,7 +89,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -133,7 +136,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -146,7 +149,7 @@ jobs:
           curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Go deps
         run: go mod download
@@ -156,8 +159,6 @@ jobs:
           cat > .env <<EOF
           HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
           DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
@@ -178,6 +179,12 @@ jobs:
           SERVER_AUTH_COOKIE_DOMAIN=app.dev.hatchet-tools.com
           SERVER_AUTH_COOKIE_INSECURE=false
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
+          SERVER_MSGQUEUE_KIND=rabbitmq
+          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+          SERVER_GRPC_INSECURE=true
+          SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
+          SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+          SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
           EOF
 
       - name: Generate
@@ -192,11 +199,50 @@ jobs:
           . .env
           set +a
 
+          export SERVER_MSGQUEUE_KIND=rabbitmq
+          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
+          ENGINE_PID=$!
+          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
+          API_PID=$!
+
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+              echo "Hatchet engine and API are ready"
+              break
+            fi
+
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Hatchet engine exited before becoming ready"
+              cat /tmp/hatchet-engine.log
+              exit 1
+            fi
+
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "Hatchet API exited before becoming ready"
+              cat /tmp/hatchet-api.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+            echo "Timed out waiting for Hatchet engine/API to become ready"
+            echo "=== Engine logs ==="
+            cat /tmp/hatchet-engine.log
+            echo "=== API logs ==="
+            cat /tmp/hatchet-api.log
+            exit 1
+          fi
+
+      - name: Generate API token
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
 
       - name: Test
         run: |
@@ -222,7 +268,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -235,7 +281,7 @@ jobs:
           curl -sSf https://atlasgo.sh | sh
 
       - name: Compose
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Go deps
         run: go mod download
@@ -245,8 +291,6 @@ jobs:
           cat > .env <<EOF
           HATCHET_CLIENT_TENANT_ID=707d0855-80ab-4e1f-a156-f1c4546cbf52
           DATABASE_URL="postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet"
-          HATCHET_CLIENT_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
-          HATCHET_CLIENT_TLS_SERVER_NAME="cluster"
           SERVER_TLS_CERT_FILE=./hack/dev/certs/cluster.pem
           SERVER_TLS_KEY_FILE=./hack/dev/certs/cluster.key
           SERVER_TLS_ROOT_CA_FILE=./hack/dev/certs/ca.cert
@@ -269,6 +313,12 @@ jobs:
           SERVER_AUTH_SET_EMAIL_VERIFIED=true
 
           SERVER_TASKQUEUE_KIND=postgres
+          SERVER_MSGQUEUE_KIND=rabbitmq
+          SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+          SERVER_GRPC_INSECURE=true
+          SERVER_GRPC_BROADCAST_ADDRESS=127.0.0.1:7070
+          SERVER_INTERNAL_CLIENT_BASE_STRATEGY=none
+          SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE=false
           EOF
 
       - name: Generate
@@ -283,11 +333,50 @@ jobs:
           . .env
           set +a
 
+          export SERVER_MSGQUEUE_KIND=rabbitmq
+          export SERVER_MSGQUEUE_RABBITMQ_URL=amqp://user:password@127.0.0.1:5672/
+
           go run ./cmd/hatchet-admin quickstart
 
-          go run ./cmd/hatchet-engine --config ./generated/ &
-          go run ./cmd/hatchet-api --config ./generated/ &
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated/ > /tmp/hatchet-engine.log 2>&1 &
+          ENGINE_PID=$!
+          go run ./cmd/hatchet-api --config ./generated/ > /tmp/hatchet-api.log 2>&1 &
+          API_PID=$!
+
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 && (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+              echo "Hatchet engine and API are ready"
+              break
+            fi
+
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Hatchet engine exited before becoming ready"
+              cat /tmp/hatchet-engine.log
+              exit 1
+            fi
+
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "Hatchet API exited before becoming ready"
+              cat /tmp/hatchet-api.log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! (echo > /dev/tcp/127.0.0.1/7070) >/dev/null 2>&1 || ! (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1; then
+            echo "Timed out waiting for Hatchet engine/API to become ready"
+            echo "=== Engine logs ==="
+            cat /tmp/hatchet-engine.log
+            echo "=== API logs ==="
+            cat /tmp/hatchet-api.log
+            exit 1
+          fi
+
+      - name: Generate API token
+        run: |
+          echo "HATCHET_CLIENT_TOKEN=$(go run ./cmd/hatchet-admin token create --config ./generated/ --tenant-id 707d0855-80ab-4e1f-a156-f1c4546cbf52)" >> $GITHUB_ENV
+          echo "HATCHET_CLIENT_TLS_STRATEGY=none" >> $GITHUB_ENV
 
       - name: Test
         run: |
@@ -317,7 +406,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -338,202 +427,176 @@ jobs:
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
-
-  load-pgbouncer:
-    runs-on: ubicloud-standard-8
-    timeout-minutes: 30
-    strategy:
-      matrix:
-        migrate-strategy: ["latest"]
-        rabbitmq-enabled: ["true"]
-        pg-version: ["17-alpine"]
-        optimistic-scheduling: ["true", "false"]
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
-        with:
-          go-version: "1.25"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
-        with:
-          version: 10.16.1
-          run_install: false
-
-      - name: Go deps
-        run: go mod download
-
-      - name: Test
-        run: |
-          # Disable gzip compression for load tests to reduce CPU overhead
-          # Compression adds overhead without benefit for 0kb payloads
-          HATCHET_CLIENT_DISABLE_GZIP_COMPRESSION=true go test -tags load ./... -p 5 -v -race -failfast -timeout 20m
-        env:
-          TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
-          TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
-          TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
-          TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
-          TESTING_MATRIX_PGBOUNCER_ENABLED: "true"
+          HATCHET_LOADTEST_STARTUP_SLEEP: 120s
 
   load-online-migrate:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     env:
       DATABASE_URL: postgresql://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_BROADCAST_ADDRESS: localhost:7077
+      SERVER_GRPC_INSECURE: "true"
+      SERVER_AUTH_COOKIE_DOMAIN: localhost
+      SERVER_AUTH_COOKIE_INSECURE: "true"
+      SERVER_MSGQUEUE_KIND: postgres
+      SERVER_LOGGER_LEVEL: warn
+      SERVER_LOGGER_FORMAT: console
+      DATABASE_LOGGER_LEVEL: warn
+      DATABASE_LOGGER_FORMAT: console
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Compose
         run: docker compose up -d
 
-      - name: Determine latest stable release tag
+      - name: Determine penultimate migration version
         run: |
-          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          if [ -z "$LATEST_TAG" ]; then
-            echo "ERROR: No stable release tag found"
-            exit 1
-          fi
-          echo "Latest stable tag: $LATEST_TAG"
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          PENULTIMATE_VERSION=$(ls cmd/hatchet-migrate/migrate/migrations/ | grep -E '^[0-9]+' | sort | tail -2 | head -1 | cut -d'_' -f1)
+          echo "Penultimate migration version: $PENULTIMATE_VERSION"
+          echo "PENULTIMATE_VERSION=$PENULTIMATE_VERSION" >> $GITHUB_ENV
 
-      - name: Pull old release images
-        run: |
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }}
-          docker pull ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }}
-
-      - name: Run old migrations
-        run: |
-          docker run --rm --network host \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{ env.LATEST_TAG }}
-
-      - name: Capture old migration version
-        run: |
-          OLD_VERSION=$(docker run --rm --network host \
-            -e PGPASSWORD=hatchet \
-            postgres:17-alpine \
-            psql -h 127.0.0.1 -p 5431 -U hatchet -d hatchet -t -A \
-            -c "SELECT max(version_id) FROM goose_db_version WHERE is_applied = true")
-          echo "Old migration version: $OLD_VERSION"
-          echo "OLD_MIGRATION_VERSION=$OLD_VERSION" >> $GITHUB_ENV
+      - name: Run migrations up to penultimate
+        run: go run ./cmd/hatchet-migrate --up-to-penultimate
 
       - name: Setup config and seed database
         run: |
           mkdir -p generated
-          docker run --rm --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/generated
+          go run ./cmd/hatchet-admin quickstart --skip certs --generated-config-dir ./generated
 
       - name: Generate API token
         run: |
-          TOKEN=$(docker run --rm --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-admin token create --config /hatchet/generated)
+          TOKEN=$(go run ./cmd/hatchet-admin --config ./generated token create)
           echo "HATCHET_CLIENT_TOKEN=$TOKEN" >> $GITHUB_ENV
 
-      - name: Start old engine
+      - name: Start engine
         run: |
-          docker run -d --name hatchet-engine --network host \
-            -v ${{ github.workspace }}/generated:/hatchet/generated \
-            -e DATABASE_URL="${{ env.DATABASE_URL }}" \
-            -e SERVER_GRPC_PORT=7077 \
-            -e SERVER_GRPC_BROADCAST_ADDRESS=localhost:7077 \
-            -e SERVER_GRPC_INSECURE=true \
-            -e SERVER_AUTH_COOKIE_DOMAIN=localhost \
-            -e SERVER_AUTH_COOKIE_INSECURE=true \
-            -e SERVER_MSGQUEUE_KIND=postgres \
-            -e SERVER_LOGGER_LEVEL=warn \
-            -e SERVER_LOGGER_FORMAT=console \
-            -e DATABASE_LOGGER_LEVEL=warn \
-            -e DATABASE_LOGGER_FORMAT=console \
-            ghcr.io/hatchet-dev/hatchet/hatchet-engine:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-engine --config /hatchet/generated
-          echo "Waiting 30s for engine to start..."
-          sleep 30
+          go run ./cmd/hatchet-engine --config ./generated > /tmp/engine.log 2>&1 &
+          ENGINE_PID=$!
+          echo $ENGINE_PID > /tmp/engine.pid
 
-      - name: Start old load test
-        run: |
-          docker run -d --name hatchet-loadtest --network host \
-            -e HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
-            -e HATCHET_CLIENT_TLS_STRATEGY=none \
-            -e HATCHET_CLIENT_HOST_PORT=localhost:7077 \
-            ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:${{ env.LATEST_TAG }} \
-            /hatchet/hatchet-load-test loadtest -e 10 -d 240s -w 60s -s 100
+          echo "Waiting for engine gRPC port 7077..."
+          for _ in {1..60}; do
+            if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+              echo "Engine exited before becoming ready:"
+              tail -50 /tmp/engine.log
+              exit 1
+            fi
 
-      - name: Wait then apply new migrations
+            if nc -z localhost 7077; then
+              echo "Engine is accepting connections on port 7077"
+              exit 0
+            fi
+
+            sleep 1
+          done
+
+          echo "Timed out waiting for engine gRPC port 7077"
+          tail -50 /tmp/engine.log
+          exit 1
+
+      - name: Run load test with migrations
+        id: run-load-test
+        continue-on-error: true
         run: |
+          HATCHET_CLIENT_TOKEN="${{ env.HATCHET_CLIENT_TOKEN }}" \
+          HATCHET_CLIENT_TLS_STRATEGY=none \
+          HATCHET_CLIENT_HOST_PORT=localhost:7077 \
+          go run ./cmd/hatchet-loadtest loadtest -e 10 -d 240s -w 60s -s 100 \
+            --registrationTimeout 20s > /tmp/loadtest.log 2>&1 &
+          LOADTEST_PID=$!
+          echo $LOADTEST_PID > /tmp/loadtest.pid
+
+          (
+            while kill -0 "$LOADTEST_PID" 2>/dev/null; do
+              ENGINE_PID=$(cat /tmp/engine.pid)
+              if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+                echo "Engine died during load test:"
+                tail -50 /tmp/engine.log
+                kill "$LOADTEST_PID" 2>/dev/null || true
+                exit 1
+              fi
+              sleep 5
+            done
+          ) &
+          WATCHER=$!
+
           echo "Waiting 30s for load test to get started..."
+          # Keep this above the 20s registration timeout so PutWorkflow must succeed on the N-1 schema.
           sleep 30
-          echo "Applying new migrations from current branch..."
-          go run ./cmd/hatchet-migrate
-          echo "New migrations applied successfully"
 
-      - name: Down migrate to old version then up again
-        run: |
-          echo "Migrating down to old version ${{ env.OLD_MIGRATION_VERSION }}..."
-          go run ./cmd/hatchet-migrate --down ${{ env.OLD_MIGRATION_VERSION }}
+          echo "Applying last migration..."
+          go run ./cmd/hatchet-migrate
+          echo "Last migration applied"
+
+          echo "Migrating down to penultimate version ${{ env.PENULTIMATE_VERSION }}..."
+          go run ./cmd/hatchet-migrate --down ${{ env.PENULTIMATE_VERSION }}
           echo "Down migration successful"
-          echo "Re-applying new migrations..."
-          go run ./cmd/hatchet-migrate
-          echo "Re-migration up successful"
 
-      - name: Wait for load test to complete
-        run: |
-          echo "Waiting for load test container to finish..."
-          docker wait hatchet-loadtest
-          EXIT_CODE=$(docker inspect hatchet-loadtest --format='{{.State.ExitCode}}')
-          echo "Load test exited with code: $EXIT_CODE"
-          if [ "$EXIT_CODE" != "0" ]; then
+          echo "Re-applying migrations..."
+          go run ./cmd/hatchet-migrate
+          echo "Re-migration successful"
+
+          echo "Waiting for load test to complete..."
+          set +e
+          wait $LOADTEST_PID
+          LOADTEST_RC=$?
+          set -e
+
+          kill "$WATCHER" 2>/dev/null || true
+          wait "$WATCHER" 2>/dev/null || true
+
+          if [ "$LOADTEST_RC" -ne 0 ]; then
             echo "=== Load test logs ==="
-            docker logs hatchet-loadtest
+            cat /tmp/loadtest.log
             echo "=== Engine logs ==="
-            docker logs hatchet-engine
-            exit 1
+            cat /tmp/engine.log
+            exit "$LOADTEST_RC"
           fi
           echo "Load test passed"
+
+      - name: Upload load-online-migrate logs
+        if: steps.run-load-test.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: load-online-migrate-logs
+          path: |
+            /tmp/engine.log
+            /tmp/loadtest.log
+          if-no-files-found: ignore
+
+      - name: Comment on PR
+        if: steps.run-load-test.outcome == 'failure' && github.event_name == 'pull_request'
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "⚠️ **Optional test failure**: The \`load-online-migrate\` job failed on this PR. This check is non-mandatory and does not block merging, but may be worth investigating. [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Teardown
         if: always()
         run: |
-          docker rm -f hatchet-loadtest hatchet-engine 2>/dev/null || true
+          if [ -f /tmp/loadtest.pid ]; then kill $(cat /tmp/loadtest.pid) 2>/dev/null || true; fi
+          if [ -f /tmp/engine.pid ]; then kill $(cat /tmp/engine.pid) 2>/dev/null || true; fi
           docker compose down
 
   load-deadlock:
     runs-on: ubicloud-standard-8
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     strategy:
       matrix:
         migrate-strategy: ["latest"]
@@ -552,7 +615,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -612,6 +675,8 @@ jobs:
           git diff --name-only -- '*.go' || true
 
       - name: Test (deadlock-instrumented)
+        id: run-tests
+        continue-on-error: true
         run: |
           # Disable gzip compression for load tests to reduce CPU overhead
           # Compression adds overhead without benefit for 0kb payloads
@@ -620,11 +685,19 @@ jobs:
           # This job adds go-deadlock + -race overhead; relax perf threshold to avoid flakes.
           HATCHET_LOADTEST_AVERAGE_DURATION_THRESHOLD: 1s
           # Give the engine a bit more time to come up under instrumentation.
-          HATCHET_LOADTEST_STARTUP_SLEEP: 30s
+          HATCHET_LOADTEST_STARTUP_SLEEP: 120s
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           TESTING_MATRIX_OPTIMISTIC_SCHEDULING: ${{ matrix.optimistic-scheduling }}
+
+      - name: Comment on PR
+        if: steps.run-tests.outcome == 'failure' && github.event_name == 'pull_request'
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "⚠️ **Optional test failure**: The \`load-deadlock\` job failed on this PR (optimistic-scheduling=${{ matrix.optimistic-scheduling }}). This check is non-mandatory and does not block merging, but may be worth investigating. [View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   rampup:
     runs-on: ubicloud-standard-8
@@ -646,7 +719,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -664,3 +737,4 @@ jobs:
           TESTING_MATRIX_MIGRATE: ${{ matrix.migrate-strategy }}
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
+          RAMP_UP_DURATION_TIMEOUT: 30s

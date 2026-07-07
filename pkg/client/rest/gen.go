@@ -63,7 +63,9 @@ const (
 
 // Defines values for FeatureFlagId.
 const (
+	OrganizationSsoEnabled         FeatureFlagId = "organization-sso-enabled"
 	TenantLogWorkflowFilterEnabled FeatureFlagId = "tenant-log-workflow-filter-enabled"
+	TraceMinimapEnabled            FeatureFlagId = "trace-minimap-enabled"
 )
 
 // Defines values for JobRunStatus.
@@ -222,6 +224,20 @@ const (
 	HMAC V1CreateWebhookRequestHMACAuthType = "HMAC"
 )
 
+// Defines values for V1DurableEventLogKind.
+const (
+	MEMO    V1DurableEventLogKind = "MEMO"
+	RUN     V1DurableEventLogKind = "RUN"
+	WAITFOR V1DurableEventLogKind = "WAIT_FOR"
+)
+
+// Defines values for V1DurableWaitConditionKind.
+const (
+	CHILDWORKFLOW V1DurableWaitConditionKind = "CHILD_WORKFLOW"
+	SLEEP         V1DurableWaitConditionKind = "SLEEP"
+	USEREVENT     V1DurableWaitConditionKind = "USER_EVENT"
+)
+
 // Defines values for V1LogLineLevel.
 const (
 	V1LogLineLevelDEBUG V1LogLineLevel = "DEBUG"
@@ -317,19 +333,19 @@ const (
 	V1WorkflowTypeTASK V1WorkflowType = "TASK"
 )
 
-// Defines values for WorkerStatus.
-const (
-	ACTIVE   WorkerStatus = "ACTIVE"
-	INACTIVE WorkerStatus = "INACTIVE"
-	PAUSED   WorkerStatus = "PAUSED"
-)
-
 // Defines values for WorkerRuntimeSDKs.
 const (
 	GOLANG     WorkerRuntimeSDKs = "GOLANG"
 	PYTHON     WorkerRuntimeSDKs = "PYTHON"
 	RUBY       WorkerRuntimeSDKs = "RUBY"
 	TYPESCRIPT WorkerRuntimeSDKs = "TYPESCRIPT"
+)
+
+// Defines values for WorkerStatus.
+const (
+	ACTIVE   WorkerStatus = "ACTIVE"
+	INACTIVE WorkerStatus = "INACTIVE"
+	PAUSED   WorkerStatus = "PAUSED"
 )
 
 // Defines values for WorkerType.
@@ -409,6 +425,9 @@ type APIMeta struct {
 	// ObservabilityEnabled whether or not observability (trace collection) is enabled on this instance
 	ObservabilityEnabled *bool           `json:"observabilityEnabled,omitempty"`
 	Posthog              *APIMetaPosthog `json:"posthog,omitempty"`
+
+	// PrometheusServerEnabled whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+	PrometheusServerEnabled *bool `json:"prometheusServerEnabled,omitempty"`
 
 	// PylonAppId the Pylon app ID for usepylon.com chat support
 	PylonAppId *string `json:"pylonAppId,omitempty"`
@@ -1136,10 +1155,11 @@ type TaskStats map[string]TaskStat
 
 // TaskStatusStat defines model for TaskStatusStat.
 type TaskStatusStat struct {
-	Concurrency *[]ConcurrencyStat `json:"concurrency,omitempty"`
-	Oldest      *time.Time         `json:"oldest,omitempty"`
-	Queues      *map[string]int64  `json:"queues,omitempty"`
-	Total       *int64             `json:"total,omitempty"`
+	Concurrency            *[]ConcurrencyStat `json:"concurrency,omitempty"`
+	Oldest                 *time.Time         `json:"oldest,omitempty"`
+	OldestExcludingRetries *time.Time         `json:"oldestExcludingRetries,omitempty"`
+	Queues                 *map[string]int64  `json:"queues,omitempty"`
+	Total                  *int64             `json:"total,omitempty"`
 }
 
 // Tenant defines model for Tenant.
@@ -1154,6 +1174,12 @@ type Tenant struct {
 
 	// Name The name of the tenant.
 	Name string `json:"name"`
+
+	// Region Control-plane shard region for the tenant (e.g. aws:us-west-2).
+	Region *string `json:"region,omitempty"`
+
+	// ServerUrl The server URL for the tenant (includes scheme)
+	ServerUrl *string `json:"serverUrl,omitempty"`
 
 	// Slug The slug of the tenant.
 	Slug    string        `json:"slug"`
@@ -1223,10 +1249,12 @@ type TenantInviteList struct {
 
 // TenantMember defines model for TenantMember.
 type TenantMember struct {
-	Metadata APIResourceMeta  `json:"metadata"`
-	Role     TenantMemberRole `json:"role"`
-	Tenant   *Tenant          `json:"tenant,omitempty"`
-	User     UserTenantPublic `json:"user"`
+	// ManuallyAdded Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed.
+	ManuallyAdded *bool            `json:"manually_added,omitempty"`
+	Metadata      APIResourceMeta  `json:"metadata"`
+	Role          TenantMemberRole `json:"role"`
+	Tenant        *Tenant          `json:"tenant,omitempty"`
+	User          UserTenantPublic `json:"user"`
 }
 
 // TenantMemberList defines model for TenantMemberList.
@@ -1281,6 +1309,12 @@ type TenantStepRunQueueMetrics struct {
 
 // TenantVersion defines model for TenantVersion.
 type TenantVersion string
+
+// TriggerRunResult defines model for TriggerRunResult.
+type TriggerRunResult struct {
+	// ExternalId The external ID of the triggered workflow run
+	ExternalId openapi_types.UUID `json:"externalId"`
+}
 
 // TriggerWorkflowRunRequest defines model for TriggerWorkflowRunRequest.
 type TriggerWorkflowRunRequest struct {
@@ -1509,6 +1543,9 @@ type V1CreateWebhookRequestAPIKey struct {
 	// Name The name of the webhook
 	Name string `json:"name"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
 	SourceName      V1WebhookSourceName `json:"sourceName"`
@@ -1527,6 +1564,9 @@ type V1CreateWebhookRequestBase struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -1548,6 +1588,9 @@ type V1CreateWebhookRequestBasicAuth struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -1573,6 +1616,9 @@ type V1CreateWebhookRequestHMAC struct {
 	// Name The name of the webhook
 	Name string `json:"name"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
 	SourceName      V1WebhookSourceName `json:"sourceName"`
@@ -1589,6 +1635,52 @@ type V1DagChildren struct {
 	Children *[]V1TaskSummary    `json:"children,omitempty"`
 	DagId    *openapi_types.UUID `json:"dagId,omitempty"`
 }
+
+// V1DurableEventLogEntry defines model for V1DurableEventLogEntry.
+type V1DurableEventLogEntry struct {
+	// BranchId The branch id when this entry was first seen.
+	BranchId int64 `json:"branchId"`
+
+	// InsertedAt When this entry was inserted.
+	InsertedAt time.Time `json:"insertedAt"`
+
+	// IsSatisfied Whether this entry has been satisfied.
+	IsSatisfied bool                  `json:"isSatisfied"`
+	Kind        V1DurableEventLogKind `json:"kind"`
+
+	// NodeId The monotonically increasing node id in the event log.
+	NodeId int64 `json:"nodeId"`
+
+	// SatisfiedAt When this entry was satisfied, if it has been satisfied.
+	SatisfiedAt *time.Time `json:"satisfiedAt,omitempty"`
+
+	// TaskDisplayName The display name of the durable task this event log entry is associated with.
+	TaskDisplayName string `json:"taskDisplayName"`
+
+	// TaskExternalId The external id of the durable task this event log entry is associated with.
+	TaskExternalId openapi_types.UUID `json:"taskExternalId"`
+
+	// UserMessage A user-provided message or label, sent when establishing a durable wait.
+	UserMessage *string     `json:"userMessage,omitempty"`
+	WaitData    *V1WaitData `json:"waitData,omitempty"`
+}
+
+// V1DurableEventLogKind defines model for V1DurableEventLogKind.
+type V1DurableEventLogKind string
+
+// V1DurableEventLogList defines model for V1DurableEventLogList.
+type V1DurableEventLogList = []V1DurableEventLogEntry
+
+// V1DurableWaitCondition defines model for V1DurableWaitCondition.
+type V1DurableWaitCondition struct {
+	EventKey        *string                    `json:"eventKey,omitempty"`
+	Kind            V1DurableWaitConditionKind `json:"kind"`
+	SleepDurationMs *int64                     `json:"sleepDurationMs,omitempty"`
+	WorkflowName    *string                    `json:"workflowName,omitempty"`
+}
+
+// V1DurableWaitConditionKind defines model for V1DurableWaitConditionKind.
+type V1DurableWaitConditionKind string
 
 // V1Event defines model for V1Event.
 type V1Event struct {
@@ -1855,6 +1947,9 @@ type V1TaskSummary struct {
 	// Input The input of the task run.
 	Input openapi.NonNullableJSON `json:"input"`
 
+	// IsDurable Whether this task was created as a durable task.
+	IsDurable *bool `json:"isDurable,omitempty"`
+
 	// IsEvicted Whether the task has been evicted from a worker (still counts as RUNNING).
 	IsEvicted *bool           `json:"isEvicted,omitempty"`
 	Metadata  APIResourceMeta `json:"metadata"`
@@ -1972,6 +2067,9 @@ type V1TriggerWorkflowRunRequest struct {
 	// Priority The priority of the workflow run.
 	Priority *int `json:"priority,omitempty"`
 
+	// ReturnOnlyId A boolean flag indicating whether to only return the id of the created run.
+	ReturnOnlyId *bool `json:"return_only_id,omitempty"`
+
 	// WorkflowName The name of the workflow.
 	WorkflowName string `json:"workflowName"`
 }
@@ -1993,11 +2091,26 @@ type V1UpdateWebhookRequest struct {
 	// EventKeyExpression The CEL expression to use for the event key. This is used to create the event key from the webhook payload.
 	EventKeyExpression *string `json:"eventKeyExpression,omitempty"`
 
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
+
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string `json:"scopeExpression,omitempty"`
 
 	// StaticPayload The static payload to use for the webhook. This is used to send a static payload with the webhook.
 	StaticPayload *map[string]interface{} `json:"staticPayload,omitempty"`
+}
+
+// V1WaitData defines model for V1WaitData.
+type V1WaitData = []V1WaitItem
+
+// V1WaitItem defines model for V1WaitItem.
+type V1WaitItem struct {
+	EventKey        *string                     `json:"eventKey,omitempty"`
+	Kind            *V1DurableWaitConditionKind `json:"kind,omitempty"`
+	Or              *[]V1DurableWaitCondition   `json:"or,omitempty"`
+	SleepDurationMs *int64                      `json:"sleepDurationMs,omitempty"`
+	WorkflowName    *string                     `json:"workflowName,omitempty"`
 }
 
 // V1Webhook defines model for V1Webhook.
@@ -2010,6 +2123,9 @@ type V1Webhook struct {
 
 	// Name The name of the webhook
 	Name string `json:"name"`
+
+	// ReturnEventAsResponsePayload Whether to return the triggered event as the response payload when this webhook is triggered
+	ReturnEventAsResponsePayload *bool `json:"returnEventAsResponsePayload,omitempty"`
 
 	// ScopeExpression The CEL expression to use for the scope. This is used to filter the correct workflow to trigger.
 	ScopeExpression *string             `json:"scopeExpression,omitempty"`
@@ -2244,11 +2360,9 @@ type Worker struct {
 	SlotConfig *map[string]WorkerSlotConfig `json:"slotConfig,omitempty"`
 
 	// Slots The semaphore slot state for the worker.
-	Slots *[]SemaphoreSlots `json:"slots,omitempty"`
-
-	// Status The status of the worker.
-	Status *WorkerStatus `json:"status,omitempty"`
-	Type   WorkerType    `json:"type"`
+	Slots  *[]SemaphoreSlots `json:"slots,omitempty"`
+	Status *WorkerStatus     `json:"status,omitempty"`
+	Type   WorkerType        `json:"type"`
 
 	// WebhookId The webhook ID for the worker.
 	WebhookId *openapi_types.UUID `json:"webhookId,omitempty"`
@@ -2256,9 +2370,6 @@ type Worker struct {
 	// WebhookUrl The webhook URL for the worker.
 	WebhookUrl *string `json:"webhookUrl,omitempty"`
 }
-
-// WorkerStatus The status of the worker.
-type WorkerStatus string
 
 // WorkerLabel defines model for WorkerLabel.
 type WorkerLabel struct {
@@ -2296,6 +2407,9 @@ type WorkerSlotConfig struct {
 	// Limit The maximum number of units for this slot type.
 	Limit int `json:"limit"`
 }
+
+// WorkerStatus defines model for WorkerStatus.
+type WorkerStatus string
 
 // WorkerType defines model for WorkerType.
 type WorkerType string
@@ -2582,6 +2696,15 @@ type V1TaskEventListParams struct {
 	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
 
 	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// V1DurableTaskEventLogListParams defines parameters for V1DurableTaskEventLogList.
+type V1DurableTaskEventLogListParams struct {
+	// Offset The number of event log entries to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number of event log entries to limit by
 	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -2900,6 +3023,12 @@ type TenantGetQueueMetricsParams struct {
 	AdditionalMetadata *[]string `form:"additionalMetadata,omitempty" json:"additionalMetadata,omitempty"`
 }
 
+// RateLimitDeleteParams defines parameters for RateLimitDelete.
+type RateLimitDeleteParams struct {
+	// Key The limit key
+	Key string `form:"key" json:"key"`
+}
+
 // RateLimitListParams defines parameters for RateLimitList.
 type RateLimitListParams struct {
 	// Offset The number to skip
@@ -2916,6 +3045,24 @@ type RateLimitListParams struct {
 
 	// OrderByDirection The order direction
 	OrderByDirection *RateLimitOrderByDirection `form:"orderByDirection,omitempty" json:"orderByDirection,omitempty"`
+}
+
+// TenantGetTaskStatsParams defines parameters for TenantGetTaskStats.
+type TenantGetTaskStatsParams struct {
+	// TaskNames Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves.
+	TaskNames *[]string `form:"taskNames,omitempty" json:"taskNames,omitempty"`
+}
+
+// WorkerListParams defines parameters for WorkerList.
+type WorkerListParams struct {
+	// Offset The number to skip
+	Offset *int64 `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit The number to limit by
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Statuses Filter by worker status
+	Statuses *[]WorkerStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -3436,6 +3583,9 @@ type ClientInterface interface {
 
 	V1DurableTaskBranch(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// V1DurableTaskEventLogList request
+	V1DurableTaskEventLogList(ctx context.Context, tenant openapi_types.UUID, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// V1EventList request
 	V1EventList(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3640,6 +3790,9 @@ type ClientInterface interface {
 	// TenantGetQueueMetrics request
 	TenantGetQueueMetrics(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RateLimitDelete request
+	RateLimitDelete(ctx context.Context, tenant openapi_types.UUID, params *RateLimitDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RateLimitList request
 	RateLimitList(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3678,7 +3831,7 @@ type ClientInterface interface {
 	StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// TenantGetTaskStats request
-	TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WebhookList request
 	WebhookList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3689,7 +3842,7 @@ type ClientInterface interface {
 	WebhookCreate(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkerList request
-	WorkerList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+	WorkerList(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WorkflowRunUpdateReplayWithBody request with any body
 	WorkflowRunUpdateReplayWithBody(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3730,6 +3883,9 @@ type ClientInterface interface {
 
 	WorkflowCronUpdate(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// WorkflowCronTrigger request
+	WorkflowCronTrigger(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// WorkflowRunList request
 	WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -3759,6 +3915,9 @@ type ClientInterface interface {
 	WorkflowScheduledUpdateWithBody(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	WorkflowScheduledUpdate(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WorkflowScheduledTrigger request
+	WorkflowScheduledTrigger(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CronWorkflowTriggerCreateWithBody request with any body
 	CronWorkflowTriggerCreateWithBody(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -4143,6 +4302,18 @@ func (c *Client) V1DurableTaskBranchWithBody(ctx context.Context, tenant openapi
 
 func (c *Client) V1DurableTaskBranch(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewV1DurableTaskBranchRequest(c.Server, tenant, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) V1DurableTaskEventLogList(ctx context.Context, tenant openapi_types.UUID, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewV1DurableTaskEventLogListRequest(c.Server, tenant, durableTask, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5041,6 +5212,18 @@ func (c *Client) TenantGetQueueMetrics(ctx context.Context, tenant openapi_types
 	return c.Client.Do(req)
 }
 
+func (c *Client) RateLimitDelete(ctx context.Context, tenant openapi_types.UUID, params *RateLimitDeleteParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRateLimitDeleteRequest(c.Server, tenant, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) RateLimitList(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRateLimitListRequest(c.Server, tenant, params)
 	if err != nil {
@@ -5197,8 +5380,8 @@ func (c *Client) StepRunGetSchema(ctx context.Context, tenant openapi_types.UUID
 	return c.Client.Do(req)
 }
 
-func (c *Client) TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewTenantGetTaskStatsRequest(c.Server, tenant)
+func (c *Client) TenantGetTaskStats(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTenantGetTaskStatsRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5245,8 +5428,8 @@ func (c *Client) WebhookCreate(ctx context.Context, tenant openapi_types.UUID, b
 	return c.Client.Do(req)
 }
 
-func (c *Client) WorkerList(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewWorkerListRequest(c.Server, tenant)
+func (c *Client) WorkerList(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkerListRequest(c.Server, tenant, params)
 	if err != nil {
 		return nil, err
 	}
@@ -5425,6 +5608,18 @@ func (c *Client) WorkflowCronUpdate(ctx context.Context, tenant openapi_types.UU
 	return c.Client.Do(req)
 }
 
+func (c *Client) WorkflowCronTrigger(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowCronTriggerRequest(c.Server, tenant, cronWorkflow)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) WorkflowRunList(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowRunListRequest(c.Server, tenant, params)
 	if err != nil {
@@ -5547,6 +5742,18 @@ func (c *Client) WorkflowScheduledUpdateWithBody(ctx context.Context, tenant ope
 
 func (c *Client) WorkflowScheduledUpdate(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowScheduledUpdateRequest(c.Server, tenant, scheduledWorkflowRun, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) WorkflowScheduledTrigger(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWorkflowScheduledTriggerRequest(c.Server, tenant, scheduledWorkflowRun)
 	if err != nil {
 		return nil, err
 	}
@@ -6935,6 +7142,85 @@ func NewV1DurableTaskBranchRequestWithBody(server string, tenant openapi_types.U
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewV1DurableTaskEventLogListRequest generates requests for V1DurableTaskEventLogList
+func NewV1DurableTaskEventLogListRequest(server string, tenant openapi_types.UUID, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "durable-task", runtime.ParamLocationPath, durableTask)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/stable/tenants/%s/durable-tasks/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -10631,6 +10917,58 @@ func NewTenantGetQueueMetricsRequest(server string, tenant openapi_types.UUID, p
 	return req, nil
 }
 
+// NewRateLimitDeleteRequest generates requests for RateLimitDelete
+func NewRateLimitDeleteRequest(server string, tenant openapi_types.UUID, params *RateLimitDeleteParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/rate-limits", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "key", runtime.ParamLocationQuery, params.Key); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewRateLimitListRequest generates requests for RateLimitList
 func NewRateLimitListRequest(server string, tenant openapi_types.UUID, params *RateLimitListParams) (*http.Request, error) {
 	var err error
@@ -11146,7 +11484,7 @@ func NewStepRunGetSchemaRequest(server string, tenant openapi_types.UUID, stepRu
 }
 
 // NewTenantGetTaskStatsRequest generates requests for TenantGetTaskStats
-func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID, params *TenantGetTaskStatsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11169,6 +11507,28 @@ func NewTenantGetTaskStatsRequest(server string, tenant openapi_types.UUID) (*ht
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.TaskNames != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "taskNames", runtime.ParamLocationQuery, *params.TaskNames); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -11261,7 +11621,7 @@ func NewWebhookCreateRequestWithBody(server string, tenant openapi_types.UUID, c
 }
 
 // NewWorkerListRequest generates requests for WorkerList
-func NewWorkerListRequest(server string, tenant openapi_types.UUID) (*http.Request, error) {
+func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *WorkerListParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -11284,6 +11644,60 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID) (*http.Reque
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Statuses != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "statuses", runtime.ParamLocationQuery, *params.Statuses); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -11962,6 +12376,47 @@ func NewWorkflowCronUpdateRequestWithBody(server string, tenant openapi_types.UU
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewWorkflowCronTriggerRequest generates requests for WorkflowCronTrigger
+func NewWorkflowCronTriggerRequest(server string, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "cron-workflow", runtime.ParamLocationPath, cronWorkflow)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/crons/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -12808,6 +13263,47 @@ func NewWorkflowScheduledUpdateRequestWithBody(server string, tenant openapi_typ
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewWorkflowScheduledTriggerRequest generates requests for WorkflowScheduledTrigger
+func NewWorkflowScheduledTriggerRequest(server string, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tenant", runtime.ParamLocationPath, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithLocation("simple", false, "scheduled-workflow-run", runtime.ParamLocationPath, scheduledWorkflowRun)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/tenants/%s/workflows/scheduled/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -14004,6 +14500,9 @@ type ClientWithResponsesInterface interface {
 
 	V1DurableTaskBranchWithResponse(ctx context.Context, tenant openapi_types.UUID, body V1DurableTaskBranchJSONRequestBody, reqEditors ...RequestEditorFn) (*V1DurableTaskBranchResponse, error)
 
+	// V1DurableTaskEventLogListWithResponse request
+	V1DurableTaskEventLogListWithResponse(ctx context.Context, tenant openapi_types.UUID, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error)
+
 	// V1EventListWithResponse request
 	V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error)
 
@@ -14208,6 +14707,9 @@ type ClientWithResponsesInterface interface {
 	// TenantGetQueueMetricsWithResponse request
 	TenantGetQueueMetricsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetQueueMetricsParams, reqEditors ...RequestEditorFn) (*TenantGetQueueMetricsResponse, error)
 
+	// RateLimitDeleteWithResponse request
+	RateLimitDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, params *RateLimitDeleteParams, reqEditors ...RequestEditorFn) (*RateLimitDeleteResponse, error)
+
 	// RateLimitListWithResponse request
 	RateLimitListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*RateLimitListResponse, error)
 
@@ -14246,7 +14748,7 @@ type ClientWithResponsesInterface interface {
 	StepRunGetSchemaWithResponse(ctx context.Context, tenant openapi_types.UUID, stepRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*StepRunGetSchemaResponse, error)
 
 	// TenantGetTaskStatsWithResponse request
-	TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error)
+	TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error)
 
 	// WebhookListWithResponse request
 	WebhookListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WebhookListResponse, error)
@@ -14257,7 +14759,7 @@ type ClientWithResponsesInterface interface {
 	WebhookCreateWithResponse(ctx context.Context, tenant openapi_types.UUID, body WebhookCreateJSONRequestBody, reqEditors ...RequestEditorFn) (*WebhookCreateResponse, error)
 
 	// WorkerListWithResponse request
-	WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerListResponse, error)
+	WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*WorkerListResponse, error)
 
 	// WorkflowRunUpdateReplayWithBodyWithResponse request with any body
 	WorkflowRunUpdateReplayWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowRunUpdateReplayResponse, error)
@@ -14298,6 +14800,9 @@ type ClientWithResponsesInterface interface {
 
 	WorkflowCronUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, body WorkflowCronUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowCronUpdateResponse, error)
 
+	// WorkflowCronTriggerWithResponse request
+	WorkflowCronTriggerWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronTriggerResponse, error)
+
 	// WorkflowRunListWithResponse request
 	WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error)
 
@@ -14327,6 +14832,9 @@ type ClientWithResponsesInterface interface {
 	WorkflowScheduledUpdateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WorkflowScheduledUpdateResponse, error)
 
 	WorkflowScheduledUpdateWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, body WorkflowScheduledUpdateJSONRequestBody, reqEditors ...RequestEditorFn) (*WorkflowScheduledUpdateResponse, error)
+
+	// WorkflowScheduledTriggerWithResponse request
+	WorkflowScheduledTriggerWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledTriggerResponse, error)
 
 	// CronWorkflowTriggerCreateWithBodyWithResponse request with any body
 	CronWorkflowTriggerCreateWithBodyWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CronWorkflowTriggerCreateResponse, error)
@@ -14926,6 +15434,31 @@ func (r V1DurableTaskBranchResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r V1DurableTaskBranchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type V1DurableTaskEventLogListResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *V1DurableEventLogList
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r V1DurableTaskEventLogListResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r V1DurableTaskEventLogListResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -16310,6 +16843,29 @@ func (r TenantGetQueueMetricsResponse) StatusCode() int {
 	return 0
 }
 
+type RateLimitDeleteResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r RateLimitDeleteResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RateLimitDeleteResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type RateLimitListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16944,6 +17500,32 @@ func (r WorkflowCronUpdateResponse) StatusCode() int {
 	return 0
 }
 
+type WorkflowCronTriggerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TriggerRunResult
+	JSON400      *APIErrors
+	JSON403      *APIError
+	JSON404      *APIErrors
+	JSON500      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowCronTriggerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowCronTriggerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type WorkflowRunListResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17131,6 +17713,32 @@ func (r WorkflowScheduledUpdateResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r WorkflowScheduledUpdateResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type WorkflowScheduledTriggerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TriggerRunResult
+	JSON400      *APIErrors
+	JSON403      *APIErrors
+	JSON404      *APIErrors
+	JSON500      *APIErrors
+}
+
+// Status returns HTTPResponse.Status
+func (r WorkflowScheduledTriggerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WorkflowScheduledTriggerResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -18023,6 +18631,15 @@ func (c *ClientWithResponses) V1DurableTaskBranchWithResponse(ctx context.Contex
 	return ParseV1DurableTaskBranchResponse(rsp)
 }
 
+// V1DurableTaskEventLogListWithResponse request returning *V1DurableTaskEventLogListResponse
+func (c *ClientWithResponses) V1DurableTaskEventLogListWithResponse(ctx context.Context, tenant openapi_types.UUID, durableTask openapi_types.UUID, params *V1DurableTaskEventLogListParams, reqEditors ...RequestEditorFn) (*V1DurableTaskEventLogListResponse, error) {
+	rsp, err := c.V1DurableTaskEventLogList(ctx, tenant, durableTask, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseV1DurableTaskEventLogListResponse(rsp)
+}
+
 // V1EventListWithResponse request returning *V1EventListResponse
 func (c *ClientWithResponses) V1EventListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *V1EventListParams, reqEditors ...RequestEditorFn) (*V1EventListResponse, error) {
 	rsp, err := c.V1EventList(ctx, tenant, params, reqEditors...)
@@ -18671,6 +19288,15 @@ func (c *ClientWithResponses) TenantGetQueueMetricsWithResponse(ctx context.Cont
 	return ParseTenantGetQueueMetricsResponse(rsp)
 }
 
+// RateLimitDeleteWithResponse request returning *RateLimitDeleteResponse
+func (c *ClientWithResponses) RateLimitDeleteWithResponse(ctx context.Context, tenant openapi_types.UUID, params *RateLimitDeleteParams, reqEditors ...RequestEditorFn) (*RateLimitDeleteResponse, error) {
+	rsp, err := c.RateLimitDelete(ctx, tenant, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRateLimitDeleteResponse(rsp)
+}
+
 // RateLimitListWithResponse request returning *RateLimitListResponse
 func (c *ClientWithResponses) RateLimitListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *RateLimitListParams, reqEditors ...RequestEditorFn) (*RateLimitListResponse, error) {
 	rsp, err := c.RateLimitList(ctx, tenant, params, reqEditors...)
@@ -18787,8 +19413,8 @@ func (c *ClientWithResponses) StepRunGetSchemaWithResponse(ctx context.Context, 
 }
 
 // TenantGetTaskStatsWithResponse request returning *TenantGetTaskStatsResponse
-func (c *ClientWithResponses) TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error) {
-	rsp, err := c.TenantGetTaskStats(ctx, tenant, reqEditors...)
+func (c *ClientWithResponses) TenantGetTaskStatsWithResponse(ctx context.Context, tenant openapi_types.UUID, params *TenantGetTaskStatsParams, reqEditors ...RequestEditorFn) (*TenantGetTaskStatsResponse, error) {
+	rsp, err := c.TenantGetTaskStats(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -18822,8 +19448,8 @@ func (c *ClientWithResponses) WebhookCreateWithResponse(ctx context.Context, ten
 }
 
 // WorkerListWithResponse request returning *WorkerListResponse
-func (c *ClientWithResponses) WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkerListResponse, error) {
-	rsp, err := c.WorkerList(ctx, tenant, reqEditors...)
+func (c *ClientWithResponses) WorkerListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkerListParams, reqEditors ...RequestEditorFn) (*WorkerListResponse, error) {
+	rsp, err := c.WorkerList(ctx, tenant, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -18953,6 +19579,15 @@ func (c *ClientWithResponses) WorkflowCronUpdateWithResponse(ctx context.Context
 	return ParseWorkflowCronUpdateResponse(rsp)
 }
 
+// WorkflowCronTriggerWithResponse request returning *WorkflowCronTriggerResponse
+func (c *ClientWithResponses) WorkflowCronTriggerWithResponse(ctx context.Context, tenant openapi_types.UUID, cronWorkflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowCronTriggerResponse, error) {
+	rsp, err := c.WorkflowCronTrigger(ctx, tenant, cronWorkflow, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowCronTriggerResponse(rsp)
+}
+
 // WorkflowRunListWithResponse request returning *WorkflowRunListResponse
 func (c *ClientWithResponses) WorkflowRunListWithResponse(ctx context.Context, tenant openapi_types.UUID, params *WorkflowRunListParams, reqEditors ...RequestEditorFn) (*WorkflowRunListResponse, error) {
 	rsp, err := c.WorkflowRunList(ctx, tenant, params, reqEditors...)
@@ -19047,6 +19682,15 @@ func (c *ClientWithResponses) WorkflowScheduledUpdateWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseWorkflowScheduledUpdateResponse(rsp)
+}
+
+// WorkflowScheduledTriggerWithResponse request returning *WorkflowScheduledTriggerResponse
+func (c *ClientWithResponses) WorkflowScheduledTriggerWithResponse(ctx context.Context, tenant openapi_types.UUID, scheduledWorkflowRun openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowScheduledTriggerResponse, error) {
+	rsp, err := c.WorkflowScheduledTrigger(ctx, tenant, scheduledWorkflowRun, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWorkflowScheduledTriggerResponse(rsp)
 }
 
 // CronWorkflowTriggerCreateWithBodyWithResponse request with arbitrary body returning *CronWorkflowTriggerCreateResponse
@@ -20180,6 +20824,53 @@ func ParseV1DurableTaskBranchResponse(rsp *http.Response) (*V1DurableTaskBranchR
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseV1DurableTaskEventLogListResponse parses an HTTP response from a V1DurableTaskEventLogListWithResponse call
+func ParseV1DurableTaskEventLogListResponse(rsp *http.Response) (*V1DurableTaskEventLogListResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &V1DurableTaskEventLogListResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest V1DurableEventLogList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	}
 
@@ -22652,6 +23343,39 @@ func ParseTenantGetQueueMetricsResponse(rsp *http.Response) (*TenantGetQueueMetr
 	return response, nil
 }
 
+// ParseRateLimitDeleteResponse parses an HTTP response from a RateLimitDeleteWithResponse call
+func ParseRateLimitDeleteResponse(rsp *http.Response) (*RateLimitDeleteResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RateLimitDeleteResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseRateLimitListResponse parses an HTTP response from a RateLimitListWithResponse call
 func ParseRateLimitListResponse(rsp *http.Response) (*RateLimitListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -23747,6 +24471,60 @@ func ParseWorkflowCronUpdateResponse(rsp *http.Response) (*WorkflowCronUpdateRes
 	return response, nil
 }
 
+// ParseWorkflowCronTriggerResponse parses an HTTP response from a WorkflowCronTriggerWithResponse call
+func ParseWorkflowCronTriggerResponse(rsp *http.Response) (*WorkflowCronTriggerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowCronTriggerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TriggerRunResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseWorkflowRunListResponse parses an HTTP response from a WorkflowRunListWithResponse call
 func ParseWorkflowRunListResponse(rsp *http.Response) (*WorkflowRunListResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -24068,6 +24846,60 @@ func ParseWorkflowScheduledUpdateResponse(rsp *http.Response) (*WorkflowSchedule
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWorkflowScheduledTriggerResponse parses an HTTP response from a WorkflowScheduledTriggerWithResponse call
+func ParseWorkflowScheduledTriggerResponse(rsp *http.Response) (*WorkflowScheduledTriggerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WorkflowScheduledTriggerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TriggerRunResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

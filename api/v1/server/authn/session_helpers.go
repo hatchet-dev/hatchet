@@ -1,7 +1,9 @@
 package authn
 
 import (
+	"crypto/subtle"
 	"fmt"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
@@ -39,7 +41,9 @@ func (s *SessionHelpers) SaveUnauthenticated(c echo.Context) error {
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
 	if err != nil {
-		return err
+		clearCookie := s.ss.ClearingCookie(s.ss.GetName())
+		http.SetCookie(c.Response(), &clearCookie)
+		return nil
 	}
 
 	// unset all values
@@ -164,6 +168,10 @@ func (s *SessionHelpers) ValidateOAuthState(
 	integration string,
 ) (isValidated bool, isOAuthTriggered bool, err error) {
 	stateKey := fmt.Sprintf("oauth_state_%s", integration)
+	provided := c.Request().URL.Query().Get("state")
+	if provided == "" {
+		return false, false, fmt.Errorf("missing state parameter")
+	}
 
 	session, err := s.ss.Get(c.Request(), s.ss.GetName())
 
@@ -171,11 +179,12 @@ func (s *SessionHelpers) ValidateOAuthState(
 		return false, false, err
 	}
 
-	if _, ok := session.Values[stateKey]; !ok {
+	stored, ok := session.Values[stateKey].(string)
+	if !ok || stored == "" {
 		return false, false, fmt.Errorf("state parameter not found in session")
 	}
 
-	if c.Request().URL.Query().Get("state") != session.Values[stateKey] {
+	if subtle.ConstantTimeCompare([]byte(provided), []byte(stored)) != 1 {
 		return false, false, fmt.Errorf("state parameters do not match")
 	}
 
@@ -187,9 +196,9 @@ func (s *SessionHelpers) ValidateOAuthState(
 		isOAuthTriggered = ok && isOAuthTriggered
 	}
 
-	// need state parameter to validate when redirected
-	session.Values[stateKey] = ""
-	session.Values["oauth_triggered"] = false
+	// invalidate the single-use state by removing the keys entirely
+	delete(session.Values, stateKey)
+	delete(session.Values, "oauth_triggered")
 
 	if err := session.Save(c.Request(), c.Response()); err != nil {
 		return false, false, fmt.Errorf("could not clear session")

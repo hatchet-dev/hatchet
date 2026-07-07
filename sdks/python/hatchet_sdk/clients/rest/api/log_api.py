@@ -516,6 +516,18 @@ class LogApi:
             ],
             Field(description="The task external ID(s) to filter by"),
         ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id(s) to filter for"),
+        ] = None,
+        step_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The step id(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -544,6 +556,10 @@ class LogApi:
         :type levels: List[V1LogLineLevel]
         :param task_external_ids: The task external ID(s) to filter by
         :type task_external_ids: List[str]
+        :param workflow_ids: The workflow id(s) to filter for
+        :type workflow_ids: List[str]
+        :param step_ids: The step id(s) to filter for
+        :type step_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -573,6 +589,8 @@ class LogApi:
             search=search,
             levels=levels,
             task_external_ids=task_external_ids,
+            workflow_ids=workflow_ids,
+            step_ids=step_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -623,6 +641,18 @@ class LogApi:
             ],
             Field(description="The task external ID(s) to filter by"),
         ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id(s) to filter for"),
+        ] = None,
+        step_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The step id(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -651,6 +681,10 @@ class LogApi:
         :type levels: List[V1LogLineLevel]
         :param task_external_ids: The task external ID(s) to filter by
         :type task_external_ids: List[str]
+        :param workflow_ids: The workflow id(s) to filter for
+        :type workflow_ids: List[str]
+        :param step_ids: The step id(s) to filter for
+        :type step_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -680,6 +714,8 @@ class LogApi:
             search=search,
             levels=levels,
             task_external_ids=task_external_ids,
+            workflow_ids=workflow_ids,
+            step_ids=step_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -730,6 +766,18 @@ class LogApi:
             ],
             Field(description="The task external ID(s) to filter by"),
         ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id(s) to filter for"),
+        ] = None,
+        step_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The step id(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -758,6 +806,10 @@ class LogApi:
         :type levels: List[V1LogLineLevel]
         :param task_external_ids: The task external ID(s) to filter by
         :type task_external_ids: List[str]
+        :param workflow_ids: The workflow id(s) to filter for
+        :type workflow_ids: List[str]
+        :param step_ids: The step id(s) to filter for
+        :type step_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -787,6 +839,8 @@ class LogApi:
             search=search,
             levels=levels,
             task_external_ids=task_external_ids,
+            workflow_ids=workflow_ids,
+            step_ids=step_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -812,6 +866,8 @@ class LogApi:
         search,
         levels,
         task_external_ids,
+        workflow_ids,
+        step_ids,
         _request_auth,
         _content_type,
         _headers,
@@ -823,6 +879,8 @@ class LogApi:
         _collection_formats: Dict[str, str] = {
             "levels": "multi",
             "taskExternalIds": "multi",
+            "workflow_ids": "multi",
+            "step_ids": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -871,6 +929,14 @@ class LogApi:
         if task_external_ids is not None:
 
             _query_params.append(("taskExternalIds", task_external_ids))
+
+        if workflow_ids is not None:
+
+            _query_params.append(("workflow_ids", workflow_ids))
+
+        if step_ids is not None:
+
+            _query_params.append(("step_ids", step_ids))
 
         # process the header parameters
         # process the form parameters
@@ -939,6 +1005,18 @@ class LogApi:
             ],
             Field(description="The task external ID(s) to filter by"),
         ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id(s) to filter for"),
+        ] = None,
+        step_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The step id(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -973,6 +1051,10 @@ class LogApi:
         :type attempt: int
         :param task_external_ids: The task external ID(s) to filter by
         :type task_external_ids: List[str]
+        :param workflow_ids: The workflow id(s) to filter for
+        :type workflow_ids: List[str]
+        :param step_ids: The step id(s) to filter for
+        :type step_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1005,6 +1087,8 @@ class LogApi:
             order_by_direction=order_by_direction,
             attempt=attempt,
             task_external_ids=task_external_ids,
+            workflow_ids=workflow_ids,
+            step_ids=step_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1064,6 +1148,18 @@ class LogApi:
             ],
             Field(description="The task external ID(s) to filter by"),
         ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id(s) to filter for"),
+        ] = None,
+        step_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The step id(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1098,6 +1194,10 @@ class LogApi:
         :type attempt: int
         :param task_external_ids: The task external ID(s) to filter by
         :type task_external_ids: List[str]
+        :param workflow_ids: The workflow id(s) to filter for
+        :type workflow_ids: List[str]
+        :param step_ids: The step id(s) to filter for
+        :type step_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1130,6 +1230,8 @@ class LogApi:
             order_by_direction=order_by_direction,
             attempt=attempt,
             task_external_ids=task_external_ids,
+            workflow_ids=workflow_ids,
+            step_ids=step_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1189,6 +1291,18 @@ class LogApi:
             ],
             Field(description="The task external ID(s) to filter by"),
         ] = None,
+        workflow_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The workflow id(s) to filter for"),
+        ] = None,
+        step_ids: Annotated[
+            Optional[
+                List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
+            ],
+            Field(description="The step id(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -1223,6 +1337,10 @@ class LogApi:
         :type attempt: int
         :param task_external_ids: The task external ID(s) to filter by
         :type task_external_ids: List[str]
+        :param workflow_ids: The workflow id(s) to filter for
+        :type workflow_ids: List[str]
+        :param step_ids: The step id(s) to filter for
+        :type step_ids: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -1255,6 +1373,8 @@ class LogApi:
             order_by_direction=order_by_direction,
             attempt=attempt,
             task_external_ids=task_external_ids,
+            workflow_ids=workflow_ids,
+            step_ids=step_ids,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -1282,6 +1402,8 @@ class LogApi:
         order_by_direction,
         attempt,
         task_external_ids,
+        workflow_ids,
+        step_ids,
         _request_auth,
         _content_type,
         _headers,
@@ -1293,6 +1415,8 @@ class LogApi:
         _collection_formats: Dict[str, str] = {
             "levels": "multi",
             "taskExternalIds": "multi",
+            "workflow_ids": "multi",
+            "step_ids": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -1353,6 +1477,14 @@ class LogApi:
         if task_external_ids is not None:
 
             _query_params.append(("taskExternalIds", task_external_ids))
+
+        if workflow_ids is not None:
+
+            _query_params.append(("workflow_ids", workflow_ids))
+
+        if step_ids is not None:
+
+            _query_params.append(("step_ids", step_ids))
 
         # process the header parameters
         # process the form parameters

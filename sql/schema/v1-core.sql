@@ -129,6 +129,70 @@ BEGIN                -- null is covered by STRICT
 END
 $func$;
 
+-- Mirrors the body of the convert_duration_to_interval migration so sqlc can
+-- resolve the function during codegen. Keep both definitions in sync.
+CREATE OR REPLACE FUNCTION convert_duration_to_interval(duration text) RETURNS interval AS $$
+DECLARE
+    rest text;
+    total_seconds double precision := 0;
+    m text[];
+    val double precision;
+    unit text;
+    factor double precision;
+BEGIN
+    IF duration IS NULL OR length(duration) = 0 THEN
+        RETURN '5 minutes'::interval;
+    END IF;
+
+    m := regexp_match(duration, '^([0-9]{1,8})(d|w|y)$');
+    IF m IS NOT NULL THEN
+        val := m[1]::double precision;
+        unit := m[2];
+        CASE unit
+            WHEN 'd' THEN RETURN make_interval(days => val::int);
+            WHEN 'w' THEN RETURN make_interval(days => (val * 7)::int);
+            WHEN 'y' THEN RETURN make_interval(months => (val * 12)::int);
+        END CASE;
+    END IF;
+
+    rest := duration;
+
+    LOOP
+        EXIT WHEN length(rest) = 0;
+
+        m := regexp_match(rest, '^([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(ms|s|m|h)');
+
+        IF m IS NULL THEN
+            RETURN '5 minutes'::interval;
+        END IF;
+
+        IF length(m[1]) > 15 THEN
+            RAISE EXCEPTION 'duration % has a numeric component exceeding 15 digits', duration;
+        END IF;
+
+        val := m[1]::double precision;
+        unit := m[2];
+
+        CASE unit
+            WHEN 'ms' THEN factor := 1e-3;
+            WHEN 's' THEN factor := 1;
+            WHEN 'm' THEN factor := 60;
+            WHEN 'h' THEN factor := 3600;
+        END CASE;
+
+        total_seconds := total_seconds + val * factor;
+
+        rest := substring(rest from length(m[1]) + length(m[2]) + 1);
+    END LOOP;
+
+    IF total_seconds > 9223372036 THEN
+        RAISE EXCEPTION 'duration % exceeds maximum supported value (~292 years)', duration;
+    END IF;
+
+    RETURN make_interval(secs => total_seconds);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+
 -- CreateTable
 CREATE TABLE v1_queue (
     tenant_id UUID NOT NULL,
@@ -173,6 +237,8 @@ CREATE TABLE v1_step_concurrency (
     step_id UUID NOT NULL,
     -- If the strategy is NONE and we've removed all concurrency slots, we can set is_active to false
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    -- last_active_at is refreshed at most once per hour when a new slot is inserted for this strategy.
+    last_active_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     strategy v1_concurrency_strategy NOT NULL,
     expression TEXT NOT NULL,
     tenant_id UUID NOT NULL,
@@ -307,6 +373,8 @@ CREATE TABLE v1_task (
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
     desired_worker_label JSONB,
+    triggering_event_external_id UUID,
+    triggering_event_key TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -342,7 +410,7 @@ CREATE TABLE v1_task_event (
     event_key TEXT,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data JSONB,
-    external_id UUID,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     CONSTRAINT v1_task_event_pkey PRIMARY KEY (task_id, task_inserted_at, id)
 ) PARTITION BY RANGE(task_inserted_at);
 
@@ -406,7 +474,7 @@ CREATE INDEX v1_queue_item_list_idx ON v1_queue_item (
     id ASC
 );
 
-CREATE INDEX v1_queue_item_task_idx ON v1_queue_item (
+CREATE UNIQUE INDEX v1_queue_item_task_idx ON v1_queue_item (
     task_id ASC,
     task_inserted_at ASC,
     retry_count ASC
@@ -558,6 +626,10 @@ CREATE TABLE v1_match (
     trigger_existing_task_id bigint,
     trigger_existing_task_inserted_at timestamptz,
     trigger_priority integer,
+    trigger_event_external_id UUID,
+    trigger_event_key TEXT,
+    trigger_desired_worker_labels JSONB,
+
     durable_event_log_entry_node_id bigint,
     durable_event_log_entry_branch_id bigint,
     CONSTRAINT v1_match_pkey PRIMARY KEY (id)
@@ -634,6 +706,7 @@ CREATE TABLE v1_incoming_webhook (
     event_key_expression TEXT NOT NULL,
     scope_expression TEXT,
     static_payload JSONB,
+    return_event_as_response_payload BOOLEAN NOT NULL DEFAULT TRUE,
 
     auth_method v1_incoming_webhook_auth_type NOT NULL,
 
@@ -703,6 +776,7 @@ CREATE TABLE v1_dag (
     workflow_id UUID NOT NULL,
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
+    desired_worker_labels JSONB,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -835,12 +909,13 @@ BEGIN
             v1_step_concurrency strategy ON strategy.workflow_id = cs.workflow_id AND strategy.workflow_version_id = cs.workflow_version_id AND strategy.id = cs.strategy_id
         WHERE
             strategy.is_active = FALSE
+            OR strategy.last_active_at < NOW() - INTERVAL '1 hour'
         ORDER BY
             strategy.id
         FOR UPDATE
     )
     UPDATE v1_step_concurrency strategy
-    SET is_active = TRUE
+    SET is_active = TRUE, last_active_at = NOW()
     FROM inactive_strategies
     WHERE
         strategy.workflow_id = inactive_strategies.workflow_id AND
@@ -1132,7 +1207,9 @@ BEGIN
         retry_count,
         desired_worker_label
     FROM new_table
-    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL;
+    WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     -- Only insert into v1_dag and v1_dag_to_task if dag_id and dag_inserted_at are not null
     IF (SELECT COUNT(*) FROM new_table WHERE dag_id IS NOT NULL AND dag_inserted_at IS NOT NULL) > 0 THEN
@@ -1349,7 +1426,9 @@ BEGIN
     WHERE nt.initial_state = 'QUEUED'
         AND nt.concurrency_strategy_ids[1] IS NULL
         AND (nt.retry_backoff_factor IS NULL OR ot.app_retry_count IS NOT DISTINCT FROM nt.app_retry_count OR nt.app_retry_count = 0)
-        AND ot.retry_count IS DISTINCT FROM nt.retry_count;
+        AND ot.retry_count IS DISTINCT FROM nt.retry_count
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1487,7 +1566,9 @@ BEGIN
         desired_worker_id,
         retry_count,
         desired_worker_label
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1628,7 +1709,9 @@ BEGIN
         desired_worker_id,
         retry_count,
         desired_worker_label
-    FROM tasks;
+    FROM tasks
+    ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
+    ;
 
     RETURN NULL;
 END;
@@ -1727,7 +1810,7 @@ CREATE TABLE v1_payload (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
     inserted_at TIMESTAMPTZ NOT NULL,
-    external_id UUID,
+    external_id UUID NOT NULL DEFAULT gen_random_uuid(),
     type v1_payload_type NOT NULL,
     location v1_payload_location NOT NULL,
     external_location_key TEXT,
@@ -1742,17 +1825,32 @@ CREATE TABLE v1_payload (
     )
 ) PARTITION BY RANGE(inserted_at);
 
+CREATE INDEX v1_payload_external_id_idx ON v1_payload (external_id ASC);
+
 CREATE TABLE v1_payload_cutover_job_offset (
     key DATE PRIMARY KEY,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     lease_process_id UUID NOT NULL DEFAULT gen_random_uuid(),
     lease_expires_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    last_tenant_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
-    last_inserted_at TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00',
-    last_id BIGINT NOT NULL DEFAULT 0,
-    last_type v1_payload_type NOT NULL DEFAULT 'TASK_INPUT'
+    last_external_id UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::UUID
 );
+
+CREATE EXTENSION btree_gist;
+
+CREATE TYPE uuidrange AS RANGE (
+    SUBTYPE = UUID
+);
+
+CREATE TABLE v1_payload_offloaded_block_index (
+    payload_inserted_at_date DATE NOT NULL,
+    block_external_id_range uuidrange NOT NULL,
+    index_file_key TEXT NOT NULL,
+    CONSTRAINT v1_payload_offloaded_block_index_date_range_excl
+        EXCLUDE USING GIST (payload_inserted_at_date WITH =, block_external_id_range WITH &&)
+);
+
+CREATE UNIQUE INDEX v1_payload_offloaded_block_index_uq_index_key ON v1_payload_offloaded_block_index (index_file_key);
 
 CREATE OR REPLACE FUNCTION copy_v1_payload_partition_structure(
     partition_date date
@@ -1864,14 +1962,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION list_paginated_payloads_for_offload(
     partition_date date,
-    last_tenant_id uuid,
-    last_inserted_at timestamptz,
-    last_id bigint,
-    last_type v1_payload_type,
-    next_tenant_id uuid,
-    next_inserted_at timestamptz,
-    next_id bigint,
-    next_type v1_payload_type,
+    last_external_id uuid,
+    next_external_id uuid,
     batch_size integer
 ) RETURNS TABLE (
     tenant_id UUID,
@@ -1907,37 +1999,33 @@ BEGIN
             SELECT tenant_id, id, inserted_at, external_id, type, location,
                 external_location_key, inline_content, updated_at
             FROM %I
-            WHERE
-                (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
-            ORDER BY tenant_id, inserted_at, id, type
+            WHERE external_id >= $1::UUID
+            ORDER BY external_id
 
             -- Multiplying by two here to handle an edge case. There is a small chance we miss a row
             -- when a different row is inserted before it, in between us creating the chunks and selecting
             -- them. By multiplying by two to create a "candidate" set, we significantly reduce the chance of us missing
             -- rows in this way, since if a row is inserted before one of our last rows, we will still have
             -- the next row after it in the candidate set.
-            LIMIT $9 * 2
+            LIMIT $3 * 2
         )
 
         SELECT tenant_id, id, inserted_at, external_id, type, location,
                external_location_key, inline_content, updated_at
         FROM candidates
         WHERE
-            (tenant_id, inserted_at, id, type) >= ($1, $2, $3, $4)
-            AND (tenant_id, inserted_at, id, type) <= ($5, $6, $7, $8)
-        ORDER BY tenant_id, inserted_at, id, type
+            external_id >= $1
+            AND external_id <= $2
+        ORDER BY external_id
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, next_tenant_id, next_inserted_at, next_id, next_type, batch_size;
+    RETURN QUERY EXECUTE query USING last_external_id, next_external_id, batch_size;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION compute_payload_batch_size(
     partition_date DATE,
-    last_tenant_id UUID,
-    last_inserted_at TIMESTAMPTZ,
-    last_id BIGINT,
-    last_type v1_payload_type,
+    last_external_id UUID,
     batch_size INTEGER
 ) RETURNS BIGINT
     LANGUAGE plpgsql AS
@@ -1963,16 +2051,16 @@ BEGIN
         WITH candidates AS (
             SELECT *
             FROM %I
-            WHERE (tenant_id, inserted_at, id, type) >= ($1::UUID, $2::TIMESTAMPTZ, $3::BIGINT, $4::v1_payload_type)
-            ORDER BY tenant_id, inserted_at, id, type
-            LIMIT $5::INTEGER
+            WHERE external_id >= $1::UUID
+            ORDER BY external_id
+            LIMIT $2::INTEGER
         )
 
         SELECT COALESCE(SUM(pg_column_size(inline_content)), 0) AS total_size_bytes
         FROM candidates
     ', source_partition_name);
 
-    EXECUTE query INTO result_size USING last_tenant_id, last_inserted_at, last_id, last_type, batch_size;
+    EXECUTE query INTO result_size USING last_external_id, batch_size;
 
     RETURN result_size;
 END;
@@ -1982,19 +2070,10 @@ CREATE OR REPLACE FUNCTION create_payload_offload_range_chunks(
     partition_date date,
     window_size int,
     chunk_size int,
-    last_tenant_id uuid,
-    last_inserted_at timestamptz,
-    last_id bigint,
-    last_type v1_payload_type
+    last_external_id uuid
 ) RETURNS TABLE (
-    lower_tenant_id UUID,
-    lower_id BIGINT,
-    lower_inserted_at TIMESTAMPTZ,
-    lower_type v1_payload_type,
-    upper_tenant_id UUID,
-    upper_id BIGINT,
-    upper_inserted_at TIMESTAMPTZ,
-    upper_type v1_payload_type
+    lower_external_id UUID,
+    upper_external_id UUID
 )
     LANGUAGE plpgsql AS
 $$
@@ -2016,15 +2095,15 @@ BEGIN
 
     query := format('
         WITH paginated AS (
-            SELECT tenant_id, id, inserted_at, type, ROW_NUMBER() OVER (ORDER BY tenant_id, inserted_at, id, type) AS rn
+            SELECT external_id, ROW_NUMBER() OVER (ORDER BY external_id) AS rn
             FROM %I
-            WHERE (tenant_id, inserted_at, id, type) > ($1, $2, $3, $4)
-            ORDER BY tenant_id, inserted_at, id, type
-            LIMIT $5::INTEGER
+            WHERE external_id > $1::UUID
+            ORDER BY external_id
+            LIMIT $2::INTEGER
         ), lower_bounds AS (
-            SELECT rn::INTEGER / $6::INTEGER AS batch_ix, tenant_id::UUID, id::BIGINT, inserted_at::TIMESTAMPTZ, type::v1_payload_type
+            SELECT rn::INTEGER / $3::INTEGER AS batch_ix, external_id::UUID
             FROM paginated
-            WHERE MOD(rn, $6::INTEGER) = 1
+            WHERE MOD(rn, $3::INTEGER) = 1
         ), upper_bounds AS (
             SELECT
                 -- Using `CEIL` and subtracting 1 here to make the `batch_ix` zero indexed like the `lower_bounds` one is.
@@ -2032,31 +2111,22 @@ BEGIN
                 -- because without CEIL if e.g. there were 5 rows in the window and a batch size of two and we did integer division, we would end
                 -- up with batches of index 0, 1, and 1 after dividing and subtracting. With float division and `CEIL`, we get 0, 1, and 2 as expected.
                 -- Then we need to subtract one because we compute the batch index by using integer division on the lower bounds, which are all zero indexed.
-                CEIL(rn::FLOAT / $6::FLOAT) - 1 AS batch_ix,
-                tenant_id::UUID,
-                id::BIGINT,
-                inserted_at::TIMESTAMPTZ,
-                type::v1_payload_type
+                CEIL(rn::FLOAT / $3::FLOAT) - 1 AS batch_ix,
+                external_id::UUID
             FROM paginated
             -- We want to include either the last row of each batch, or the last row of the entire paginated set, which may not line up with a batch end.
-            WHERE MOD(rn, $6::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
+            WHERE MOD(rn, $3::INTEGER) = 0 OR rn = (SELECT MAX(rn) FROM paginated)
         )
 
         SELECT
-            lb.tenant_id AS lower_tenant_id,
-            lb.id AS lower_id,
-            lb.inserted_at AS lower_inserted_at,
-            lb.type AS lower_type,
-            ub.tenant_id AS upper_tenant_id,
-            ub.id AS upper_id,
-            ub.inserted_at AS upper_inserted_at,
-            ub.type AS upper_type
+            lb.external_id AS lower_external_id,
+            ub.external_id AS upper_external_id
         FROM lower_bounds lb
         JOIN upper_bounds ub ON lb.batch_ix = ub.batch_ix
-        ORDER BY lb.tenant_id, lb.inserted_at, lb.id, lb.type
+        ORDER BY lb.external_id
     ', source_partition_name);
 
-    RETURN QUERY EXECUTE query USING last_tenant_id, last_inserted_at, last_id, last_type, window_size, chunk_size;
+    RETURN QUERY EXECUTE query USING last_external_id, window_size, chunk_size;
 END;
 $$;
 
@@ -2122,6 +2192,8 @@ DECLARE
     temp_table_name varchar;
     old_pk_name varchar;
     new_pk_name varchar;
+    old_ext_id_idx_name varchar;
+    new_ext_id_idx_name varchar;
     partition_start date;
     partition_end date;
     trigger_function_name varchar;
@@ -2136,6 +2208,8 @@ BEGIN
     SELECT format('v1_payload_offload_tmp_%s', partition_date_str) INTO temp_table_name;
     SELECT format('v1_payload_offload_tmp_%s_pkey', partition_date_str) INTO old_pk_name;
     SELECT format('v1_payload_%s_pkey', partition_date_str) INTO new_pk_name;
+    SELECT format('v1_payload_offload_tmp_%s_external_id_idx', partition_date_str) INTO old_ext_id_idx_name;
+    SELECT format('v1_payload_%s_external_id_idx', partition_date_str) INTO new_ext_id_idx_name;
     SELECT format('sync_to_%s', temp_table_name) INTO trigger_function_name;
     SELECT format('trigger_sync_to_%s', temp_table_name) INTO trigger_name;
 
@@ -2175,6 +2249,9 @@ BEGIN
 
     RAISE NOTICE 'Renaming primary key % to %', old_pk_name, new_pk_name;
     EXECUTE format('ALTER INDEX %I RENAME TO %I', old_pk_name, new_pk_name);
+
+    RAISE NOTICE 'Renaming external_id index % to %', old_ext_id_idx_name, new_ext_id_idx_name;
+    EXECUTE format('ALTER INDEX %I RENAME TO %I', old_ext_id_idx_name, new_ext_id_idx_name);
 
     RAISE NOTICE 'Renaming temp table % to %', temp_table_name, source_partition_name;
     EXECUTE format('ALTER TABLE %I RENAME TO %I', temp_table_name, source_partition_name);
@@ -2320,8 +2397,13 @@ CREATE TYPE v1_durable_event_log_kind AS ENUM (
 CREATE TABLE v1_durable_event_log_entry (
     tenant_id UUID NOT NULL,
 
-    -- need an external id for consistency with the payload store logic (unfortunately)
     external_id UUID NOT NULL,
+    result_payload_external_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    -- Only set for RUN entries; holds the external_id of the child task that was spawned.
+    child_task_external_id UUID,
+    child_task_is_failure BOOLEAN NOT NULL DEFAULT FALSE,
+    child_task_error_message TEXT,
+
     -- The id and inserted_at of the durable task which created this entry
     -- The inserted_at time of this event from a DB clock perspective.
     -- Important: for consistency, this should always be auto-generated via the CURRENT_TIMESTAMP!
@@ -2348,6 +2430,10 @@ CREATE TABLE v1_durable_event_log_entry (
     -- Whether this callback has been seen by the engine or not. Note that is_satisfied _may_ change multiple
     -- times through the lifecycle of a callback, and readers should not assume that once it's true it will always be true.
     is_satisfied BOOLEAN NOT NULL DEFAULT FALSE,
+    satisfied_at TIMESTAMPTZ,
+
+    user_message TEXT,
+    wait_data JSONB,
 
     CONSTRAINT v1_durable_event_log_entry_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, branch_id, node_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
@@ -2372,3 +2458,102 @@ CREATE TABLE v1_durable_event_log_branch_point (
 
     CONSTRAINT v1_durable_event_log_branch_point_pkey PRIMARY KEY (durable_task_id, durable_task_inserted_at, parent_branch_id, first_node_id_in_new_branch, next_branch_id)
 ) PARTITION BY RANGE(durable_task_inserted_at);
+
+CREATE TABLE tenant_entitlement (
+    tenant_id UUID NOT NULL,
+
+    audit_logs BOOLEAN NOT NULL DEFAULT FALSE,
+
+    prometheus_metrics BOOLEAN NOT NULL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT tenant_entitlement_pkey PRIMARY KEY (tenant_id)
+);
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_insert_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'INSERT',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint
+        )
+    FROM new_table nt
+    WHERE nt.parent_strategy_id IS NULL;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_insert_outbox
+AFTER INSERT ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_insert_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_delete_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || dr.tenant_id::text || '.' || dr.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'DELETE',
+            'key', dr.key,
+            'priority', dr.priority,
+            'taskId', dr.task_id,
+            'taskInsertedAt', dr.task_inserted_at,
+            'taskRetryCount', dr.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM dr.schedule_timeout_at) * 1000)::bigint
+        )
+    FROM deleted_rows dr
+    WHERE dr.parent_strategy_id IS NULL;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_delete_outbox
+AFTER DELETE ON v1_concurrency_slot
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_delete_outbox_function();
+
+CREATE OR REPLACE FUNCTION after_v1_concurrency_slot_update_outbox_function()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO outbox.messages (topic, payload)
+    SELECT
+        'concurrency.' || nt.tenant_id::text || '.' || nt.strategy_id::text,
+        jsonb_build_object(
+            'operation', 'UPDATE',
+            'key', nt.key,
+            'priority', nt.priority,
+            'taskId', nt.task_id,
+            'taskInsertedAt', nt.task_inserted_at,
+            'taskRetryCount', nt.task_retry_count,
+            'scheduleTimeoutAtMs', (EXTRACT(EPOCH FROM nt.schedule_timeout_at) * 1000)::bigint,
+            'isFilled', nt.is_filled
+        )
+    FROM new_table nt
+    WHERE nt.parent_strategy_id IS NULL
+        AND nt.is_filled = FALSE;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_concurrency_slot_update_outbox
+AFTER UPDATE ON v1_concurrency_slot
+REFERENCING NEW TABLE AS new_table
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_concurrency_slot_update_outbox_function();

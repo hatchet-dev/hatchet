@@ -15,7 +15,7 @@ class InputModel(BaseModel):
     key2: str
 
 
-hatchet = Hatchet(debug=True)
+hatchet = Hatchet()
 
 concurrency_strat = [
     ConcurrencyExpression(

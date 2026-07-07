@@ -1,21 +1,27 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
+import { WelcomeModal } from '@/components/modals/welcome-modal';
+import {
+  readWelcomeTrigger,
+  WELCOME_KEY,
+  WELCOME_TRIGGER,
+} from '@/components/modals/welcome-modal-state';
 import SupportChat from '@/components/support-chat';
 import TopNav from '@/components/v1/nav/top-nav.tsx';
-import { Button } from '@/components/v1/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
-import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { Loading, Spinner } from '@/components/v1/ui/loading.tsx';
+import { Loading } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentUser } from '@/hooks/use-current-user.ts';
 import {
   pendingInvitesQuery,
@@ -23,11 +29,17 @@ import {
 } from '@/hooks/use-pending-invites.ts';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { User, queries } from '@/lib/api';
-import { fetchControlPlaneStatus } from '@/lib/api/api';
+import {
+  CONTROL_PLANE_TENANT_STORAGE_KEY,
+  fetchControlPlaneStatus,
+} from '@/lib/api/api';
+import { SubscriptionPlanCode } from '@/lib/api/generated/control-plane/data-contracts';
+import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
+import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
@@ -50,23 +62,25 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const [{ isCloudEnabled, ...meta }, { isControlPlaneEnabled }] =
-    await Promise.all([
-      queryClient.fetchQuery(getCloudMetadataQuery),
-      fetchControlPlaneStatus(),
-    ]);
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+
+  const { isCloudEnabled, ...meta } = isControlPlaneEnabled
+    ? { isCloudEnabled: false as const }
+    : await queryClient.fetchQuery(getCloudMetadataQuery);
 
   await queryClient.fetchQuery(
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
+    isCloudEnabled,
+    isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
   };
 }
 
 function AuthenticatedInner() {
-  const { tenant } = useTenantDetails();
+  const { tenant, organizationId } = useTenantDetails();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -78,13 +92,18 @@ function AuthenticatedInner() {
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
+  const [newTenantAllTags, setNewTenantAllTags] = useState<string[]>([]);
   const [inviteModalTenantId, setInviteModalTenantId] = useState<
     string | undefined
   >();
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
   >();
+  const [addOrgMemberToTenantModal, setAddOrgMemberToTenantModal] = useState<
+    { tenantId: string; organizationId: string } | undefined
+  >();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -101,6 +120,7 @@ function AuthenticatedInner() {
   const isOrganizationsPage = Boolean(
     matchRoute({ to: appRoutes.organizationsRoute.to, fuzzy: true }),
   );
+  const isTenantsPage = Boolean(matchRoute({ to: appRoutes.tenantsRoute.to }));
   const isOnboardingVerifyEmailPage = Boolean(
     matchRoute({ to: appRoutes.onboardingVerifyRoute.to }),
   );
@@ -113,37 +133,68 @@ function AuthenticatedInner() {
   const isOnboardingCreateOrganizationPage = Boolean(
     matchRoute({ to: appRoutes.onboardingCreateOrganizationRoute.to }),
   );
+  const isOnboardingNoTenantsPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingNoTenantsRoute.to }),
+  );
   const isOnboardingPage =
     isOnboardingVerifyEmailPage ||
     isOnboardingInvitesPage ||
     isOnboardingCreateTenantPage ||
-    isOnboardingCreateOrganizationPage;
+    isOnboardingCreateOrganizationPage ||
+    isOnboardingNoTenantsPage;
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
     ...userUpdateLogoutMutation(),
-    onSuccess: () => {
+    onSettled: () => {
+      // always clear on logout attempt, even if the request fails
       queryClient.clear();
       navigate({ to: appRoutes.authLoginRoute.to });
     },
   });
 
-  useInactivityDetection({
-    timeoutMs: loaderData.inactivityLogoutMs,
-    onInactive: () => {
-      logoutMutation.mutate();
-    },
+  const { pendingInvitesQuery } = usePendingInvites({
+    isCloudEnabled: loaderData.isCloudEnabled,
+    isControlPlaneEnabled: loaderData.isControlPlaneEnabled,
   });
-
-  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
     isLoaded: isUserUniverseLoaded,
+    isFetching: isUserUniverseFetching,
     organizations,
     tenantMemberships,
   } = useUserUniverse();
 
+  const { controlPlaneMeta, isControlPlaneEnabled } = useControlPlane();
+  const orgApi = useOrganizationApi();
+  const orgIdForTenant = organizations?.find((o) =>
+    o.tenants?.some((t) => t.id === tenant?.metadata?.id),
+  )?.metadata?.id;
+  const orgQuery = useQuery({
+    ...orgApi.organizationGetQuery(orgIdForTenant!),
+    enabled: !!orgIdForTenant && isControlPlaneEnabled,
+  });
+  const inactivityTimeoutMs = isControlPlaneEnabled
+    ? ((orgQuery.data as { inactivity_timeout?: number } | undefined)
+        ?.inactivity_timeout ?? -1)
+    : loaderData.inactivityLogoutMs;
+  const welcomeBillingState = useQuery({
+    ...queries.controlPlane.billing(organizationId || ''),
+    enabled:
+      isCloudEnabled &&
+      isControlPlaneEnabled &&
+      !!controlPlaneMeta?.canBill &&
+      !!organizationId,
+    retry: false,
+  });
+
+  useInactivityDetection({
+    timeoutMs: inactivityTimeoutMs,
+    onInactive: () => {
+      logoutMutation.mutate();
+    },
+  });
   const ctx = useContextFromParent({
     user: currentUser,
     memberships: tenantMemberships,
@@ -152,18 +203,30 @@ function AuthenticatedInner() {
   useEffect(() => {
     const userQueryError = userError as AxiosError<User> | null | undefined;
 
-    // Skip all redirects for organization pages
-    if (isOrganizationsPage) {
+    const storeRedirectPath = () => {
+      if (
+        pathname !== '/' &&
+        !pathname.startsWith('/onboarding/') &&
+        !pathname.startsWith('/auth/')
+      ) {
+        sessionStorage.setItem(REDIRECT_TARGET_KEY, pathname);
+      }
+    };
+
+    // Skip all redirects for organization/tenants pages
+    if (isOrganizationsPage || isTenantsPage) {
       return;
     }
 
     // If we definitively have no user, always go to login.
     if (!isUserLoading && !currentUser && !isAuthPage) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
 
     if (userQueryError?.status === 401 || userQueryError?.status === 403) {
+      storeRedirectPath();
       navigate({ to: appRoutes.authLoginRoute.to, replace: true });
       return;
     }
@@ -181,43 +244,70 @@ function AuthenticatedInner() {
       ? pendingInvitesQuery.data
       : null;
 
-    if (
-      pendingInvites &&
-      pendingInvites.inviteCount > 0 &&
-      !isOnboardingInvitesPage
-    ) {
-      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
-      return;
-    }
-
     const okayToMakeOnboardingRedirectDecisions =
       pendingInvitesQuery.isSuccess &&
       !isOnboardingPage &&
-      isUserUniverseLoaded;
+      isUserUniverseLoaded &&
+      !isUserUniverseFetching;
 
-    if (okayToMakeOnboardingRedirectDecisions) {
-      const shouldHaveAnOrganizationButDoesnt =
-        isCloudEnabled && organizations.length === 0;
+    const shouldHaveAnOrganizationButDoesnt =
+      isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
 
-      if (shouldHaveAnOrganizationButDoesnt) {
-        navigate({
-          to: appRoutes.onboardingCreateOrganizationRoute.to,
-          replace: true,
-        });
-        return;
-      }
+    // Redirect to invites page only for users with no memberships yet (new users).
+    // Existing users with memberships see the InviteModal overlay instead.
+    const mustRedirectToInvitesPage =
+      okayToMakeOnboardingRedirectDecisions &&
+      (tenantMemberships?.length ?? 0) === 0 &&
+      pendingInvites &&
+      pendingInvites.inviteCount > 0;
 
-      if (tenantMemberships.length === 0) {
-        navigate({
-          to: appRoutes.onboardingCreateTenantRoute.to,
-          replace: true,
-        });
-        return;
-      }
+    if (!isOnboardingInvitesPage && mustRedirectToInvitesPage) {
+      navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      shouldHaveAnOrganizationButDoesnt
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingCreateOrganizationRoute.to,
+        replace: true,
+      });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      isControlPlaneEnabled &&
+      organizations &&
+      organizations.length > 0 &&
+      tenantMemberships.length === 0
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingNoTenantsRoute.to,
+        replace: true,
+      });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      tenantMemberships.length === 0
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingCreateTenantRoute.to,
+        replace: true,
+      });
+      return;
     }
 
     // If user has memberships and we're at the bare root, go to their first tenant
     if (pathname === '/' && tenantMemberships && tenantMemberships.length > 0) {
+      const savedRedirect = sessionStorage.getItem(REDIRECT_TARGET_KEY);
+      if (savedRedirect) {
+        sessionStorage.removeItem(REDIRECT_TARGET_KEY);
+        navigate({ to: savedRedirect, replace: true } as never);
+        return;
+      }
+
       const lastTenantId = lastTenant?.metadata.id;
 
       const lastTenantInMemberships = lastTenantId
@@ -229,12 +319,22 @@ function AuthenticatedInner() {
       // clear it so we don't keep trying to use a stale tenant.
       if (lastTenantId && !lastTenantInMemberships) {
         setLastTenant(undefined);
+        if (loaderData.isControlPlaneEnabled) {
+          localStorage.removeItem(CONTROL_PLANE_TENANT_STORAGE_KEY);
+        }
       }
 
       const targetTenant =
         lastTenantInMemberships ?? tenantMemberships[0].tenant;
 
       if (targetTenant) {
+        if (loaderData.isControlPlaneEnabled) {
+          localStorage.setItem(
+            CONTROL_PLANE_TENANT_STORAGE_KEY,
+            JSON.stringify(targetTenant),
+          );
+        }
+
         // Check if tenant has workflows to decide where to redirect
         api
           .workflowList(targetTenant.metadata.id, { limit: 1 })
@@ -272,6 +372,7 @@ function AuthenticatedInner() {
     lastTenant,
     pathname,
     isOrganizationsPage,
+    isTenantsPage,
     isOnboardingVerifyEmailPage,
     isOnboardingInvitesPage,
     isOnboardingPage,
@@ -279,21 +380,24 @@ function AuthenticatedInner() {
     setLastTenant,
     isCloudEnabled,
     isUserUniverseLoaded,
+    isUserUniverseFetching,
     organizations,
+    isOnboardingCreateOrganizationPage,
+    isOnboardingCreateTenantPage,
+    isControlPlaneEnabled,
+    loaderData.isControlPlaneEnabled,
   ]);
-
-  useEffect(() => {
-    if (userError && !isAuthPage) {
-      navigate({ to: appRoutes.authLoginRoute.to, replace: true });
-    }
-  }, [isAuthPage, navigate, userError]);
 
   useEffect(
     () =>
-      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
-        setDefaultOrganizationId(defaultOrganizationId);
-        setNewTenantModalOpen(true);
-      }),
+      globalEmitter.on(
+        'create-new-tenant',
+        ({ defaultOrganizationId, allTenantTags }) => {
+          setDefaultOrganizationId(defaultOrganizationId);
+          setNewTenantAllTags(allTenantTags ?? []);
+          setNewTenantModalOpen(true);
+        },
+      ),
     [],
   );
 
@@ -316,21 +420,131 @@ function AuthenticatedInner() {
     [],
   );
 
+  useEffect(
+    () =>
+      globalEmitter.on('open-invite-modal', () => {
+        setInviteModalOpen(true);
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on(
+        'add-org-member-to-tenant',
+        ({ tenantId, organizationId }) => {
+          setAddOrgMemberToTenantModal({ tenantId, organizationId });
+        },
+      ),
+    [],
+  );
+
   useEffect(() => {
-    const key = 'hatchet:show-welcome';
-    if (localStorage.getItem(key)) {
-      localStorage.removeItem(key);
+    const welcomeTrigger = readWelcomeTrigger(
+      localStorage.getItem(WELCOME_KEY),
+    );
+    if (!welcomeTrigger) {
+      return;
+    }
+
+    if (!tenant?.metadata.id) {
+      return;
+    }
+
+    if (!isUserUniverseLoaded) {
+      return;
+    }
+
+    if (!isCloudEnabled) {
+      localStorage.removeItem(WELCOME_KEY);
+      return;
+    }
+
+    if (!organizationId) {
+      return;
+    }
+
+    if (!controlPlaneMeta?.canBill) {
+      return;
+    }
+
+    if (welcomeTrigger === WELCOME_TRIGGER.OrganizationCreated) {
+      localStorage.removeItem(WELCOME_KEY);
       setShowWelcome(true);
       capture('welcome_modal_shown', {
         tenant_id: tenant?.metadata.id,
+        source: welcomeTrigger,
       });
+      return;
     }
-  }, [tenant?.metadata.id, capture]);
 
-  const welcomePlansQuery = useQuery({
-    ...queries.cloud.subscriptionPlans(),
-    enabled: showWelcome,
-  });
+    if (welcomeBillingState.isPending) {
+      return;
+    }
+
+    const billingStateError =
+      welcomeBillingState.error as AxiosError<unknown> | null;
+    const billingStateNotFound =
+      billingStateError?.status === 404 ||
+      billingStateError?.response?.status === 404;
+
+    if (welcomeBillingState.isError && !billingStateNotFound) {
+      return;
+    }
+
+    const currentSubscription = billingStateNotFound
+      ? undefined
+      : welcomeBillingState.data?.currentSubscription;
+    const canShowWelcomeForSubscription =
+      !currentSubscription ||
+      currentSubscription.plan === SubscriptionPlanCode.Free;
+
+    if (!canShowWelcomeForSubscription) {
+      localStorage.removeItem(WELCOME_KEY);
+      return;
+    }
+
+    localStorage.removeItem(WELCOME_KEY);
+    setShowWelcome(true);
+    capture('welcome_modal_shown', {
+      tenant_id: tenant?.metadata.id,
+      source: welcomeTrigger,
+    });
+  }, [
+    tenant?.metadata.id,
+    organizationId,
+    capture,
+    isCloudEnabled,
+    isUserUniverseLoaded,
+    controlPlaneMeta?.canBill,
+    welcomeBillingState.data?.currentSubscription,
+    welcomeBillingState.error,
+    welcomeBillingState.isError,
+    welcomeBillingState.isPending,
+  ]);
+
+  // Auto-open invite modal for users who already have memberships when new invites appear.
+  // New users with no memberships are redirected to /onboarding/invites instead.
+  // Requires settled data (!isFetching): while a post-accept refetch is in
+  // flight the cached inviteCount is stale, and opening on it would resurface
+  // an already-processed invite.
+  useEffect(() => {
+    if (
+      !isOnboardingInvitesPage &&
+      pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
+      (pendingInvitesQuery.data?.inviteCount ?? 0) > 0 &&
+      (tenantMemberships?.length ?? 0) > 0
+    ) {
+      setInviteModalOpen(true);
+    }
+  }, [
+    pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
+    pendingInvitesQuery.data?.inviteCount,
+    isOnboardingInvitesPage,
+    tenantMemberships?.length,
+  ]);
 
   if (!currentUser) {
     return <Loading />;
@@ -367,8 +581,10 @@ function AuthenticatedInner() {
             <div className="flex justify-center">
               <NewTenantSaverForm
                 defaultOrganizationId={defaultOrganizationId}
+                allTenantTags={newTenantAllTags}
                 afterSave={(result) => {
                   setDefaultOrganizationId(undefined);
+                  setNewTenantAllTags([]);
                   setNewTenantModalOpen(false);
                   const tenantId =
                     result.type === 'cloud'
@@ -377,7 +593,7 @@ function AuthenticatedInner() {
 
                   if (result.type === 'cloud') {
                     void queryClient.prefetchQuery(
-                      queries.cloud.subscriptionPlans(),
+                      queries.controlPlane.subscriptionPlans(),
                     );
                   }
 
@@ -415,85 +631,23 @@ function AuthenticatedInner() {
             }}
           />
         )}
-        <Dialog
+        {addOrgMemberToTenantModal && (
+          <AddOrgMemberToTenantModal
+            organizationId={addOrgMemberToTenantModal.organizationId}
+            tenantId={addOrgMemberToTenantModal.tenantId}
+            onClose={() => setAddOrgMemberToTenantModal(undefined)}
+          />
+        )}
+        <WelcomeModal
+          tenantId={tenant?.metadata.id}
+          organizationId={organizationId}
           open={showWelcome}
-          onOpenChange={(open) => {
-            if (!open) {
-              localStorage.removeItem('hatchet:show-welcome');
-              setShowWelcome(false);
-            }
-          }}
-        >
-          <DialogContent className="max-w-lg text-center">
-            <div className="flex flex-col items-center gap-6">
-              <HatchetLogo variant="mark" className="h-10 w-10" />
-              <div className="space-y-2">
-                <DialogTitle className="text-center text-2xl">
-                  Welcome to Hatchet
-                </DialogTitle>
-                <DialogDescription className="text-center text-base text-muted-foreground">
-                  You&apos;re on the free plan with generous limits to get
-                  started. We&apos;ll let you know when you&apos;re getting
-                  close.
-                </DialogDescription>
-              </div>
-              <ul className="w-full text-left text-base space-y-2.5 rounded-md border border-border/50 bg-muted/30 p-5">
-                {welcomePlansQuery.isLoading ? (
-                  <li className="flex justify-center py-2">
-                    <Spinner />
-                  </li>
-                ) : (
-                  welcomePlansQuery.data?.freeLimits?.map((fl) => (
-                    <li key={fl.featureId} className="flex justify-between">
-                      <span className="text-muted-foreground">{fl.name}</span>
-                      <span className="font-medium">
-                        {fl.limit.toLocaleString()}
-                      </span>
-                    </li>
-                  ))
-                )}
-              </ul>
-              <p className="text-sm text-muted-foreground">
-                You can upgrade anytime from Billing &amp; Limits in your tenant
-                settings.
-              </p>
-              <div className="flex w-full flex-col gap-2">
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    capture('welcome_modal_dismissed', {
-                      tenant_id: tenant?.metadata.id,
-                      cta: 'get_started',
-                    });
-                    localStorage.removeItem('hatchet:show-welcome');
-                    setShowWelcome(false);
-                  }}
-                >
-                  Explore Hatchet for Free with Limits &rarr;
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => {
-                    capture('welcome_modal_upgrade_clicked', {
-                      tenant_id: tenant?.metadata.id,
-                    });
-                    localStorage.removeItem('hatchet:show-welcome');
-                    setShowWelcome(false);
-                    if (tenant?.metadata.id) {
-                      navigate({
-                        to: '/tenants/$tenant/tenant-settings/billing-and-limits',
-                        params: { tenant: tenant.metadata.id },
-                      });
-                    }
-                  }}
-                >
-                  Add a payment method to remove limits, no commitment required
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+          onClose={() => setShowWelcome(false)}
+        />
+        <InviteModal
+          isOpen={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
+        />
       </SupportChat>
     </PostHogProvider>
   );

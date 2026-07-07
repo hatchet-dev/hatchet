@@ -9,6 +9,14 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/v1/ui/select';
+import useControlPlane from '@/hooks/use-control-plane';
+import {
   CreateOrganizationInviteRequest,
   OrganizationMemberRoleType,
 } from '@/lib/api/generated/cloud/data-contracts';
@@ -16,16 +24,17 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
+  role: z.nativeEnum(OrganizationMemberRoleType),
 });
 
-export type OrganizationInviteMemberModalProps = {
+type OrganizationInviteMemberModalProps = {
   organizationId: string;
   organizationName: string;
   onClose: () => void;
@@ -39,6 +48,7 @@ export const OrganizationInviteMemberModal = ({
   onCreated,
 }: OrganizationInviteMemberModalProps) => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const { isControlPlaneEnabled } = useControlPlane();
 
   const { handleApiError } = useApiError({
     setFieldErrors,
@@ -48,28 +58,39 @@ export const OrganizationInviteMemberModal = ({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
     defaultValues: {
       email: '',
+      role: isControlPlaneEnabled
+        ? OrganizationMemberRoleType.MEMBER
+        : OrganizationMemberRoleType.OWNER,
     },
   });
 
+  const queryClient = useQueryClient();
   const orgApi = useOrganizationApi();
   const orgInviteCreate =
     orgApi.organizationInviteCreateMutation(organizationId);
   const inviteMemberMutation = useMutation({
     ...orgInviteCreate,
-    mutationFn: async (data: { email: string }) => {
+    mutationFn: async (data: {
+      email: string;
+      role: OrganizationMemberRoleType;
+    }) => {
       const request: CreateOrganizationInviteRequest = {
         inviteeEmail: data.email,
-        role: OrganizationMemberRoleType.OWNER,
+        role: data.role,
       };
       await orgInviteCreate.mutationFn(request);
       return request;
     },
     onSuccess: (request) => {
+      queryClient.invalidateQueries({
+        queryKey: ['organization-invites:list', organizationId],
+      });
       reset();
       onCreated(request);
       onClose();
@@ -121,6 +142,35 @@ export const OrganizationInviteMemberModal = ({
               organization.
             </p>
           </div>
+
+          {isControlPlaneEnabled && (
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Controller
+                control={control}
+                name="role"
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={OrganizationMemberRoleType.MEMBER}>
+                        Member
+                      </SelectItem>
+                      <SelectItem value={OrganizationMemberRoleType.OWNER}>
+                        Owner
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <p className="text-sm text-muted-foreground">
+                Members can access tenants based on their tags. Owners have full
+                access to all tenants.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
