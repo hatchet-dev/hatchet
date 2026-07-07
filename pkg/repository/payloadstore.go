@@ -22,6 +22,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
+// ErrPayloadNotFound indicates that a payload is permanently missing from the external store
+// (e.g. it was deleted or never uploaded), as opposed to a transient retrieval failure.
+var ErrPayloadNotFound = errors.New("payload not found in external store")
+
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz

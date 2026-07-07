@@ -509,6 +509,15 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 		toRetryMu.Unlock()
 	}
 
+	toFail := []*sqlcv1.V1Task{}
+	toFailMu := sync.Mutex{}
+
+	fail := func(task *sqlcv1.V1Task) {
+		toFailMu.Lock()
+		toFail = append(toFail, task)
+		toFailMu.Unlock()
+	}
+
 	for _, innerMsg := range msgs {
 		// load the step runs from the database
 		taskIds := make([]int64, 0)
@@ -517,7 +526,7 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 			taskIds = append(taskIds, tasks...)
 		}
 
-		taskIdToData, err := d.populateTaskData(ctx, requeue, msg.TenantID, taskIds)
+		taskIdToData, err := d.populateTaskData(ctx, requeue, fail, msg.TenantID, taskIds)
 
 		if err != nil {
 			// we've already handled the requeue in populateTaskData, and we've logged the error, so we just continue
@@ -542,6 +551,10 @@ func (d *DispatcherImpl) handleTaskBulkAssignedTask(ctx context.Context, msg *ms
 
 		if err := d.handleRetries(ctx, msg.TenantID, toRetry); err != nil {
 			outerErr = multierror.Append(outerErr, fmt.Errorf("could not retry failed tasks: %w", err))
+		}
+
+		if err := d.handleNonRetryableFailures(ctx, msg.TenantID, toFail); err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not fail tasks with missing payloads: %w", err))
 		}
 
 		if outerErr != nil {
@@ -642,6 +655,7 @@ type V1TaskWithPayloadAndInvocationCount struct {
 func (d *DispatcherImpl) populateTaskData(
 	ctx context.Context,
 	requeue func(task *sqlcv1.V1Task),
+	fail func(task *sqlcv1.V1Task),
 	tenantId uuid.UUID,
 	taskIds []int64,
 ) (map[int64]*V1TaskWithPayloadAndInvocationCount, error) {
@@ -707,10 +721,35 @@ func (d *DispatcherImpl) populateTaskData(
 
 	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
-	// FIXME: we should differentiate between a retryable error and a non-retryable error here;
-	// for example, if we're hitting an S3 rate limit for payloads that exist in S3, we should retry;
-	// however, if the payloads simply don't exist, we should fail the tasks instead of requeuing them.
-	// The tasks will eventually fail but the extra retries are wasteful.
+	if err != nil && errors.Is(err, v1.ErrPayloadNotFound) {
+		// The bulk retrieval doesn't tell us which task's payload is missing, so retry each task
+		// individually: tasks whose payloads are permanently gone are failed (otherwise they'd be
+		// requeued forever), and the rest proceed or requeue as usual.
+		inputs = make(map[v1.RetrievePayloadOpts][]byte)
+		remaining := make([]*sqlcv1.V1Task, 0, len(bulkDatas))
+
+		for i, task := range bulkDatas {
+			taskInputs, taskErr := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts[i])
+
+			switch {
+			case taskErr == nil:
+				for opt, input := range taskInputs {
+					inputs[opt] = input
+				}
+
+				remaining = append(remaining, task)
+			case errors.Is(taskErr, v1.ErrPayloadNotFound):
+				d.l.Error().Ctx(ctx).Err(taskErr).Int64("task_id", task.ID).Msg("task input payload no longer exists in external store, failing task")
+				fail(task)
+			default:
+				requeue(task)
+			}
+		}
+
+		bulkDatas = remaining
+		err = nil
+	}
+
 	if err != nil {
 		for _, task := range bulkDatas {
 			requeue(task)
@@ -954,6 +993,55 @@ func (d *DispatcherImpl) handleRetries(
 	}
 
 	return retryGroup.Wait()
+}
+
+// handleNonRetryableFailures permanently fails tasks whose input payloads no longer exist in the
+// external payload store, since requeueing them can never succeed.
+func (d *DispatcherImpl) handleNonRetryableFailures(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	toFail []*sqlcv1.V1Task,
+) error {
+	if len(toFail) == 0 {
+		return nil
+	}
+
+	failCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	failGroup := errgroup.Group{}
+
+	for _, _task := range toFail {
+		task := _task
+
+		failGroup.Go(func() error {
+			msg, err := tasktypesv1.FailedTaskMessage(
+				tenantId,
+				task.ID,
+				task.InsertedAt,
+				task.ExternalID,
+				task.WorkflowRunID,
+				task.RetryCount,
+				true,
+				"Could not retrieve task input: the payload no longer exists in the external payload store.",
+				true,
+			)
+
+			if err != nil {
+				return fmt.Errorf("could not create failed task message: %w", err)
+			}
+
+			err = d.mqv1.SendMessage(failCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+
+			if err != nil {
+				return fmt.Errorf("could not send failed task message: %w", err)
+			}
+
+			return nil
+		})
+	}
+
+	return failGroup.Wait()
 }
 
 func (d *DispatcherImpl) handleTaskCancelled(ctx context.Context, msg *msgqueue.Message) error {
