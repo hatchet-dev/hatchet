@@ -161,6 +161,18 @@ class DurableEvictionManager:
                 )
 
                 await self._request_eviction_with_ack(key, rec)
+
+                # While we awaited the ack, the server may have restored the
+                # task onto this same worker under the same key (restore does
+                # not bump the retry count). Only cancel locally if the key
+                # still refers to the run we decided to evict.
+                if self._cache.get(key) is not rec:
+                    logger.warning(
+                        "DurableEvictionManager: run re-registered under key "
+                        f"{key} during eviction ack; skipping local cancel"
+                    )
+                    continue
+
                 self._evict_run(key)
 
     def handle_server_eviction(self, step_run_id: str, invocation_count: int) -> None:
@@ -209,7 +221,8 @@ class DurableEvictionManager:
 
             # Always cancel locally even if the server ACK failed, so the
             # future settles and exit_gracefully doesn't hang.
-            self._evict_run(rec.key)
+            if self._cache.get(rec.key) is rec:
+                self._evict_run(rec.key)
             evicted += 1
 
         return evicted
