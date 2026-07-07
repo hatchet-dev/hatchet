@@ -270,53 +270,47 @@ export function DataTable<TData extends IDGetter<TData>, TValue>({
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto relative">
-        <Table className="table-auto w-full relative z-10">
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead
-                      key={header.id}
-                      colSpan={header.colSpan}
-                      className="border-b bg-background"
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody className="w-full">
-            {!hasRows ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={columns.length} className="h-full">
-                  <div className="flex h-full w-full flex-col items-center justify-center pt-8">
-                    {emptyState || (
-                      <p className="text-lg font-semibold">No results.</p>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
+      {hasRows ? (
+        <div className="min-h-0 flex-1 overflow-auto relative">
+          <Table className="table-auto w-full relative z-10">
+            <TableHeader className="sticky top-0 z-10 bg-background">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className="border-b bg-background"
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody className="w-full">
+              {table.getRowModel().rows.map((row) => (
                 <React.Fragment key={row.id}>
                   {getTableRow(row)}
                   {row.getIsExpanded() &&
                     row.subRows.map((r) => getTableRow(r))}
                 </React.Fragment>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center py-8">
+          {emptyState || <p className="text-lg font-semibold">No results.</p>}
+        </div>
+      )}
       <div className="shrink-0 h-10 flex items-center pt-2">
         <div className="w-full">
           <DataTablePagination
