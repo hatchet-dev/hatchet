@@ -26,6 +26,38 @@ import (
 // (e.g. it was deleted or never uploaded), as opposed to a transient retrieval failure.
 var ErrPayloadNotFound = errors.New("payload not found in external store")
 
+// ExternalStoreNotFoundError is returned by ExternalStore.Retrieve implementations when one or
+// more requested payloads are permanently missing from the store. The returned result map still
+// contains every payload that was found, so callers can handle the missing payloads and proceed
+// with the rest.
+type ExternalStoreNotFoundError struct {
+	Missing []RetrieveFromExternalOpts
+}
+
+func (e *ExternalStoreNotFoundError) Error() string {
+	return fmt.Sprintf("%d payload(s) not found in external store", len(e.Missing))
+}
+
+func (e *ExternalStoreNotFoundError) Unwrap() error {
+	return ErrPayloadNotFound
+}
+
+// PayloadNotFoundError is returned by PayloadStoreRepository.Retrieve when one or more requested
+// payloads are permanently missing from the external store. The returned result map still
+// contains every payload that was found, so callers can handle the missing payloads and proceed
+// with the rest.
+type PayloadNotFoundError struct {
+	Missing []RetrievePayloadOpts
+}
+
+func (e *PayloadNotFoundError) Error() string {
+	return fmt.Sprintf("%d payload(s) not found in external store", len(e.Missing))
+}
+
+func (e *PayloadNotFoundError) Unwrap() error {
+	return ErrPayloadNotFound
+}
+
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
@@ -426,7 +458,10 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 	if len(retrieveFromExternalOpts) > 0 {
 		externalData, err := p.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
-		if err != nil {
+
+		var notFoundErr *ExternalStoreNotFoundError
+
+		if err != nil && !errors.As(err, &notFoundErr) {
 			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
 
@@ -434,6 +469,20 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			if opt, exists := retrieveFromExternalOptsToOpts[retrieveFromExternalOpt]; exists {
 				optsToPayload[opt] = data
 			}
+		}
+
+		if notFoundErr != nil {
+			missing := make([]RetrievePayloadOpts, 0, len(notFoundErr.Missing))
+
+			for _, externalOpt := range notFoundErr.Missing {
+				if opt, exists := retrieveFromExternalOptsToOpts[externalOpt]; exists {
+					missing = append(missing, opt)
+				}
+			}
+
+			// return the payloads which were found alongside the error so callers can proceed
+			// with the rest of the batch
+			return optsToPayload, &PayloadNotFoundError{Missing: missing}
 		}
 	}
 

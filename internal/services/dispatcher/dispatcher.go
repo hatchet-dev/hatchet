@@ -721,28 +721,25 @@ func (d *DispatcherImpl) populateTaskData(
 
 	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
-	if err != nil && errors.Is(err, v1.ErrPayloadNotFound) {
-		// The bulk retrieval doesn't tell us which task's payload is missing, so retry each task
-		// individually: tasks whose payloads are permanently gone are failed (otherwise they'd be
-		// requeued forever), and the rest proceed or requeue as usual.
-		inputs = make(map[v1.RetrievePayloadOpts][]byte)
+	var notFoundErr *v1.PayloadNotFoundError
+
+	if err != nil && errors.As(err, &notFoundErr) {
+		// Tasks whose payloads are permanently gone are failed (otherwise they'd be requeued
+		// forever); the rest of the batch proceeds with the partial results.
+		missing := make(map[v1.RetrievePayloadOpts]struct{}, len(notFoundErr.Missing))
+
+		for _, opt := range notFoundErr.Missing {
+			missing[opt] = struct{}{}
+		}
+
 		remaining := make([]*sqlcv1.V1Task, 0, len(bulkDatas))
 
 		for i, task := range bulkDatas {
-			taskInputs, taskErr := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts[i])
-
-			switch {
-			case taskErr == nil:
-				for opt, input := range taskInputs {
-					inputs[opt] = input
-				}
-
-				remaining = append(remaining, task)
-			case errors.Is(taskErr, v1.ErrPayloadNotFound):
-				d.l.Error().Ctx(ctx).Err(taskErr).Int64("task_id", task.ID).Msg("task input payload no longer exists in external store, failing task")
+			if _, ok := missing[retrievePayloadOpts[i]]; ok {
+				d.l.Error().Ctx(ctx).Int64("task_id", task.ID).Msg("task input payload no longer exists in external store, failing task")
 				fail(task)
-			default:
-				requeue(task)
+			} else {
+				remaining = append(remaining, task)
 			}
 		}
 
