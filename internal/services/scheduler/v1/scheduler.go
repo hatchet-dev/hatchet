@@ -955,39 +955,6 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		// FIXME: It is not clear why we're ending up in this state, but we should investigate why and fix it.
-		// Deduplicate tasks within a batch group by (task_id, task_inserted_at).
-		// In some edge cases we can end up with multiple AssignedItems that
-		// reference the same underlying task, which would cause duplicate
-		// batch indexes on the worker side.
-
-		seen := make(map[repov1.IdInsertedAt]bool, len(group))
-		dedupedGroup := make([]*repov1.AssignedItem, 0, len(group))
-
-		for _, item := range group {
-			if item == nil || item.QueueItem == nil || !item.QueueItem.TaskInsertedAt.Valid {
-				continue
-			}
-
-			k := repov1.IdInsertedAt{
-				ID:         item.QueueItem.TaskID,
-				InsertedAt: item.QueueItem.TaskInsertedAt,
-			}
-
-			if seen[k] {
-				s.l.Warn().
-					Int64("task_id", item.QueueItem.TaskID).
-					Str("step_id", item.QueueItem.StepID.String()).
-					Str("action_id", item.QueueItem.ActionID).
-					Str("batch_key", key.BatchKey).
-					Msg("skipping duplicate task in batch dispatcher group")
-				continue
-			}
-
-			seen[k] = true
-			dedupedGroup = append(dedupedGroup, item)
-		}
-
 		s.l.Debug().
 			Str("tenant_id", tenantId.String()).
 			Str("worker_id", key.WorkerID).
@@ -995,10 +962,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			Str("action_id", key.ActionID).
 			Str("batch_key", key.BatchKey).
 			Int("original_group_size", len(group)).
-			Int("deduped_group_size", len(dedupedGroup)).
 			Msg("prepared batch dispatcher group")
-
-		group = dedupedGroup
 
 		if len(group) == 0 {
 			continue
