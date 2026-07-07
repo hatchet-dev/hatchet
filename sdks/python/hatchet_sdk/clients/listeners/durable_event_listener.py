@@ -231,7 +231,7 @@ class DurableEventListener:
                 try:
                     self._request_queue.put_nowait(old_queue.get_nowait())
                     carried_over += 1
-                except asyncio.QueueEmpty:
+                except asyncio.QueueEmpty:  # noqa: PERF203
                     break
             if carried_over:
                 logger.info(

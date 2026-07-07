@@ -53,39 +53,7 @@ async def _cleanup(*tasks: asyncio.Task[Any]) -> None:
             await task
 
 
-async def test_cleanup_skips_when_key_owned_by_newer_run() -> None:
-    runner = _make_runner()
-    old_task = await _make_cancelled_task()
-    new_task = await _make_running_task()
-    new_ctx = _make_context()
-
-    runner.tasks[KEY] = new_task
-    runner.contexts[KEY] = new_ctx
-
-    runner.cleanup_run_id(KEY, owner=old_task)
-
-    assert runner.tasks.get(KEY) is new_task
-    assert runner.contexts.get(KEY) is new_ctx
-
-    await _cleanup(new_task)
-
-
-async def test_cleanup_proceeds_for_owner() -> None:
-    runner = _make_runner()
-    task = await _make_running_task()
-
-    runner.tasks[KEY] = task
-    runner.contexts[KEY] = _make_context()
-
-    runner.cleanup_run_id(KEY, owner=task)
-
-    assert KEY not in runner.tasks
-    assert KEY not in runner.contexts
-
-    await _cleanup(task)
-
-
-async def test_cleanup_without_owner_proceeds() -> None:
+async def test_cleanup_removes_task_and_context() -> None:
     runner = _make_runner()
     task = await _make_running_task()
 
@@ -100,34 +68,13 @@ async def test_cleanup_without_owner_proceeds() -> None:
     await _cleanup(task)
 
 
-def _make_action() -> MagicMock:
+def _make_action(key: str = KEY) -> MagicMock:
     action = MagicMock()
-    action.key = KEY
+    action.key = key
     action.step_run_id = "step-run-1"
     action.action_id = "test:action"
     action.retry_count = 0
     return action
-
-
-async def test_stale_done_callback_does_not_consume_new_runs_state() -> None:
-    runner = _make_runner()
-    old_task = await _make_cancelled_task()
-    new_task = await _make_running_task()
-    new_ctx = _make_context()
-
-    runner.tasks[KEY] = new_task
-    runner.contexts[KEY] = new_ctx
-    runner.cancellations[KEY] = True
-
-    callback = runner.step_run_callback(_make_action(), MagicMock())
-    callback(old_task)
-
-    assert runner.tasks.get(KEY) is new_task
-    assert runner.contexts.get(KEY) is new_ctx
-    assert runner.cancellations.get(KEY) is True
-    runner.event_queue.put.assert_not_called()
-
-    await _cleanup(new_task)
 
 
 async def test_done_callback_consumes_own_cancellation_flag() -> None:
@@ -141,3 +88,25 @@ async def test_done_callback_consumes_own_cancellation_flag() -> None:
 
     assert KEY not in runner.cancellations
     runner.event_queue.put.assert_not_called()
+
+
+async def test_done_callbacks_for_different_keys_are_independent() -> None:
+    runner = _make_runner()
+
+    key_a = "step-run-1/0/1"
+    key_b = "step-run-1/0/2"
+
+    task_a = await _make_cancelled_task()
+    task_b = await _make_running_task()
+    ctx_b = _make_context()
+
+    runner.tasks[key_b] = task_b
+    runner.contexts[key_b] = ctx_b
+
+    callback_a = runner.step_run_callback(_make_action(key_a), MagicMock())
+    callback_a(task_a)
+
+    assert runner.tasks.get(key_b) is task_b
+    assert runner.contexts.get(key_b) is ctx_b
+
+    await _cleanup(task_b)

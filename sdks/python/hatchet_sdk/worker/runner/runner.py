@@ -260,16 +260,8 @@ class Runner:
         self, action: Action, t: Task[TWorkflowInput, R]
     ) -> Callable[[asyncio.Task[Any]], None]:
         def inner_callback(task: asyncio.Task[Any]) -> None:
-            key_owner = self.tasks.get(action.key)
-            owns_key = key_owner is None or key_owner is task
-
-            self.cleanup_run_id(action.key, owner=task)
-
-            # Only consume the cancellation flag if this run still owns the
-            # key; otherwise it belongs to a newer run under the same key.
-            was_cancelled = (
-                self.cancellations.pop(action.key, False) if owns_key else False
-            )
+            self.cleanup_run_id(action.key)
+            was_cancelled = self.cancellations.pop(action.key, False)
 
             if was_cancelled or task.cancelled():
                 return
@@ -442,7 +434,7 @@ class Runner:
                     pfunc,
                 )
             finally:
-                self.cleanup_run_id(action.key, owner=asyncio.current_task())
+                self.cleanup_run_id(action.key)
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {
@@ -485,22 +477,7 @@ class Runner:
         self.monitoring_task = loop.create_task(self._start_monitoring())
         logger.debug("started thread pool monitoring background task")
 
-    def cleanup_run_id(
-        self, key: ActionKey, owner: asyncio.Task[Any] | None = None
-    ) -> None:
-        # A restored/evicted durable task reuses the same action key
-        # (step_run_id/retry_count), so a run that was still tearing down when
-        # its replacement started must not delete the replacement's state.
-        if (
-            owner is not None
-            and key in self.tasks
-            and self.tasks[key] is not owner
-        ):
-            logger.warning(
-                f"skipping cleanup for action key {key}: it has been re-registered by a newer run"
-            )
-            return
-
+    def cleanup_run_id(self, key: ActionKey) -> None:
         if key in self.tasks:
             del self.tasks[key]
 
@@ -586,17 +563,6 @@ class Runner:
         action_func = self.action_registry.get(action_name)
 
         if action_func:
-            # A restored durable task reuses the same action key as the run it
-            # replaces, so drop any leftover per-key state from a prior run
-            # that was evicted or is still tearing down.
-            stale_task = self.tasks.get(action.key)
-            if stale_task is not None and not stale_task.done():
-                logger.warning(
-                    f"received start for action key {action.key} while a previous run is still "
-                    "tearing down; taking over the key"
-                )
-            self.cancellations.pop(action.key, None)
-
             context = self.create_context(
                 action=action,
                 task=action_func,

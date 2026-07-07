@@ -236,7 +236,9 @@ async def test_pending_callbacks_survive_disconnect(harness: _Harness) -> None:
     assert ("task1", 1, 0, 1) in harness.listener._pending_callbacks
 
 
-async def test_fail_pending_acks_clears_eviction_acks_on_disconnect(harness: _Harness) -> None:
+async def test_fail_pending_acks_clears_eviction_acks_on_disconnect(
+    harness: _Harness,
+) -> None:
     harness.add_eof_stream()
     harness.add_hanging_stream()
 
@@ -415,7 +417,7 @@ async def test_send_event_ack_timeout_raises(harness: _Harness) -> None:
     harness.add_hanging_stream()
     await harness.start()
 
-    harness.listener._EVENT_ACK_TIMEOUT_S = 0.05  # type: ignore[misc]
+    harness.listener._EVENT_ACK_TIMEOUT_S = 0.05
 
     with pytest.raises(TimeoutError, match="durable event ack"):
         await harness.listener.send_event("task-1", 1, _wait_for_event())
@@ -423,7 +425,9 @@ async def test_send_event_ack_timeout_raises(harness: _Harness) -> None:
     assert ("task-1", 1) not in harness.listener._pending_event_acks
 
 
-async def test_send_event_eviction_cancel_propagates_not_timeout(harness: _Harness) -> None:
+async def test_send_event_eviction_cancel_propagates_not_timeout(
+    harness: _Harness,
+) -> None:
     harness.add_hanging_stream()
     await harness.start()
 
