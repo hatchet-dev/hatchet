@@ -22,11 +22,14 @@ end
 
 # !!
 
+# > Slots
 def main
   worker = HATCHET.worker(
     "concurrency-demo-worker", slots: 10, workflows: [CONCURRENCY_LIMIT_WORKFLOW]
   )
   worker.start
 end
+
+# !!
 
 main if __FILE__ == $PROGRAM_NAME
