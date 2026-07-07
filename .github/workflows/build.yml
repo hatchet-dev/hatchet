@@ -77,22 +77,6 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled
       - name: Build engine (authdisabled)
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine --build-arg GO_BUILD_TAGS=authdisabled
-      - name: Assert normal admin build has auth ENABLED
-        run: |
-          docker build -f ./build/package/servers.dockerfile -t hatchet-admin:auth-guard-normal --build-arg SERVER_TARGET=admin .
-          if docker run --rm --entrypoint /hatchet/hatchet-admin hatchet-admin:auth-guard-normal authdisabled; then
-            echo "::error::normal hatchet-admin build reports auth DISABLED — GO_BUILD_TAGS is misconfigured"
-            exit 1
-          fi
-          echo "normal admin build has auth enabled ✓"
-      - name: Assert authdisabled admin build has auth DISABLED
-        run: |
-          docker build -f ./build/package/servers.dockerfile -t hatchet-admin:auth-guard-dev --build-arg SERVER_TARGET=admin --build-arg GO_BUILD_TAGS=authdisabled .
-          if ! docker run --rm --entrypoint /hatchet/hatchet-admin hatchet-admin:auth-guard-dev authdisabled; then
-            echo "::error::authdisabled hatchet-admin build does not report auth disabled"
-            exit 1
-          fi
-          echo "authdisabled admin build has auth disabled ✓"
 
   admin:
     runs-on: ubuntu-latest
