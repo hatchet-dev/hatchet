@@ -111,8 +111,6 @@ func SeedDatabase(dc *database.Layer) error {
 	return nil
 }
 
-// seedAuthDisabledToken registers the embedded token's row so it passes the DB check in
-// ValidateTenantToken. Idempotent.
 func seedAuthDisabledToken(dc *database.Layer) error {
 	ctx := context.Background()
 

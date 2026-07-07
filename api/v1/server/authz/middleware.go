@@ -9,7 +9,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/pkg/auth/rbac"
-	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -49,15 +48,13 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
-	if authmode.Disabled && rbac.OperationIn(r.OperationID, authDisabledDeniedOperations) {
-		return echo.NewHTTPError(http.StatusForbidden, "This operation is disabled while authentication is disabled")
+	if handled, err := a.authPreflight(c, r); handled {
+		return err
 	}
 
 	var err error
 
 	switch c.Get("auth_strategy").(string) {
-	case "authdisabled":
-		err = a.validateUserTenantPermissions(c, r)
 	case "cookie":
 		err = a.handleCookieAuth(c, r)
 	case "bearer":
@@ -86,21 +83,6 @@ func (a *AuthZ) handleCookieAuth(c echo.Context, r *middleware.RouteInfo) error 
 	}
 
 	return nil
-}
-
-// identity/membership mutations and API token management are blocked in authdisabled builds
-// (on top of the Allow* runtime flags). The only token in an authdisabled instance is the
-// embedded-keyset worker token minted at boot; users cannot create, list, or revoke tokens.
-var authDisabledDeniedOperations = []string{
-	"TenantInviteAccept",
-	"TenantInviteReject",
-	"TenantInviteUpdate",
-	"TenantInviteDelete",
-	"TenantMemberUpdate",
-	"TenantMemberDelete",
-	"ApiTokenCreate",
-	"ApiTokenList",
-	"ApiTokenUpdateRevoke",
 }
 
 var restrictedWithBearerToken = []string{

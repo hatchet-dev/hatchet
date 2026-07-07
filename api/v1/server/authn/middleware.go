@@ -17,7 +17,6 @@ import (
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware"
 	"github.com/hatchet-dev/hatchet/api/v1/server/middleware/redirect"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
-	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -61,8 +60,8 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
-	if authmode.Disabled {
-		return a.handleAuthDisabledBypass(c)
+	if handled, err := a.authPreflight(c); handled {
+		return err
 	}
 
 	var bearerErr error
@@ -139,25 +138,6 @@ func (a *AuthN) handleNoAuth(c echo.Context) error {
 
 	// set unauthenticated session in context
 	c.Set("session", session)
-
-	return nil
-}
-
-func (a *AuthN) handleAuthDisabledBypass(c echo.Context) error {
-	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
-
-	ctx := c.Request().Context()
-
-	user, err := a.config.V1.User().GetUserByEmail(ctx, a.config.Seed.AdminEmail)
-
-	if err != nil {
-		a.l.Error().Ctx(ctx).Err(err).Msg("authdisabled: could not resolve default user")
-
-		return forbidden
-	}
-
-	c.Set("user", user)
-	c.Set("auth_strategy", "authdisabled")
 
 	return nil
 }

@@ -1,52 +1,45 @@
 import { Button } from '@/components/v1/ui/button';
-import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
+import { useTenantDetails } from '@/hooks/use-tenant';
+import { appRoutes } from '@/router';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/v1/ui/dialog';
-import useApiMeta from '@/pages/auth/hooks/use-api-meta';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+  ExclamationTriangleIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
+import { Link } from '@tanstack/react-router';
 
-export function AuthDisabledBanner() {
-  const { meta } = useApiMeta();
-  const token =
-    meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
+export function AuthDisabledBanner({ onDismiss }: { onDismiss: () => void }) {
+  const { tenantId } = useTenantDetails();
 
   return (
     <div
       role="alert"
-      className="flex items-center justify-center gap-3 border-b border-red-300 bg-red-600 px-4 py-1.5 text-center text-sm font-medium text-white dark:border-red-800"
+      className="relative flex items-center justify-center gap-3 border-b border-yellow-300 bg-yellow-400 px-10 py-1.5 text-center text-sm font-medium text-yellow-950 dark:border-yellow-700 dark:bg-yellow-500"
     >
       <ExclamationTriangleIcon className="h-4 w-4 flex-shrink-0" />
       You are using an auth-disabled instance of Hatchet.
-      {token && (
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 border-white/40 bg-transparent px-2 text-xs text-white hover:bg-white/10 hover:text-white"
-            >
-              View worker token
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Worker API token</DialogTitle>
-              <DialogDescription>
-                Workers authenticate over gRPC with this built-in token, scoped
-                to the default tenant. It is the same on every auth-disabled
-                instance.
-              </DialogDescription>
-            </DialogHeader>
-            <CodeHighlighter language="text" code={token} />
-          </DialogContent>
-        </Dialog>
+      {tenantId && (
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="h-6 border-yellow-950/30 bg-transparent px-2 text-xs text-yellow-950 hover:bg-yellow-950/10 hover:text-yellow-950"
+        >
+          <Link
+            to={appRoutes.tenantSettingsApiTokensRoute.to}
+            params={{ tenant: tenantId }}
+          >
+            View worker token
+          </Link>
+        </Button>
       )}
+      <button
+        type="button"
+        aria-label="Dismiss"
+        onClick={onDismiss}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-yellow-950 hover:bg-yellow-950/10"
+      >
+        <XMarkIcon className="h-4 w-4" />
+      </button>
     </div>
   );
 }
