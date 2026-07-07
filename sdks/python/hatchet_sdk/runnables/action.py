@@ -145,6 +145,9 @@ class Action(BaseModel):
         It's used when storing references to a task, a context, etc. in a dictionary so that
         we can look up those items in the dictionary by a unique key.
         """
+        if self.durable_task_invocation_count is not None:
+            return f"{self.step_run_id}/{self.retry_count}/{self.durable_task_invocation_count}"
+
         if self.action_type == ActionType.START_BATCH:
             # START_BATCH does not correspond to a unique step_run_id; key it by batch id.
             batch_key = self.batch_id or self.action_id or "unknown"
