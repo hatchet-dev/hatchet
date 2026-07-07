@@ -1093,9 +1093,16 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			externalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
 
 			if triggerOpts.ShouldSkip {
-				idempotencyKey, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
-				if keyErr != nil {
-					return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
+				// only index-based dedupe is validated against the existing entry's
+				// idempotency key: an explicit child_key intentionally reuses the
+				// cached child even when the inputs differ
+				var idempotencyKey []byte
+				if triggerOpts.ChildKey == nil {
+					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+					if keyErr != nil {
+						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
+					}
+					idempotencyKey = key
 				}
 
 				innerOpts[i] = GetOrCreateLogEntryOpt{
