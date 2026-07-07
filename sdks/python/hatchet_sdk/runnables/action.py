@@ -118,4 +118,5 @@ class Action(BaseModel):
     def key(self) -> ActionKey:
         if self.durable_task_invocation_count is not None:
             return f"{self.step_run_id}/{self.retry_count}/{self.durable_task_invocation_count}"
+
         return f"{self.step_run_id}/{self.retry_count}"
