@@ -53,16 +53,12 @@ class ActionType(str, Enum):
 
 
 class BatchStartPayload(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
     expected_size: int
     trigger_reason: str
-    trigger_time: datetime | None = None
+    trigger_time: datetime
 
 
 class BatchItemData(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
     payload: ActionPayload
     workflow_run_id: str
 

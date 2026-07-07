@@ -7,7 +7,6 @@ from contextlib import (
     asynccontextmanager,
 )
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import timedelta
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -52,6 +51,7 @@ from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
+    BatchTaskConfig,
     R,
     StepType,
     TaskIOValidator,
@@ -79,15 +79,6 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
-
-
-@dataclass(frozen=True)
-class BatchTaskConfig:
-    batch_max_size: int
-    batch_max_interval: timedelta | None = None
-    batch_group_key: str | None = None
-    batch_group_max_runs: int | None = None
-    broadcast_output: bool = False
 
 
 def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:

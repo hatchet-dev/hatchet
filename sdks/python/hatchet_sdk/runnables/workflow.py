@@ -45,8 +45,9 @@ from hatchet_sdk.runnables.eviction import (
     DEFAULT_DURABLE_TASK_EVICTION_POLICY,
     EvictionPolicy,
 )
-from hatchet_sdk.runnables.task import BatchTaskConfig, Task
+from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
+    BatchTaskConfig,
     EmptyModel,
     R,
     StepType,
