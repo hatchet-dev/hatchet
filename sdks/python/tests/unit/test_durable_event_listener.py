@@ -12,6 +12,7 @@ import pytest
 from hatchet_sdk.clients.listeners.durable_event_listener import (
     DEFAULT_RECONNECT_INTERVAL,
     DurableEventListener,
+    DurableTaskEventWaitForAck,
     WaitForEvent,
 )
 from hatchet_sdk.contracts.v1.dispatcher_pb2 import (
@@ -409,6 +410,7 @@ async def test_send_event_during_reconnect_gap_survives(harness: _Harness) -> No
     )
 
     ack = await asyncio.wait_for(send_task, timeout=1.0)
+    assert isinstance(ack, DurableTaskEventWaitForAck)
     assert ack.node_id == 2
     assert ack.invocation_count == 7
 
