@@ -16,8 +16,8 @@ import api, {
   TenantMemberRole,
 } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 
 export default function APITokens() {
