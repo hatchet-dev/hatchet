@@ -207,6 +207,8 @@ class DurableEvictionManager:
                     f"step_run_id={rec.step_run_id}"
                 )
 
+            # Always cancel locally even if the server ACK failed, so the
+            # future settles and exit_gracefully doesn't hang.
             self._evict_run(rec.key)
             evicted += 1
 
