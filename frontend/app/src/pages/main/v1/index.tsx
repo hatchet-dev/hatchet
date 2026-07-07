@@ -6,7 +6,7 @@ import { Loading } from '@/components/v1/ui/loading';
 import useCloud from '@/hooks/use-cloud';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
-import { queries } from '@/lib/api';
+import { queries, TenantMemberRole } from '@/lib/api';
 import {
   MembershipsContextType,
   UserContextType,
@@ -19,7 +19,7 @@ import { ReactNode, useEffect, useMemo } from 'react';
 export function MainShell({ children }: { children?: ReactNode }) {
   const ctx = useOutletContext<UserContextType & MembershipsContextType>();
   const { user, memberships } = ctx;
-  const { tenantId, isUserUniverseLoaded } = useTenantDetails();
+  const { tenantId, isUserUniverseLoaded, membership } = useTenantDetails();
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
   const { getOrganizationIdForTenant } = useOrganizations();
@@ -29,6 +29,9 @@ export function MainShell({ children }: { children?: ReactNode }) {
       ? (getOrganizationIdForTenant(tenantId) ?? undefined)
       : undefined
     : undefined;
+  const canManageApiTokens =
+    membership === TenantMemberRole.OWNER ||
+    membership === TenantMemberRole.ADMIN;
 
   useEffect(() => {
     if (!tenantId) {
@@ -47,8 +50,15 @@ export function MainShell({ children }: { children?: ReactNode }) {
         managedWorkerEnabled,
         isCloudEnabled,
         orgId,
+        canManageApiTokens,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled, orgId],
+    [
+      cloud?.canBill,
+      managedWorkerEnabled,
+      isCloudEnabled,
+      orgId,
+      canManageApiTokens,
+    ],
   );
 
   const childCtx = useContextFromParent({
