@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Highlights
+
+- Fixes timeouts in `UserSession` cleanup jobs by adding an index via a new `hatchet-migrate` migration.
+
 ## [0.90.13] - 2026-06-29
 
 Hatchet v0.90.13 is a stability-focused release. It keeps long-running deployments healthy by bounding session-table growth, reduces scheduling latency under load, fixes a duration-parsing bug that could silently shorten your timeouts, and ships a batch of dashboard fixes.
