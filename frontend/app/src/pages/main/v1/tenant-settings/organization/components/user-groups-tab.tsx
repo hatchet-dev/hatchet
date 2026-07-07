@@ -1,5 +1,5 @@
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
-import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
+import { RoleBadge } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { CreateUserGroupModal } from '@/pages/organizations/$organization/components/create-user-group-modal';
 import { EditUserGroupModal } from '@/pages/organizations/$organization/components/edit-user-group-modal';
@@ -58,9 +59,7 @@ export function UserGroupsTab({
     },
     {
       columnLabel: 'Tenant Role',
-      cellRenderer: (row: UserGroup) => (
-        <Badge variant="outline">{row.role}</Badge>
-      ),
+      cellRenderer: (row: UserGroup) => <RoleBadge role={row.role} />,
     },
     {
       columnLabel: 'Tags',
@@ -116,8 +115,11 @@ export function UserGroupsTab({
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No user groups yet.
+        <div className="py-8">
+          <EmptyState
+            title="No user groups"
+            description="User groups let you grant a set of organization members access to tenants by tag. Create a group to get started."
+          />
         </div>
       )}
 

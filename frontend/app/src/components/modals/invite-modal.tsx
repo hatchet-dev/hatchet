@@ -220,6 +220,14 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                         </TableCell>
                         <TableCell className="font-medium">
                           {invite.organizationName ?? '—'}
+                          {invite.tenants && invite.tenants.length > 0 && (
+                            <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                              Includes {invite.tenants[0].tenantRole} access to:{' '}
+                              {invite.tenants
+                                .map((tenant) => tenant.tenantName)
+                                .join(', ')}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {invite.role.toLowerCase()}
