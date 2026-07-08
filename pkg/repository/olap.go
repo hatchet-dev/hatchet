@@ -1206,8 +1206,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
-		Tenantid: tenantId,
-		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Tenantid:                  tenantId,
+		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		ParentTaskExternalId:      opts.ParentTaskExternalId,
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 	}
 
 	statuses := make([]string, 0)

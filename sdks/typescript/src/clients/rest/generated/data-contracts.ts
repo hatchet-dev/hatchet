@@ -1112,9 +1112,7 @@ export type V1CreateWebhookRequestHMAC = V1CreateWebhookRequestBase & {
 };
 
 export type V1CreateWebhookRequest =
-  | V1CreateWebhookRequestBasicAuth
-  | V1CreateWebhookRequestAPIKey
-  | V1CreateWebhookRequestHMAC;
+  V1CreateWebhookRequestBasicAuth | V1CreateWebhookRequestAPIKey | V1CreateWebhookRequestHMAC;
 
 export interface V1WebhookResponse {
   /** The message for the webhook response */

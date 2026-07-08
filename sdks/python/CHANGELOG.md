@@ -5,6 +5,14 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.33.17] - 2026-07-07
+
+### Fixed
+
+- Fixes an issue in the durable event listener where we could hang indefinitely waiting for an ack. Now, we'll time out and allow the task to retry, so it should be able to recover independently.
+- Fixes an issue in the durable execution logic where collisions in id + retry count would cause unexpected behavior - fixed by adding the invocation count to the key, when it's provided.
+- Fixes an issue in the durable execution logic where a listener reconnect could cause messages to be stuck in the old request queue, causing the listener to hang indefinitely. Now, we will shovel messages from the old queue to the new queue on reconnect, so that they can be processed normally.
+
 ## [1.33.16] - 2026-07-05
 
 ### Fixed
