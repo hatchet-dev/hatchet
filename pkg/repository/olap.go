@@ -1031,7 +1031,7 @@ func (r *OLAPRepositoryImpl) ListTasksByDAGId(ctx context.Context, tenantId uuid
 	}
 
 	for _, task := range tasksWithData {
-		if _, alreadyMapped := taskIdToDagExternalId[task.ID]; !alreadyMapped && task.ParentTaskExternalID != nil {
+		if _, alreadyMapped := taskIdToDagExternalId[task.ID]; !alreadyMapped && task.IsDagSubtask {
 			taskIdToDagExternalId[task.ID] = *task.ParentTaskExternalID
 		}
 	}
@@ -1338,7 +1338,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		for _, row := range orchestratorRows {
 			taskIdsInsertedAts = append(taskIdsInsertedAts, IdInsertedAt{ID: row.ID, InsertedAt: row.InsertedAt})
 
-			if row.ParentTaskExternalID == nil {
+			if !row.IsDagSubtask {
 				continue
 			}
 

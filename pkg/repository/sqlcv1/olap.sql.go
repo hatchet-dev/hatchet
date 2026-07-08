@@ -791,12 +791,12 @@ WITH inputs AS (
         )
 )
 
-SELECT id, inserted_at, external_id, parent_task_external_id
+SELECT id, inserted_at, external_id, parent_task_external_id, (parent_task_external_id IS NOT NULL)::BOOLEAN AS is_dag_subtask
 FROM parents
 
 UNION ALL
 
-SELECT id, inserted_at, external_id, parent_task_external_id
+SELECT id, inserted_at, external_id, parent_task_external_id, (parent_task_external_id IS NOT NULL)::BOOLEAN AS is_dag_subtask
 FROM children
 `
 
@@ -811,6 +811,7 @@ type GetDagOrchestratorTasksRow struct {
 	InsertedAt           pgtype.Timestamptz `json:"inserted_at"`
 	ExternalID           uuid.UUID          `json:"external_id"`
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
+	IsDagSubtask         bool               `json:"is_dag_subtask"`
 }
 
 func (q *Queries) GetDagOrchestratorTasks(ctx context.Context, db DBTX, arg GetDagOrchestratorTasksParams) ([]*GetDagOrchestratorTasksRow, error) {
@@ -827,6 +828,7 @@ func (q *Queries) GetDagOrchestratorTasks(ctx context.Context, db DBTX, arg GetD
 			&i.InsertedAt,
 			&i.ExternalID,
 			&i.ParentTaskExternalID,
+			&i.IsDagSubtask,
 		); err != nil {
 			return nil, err
 		}
@@ -2885,7 +2887,8 @@ WITH input AS (
         t.latest_retry_count,
         t.dag_id,
         t.is_durable,
-        t.is_dag_orchestrator
+        t.is_dag_orchestrator,
+        t.is_dag_subtask
     FROM
         v1_tasks_olap t
     JOIN
@@ -3021,7 +3024,8 @@ SELECT
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
     COALESCE(t.is_durable, FALSE) AS is_durable,
-    COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator
+    COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator,
+    COALESCE(t.is_dag_subtask, FALSE) AS is_dag_subtask
 FROM
     tasks t
 LEFT JOIN
@@ -3075,6 +3079,7 @@ type PopulateTaskRunDataRow struct {
 	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	IsDurable             bool                 `json:"is_durable"`
 	IsDagOrchestrator     bool                 `json:"is_dag_orchestrator"`
+	IsDagSubtask          bool                 `json:"is_dag_subtask"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -3122,6 +3127,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.OutputEventInsertedAt,
 			&i.IsDurable,
 			&i.IsDagOrchestrator,
+			&i.IsDagSubtask,
 		); err != nil {
 			return nil, err
 		}
