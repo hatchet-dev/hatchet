@@ -88,7 +88,7 @@ describe('AdminClient display name', () => {
     const admin = createMockAdmin();
     await admin.runWorkflow('my-workflow', {});
 
-    const request = (admin.workflowsGrpc.triggerWorkflow as jest.Mock).mock.calls[0][0];
+    const [[request]] = (admin.workflowsGrpc.triggerWorkflow as jest.Mock).mock.calls;
     expect(request.displayName).toBeUndefined();
   });
 
