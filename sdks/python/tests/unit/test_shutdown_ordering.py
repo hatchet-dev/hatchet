@@ -178,13 +178,12 @@ async def test_stop_action_loop_is_idempotent() -> None:
     # Second call must succeed silently.
     await process._stop_action_loop()
     # stop_stream() is called exactly once (the second call short-circuits).
-    listener.stop_stream.assert_called_once()  # type: ignore[attr-defined]
-    listener.cleanup.assert_not_called()
+    listener.stop_stream.assert_called_once()
+    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
 
 
 async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
-    """finalize_listener_cleanup is the only path that should call listener.cleanup().
-    """
+    """finalize_listener_cleanup is the only path that should call listener.cleanup()."""
     stop_event = _CTX.Event()
     worker_id_queue: Any = _CTX.Queue()
 
@@ -193,10 +192,10 @@ async def test_finalize_listener_cleanup_stops_heartbeat() -> None:
     process.listener = listener
 
     await process._stop_action_loop()
-    listener.cleanup.assert_not_called()
+    listener.cleanup.assert_not_called()  # type: ignore[attr-defined]
 
     process.finalize_listener_cleanup()
-    listener.cleanup.assert_called_once()
+    listener.cleanup.assert_called_once()  # type: ignore[attr-defined]
 
 
 async def test_heartbeat_survives_stop_action_loop_until_finalize_cleanup() -> None:
@@ -226,9 +225,9 @@ async def test_heartbeat_survives_stop_action_loop_until_finalize_cleanup() -> N
 
     await process._stop_action_loop()
 
-    assert listener.run_heartbeat is True, (
-        "heartbeat must keep running while in-flight tasks may still be draining"
-    )
+    assert (
+        listener.run_heartbeat is True
+    ), "heartbeat must keep running while in-flight tasks may still be draining"
     assert not heartbeat_task.cancelled()
     assert not heartbeat_task.done(), "heartbeat task must still be alive"
     listener.aio_client.Unsubscribe.assert_not_called()

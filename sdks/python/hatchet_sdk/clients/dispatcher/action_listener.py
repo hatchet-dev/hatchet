@@ -295,8 +295,7 @@ class ActionListener:
         )
 
     def stop_stream(self) -> None:
-        """Stop reading from the action stream, without touching the heartbeat.
-        """
+        """Stop reading from the action stream, without touching the heartbeat."""
         self.stop_signal = True
         if self.interrupt is not None:
             self.interrupt.set()
@@ -310,9 +309,6 @@ class ActionListener:
             self.unregister()
         except Exception:
             logger.exception("failed to unregister")
-
-        if self.interrupt:  # type: ignore[truthy-bool]
-            self.interrupt.set()
 
     def unregister(self) -> WorkerUnsubscribeRequest:
         self.run_heartbeat = False
