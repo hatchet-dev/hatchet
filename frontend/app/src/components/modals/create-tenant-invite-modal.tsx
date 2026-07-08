@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
@@ -126,6 +127,7 @@ type CreateTenantInviteFormProps = {
   }) => void;
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
+  formErrors?: string[];
   isCloudEnabled?: boolean;
   defaultEmail?: string;
   defaultTenantId?: string;
@@ -200,6 +202,7 @@ const CreateTenantInviteForm = ({
           })}
         >
           <div className="grid gap-4">
+            <InlineError errors={props.formErrors ?? []} />
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               {props.emailOptions !== undefined ? (
@@ -347,9 +350,13 @@ export const CreateTenantInviteModal = ({
   onCreated: (tenantId: string, invite: TenantInvite) => void;
 }) => {
   const { isCloudEnabled } = useOrganizations();
+  // `fieldErrors` is only for the client-side duplicate-member guard below.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  // Route API errors to an inline banner rather than a toast, which would
+  // render behind the modal overlay.
   const { handleApiError } = useApiError({
-    setFieldErrors,
+    setErrors: setFormErrors,
   });
 
   const queryClient = useQueryClient();
@@ -437,6 +444,9 @@ export const CreateTenantInviteModal = ({
       <CreateTenantInviteForm
         isLoading={createMutation.isPending}
         onSubmit={({ email, role, tenantId: selectedTenantId }) => {
+          // Clear any prior errors before re-submitting.
+          setFieldErrors({});
+          setFormErrors([]);
           // When the tenant select is shown, the user's choice wins over the
           // pre-selected tenant.
           const inviteTenantId = needsTenantSelect
@@ -459,6 +469,7 @@ export const CreateTenantInviteModal = ({
           });
         }}
         fieldErrors={fieldErrors}
+        formErrors={formErrors}
         isCloudEnabled={isCloudEnabled}
         defaultEmail={defaultEmail}
         defaultTenantId={needsTenantSelect ? tenantId : undefined}

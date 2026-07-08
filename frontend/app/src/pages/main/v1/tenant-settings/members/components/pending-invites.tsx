@@ -1,59 +1,147 @@
+import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
 import RelativeDate from '@/components/v1/molecules/relative-date';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { TenantInvite } from '@/lib/api';
+import { useTenantApi } from '@/lib/api/tenant-wrapper';
+import { useApiError } from '@/lib/hooks';
 import {
   MemberEmail,
   RoleBadge,
 } from '@/pages/main/v1/tenant-settings/components/member-primitives';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 
 export function PendingInvitesSection({
   invites,
+  tenantId,
+  canManage,
+  onInviteRevoked,
 }: {
   invites: TenantInvite[];
+  tenantId: string;
+  canManage: boolean;
+  onInviteRevoked: () => void;
 }) {
+  const [inviteToRevoke, setInviteToRevoke] = useState<TenantInvite | null>(
+    null,
+  );
+
   if (invites.length === 0) {
     return null;
   }
 
+  const columns = [
+    {
+      columnLabel: 'Email',
+      cellRenderer: (invite: TenantInvite) => (
+        <MemberEmail email={invite.email} />
+      ),
+    },
+    {
+      columnLabel: 'Role',
+      cellRenderer: (invite: TenantInvite) => <RoleBadge role={invite.role} />,
+    },
+    {
+      columnLabel: 'Created',
+      cellRenderer: (invite: TenantInvite) => (
+        <RelativeDate date={invite.metadata.createdAt} />
+      ),
+    },
+    {
+      columnLabel: 'Expires',
+      cellRenderer: (invite: TenantInvite) => (
+        <RelativeDate date={invite.expires} />
+      ),
+    },
+    ...(canManage
+      ? [
+          {
+            columnLabel: 'Actions',
+            cellRenderer: (invite: TenantInvite) => (
+              <TableRowActions
+                row={invite}
+                actions={[
+                  {
+                    label: 'Revoke invite',
+                    onClick: () => setInviteToRevoke(invite),
+                  },
+                ]}
+              />
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="mt-6 space-y-2">
-      <h4 className="text-sm font-medium">Pending Invites</h4>
-      <div className="rounded-md border border-border/70">
-        <div className="hidden grid-cols-[minmax(0,1.6fr)_120px_140px_140px] gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
-          <span>Email</span>
-          <span>Role</span>
-          <span>Created</span>
-          <span>Expires</span>
-        </div>
-        <div>
-          {invites.map((invite) => (
-            <div
-              key={invite.metadata.id}
-              className="grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.6fr)_120px_140px_140px] md:items-center"
-            >
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Email</p>
-                <MemberEmail email={invite.email} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">Role</p>
-                <RoleBadge role={invite.role} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">
-                  Created
-                </p>
-                <RelativeDate date={invite.metadata.createdAt} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground md:hidden">
-                  Expires
-                </p>
-                <RelativeDate date={invite.expires} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <h3 className="text-base font-semibold">Pending Invites</h3>
+      <SimpleTable
+        columns={columns}
+        data={invites}
+        rowKey={(invite) => invite.metadata.id}
+      />
+
+      {inviteToRevoke && (
+        <RevokeInviteDialog
+          tenantId={tenantId}
+          invite={inviteToRevoke}
+          onClose={() => setInviteToRevoke(null)}
+          onSuccess={() => {
+            setInviteToRevoke(null);
+            onInviteRevoked();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function RevokeInviteDialog({
+  tenantId,
+  invite,
+  onClose,
+  onSuccess,
+}: {
+  tenantId: string;
+  invite: TenantInvite;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
+  const { tenantInviteDeleteMutation } = useTenantApi();
+  const deleteInvite = tenantInviteDeleteMutation(tenantId, invite.metadata.id);
+  const revokeMutation = useMutation({
+    ...deleteInvite,
+    onSuccess,
+    // Keep the dialog open so the inline error is visible.
+    onError: handleApiError,
+  });
+
+  return (
+    <ConfirmDialog
+      isOpen
+      title="Revoke invite"
+      description={
+        <div className="space-y-3">
+          <p>
+            Revoke the pending invite for <strong>{invite.email}</strong>? They
+            will no longer be able to accept it.
+          </p>
+          <InlineError errors={formErrors} />
+        </div>
+      }
+      submitLabel="Revoke invite"
+      submitVariant="destructive"
+      isLoading={revokeMutation.isPending}
+      onSubmit={() => {
+        setFormErrors([]);
+        revokeMutation.mutate();
+      }}
+      onCancel={onClose}
+    />
   );
 }

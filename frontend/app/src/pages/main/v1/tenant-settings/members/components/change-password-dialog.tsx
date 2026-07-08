@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading';
@@ -33,8 +34,8 @@ const schema = z
 
 export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   const { toast } = useToast();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const { handleApiError } = useApiError({ setFieldErrors });
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const { userUpdatePasswordMutation } = useUserApi();
 
   const updateMutation = useMutation({
@@ -57,10 +58,8 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     resolver: zodResolver(schema),
   });
 
-  const passwordError =
-    errors.password?.message?.toString() || fieldErrors.password;
-  const newPasswordError =
-    errors.newPassword?.message?.toString() || fieldErrors.newPassword;
+  const passwordError = errors.password?.message?.toString();
+  const newPasswordError = errors.newPassword?.message?.toString();
   const confirmError = errors.confirmNewPassword?.message?.toString();
 
   return (
@@ -73,14 +72,16 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
           </DialogDescription>
         </DialogHeader>
         <form
-          onSubmit={handleSubmit((data) =>
+          onSubmit={handleSubmit((data) => {
+            setFormErrors([]);
             updateMutation.mutate({
               password: data.password,
               newPassword: data.newPassword,
-            }),
-          )}
+            });
+          })}
         >
           <div className="grid gap-4">
+            <InlineError errors={formErrors} />
             <div className="grid gap-2">
               <Label htmlFor="current-password">Current password</Label>
               <Input

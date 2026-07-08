@@ -1,7 +1,6 @@
 import { ChangePasswordDialog } from './change-password-dialog';
 import { MemberActions } from './members-columns';
 import { UpdateMemberForm } from './update-member-form';
-import { useToast } from '@/components/v1/hooks/use-toast';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Badge } from '@/components/v1/ui/badge';
@@ -166,28 +165,23 @@ function EditMemberRoleDialog({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const { toast } = useToast();
-  const { handleApiError } = useApiError();
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const { tenantMemberUpdateMutation } = useTenantApi();
   const memberUpdate = tenantMemberUpdateMutation(tenantId, member.metadata.id);
   const updateMutation = useMutation({
     ...memberUpdate,
     onSuccess,
-    onError: (error: AxiosError) => {
-      handleApiError(error);
-      onClose();
-    },
+    // Keep the dialog open so the inline error is visible.
+    onError: (error: AxiosError) => handleApiError(error),
   });
 
   const handleSubmit = (data: { role: TenantMemberRole }) => {
+    setFormErrors([]);
     if (member.role === TenantMemberRole.OWNER && !canManageOrganization) {
-      toast({
-        title: 'Error',
-        description:
-          'Owner role management must be done through organization membership',
-        duration: 5000,
-      });
-      onClose();
+      setFormErrors([
+        'Owner role management must be done through organization membership.',
+      ]);
       return;
     }
     updateMutation.mutate(data);
@@ -198,6 +192,7 @@ function EditMemberRoleDialog({
       <UpdateMemberForm
         isLoading={updateMutation.isPending}
         onSubmit={handleSubmit}
+        formErrors={formErrors}
         member={member}
         isCloudEnabled={true}
         canSetOwnerRole={canManageOrganization}

@@ -119,7 +119,12 @@ export default function Members() {
           />
         )}
 
-        <PendingInvitesSection invites={invites} />
+        <PendingInvitesSection
+          invites={invites}
+          tenantId={tenantId}
+          canManage={canManageTenantMembers}
+          onInviteRevoked={() => invitesQuery.refetch()}
+        />
       </div>
     </div>
   );

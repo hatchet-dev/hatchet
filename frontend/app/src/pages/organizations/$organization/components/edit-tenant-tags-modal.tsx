@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -47,7 +48,8 @@ export function EditTenantTagsModal({
 }: EditTenantTagsModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
-  const { handleApiError } = useApiError({});
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const [tags, setTags] = useState<string[]>(initialTags);
   const [inputValue, setInputValue] = useState('');
 
@@ -122,6 +124,7 @@ export function EditTenantTagsModal({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <InlineError errors={formErrors} />
           <div className="space-y-2">
             <Label>Tags</Label>
 

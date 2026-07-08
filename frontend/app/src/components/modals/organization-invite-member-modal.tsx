@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -69,15 +70,17 @@ export const OrganizationInviteMemberModal = ({
   onClose,
   onCreated,
 }: OrganizationInviteMemberModalProps) => {
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [formErrors, setFormErrors] = useState<string[]>([]);
   const [selectedTenants, setSelectedTenants] = useState<SelectedTenant[]>([]);
   const [selectedUserGroupIds, setSelectedUserGroupIds] = useState<string[]>(
     [],
   );
   const { isControlPlaneEnabled } = useControlPlane();
 
+  // Route API errors to an inline banner instead of a toast (which renders
+  // behind the modal overlay).
   const { handleApiError } = useApiError({
-    setFieldErrors,
+    setErrors: setFormErrors,
   });
 
   const {
@@ -216,7 +219,7 @@ export const OrganizationInviteMemberModal = ({
     onError: handleApiError,
   });
 
-  const emailError = errors.email?.message?.toString() || fieldErrors?.email;
+  const emailError = errors.email?.message?.toString();
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -232,9 +235,13 @@ export const OrganizationInviteMemberModal = ({
         </DialogHeader>
 
         <form
-          onSubmit={handleSubmit((data) => inviteMemberMutation.mutate(data))}
+          onSubmit={handleSubmit((data) => {
+            setFormErrors([]);
+            inviteMemberMutation.mutate(data);
+          })}
           className="space-y-4"
         >
+          <InlineError errors={formErrors} />
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <Input

@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -37,7 +38,8 @@ export function CreateUserGroupModal({
 }: CreateUserGroupModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
-  const { handleApiError } = useApiError({});
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const [name, setName] = useState('');
   const [role, setRole] = useState<TenantMemberRoleType>(
     TenantMemberRoleType.MEMBER,
@@ -109,6 +111,7 @@ export function CreateUserGroupModal({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <InlineError errors={formErrors} />
           <div className="space-y-2">
             <Label htmlFor="group-name">Name</Label>
             <Input
