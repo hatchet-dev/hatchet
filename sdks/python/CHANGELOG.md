@@ -11,6 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a `display_name` option to set a custom, human-readable name on a run at trigger time. It is accepted as a direct keyword argument on every run surface (`run`, `run_no_wait`, `aio_run`, `aio_run_no_wait`, per-item via `create_bulk_run_item` for `run_many`, and child spawns) and on `TriggerWorkflowOptions`. Single-task runs carry the name on the task; multi-step DAG runs carry it on the DAG (the DAG's step tasks keep their generated names). Empty or whitespace-only values fall back to the generated `<readableId>-<timestamp>` name, and names longer than 255 characters are stored truncated rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
 
+## [1.33.17] - 2026-07-07
+
+### Fixed
+
+- Fixes an issue in the durable event listener where we could hang indefinitely waiting for an ack. Now, we'll time out and allow the task to retry, so it should be able to recover independently.
+- Fixes an issue in the durable execution logic where collisions in id + retry count would cause unexpected behavior - fixed by adding the invocation count to the key, when it's provided.
+- Fixes an issue in the durable execution logic where a listener reconnect could cause messages to be stuck in the old request queue, causing the listener to hang indefinitely. Now, we will shovel messages from the old queue to the new queue on reconnect, so that they can be processed normally.
+
+## [1.33.16] - 2026-07-05
+
+### Fixed
+
+- Fixes the type of `__name__` in the `DependencyFunc` protocol to be a string instead of a method, which was failing on `ty`.
+
+## [1.33.15] - 2026-07-02
+
+### Added
+
+- Adds `oldest_excluding_retries` to the task stats response
+
+### Changed
+
+- Rolled back required SDK dependencies to the state at `v1.29.5`.
+
+
+## [1.33.14] - 2026-06-26
+
+### Fixed
+
+- Updates the bulk spawn methods on the internal admin client to dynamically chunk bulk-spawned workflows by the protobuf message size, to avoid hitting gRPC limits on large bulk spawns.
+
+## [1.33.13] - 2026-06-26
+
+### Fixed
+
+- Reworks the internals of event pushes and stream event pubs to use `grpc.aio` directly to limit threading overhead on high-throughput workers.
+- Reworks how logs are forwarded to the engine to publish from a thread instead of from an `asyncio.Task` to try to avoid event loop blocking issues.
+
 ## [1.33.12] - 2026-06-21
 
 ### Fixed

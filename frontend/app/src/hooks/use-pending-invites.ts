@@ -41,7 +41,8 @@ export const pendingInvitesQuery = (
       organizationInvites,
     };
   },
-  refetchInterval: 60_000,
+  refetchInterval: 30_000,
+  staleTime: 30_000,
 });
 
 export const usePendingInvites = (opts?: {
@@ -60,7 +61,7 @@ export const usePendingInvites = (opts?: {
   );
 
   const invalidate = useCallback(() => {
-    queryClient.resetQueries({
+    queryClient.invalidateQueries({
       queryKey: ['pending-invites'],
     });
   }, [queryClient]);

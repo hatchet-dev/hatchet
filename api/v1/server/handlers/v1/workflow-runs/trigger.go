@@ -89,6 +89,25 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		return nil, err
 	}
 
+	if request.Body.ReturnOnlyId != nil && *request.Body.ReturnOnlyId {
+		// this is a hack to avoid race conditions in replicating data over to the olap db. basically,
+		// there's a situation where it takes longer than the polling time to replicate the run over (could happen
+		// under load, e.g.), and then we'd 500 on this request even though the actual trigger happened successfully.
+		// to avoid confusion, the frontend passes this boolean param, and we just short-circuit and return only the
+		// id so we're not dependent on replication.
+		return gen.V1WorkflowRunCreate200JSONResponse(
+			gen.V1WorkflowRunDetails{
+				Run: gen.V1WorkflowRun{
+					Metadata: gen.APIResourceMeta{
+						Id:        resp.ExternalId,
+						CreatedAt: time.Now().UTC(),
+						UpdatedAt: time.Now().UTC(),
+					},
+				},
+			},
+		), nil
+	}
+
 	// loop for workflow to be created in the OLAP database
 	var rawWorkflowRun *v1.V1WorkflowRunPopulator
 	retries := 0

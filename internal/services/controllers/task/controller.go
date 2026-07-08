@@ -61,11 +61,12 @@ type TasksControllerImpl struct {
 	emitSleepOperations                      *operation.TenantOperationPool
 	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
 	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
-	replayEnabled                            bool
-	analyzeCronInterval                      time.Duration
-	signaler                                 *signal.OLAPSignaler
-	tw                                       *trigger.TriggerWriter
-	promGate                                 *prometheus.Gate
+
+	replayEnabled       bool
+	analyzeCronInterval time.Duration
+	signaler            *signal.OLAPSignaler
+	tw                  *trigger.TriggerWriter
+	promGate            *prometheus.Gate
 }
 
 type TasksControllerOpt func(*TasksControllerOpts)
@@ -1044,18 +1045,11 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
-	eg := &errgroup.Group{}
+	if err := tc.handleProcessUserEventTrigger(ctx, tenantId, msgs); err != nil {
+		return err
+	}
 
-	// TODO: run these in the same tx or send as separate messages?
-	eg.Go(func() error {
-		return tc.handleProcessUserEventTrigger(ctx, tenantId, msgs)
-	})
-
-	eg.Go(func() error {
-		return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
-	})
-
-	return eg.Wait()
+	return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.

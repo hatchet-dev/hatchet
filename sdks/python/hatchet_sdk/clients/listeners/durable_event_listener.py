@@ -203,6 +203,13 @@ class DurableEventListener:
 
         logger.info("durable event listener connecting...")
 
+        # Requests enqueued while the stream was down must survive the
+        # reconnect: a durable run that registers an event during the gap
+        # would otherwise await its ack forever. Swap in a fresh queue for
+        # the new stream (which also stops the old stream's request
+        # iterator), then carry any unsent requests over.
+        old_queue = self._request_queue
+
         self._conn = new_conn(self.config, aio=True)
         self._stub = V1DispatcherStub(self._conn)
         self._request_queue = asyncio.Queue()
@@ -217,6 +224,20 @@ class DurableEventListener:
 
         await self._register_worker()
         await self._poll_worker_status()
+
+        if old_queue is not None:
+            carried_over = 0
+            while True:
+                try:
+                    self._request_queue.put_nowait(old_queue.get_nowait())
+                    carried_over += 1
+                except asyncio.QueueEmpty:  # noqa: PERF203
+                    break
+            if carried_over:
+                logger.info(
+                    f"durable event listener carried over {carried_over} queued request(s) across reconnect"
+                )
+
         logger.info("durable event listener connected")
 
     async def start(self, worker_id: str) -> None:
@@ -260,7 +281,7 @@ class DurableEventListener:
         if queue is None:
             raise RuntimeError("Request queue not initialized")
 
-        while self._running:
+        while self._running and self._request_queue is queue:
             with suppress(asyncio.TimeoutError):
                 yield await asyncio.wait_for(queue.get(), timeout=1.0)
 
@@ -524,6 +545,68 @@ class DurableEventListener:
         )
         await self._request_queue.put(request)
 
+    _EVENT_ACK_TIMEOUT_S = 60.0
+
+    async def _await_event_ack(
+        self,
+        key: PendingEventAck,
+        future: asyncio.Future[DurableTaskEventAck],
+    ) -> DurableTaskEventAck:
+        try:
+            return await asyncio.wait_for(future, timeout=self._EVENT_ACK_TIMEOUT_S)
+        except (TimeoutError, asyncio.TimeoutError) as err:
+            if self._pending_event_acks.get(key) is future:
+                self._pending_event_acks.pop(key, None)
+            raise TimeoutError(
+                f"Timed out after {self._EVENT_ACK_TIMEOUT_S:.0f}s waiting for a durable event ack "
+                f"for task {key[0]} invocation {key[1]}. The request may have been lost on the "
+                "durable stream; failing the attempt so it can be retried."
+            ) from err
+
+    async def _send_run_children_event(
+        self,
+        durable_task_external_id: str,
+        invocation_count: int,
+        event: RunChildrenEvent,
+    ) -> DurableTaskEventRunAck:
+        trigger_opts_list = [
+            self.admin_client._create_workflow_run_request(
+                workflow_name=child.workflow_name,
+                input=child.input,
+                options=child.run_workflow_opts,
+            )
+            for child in event.children
+        ]
+
+        if self._request_queue is None:
+            raise RuntimeError("Client not started")
+
+        all_run_entries: list[DurableTaskRunAckEntry] = []
+        key = (durable_task_external_id, invocation_count)
+
+        for chunk in self.admin_client.chunk_workflow_runs(trigger_opts_list):
+            future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
+            self._pending_event_acks[key] = future
+
+            trigger_req = DurableTaskTriggerRunsRequest(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                trigger_opts=chunk,
+            )
+            await self._request_queue.put(DurableTaskRequest(trigger_runs=trigger_req))
+
+            chunk_ack = await self._await_event_ack(key, future)
+            if not isinstance(chunk_ack, DurableTaskEventRunAck):
+                raise TypeError(f"Expected run ack, got {type(chunk_ack).__name__}")
+
+            all_run_entries.extend(chunk_ack.run_entries)
+
+        return DurableTaskEventRunAck(
+            invocation_count=invocation_count,
+            durable_task_external_id=durable_task_external_id,
+            run_entries=all_run_entries,
+        )
+
     async def send_event(
         self,
         durable_task_external_id: str,
@@ -533,31 +616,20 @@ class DurableEventListener:
         if self._request_queue is None:
             raise RuntimeError("Client not started")
 
+        if isinstance(event, RunChildrenEvent):
+            return await self._send_run_children_event(
+                durable_task_external_id=durable_task_external_id,
+                invocation_count=invocation_count,
+                event=event,
+            )
+
         key = (durable_task_external_id, invocation_count)
         future: asyncio.Future[DurableTaskEventAck] = asyncio.Future()
         self._pending_event_acks[key] = future
 
         request: DurableTaskRequest
 
-        if isinstance(event, RunChildrenEvent):
-            trigger_opts_list = [
-                self.admin_client._create_workflow_run_request(
-                    workflow_name=child.workflow_name,
-                    input=child.input,
-                    options=child.run_workflow_opts,
-                )
-                for child in event.children
-            ]
-
-            trigger_req = DurableTaskTriggerRunsRequest(
-                durable_task_external_id=durable_task_external_id,
-                invocation_count=invocation_count,
-                trigger_opts=trigger_opts_list,
-            )
-
-            request = DurableTaskRequest(trigger_runs=trigger_req)
-
-        elif isinstance(event, WaitForEvent):
+        if isinstance(event, WaitForEvent):
             wait_req = DurableTaskWaitForRequest(
                 durable_task_external_id=durable_task_external_id,
                 invocation_count=invocation_count,
@@ -584,7 +656,7 @@ class DurableEventListener:
 
         await self._request_queue.put(request)
 
-        return await future
+        return await self._await_event_ack(key, future)
 
     async def wait_for_callback(
         self,

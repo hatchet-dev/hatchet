@@ -31,7 +31,7 @@ Sticky assignment is set on the task level by adding the `sticky` property to th
 There are two strategies for setting sticky assignment for [DAG](./dags.mdx) workflows:
 
 - `SOFT`: All tasks in the workflow will attempt to be assigned to the same worker, but if that worker is unavailable, it will be assigned to another worker.
-- `HARD`: All taks in the workflow will only be assigned to the same worker. If that worker is unavailable, the workflow run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](./timeouts.mdx#task-level-timeouts))
+- `HARD`: All tasks in the workflow will only be assigned to the same worker. If that worker is unavailable, the workflow run will not be assigned to another worker and will remain in a pending state until the original worker becomes available or timeout is reached. (See [Scheduling Timeouts](./timeouts.mdx#task-level-timeouts))
 
 <UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
