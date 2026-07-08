@@ -255,7 +255,8 @@ SELECT
     action_id,
     display_name,
     workflow_version_id,
-    step_id
+    step_id,
+    is_dag_orchestrator
 FROM
     v1_task
 WHERE

@@ -1537,7 +1537,8 @@ SELECT
     action_id,
     display_name,
     workflow_version_id,
-    step_id
+    step_id,
+    is_dag_orchestrator
 FROM
     v1_task
 WHERE
@@ -1563,6 +1564,7 @@ type ListTaskMetasRow struct {
 	DisplayName        string             `json:"display_name"`
 	WorkflowVersionID  uuid.UUID          `json:"workflow_version_id"`
 	StepID             uuid.UUID          `json:"step_id"`
+	IsDagOrchestrator  bool               `json:"is_dag_orchestrator"`
 }
 
 func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasParams) ([]*ListTaskMetasRow, error) {
@@ -1587,6 +1589,7 @@ func (q *Queries) ListTaskMetas(ctx context.Context, db DBTX, arg ListTaskMetasP
 			&i.DisplayName,
 			&i.WorkflowVersionID,
 			&i.StepID,
+			&i.IsDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}
