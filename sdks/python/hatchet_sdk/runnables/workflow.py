@@ -397,6 +397,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods.
         """
@@ -884,6 +885,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
 
@@ -966,6 +968,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
@@ -1014,6 +1017,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
 
@@ -1096,6 +1100,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
 
@@ -1884,6 +1889,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
@@ -1975,6 +1981,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
@@ -2034,6 +2041,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
 
@@ -2082,6 +2090,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
+        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
 
