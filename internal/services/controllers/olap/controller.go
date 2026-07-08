@@ -630,7 +630,7 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 	var spans []*v1.SpanData
 
 	for _, task := range tasks {
-		if task.DagID.Valid {
+		if task.DagID.Valid || task.IsDagOrchestrator {
 			continue
 		}
 
@@ -967,6 +967,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workflowID:         taskMeta.WorkflowID,
 			workflowVersionID:  taskMeta.WorkflowVersionID,
 			stepID:             taskMeta.StepID,
+			isDagOrchestrator:  taskMeta.IsDagOrchestrator,
 		}
 
 		if msg.WorkerId != nil {
