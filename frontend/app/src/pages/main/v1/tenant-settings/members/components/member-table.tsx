@@ -172,7 +172,6 @@ function EditMemberRoleDialog({
   const memberUpdate = tenantMemberUpdateMutation(tenantId, member.metadata.id);
   const updateMutation = useMutation({
     ...memberUpdate,
-    mutationFn: memberUpdate.mutationFn,
     onSuccess,
     onError: (error: AxiosError) => {
       handleApiError(error);

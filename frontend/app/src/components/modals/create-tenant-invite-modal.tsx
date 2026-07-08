@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { TenantMemberRole } from '@/lib/api';
+import { TenantMember, TenantMemberRole } from '@/lib/api';
 import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
 import {
   CreateTenantInviteRequest,
@@ -379,7 +379,7 @@ export const CreateTenantInviteModal = ({
     () =>
       new Set(
         (tenantMembersQuery.data?.rows ?? []).map(
-          (member: { user: { email: string } }) => member.user.email,
+          (member: TenantMember) => member.user.email,
         ),
       ),
     [tenantMembersQuery.data?.rows],

@@ -37,7 +37,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -217,13 +217,6 @@ export const OrganizationInviteMemberModal = ({
   });
 
   const emailError = errors.email?.message?.toString() || fieldErrors?.email;
-
-  useEffect(() => {
-    reset();
-    setFieldErrors({});
-    setSelectedTenants([]);
-    setSelectedUserGroupIds([]);
-  }, [reset]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>

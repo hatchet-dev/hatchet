@@ -94,8 +94,11 @@ import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
 
 // FIXME: remove this once we migrate everyone to the control plane
+// The cloud `OrganizationTenant` lacks `region`/`tags`; the control-plane one
+// has both. Graft them on so callers don't have to cast.
 export type OrganizationTenantWithRegion = OrganizationTenant & {
   region?: ControlPlaneOrganizationTenant['region'];
+  tags?: ControlPlaneOrganizationTenant['tags'];
 };
 
 const TERRAFORM_PROVIDER_DOCS_URL =
@@ -134,6 +137,11 @@ function formatTimeoutMs(ms: number): string {
 // is older — never assume it exists.
 type OrganizationInviteWithTenants = OrganizationInvite & {
   tenants?: OrganizationInviteTenant[];
+};
+
+// The cloud client's ManagementToken lacks the control-plane-only `tags` field.
+type ManagementTokenWithTags = ManagementToken & {
+  tags?: string[];
 };
 
 export type OrganizationSettingsSection =
@@ -364,7 +372,7 @@ export function CloudOrganizationSettings({
   const organizationName = organization?.name ?? org?.name ?? '';
   const currentOrganizationName = organization?.name ?? '';
 
-  const visibleTenants = useMemo(
+  const visibleTenants: OrganizationTenantWithRegion[] = useMemo(
     () =>
       (organization?.tenants ?? org?.tenants)?.filter(
         (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
@@ -375,8 +383,7 @@ export function CloudOrganizationSettings({
   const allTenantTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const tenant of visibleTenants) {
-      const tags = (tenant as unknown as { tags?: string[] }).tags;
-      tags?.forEach((t) => tagSet.add(t));
+      tenant.tags?.forEach((t) => tagSet.add(t));
     }
     return Array.from(tagSet).sort();
   }, [visibleTenants]);
@@ -647,8 +654,8 @@ export function CloudOrganizationSettings({
     },
     {
       columnLabel: 'Tags',
-      cellRenderer: (row: ManagementToken) => {
-        const rowTags = (row as unknown as { tags?: string[] }).tags;
+      cellRenderer: (row: ManagementTokenWithTags) => {
+        const rowTags = row.tags;
         return rowTags && rowTags.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {rowTags.map((tag) => (
@@ -1318,7 +1325,7 @@ export function CloudOrganizationSettings({
           organizationId={orgId}
           tenantId={tenantToEditTags.id}
           tenantName={tenantToEditTags.name || tenantToEditTags.id}
-          initialTags={(tenantToEditTags as { tags?: string[] }).tags ?? []}
+          initialTags={tenantToEditTags.tags ?? []}
           allTenantTags={allTenantTags}
           onSuccess={() =>
             queryClient.invalidateQueries({
@@ -1425,8 +1432,7 @@ function TenantsSection({
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const tenant of tenants) {
-      const tags = (tenant as unknown as { tags?: string[] }).tags;
-      tags?.forEach((t) => tagSet.add(t));
+      tenant.tags?.forEach((t) => tagSet.add(t));
     }
     return Array.from(tagSet).sort();
   }, [tenants]);
@@ -1447,7 +1453,7 @@ function TenantsSection({
       }
 
       if (selectedTags.length > 0) {
-        const tags = (tenant as unknown as { tags?: string[] }).tags ?? [];
+        const tags = tenant.tags ?? [];
         return selectedTags.every((t) => tags.includes(t));
       }
 
@@ -1485,7 +1491,7 @@ function TenantsSection({
     {
       columnLabel: 'Tags',
       cellRenderer: (tenant: OrganizationTenantWithRegion) => {
-        const tags = (tenant as unknown as { tags?: string[] }).tags ?? [];
+        const tags = tenant.tags ?? [];
         return tags.length > 0 ? (
           <TagList tags={tags} />
         ) : (
