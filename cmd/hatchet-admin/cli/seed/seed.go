@@ -114,6 +114,10 @@ func SeedDatabase(dc *database.Layer) error {
 func seedAuthDisabledToken(dc *database.Layer) error {
 	ctx := context.Background()
 
+	if dc.Seed.DefaultTenantID != authmode.EmbeddedTokenTenantID {
+		return fmt.Errorf("authdisabled mode requires the default tenant ID (%s) to match the embedded token tenant (%s)", dc.Seed.DefaultTenantID, authmode.EmbeddedTokenTenantID)
+	}
+
 	tokenID, err := uuid.Parse(authmode.EmbeddedTokenID)
 	if err != nil {
 		return fmt.Errorf("invalid embedded token ID: %w", err)
@@ -121,6 +125,8 @@ func seedAuthDisabledToken(dc *database.Layer) error {
 
 	if _, getErr := dc.V1.APIToken().GetAPITokenById(ctx, tokenID); getErr == nil {
 		return nil
+	} else if !errors.Is(getErr, pgx.ErrNoRows) {
+		return fmt.Errorf("checking for embedded token: %w", getErr)
 	}
 
 	tenantID, err := uuid.Parse(authmode.EmbeddedTokenTenantID)

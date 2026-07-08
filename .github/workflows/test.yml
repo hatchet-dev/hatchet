@@ -738,32 +738,3 @@ jobs:
           TESTING_MATRIX_RABBITMQ_ENABLED: ${{ matrix.rabbitmq-enabled }}
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
           RAMP_UP_DURATION_TIMEOUT: 30s
-
-  auth-enabled:
-    runs-on: ubicloud-standard-8
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: '3.14'
-      - name: Generate docs snippets and examples
-        working-directory: frontend/snippets
-        run: python3 generate.py
-      - name: Build non-dev images
-        run: |
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=lite --platform linux/amd64 -t hatchet-lite-tmp:amd64 . &
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=admin --platform linux/amd64 -t hatchet-admin-tmp:amd64 . &
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=migrate --platform linux/amd64 -t hatchet-migrate-tmp:amd64 . &
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
-            --build-arg SERVER_TARGET=api --platform linux/amd64 -t hatchet-api:ci . &
-          wait
-          DOCKER_BUILDKIT=1 docker build -f ./build/package/lite.dockerfile \
-            --build-arg HATCHET_LITE_IMAGE=hatchet-lite-tmp:amd64 \
-            --build-arg HATCHET_ADMIN_IMAGE=hatchet-admin-tmp:amd64 \
-            --build-arg HATCHET_MIGRATE_IMAGE=hatchet-migrate-tmp:amd64 \
-            --platform linux/amd64 -t hatchet-lite:ci .
-      - name: Assert non-dev api and lite have auth ENABLED
-        run: bash hack/ci/assert-auth-enabled.sh

@@ -9,16 +9,14 @@ import (
 )
 
 func (a *AuthN) authPreflight(c echo.Context) (handled bool, err error) {
-	forbidden := echo.NewHTTPError(http.StatusForbidden, "Please provide valid credentials")
-
 	ctx := c.Request().Context()
 
 	user, err := a.config.V1.User().GetUserByEmail(ctx, a.config.Seed.AdminEmail)
 
 	if err != nil {
-		a.l.Error().Ctx(ctx).Err(err).Msg("authdisabled: could not resolve default user")
+		a.l.Error().Ctx(ctx).Err(err).Msg("authdisabled: could not resolve the seeded admin user")
 
-		return true, forbidden
+		return true, echo.NewHTTPError(http.StatusInternalServerError, "authdisabled: could not resolve the seeded admin user; ensure the database was seeded (ADMIN_EMAIL/ADMIN_PASSWORD)")
 	}
 
 	c.Set("user", user)

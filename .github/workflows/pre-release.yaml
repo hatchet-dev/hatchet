@@ -60,6 +60,7 @@ jobs:
     needs:
       - build-push-hatchet-api-amd
       - build-push-hatchet-api-arm
+      - auth-enabled
     steps:
       - name: Get tag name
         id: tag_name
@@ -728,12 +729,39 @@ jobs:
             .
       - name: Push to GHCR
         run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
+  auth-enabled:
+    name: Verify auth enabled (non-dev)
+    runs-on: ubuntu-latest
+    needs:
+      - build-push-hatchet-api-amd
+      - build-push-hatchet-admin-amd
+      - build-push-hatchet-migrate-amd
+      - build-push-hatchet-lite-amd
+    steps:
+      - name: Get tag name
+        id: tag_name
+        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TAG: ${{ github.ref }}
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Login to GHCR
+        id: login-ghcr
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Assert non-dev api and lite have auth ENABLED
+        env:
+          API_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-api:${{steps.tag_name.outputs.tag}}-amd64
+          LITE_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+          ADMIN_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
+          MIGRATE_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
+        run: bash hack/ci/assert-auth-enabled.sh
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-latest
     needs:
       - build-push-hatchet-lite-amd
       - build-push-hatchet-lite-arm
+      - auth-enabled
     steps:
       - name: Get tag name
         id: tag_name
