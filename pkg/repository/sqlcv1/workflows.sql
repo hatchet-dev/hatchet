@@ -646,6 +646,7 @@ JOIN "Job" j ON v."id" = j."workflowVersionId"
 JOIN "Step" s ON j."id" = s."jobId"
 LEFT JOIN "_StepOrder" so ON so."A" = s.id
 WHERE v.id = @workflowVersionId::uuid
+    AND NOT s."isDagOrchestrator"
 GROUP BY s.id, s."readableId"
 ;
 
