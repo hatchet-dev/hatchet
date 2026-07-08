@@ -145,13 +145,7 @@ type ManagementTokenWithTags = ManagementToken & {
 };
 
 export type OrganizationSettingsSection =
-  | 'general'
-  | 'tenants'
-  | 'team'
-  | 'tokens'
-  | 'regions'
-  | 'sso'
-  | 'audit-log';
+  'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'audit-log';
 
 const SECTION_HEADERS: Record<
   OrganizationSettingsSection,
