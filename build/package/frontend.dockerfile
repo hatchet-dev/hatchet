@@ -15,6 +15,8 @@ FROM golang:1.26-alpine AS staticfileserver
 
 WORKDIR /app
 
+ENV CGO_ENABLED=0
+
 COPY go.mod go.sum ./
 COPY ./cmd/hatchet-staticfileserver/ ./cmd/hatchet-staticfileserver/
 
