@@ -48,6 +48,9 @@ func (a *AuthZ) authorize(c echo.Context, r *middleware.RouteInfo) error {
 		return nil
 	}
 
+	// authPreflight only returns handled=true in authdisabled builds, where it authorizes the
+	// request against the NOAUTH role and short-circuits the strategy switch below. In normal
+	// builds it is a no-op (returns false), so authorization always proceeds. Do not invert this.
 	if handled, err := a.authPreflight(c, r); handled {
 		return err
 	}

@@ -2,7 +2,7 @@
 
 package authmode
 
-const Disabled = false
+const IsDisabled = false
 
 func EmbeddedPrivateKeyset() []byte { return nil }
 

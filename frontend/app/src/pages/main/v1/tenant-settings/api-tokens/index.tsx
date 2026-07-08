@@ -69,7 +69,7 @@ export default function APITokens() {
         <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
           <SettingsPageHeader
             title="API token settings"
-            description="Authentication is disabled. Every worker uses the single built-in token below, scoped to the default tenant — creating or revoking tokens is not available."
+            description="Authentication is disabled. Every worker uses the single built-in token below, scoped to the default tenant - creating or revoking tokens is not available."
           />
           {authDisabledToken ? (
             <CodeHighlighter language="text" code={authDisabledToken} />

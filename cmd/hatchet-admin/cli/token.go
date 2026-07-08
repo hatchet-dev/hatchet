@@ -69,7 +69,7 @@ func init() {
 
 func runCreateAPIToken(expiresIn time.Duration) error {
 	// authdisabled builds don't mint tokens; print the single embedded one.
-	if authmode.Disabled {
+	if authmode.IsDisabled {
 		fmt.Println(authmode.EmbeddedToken())
 		return nil
 	}

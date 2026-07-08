@@ -32,14 +32,16 @@ export function AuthDisabledBanner({ onDismiss }: { onDismiss: () => void }) {
           </Link>
         </Button>
       )}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         aria-label="Dismiss"
         onClick={onDismiss}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-yellow-950 hover:bg-yellow-950/10"
+        className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 text-yellow-950 hover:bg-yellow-950/10 hover:text-yellow-950"
       >
         <XMarkIcon className="h-4 w-4" />
-      </button>
+      </Button>
     </div>
   );
 }

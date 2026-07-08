@@ -102,7 +102,7 @@ func SeedDatabase(dc *database.Layer) error {
 		}
 	}
 
-	if authmode.Disabled {
+	if authmode.IsDisabled {
 		if err := seedAuthDisabledToken(dc); err != nil {
 			return err
 		}

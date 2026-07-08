@@ -7,7 +7,7 @@ import (
 	_ "embed"
 )
 
-const Disabled = true
+const IsDisabled = true
 
 //go:embed keyset/private_ec256.key
 var privateKeyset []byte
