@@ -73,22 +73,72 @@ func MultipleConcurrencyKeys(client *hatchet.Client) *hatchet.StandaloneTask {
 	// !!
 }
 
+func ConcurrencyCancelInProgress(client *hatchet.Client) *hatchet.StandaloneTask {
+	// > Cancel In Progress
+	var maxRuns int32 = 1
+	strategy := types.CancelInProgress
+
+	return client.NewStandaloneTask("cancel-in-progress",
+		func(ctx worker.HatchetContext, input ConcurrencyInput) (*TransformedOutput, error) {
+			// Random sleep between 200ms and 1000ms
+			time.Sleep(time.Duration(200+rand.Intn(800)) * time.Millisecond)
+
+			return &TransformedOutput{
+				TransformedMessage: input.Message,
+			}, nil
+		},
+		hatchet.WithWorkflowConcurrency(types.Concurrency{
+			Expression:    "input.GroupKey",
+			MaxRuns:       &maxRuns,
+			LimitStrategy: &strategy,
+		}),
+	)
+	// !!
+}
+
+func ConcurrencyCancelNewest(client *hatchet.Client) *hatchet.StandaloneTask {
+	// > Cancel Newest
+	var maxRuns int32 = 1
+	strategy := types.CancelNewest
+
+	return client.NewStandaloneTask("cancel-newest",
+		func(ctx worker.HatchetContext, input ConcurrencyInput) (*TransformedOutput, error) {
+			// Random sleep between 200ms and 1000ms
+			time.Sleep(time.Duration(200+rand.Intn(800)) * time.Millisecond)
+
+			return &TransformedOutput{
+				TransformedMessage: input.Message,
+			}, nil
+		},
+		hatchet.WithWorkflowConcurrency(types.Concurrency{
+			Expression:    "input.GroupKey",
+			MaxRuns:       &maxRuns,
+			LimitStrategy: &strategy,
+		}),
+	)
+	// !!
+}
+
 func main() {
 	client, err := hatchet.NewClient()
 	if err != nil {
 		log.Fatalf("failed to create hatchet client: %v", err)
 	}
 
+	// > Slots
 	worker, err := client.NewWorker("concurrency-worker",
 		hatchet.WithWorkflows(
 			ConcurrencyRoundRobin(client),
 			MultipleConcurrencyKeys(client),
+			ConcurrencyCancelInProgress(client),
+			ConcurrencyCancelNewest(client),
 		),
 		hatchet.WithSlots(10),
 	)
 	if err != nil {
 		log.Fatalf("failed to create worker: %v", err)
 	}
+	// !!
 
 	interruptCtx, cancel := cmdutils.NewInterruptContext()
 	defer cancel()

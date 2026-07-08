@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
@@ -48,7 +49,11 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 
 	webhook, err := w.config.V1.Webhooks().GetWebhook(ctx.Request().Context(), tenantId, webhookName)
 
-	if err != nil || webhook == nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("failed to look up webhook")
+	}
+
+	if webhook == nil || errors.Is(err, pgx.ErrNoRows) {
 		return gen.V1WebhookReceive400JSONResponse{
 			Errors: []gen.APIError{
 				{
