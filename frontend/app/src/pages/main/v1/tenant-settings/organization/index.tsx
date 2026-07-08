@@ -368,6 +368,14 @@ export function CloudOrganizationSettings({
     enabled: !!orgId && isControlPlaneEnabled && isOrganizationOwner,
   });
 
+  // Used only to widen the tag pool offered by the tag pickers — a tag can
+  // exist on a user group without yet being applied to any tenant. Shares the
+  // query cache with UserGroupsTab (same key), so this adds no extra request.
+  const userGroupsQuery = useQuery({
+    ...orgApi.userGroupsListQuery(orgId!),
+    enabled: !!orgId && isControlPlaneEnabled && isOrganizationOwner,
+  });
+
   const organization = organizationQuery.data;
   const organizationName = organization?.name ?? org?.name ?? '';
   const currentOrganizationName = organization?.name ?? '';
@@ -380,13 +388,18 @@ export function CloudOrganizationSettings({
     [org?.tenants, organization?.tenants],
   );
 
+  // The union of every tag known to the org — those applied to tenants plus
+  // those defined on user groups (which may not yet be on any tenant).
   const allTenantTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const tenant of visibleTenants) {
       tenant.tags?.forEach((t) => tagSet.add(t));
     }
+    for (const group of userGroupsQuery.data ?? []) {
+      group.tags?.forEach((t) => tagSet.add(t));
+    }
     return Array.from(tagSet).sort();
-  }, [visibleTenants]);
+  }, [visibleTenants, userGroupsQuery.data]);
 
   const handleSaveName = () => {
     const trimmedName = editedName.trim();
