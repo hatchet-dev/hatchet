@@ -41,7 +41,8 @@ export const pendingInvitesQuery = (
       organizationInvites,
     };
   },
-  refetchInterval: 60_000,
+  refetchInterval: 30_000,
+  staleTime: 30_000,
 });
 
 export const usePendingInvites = (opts?: {

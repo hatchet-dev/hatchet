@@ -1419,6 +1419,7 @@ CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword" ("userId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession" ("id" ASC);
+CREATE INDEX ix_user_session_cre_at_exp_at ON "UserSession" ("createdAt") INCLUDE ("expiresAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker" ("id" ASC);
