@@ -562,7 +562,8 @@ WITH inputs AS (
         UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($21::UUID[]) AS parent_task_external_id,
         UNNEST($22::BOOLEAN[]) AS is_durable,
-		UNNEST($23::BOOLEAN[]) AS is_dag_orchestrator
+		UNNEST($23::BOOLEAN[]) AS is_dag_orchestrator,
+		UNNEST($24::BOOLEAN[]) AS is_dag_subtask
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -587,7 +588,8 @@ INSERT INTO v1_tasks_olap (
     dag_inserted_at,
     parent_task_external_id,
     is_durable,
-	is_dag_orchestrator
+	is_dag_orchestrator,
+	is_dag_subtask
 )
 SELECT
     tenant_id,
@@ -612,7 +614,8 @@ SELECT
     dag_inserted_at,
     parent_task_external_id,
     is_durable,
-	is_dag_orchestrator
+	is_dag_orchestrator,
+	is_dag_subtask
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -641,6 +644,7 @@ type CreateTasksOLAPParams struct {
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Isdurables            []bool               `json:"isdurables"`
 	Isdagorchestrators    []bool               `json:"isdagorchestrators"`
+	Isdagsubtasks         []bool               `json:"isdagsubtasks"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -668,6 +672,7 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Parenttaskexternalids,
 		arg.Isdurables,
 		arg.Isdagorchestrators,
+		arg.Isdagsubtasks,
 	)
 	return err
 }

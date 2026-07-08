@@ -376,6 +376,7 @@ CREATE TABLE v1_task (
     triggering_event_external_id UUID,
     triggering_event_key TEXT,
     is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false,
+    is_dag_subtask BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 

@@ -2450,6 +2450,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Inputs = append(params.Inputs, payloadToWriteToTask)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 		params.Isdagorchestrators = append(params.Isdagorchestrators, task.IsDagOrchestrator)
+		params.Isdagsubtasks = append(params.Isdagsubtasks, task.IsDagSubtask)
 
 		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = task.InsertedAt

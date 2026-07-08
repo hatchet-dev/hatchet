@@ -630,7 +630,7 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 	var spans []*v1.SpanData
 
 	for _, task := range tasks {
-		if task.DagID.Valid || task.IsDagOrchestrator {
+		if task.DagID.Valid || task.IsDagSubtask {
 			continue
 		}
 
