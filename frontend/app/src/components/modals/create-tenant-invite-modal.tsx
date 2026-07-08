@@ -122,7 +122,7 @@ type CreateTenantInviteFormProps = {
   className?: string;
   onSubmit: (opts: {
     email: string;
-    role: TenantMemberRole;
+    role?: TenantMemberRole;
     tenantId?: string;
   }) => void;
   isLoading: boolean;
@@ -156,9 +156,14 @@ const CreateTenantInviteForm = ({
           TenantMemberRole.ADMIN,
           TenantMemberRole.MEMBER,
         ];
+    const roleSchema = z.enum(
+      availableRoles as [TenantMemberRole, ...TenantMemberRole[]],
+    );
     return z.object({
       email: z.string().email('Invalid email address'),
-      role: z.enum(availableRoles as [TenantMemberRole, ...TenantMemberRole[]]),
+      // Org mode directly adds an existing org member (no tenant-role choice),
+      // so role is only required for the OSS email-invite path.
+      role: showTenantSelect ? roleSchema.optional() : roleSchema,
       tenantId: showTenantSelect
         ? z.string({ required_error: 'Select a tenant' }).min(1)
         : z.string().optional(),
@@ -299,35 +304,40 @@ const CreateTenantInviteForm = ({
                 )}
               </div>
             )}
-            <div className="grid gap-2">
-              <Label htmlFor="role">Role</Label>
-              <Controller
-                control={control}
-                name="role"
-                render={({ field }) => {
-                  return (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="w-[180px] focus:ring-0 focus-visible:ring-0">
-                        <SelectValue id="role" placeholder="Role..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {!props.isCloudEnabled && (
-                          <SelectItem value="OWNER">Owner</SelectItem>
-                        )}
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MEMBER">Member</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  );
-                }}
-              />
-              {roleError && (
-                <div className="text-sm text-red-500">{roleError}</div>
-              )}
-            </div>
+            {!showTenantSelect && (
+              <div className="grid gap-2">
+                <Label htmlFor="role">Role</Label>
+                <Controller
+                  control={control}
+                  name="role"
+                  render={({ field }) => {
+                    return (
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <SelectTrigger className="w-[180px] focus:ring-0 focus-visible:ring-0">
+                          <SelectValue id="role" placeholder="Role..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {!props.isCloudEnabled && (
+                            <SelectItem value="OWNER">Owner</SelectItem>
+                          )}
+                          <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="MEMBER">Member</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    );
+                  }}
+                />
+                {roleError && (
+                  <div className="text-sm text-red-500">{roleError}</div>
+                )}
+              </div>
+            )}
             <Button disabled={props.isLoading}>
               {props.isLoading && <Spinner />}
-              Invite user
+              {showTenantSelect ? 'Add to tenant' : 'Invite user'}
             </Button>
           </div>
         </form>
@@ -417,23 +427,45 @@ export const CreateTenantInviteModal = ({
 
   const { tenantInviteCreateMutation } = useTenantApi();
   const createMutation = useMutation({
-    mutationKey: ['tenant-invite:create'],
-    mutationFn: async ({
-      tenantId: inviteTenantId,
-      data,
-    }: {
-      tenantId: string;
-      data: CreateTenantInviteRequest;
-    }) => {
-      const invite =
-        await tenantInviteCreateMutation(inviteTenantId).mutationFn(data);
-      return { tenantId: inviteTenantId, invite };
+    mutationKey: ['tenant-add-or-invite'],
+    mutationFn: async (
+      args:
+        | { mode: 'add'; tenantId: string; memberId: string }
+        | { mode: 'invite'; tenantId: string; data: CreateTenantInviteRequest },
+    ) => {
+      // Org mode: the invitee is an existing org member, so add them to the
+      // tenant directly (immediate access, bypassing tag matching) rather than
+      // sending an email invite.
+      if (args.mode === 'add') {
+        await orgApi
+          .organizationTenantMembersAddMutation(organizationId!, args.tenantId)
+          .mutationFn({ memberIds: [args.memberId] });
+        return { tenantId: args.tenantId, invite: undefined };
+      }
+
+      const invite = await tenantInviteCreateMutation(args.tenantId).mutationFn(
+        args.data,
+      );
+      return { tenantId: args.tenantId, invite };
     },
-    onSuccess: ({ tenantId: inviteTenantId, invite }) => {
+    onSuccess: ({ tenantId: resultTenantId, invite }) => {
+      // Refresh the tenant member list (direct add) and, for org mode, the org
+      // query that backs member/tenant data.
       queryClient.invalidateQueries({
-        queryKey: ['tenant-invite:list', inviteTenantId],
+        queryKey: ['tenant-member:list', resultTenantId],
       });
-      onCreated(inviteTenantId, invite);
+      if (organizationId) {
+        queryClient.invalidateQueries({
+          queryKey: ['organization:get', organizationId],
+        });
+      } else {
+        queryClient.invalidateQueries({
+          queryKey: ['tenant-invite:list', resultTenantId],
+        });
+      }
+      if (invite) {
+        onCreated(resultTenantId, invite);
+      }
       onClose();
     },
     onError: handleApiError,
@@ -455,17 +487,38 @@ export const CreateTenantInviteModal = ({
           if (!inviteTenantId) {
             return;
           }
-          // Guard against a stale selection when the tenant was changed after
-          // picking a member who already belongs to the new tenant.
-          if (needsTenantSelect && tenantMemberEmails.has(email)) {
-            setFieldErrors({
-              email: 'This user is already a member of the selected tenant.',
+
+          if (organizationId) {
+            // Org mode: guard against a stale selection whose member already
+            // belongs to the tenant.
+            if (tenantMemberEmails.has(email)) {
+              setFieldErrors({
+                email: 'This user is already a member of the selected tenant.',
+              });
+              return;
+            }
+            const member = (orgQuery.data?.members ?? []).find(
+              (m) => m.email === email,
+            );
+            if (!member) {
+              setFieldErrors({
+                email: 'Selected member could not be found.',
+              });
+              return;
+            }
+            createMutation.mutate({
+              mode: 'add',
+              tenantId: inviteTenantId,
+              memberId: member.metadata.id,
             });
             return;
           }
+
+          // OSS: email invite to the tenant.
           createMutation.mutate({
+            mode: 'invite',
             tenantId: inviteTenantId,
-            data: { email, role },
+            data: { email, role: role as TenantMemberRole },
           });
         }}
         fieldErrors={fieldErrors}
