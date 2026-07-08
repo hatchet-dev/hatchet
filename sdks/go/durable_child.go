@@ -200,6 +200,7 @@ func durableChildWorkflowOpts(
 		AdditionalMetadata:  runOpts.AdditionalMetadata,
 		Priority:            priority,
 		DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
+		DisplayName:         runOpts.DisplayName,
 	}, nil
 }
 

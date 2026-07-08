@@ -33,6 +33,9 @@ module Hatchet
     # @return [Hash, nil] Desired worker labels for scheduling
     attr_reader :desired_worker_labels
 
+    # @return [String, nil] Custom display name for the run
+    attr_reader :display_name
+
     # @param additional_metadata [Hash, nil] Metadata to attach to the run
     # @param key [String, nil] Deduplication key
     # @param priority [Integer, nil] Priority level
@@ -41,6 +44,7 @@ module Hatchet
     # @param child_index [Integer, nil] Child index
     # @param sticky [Boolean, nil] Enable sticky scheduling
     # @param desired_worker_labels [Hash, nil] Worker labels for scheduling
+    # @param display_name [String, nil] Custom display name for the run
     def initialize(
       additional_metadata: nil,
       key: nil,
@@ -49,7 +53,8 @@ module Hatchet
       parent_step_run_id: nil,
       child_index: nil,
       sticky: nil,
-      desired_worker_labels: nil
+      desired_worker_labels: nil,
+      display_name: nil
     )
       @additional_metadata = additional_metadata
       @key = key
@@ -59,6 +64,7 @@ module Hatchet
       @child_index = child_index
       @sticky = sticky
       @desired_worker_labels = desired_worker_labels
+      @display_name = display_name
     end
 
     # @return [Hash]
@@ -72,6 +78,7 @@ module Hatchet
       h[:child_index] = @child_index if @child_index
       h[:sticky] = @sticky unless @sticky.nil?
       h[:desired_worker_labels] = @desired_worker_labels if @desired_worker_labels
+      h[:display_name] = @display_name if @display_name
       h
     end
   end

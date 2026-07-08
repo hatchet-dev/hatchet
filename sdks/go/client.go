@@ -946,6 +946,9 @@ func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Contex
 	if runOpts.DesiredWorkerLabels != nil {
 		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
 	}
+	if runOpts.DisplayName != nil {
+		v0Opts = append(v0Opts, v0Client.WithDisplayName(*runOpts.DisplayName))
+	}
 
 	var v0Workflow *v0Client.Workflow
 	var err error
@@ -974,6 +977,7 @@ func (c *Client) runWorkflowInternal(ctx context.Context, otelCtx context.Contex
 			Priority:            priority,
 			AdditionalMetadata:  additionalMetadata,
 			DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
+			DisplayName:         runOpts.DisplayName,
 		})
 	} else {
 		v0Workflow, err = c.legacyClient.Admin().RunWorkflow(workflowName, input, v0Opts...)

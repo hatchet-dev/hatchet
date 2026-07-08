@@ -565,6 +565,7 @@ func (a *AdminServiceImpl) newTriggerOpt(
 		WorkflowName:       req.WorkflowName,
 		Data:               req.Input,
 		AdditionalMetadata: req.AdditionalMetadata,
+		DisplayName:        v1.NormalizeDisplayName(req.DisplayName),
 	}
 
 	if len(req.DesiredWorkerLabels) > 0 {

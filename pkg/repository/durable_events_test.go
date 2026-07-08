@@ -13,6 +13,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// A durable replay re-issues the same child spawn; the child is matched by its
+// idempotency key and reused with the first spawn's stored name. Because display_name
+// is display-only, it must never enter the idempotency key — otherwise editing a
+// cosmetic label would change the key, spawn a duplicate, and (per the key comparison
+// at the sole non-determinism check) risk a NonDeterminismError. This guards that
+// invariant: opts differing only in display_name hash to the same key.
+func Test_createIdempotencyKey_ignores_display_name(t *testing.T) {
+	r := &durableEventsRepository{}
+
+	nameA := "A"
+	nameB := "B"
+
+	newOpt := func(displayName *string) *WorkflowNameTriggerOpts {
+		return &WorkflowNameTriggerOpts{
+			TriggerTaskData: &TriggerTaskData{
+				WorkflowName: "my-workflow",
+				Data:         []byte(`{"x":1}`),
+				DisplayName:  displayName,
+			},
+		}
+	}
+
+	keyUnset, err := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, newOpt(nil), nil)
+	assert.NoError(t, err)
+
+	keyA, err := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, newOpt(&nameA), nil)
+	assert.NoError(t, err)
+
+	keyB, err := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, newOpt(&nameB), nil)
+	assert.NoError(t, err)
+
+	assert.Equal(t, keyUnset, keyA, "setting a display name must not change the durable idempotency key")
+	assert.Equal(t, keyA, keyB, "changing display name on replay must not change the key (child reused, first name wins, no NonDeterminismError)")
+}
+
 func TestStaleInvocationError_ImplementsError(t *testing.T) {
 	id := uuid.New()
 	err := &StaleInvocationError{

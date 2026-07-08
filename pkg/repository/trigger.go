@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -73,6 +74,33 @@ type TriggerTaskData struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
+
+	// (optional) custom display name for the run
+	DisplayName *string `json:"display_name"`
+}
+
+// maxDisplayNameRunes bounds a stored run display name; over-long labels are
+// truncated (never rejected) so a cosmetic label can't fail a trigger.
+const maxDisplayNameRunes = 255
+
+// NormalizeDisplayName normalizes a caller-supplied display name for a run.
+func NormalizeDisplayName(in *string) *string {
+	if in == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*in)
+	if trimmed == "" {
+		return nil
+	}
+
+	// Truncate to 255 runes (not bytes) so an over-long label is stored rather
+	// than rejected, and a multibyte character is never split mid-rune.
+	if utf8.RuneCountInString(trimmed) > maxDisplayNameRunes {
+		trimmed = string([]rune(trimmed)[:maxDisplayNameRunes])
+	}
+
+	return &trimmed
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -134,6 +162,9 @@ type createDAGOpts struct {
 
 	// (optional) overrides for desired worker labels, propagated to all downstream tasks
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
+
+	// (optional) custom display name for the DAG run
+	DisplayName *string
 }
 
 type TriggerRepository interface {
@@ -588,6 +619,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
+	displayName               *string
 }
 
 type createCoreUserEventOpts struct {
@@ -1038,6 +1070,9 @@ func (r *sharedRepository) triggerWorkflows(
 					if isDag {
 						dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
 					} else {
+						// single-task run: the task IS the run, so it carries the display name.
+						// DAG step tasks keep their generated names (the DAG row is named instead).
+						opt.DisplayName = tuple.displayName
 						nonDagTaskOpts = append(nonDagTaskOpts, opt)
 					}
 				}
@@ -1166,6 +1201,7 @@ func (r *sharedRepository) triggerWorkflows(
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
+				DisplayName:          tuple.displayName,
 			})
 		}
 	}
@@ -1411,7 +1447,11 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	for _, opt := range opts {
 		tenantIds = append(tenantIds, tenantId)
 		externalIds = append(externalIds, opt.ExternalId)
-		displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
+		if opt.DisplayName != nil {
+			displayNames = append(displayNames, *opt.DisplayName)
+		} else {
+			displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
+		}
 		workflowIds = append(workflowIds, opt.WorkflowId)
 		workflowVersionIds = append(workflowVersionIds, opt.WorkflowVersionId)
 
@@ -2363,6 +2403,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				displayName:          opt.DisplayName,
 			})
 		}
 	}
@@ -2418,6 +2459,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 		AdditionalMetadata: []byte(additionalMeta),
 		DesiredWorkerId:    desiredWorkerId,
 		Priority:           req.Priority,
+		DisplayName:        NormalizeDisplayName(req.DisplayName),
 	}
 
 	if len(req.DesiredWorkerLabels) > 0 {

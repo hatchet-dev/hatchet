@@ -1,3 +1,8 @@
+## [Unreleased]
+
+### Added
+- Runs can now be given a custom `display_name` at trigger time (via any SDK's run/run-many/child-spawn options or the REST trigger endpoint), so fanned-out child runs are identifiable at a glance in the dashboard instead of sharing a generated `<readableId>-<timestamp>` label. Single-task runs carry the name on the task; multi-step DAG runs carry it on the DAG (steps keep their generated names). Omitting the field (or passing empty/whitespace) preserves the previous generated-name behavior, and names longer than 255 characters are stored truncated rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+
 ## [0.89.0] - 2026-06-09
 
 Hatchet v0.89.0 introduces a range of updates to the platform, consisting largely of performance improvements and bug fixes to the engine, alongside several user-experience changes to the dashboard.

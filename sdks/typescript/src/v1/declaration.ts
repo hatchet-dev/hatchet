@@ -76,6 +76,13 @@ export type RunOpts = {
   priority?: Priority;
 
   /**
+   * (optional) a custom display name for the run, shown in the dashboard.
+   * The engine trims and truncates it; an empty/whitespace value falls back to
+   * the generated `<name>-<timestamp>` label.
+   */
+  displayName?: string;
+
+  /**
    * (optional) if the task run should be run on the same worker.
    * only used if spawned from within a parent task.
    */

@@ -164,6 +164,7 @@ class AdminClient:
         desired_worker_label: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
         ) = None
+        display_name: str | None = None
 
         @field_validator("additional_metadata", mode="before")
         @classmethod
@@ -219,6 +220,7 @@ class AdminClient:
             desired_worker_id=_options.desired_worker_id,
             priority=_options.priority,
             desired_worker_labels=desired_worker_labels,
+            display_name=_options.display_name,
         )
 
     def _parse_schedule(self, schedule: datetime) -> timestamp_pb2.Timestamp:
@@ -395,6 +397,7 @@ class AdminClient:
             sticky=options.sticky,
             key=options.key,
             desired_worker_label=options.desired_worker_label,
+            display_name=options.display_name,
         )
 
         namespace = options.namespace or self.namespace

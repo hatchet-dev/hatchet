@@ -74,6 +74,7 @@ module Hatchet
           request_args[:child_key] = options[:child_key] if options[:child_key]
           request_args[:desired_worker_id] = options[:desired_worker_id] if options[:desired_worker_id]
           request_args[:priority] = options[:priority] if options[:priority]
+          request_args[:display_name] = options[:display_name] if options[:display_name]
 
           if options[:additional_metadata]
             request_args[:additional_metadata] = if options[:additional_metadata].is_a?(String)
@@ -128,6 +129,7 @@ module Hatchet
             request_args[:child_key] = opts[:child_key] if opts[:child_key]
             request_args[:desired_worker_id] = opts[:desired_worker_id] if opts[:desired_worker_id]
             request_args[:priority] = opts[:priority] if opts[:priority]
+            request_args[:display_name] = opts[:display_name] if opts[:display_name]
 
             if opts[:additional_metadata]
               request_args[:additional_metadata] = if opts[:additional_metadata].is_a?(String)

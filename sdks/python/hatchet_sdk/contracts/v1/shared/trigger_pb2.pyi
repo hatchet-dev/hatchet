@@ -34,10 +34,10 @@ class DesiredWorkerLabels(_message.Message):
     required: bool
     comparator: WorkerLabelComparator
     weight: int
-    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: bool = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
+    def __init__(self, str_value: _Optional[str] = ..., int_value: _Optional[int] = ..., required: _Optional[bool] = ..., comparator: _Optional[_Union[WorkerLabelComparator, str]] = ..., weight: _Optional[int] = ...) -> None: ...
 
 class TriggerWorkflowRequest(_message.Message):
-    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "desired_worker_labels")
+    __slots__ = ("name", "input", "parent_id", "parent_task_run_external_id", "child_index", "child_key", "additional_metadata", "desired_worker_id", "priority", "desired_worker_labels", "display_name")
     class DesiredWorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -55,6 +55,7 @@ class TriggerWorkflowRequest(_message.Message):
     DESIRED_WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     DESIRED_WORKER_LABELS_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
     name: str
     input: str
     parent_id: str
@@ -65,4 +66,5 @@ class TriggerWorkflowRequest(_message.Message):
     desired_worker_id: str
     priority: int
     desired_worker_labels: _containers.MessageMap[str, DesiredWorkerLabels]
-    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ...) -> None: ...
+    display_name: str
+    def __init__(self, name: _Optional[str] = ..., input: _Optional[str] = ..., parent_id: _Optional[str] = ..., parent_task_run_external_id: _Optional[str] = ..., child_index: _Optional[int] = ..., child_key: _Optional[str] = ..., additional_metadata: _Optional[str] = ..., desired_worker_id: _Optional[str] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, DesiredWorkerLabels]] = ..., display_name: _Optional[str] = ...) -> None: ...

@@ -73,3 +73,39 @@ describe('AdminClient workflow name normalization', () => {
     );
   });
 });
+
+describe('AdminClient display name', () => {
+  it('runWorkflow maps displayName onto the trigger request', async () => {
+    const admin = createMockAdmin();
+    await admin.runWorkflow('my-workflow', {}, { displayName: 'Acme Corp' });
+
+    expect(admin.workflowsGrpc.triggerWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({ displayName: 'Acme Corp' })
+    );
+  });
+
+  it('runWorkflow leaves displayName undefined when not provided', async () => {
+    const admin = createMockAdmin();
+    await admin.runWorkflow('my-workflow', {});
+
+    const request = (admin.workflowsGrpc.triggerWorkflow as jest.Mock).mock.calls[0][0];
+    expect(request.displayName).toBeUndefined();
+  });
+
+  it('runWorkflows maps a per-item displayName in batch', async () => {
+    const admin = createMockAdmin();
+    await admin.runWorkflows([
+      { workflowName: 'WorkflowOne', input: {}, options: { displayName: 'Alpha' } },
+      { workflowName: 'WorkflowTwo', input: {}, options: { displayName: 'Bravo' } },
+    ]);
+
+    expect(admin.workflowsGrpc.bulkTriggerWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflows: expect.arrayContaining([
+          expect.objectContaining({ displayName: 'Alpha' }),
+          expect.objectContaining({ displayName: 'Bravo' }),
+        ]),
+      })
+    );
+  });
+});

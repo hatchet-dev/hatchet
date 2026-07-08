@@ -141,6 +141,9 @@ V1TriggerWorkflowRunRequest:
     priority:
       type: integer
       description: The priority of the workflow run.
+    displayName:
+      type: string
+      description: A custom display name for the run. Falls back to a generated name if unset.
   required:
     - workflowName
     - input

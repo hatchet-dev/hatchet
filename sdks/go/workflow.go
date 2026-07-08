@@ -59,6 +59,7 @@ type runOpts struct {
 	Sticky              *bool
 	Key                 *string
 	DesiredWorkerLabels map[string]*DesiredWorkerLabel
+	DisplayName         *string
 }
 
 type RunOptFunc func(*runOpts)
@@ -88,6 +89,14 @@ func WithRunSticky(sticky bool) RunOptFunc {
 func WithRunKey(key string) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.Key = &key
+	}
+}
+
+// WithRunDisplayName sets a custom display name for the workflow run. The engine
+// trims and truncates it; an empty/whitespace value falls back to the generated name.
+func WithRunDisplayName(displayName string) RunOptFunc {
+	return func(opts *runOpts) {
+		opts.DisplayName = &displayName
 	}
 }
 
@@ -698,6 +707,10 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
 	}
 
+	if runOpts.DisplayName != nil {
+		v0Opts = append(v0Opts, v0Client.WithDisplayName(*runOpts.DisplayName))
+	}
+
 	var v0Workflow *v0Client.Workflow
 	var err error
 
@@ -720,6 +733,7 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 			Priority:            priority,
 			AdditionalMetadata:  runOpts.AdditionalMetadata,
 			DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
+			DisplayName:         runOpts.DisplayName,
 		})
 	} else {
 		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)

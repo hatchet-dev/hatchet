@@ -99,6 +99,10 @@ type CreateTaskOpts struct {
 
 	// (optional) the key of the event that triggered the workflow run, if there was one
 	TriggeringEventKey *string
+
+	// (optional) custom display name for the run. Only set for single-task (non-DAG)
+	// runs, where the task IS the run; DAG step tasks keep their generated names.
+	DisplayName *string
 }
 
 type ReplayTasksResult struct {
@@ -1968,7 +1972,11 @@ func (r *sharedRepository) insertTasks(
 		scheduleTimeouts[i] = stepConfig.ScheduleTimeout
 		stepTimeouts[i] = stepConfig.Timeout.String
 		externalIds[i] = task.ExternalId
-		displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+		if task.DisplayName != nil {
+			displayNames[i] = *task.DisplayName
+		} else {
+			displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+		}
 		stepIndices[i] = int64(task.StepIndex)
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff

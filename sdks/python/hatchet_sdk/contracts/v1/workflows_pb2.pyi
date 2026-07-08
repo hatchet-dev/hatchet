@@ -107,7 +107,7 @@ class ReplayTasksResponse(_message.Message):
     def __init__(self, replayed_tasks: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TriggerWorkflowRunRequest(_message.Message):
-    __slots__ = ("workflow_name", "input", "additional_metadata", "priority", "desired_worker_labels")
+    __slots__ = ("workflow_name", "input", "additional_metadata", "priority", "desired_worker_labels", "display_name")
     class DesiredWorkerLabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -120,12 +120,14 @@ class TriggerWorkflowRunRequest(_message.Message):
     ADDITIONAL_METADATA_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     DESIRED_WORKER_LABELS_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
     workflow_name: str
     input: bytes
     additional_metadata: bytes
     priority: int
     desired_worker_labels: _containers.MessageMap[str, _trigger_pb2.DesiredWorkerLabels]
-    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ...) -> None: ...
+    display_name: str
+    def __init__(self, workflow_name: _Optional[str] = ..., input: _Optional[bytes] = ..., additional_metadata: _Optional[bytes] = ..., priority: _Optional[int] = ..., desired_worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., display_name: _Optional[str] = ...) -> None: ...
 
 class TriggerWorkflowRunResponse(_message.Message):
     __slots__ = ("external_id",)
@@ -251,7 +253,7 @@ class CreateTaskOpts(_message.Message):
     schedule_timeout: str
     is_durable: bool
     slot_requests: _containers.ScalarMap[str, int]
-    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: bool = ..., slot_requests: _Optional[_Mapping[str, int]] = ...) -> None: ...
+    def __init__(self, readable_id: _Optional[str] = ..., action: _Optional[str] = ..., timeout: _Optional[str] = ..., inputs: _Optional[str] = ..., parents: _Optional[_Iterable[str]] = ..., retries: _Optional[int] = ..., rate_limits: _Optional[_Iterable[_Union[CreateTaskRateLimit, _Mapping]]] = ..., worker_labels: _Optional[_Mapping[str, _trigger_pb2.DesiredWorkerLabels]] = ..., backoff_factor: _Optional[float] = ..., backoff_max_seconds: _Optional[int] = ..., concurrency: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., conditions: _Optional[_Union[_condition_pb2.TaskConditions, _Mapping]] = ..., schedule_timeout: _Optional[str] = ..., is_durable: _Optional[bool] = ..., slot_requests: _Optional[_Mapping[str, int]] = ...) -> None: ...
 
 class CreateTaskRateLimit(_message.Message):
     __slots__ = ("key", "units", "key_expr", "units_expr", "limit_values_expr", "duration")
@@ -297,7 +299,7 @@ class TaskRunDetail(_message.Message):
     output: bytes
     readable_id: str
     is_evicted: bool
-    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ..., is_evicted: bool = ...) -> None: ...
+    def __init__(self, external_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., error: _Optional[str] = ..., output: _Optional[bytes] = ..., readable_id: _Optional[str] = ..., is_evicted: _Optional[bool] = ...) -> None: ...
 
 class GetRunDetailsResponse(_message.Message):
     __slots__ = ("input", "status", "task_runs", "done", "additional_metadata", "is_evicted")
@@ -320,4 +322,4 @@ class GetRunDetailsResponse(_message.Message):
     done: bool
     additional_metadata: bytes
     is_evicted: bool
-    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: bool = ..., additional_metadata: _Optional[bytes] = ..., is_evicted: bool = ...) -> None: ...
+    def __init__(self, input: _Optional[bytes] = ..., status: _Optional[_Union[RunStatus, str]] = ..., task_runs: _Optional[_Mapping[str, TaskRunDetail]] = ..., done: _Optional[bool] = ..., additional_metadata: _Optional[bytes] = ..., is_evicted: _Optional[bool] = ...) -> None: ...

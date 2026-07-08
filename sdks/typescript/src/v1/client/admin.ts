@@ -132,6 +132,7 @@ export class AdminClient {
       desiredWorkerId?: string | undefined;
       priority?: Priority;
       desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
+      displayName?: string | undefined;
       _standaloneTaskName?: string | undefined;
     }
   ) {
@@ -216,6 +217,7 @@ export class AdminClient {
         desiredWorkerId?: string | undefined;
         priority?: Priority;
         desiredWorkerLabels?: Record<string, DesiredWorkerLabelOpt>;
+        displayName?: string | undefined;
         _standaloneTaskName?: string | undefined;
       };
     }>,

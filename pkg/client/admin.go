@@ -34,6 +34,7 @@ type ChildWorkflowOpts struct {
 	AdditionalMetadata  *map[string]string
 	Priority            *int32
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
+	DisplayName         *string
 }
 
 // NewChildWorkflowTriggerRequest builds the trigger request used to start a child workflow.
@@ -78,6 +79,12 @@ func NewChildWorkflowTriggerRequest(workflowName string, input interface{}, opts
 	if opts.DesiredWorkerLabels != nil {
 		if err := WithDesiredWorkerLabels(opts.DesiredWorkerLabels)(request); err != nil {
 			return nil, fmt.Errorf("could not apply desired worker labels: %w", err)
+		}
+	}
+
+	if opts.DisplayName != nil {
+		if err := WithDisplayName(*opts.DisplayName)(request); err != nil {
+			return nil, fmt.Errorf("could not apply display name: %w", err)
 		}
 	}
 
@@ -341,6 +348,16 @@ func WithRunMetadata(metadata interface{}) RunOptFunc {
 func WithPriority(priority int32) RunOptFunc {
 	return func(r *v1contracts.TriggerWorkflowRequest) error {
 		r.Priority = &priority
+
+		return nil
+	}
+}
+
+// WithDisplayName sets a custom display name for the run. The engine trims and
+// truncates it; an empty/whitespace value falls back to the generated name.
+func WithDisplayName(name string) RunOptFunc {
+	return func(r *v1contracts.TriggerWorkflowRequest) error {
+		r.DisplayName = &name
 
 		return nil
 	}

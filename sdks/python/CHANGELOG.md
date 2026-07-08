@@ -5,6 +5,12 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added a `display_name` option to set a custom, human-readable name on a run at trigger time. It is accepted as a direct keyword argument on every run surface (`run`, `run_no_wait`, `aio_run`, `aio_run_no_wait`, per-item via `create_bulk_run_item` for `run_many`, and child spawns) and on `TriggerWorkflowOptions`. Single-task runs carry the name on the task; multi-step DAG runs carry it on the DAG (the DAG's step tasks keep their generated names). Empty or whitespace-only values fall back to the generated `<readableId>-<timestamp>` name, and names longer than 255 characters are stored truncated rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+
 ## [1.33.12] - 2026-06-21
 
 ### Fixed

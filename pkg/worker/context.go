@@ -597,6 +597,7 @@ type SpawnWorkflowOpts struct {
 	AdditionalMetadata  *map[string]string
 	Priority            *int32
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
+	DisplayName         *string
 }
 
 func (h *hatchetContext) saveOrLoadListener() (*client.WorkflowRunsListener, error) {
@@ -675,6 +676,7 @@ func (h *hatchetContext) SpawnWorkflow(workflowName string, input any, opts *Spa
 			AdditionalMetadata:  opts.AdditionalMetadata,
 			Priority:            opts.Priority,
 			DesiredWorkerLabels: opts.DesiredWorkerLabels,
+			DisplayName:         opts.DisplayName,
 		},
 	)
 
@@ -694,6 +696,7 @@ type SpawnWorkflowsOpts struct {
 	Sticky              *bool
 	AdditionalMetadata  *map[string]string
 	DesiredWorkerLabels map[string]*types.DesiredWorkerLabel
+	DisplayName         *string
 }
 
 // Deprecated: SpawnWorkflows is an internal method used by the new Go SDK.
@@ -743,6 +746,7 @@ func (h *hatchetContext) SpawnWorkflows(childWorkflows []*SpawnWorkflowsOpts) ([
 				DesiredWorkerId:     desiredWorker,
 				AdditionalMetadata:  c.AdditionalMetadata,
 				DesiredWorkerLabels: c.DesiredWorkerLabels,
+				DisplayName:         c.DisplayName,
 			},
 		}
 	}

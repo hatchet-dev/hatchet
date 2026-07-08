@@ -39,6 +39,7 @@ export default {
   concurrency: "Concurrency",
   "rate-limits": "Rate Limits",
   priority: "Priority",
+  "run-names": "Run Names",
   "--durable-workflows-section": {
     title: "Durable Execution",
     type: "separator",

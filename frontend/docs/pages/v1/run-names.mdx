@@ -1,0 +1,85 @@
+import { Callout, Tabs } from "nextra/components";
+import UniversalTabs from "../../components/UniversalTabs";
+
+# Naming runs with a custom display name
+
+By default, each run in Hatchet is labelled with a generated name of the form `<readableId>-<timestamp>` (for example, `resolve-subprocessor-info-1782146942603`). When a parent fans out many child runs in a single batch, they all share the same step id and batch timestamp, so the runs list renders several identically-named rows and you have to open each run's input to tell them apart.
+
+You can instead set a human-readable **display name** at trigger time. The dashboard renders it automatically in the runs list, the run detail header, and the children list — no other configuration required.
+
+<Callout type="info" emoji="🪓">
+
+The display name is applied to the **run**:
+
+- For a **single-task** workflow, it lands on the task (the task _is_ the run).
+- For a **multi-step DAG**, it lands on the DAG run; the DAG's step tasks keep their generated names.
+
+Omitting the field (or passing an empty/whitespace value) preserves the default generated name. A name longer than 255 characters is stored truncated, never rejected.
+
+</Callout>
+
+## Setting a display name
+
+Pass the display name in the options you already use to trigger a run. This works for top-level runs, `run_many` / bulk triggers (each item gets its own name), and child spawns (each child gets its own name).
+
+<UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
+  <Tabs.Tab>
+
+```python
+# Top-level run
+workflow.run(input, display_name="Acme Corp")
+
+# Per-item names in a bulk run
+workflow.run_many([
+    workflow.create_bulk_run_item(input=input_a, display_name="Acme Corp"),
+    workflow.create_bulk_run_item(input=input_b, display_name="Globex"),
+])
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```typescript
+// Top-level run
+await workflow.run(input, { displayName: "Acme Corp" });
+
+// Spawning a child with its own name
+await ctx.runChild(childWorkflow, input, { displayName: "Acme Corp" });
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```go
+// Top-level run
+_, err := client.Run(ctx, "my-workflow", input, hatchet.WithRunDisplayName("Acme Corp"))
+```
+
+  </Tabs.Tab>
+  <Tabs.Tab>
+
+```ruby
+# Top-level run
+workflow.run(input, options: { display_name: "Acme Corp" })
+```
+
+  </Tabs.Tab>
+</UniversalTabs>
+
+## REST
+
+The REST trigger endpoint accepts the same field:
+
+```json
+POST /api/v1/stable/tenants/{tenant}/workflow-runs/trigger
+{
+  "workflowName": "my-workflow",
+  "input": { ... },
+  "displayName": "Acme Corp"
+}
+```
+
+## Related
+
+- [Additional metadata](./additional-metadata.mdx) — attach arbitrary key/value metadata to a run, which is filterable and searchable (the display name is display-only).
+- [Child spawning](./child-spawning.mdx) — fanning out child runs, the most common place a per-run display name helps.

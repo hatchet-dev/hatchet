@@ -291,6 +291,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TriggerWorkflowOptions:
         if options is not None:
             warn(
@@ -306,6 +307,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_label=desired_worker_labels,
+            display_name=display_name,
         )
         options_copy = options.model_copy()
         options_copy.additional_metadata = self._combine_additional_metadata(
@@ -381,6 +383,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         desired_worker_id: str | None = None,
         sticky: bool = False,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunTriggerConfig:
         """
         Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
@@ -408,6 +411,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
+                display_name=display_name,
             ),
             key=key,
         )
@@ -866,6 +870,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunRef:
         """
         Synchronously trigger a workflow run without waiting for it to complete.
@@ -897,6 +902,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
+            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -914,6 +920,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> dict[str, Any]: ...
 
     @overload
@@ -929,6 +936,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunRef: ...
 
     def run(
@@ -942,6 +950,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow synchronously and wait for it to complete.
@@ -972,6 +981,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
+                display_name=display_name,
             ),
         )
 
@@ -990,6 +1000,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunRef:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
@@ -1021,6 +1032,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
+            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -1038,6 +1050,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> dict[str, Any]: ...
 
     @overload
@@ -1053,6 +1066,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunRef: ...
 
     async def aio_run(
@@ -1066,6 +1080,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow asynchronously and wait for it to complete.
@@ -1093,6 +1108,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             priority=priority,
             sticky=sticky,
+            display_name=display_name,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
         )
@@ -1822,6 +1838,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> R: ...
 
     @overload
@@ -1837,6 +1854,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     def run(
@@ -1850,6 +1868,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow synchronously and wait for it to complete.
@@ -1876,6 +1895,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
+                display_name=display_name,
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
@@ -1890,6 +1910,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
+                display_name=display_name,
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
@@ -1908,6 +1929,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> R: ...
 
     @overload
@@ -1923,6 +1945,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(
@@ -1936,6 +1959,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow asynchronously and wait for it to complete.
@@ -1963,6 +1987,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
+                display_name=display_name,
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
@@ -1977,6 +2002,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
+            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -1993,6 +2019,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Trigger a workflow run without waiting for it to complete.
@@ -2025,6 +2052,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
+            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -2040,6 +2068,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
+        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
@@ -2071,6 +2100,7 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
+            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
