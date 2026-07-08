@@ -7,16 +7,32 @@ import {
 } from './components/filter-columns';
 import { FilterCreateButton } from './components/filter-create-form';
 import { useFilters } from './hooks/use-filters';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useSidePanel } from '@/hooks/use-side-panel';
 import { V1Filter } from '@/lib/api';
 import { docsPages } from '@/lib/generated/docs';
 import { VisibilityState } from '@tanstack/react-table';
 
-export default function Filters() {
+export default function FiltersPage() {
+  return (
+    <WorkflowsGuard
+      title="No filters found"
+      description="Event filters route incoming events to specific workflows based on payload conditions."
+      docs={{
+        href: `${docsPages.v1.events.href}#event-filters`,
+        description: 'Learn about event filters',
+      }}
+    >
+      <Filters />
+    </WorkflowsGuard>
+  );
+}
+
+function Filters() {
   const sidePanel = useSidePanel();
 
   const {
@@ -94,16 +110,12 @@ export default function Filters() {
       pageCount={numFilters}
       getRowId={(row) => row.metadata.id}
       emptyState={
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No filters found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.events}
-              scrollTo="event-filters"
-              label="Learn about event filters"
-            />
-          </div>
-        </div>
+        <EmptyState
+          title="No filters found"
+          description="Event filters route incoming events to specific workflows based on payload conditions."
+          docPage={{ href: `${docsPages.v1.events.href}#event-filters` }}
+          docLabel="Learn about event filters"
+        />
       }
       columnKeyToName={FilterColumn}
       showSelectedRows={false}

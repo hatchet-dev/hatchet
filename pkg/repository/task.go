@@ -3445,13 +3445,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepIdsInDAGs) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  listutils.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", listErr)
 		}
 
 		for _, match := range additionalMatches {
@@ -4152,10 +4152,11 @@ type TaskStat struct {
 
 // TaskStatusStat represents statistics for a specific task status (queued or running)
 type TaskStatusStat struct {
-	Total       int64             `json:"total"`
-	Oldest      *time.Time        `json:"oldest,omitempty"`
-	Queues      map[string]int64  `json:"queues,omitempty"`
-	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+	Total                  int64             `json:"total"`
+	Oldest                 *time.Time        `json:"oldest,omitempty"`
+	OldestExcludingRetries *time.Time        `json:"oldest_excluding_retries,omitempty"`
+	Queues                 map[string]int64  `json:"queues,omitempty"`
+	Concurrency            []ConcurrencyStat `json:"concurrency,omitempty"`
 }
 
 // ConcurrencyStat represents concurrency information for a task
@@ -4183,6 +4184,7 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 		key := row.Key.String
 		count := row.Count
 		oldest := row.Oldest
+		oldestExcludingRetries := row.OldestExcludingRetries
 
 		taskStat, ok := result[stepReadableId]
 		if !ok {
@@ -4205,6 +4207,10 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
 			}
+
+			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
+				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
+			}
 		case "running":
 			if taskStat.Running == nil {
 				taskStat.Running = &TaskStatusStat{}
@@ -4214,6 +4220,10 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
+			}
+
+			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
+				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
 			}
 		}
 

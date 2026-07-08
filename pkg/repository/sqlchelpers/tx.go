@@ -75,8 +75,14 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 	}
 
 	commit := func(ctx context.Context) error {
-		// reset statement timeout
+		// reset statement and idle-in-transaction timeouts
 		_, err = tx.Exec(ctx, "SET statement_timeout=30000")
+
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		if err != nil {
 			return err
@@ -92,6 +98,14 @@ func PrepareTxWithStatementTimeout(ctx context.Context, pool *pgxpool.Pool, l *z
 	_, err = tx.Exec(ctx, fmt.Sprintf("SET statement_timeout=%d", timeoutMs))
 
 	if err != nil {
+		rollback()
+		return nil, nil, nil, err
+	}
+
+	_, err = tx.Exec(ctx, fmt.Sprintf("SET idle_in_transaction_session_timeout=%d", timeoutMs))
+
+	if err != nil {
+		rollback()
 		return nil, nil, nil, err
 	}
 
@@ -126,13 +140,19 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 	}
 
 	release := func() {
-		// reset statement timeout with a separate ctx; we don't want to use the original ctx here in case it has been cancelled
+		// reset timeouts with a separate ctx; we don't want to use the original ctx here in case it has been cancelled
 		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_, err = conn.Exec(resetCtx, "SET statement_timeout=30000")
 
 		if err != nil {
 			l.Error().Err(err).Msg("failed to reset statement timeout on released connection")
+		}
+
+		_, err = conn.Exec(resetCtx, "SET idle_in_transaction_session_timeout=30000")
+
+		if err != nil {
+			l.Error().Err(err).Msg("failed to reset idle in transaction timeout on released connection")
 		}
 
 		conn.Release()
@@ -145,16 +165,27 @@ func AcquireConnectionWithStatementTimeout(ctx context.Context, pool *pgxpool.Po
 		return nil, nil, err
 	}
 
+	_, err = conn.Exec(ctx, fmt.Sprintf("SET idle_in_transaction_session_timeout=%d", timeoutMs))
+
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+
 	return conn.Conn(), release, nil
 }
 
 func DeferRollback(ctx context.Context, l *zerolog.Logger, rollback func(context.Context) error) {
-
-	if ctx.Err() != nil {
-		return
-	}
-
+	// NOTE: rollback must always run, even if the caller's context has been cancelled, because
+	// pgxpool only releases the connection back to the pool via Rollback/Commit. Skipping the
+	// rollback on a cancelled context permanently leaks the connection from the pool.
 	if err := rollback(ctx); err != nil {
+		// a cancelled context makes the rollback fail, but pgxpool still destroys and releases
+		// the connection, so there's nothing actionable to log
+		if ctx.Err() != nil {
+			return
+		}
+
 		if !errors.Is(err, pgx.ErrTxClosed) {
 			l.Error().Err(err).Msg("failed to rollback transaction")
 

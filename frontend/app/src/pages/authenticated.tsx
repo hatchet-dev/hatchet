@@ -525,10 +525,14 @@ function AuthenticatedInner() {
 
   // Auto-open invite modal for users who already have memberships when new invites appear.
   // New users with no memberships are redirected to /onboarding/invites instead.
+  // Requires settled data (!isFetching): while a post-accept refetch is in
+  // flight the cached inviteCount is stale, and opening on it would resurface
+  // an already-processed invite.
   useEffect(() => {
     if (
       !isOnboardingInvitesPage &&
       pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
       (pendingInvitesQuery.data?.inviteCount ?? 0) > 0 &&
       (tenantMemberships?.length ?? 0) > 0
     ) {
@@ -536,6 +540,7 @@ function AuthenticatedInner() {
     }
   }, [
     pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
     pendingInvitesQuery.data?.inviteCount,
     isOnboardingInvitesPage,
     tenantMemberships?.length,

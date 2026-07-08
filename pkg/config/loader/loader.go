@@ -76,6 +76,16 @@ func LoadServerConfigFile(files ...[]byte) (*server.ServerConfigFile, error) {
 	return configFile, err
 }
 
+func parseRetentionDuration(name, value string) (time.Duration, error) {
+	retentionPeriod, err := time.ParseDuration(value)
+
+	if err != nil {
+		return 0, fmt.Errorf("could not parse %s %s: %w", name, value, err)
+	}
+
+	return retentionPeriod, nil
+}
+
 type ConfigLoader struct {
 	directory string
 }
@@ -181,6 +191,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		}
 
 		_, err = conn.Exec(ctx, "SET statement_timeout=30000")
+		if err != nil {
+			return err
+		}
+
+		_, err = conn.Exec(ctx, "SET idle_in_transaction_session_timeout=30000")
 
 		return err
 	}
@@ -195,10 +210,20 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		l.Info().Msgf("main pool will connect through pgbouncer")
 	}
 
+	// application_name shows up in pg_stat_activity, letting us attribute connections
+	// and idle transactions to a specific service (and shard namespace) on shared
+	// postgres instances.
+	appName := scf.OpenTelemetry.ServiceName
+	if cf.ApplicationNamePrefix != "" {
+		appName = cf.ApplicationNamePrefix + ":" + appName
+	}
+
 	config, err := pgxpool.ParseConfig(mainPoolUrl)
 	if err != nil {
 		return nil, err
 	}
+
+	setPgxApplicationName(config, appName)
 
 	config.AfterConnect = pgxpoolConnAfterConnect
 
@@ -264,6 +289,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 			return nil, fmt.Errorf("could not parse read replica database url: %w", err)
 		}
 
+		setPgxApplicationName(readReplicaConfig, appName+":read-replica")
+
 		if cf.ReadReplicaMaxConns != 0 {
 			readReplicaConfig.MaxConns = int32(cf.ReadReplicaMaxConns) // nolint: gosec
 		}
@@ -300,6 +327,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		return nil, fmt.Errorf("could not parse direct database url: %w", err)
 	}
 
+	setPgxApplicationName(ddlConfig, appName+":ddl")
+
 	ddlConfig.MaxConns = int32(cf.DDLPoolMaxConns) // nolint: gosec
 	ddlConfig.MinConns = int32(cf.DDLPoolMinConns) // nolint: gosec
 	ddlConfig.MaxConnLifetime = cf.MaxConnLifetime
@@ -314,10 +343,22 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 	ch := cache.New(cf.CacheDuration)
 
-	retentionPeriod, err := time.ParseDuration(scf.Runtime.Limits.DefaultTenantRetentionPeriod)
+	_, err = parseRetentionDuration("default tenant retention period", scf.Runtime.Limits.DefaultTenantRetentionPeriod)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not parse retention period %s: %w", scf.Runtime.Limits.DefaultTenantRetentionPeriod, err)
+		return nil, err
+	}
+
+	corePartitionRetention, err := parseRetentionDuration("core partition retention", scf.Runtime.Limits.CorePartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
+	}
+
+	olapPartitionRetention, err := parseRetentionDuration("OLAP partition retention", scf.Runtime.Limits.OLAPPartitionRetentionOrDefault())
+
+	if err != nil {
+		return nil, err
 	}
 
 	taskLimits := repov1.TaskOperationLimits{
@@ -357,8 +398,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 		ddlPool,
 		&l,
 		cf.CacheDuration,
-		retentionPeriod,
-		retentionPeriod,
+		corePartitionRetention,
+		olapPartitionRetention,
 		scf.Runtime.MaxInternalRetryCount,
 		taskLimits,
 		payloadStoreOpts,
@@ -517,15 +558,33 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		alerter = errors.NoOpAlerter{}
 	}
 
+	cleanupSecurityCheck := func() {}
+
 	if cf.SecurityCheck.Enabled {
+		var oauthProviders []string
+		if cf.Auth.Google.Enabled {
+			oauthProviders = append(oauthProviders, "google")
+		}
+		if cf.Auth.Github.Enabled {
+			oauthProviders = append(oauthProviders, "github")
+		}
+
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
-			Enabled:  cf.SecurityCheck.Enabled,
-			Endpoint: cf.SecurityCheck.Endpoint,
-			Logger:   &l,
-			Version:  version,
+			Enabled:        cf.SecurityCheck.Enabled,
+			Endpoint:       cf.SecurityCheck.Endpoint,
+			Logger:         &l,
+			Version:        version,
+			MQKind:         cf.MessageQueue.Kind,
+			OAuthProviders: oauthProviders,
 		}, dc.V1.SecurityCheck())
 
-		go securityCheck.Check()
+		securityCheckCtx, cancel := context.WithCancel(context.Background())
+		cleanupSecurityCheck = func() {
+			cancel()
+			securityCheck.Shutdown()
+		}
+
+		go securityCheck.Start(securityCheckCtx)
 	}
 
 	var analyticsEmitter analytics.Analytics
@@ -762,6 +821,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	cleanup = func() error {
 		log.Printf("cleaning up server config")
+
+		cleanupSecurityCheck()
 
 		cleanupConcurrencyOutbox()
 
@@ -1024,6 +1085,16 @@ func checkDatabaseTimezone(connConfig *pgx.ConnConfig, dbName string, dbLabel st
 
 	l.Info().Msgf("%s instance timezone verified: %s", dbLabel, dbTimezone)
 	return nil
+}
+
+// setPgxApplicationName sets application_name on the pool config unless the
+// connection string already provided one explicitly.
+func setPgxApplicationName(config *pgxpool.Config, appName string) {
+	if config.ConnConfig.RuntimeParams["application_name"] != "" {
+		return
+	}
+
+	config.ConnConfig.RuntimeParams["application_name"] = appName
 }
 
 func newOTelPgxTracer() *otelpgx.Tracer {

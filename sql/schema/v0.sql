@@ -485,6 +485,8 @@ CREATE TABLE "StepExpression" (
     CONSTRAINT "StepExpression_pkey" PRIMARY KEY ("key","stepId","kind")
 );
 
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "StepExpression_stepId_idx" ON "StepExpression" ("stepId");
+
 -- CreateTable
 CREATE TABLE "StepRateLimit" (
     "units" INTEGER NOT NULL,
@@ -1416,6 +1418,7 @@ CREATE UNIQUE INDEX "UserPassword_userId_key" ON "UserPassword" ("userId" ASC);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UserSession_id_key" ON "UserSession" ("id" ASC);
+CREATE INDEX ix_user_session_cre_at_exp_at ON "UserSession" ("createdAt") INCLUDE ("expiresAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "WebhookWorker_id_key" ON "WebhookWorker" ("id" ASC);

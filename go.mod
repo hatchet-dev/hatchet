@@ -29,7 +29,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hatchet-dev/hatchet-quickstarts v0.1.0
-	github.com/hatchet-dev/pgoutbox v0.2.0
+	github.com/hatchet-dev/pgoutbox v0.3.0
 	github.com/hatchet-dev/timediff v0.0.4
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
@@ -222,8 +222,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/image v0.38.0 // indirect
-	golang.org/x/term v0.42.0 // indirect
+	golang.org/x/image v0.41.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
@@ -261,12 +261,12 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1
 	github.com/subosito/gotenv v1.6.0 // indirect
-	golang.org/x/crypto v0.50.0
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/crypto v0.52.0
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/text v0.37.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260420184626-e10c466a9529 // indirect
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11

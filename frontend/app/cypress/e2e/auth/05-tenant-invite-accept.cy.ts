@@ -134,7 +134,14 @@ describe('Tenant Invite: accept', () => {
         }
         cy.intercept('POST', '/api/v1/users/invites/reject').as('rejectInvite');
         cy.intercept('GET', '/api/v1/users/invites*').as('invitesRefetch');
-        cy.wrap(btn).click({ force: true });
+        // Click via a requeryable cy.get() chain: a refetch settling re-renders
+        // the modal, and a raw element captured above can detach from the DOM
+        // before the click lands (cy.wrap() cannot requery a detached node).
+        cy.get(
+          '[role="dialog"][data-state="open"] button[aria-label="Decline"]',
+        )
+          .first()
+          .click({ force: true });
         cy.wait('@rejectInvite');
         cy.wait('@invitesRefetch');
         declineAll(remaining - 1);
