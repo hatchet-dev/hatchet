@@ -1,51 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-07T07:08:10Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-08T07:07:34Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 82% (1631/1991) · main: 65% (58/89)
+**Gating-CI pass rate** — PR: 82% (1692/2060) · main: 66% (65/99)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [23, 24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7]
+  x-axis [24, 25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [82, 84, 80, 87, 79, 100, 79, 82, 78, 85, 76, 95, 85, 81, 75]
-  line "main" [50, 33, 40, 82, 100, 100, 90, 50, 67, 53, 67, 67, 67, 100, 100]
+  line "CI" [84, 80, 87, 79, 100, 79, 82, 78, 85, 76, 95, 85, 81, 85, 69]
+  line "main" [33, 40, 82, 100, 100, 90, 50, 67, 53, 67, 67, 67, 100, 67, 67]
 ```
 
-_X-axis = day of month (Jun 23 → Jul 07). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jun 24 → Jul 08). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `generate` | test | 10 | 0 | 33 | 30% | flaky | PR | **infra/CI** — generate Check for diff: codegen drift in examples/python worker files |
-| 2 | `integration` | test | 7 | 1 | 33 | 21% | flaky | PR | **product bug** — TestConcurrency_GroupRoundRobin: is_dag_orchestrator NOT NULL constraint on v1_task partition |
-| 3 | `test` | python | 6 | 0 | 22 | 27% | flaky | PR | **product bug** — Python durable sleep/cancel/replay test fails with FailedTaskRunExceptionGroup |
-| 4 | `old-engine-new-sdk` | python | 5 | 0 | 22 | 23% | flaky | PR | **infra/CI** — old-engine-new-sdk job: poetry.lock drift blocks dependency install |
-| 5 | `e2e-pgmq` | test | 5 | 0 | 33 | 15% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout in e2e-pgmq |
-| 6 | `e2e` | test | 5 | 0 | 33 | 15% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout in e2e job |
-| 7 | `cypress` | frontend / app | 3 | 0 | 15 | 20% | flaky | PR | **flaky test** — Cypress auth/08-tenant-invite-decline: invite modal does not close after declining |
-| 8 | `rampup` | test | 3 | 0 | 33 | 9% | flaky | PR | **flaky test** — Rampup harness TestStartupShutdown: engine rebalance controller exits with context canceled |
-| 9 | `unit` | test | 2 | 1 | 33 | 6% | flaky | PR | **product bug** — TestOLAPStatusUpdate_ReplayOfCompletedTask fails on durable replay status handling |
-| 10 | `test-templates` | cli-e2e-tests | 2 | 0 | 9 | 22% | flaky | PR | **timeout** — CLI TestQuickstartTemplates exceeds ~526s template E2E budget |
+| 1 | `generate` | test | 19 | 0 | 42 | 45% | flaky | main + PR | **infra/CI** — generate job check-for-diff: docs/codegen drift (child-spawning.mdx) |
+| 2 | `e2e` | test | 8 | 0 | 42 | 19% | flaky | main + PR | **timeout** — e2e TestEvictableTaskRestoreCompletes hits ~300s cap (307s) |
+| 3 | `e2e-pgmq` | test | 7 | 0 | 42 | 17% | flaky | PR | **timeout** — e2e-pgmq TestEvictableTaskRestoreCompletes hits ~300s cap (307s) |
+| 4 | `test-templates` | cli-e2e-tests | 3 | 0 | 8 | 38% | flaky | PR | **timeout** — CLI quickstart template E2E suite exceeds time budget (517s) |
+| 5 | `lint` | frontend / docs | 3 | 0 | 15 | 20% | flaky | PR | **infra/CI** — Frontend docs lint/prettier check failed |
+| 6 | `lint` | frontend / app | 2 | 0 | 23 | 9% | flaky | PR | **infra/CI** — Frontend app prettier/eslint import-order drift on PR |
+| 7 | `test` | python | 2 | 0 | 37 | 5% | flaky | PR | **product bug** — Durable child key dedup replay fails with FailedTaskRunExceptionGroup |
+| 8 | `load` | test | 2 | 0 | 42 | 5% | flaky | PR | **flaky test** — TestFlush_ConcurrentCountsKeepMarkerInvariants race under load tag |
+| 9 | `unit` | test | 2 | 0 | 42 | 5% | flaky | PR | **flaky test** — TestMsgIdBufferMemoryLeak intermittently fails under race detector |
+| 10 | `rampup` | test | 2 | 0 | 42 | 5% | flaky | main + PR | **flaky test** — TestInterval_RunInterval_WithJitter timing sensitivity in rampup harness |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `(unparsed)` | `generate` | 9 | 33 | 27% | flaky | PR | **infra/CI** — generate Check for diff: codegen drift in examples/python worker files |
-| 2 | `examples/durable/test_durable.py::test_durable_sleep_cancel_replay` | `test` | 5 | 22 | 23% | flaky | PR | **product bug** — Python durable sleep/cancel/replay test fails with FailedTaskRunExceptionGroup |
-| 3 | `examples/bug_tests/payload_bug_on_replay/test_payload_replay_bug.py::test_payload_replay_bug` | `test` | 5 | 22 | 23% | flaky | PR | **product bug** — Python durable replay payload bug test fails with FailedTaskRunExceptionGroup on durable-tasks PRs |
-| 4 | `(unparsed)` | `old-engine-new-sdk` | 5 | 22 | 23% | flaky | PR | **infra/CI** — old-engine-new-sdk job: poetry.lock drift blocks dependency install |
-| 5 | `(unparsed)` | `lint` | 5 | 22 | 23% | flaky | PR | **infra/CI** — Python lint job: poetry.lock out of sync with pyproject.toml on PR branches |
-| 6 | `TestConcurrency_GroupRoundRobin` | `integration` | 5 | 33 | 15% | flaky | PR | **product bug** — TestConcurrency_GroupRoundRobin: is_dag_orchestrator NOT NULL constraint on v1_task partition |
-| 7 | `(unparsed)` | `test` | 4 | 22 | 18% | flaky | PR | **infra/CI** — Python test job: poetry.lock out of sync with pyproject.toml |
-| 8 | `TestEvictableTaskRestoreCompletes` | `e2e-pgmq` | 4 | 33 | 12% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout in e2e-pgmq |
-| 9 | `TestEvictableTaskRestoreCompletes` | `e2e` | 4 | 33 | 12% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout in e2e job |
-| 10 | `TestQuickstartTemplates` | `test-templates` | 2 | 9 | 22% | flaky | PR | **timeout** — CLI TestQuickstartTemplates exceeds ~526s template E2E budget |
+| 1 | `(unparsed)` | `generate` | 19 | 42 | 45% | flaky | main + PR | **infra/CI** — generate job check-for-diff: docs/codegen drift (child-spawning.mdx) |
+| 2 | `TestEvictableTaskRestoreCompletes` | `e2e-pgmq` | 5 | 42 | 12% | flaky | PR | **timeout** — e2e-pgmq TestEvictableTaskRestoreCompletes hits ~300s cap (307s) |
+| 3 | `TestEvictableTaskRestoreCompletes` | `e2e` | 5 | 42 | 12% | flaky | PR | **timeout** — e2e TestEvictableTaskRestoreCompletes hits ~300s cap (307s) |
+| 4 | `(unparsed)` | `load-deadlock` | 4 | 42 | 10% | flaky | PR | **unknown** — load-deadlock failure parsed from Comment-on-PR step noise |
+| 5 | `TestQuickstartTemplates` | `test-templates` | 3 | 8 | 38% | flaky | PR | **timeout** — CLI quickstart template E2E suite exceeds time budget (517s) |
+| 6 | `TestQuickstartTemplates/go_go` | `test-templates` | 3 | 8 | 38% | flaky | PR | **timeout** — CLI quickstart go_go template E2E exceeds ~300s budget (311s) |
+| 7 | `(unparsed)` | `lint` | 3 | 15 | 20% | flaky | PR | **infra/CI** — Frontend docs lint/prettier check failed |
+| 8 | `examples/durable/test_durable.py::test_durable_child_key_dedup_replay` | `test` | 3 | 37 | 8% | flaky | PR | **product bug** — Durable child key dedup replay fails with FailedTaskRunExceptionGroup |
+| 9 | `(unparsed)` | `e2e` | 3 | 42 | 7% | flaky | main + PR | **infra/CI** — e2e job timed out waiting for Hatchet engine/API readiness |
+| 10 | `TestMultipleEvictionCycle` | `e2e-pgmq` | 2 | 42 | 5% | flaky | PR | **flaky test** — e2e-pgmq TestMultipleEvictionCycle second eviction race |
 
 ## Recent CI-health wins (`ci-health`)
 
