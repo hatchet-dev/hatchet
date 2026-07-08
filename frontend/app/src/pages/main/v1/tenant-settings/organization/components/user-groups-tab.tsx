@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
+import { Separator } from '@/components/v1/ui/separator';
 import {
   OrganizationMember,
   UserGroup,
@@ -99,10 +100,20 @@ export function UserGroupsTab({
   ];
 
   return (
-    <>
-      <div className="mb-4 flex justify-end">
-        <Button onClick={() => setShowCreate(true)}>New Group</Button>
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold">User Groups</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            User groups allow you to automatically add team members to tenants
+            based on tags.
+          </p>
+        </div>
+        <Button className="shrink-0" onClick={() => setShowCreate(true)}>
+          New Group
+        </Button>
       </div>
+      <Separator />
 
       {groupsQuery.isLoading ? (
         <div className="py-8 text-center text-sm text-muted-foreground">
@@ -140,7 +151,7 @@ export function UserGroupsTab({
           allTenantTags={allTenantTags}
         />
       )}
-    </>
+    </div>
   );
 }
 

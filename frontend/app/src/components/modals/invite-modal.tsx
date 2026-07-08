@@ -23,6 +23,7 @@ import {
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant } from '@/lib/api';
+import { formatMemberRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { useUserUniverse } from '@/providers/user-universe';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
 import { useEffect, useMemo, useState } from 'react';
@@ -222,9 +223,12 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                           {invite.organizationName ?? '—'}
                           {invite.tenants && invite.tenants.length > 0 && (
                             <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                              Includes {invite.tenants[0].tenantRole} access to:{' '}
+                              Includes access to:{' '}
                               {invite.tenants
-                                .map((tenant) => tenant.tenantName)
+                                .map(
+                                  (tenant) =>
+                                    `${tenant.tenantName} (${formatMemberRole(tenant.tenantRole)})`,
+                                )
                                 .join(', ')}
                             </div>
                           )}

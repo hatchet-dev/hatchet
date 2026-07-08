@@ -931,16 +931,16 @@ export function CloudOrganizationSettings({
             ) : (
               <div className="space-y-8">
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-base font-semibold">Members</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      People with access to this organization.
-                    </p>
-                  </div>
-                  <Separator />
-                  {isOrganizationOwner && (
-                    <div className="flex justify-end">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-semibold">Members</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        People with access to this organization.
+                      </p>
+                    </div>
+                    {isOrganizationOwner && (
                       <Button
+                        className="shrink-0"
                         onClick={() =>
                           globalEmitter.emit('create-organization-invite', {
                             organizationId: orgId,
@@ -950,8 +950,9 @@ export function CloudOrganizationSettings({
                       >
                         Invite Member
                       </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <Separator />
                   {organization?.members && organization.members.length > 0 ? (
                     <SimpleTable
                       data={organization.members}
@@ -988,20 +989,11 @@ export function CloudOrganizationSettings({
                 )}
 
                 {isOrganizationOwner && isControlPlaneEnabled && (
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-base font-semibold">User Groups</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Manage user groups for this organization.
-                      </p>
-                    </div>
-                    <Separator />
-                    <UserGroupsTab
-                      organizationId={orgId}
-                      allOrgMembers={organization?.members ?? []}
-                      allTenantTags={allTenantTags}
-                    />
-                  </div>
+                  <UserGroupsTab
+                    organizationId={orgId}
+                    allOrgMembers={organization?.members ?? []}
+                    allTenantTags={allTenantTags}
+                  />
                 )}
               </div>
             ))}

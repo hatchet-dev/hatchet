@@ -179,8 +179,7 @@ const CreateTenantInviteForm = ({
   const emailError =
     errors.email?.message?.toString() || props.fieldErrors?.email;
 
-  const roleError =
-    errors.role?.message?.toString() || props.fieldErrors?.password;
+  const roleError = errors.role?.message?.toString() || props.fieldErrors?.role;
 
   const tenantError = errors.tenantId?.message?.toString();
 

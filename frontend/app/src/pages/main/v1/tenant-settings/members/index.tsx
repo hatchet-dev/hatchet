@@ -59,7 +59,7 @@ export default function Members() {
           title="Members"
           description={
             <>
-              Manage who has access to this tenant.
+              Manage which team members can access this tenant.
               {canManageOrganization && organizationId && (
                 <>
                   {' '}
