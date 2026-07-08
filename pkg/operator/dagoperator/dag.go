@@ -206,10 +206,22 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 
 				if !skip && !cancelled && d.hasEventOrSleepConditions(t, conditionKindWait) && !t.isWaitSatisfied {
 					if !t.isWaiting {
-						d.registerCondition(t, conditionKindWait)
-						t.isWaiting = true
+						satisfiedGroups, err := d.evaluateWaitParentConditions(ctx, t)
+						if err != nil {
+							d.err = fmt.Errorf("failed to evaluate wait conditions for task %q: %w", t.actionId, err)
+							return d.err
+						}
+
+						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
+							t.isWaitSatisfied = true
+						} else {
+							d.registerCondition(t, conditionKindWait, satisfiedGroups)
+							t.isWaiting = true
+						}
 					}
-					continue
+					if !t.isWaitSatisfied {
+						continue
+					}
 				}
 			}
 		}
@@ -442,12 +454,74 @@ func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
 	return false
 }
 
-func (d *dag) registerCondition(t *task, kind conditionKind) {
+func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) (map[uuid.UUID]bool, error) {
+	parentByReadableId := make(map[string]*task, len(d.tasks))
+	for _, p := range d.tasks {
+		parentByReadableId[p.readableId] = p
+	}
+
+	satisfied := make(map[uuid.UUID]bool)
+
+	for _, c := range t.stepConditions {
+		if c.Action != sqlcv1.V1MatchConditionActionQUEUE {
+			continue
+		}
+		if c.Kind != sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE {
+			continue
+		}
+		if satisfied[c.OrGroupID] {
+			continue
+		}
+
+		parent, ok := parentByReadableId[c.ParentReadableID.String]
+		if !ok || parent.output == nil {
+			continue
+		}
+
+		expr := c.Expression.String
+		if expr == "" {
+			expr = "true"
+		}
+
+		matched, err := d.matchRepo.EvalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
+		if err != nil {
+			return nil, fmt.Errorf("CEL eval error for task %q wait condition %q: %w", t.actionId, expr, err)
+		}
+
+		if matched {
+			satisfied[c.OrGroupID] = true
+		}
+	}
+
+	return satisfied, nil
+}
+
+func (d *dag) allWaitGroupsSatisfied(t *task, satisfiedGroups map[uuid.UUID]bool) bool {
+	for _, c := range t.stepConditions {
+		if c.Action != sqlcv1.V1MatchConditionActionQUEUE {
+			continue
+		}
+		if !satisfiedGroups[c.OrGroupID] {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *dag) registerCondition(t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) {
 	action := getMatchConditionActionForWatchKind(kind)
 	conditions := &v1contracts.DurableEventListenerConditions{}
 
+	var skip map[uuid.UUID]bool
+	if len(satisfiedGroups) > 0 {
+		skip = satisfiedGroups[0]
+	}
+
 	for _, c := range t.stepConditions {
 		if c.Action != action {
+			continue
+		}
+		if skip[c.OrGroupID] {
 			continue
 		}
 		switch c.Kind {
