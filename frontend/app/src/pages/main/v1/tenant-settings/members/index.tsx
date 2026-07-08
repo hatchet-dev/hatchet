@@ -9,8 +9,10 @@ import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMemberRole } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { globalEmitter } from '@/lib/global-emitter';
+import { appRoutes } from '@/router';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { useMemo } from 'react';
 
@@ -55,7 +57,25 @@ export default function Members() {
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
           title="Members"
-          description="Manage the members of this tenant and how they get access."
+          description={
+            <>
+              Manage who has access to this tenant.
+              {canManageOrganization && organizationId && (
+                <>
+                  {' '}
+                  Looking to add new team members? Navigate to{' '}
+                  <Link
+                    to={appRoutes.organizationTeamRoute.to}
+                    params={{ organization: organizationId }}
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    team settings
+                  </Link>
+                  .
+                </>
+              )}
+            </>
+          }
         />
 
         {canManageTenantMembers && (

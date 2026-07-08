@@ -1318,6 +1318,7 @@ export function CloudOrganizationSettings({
           organizationId={orgId}
           tenantId={tenantToEditTags.id}
           tenantName={tenantToEditTags.name || tenantToEditTags.id}
+          initialTags={(tenantToEditTags as { tags?: string[] }).tags ?? []}
           allTenantTags={allTenantTags}
           onSuccess={() =>
             queryClient.invalidateQueries({

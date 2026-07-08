@@ -127,6 +127,7 @@ export function UserGroupsTab({
         open={showCreate}
         onOpenChange={setShowCreate}
         organizationId={organizationId}
+        allTenantTags={allTenantTags}
       />
 
       {groupToEdit && (
