@@ -390,8 +390,7 @@ function FilterControl<TData>({
                   ? table.getColumn(option.subFilterColumnId)
                   : undefined;
                 const subValue = subColumn?.getFilterValue() as
-                  | string
-                  | undefined;
+                  string | undefined;
                 const allSubValues =
                   option.subOptions?.map((s) => s.value) || [];
 
