@@ -91,7 +91,7 @@ func TestWorkflowRunsListenerAddWorkflowRunKeepsHandlerDuringRecovery(t *testing
 	}
 
 	listener = newTestWorkflowRunsListener(t, &logger, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
-		if reconnectFailures.Add(1) <= int32(retry.StreamSyncMaxAttempts*retry.StreamSyncMaxAttempts) {
+		if reconnectFailures.Add(1) <= int32(2*retry.StreamSyncMaxAttempts-1) {
 			return nil, status.Error(codes.Unavailable, "engine down")
 		}
 

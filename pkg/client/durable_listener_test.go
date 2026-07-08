@@ -93,7 +93,7 @@ func TestDurableEventsListenerAddSignalKeepsHandlerDuringRecovery(t *testing.T) 
 	}
 
 	listener = newTestDurableEventsListener(t, &logger, func(ctx context.Context) (contracts.V1Dispatcher_ListenForDurableEventClient, error) {
-		if reconnectFailures.Add(1) <= int32(retry.StreamSyncMaxAttempts*retry.StreamSyncMaxAttempts) {
+		if reconnectFailures.Add(1) <= int32(2*retry.StreamSyncMaxAttempts-1) {
 			return nil, status.Error(codes.Unavailable, "engine down")
 		}
 

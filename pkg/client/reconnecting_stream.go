@@ -209,6 +209,13 @@ func (s *reconnectingStream[C]) connectSync(ctx context.Context) error {
 	return fmt.Errorf("could not connect to %s after %d attempts: %w", s.name, retry.StreamSyncMaxAttempts, lastErr)
 }
 
+// retrySend sends with bounded retries. Each failed attempt makes at most one
+// reconnect attempt (connectOnce, coalesced with any concurrent reconnect via
+// singleflight) before backing off, so the total budget is
+// StreamSyncMaxAttempts sends, at most StreamSyncMaxAttempts reconnects, and
+// at most StreamSyncMaxAttempts-1 backoff sleeps.
+// A reconnect failure that is permanent (errListenerClosed or classified
+// StreamDecisionStop) short-circuits immediately.
 func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) error) error {
 	var lastErr error
 	for attempt := 0; attempt < retry.StreamSyncMaxAttempts; attempt++ {
@@ -229,15 +236,17 @@ func (s *reconnectingStream[C]) retrySend(ctx context.Context, send func(C) erro
 			continue
 		}
 
-		if rerr := s.connectSync(ctx); rerr != nil {
+		if rerr := s.connectOnce(ctx); rerr != nil {
 			if errors.Is(rerr, errListenerClosed) || retry.ClassifyStreamError(ctx, rerr) == retry.StreamDecisionStop {
 				return fmt.Errorf("could not reconnect %s to retry send: %w", s.name, rerr)
 			}
 			s.l.Error().Err(rerr).Str("stream", s.name).Msg("stream reconnect after send failure failed")
 		}
 
-		if serr := s.sleep(ctx, attempt); serr != nil {
-			return serr
+		if attempt < retry.StreamSyncMaxAttempts-1 {
+			if serr := s.sleep(ctx, attempt); serr != nil {
+				return serr
+			}
 		}
 	}
 

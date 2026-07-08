@@ -105,6 +105,35 @@ func TestReconnectingStreamSnapshotNotBlockedByConnect(t *testing.T) {
 	require.NoError(t, stream.Close())
 }
 
+func TestRetrySendConnectAttemptsAreFlat(t *testing.T) {
+	failingClient := &mockSubscribeClient{
+		sendErr:  fmt.Errorf("stream broken"),
+		recvChan: make(chan *dispatchercontracts.WorkflowRunEvent),
+	}
+
+	constructorCalls := atomic.Int32{}
+	sleepCalls := atomic.Int32{}
+
+	stream := newTestWorkflowStream(t, failingClient, func(ctx context.Context) (dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient, error) {
+		constructorCalls.Add(1)
+		return nil, status.Error(codes.Unavailable, "engine down")
+	})
+	stream.sleep = func(context.Context, int) error {
+		sleepCalls.Add(1)
+		return nil
+	}
+
+	err := stream.retrySend(context.Background(), func(c dispatchercontracts.Dispatcher_SubscribeToWorkflowRunsClient) error {
+		return c.Send(&dispatchercontracts.SubscribeToWorkflowRunsRequest{WorkflowRunId: "test-workflow-run-id"})
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), fmt.Sprintf("could not send to workflow run listener after %d attempts", retry.StreamSyncMaxAttempts))
+	assert.Equal(t, int32(retry.StreamSyncMaxAttempts), constructorCalls.Load())
+	assert.Equal(t, int32(retry.StreamSyncMaxAttempts-1), sleepCalls.Load())
+	assert.Equal(t, int32(retry.StreamSyncMaxAttempts), failingClient.sendCount.Load())
+}
+
 func TestRetrySend_FailsAfterMaxRetries(t *testing.T) {
 	failingClient := &mockSubscribeClient{
 		sendErr:  fmt.Errorf("stream broken"),
