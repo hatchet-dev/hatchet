@@ -570,7 +570,7 @@ def worker_action_listener_process(
             await asyncio.gather(
                 *list(process.step_action_events), return_exceptions=True
             )
-        print("finished step actions")
+        logger.info("finished step actions")
         # Only now — with the action stream confirmed stopped and all tasks
         # finished before STOP_LOOP arrived — is it safe to stop heartbeating
         # and unregister from the engine.
