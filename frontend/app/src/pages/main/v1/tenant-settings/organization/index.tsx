@@ -1,19 +1,21 @@
-import { SettingsPageHeader } from '../components/settings-page-header';
-import { usePylon } from '@/components/support-chat';
-import { useToast } from '@/components/v1/hooks/use-toast';
-import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
-import RelativeDate from '@/components/v1/molecules/relative-date';
-import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/v1/ui/accordion';
+  formatMemberRole,
+  MemberEmail,
+  RoleBadge,
+} from '../components/member-primitives';
+import { SettingsPageHeader } from '../components/settings-page-header';
+import { SettingRow } from '../components/settings-row';
+import { usePylon } from '@/components/support-chat';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { TenantRegionBadge } from '@/components/v1/molecules/nav-bar/tenant-region-badge';
+import {
+  SearchBarWithFilters,
+  type SearchSuggestion,
+} from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
+import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import CopyToClipboard from '@/components/v1/ui/copy-to-clipboard';
-import { Dialog } from '@/components/v1/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,12 +28,6 @@ import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
 import { Switch } from '@/components/v1/ui/switch';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/v1/ui/tabs';
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -43,8 +39,6 @@ import {
   MAX_INACTIVITY_TIMEOUT_MS,
   useOrganizations,
 } from '@/hooks/use-organizations';
-import { useTenantDetails } from '@/hooks/use-tenant';
-import { TenantInvite, TenantMember, TenantMemberRole } from '@/lib/api';
 import {
   ManagementToken,
   OrganizationInvite,
@@ -56,21 +50,18 @@ import {
 import {
   OrganizationAvailableShard,
   OrganizationAvailableShardClass,
+  OrganizationInviteTenant,
   OrganizationTenant as ControlPlaneOrganizationTenant,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
-import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
 import { globalEmitter } from '@/lib/global-emitter';
-import { useApiError } from '@/lib/hooks';
 import {
   formatShardDeploymentKey,
   shardDeploymentKey,
 } from '@/lib/shard-deployment-key';
 import { parseDuration, msToDurationString } from '@/lib/utils';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta.ts';
-import { MemberActions as TenantMemberActions } from '@/pages/main/v1/tenant-settings/members/components/members-columns';
-import { UpdateMemberForm } from '@/pages/main/v1/tenant-settings/members/components/update-member-form';
 import { AuditLogSettings } from '@/pages/main/v1/tenant-settings/organization/audit-log-settings';
 import CreateSSOPage from '@/pages/main/v1/tenant-settings/organization/components/sso-setup.tsx';
 import {
@@ -100,7 +91,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+
+// FIXME: remove this once we migrate everyone to the control plane
+// The cloud `OrganizationTenant` lacks `region`/`tags`; the control-plane one
+// has both. Graft them on so callers don't have to cast.
+export type OrganizationTenantWithRegion = OrganizationTenant & {
+  region?: ControlPlaneOrganizationTenant['region'];
+  tags?: ControlPlaneOrganizationTenant['tags'];
+};
+
+const TERRAFORM_PROVIDER_DOCS_URL =
+  'https://registry.terraform.io/providers/hatchet-dev/hatchet/latest/docs';
+
+const noopAutocomplete = () => ({ suggestions: [] as SearchSuggestion[] });
+const noopApplySuggestion = (query: string) => query;
+const emptyAutocompleteContext = {};
 
 function formatTimeoutMs(ms: number): string {
   if (ms <= 0) {
@@ -126,13 +132,119 @@ function formatTimeoutMs(ms: number): string {
   return `${days} day${days !== 1 ? 's' : ''} ${remHours} hour${remHours !== 1 ? 's' : ''}`;
 }
 
-// FIXME: remove this once we migrate everyone to the control plane
-type OrganizationTenantWithRegion = OrganizationTenant & {
-  region?: ControlPlaneOrganizationTenant['region'];
-  canManage?: boolean;
+// The cloud client's OrganizationInvite lacks the control-plane-only `tenants`
+// field. `tenants` is absent (not `[]`) when there are no grants or the server
+// is older — never assume it exists.
+type OrganizationInviteWithTenants = OrganizationInvite & {
+  tenants?: OrganizationInviteTenant[];
 };
 
-export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
+// The cloud client's ManagementToken lacks the control-plane-only `tags` field.
+type ManagementTokenWithTags = ManagementToken & {
+  tags?: string[];
+};
+
+export type OrganizationSettingsSection =
+  'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'audit-log';
+
+const SECTION_HEADERS: Record<
+  OrganizationSettingsSection,
+  { title: string; description: string }
+> = {
+  general: {
+    title: 'General',
+    description: 'Update the organization name and inactivity timeout.',
+  },
+  tenants: {
+    title: 'Tenants',
+    description: 'Manage the tenants associated with this organization.',
+  },
+  team: {
+    title: 'Team',
+    description:
+      'Manage the members, invites, and user groups for this organization.',
+  },
+  tokens: {
+    title: 'Management Tokens',
+    description:
+      'Organization-scoped API tokens for automating administrative tasks — like creating tenants and managing members — via the Hatchet API.',
+  },
+  regions: {
+    title: 'Available Regions',
+    description:
+      'Review the regions where new tenants can be deployed for this organization.',
+  },
+  sso: {
+    title: 'SSO',
+    description: 'Configure single sign-on for this organization.',
+  },
+  'audit-log': {
+    title: 'Audit Log',
+    description: 'Review administrative actions taken in this organization.',
+  },
+};
+
+function InviteTenantBadges({
+  tenants,
+}: {
+  tenants?: OrganizationInviteTenant[];
+}) {
+  if (!tenants || tenants.length === 0) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+
+  const visible = tenants.slice(0, 3);
+  const overflow = tenants.slice(3);
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {visible.map((tenant) => (
+        <Badge key={tenant.tenantId} variant="outline">
+          {tenant.tenantName} · {formatMemberRole(tenant.tenantRole)}
+        </Badge>
+      ))}
+      {overflow.length > 0 && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline">+{overflow.length} more</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="flex flex-col gap-1">
+                {overflow.map((tenant) => (
+                  <span key={tenant.tenantId}>
+                    {tenant.tenantName} · {formatMemberRole(tenant.tenantRole)}
+                  </span>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  );
+}
+
+function SectionUnavailable({ description }: { description?: string }) {
+  return (
+    <div className="py-12">
+      <EmptyState
+        title="You do not have access to this page"
+        description={
+          description ?? 'Ask an organization owner to grant you access.'
+        }
+      />
+    </div>
+  );
+}
+
+export function CloudOrganizationSettings({
+  orgId,
+  section = 'general',
+}: {
+  orgId: string;
+  section?: OrganizationSettingsSection;
+}) {
   const { isControlPlaneEnabled } = useControlPlane();
   const pylon = usePylon();
   const {
@@ -143,7 +255,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     handleCreateOrganizationSsoDomain,
     handleDeleteOrganizationSsoDomain,
   } = useOrganizations();
-  const { lastTenantId } = useTenantDetails();
 
   const org = organizations.find((o) => o.metadata.id === orgId);
   const isOrganizationOwner = org?.isOwner ?? false;
@@ -166,8 +277,6 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     useState<OrganizationInvite | null>(null);
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
-  const autoExpandedTenantId = useRef<string | null>(null);
   const [editedName, setEditedName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedTimeout, setEditedTimeout] = useState('');
@@ -253,11 +362,19 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     enabled: !!orgId && isControlPlaneEnabled && isOrganizationOwner,
   });
 
+  // Used only to widen the tag pool offered by the tag pickers — a tag can
+  // exist on a user group without yet being applied to any tenant. Shares the
+  // query cache with UserGroupsTab (same key), so this adds no extra request.
+  const userGroupsQuery = useQuery({
+    ...orgApi.userGroupsListQuery(orgId!),
+    enabled: !!orgId && isControlPlaneEnabled && isOrganizationOwner,
+  });
+
   const organization = organizationQuery.data;
   const organizationName = organization?.name ?? org?.name ?? '';
   const currentOrganizationName = organization?.name ?? '';
 
-  const visibleTenants = useMemo(
+  const visibleTenants: OrganizationTenantWithRegion[] = useMemo(
     () =>
       (organization?.tenants ?? org?.tenants)?.filter(
         (tenant) => tenant.status !== TenantStatusType.ARCHIVED,
@@ -265,36 +382,18 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     [org?.tenants, organization?.tenants],
   );
 
+  // The union of every tag known to the org — those applied to tenants plus
+  // those defined on user groups (which may not yet be on any tenant).
   const allTenantTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const tenant of visibleTenants) {
-      const tags = (tenant as unknown as { tags?: string[] }).tags;
-      tags?.forEach((t) => tagSet.add(t));
+      tenant.tags?.forEach((t) => tagSet.add(t));
+    }
+    for (const group of userGroupsQuery.data ?? []) {
+      group.tags?.forEach((t) => tagSet.add(t));
     }
     return Array.from(tagSet).sort();
-  }, [visibleTenants]);
-
-  // showing the first tenant as open, to make clearer that:
-  // 1. tenants can expand
-  // 2. you can add members to tenants from here
-  useEffect(() => {
-    const firstVisibleTenantId = lastTenantId ?? visibleTenants[0]?.id;
-
-    if (!firstVisibleTenantId) {
-      autoExpandedTenantId.current = null;
-      return;
-    }
-
-    if (autoExpandedTenantId.current === firstVisibleTenantId) {
-      return;
-    }
-
-    autoExpandedTenantId.current = firstVisibleTenantId;
-
-    if (!expandedTenantIds.length) {
-      setExpandedTenantIds([firstVisibleTenantId]);
-    }
-  }, [visibleTenants, expandedTenantIds.length, lastTenantId]);
+  }, [visibleTenants, userGroupsQuery.data]);
 
   const handleSaveName = () => {
     const trimmedName = editedName.trim();
@@ -372,14 +471,12 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     {
       columnLabel: 'Email',
       cellRenderer: (row: OrganizationMember) => (
-        <span className="font-mono text-sm">{row.email}</span>
+        <MemberEmail email={row.email} />
       ),
     },
     {
       columnLabel: 'Role',
-      cellRenderer: (row: OrganizationMember) => (
-        <Badge variant="outline">{row.role}</Badge>
-      ),
+      cellRenderer: (row: OrganizationMember) => <RoleBadge role={row.role} />,
     },
     ...(isOrganizationOwner
       ? [
@@ -388,6 +485,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
             cellRenderer: (row: OrganizationMember) => (
               <MemberActions
                 row={row}
+                organizationId={orgId}
                 currentUserEmail={currentUser?.email}
                 onDelete={setMemberToDelete}
               />
@@ -400,19 +498,25 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
   const inviteColumns = [
     {
       columnLabel: 'Email',
-      cellRenderer: (row: OrganizationInvite) => (
-        <span className="font-mono text-sm">{row.inviteeEmail}</span>
+      cellRenderer: (row: OrganizationInviteWithTenants) => (
+        <MemberEmail email={row.inviteeEmail} />
       ),
     },
     {
       columnLabel: 'Role',
-      cellRenderer: (row: OrganizationInvite) => (
-        <Badge variant="outline">{row.role}</Badge>
+      cellRenderer: (row: OrganizationInviteWithTenants) => (
+        <RoleBadge role={row.role} />
+      ),
+    },
+    {
+      columnLabel: 'Tenant Access',
+      cellRenderer: (row: OrganizationInviteWithTenants) => (
+        <InviteTenantBadges tenants={row.tenants} />
       ),
     },
     {
       columnLabel: 'Status',
-      cellRenderer: (row: OrganizationInvite) => (
+      cellRenderer: (row: OrganizationInviteWithTenants) => (
         <Badge
           variant={
             row.status === OrganizationInviteStatus.PENDING
@@ -426,7 +530,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     },
     {
       columnLabel: 'Expiry',
-      cellRenderer: (row: OrganizationInvite) => (
+      cellRenderer: (row: OrganizationInviteWithTenants) => (
         <span>{formatExpiry(row.expires)}</span>
       ),
     },
@@ -434,7 +538,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
       ? [
           {
             columnLabel: 'Actions',
-            cellRenderer: (row: OrganizationInvite) =>
+            cellRenderer: (row: OrganizationInviteWithTenants) =>
               row.status === OrganizationInviteStatus.PENDING ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -557,8 +661,8 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     },
     {
       columnLabel: 'Tags',
-      cellRenderer: (row: ManagementToken) => {
-        const rowTags = (row as unknown as { tags?: string[] }).tags;
+      cellRenderer: (row: ManagementTokenWithTags) => {
+        const rowTags = row.tags;
         return rowTags && rowTags.length > 0 ? (
           <div className="flex flex-wrap gap-1">
             {rowTags.map((tag) => (
@@ -634,21 +738,20 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="Organization settings"
-          description={
-            isOrganizationOwner
-              ? 'Update the organization name and manage tenants, members, and management tokens.'
-              : 'Review the tenants associated with this organization.'
-          }
+          title={SECTION_HEADERS[section].title}
+          description={SECTION_HEADERS[section].description}
         />
 
-        {isOrganizationOwner && (
-          <div className="mb-6 flex flex-col gap-3 md:flex-row md:flex-wrap">
-            <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
-              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Organization name
-              </div>
+        {section === 'general' && !isOrganizationOwner && (
+          <SectionUnavailable description="Only organization owners can manage these settings." />
+        )}
 
+        {section === 'general' && isOrganizationOwner && (
+          <div className="divide-y divide-border">
+            <SettingRow
+              label="Organization Name"
+              description="The display name for this organization, shown across the dashboard."
+            >
               {isEditingName ? (
                 <div className="flex items-center gap-2">
                   <Input
@@ -663,72 +766,68 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                         handleCancelEditingName();
                       }
                     }}
-                    className="h-10 flex-1 bg-background/60"
+                    className="w-[220px]"
                     disabled={updateOrganizationLoading}
                     aria-label="Organization name"
                     autoFocus
                   />
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleCancelEditingName}
-                      disabled={updateOrganizationLoading}
-                      hoverText="Cancel editing"
-                      className="shrink-0 hover:bg-muted/50"
-                    >
-                      <XMarkIcon className="size-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handleSaveName}
-                      disabled={
-                        updateOrganizationLoading ||
-                        !editedName.trim() ||
-                        editedName.trim() === organizationName
-                      }
-                      hoverText="Save organization name"
-                      className="shrink-0 bg-background/60 hover:bg-muted/50"
-                    >
-                      {updateOrganizationLoading ? (
-                        <Spinner />
-                      ) : (
-                        <CheckIcon className="size-4" />
-                      )}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleCancelEditingName}
+                    disabled={updateOrganizationLoading}
+                    hoverText="Cancel editing"
+                    aria-label="Cancel editing"
+                    className="shrink-0"
+                  >
+                    <XMarkIcon className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleSaveName}
+                    disabled={
+                      updateOrganizationLoading ||
+                      !editedName.trim() ||
+                      editedName.trim() === organizationName
+                    }
+                    hoverText="Save organization name"
+                    aria-label="Save organization name"
+                    className="shrink-0"
+                  >
+                    {updateOrganizationLoading ? (
+                      <Spinner />
+                    ) : (
+                      <CheckIcon className="size-4" />
+                    )}
+                  </Button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {organizationName}
-                    </p>
-                  </div>
-
+                  <span className="max-w-[220px] truncate text-sm">
+                    {organizationName}
+                  </span>
                   <Button
                     variant="outline"
                     size="icon"
                     onClick={handleStartEditingName}
                     hoverText="Edit organization name"
-                    className="shrink-0 bg-background/60 hover:bg-muted/50"
+                    aria-label="Edit organization name"
+                    className="shrink-0"
                   >
                     <PencilSquareIcon className="size-4" />
                   </Button>
                 </div>
               )}
-            </div>
+            </SettingRow>
 
             {isControlPlaneEnabled && (
-              <div className="w-full rounded-lg border border-border/50 bg-muted/10 p-4 md:max-w-sm">
-                <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Inactivity timeout
-                </div>
-
+              <SettingRow
+                label="Inactivity Timeout"
+                description="Automatically sign out members of this organization after this period of inactivity. Maximum 14 days."
+              >
                 {isEditingTimeout ? (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col items-end gap-1.5">
                     <div className="flex items-center gap-2">
                       <Input
                         type="text"
@@ -742,41 +841,41 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                             handleCancelEditingTimeout();
                           }
                         }}
-                        className="h-10 flex-1 bg-background/60"
+                        className="w-[220px]"
                         placeholder="e.g. 30m, 1h, 1h30m, -1 to disable"
                         disabled={updateOrganizationLoading}
                         autoFocus
                       />
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={handleCancelEditingTimeout}
-                          disabled={updateOrganizationLoading}
-                          hoverText="Cancel editing"
-                          className="shrink-0 hover:bg-muted/50"
-                        >
-                          <XMarkIcon className="size-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={handleSaveTimeout}
-                          disabled={
-                            updateOrganizationLoading ||
-                            parsedEditedTimeout === null ||
-                            editedTimeoutExceedsMax
-                          }
-                          hoverText="Save inactivity timeout"
-                          className="shrink-0 bg-background/60 hover:bg-muted/50"
-                        >
-                          {updateOrganizationLoading ? (
-                            <Spinner />
-                          ) : (
-                            <CheckIcon className="size-4" />
-                          )}
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleCancelEditingTimeout}
+                        disabled={updateOrganizationLoading}
+                        hoverText="Cancel editing"
+                        aria-label="Cancel editing"
+                        className="shrink-0"
+                      >
+                        <XMarkIcon className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleSaveTimeout}
+                        disabled={
+                          updateOrganizationLoading ||
+                          parsedEditedTimeout === null ||
+                          editedTimeoutExceedsMax
+                        }
+                        hoverText="Save inactivity timeout"
+                        aria-label="Save inactivity timeout"
+                        className="shrink-0"
+                      >
+                        {updateOrganizationLoading ? (
+                          <Spinner />
+                        ) : (
+                          <CheckIcon className="size-4" />
+                        )}
+                      </Button>
                     </div>
                     {editedTimeout.trim() !== '' && (
                       <p
@@ -797,65 +896,30 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <div className="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background/60 px-3">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {formatTimeoutMs(currentInactivityTimeoutMs)}
-                      </p>
-                    </div>
+                    <span className="max-w-[220px] truncate text-sm">
+                      {formatTimeoutMs(currentInactivityTimeoutMs)}
+                    </span>
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={handleStartEditingTimeout}
                       hoverText="Edit inactivity timeout"
-                      className="shrink-0 bg-background/60 hover:bg-muted/50"
+                      aria-label="Edit inactivity timeout"
+                      className="shrink-0"
                     >
                       <PencilSquareIcon className="size-4" />
                     </Button>
                   </div>
                 )}
-              </div>
+              </SettingRow>
             )}
           </div>
         )}
 
-        <Tabs defaultValue="tenants" className="mt-2">
-          <TabsList layout="underlined" className="mb-6">
-            <TabsTrigger value="tenants" variant="underlined">
-              Tenants
-            </TabsTrigger>
-            <TabsTrigger value="members" variant="underlined">
-              Organization Members
-            </TabsTrigger>
-            <TabsTrigger value="tokens" variant="underlined">
-              Management Tokens
-            </TabsTrigger>
-            {isOrganizationOwner && isControlPlaneEnabled && (
-              <TabsTrigger value="regions" variant="underlined">
-                Available Regions
-              </TabsTrigger>
-            )}
-            {canManageSso && (
-              <TabsTrigger value="sso" variant="underlined">
-                SSO
-              </TabsTrigger>
-            )}
-            {isControlPlaneEnabled && (
-              <TabsTrigger value="audit-log" variant="underlined">
-                Audit Log
-              </TabsTrigger>
-            )}
-            {isOrganizationOwner && isControlPlaneEnabled && (
-              <TabsTrigger value="user-groups" variant="underlined">
-                User Groups
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent value="tenants">
+        <div className="mt-2">
+          {section === 'tenants' && (
             <TenantsSection
               tenants={visibleTenants}
-              expandedTenantIds={expandedTenantIds}
-              setExpandedTenantIds={setExpandedTenantIds}
               onArchive={setTenantToArchive}
               onEditTags={
                 isControlPlaneEnabled && isOrganizationOwner
@@ -865,20 +929,25 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
               defaultOrganizationId={orgId}
               canManageOrganization={isOrganizationOwner}
             />
-          </TabsContent>
+          )}
 
-          <TabsContent value="members">
-            {organizationQuery.error instanceof AxiosError &&
+          {section === 'team' &&
+            (organizationQuery.error instanceof AxiosError &&
             organizationQuery.error.response?.status === 403 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                You must be an organization owner to view members.
-              </div>
+              <SectionUnavailable description="You must be an organization owner to view members." />
             ) : (
-              <div className="space-y-6">
-                <div>
-                  {isOrganizationOwner && (
-                    <div className="mb-4 flex justify-end">
+              <div className="space-y-8">
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-semibold">Members</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        People with access to this organization.
+                      </p>
+                    </div>
+                    {isOrganizationOwner && (
                       <Button
+                        className="shrink-0"
                         onClick={() =>
                           globalEmitter.emit('create-organization-invite', {
                             organizationId: orgId,
@@ -888,8 +957,9 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                       >
                         Invite Member
                       </Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <Separator />
                   {organization?.members && organization.members.length > 0 ? (
                     <SimpleTable
                       data={organization.members}
@@ -897,14 +967,26 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                       rowKey={(row) => row.metadata.id}
                     />
                   ) : (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
-                      No members found.
+                    <div className="py-8">
+                      <EmptyState
+                        title="No members"
+                        description="Invite teammates to give them access to this organization."
+                      />
                     </div>
                   )}
                 </div>
 
                 {pendingInvites && pendingInvites.length > 0 && (
-                  <div>
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold">
+                        Pending Invites
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Invitations that have not been accepted yet.
+                      </p>
+                    </div>
+                    <Separator />
                     <SimpleTable
                       data={pendingInvites}
                       columns={inviteColumns}
@@ -912,86 +994,89 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                     />
                   </div>
                 )}
-              </div>
-            )}
-          </TabsContent>
 
-          {isOrganizationOwner && isControlPlaneEnabled && (
-            <TabsContent value="regions">
-              {organizationAvailableShardsQuery.isLoading ? (
-                <div className="flex justify-center py-12">
-                  <Loading />
-                </div>
-              ) : organizationAvailableShardsQuery.error instanceof
-                  AxiosError &&
-                organizationAvailableShardsQuery.error.response?.status ===
-                  403 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                  You must be an organization owner to view available regions.
-                </div>
-              ) : organizationAvailableShardsQuery.error ? (
-                <div className="py-8 text-center text-sm text-destructive">
-                  Failed to load available regions.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <p>
-                      Regions where new tenants can be deployed for this
-                      organization.
-                    </p>
-                    <p>
-                      Need to configure which regions are available for a
-                      tenant, or looking for a new region?{' '}
-                      {pylon.enabled ? (
-                        <>
-                          <Button
-                            type="button"
-                            variant="link"
-                            className="h-auto p-0 text-sm font-normal"
-                            onClick={() => pylon.show()}
-                          >
-                            Open support chat
-                          </Button>
-                          , or{' '}
-                        </>
-                      ) : null}
-                      <a
-                        href={OFFICE_HOURS_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline-offset-4 hover:underline"
-                      >
-                        Schedule office hours
-                      </a>
-                      .
-                    </p>
-                  </div>
-                  {organizationAvailableShardsQuery.data?.rows &&
-                  organizationAvailableShardsQuery.data.rows.length > 0 ? (
-                    <SimpleTable
-                      data={organizationAvailableShardsQuery.data.rows}
-                      columns={availableShardColumns}
-                      rowKey={(row) =>
-                        `${row.shardClass}:${row.provider}:${row.region}:${row.shardName ?? ''}`
-                      }
+                {isOrganizationOwner && isControlPlaneEnabled && (
+                  <UserGroupsTab
+                    organizationId={orgId}
+                    allOrgMembers={organization?.members ?? []}
+                    allTenantTags={allTenantTags}
+                  />
+                )}
+              </div>
+            ))}
+
+          {section === 'regions' &&
+            (!(isOrganizationOwner && isControlPlaneEnabled) ? (
+              <SectionUnavailable />
+            ) : organizationAvailableShardsQuery.isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loading />
+              </div>
+            ) : organizationAvailableShardsQuery.error instanceof AxiosError &&
+              organizationAvailableShardsQuery.error.response?.status ===
+                403 ? (
+              <SectionUnavailable description="You must be an organization owner to view available regions." />
+            ) : organizationAvailableShardsQuery.error ? (
+              <div className="py-8">
+                <EmptyState
+                  title="Failed to load available regions"
+                  description="Something went wrong fetching the regions for this organization. Try refreshing the page."
+                />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {organizationAvailableShardsQuery.data?.rows &&
+                organizationAvailableShardsQuery.data.rows.length > 0 ? (
+                  <SimpleTable
+                    data={organizationAvailableShardsQuery.data.rows}
+                    columns={availableShardColumns}
+                    rowKey={(row) =>
+                      `${row.shardClass}:${row.provider}:${row.region}:${row.shardName ?? ''}`
+                    }
+                  />
+                ) : (
+                  <div className="py-8">
+                    <EmptyState
+                      title="No deployment regions"
+                      description="No regions are currently available for deploying new tenants in this organization."
                     />
-                  ) : (
-                    <div className="py-8 text-center text-sm text-muted-foreground">
-                      No deployment regions are configured.
-                    </div>
-                  )}
+                  </div>
+                )}
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    Need to configure which regions are available for a tenant,
+                    or looking for a new region?{' '}
+                    {pylon.enabled ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0 text-sm font-normal"
+                          onClick={() => pylon.show()}
+                        >
+                          Chat with us
+                        </Button>
+                        , or{' '}
+                      </>
+                    ) : null}
+                    <a
+                      href={OFFICE_HOURS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      Schedule office hours
+                    </a>
+                    .
+                  </p>
                 </div>
-              )}
-            </TabsContent>
-          )}
-
-          <TabsContent value="tokens">
-            {managementTokensQuery.error instanceof AxiosError &&
-            managementTokensQuery.error.response?.status === 403 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                You must be an organization owner to view management tokens.
               </div>
+            ))}
+
+          {section === 'tokens' &&
+            (managementTokensQuery.error instanceof AxiosError &&
+            managementTokensQuery.error.response?.status === 403 ? (
+              <SectionUnavailable description="You must be an organization owner to view management tokens." />
             ) : (
               <>
                 {isOrganizationOwner && (
@@ -1009,172 +1094,166 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
                     rowKey={(row) => row.id}
                   />
                 ) : (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    No management tokens found.
+                  <div className="py-8">
+                    <EmptyState
+                      title="No management tokens"
+                      description="Management tokens are used to manage tenants and members programmatically. We recommend using the Hatchet Terraform provider for this."
+                      docPage={{ href: TERRAFORM_PROVIDER_DOCS_URL }}
+                      docLabel="Hatchet Terraform provider docs"
+                    />
                   </div>
                 )}
               </>
-            )}
-          </TabsContent>
-          {canManageSso && (
-            <TabsContent value="sso">
-              {organizationEntitlementsQuery.isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loading />
-                </div>
-              ) : canUseSso ? (
-                <div className="space-y-6">
-                  <CreateSSOPage
-                    orgId={orgId}
-                    onConfigLoaded={setSsoIsConfigured}
-                  />
-                  {/* Force SSO toggle */}
-                  {isOrganizationOwner && (
-                    <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">Force SSO</p>
-                        <p className="text-sm text-muted-foreground">
-                          Require all organization members to sign in with SSO.
-                          All other login methods will be disabled.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={
-                          organizationSsoConfigGetQuery.data?.forceSSO ?? false
-                        }
-                        onCheckedChange={(checked) =>
-                          ssoConfigUpdateMutation.mutate(checked)
-                        }
-                        disabled={
-                          organizationSsoConfigGetQuery.isLoading ||
-                          ssoConfigUpdateMutation.isPending
-                        }
-                      />
-                    </div>
-                  )}
-                  {/* SSO Domains */}
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-base font-semibold">SSO Domains</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Domains associated with your organization for SSO login.
-                        Members signing in with a verified domain will be
-                        automatically directed to your identity provider.
+            ))}
+
+          {section === 'sso' &&
+            (!canManageSso ? (
+              <SectionUnavailable />
+            ) : organizationEntitlementsQuery.isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loading />
+              </div>
+            ) : canUseSso ? (
+              <div className="space-y-6">
+                <CreateSSOPage
+                  orgId={orgId}
+                  onConfigLoaded={setSsoIsConfigured}
+                />
+                {/* Force SSO toggle */}
+                {isOrganizationOwner && (
+                  <div className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/10 p-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">Force SSO</p>
+                      <p className="text-sm text-muted-foreground">
+                        Require all organization members to sign in with SSO.
+                        All other login methods will be disabled.
                       </p>
                     </div>
-                    {ssoIsConfigured &&
-                      !organizationSsoDomainGetQuery.isLoading &&
-                      (!organizationSsoDomainGetQuery.data ||
-                        organizationSsoDomainGetQuery.data.length === 0) && (
-                        <div className="flex items-start gap-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm">
-                          <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
-                          <div>
-                            <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                              SSO is configured but no domains are set up.
-                            </p>
-                            <p className="mt-0.5 text-muted-foreground">
-                              Without a verified domain, members will not be
-                              automatically redirected to your identity
-                              provider. Add a domain below to complete your SSO
-                              setup.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    {/* Add New SSO Domain */}
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="example.com"
-                          value={newSsoDomain}
-                          onChange={(e) => setNewSsoDomain(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleAddSsoDomain();
-                            }
-                          }}
-                          className="max-w-sm"
-                          disabled={isAddingSsoDomain}
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleAddSsoDomain}
-                          disabled={isAddingSsoDomain || !newSsoDomain.trim()}
-                          leftIcon={<PlusIcon className="size-4" />}
-                        >
-                          Add Domain
-                        </Button>
-                      </div>
-                    </div>
-                    {organizationSsoDomainGetQuery.isLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loading />
-                      </div>
-                    ) : organizationSsoDomainGetQuery.data &&
-                      organizationSsoDomainGetQuery.data.length > 0 ? (
-                      <SimpleTable
-                        data={organizationSsoDomainGetQuery.data.map((v) => ({
-                          domain: v.ssoDomain,
-                          verified: v.verified,
-                          verification_token: v.verificationToken,
-                        }))}
-                        columns={ssoDomainColumns}
-                        rowKey={(row) => row.domain}
-                      />
-                    ) : (
-                      <div className="py-8 text-center"></div>
-                    )}
-                    {organizationSsoDomainGetQuery.data &&
-                      organizationSsoDomainGetQuery.data.length > 0 && (
-                        <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                          <p>
-                            To verify your domain, add a DNS TXT record with the
-                            value:
-                          </p>
-                          <p className="mt-1 font-mono">
-                            hatchet-sso-verify=&#123;verification_token&#125;
-                          </p>
-                          <p className="mt-2">
-                            It may take a few minutes for DNS changes to
-                            propagate and for the verified status to update.
-                          </p>
-                        </div>
-                      )}
+                    <Switch
+                      checked={
+                        organizationSsoConfigGetQuery.data?.forceSSO ?? false
+                      }
+                      onCheckedChange={(checked) =>
+                        ssoConfigUpdateMutation.mutate(checked)
+                      }
+                      disabled={
+                        organizationSsoConfigGetQuery.isLoading ||
+                        ssoConfigUpdateMutation.isPending
+                      }
+                    />
                   </div>
+                )}
+                {/* SSO Domains */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-base font-semibold">SSO Domains</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Domains associated with your organization for SSO login.
+                      Members signing in with a verified domain will be
+                      automatically directed to your identity provider.
+                    </p>
+                  </div>
+                  {ssoIsConfigured &&
+                    !organizationSsoDomainGetQuery.isLoading &&
+                    (!organizationSsoDomainGetQuery.data ||
+                      organizationSsoDomainGetQuery.data.length === 0) && (
+                      <div className="flex items-start gap-3 rounded-md border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 text-sm">
+                        <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-500" />
+                        <div>
+                          <p className="font-medium text-yellow-600 dark:text-yellow-400">
+                            SSO is configured but no domains are set up.
+                          </p>
+                          <p className="mt-0.5 text-muted-foreground">
+                            Without a verified domain, members will not be
+                            automatically redirected to your identity provider.
+                            Add a domain below to complete your SSO setup.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  {/* Add New SSO Domain */}
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="example.com"
+                        value={newSsoDomain}
+                        onChange={(e) => setNewSsoDomain(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleAddSsoDomain();
+                          }
+                        }}
+                        className="max-w-sm"
+                        disabled={isAddingSsoDomain}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleAddSsoDomain}
+                        disabled={isAddingSsoDomain || !newSsoDomain.trim()}
+                        leftIcon={<PlusIcon className="size-4" />}
+                      >
+                        Add Domain
+                      </Button>
+                    </div>
+                  </div>
+                  {organizationSsoDomainGetQuery.isLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loading />
+                    </div>
+                  ) : organizationSsoDomainGetQuery.data &&
+                    organizationSsoDomainGetQuery.data.length > 0 ? (
+                    <SimpleTable
+                      data={organizationSsoDomainGetQuery.data.map((v) => ({
+                        domain: v.ssoDomain,
+                        verified: v.verified,
+                        verification_token: v.verificationToken,
+                      }))}
+                      columns={ssoDomainColumns}
+                      rowKey={(row) => row.domain}
+                    />
+                  ) : null}
+                  {organizationSsoDomainGetQuery.data &&
+                    organizationSsoDomainGetQuery.data.length > 0 && (
+                      <div className="rounded-md border border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <p>
+                          To verify your domain, add a DNS TXT record with the
+                          value:
+                        </p>
+                        <p className="mt-1 font-mono">
+                          hatchet-sso-verify=&#123;verification_token&#125;
+                        </p>
+                        <p className="mt-2">
+                          It may take a few minutes for DNS changes to propagate
+                          and for the verified status to update.
+                        </p>
+                      </div>
+                    )}
                 </div>
-              ) : (
-                <div className="py-16 text-center text-sm text-muted-foreground">
-                  SSO is not enabled for this organization. Please{' '}
-                  <a
-                    href={OFFICE_HOURS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    contact us
-                  </a>{' '}
-                  to get access.
-                </div>
-              )}
-            </TabsContent>
-          )}
-          {isControlPlaneEnabled && (
-            <TabsContent value="audit-log">
-              <AuditLogSettings orgId={orgId} />
-            </TabsContent>
-          )}
+              </div>
+            ) : (
+              <div className="py-12">
+                <EmptyState
+                  title="SSO is not enabled"
+                  description="Single sign-on is not enabled for this organization. Contact us to get access."
+                  links={[
+                    {
+                      href: OFFICE_HOURS_URL,
+                      label: 'Schedule office hours',
+                      external: true,
+                    },
+                  ]}
+                />
+              </div>
+            ))}
 
-          {isOrganizationOwner && isControlPlaneEnabled && (
-            <TabsContent value="user-groups">
-              <UserGroupsTab
-                organizationId={orgId}
-                allOrgMembers={organization?.members ?? []}
-                allTenantTags={allTenantTags}
-              />
-            </TabsContent>
-          )}
-        </Tabs>
+          {section === 'audit-log' &&
+            (isControlPlaneEnabled ? (
+              <AuditLogSettings orgId={orgId} />
+            ) : (
+              <SectionUnavailable />
+            ))}
+        </div>
       </div>
 
       {isOrganizationOwner && memberToDelete && (
@@ -1245,6 +1324,7 @@ export function CloudOrganizationSettings({ orgId }: { orgId: string }) {
           organizationId={orgId}
           tenantId={tenantToEditTags.id}
           tenantName={tenantToEditTags.name || tenantToEditTags.id}
+          initialTags={tenantToEditTags.tags ?? []}
           allTenantTags={allTenantTags}
           onSuccess={() =>
             queryClient.invalidateQueries({
@@ -1263,9 +1343,6 @@ export function OssOrganizationSettings() {
 
   const [tenantToArchive, setTenantToArchive] =
     useState<OrganizationTenantWithRegion | null>(null);
-  const [expandedTenantIds, setExpandedTenantIds] = useState<string[]>([]);
-  const autoExpandedTenantId = useRef<string | null>(null);
-  const { lastTenantId } = useTenantDetails();
 
   const visibleTenants = useMemo(
     () =>
@@ -1279,36 +1356,11 @@ export function OssOrganizationSettings() {
             name: m.tenant.name,
             status: TenantStatusType.ACTIVE,
             slug: m.tenant.slug,
-            canManage:
-              m.role === TenantMemberRole.OWNER ||
-              m.role === TenantMemberRole.ADMIN,
           };
         })
         .filter((t): t is OrganizationTenantWithRegion => t !== null) || [],
     [tenantMemberships],
   );
-
-  // showing either the last active or first (fallback) tenant as open, to make clearer that:
-  // 1. tenants can expand
-  // 2. you can add members to tenants from here
-  useEffect(() => {
-    const firstVisibleTenantId = lastTenantId ?? visibleTenants[0]?.id;
-
-    if (!firstVisibleTenantId) {
-      autoExpandedTenantId.current = null;
-      return;
-    }
-
-    if (autoExpandedTenantId.current === firstVisibleTenantId) {
-      return;
-    }
-
-    autoExpandedTenantId.current = firstVisibleTenantId;
-
-    if (!expandedTenantIds.length) {
-      setExpandedTenantIds([firstVisibleTenantId]);
-    }
-  }, [visibleTenants, expandedTenantIds.length, lastTenantId]);
 
   return (
     <div className="h-full w-full flex-grow">
@@ -1320,8 +1372,6 @@ export function OssOrganizationSettings() {
 
         <TenantsSection
           tenants={visibleTenants}
-          expandedTenantIds={expandedTenantIds}
-          setExpandedTenantIds={setExpandedTenantIds}
           onArchive={setTenantToArchive}
           canManageOrganization={false}
         />
@@ -1363,83 +1413,152 @@ function formatExpiry(expiresAt?: string) {
 
 function TenantsSection({
   tenants,
-  expandedTenantIds,
-  setExpandedTenantIds,
   onArchive,
   onEditTags,
   defaultOrganizationId,
   canManageOrganization,
 }: {
   tenants: OrganizationTenantWithRegion[];
-  expandedTenantIds: string[];
-  setExpandedTenantIds: (tenantIds: string[]) => void;
   onArchive: (tenant: OrganizationTenantWithRegion) => void;
   onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
   defaultOrganizationId?: string;
   canManageOrganization: boolean;
 }) {
+  const navigate = useNavigate();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     for (const tenant of tenants) {
-      const tags = (tenant as unknown as { tags?: string[] }).tags;
-      tags?.forEach((t) => tagSet.add(t));
+      tenant.tags?.forEach((t) => tagSet.add(t));
     }
     return Array.from(tagSet).sort();
   }, [tenants]);
 
   const filteredTenants = useMemo(() => {
-    if (selectedTags.length === 0) {
-      return tenants;
-    }
+    const term = search.trim().toLowerCase();
+
     return tenants.filter((tenant) => {
-      const tags = (tenant as unknown as { tags?: string[] }).tags ?? [];
-      return selectedTags.every((t) => tags.includes(t));
+      if (term) {
+        const haystack = [tenant.name, tenant.slug, tenant.id]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        if (!haystack.includes(term)) {
+          return false;
+        }
+      }
+
+      if (selectedTags.length > 0) {
+        const tags = tenant.tags ?? [];
+        return selectedTags.every((t) => tags.includes(t));
+      }
+
+      return true;
     });
-  }, [tenants, selectedTags]);
+  }, [tenants, selectedTags, search]);
+
+  const isFiltered = search.trim() !== '' || selectedTags.length > 0;
 
   const toggleTag = (tag: string) =>
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
 
+  const tenantColumns = [
+    {
+      columnLabel: 'Name',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) => (
+        <p className="min-w-0 truncate font-medium">
+          {tenant.name ?? tenant.slug ?? tenant.id}
+        </p>
+      ),
+    },
+    {
+      columnLabel: 'ID',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) => (
+        <div className="flex items-center gap-2">
+          <span className="max-w-[10rem] truncate font-mono text-xs text-muted-foreground">
+            {tenant.id}
+          </span>
+          <CopyToClipboard text={tenant.id} />
+        </div>
+      ),
+    },
+    {
+      columnLabel: 'Tags',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) => {
+        const tags = tenant.tags ?? [];
+        return tags.length > 0 ? (
+          <TagList tags={tags} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
+      },
+    },
+    {
+      columnLabel: 'Status',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) => (
+        <Badge variant="outline">{tenant.status}</Badge>
+      ),
+    },
+    {
+      columnLabel: 'Region',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) =>
+        tenant.region ? (
+          <TenantRegionBadge region={tenant.region} />
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      columnLabel: 'Members',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            navigate({
+              to: appRoutes.tenantSettingsMembersRoute.to,
+              params: { tenant: tenant.id },
+            })
+          }
+        >
+          Manage members
+        </Button>
+      ),
+    },
+    {
+      columnLabel: 'Actions',
+      cellRenderer: (tenant: OrganizationTenantWithRegion) => (
+        <TenantActions
+          row={{ ...tenant, metadata: { id: tenant.id } }}
+          onArchive={onArchive}
+          onEditTags={onEditTags}
+          canManageOrganization={canManageOrganization}
+        />
+      ),
+    },
+  ];
+
   return (
     <>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        {allTags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              Filter by tag:
-            </span>
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => toggleTag(tag)}
-                className="focus:outline-none"
-              >
-                <Badge
-                  variant={selectedTags.includes(tag) ? 'default' : 'outline'}
-                  className="cursor-pointer text-xs"
-                >
-                  {tag}
-                </Badge>
-              </button>
-            ))}
-            {selectedTags.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedTags([])}
-                className="text-xs text-muted-foreground hover:text-foreground focus:outline-none"
-              >
-                <XMarkIcon className="inline size-3" /> Clear
-              </button>
-            )}
-          </div>
-        )}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <SearchBarWithFilters
+            value={search}
+            onChange={setSearch}
+            onSubmit={setSearch}
+            getAutocomplete={noopAutocomplete}
+            applySuggestion={noopApplySuggestion}
+            autocompleteContext={emptyAutocompleteContext}
+            placeholder="Search tenants by name, slug, or ID..."
+          />
+        </div>
         {canManageOrganization && (
-          <div className="ml-auto shrink-0">
+          <div className="shrink-0">
             <Button
               onClick={() =>
                 globalEmitter.emit('create-new-tenant', {
@@ -1453,369 +1572,59 @@ function TenantsSection({
           </div>
         )}
       </div>
-      {filteredTenants.length ? (
-        <Accordion
-          type="multiple"
-          value={expandedTenantIds}
-          onValueChange={setExpandedTenantIds}
-          className="space-y-3 rounded-md border bg-background p-3"
-        >
-          {filteredTenants.map((tenant, ix) => (
-            <div key={tenant.id}>
-              <TenantAccordionItem
-                key={tenant.id}
-                tenant={tenant}
-                isExpanded={expandedTenantIds.includes(tenant.id)}
-                onArchive={onArchive}
-                onEditTags={onEditTags}
-                canManageOrganization={canManageOrganization}
-                organizationId={defaultOrganizationId}
-              />
-              {ix < filteredTenants.length - 1 && (
-                <Separator className="my-4" />
-              )}
-            </div>
+      {allTags.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Filter by tag:</span>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => toggleTag(tag)}
+              className="focus:outline-none"
+            >
+              <Badge
+                variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+                className="cursor-pointer text-xs"
+              >
+                {tag}
+              </Badge>
+            </button>
           ))}
-        </Accordion>
-      ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          {selectedTags.length > 0
-            ? 'No tenants match the selected tags.'
-            : 'No tenants found.'}
+          {selectedTags.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedTags([])}
+              className="text-xs text-muted-foreground hover:text-foreground focus:outline-none"
+            >
+              <XMarkIcon className="inline size-3" /> Clear
+            </button>
+          )}
         </div>
       )}
-    </>
-  );
-}
-
-function TenantAccordionItem({
-  tenant,
-  isExpanded,
-  onArchive,
-  onEditTags,
-  canManageOrganization,
-  organizationId,
-}: {
-  tenant: OrganizationTenantWithRegion;
-  isExpanded: boolean;
-  onArchive: (tenant: OrganizationTenantWithRegion) => void;
-  onEditTags?: (tenant: OrganizationTenantWithRegion) => void;
-  canManageOrganization: boolean;
-  organizationId?: string;
-}) {
-  const { tenantMemberListQuery, tenantInviteListQuery } = useTenantApi();
-
-  const membersQuery = useQuery({
-    ...tenantMemberListQuery(tenant.id),
-    enabled: isExpanded,
-  });
-
-  const invitesQuery = useQuery({
-    ...tenantInviteListQuery(tenant.id),
-    enabled: isExpanded,
-  });
-  const { isControlPlaneEnabled } = useControlPlane();
-
-  const tenantMembers = membersQuery.data?.rows || [];
-  const tenantInvites = invitesQuery.data?.rows || [];
-
-  const canManageTenantMembers =
-    canManageOrganization ||
-    // without the control plane, tenant admins/owners can invite members directly
-    // (org-based "Add Member" isn't available), whether they're on OSS or on cloud
-    (!isControlPlaneEnabled && Boolean(tenant.canManage));
-
-  return (
-    <AccordionItem value={tenant.id} className="overflow-hidden bg-background">
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
-        <AccordionTrigger
-          headerClassName="min-w-0 flex-1"
-          className="py-1 hover:no-underline [&>svg]:text-muted-foreground"
-        >
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
-            <p className="min-w-0 truncate font-medium leading-5">
-              {tenant.name || tenant.id}
-            </p>
-            <TenantRegionBadge region={tenant.region} />
-            <TagList
-              tags={(tenant as unknown as { tags?: string[] }).tags ?? []}
-            />
-          </div>
-        </AccordionTrigger>
-
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 lg:flex">
-            <span className="font-mono text-xs text-muted-foreground">
-              {tenant.id}
-            </span>
-            <CopyToClipboard text={tenant.id} />
-          </div>
-          <TenantActions
-            row={{ ...tenant, metadata: { id: tenant.id } }}
-            onArchive={onArchive}
-            onEditTags={onEditTags}
-            canManageOrganization={canManageOrganization}
+      {filteredTenants.length ? (
+        <SimpleTable
+          columns={tenantColumns}
+          data={filteredTenants}
+          rowKey={(tenant) => tenant.id}
+        />
+      ) : (
+        <div className="py-8">
+          <EmptyState
+            title="No tenants"
+            description={
+              isFiltered
+                ? 'No tenants match your search or filters.'
+                : 'Add a tenant to this organization to get started.'
+            }
+            filterHint={
+              isFiltered
+                ? 'Try changing your search or clearing the tag filters.'
+                : undefined
+            }
           />
         </div>
-      </div>
-
-      <AccordionContent className="border-border/70 px-4 pb-4 pt-4">
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Members</h4>
-            {canManageOrganization &&
-            organizationId &&
-            isControlPlaneEnabled ? (
-              <Button
-                onClick={() =>
-                  globalEmitter.emit('add-org-member-to-tenant', {
-                    tenantId: tenant.id,
-                    organizationId,
-                  })
-                }
-              >
-                Add Member
-              </Button>
-            ) : canManageTenantMembers ? (
-              <Button
-                onClick={() =>
-                  globalEmitter.emit('create-tenant-invite', {
-                    tenantId: tenant.id,
-                  })
-                }
-              >
-                Invite Member
-              </Button>
-            ) : null}
-          </div>
-
-          {membersQuery.isLoading ? (
-            <div className="py-4 text-sm text-muted-foreground">
-              Loading members...
-            </div>
-          ) : membersQuery.isError &&
-            membersQuery.error instanceof AxiosError &&
-            [401, 403].includes(membersQuery.error.response?.status ?? 0) ? (
-            <div className="py-4 text-sm text-muted-foreground">
-              You must be a tenant admin or owner to view members.
-            </div>
-          ) : tenantMembers.length > 0 ? (
-            <TenantMemberList
-              tenantId={tenant.id}
-              members={tenantMembers}
-              canManage={canManageTenantMembers}
-              canManageOrganization={canManageOrganization}
-              onMembersChanged={() => membersQuery.refetch()}
-            />
-          ) : (
-            <div className="py-4 text-sm text-muted-foreground">
-              No members found.
-            </div>
-          )}
-
-          {tenantInvites.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Pending Invites</h4>
-              <TenantInviteList invites={tenantInvites} />
-            </div>
-          )}
-        </div>
-      </AccordionContent>
-    </AccordionItem>
-  );
-}
-
-function TenantMemberList({
-  tenantId,
-  members,
-  canManage,
-  canManageOrganization,
-  onMembersChanged,
-}: {
-  tenantId: string;
-  members: TenantMember[];
-  canManage: boolean;
-  canManageOrganization: boolean;
-  onMembersChanged: () => void;
-}) {
-  const [memberToEdit, setMemberToEdit] = useState<TenantMember | null>(null);
-  const { isControlPlaneEnabled } = useControlPlane();
-  const columns = useMemo(
-    () => [
-      {
-        columnLabel: 'Name',
-        cellRenderer: (member: TenantMember) => (
-          <span className="font-medium">{member.user.name}</span>
-        ),
-      },
-      {
-        columnLabel: 'Email',
-        cellRenderer: (member: TenantMember) => (
-          <span className="font-mono text-sm">{member.user.email}</span>
-        ),
-      },
-      {
-        columnLabel: 'Role',
-        cellRenderer: (member: TenantMember) => (
-          <Badge variant="outline">{member.role}</Badge>
-        ),
-      },
-      {
-        columnLabel: 'Joined',
-        cellRenderer: (member: TenantMember) => (
-          <RelativeDate date={member.metadata.createdAt} />
-        ),
-      },
-      ...(isControlPlaneEnabled
-        ? [
-            {
-              columnLabel: 'Source',
-              cellRenderer: (member: TenantMember) =>
-                member.manually_added ? (
-                  <Badge variant="outline">Direct</Badge>
-                ) : (
-                  <Badge variant="outline">Tags</Badge>
-                ),
-            },
-          ]
-        : []),
-      ...(canManage
-        ? [
-            {
-              columnLabel: 'Actions',
-              cellRenderer: (member: TenantMember) => (
-                <TenantMemberActions
-                  member={member}
-                  tenantId={tenantId}
-                  onEditRoleClick={
-                    !isControlPlaneEnabled || member.manually_added
-                      ? setMemberToEdit
-                      : () => {}
-                  }
-                  onChangePasswordClick={() => {}}
-                  onDeleteSuccess={onMembersChanged}
-                />
-              ),
-            },
-          ]
-        : []),
-    ],
-    [canManage, isControlPlaneEnabled, onMembersChanged, tenantId],
-  );
-
-  return (
-    <>
-      <SimpleTable
-        columns={columns}
-        data={members}
-        rowKey={(member) => member.metadata.id}
-      />
-
-      {memberToEdit && (
-        <TenantMemberUpdateDialog
-          tenantId={tenantId}
-          member={memberToEdit}
-          canManageOrganization={canManageOrganization}
-          onClose={() => setMemberToEdit(null)}
-          onSuccess={() => {
-            setMemberToEdit(null);
-            onMembersChanged();
-          }}
-        />
       )}
     </>
-  );
-}
-
-function TenantMemberUpdateDialog({
-  tenantId,
-  member,
-  canManageOrganization,
-  onClose,
-  onSuccess,
-}: {
-  tenantId: string;
-  member: TenantMember;
-  canManageOrganization: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const { toast } = useToast();
-  const { handleApiError } = useApiError();
-  const { tenantMemberUpdateMutation } = useTenantApi();
-  const memberUpdate = tenantMemberUpdateMutation(tenantId, member.metadata.id);
-  const updateMutation = useMutation({
-    ...memberUpdate,
-    mutationFn: memberUpdate.mutationFn,
-    onSuccess,
-    onError: (error: AxiosError) => {
-      handleApiError(error);
-      onClose();
-    },
-  });
-
-  const handleSubmit = (data: { role: TenantMemberRole }) => {
-    if (member.role === TenantMemberRole.OWNER && !canManageOrganization) {
-      toast({
-        title: 'Error',
-        description:
-          'Owner role management must be done through organization membership',
-        duration: 5000,
-      });
-      onClose();
-      return;
-    }
-    updateMutation.mutate(data);
-  };
-
-  return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <UpdateMemberForm
-        isLoading={updateMutation.isPending}
-        onSubmit={handleSubmit}
-        member={member}
-        isCloudEnabled={true}
-        canSetOwnerRole={canManageOrganization}
-      />
-    </Dialog>
-  );
-}
-
-function TenantInviteList({ invites }: { invites: TenantInvite[] }) {
-  return (
-    <div className="rounded-md border border-border/70">
-      <div className="hidden grid-cols-[minmax(0,1.6fr)_120px_140px_140px] gap-3 border-b border-border/70 bg-muted/20 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid">
-        <span>Email</span>
-        <span>Role</span>
-        <span>Created</span>
-        <span>Expires</span>
-      </div>
-      <div>
-        {invites.map((invite) => (
-          <div
-            key={invite.metadata.id}
-            className="grid gap-3 border-b border-border/50 px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1.6fr)_120px_140px_140px] md:items-center"
-          >
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Email</p>
-              <p className="font-mono text-sm">{invite.email}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Role</p>
-              <Badge variant="outline">{invite.role}</Badge>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Created</p>
-              <RelativeDate date={invite.metadata.createdAt} />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground md:hidden">Expires</p>
-              <RelativeDate date={invite.expires} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -1872,10 +1681,12 @@ function TenantActions({
 
 function MemberActions({
   row,
+  organizationId,
   currentUserEmail,
   onDelete,
 }: {
   row: OrganizationMember;
+  organizationId: string;
   currentUserEmail?: string;
   onDelete: (member: OrganizationMember) => void;
 }) {
@@ -1889,6 +1700,17 @@ function MemberActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onClick={() =>
+            globalEmitter.emit('create-tenant-invite', {
+              organizationId,
+              defaultEmail: row.email,
+            })
+          }
+        >
+          <PlusIcon className="mr-2 size-4" />
+          Add to tenant
+        </DropdownMenuItem>
         {isSelf ? (
           <TooltipProvider>
             <Tooltip>

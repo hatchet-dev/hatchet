@@ -67,7 +67,7 @@ export default function Integrations() {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="Integration settings"
+          title="Integrations"
           description="Configure alerting, ingestors, and connected services available for this tenant."
         />
 
@@ -766,8 +766,11 @@ function GithubInstallationsList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No GitHub accounts linked. Link an account to integrate with CI/CD.
+        <div className="py-8">
+          <EmptyState
+            title="No GitHub accounts linked"
+            description="Link a GitHub account to integrate Hatchet with your CI/CD workflows."
+          />
         </div>
       )}
       <ConfirmDialog
