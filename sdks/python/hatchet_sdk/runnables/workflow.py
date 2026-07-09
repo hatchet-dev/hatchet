@@ -1461,9 +1461,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         ) = None,
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
-        wait_for: list[Condition | OrGroup] | None = None,
-        skip_if: list[Condition | OrGroup] | None = None,
-        cancel_if: list[Condition | OrGroup] | None = None,
     ) -> Callable[
         [
             Callable[
@@ -1474,12 +1471,15 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         Task[TWorkflowInput, R],
     ]:
         """
+        .. note::
+        **Preview:** This function is in beta and may change in future releases.
+
         A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
 
         Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
         then invoke the handler once with all buffered inputs keyed by step run ID.
 
-        The handler must return a dict mapping each step run ID to its output.
+        The handler must return a dict mapping each step run ID to its output, or use `broadcast_output` to return the same result to all callsites.
         """
 
         if batch_max_size <= 0:
