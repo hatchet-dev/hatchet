@@ -31,11 +31,24 @@ import { useEffect, useMemo, useState } from 'react';
 interface InviteModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // Must match the flags used by whatever drives `isOpen` (e.g. the auto-open
+  // effect in authenticated.tsx). `usePendingInvites` keys its query on these,
+  // so a mismatch points the modal at a different cache entry than the opener —
+  // the modal then sees `inviteCount: 0` and stale-closes in a loop. When
+  // omitted, they fall back to the async `useCloud`/`useControlPlane` hooks,
+  // which start `false` while loading and can transiently diverge.
+  isCloudEnabled?: boolean;
+  isControlPlaneEnabled?: boolean;
 }
 
-export function InviteModal({ isOpen, onClose }: InviteModalProps) {
+export function InviteModal({
+  isOpen,
+  onClose,
+  isCloudEnabled,
+  isControlPlaneEnabled,
+}: InviteModalProps) {
   const { pendingInvitesQuery, invalidate: invalidatePendingInvites } =
-    usePendingInvites();
+    usePendingInvites({ isCloudEnabled, isControlPlaneEnabled });
   const { tenantMemberships } = useUserUniverse();
   const { setTenant } = useTenantDetails();
 
@@ -73,12 +86,16 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     }
   }, [isOpen, invalidatePendingInvites, reset]);
 
-  // Close immediately if opened with stale data that resolves to 0 invites
+  // Close immediately if opened with stale data that resolves to 0 invites.
+  // Gate on `!isFetching`: while a refetch is in flight react-query retains the
+  // previous (possibly stale count=0) data, and closing on it would fight
+  // whatever opened the modal — an open/close loop.
   useEffect(() => {
     if (
       isOpen &&
       phase === 'invites' &&
       pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
       totalInviteCount === 0 &&
       processedIds.size === 0
     ) {
@@ -88,6 +105,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     isOpen,
     phase,
     pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
     totalInviteCount,
     processedIds.size,
     onClose,

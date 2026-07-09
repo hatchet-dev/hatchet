@@ -628,6 +628,8 @@ function AuthenticatedInner() {
         <InviteModal
           isOpen={inviteModalOpen}
           onClose={() => setInviteModalOpen(false)}
+          isCloudEnabled={loaderData.isCloudEnabled}
+          isControlPlaneEnabled={loaderData.isControlPlaneEnabled}
         />
       </SupportChat>
     </PostHogProvider>
