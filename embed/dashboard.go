@@ -22,26 +22,26 @@ const dashboardReleaseBaseURL = "https://github.com/hatchet-dev/hatchet/releases
 
 const maxDashboardBundleBytes = 128 << 20
 
-func dashboardTarballURL() string {
+func dashboardTarballURL(version string) string {
 	if u := os.Getenv("HATCHET_EMBEDDED_DASHBOARD_URL"); u != "" {
 		return u
 	}
 
-	return fmt.Sprintf("%s/%s/dashboard-%s.tar.gz", dashboardReleaseBaseURL, embedVersion, embedVersion)
+	return fmt.Sprintf("%s/%s/dashboard-%s.tar.gz", dashboardReleaseBaseURL, version, version)
 }
 
-func ensureDashboardAssets(ctx context.Context) (string, error) {
+func ensureDashboardAssets(ctx context.Context, version string) (string, error) {
 	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
 		return "", fmt.Errorf("could not resolve user cache dir: %w", err)
 	}
 
-	dir := filepath.Join(cacheRoot, "hatchet", "embedded-dashboard", embedVersion)
+	dir := filepath.Join(cacheRoot, "hatchet", "embedded-dashboard", version)
 	if _, statErr := os.Stat(filepath.Join(dir, "index.html")); statErr == nil {
 		return dir, nil
 	}
 
-	url := dashboardTarballURL()
+	url := dashboardTarballURL(version)
 
 	tarball, err := downloadBytes(ctx, url)
 	if err != nil {
@@ -74,7 +74,7 @@ func downloadBytes(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status %s", resp.Status)
@@ -106,13 +106,13 @@ func extractTarGz(data []byte, destDir string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp) //nolint:errcheck
+	defer func() { _ = os.RemoveAll(tmp) }()
 
 	gz, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	defer gz.Close() //nolint:errcheck
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(io.LimitReader(gz, maxDashboardBundleBytes))
 	for {

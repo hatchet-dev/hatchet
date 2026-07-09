@@ -13,6 +13,9 @@ type Config struct {
 	version          string
 	logLevel         string
 	dashboardDir     string
+	masterKeyset     []byte
+	privateJWTKeyset []byte
+	publicJWTKeyset  []byte
 	apiPort          int
 	grpcPort         int
 	dashboardPort    int
@@ -29,13 +32,20 @@ func defaultConfig() *Config {
 		grpcPort:         7070,
 		dashboardPort:    8082,
 		dashboardEnabled: true,
-		version:          embedVersion,
 		logLevel:         "warn",
 	}
 }
 
 func WithPostgres(url string) Option {
 	return func(c *Config) { c.postgresURL = url }
+}
+
+func WithKeysets(master, privateJWT, publicJWT []byte) Option {
+	return func(c *Config) {
+		c.masterKeyset = master
+		c.privateJWTKeyset = privateJWT
+		c.publicJWTKeyset = publicJWT
+	}
 }
 
 func WithRabbitMQ(url string) Option {
@@ -84,6 +94,10 @@ func WithLogLevel(level string) Option {
 func (c *Config) validate() error {
 	if strings.TrimSpace(c.postgresURL) == "" {
 		return fmt.Errorf("a Postgres connection string is required: use WithPostgres(url)")
+	}
+
+	if len(c.masterKeyset) == 0 || len(c.privateJWTKeyset) == 0 || len(c.publicJWTKeyset) == 0 {
+		return fmt.Errorf("keysets are required: generate them with `hatchet-admin keyset create-local-keys` and pass them via WithKeysets. All engines sharing a database must use the same keysets")
 	}
 
 	if c.apiPort == c.grpcPort {

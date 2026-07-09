@@ -22,7 +22,6 @@ import (
 	migrate "github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
-	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -80,6 +79,14 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		return nil, err
 	}
 
+	if cfg.version == "" {
+		v, err := resolveVersion()
+		if err != nil {
+			return nil, err
+		}
+		cfg.version = v
+	}
+
 	if err := os.Setenv("DATABASE_URL", cfg.postgresURL); err != nil {
 		return nil, fmt.Errorf("could not set DATABASE_URL: %w", err)
 	}
@@ -92,11 +99,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	if cfg.runMigrations {
 		migrate.RunMigrations(ctx)
-	}
-
-	masterKey, privateJWT, publicJWT, _, err := encryption.GenerateLocalKeys()
-	if err != nil {
-		return nil, fmt.Errorf("could not generate local keysets: %w", err)
 	}
 
 	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", cfg.grpcPort)
@@ -124,6 +126,7 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Runtime.GRPCBindAddress = "127.0.0.1"
 		scf.Runtime.GRPCBroadcastAddress = grpcBroadcast
 		scf.Runtime.GRPCInsecure = true
+		scf.Runtime.Healthcheck = false
 
 		scf.SecurityCheck.Enabled = false
 
@@ -134,9 +137,9 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 			scf.MessageQueue.RabbitMQ.URL = cfg.rabbitMQURL
 		}
 
-		scf.Encryption.MasterKeyset = string(masterKey)
-		scf.Encryption.JWT.PrivateJWTKeyset = string(privateJWT)
-		scf.Encryption.JWT.PublicJWTKeyset = string(publicJWT)
+		scf.Encryption.MasterKeyset = string(cfg.masterKeyset)
+		scf.Encryption.JWT.PrivateJWTKeyset = string(cfg.privateJWTKeyset)
+		scf.Encryption.JWT.PublicJWTKeyset = string(cfg.publicJWTKeyset)
 	}
 
 	cf := loader.NewConfigLoader("")
@@ -150,6 +153,11 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		return nil, fmt.Errorf("could not seed database: %w", seedErr)
 	}
 	tenantID := dc.Seed.DefaultTenantID
+
+	fleetSize, err := activeFleetSize(ctx, dc.Pool)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "embed: could not read fleet size: %v\n", err)
+	}
 
 	tokenCleanup, sc, err := cf.CreateServerFromConfig(cfg.version, override)
 	if err != nil {
@@ -203,7 +211,7 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	if cfg.dashboardEnabled {
 		assetDir := cfg.dashboardDir
 		if assetDir == "" {
-			fetched, fetchErr := ensureDashboardAssets(ctx)
+			fetched, fetchErr := ensureDashboardAssets(ctx, cfg.version)
 			if fetchErr != nil {
 				fmt.Fprintf(os.Stderr, "embed: dashboard unavailable, continuing without it: %v\n", fetchErr)
 			} else {
@@ -235,6 +243,16 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	}
 
 	inst.client = client
+
+	dashStatus := "off"
+	if inst.dashboardURL != "" {
+		dashStatus = inst.dashboardURL
+	}
+	fleetStatus := "starting a new fleet"
+	if fleetSize > 0 {
+		fleetStatus = fmt.Sprintf("joining a fleet of %d engine(s)", fleetSize)
+	}
+	fmt.Fprintf(os.Stderr, "embed engine ready: api=%s grpc=%s dashboard=%s | %s\n", apiURL, grpcBroadcast, dashStatus, fleetStatus)
 
 	return inst, nil
 }
