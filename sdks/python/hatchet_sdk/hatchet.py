@@ -455,6 +455,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        slot_cost: int | None = None,
     ) -> (
         Callable[
             [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
@@ -552,6 +553,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                slot_cost=slot_cost,
             )
 
             created_task = task_wrapper(func)

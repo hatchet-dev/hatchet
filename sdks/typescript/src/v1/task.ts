@@ -159,6 +159,17 @@ export type CreateBaseTaskOpts<
    */
   concurrency?: Concurrency | Concurrency[];
 
+  /**
+   * (optional) the number of default worker slots this task consumes.
+   *
+   * A worker has a fixed number of slots (default 100), and a normal task consumes one. Set slotCost
+   * higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single
+   * worker must have that many free slots to run it. Durable tasks ignore this option.
+   *
+   * default: 1
+   */
+  slotCost?: number;
+
   /** @internal */
   slotRequests?: Record<string, number>;
 };

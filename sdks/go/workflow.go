@@ -294,6 +294,7 @@ type taskConfig struct {
 	skipIf                 condition.Condition
 	description            string
 	evictionPolicy         *EvictionPolicy
+	slotCost               *int32
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -308,6 +309,21 @@ func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 	return func(config *taskConfig) {
 		config.retryBackoffFactor = factor
 		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds)
+	}
+}
+
+// WithSlotCost sets the number of default worker slots this task consumes. A normal task consumes
+// one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at
+// once. A single worker must have that many free slots to run it. Durable tasks ignore it. Panics
+// if cost is not positive.
+func WithSlotCost(cost int) TaskOption {
+	if cost <= 0 {
+		panic("slot cost must be a positive integer")
+	}
+
+	return func(config *taskConfig) {
+		c := int32(cost)
+		config.slotCost = &c
 	}
 }
 
@@ -511,6 +527,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,
 		SkipIf:                 config.skipIf,
+		SlotCost:               config.slotCost,
 	}
 
 	if config.isDurable {
