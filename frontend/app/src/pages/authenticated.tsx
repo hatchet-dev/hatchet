@@ -65,15 +65,17 @@ const DevtoolsFooter = import.meta.env.DEV
 export async function loader(_args: { request: Request }) {
   const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
-  const { isCloudEnabled, ...meta } = isControlPlaneEnabled
-    ? { isCloudEnabled: false as const }
+  const { isLegacyCloudEnabled, ...meta } = isControlPlaneEnabled
+    ? { isLegacyCloudEnabled: false as const }
     : await queryClient.fetchQuery(getCloudMetadataQuery);
+
+  const isCloudEnabled = isControlPlaneEnabled || isLegacyCloudEnabled;
 
   await queryClient.fetchQuery(
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
-    isCloudEnabled,
+    isLegacyCloudEnabled,
     isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
@@ -160,10 +162,7 @@ function AuthenticatedInner() {
     },
   });
 
-  const { pendingInvitesQuery } = usePendingInvites({
-    isCloudEnabled: loaderData.isCloudEnabled,
-    isControlPlaneEnabled: loaderData.isControlPlaneEnabled,
-  });
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
