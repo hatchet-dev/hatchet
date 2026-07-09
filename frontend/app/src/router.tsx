@@ -359,13 +359,14 @@ const onboardingCreateTenantRoute = createRoute({
     'default',
   ),
   loader: async () => {
-    const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
-      queryClient.fetchQuery(getCloudMetadataQuery),
-      fetchControlPlaneStatus(),
-    ]);
+    const [{ isLegacyCloudEnabled }, { isControlPlaneEnabled }] =
+      await Promise.all([
+        queryClient.fetchQuery(getCloudMetadataQuery),
+        fetchControlPlaneStatus(),
+      ]);
     return queryClient.fetchQuery(
       userUniverseQuery({
-        isCloudEnabled,
+        isCloudEnabled: isControlPlaneEnabled || isLegacyCloudEnabled,
         isCloudLoaded: true,
         isControlPlaneEnabled,
       }),
@@ -416,11 +417,13 @@ const v1RedirectRoute = createRoute({
 });
 
 async function getOrganizationIdForTenantInRouter(tenantId: string) {
-  const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
-    queryClient.fetchQuery(getCloudMetadataQuery),
-    fetchControlPlaneStatus(),
-  ]);
+  const [{ isLegacyCloudEnabled }, { isControlPlaneEnabled }] =
+    await Promise.all([
+      queryClient.fetchQuery(getCloudMetadataQuery),
+      fetchControlPlaneStatus(),
+    ]);
 
+  const isCloudEnabled = isControlPlaneEnabled || isLegacyCloudEnabled;
   if (!isCloudEnabled) {
     return null;
   }
