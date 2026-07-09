@@ -1534,9 +1534,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=None,
-                wait_for=wait_for,
-                skip_if=skip_if,
-                cancel_if=cancel_if,
                 batch=BatchTaskConfig(
                     batch_max_size=batch_max_size,
                     batch_max_interval=batch_max_interval,
