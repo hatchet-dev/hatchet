@@ -19,12 +19,6 @@ repos:
         language: system
         pass_filenames: false
         files: ^sdks/ruby/src/CHANGELOG\.md$
-      - id: embed-dashboard
-        name: rebuild and embed dashboard into hatchetembed
-        entry: task dashboard:embed
-        language: system
-        pass_filenames: false
-        files: ^frontend/app/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

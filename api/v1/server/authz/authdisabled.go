@@ -9,9 +9,5 @@ import (
 )
 
 func (a *AuthZ) authPreflight(c echo.Context, r *middleware.RouteInfo) (handled bool, err error) {
-	if err := a.authorizeTenantOperations("NOAUTH", r); err != nil {
-		return true, err
-	}
-
-	return true, a.validateUserTenantPermissions(c, r)
+	return a.authorizeAuthDisabled(c, r)
 }

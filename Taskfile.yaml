@@ -10,26 +10,16 @@ tasks:
       - task: generate-docs
       - task: set-env-all
       - task: seed-dev
-  dashboard:embed:
-    desc: Build the frontend and embed it into the hatchetembed package (github.com/hatchet-dev/hatchet/hatchetembed).
-    # Only rebuilds when a frontend source file has actually changed (checksum fingerprint).
-    method: checksum
-    sources:
-      - frontend/app/src/**/*
-      - frontend/app/public/**/*
-      - frontend/app/index.html
-      - frontend/app/package.json
-      - frontend/app/vite.config.ts
-      - frontend/app/tsconfig*.json
-      - frontend/app/tailwind.config.js
-      - frontend/app/postcss.config.js
-    generates:
-      - hatchetembed/dashboard/**/*
+  dashboard:bundle:
+    desc: Build the frontend dashboard and package it as a release tarball (bin/dashboard-<version>.tar.gz + .sha256) for the embed runtime fetcher. The version comes from pkg/version.
+    vars:
+      VERSION:
+        sh: sed -n 's/^const Version = "\(.*\)".*/\1/p' pkg/version/version.go
     cmds:
       - pnpm --dir frontend/app exec vite build --sourcemap false
-      - rm -rf hatchetembed/dashboard
-      - mkdir -p hatchetembed/dashboard
-      - cp -R frontend/app/dist/. hatchetembed/dashboard/
+      - mkdir -p bin
+      - tar -czf bin/dashboard-{{.VERSION}}.tar.gz -C frontend/app/dist .
+      - cd bin && shasum -a 256 dashboard-{{.VERSION}}.tar.gz > dashboard-{{.VERSION}}.tar.gz.sha256
   set-env-db:
     cmds:
       - |
@@ -364,7 +354,7 @@ tasks:
       - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
         msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
       - sh: ./hack/ci/check-version-matches-tag.sh {{.TAG}}
-        msg: "pkg/version/version.go must be bumped to {{.TAG}} (the engine reports it to SDKs and hatchetembed embeds it)."
+        msg: "pkg/version/version.go must be bumped to {{.TAG}} (the engine reports it to SDKs and embed embeds it)."
     prompt: Create new release for tag {{.TAG}}?
     cmds:
       # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.

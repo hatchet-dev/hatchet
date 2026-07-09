@@ -1,33 +1,12 @@
-// Package hatchetembed runs a full, in-process Hatchet instance (engine, REST API, and the bundled
-// dashboard) in no-auth mode, so a Go program can import Hatchet and get a ready-to-use client
-// without running the hatchet-lite binary or docker-compose.
-//
-// It brings up the same services as hatchet-lite against a Postgres database you supply, seeds a
-// default tenant and admin user, mints a local token, serves the dashboard (embedded in this
-// package), and returns a wired SDK client.
-//
-// # Basic usage
-//
-//	inst, err := hatchetembed.Start(ctx, hatchetembed.WithPostgres("postgres://hatchet:hatchet@localhost:5431/hatchet"))
-//	if err != nil {
-//		log.Fatal(err)
-//	}
-//	defer inst.Shutdown(context.Background())
-//
-//	client := inst.Client()
-//	// register workers, trigger workflows, etc.
-//	// open inst.DashboardURL() in a browser to view runs.
-//
-// The message queue is backed by the same Postgres database by default; call WithRabbitMQ to use an
-// external broker instead. Authentication is always disabled in embedded mode — never expose an
-// embedded instance publicly.
-package hatchetembed
+// Package embed runs a full in-process Hatchet instance (engine, REST API, dashboard) in no-auth mode.
+package embed
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -47,7 +26,6 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-// Instance is a running embedded Hatchet instance.
 type Instance struct {
 	client       *hatchet.Client
 	token        string
@@ -61,25 +39,18 @@ type Instance struct {
 	httpServers []*http.Server
 }
 
-// Client returns an SDK client wired to this embedded instance.
 func (i *Instance) Client() *hatchet.Client { return i.client }
 
-// Token returns the API token minted for the default tenant.
 func (i *Instance) Token() string { return i.token }
 
-// TenantID returns the default tenant's ID.
 func (i *Instance) TenantID() string { return i.tenantID }
 
-// APIURL returns the base URL of the REST API.
 func (i *Instance) APIURL() string { return i.apiURL }
 
-// GRPCAddress returns the host:port of the gRPC engine.
 func (i *Instance) GRPCAddress() string { return i.grpcAddress }
 
-// DashboardURL returns the URL of the bundled dashboard, or "" when the dashboard is disabled.
 func (i *Instance) DashboardURL() string { return i.dashboardURL }
 
-// Shutdown gracefully stops the embedded instance.
 func (i *Instance) Shutdown(ctx context.Context) error {
 	if i.cancel != nil {
 		i.cancel()
@@ -99,8 +70,6 @@ func (i *Instance) Shutdown(ctx context.Context) error {
 	return firstErr
 }
 
-// Start brings up a full embedded Hatchet instance and returns a handle once it is ready to accept
-// work. Call Instance.Shutdown to stop it.
 func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	cfg := defaultConfig()
 	for _, opt := range opts {
@@ -111,8 +80,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		return nil, err
 	}
 
-	// The database connection and seed configuration live on the database config file, which has no
-	// programmatic override hook, so we supply them via the env vars the loader already honors.
 	if err := os.Setenv("DATABASE_URL", cfg.postgresURL); err != nil {
 		return nil, fmt.Errorf("could not set DATABASE_URL: %w", err)
 	}
@@ -123,12 +90,10 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		_ = os.Setenv("ADMIN_PASSWORD", cfg.adminPassword)
 	}
 
-	// Run migrations against the supplied database.
 	if cfg.runMigrations {
 		migrate.RunMigrations(ctx)
 	}
 
-	// Generate ephemeral local keysets so the instance is self-contained (no key management).
 	masterKey, privateJWT, publicJWT, _, err := encryption.GenerateLocalKeys()
 	if err != nil {
 		return nil, fmt.Errorf("could not generate local keysets: %w", err)
@@ -137,7 +102,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", cfg.grpcPort)
 	apiURL := fmt.Sprintf("http://localhost:%d", cfg.apiPort)
 
-	// Cookie secrets for the (unused in no-auth, but always constructed) session store.
 	hashKey, err := randomHex(32)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate cookie secret: %w", err)
@@ -148,11 +112,8 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	}
 
 	override := func(scf *server.ServerConfigFile) {
-		// no-auth (embedded) mode — only settable programmatically, never via config.
 		scf.Runtime.IsAuthDisabled = true
 
-		// The session store is always constructed; give it a valid local cookie config even though
-		// no-auth mode never issues cookies.
 		scf.Auth.Cookie.Domain = "localhost"
 		scf.Auth.Cookie.Insecure = true
 		scf.Auth.Cookie.Secrets = hashKey + " " + blockKey
@@ -164,7 +125,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Runtime.GRPCBroadcastAddress = grpcBroadcast
 		scf.Runtime.GRPCInsecure = true
 
-		// disable the phone-home security check for local runs.
 		scf.SecurityCheck.Enabled = false
 
 		if cfg.usePostgresMQ() {
@@ -181,7 +141,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	cf := loader.NewConfigLoader("")
 
-	// Seed the default tenant + admin user (no-auth requests resolve to this user).
 	dc, err := cf.InitDataLayer()
 	if err != nil {
 		return nil, fmt.Errorf("could not init data layer: %w", err)
@@ -192,7 +151,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	}
 	tenantID := dc.Seed.DefaultTenantID
 
-	// Mint a token for the default tenant using a fully-built server config.
 	tokenCleanup, sc, err := cf.CreateServerFromConfig(cfg.version, override)
 	if err != nil {
 		_ = dc.Disconnect()
@@ -210,7 +168,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	expiresAt := time.Now().UTC().Add(90 * 24 * time.Hour)
 	tok, err := sc.Auth.JWTManager.GenerateTenantToken(ctx, parsedTenantID, "embedded", false, &expiresAt)
 
-	// release the config used purely for seeding/token minting; the API and engine build their own.
 	_ = tokenCleanup()
 	_ = sc.Disconnect()
 	_ = dc.Disconnect()
@@ -219,19 +176,18 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		return nil, fmt.Errorf("could not mint token: %w", err)
 	}
 
-	// Start the API and engine in-process.
 	interruptCh := make(chan interface{})
 	engineCtx, cancel := context.WithCancel(ctx)
 
 	go func() {
 		if startErr := api.Start(cf, interruptCh, cfg.version, override); startErr != nil {
-			fmt.Fprintf(os.Stderr, "hatchetembed: api exited: %v\n", startErr)
+			fmt.Fprintf(os.Stderr, "embed: api exited: %v\n", startErr)
 		}
 	}()
 
 	go func() {
 		if runErr := engine.Run(engineCtx, cf, cfg.version, override); runErr != nil {
-			fmt.Fprintf(os.Stderr, "hatchetembed: engine exited: %v\n", runErr)
+			fmt.Fprintf(os.Stderr, "embed: engine exited: %v\n", runErr)
 		}
 	}()
 
@@ -244,17 +200,26 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		cancel:      cancel,
 	}
 
-	// Serve the bundled dashboard behind a reverse proxy, mirroring hatchet-lite.
 	if cfg.dashboardEnabled {
-		if dashErr := inst.startDashboard(cfg, apiURL); dashErr != nil {
-			_ = inst.Shutdown(context.Background())
-			return nil, dashErr
+		assetDir := cfg.dashboardDir
+		if assetDir == "" {
+			fetched, fetchErr := ensureDashboardAssets(ctx)
+			if fetchErr != nil {
+				fmt.Fprintf(os.Stderr, "embed: dashboard unavailable, continuing without it: %v\n", fetchErr)
+			} else {
+				assetDir = fetched
+			}
 		}
-		inst.dashboardURL = fmt.Sprintf("http://localhost:%d", cfg.dashboardPort)
+
+		if assetDir != "" {
+			if dashErr := inst.startDashboard(cfg, apiURL, os.DirFS(assetDir)); dashErr != nil {
+				_ = inst.Shutdown(context.Background())
+				return nil, dashErr
+			}
+			inst.dashboardURL = fmt.Sprintf("http://localhost:%d", cfg.dashboardPort)
+		}
 	}
 
-	// Wire a client to the local engine via the standard HATCHET_CLIENT_* env vars. The token also
-	// carries the gRPC/server addresses; the engine is insecure locally, so disable client TLS.
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", tok.Token)
 	_ = os.Setenv("HATCHET_CLIENT_HOST_PORT", grpcBroadcast)
 	_ = os.Setenv("HATCHET_CLIENT_TENANT_ID", tenantID)
@@ -274,7 +239,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	return inst, nil
 }
 
-// randomHex returns a hex-encoded string of n random bytes (2*n characters).
 func randomHex(n int) (string, error) {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
@@ -283,15 +247,13 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// startDashboard serves the embedded dashboard SPA and reverse-proxies /api to the REST API, all on
-// a single port (cfg.dashboardPort).
-func (i *Instance) startDashboard(cfg *Config, apiURL string) error {
+func (i *Instance) startDashboard(cfg *Config, apiURL string, assets fs.FS) error {
 	apiTarget, err := url.Parse(apiURL)
 	if err != nil {
 		return fmt.Errorf("could not parse api url: %w", err)
 	}
 
-	spa, err := dashboardHandler()
+	spa, err := dashboardHandler(assets)
 	if err != nil {
 		return err
 	}
@@ -319,7 +281,7 @@ func (i *Instance) startDashboard(cfg *Config, apiURL string) error {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "hatchetembed: dashboard server exited: %v\n", err)
+			fmt.Fprintf(os.Stderr, "embed: dashboard server exited: %v\n", err)
 		}
 	}()
 

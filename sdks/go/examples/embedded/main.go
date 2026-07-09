@@ -1,10 +1,5 @@
-// This example starts a full Hatchet instance in-process (engine + REST API + dashboard) in no-auth
-// mode using the hatchetembed package, then registers a worker, runs a task, and keeps running so
-// you can open the bundled dashboard and view the run. The only external dependency is Postgres.
-//
-// Run it with a local Postgres (e.g. `docker compose up -d postgres`):
-//
-//	go run ./sdks/go/examples/embedded
+// Runs an in-process no-auth Hatchet (engine + REST API + dashboard) via the embed package.
+// Needs a local Postgres: DATABASE_URL=... go run ./sdks/go/examples/embedded
 package main
 
 import (
@@ -16,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/hatchetembed"
+	"github.com/hatchet-dev/hatchet/embed"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -36,7 +31,13 @@ func main() {
 		postgresURL = "postgres://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable"
 	}
 
-	inst, err := hatchetembed.Start(ctx, hatchetembed.WithPostgres(postgresURL))
+	opts := []embed.Option{embed.WithPostgres(postgresURL)}
+
+	if dir := os.Getenv("HATCHET_EMBEDDED_DASHBOARD_DIR"); dir != "" {
+		opts = append(opts, embed.WithDashboardDir(dir))
+	}
+
+	inst, err := embed.Start(ctx, opts...)
 	if err != nil {
 		log.Fatalf("failed to start embedded hatchet: %v", err)
 	}
@@ -59,7 +60,6 @@ func main() {
 	}
 	defer cleanup() // nolint:errcheck
 
-	// give the worker a moment to register with the engine
 	time.Sleep(2 * time.Second)
 
 	result, err := task.Run(ctx, GreetInput{Name: "embedded"})

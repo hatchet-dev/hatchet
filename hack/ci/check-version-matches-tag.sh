@@ -2,7 +2,7 @@
 # Fails if the canonical pkg/version constant does not match the release tag.
 #
 # The engine reports pkg/version.Version to SDK clients, and library consumers such as
-# github.com/hatchet-dev/hatchet/hatchetembed read it directly (no ldflag), so it must equal the tag
+# github.com/hatchet-dev/hatchet/embed read it directly (no ldflag), so it must equal the tag
 # being released. Run this from the release pipeline with the tag as the first argument, e.g.
 #
 #   ./hack/ci/check-version-matches-tag.sh v0.83.4

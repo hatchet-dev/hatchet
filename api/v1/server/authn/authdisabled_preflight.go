@@ -6,10 +6,6 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// resolveAuthDisabled resolves the request as the seeded admin user and marks the auth strategy as
-// "authdisabled". It backs both the authdisabled build tag and the runtime IsAuthDisabled config
-// used by embedded/library mode (github.com/hatchet-dev/hatchet/hatchetembed). It always reports
-// handled=true so the caller short-circuits the normal auth strategies.
 func (a *AuthN) resolveAuthDisabled(c echo.Context) (bool, error) {
 	ctx := c.Request().Context()
 
