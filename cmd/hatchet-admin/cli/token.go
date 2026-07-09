@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 )
@@ -64,14 +65,19 @@ func init() {
 		90*24*time.Hour,
 		"Expiration duration for the API token",
 	)
-
 }
 
 func runCreateAPIToken(expiresIn time.Duration) error {
+	// authdisabled builds don't mint tokens; print the single embedded one.
+	if authmode.IsDisabled {
+		fmt.Println(authmode.EmbeddedToken())
+		return nil
+	}
+
 	// read in the local config
 	configLoader := loader.NewConfigLoader(configDirectory)
 
-	cleanup, server, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
+	cleanup, srv, err := configLoader.CreateServerFromConfig("", func(scf *server.ServerConfigFile) {
 		// disable rabbitmq since it's not needed to create the api token
 		scf.MessageQueue.Enabled = false
 
@@ -85,16 +91,16 @@ func runCreateAPIToken(expiresIn time.Duration) error {
 
 	defer cleanup() // nolint:errcheck
 
-	defer server.Disconnect() // nolint:errcheck
+	defer srv.Disconnect() // nolint:errcheck
 
 	expiresAt := time.Now().UTC().Add(expiresIn)
 
-	tenantId, err := tenantIDForTokenCreate(server.Seed.DefaultTenantID)
+	tenantId, err := tenantIDForTokenCreate(srv.Seed.DefaultTenantID)
 	if err != nil {
 		return err
 	}
 
-	defaultTok, err := server.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
+	defaultTok, err := srv.Auth.JWTManager.GenerateTenantToken(context.Background(), tenantId, tokenName, false, &expiresAt)
 
 	if err != nil {
 		return err

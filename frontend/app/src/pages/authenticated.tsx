@@ -1,7 +1,7 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
-import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
+import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
@@ -41,6 +41,7 @@ import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -81,6 +82,7 @@ export async function loader(_args: { request: Request }) {
 
 function AuthenticatedInner() {
   const { tenant, organizationId } = useTenantDetails();
+  const { meta } = useApiMeta();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -88,19 +90,24 @@ function AuthenticatedInner() {
     isLoading: isUserLoading,
   } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+  const [authBannerDismissed, setAuthBannerDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('auth-disabled-banner-dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
   const [newTenantAllTags, setNewTenantAllTags] = useState<string[]>([]);
-  const [inviteModalTenantId, setInviteModalTenantId] = useState<
-    string | undefined
+  const [inviteModalOptions, setInviteModalOptions] = useState<
+    | { tenantId?: string; organizationId?: string; defaultEmail?: string }
+    | undefined
   >();
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
-  >();
-  const [addOrgMemberToTenantModal, setAddOrgMemberToTenantModal] = useState<
-    { tenantId: string; organizationId: string } | undefined
   >();
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -403,8 +410,8 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
-        setInviteModalTenantId(tenantId);
+      globalEmitter.on('create-tenant-invite', (options) => {
+        setInviteModalOptions(options);
       }),
     [],
   );
@@ -425,17 +432,6 @@ function AuthenticatedInner() {
       globalEmitter.on('open-invite-modal', () => {
         setInviteModalOpen(true);
       }),
-    [],
-  );
-
-  useEffect(
-    () =>
-      globalEmitter.on(
-        'add-org-member-to-tenant',
-        ({ tenantId, organizationId }) => {
-          setAddOrgMemberToTenantModal({ tenantId, organizationId });
-        },
-      ),
     [],
   );
 
@@ -554,6 +550,26 @@ function AuthenticatedInner() {
     <PostHogProvider user={currentUser}>
       <SupportChat user={currentUser}>
         <AppLayout
+          banner={
+            meta &&
+            'authDisabled' in meta &&
+            meta.authDisabled &&
+            !authBannerDismissed ? (
+              <AuthDisabledBanner
+                onDismiss={() => {
+                  try {
+                    localStorage.setItem(
+                      'auth-disabled-banner-dismissed',
+                      'true',
+                    );
+                  } catch {
+                    /* empty */
+                  }
+                  setAuthBannerDismissed(true);
+                }}
+              />
+            ) : undefined
+          }
           header={
             <TopNav
               user={currentUser}
@@ -606,13 +622,15 @@ function AuthenticatedInner() {
             </div>
           </DialogContent>
         </Dialog>
-        {inviteModalTenantId && (
+        {inviteModalOptions && (
           <CreateTenantInviteModal
-            tenantId={inviteModalTenantId}
-            onClose={() => setInviteModalTenantId(undefined)}
-            onCreated={(invite) => {
+            tenantId={inviteModalOptions.tenantId}
+            organizationId={inviteModalOptions.organizationId}
+            defaultEmail={inviteModalOptions.defaultEmail}
+            onClose={() => setInviteModalOptions(undefined)}
+            onCreated={(tenantId, invite) => {
               globalEmitter.emit('tenant-invite-created', {
-                tenantId: inviteModalTenantId,
+                tenantId,
                 invite,
               });
             }}
@@ -629,13 +647,6 @@ function AuthenticatedInner() {
                 invite,
               });
             }}
-          />
-        )}
-        {addOrgMemberToTenantModal && (
-          <AddOrgMemberToTenantModal
-            organizationId={addOrgMemberToTenantModal.organizationId}
-            tenantId={addOrgMemberToTenantModal.tenantId}
-            onClose={() => setAddOrgMemberToTenantModal(undefined)}
           />
         )}
         <WelcomeModal

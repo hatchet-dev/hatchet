@@ -30,6 +30,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/auth/exchangetoken"
 	"github.com/hatchet-dev/hatchet/pkg/auth/oauth"
 	"github.com/hatchet-dev/hatchet/pkg/auth/token"
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/config/client"
 	"github.com/hatchet-dev/hatchet/pkg/config/database"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
@@ -655,6 +656,12 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		ConfigFile:             cf.Auth,
 	}
 
+	if authmode.IsDisabled {
+		l.Warn().Msg("This is an authdisabled build: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never use this in production.")
+
+		applyAuthDisabledOverrides(&cf.Runtime)
+	}
+
 	if cf.Auth.Google.Enabled {
 		if cf.Auth.Google.ClientID == "" {
 			return nil, nil, fmt.Errorf("google client id is required")
@@ -697,13 +704,29 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		return nil, nil, fmt.Errorf("could not load encryption service: %w", err)
 	}
 
-	// create a new JWT manager
-	auth.JWTManager, err = token.NewJWTManager(encryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
+	jwtEncryptionSvc := encryptionSvc
+
+	tokenOpts := &token.TokenOpts{
 		Issuer:               cf.Runtime.ServerURL,
 		Audience:             cf.Runtime.ServerURL,
 		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
 		ServerURL:            cf.Runtime.ServerURL,
-	})
+	}
+
+	if authmode.IsDisabled {
+		jwtEncryptionSvc, err = encryption.NewInsecureJWTEncryption(authmode.EmbeddedPrivateKeyset(), authmode.EmbeddedPublicKeyset())
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not load authdisabled keyset: %w", err)
+		}
+
+		tokenOpts.Issuer = authmode.EmbeddedTokenIssuer
+		tokenOpts.Audience = authmode.EmbeddedTokenAudience
+		tokenOpts.ServerURL = authmode.EmbeddedTokenServerURL
+		tokenOpts.GRPCBroadcastAddress = authmode.EmbeddedTokenGRPCAddress
+	}
+
+	auth.JWTManager, err = token.NewJWTManager(jwtEncryptionSvc, dc.V1.APIToken(), tokenOpts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)
@@ -1002,6 +1025,13 @@ func LoadEncryptionSvc(cf *server.ServerConfigFile) (encryption.EncryptionServic
 	}
 
 	return encryptionSvc, nil
+}
+
+func applyAuthDisabledOverrides(rt *server.ConfigFileRuntime) {
+	rt.AllowCreateTenant = false
+	rt.AllowSignup = false
+	rt.AllowInvites = false
+	rt.AllowChangePassword = false
 }
 
 func loadInternalClient(l *zerolog.Logger, conf *server.InternalClientTLSConfigFile, baseServerTLS shared.TLSConfigFile, grpcBroadcastAddress string, grpcInsecure bool) (*clientv1.GRPCClientFactory, error) {

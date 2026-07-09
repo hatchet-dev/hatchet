@@ -515,12 +515,22 @@ class WorkerActionListenerProcess:
             return
         self.killing = True
         if self.listener is not None:
-            self.listener.stop_signal = True
+            self.listener.stop_stream()
         await self.stop_health_server()
 
+        logger.info("action listener closed")
+
+    def finalize_listener_cleanup(self) -> None:
+        """Stop the heartbeat and unregister from the engine.
+
+        Must only be called after the parent worker confirms all in-flight tasks have
+        finished draining (i.e. after event_send_loop_task completes, which happens
+        only once the parent puts STOP_LOOP in the event_queue). Calling this earlier
+        stops heartbeats while tasks are still running, causing the engine to reassign
+        tasks that are about to complete successfully.
+        """
         if self.listener is not None:
             self.listener.cleanup()
-        logger.info("action listener closed")
 
 
 def worker_action_listener_process(
@@ -567,6 +577,18 @@ def worker_action_listener_process(
             await asyncio.gather(
                 *list(process.step_action_events), return_exceptions=True
             )
+
+        # wait for stop_event_task to finish before continuing
+        if process._stop_event_task is not None and not process._stop_event_task.done():
+            try:
+                await process._stop_event_task
+            except Exception:
+                logger.exception("error waiting for action loop to stop")
+
+        # Only now — with the action stream confirmed stopped and all tasks
+        # finished before STOP_LOOP arrived — is it safe to stop heartbeating
+        # and unregister from the engine.
+        process.finalize_listener_cleanup()
 
         for task in [process.action_loop_task, process.blocked_main_loop]:
             if task is not None and not task.done():

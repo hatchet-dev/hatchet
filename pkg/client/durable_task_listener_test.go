@@ -491,3 +491,36 @@ func TestBufferedCompletionDeliveredToLateConsumer(t *testing.T) {
 
 	assert.Equal(t, 0, listener.BufferedCompletionCount())
 }
+
+func TestDurableTaskListenerCancellationDuringSleep(t *testing.T) {
+	l := zerolog.Nop()
+	connectCh := make(chan struct{})
+
+	listener := NewDurableTaskListener(
+		"test-worker",
+		func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+			close(connectCh)
+			return nil, status.Error(codes.Unavailable, "down")
+		},
+		&l,
+		WithReconnectInterval(time.Second),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	listener.Start(ctx)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-connectCh:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 10*time.Millisecond)
+
+	cancel()
+
+	require.Eventually(t, func() bool {
+		return !listener.IsRunning()
+	}, 2*time.Second, 10*time.Millisecond)
+}

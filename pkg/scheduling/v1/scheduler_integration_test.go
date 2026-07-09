@@ -27,7 +27,8 @@ type snapshotEvent struct {
 }
 
 type captureSnapshotsExt struct {
-	ch chan snapshotEvent
+	ch        chan snapshotEvent
+	cleanupCh chan uuid.UUID
 }
 
 func (c *captureSnapshotsExt) SetTenants(_ []*sqlcv1.Tenant) {}
@@ -42,7 +43,13 @@ func (c *captureSnapshotsExt) ReportSnapshot(tenantId uuid.UUID, input *schedv1.
 
 func (c *captureSnapshotsExt) PostAssign(_ uuid.UUID, _ *schedv1.PostAssignInput) {}
 
-func (c *captureSnapshotsExt) CleanupTenant(_ uuid.UUID) error { return nil }
+func (c *captureSnapshotsExt) CleanupTenant(tenantId uuid.UUID) error {
+	select {
+	case c.cleanupCh <- tenantId:
+	default:
+	}
+	return nil
+}
 
 func (c *captureSnapshotsExt) Cleanup() error { return nil }
 
@@ -166,25 +173,78 @@ func waitForWorkerUtilization(
 	}
 }
 
-func requireNoSnapshotsForTenant(
+func waitForTenantCleanup(
 	t *testing.T,
-	ch <-chan snapshotEvent,
+	cleanupCh <-chan uuid.UUID,
 	tenantId uuid.UUID,
-	dur time.Duration,
+	timeout time.Duration,
 ) {
 	t.Helper()
 
-	timer := time.NewTimer(dur)
-	defer timer.Stop()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
 
 	for {
 		select {
-		case <-timer.C:
+		case <-deadline.C:
+			t.Fatalf("timed out waiting for cleanup of tenant %s", tenantId)
+		case id := <-cleanupCh:
+			if id == tenantId {
+				return
+			}
+		}
+	}
+}
+
+func requireSnapshotsEventuallyStopForTenant(
+	t *testing.T,
+	ch <-chan snapshotEvent,
+	tenantId uuid.UUID,
+	quietFor time.Duration,
+	timeout time.Duration,
+) {
+	t.Helper()
+
+	overallDeadline := time.NewTimer(timeout)
+	defer overallDeadline.Stop()
+
+	quietTimer := time.NewTimer(quietFor)
+	defer quietTimer.Stop()
+
+	for {
+		select {
+		case <-overallDeadline.C:
+			t.Fatalf("timed out waiting for snapshots to stop for tenant %s after %s", tenantId, timeout)
+		case <-quietTimer.C:
+			if drainSnapshotsForTenant(ch, tenantId) {
+				quietTimer.Reset(quietFor)
+				continue
+			}
 			return
 		case ev := <-ch:
-			if ev.tenantId == tenantId {
-				t.Fatalf("unexpected snapshot for removed tenant %s", tenantId)
+			if ev.tenantId != tenantId {
+				continue
 			}
+			if !quietTimer.Stop() {
+				select {
+				case <-quietTimer.C:
+				default:
+				}
+			}
+			quietTimer.Reset(quietFor)
+		}
+	}
+}
+
+func drainSnapshotsForTenant(ch <-chan snapshotEvent, tenantId uuid.UUID) bool {
+	for {
+		select {
+		case ev := <-ch:
+			if ev.tenantId == tenantId {
+				return true
+			}
+		default:
+			return false
 		}
 	}
 }
@@ -222,7 +282,10 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
 
-		ext := &captureSnapshotsExt{ch: make(chan snapshotEvent, 100)}
+		ext := &captureSnapshotsExt{
+			ch:        make(chan snapshotEvent, 100),
+			cleanupCh: make(chan uuid.UUID, 10),
+		}
 		pool.Extensions.Add(ext)
 
 		pool.SetTenants([]*sqlcv1.Tenant{tenant})
@@ -271,7 +334,10 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
 
-		ext := &captureSnapshotsExt{ch: make(chan snapshotEvent, 100)}
+		ext := &captureSnapshotsExt{
+			ch:        make(chan snapshotEvent, 100),
+			cleanupCh: make(chan uuid.UUID, 10),
+		}
 		pool.Extensions.Add(ext)
 
 		pool.SetTenants([]*sqlcv1.Tenant{tenant})
@@ -316,7 +382,10 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
 
-		ext := &captureSnapshotsExt{ch: make(chan snapshotEvent, 1000)}
+		ext := &captureSnapshotsExt{
+			ch:        make(chan snapshotEvent, 1000),
+			cleanupCh: make(chan uuid.UUID, 10),
+		}
 		pool.Extensions.Add(ext)
 		pool.SetTenants([]*sqlcv1.Tenant{tenant})
 
@@ -375,7 +444,10 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 		require.NoError(t, err)
 		defer func() { _ = cleanup() }()
 
-		ext := &captureSnapshotsExt{ch: make(chan snapshotEvent, 1000)}
+		ext := &captureSnapshotsExt{
+			ch:        make(chan snapshotEvent, 1000),
+			cleanupCh: make(chan uuid.UUID, 10),
+		}
 		pool.Extensions.Add(ext)
 
 		// Start the tenant and confirm we see snapshots for it.
@@ -385,9 +457,9 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 		// Remove tenant from pool and ensure snapshots stop.
 		pool.SetTenants([]*sqlcv1.Tenant{})
 
-		// Give cleanup a short moment to cancel loops, then assert no new snapshots arrive.
-		time.Sleep(50 * time.Millisecond)
-		requireNoSnapshotsForTenant(t, ext.ch, tenantId, 350*time.Millisecond)
+		waitForTenantCleanup(t, ext.cleanupCh, tenantId, 5*time.Second)
+		// In-flight snapshot callbacks can arrive after removal; wait for sustained quiescence.
+		requireSnapshotsEventuallyStopForTenant(t, ext.ch, tenantId, 2*time.Second, 5*time.Second)
 
 		return nil
 	})
