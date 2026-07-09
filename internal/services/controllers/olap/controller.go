@@ -630,7 +630,12 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 	var spans []*v1.SpanData
 
 	for _, task := range tasks {
-		if task.DagID.Valid || task.IsDagSubtask {
+		if task.DagID.Valid {
+			continue
+		}
+		// Tasks whose workflow_run_id differs from their own external_id are grouped under another
+		// run (e.g., DAG operator subtasks). They don't get their own workflow_run root span.
+		if task.WorkflowRunID != task.ExternalID {
 			continue
 		}
 
