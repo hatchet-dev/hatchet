@@ -719,33 +719,7 @@ func (d *DispatcherImpl) populateTaskData(
 		}
 	}
 
-	inputs, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
-
-	var notFoundErr *v1.PayloadNotFoundError
-
-	if err != nil && errors.As(err, &notFoundErr) {
-		// Tasks whose payloads are permanently gone are failed (otherwise they'd be requeued
-		// forever); the rest of the batch proceeds with the partial results.
-		missing := make(map[v1.RetrievePayloadOpts]struct{}, len(notFoundErr.Missing))
-
-		for _, opt := range notFoundErr.Missing {
-			missing[opt] = struct{}{}
-		}
-
-		remaining := make([]*sqlcv1.V1Task, 0, len(bulkDatas))
-
-		for i, task := range bulkDatas {
-			if _, ok := missing[retrievePayloadOpts[i]]; ok {
-				d.l.Error().Ctx(ctx).Int64("task_id", task.ID).Msg("task input payload no longer exists in external store, failing task")
-				fail(task)
-			} else {
-				remaining = append(remaining, task)
-			}
-		}
-
-		bulkDatas = remaining
-		err = nil
-	}
+	inputs, missing, err := d.repov1.Payloads().Retrieve(ctx, nil, retrievePayloadOpts...)
 
 	if err != nil {
 		for _, task := range bulkDatas {
@@ -754,6 +728,29 @@ func (d *DispatcherImpl) populateTaskData(
 
 		d.l.Error().Ctx(ctx).Err(err).Msgf("could not bulk retrieve inputs for %d tasks", len(bulkDatas))
 		return nil, err
+	}
+
+	if len(missing) > 0 {
+		// Tasks whose payloads are permanently gone are failed (otherwise they'd be requeued
+		// forever); the rest of the batch proceeds with the partial results.
+		missingSet := make(map[v1.RetrievePayloadOpts]struct{}, len(missing))
+
+		for _, opt := range missing {
+			missingSet[opt] = struct{}{}
+		}
+
+		remaining := make([]*sqlcv1.V1Task, 0, len(bulkDatas))
+
+		for i, task := range bulkDatas {
+			if _, ok := missingSet[retrievePayloadOpts[i]]; ok {
+				d.l.Error().Ctx(ctx).Int64("task_id", task.ID).Msg("task input payload no longer exists in external store, failing task")
+				fail(task)
+			} else {
+				remaining = append(remaining, task)
+			}
+		}
+
+		bulkDatas = remaining
 	}
 
 	// this is to avoid a nil pointer dereference in the code below

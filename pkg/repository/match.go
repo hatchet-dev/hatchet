@@ -569,10 +569,14 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 			}
 		}
 
-		payloads, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+		payloads, missing, err := m.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", err)
+		}
+
+		if missingErr := MissingPayloadsError(missing); missingErr != nil {
+			return nil, fmt.Errorf("failed to retrieve dag input payloads: %w", missingErr)
 		}
 
 		dagIdsToInput := make(map[int64][]byte)

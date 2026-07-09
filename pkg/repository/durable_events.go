@@ -505,10 +505,14 @@ func (r *durableEventsRepository) GetSatisfiedDurableEvents(ctx context.Context,
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrievePayloadOpts...)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, r.pool, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for satisfied callbacks: %w", missingErr)
 	}
 
 	result := make([]*SatisfiedEventWithPayload, 0, len(rows))
@@ -942,7 +946,8 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	var existingPayloads map[RetrievePayloadOpts][]byte
 	if len(retrieveOpts) > 0 {
 		var err error
-		existingPayloads, err = r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+		// missing payloads are skipped: lookups on existingPayloads fall back to nil below
+		existingPayloads, _, err = r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 		if err != nil {
 			existingPayloads = nil
 		}
@@ -1183,7 +1188,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		var nde *NonDeterminismError
 		if errors.As(err, &nde) {
 			var existingPayload []byte
-			payloads, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
+			payloads, _, retrieveErr := r.payloadStore.Retrieve(ctx, tx, RetrievePayloadOpts{
 				Id:         nde.ExistingEntryId,
 				InsertedAt: nde.ExistingEntryInsertedAt,
 				Type:       sqlcv1.V1PayloadTypeDURABLEEVENTLOGENTRYDATA,
@@ -1535,10 +1540,14 @@ func (r *durableEventsRepository) handleEventLookback(ctx context.Context, tenan
 		})
 	}
 
-	retrieveOptsToPayload, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
+	retrieveOptsToPayload, missing, err := r.payloadStore.Retrieve(ctx, lookbackTx, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for recent user events for retroactive matching: %w", missingErr)
 	}
 
 	retroCandidates := make([]CandidateEventMatch, 0, len(previousEventsFound))

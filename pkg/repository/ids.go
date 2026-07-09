@@ -189,10 +189,14 @@ func (s *sharedRepository) generateExternalIdsForChildWorkflows(ctx context.Cont
 		}
 	}
 
-	payloads, err := s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+	payloads, missing, err := s.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 	if err != nil {
 		return err
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return missingErr
 	}
 
 	// for each locked event, write the correct external id to the opt
