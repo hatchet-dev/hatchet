@@ -31,24 +31,11 @@ import { useEffect, useMemo, useState } from 'react';
 interface InviteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // Must match the flags used by whatever drives `isOpen` (e.g. the auto-open
-  // effect in authenticated.tsx). `usePendingInvites` keys its query on these,
-  // so a mismatch points the modal at a different cache entry than the opener —
-  // the modal then sees `inviteCount: 0` and stale-closes in a loop. When
-  // omitted, they fall back to the async `useCloud`/`useControlPlane` hooks,
-  // which start `false` while loading and can transiently diverge.
-  isCloudEnabled?: boolean;
-  isControlPlaneEnabled?: boolean;
 }
 
-export function InviteModal({
-  isOpen,
-  onClose,
-  isCloudEnabled,
-  isControlPlaneEnabled,
-}: InviteModalProps) {
+export function InviteModal({ isOpen, onClose }: InviteModalProps) {
   const { pendingInvitesQuery, invalidate: invalidatePendingInvites } =
-    usePendingInvites({ isCloudEnabled, isControlPlaneEnabled });
+    usePendingInvites();
   const { tenantMemberships } = useUserUniverse();
   const { setTenant } = useTenantDetails();
 
