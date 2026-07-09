@@ -12,6 +12,7 @@ from hatchet_sdk import (
 hatchet = Hatchet()
 
 
+# > Cancel In Progress
 class WorkflowInput(BaseModel):
     group: str
 
@@ -25,6 +26,7 @@ concurrency_cancel_in_progress_workflow = hatchet.workflow(
     ),
     input_validator=WorkflowInput,
 )
+# !!
 
 
 @concurrency_cancel_in_progress_workflow.task()

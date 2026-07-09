@@ -1,6 +1,7 @@
 import { hatchet } from '../hatchet-client';
 import { refreshTimeoutTask, timeoutTask } from './workflow';
 
+// > Slots
 async function main() {
   const worker = await hatchet.worker('timeout-worker', {
     workflows: [timeoutTask, refreshTimeoutTask],
