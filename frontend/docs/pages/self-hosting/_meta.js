@@ -6,7 +6,6 @@ export default {
   },
   "hatchet-lite": "Hatchet Lite",
   "docker-compose": "Docker Compose",
-  "auth-disabled-images": "Auth-Disabled Dev Images",
   "-- Kubernetes": {
     type: "separator",
     title: "Kubernetes",
