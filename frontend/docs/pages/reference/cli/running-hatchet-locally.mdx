@@ -68,7 +68,7 @@ Global Flags:
 
 Workers and SDK clients still authenticate with the gRPC engine using an API token. The dev image ships a single fixed worker token (the same on every auth-disabled instance, scoped to the default tenant, non-expiring). You can view this token from the **API Tokens** section in **Settings**.
 
-Dev variants exist for the other server images too: `hatchet-api-dev`, `hatchet-engine-dev` and `hatchet-admin-dev` (`ghcr.io/hatchet-dev/hatchet/hatchet-<component>-dev`). They are for local development and testing only - the regular images never compile the embedded token in, so it is inert against any normal deployment.
+Dev variants exist for the other server images too: `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev` and `hatchet-dashboard-dev` (`ghcr.io/hatchet-dev/hatchet/hatchet-<component>-dev`). They are for local development and testing only - the regular images never compile the embedded token in, so it is inert against any normal deployment.
 
 #### `hatchet server stop`
 
