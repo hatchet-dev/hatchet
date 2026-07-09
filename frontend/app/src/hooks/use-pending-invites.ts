@@ -3,8 +3,16 @@ import useControlPlane from '@/hooks/use-control-plane';
 import api, { TenantInvite } from '@/lib/api';
 import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationInviteTenant } from '@/lib/api/generated/control-plane/data-contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+
+// The cloud client's OrganizationInvite lacks the control-plane-only `tenants`
+// field. It is absent (not `[]`) when there are no tenant grants, the invite is
+// for an OWNER, or the server is older — never assume it exists.
+export type PendingOrganizationInvite = OrganizationInvite & {
+  tenants?: OrganizationInviteTenant[];
+};
 
 export const pendingInvitesQuery = (
   isCloudEnabled: boolean,
@@ -27,7 +35,7 @@ export const pendingInvitesQuery = (
       tenantInvitesRes.status === 'fulfilled'
         ? tenantInvitesRes.value.data.rows || []
         : [];
-    const organizationInvites: OrganizationInvite[] =
+    const organizationInvites: PendingOrganizationInvite[] =
       orgInvitesRes.status === 'fulfilled'
         ? orgInvitesRes.value.data.rows || []
         : [];

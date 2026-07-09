@@ -1,7 +1,10 @@
 import useControlPlane from '@/hooks/use-control-plane';
 import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import type { CreateNewTenantForOrganizationRequest as CloudCreateNewTenantForOrganizationRequest } from '@/lib/api/generated/cloud/data-contracts';
-import type { CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest } from '@/lib/api/generated/control-plane/data-contracts';
+import type {
+  CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest,
+  CreateOrganizationInviteRequest as ControlPlaneCreateOrganizationInviteRequest,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useMemo } from 'react';
 
 type OrganizationCreateRequest = Parameters<
@@ -26,9 +29,13 @@ type OrganizationInviteAcceptRequest = Parameters<
 type OrganizationInviteRejectRequest = Parameters<
   typeof cloudApi.organizationInviteReject
 >[0];
-type OrganizationInviteCreateRequest = Parameters<
+// The cloud request plus the control-plane-only grant fields.
+// `tenants`/`userGroupIds` must only be sent when the control plane is
+// enabled.
+export type OrganizationInviteCreateRequest = Parameters<
   typeof cloudApi.organizationInviteCreate
->[1];
+>[1] &
+  Pick<ControlPlaneCreateOrganizationInviteRequest, 'tenants' | 'userGroupIds'>;
 type OrganizationTenantMembersAddRequest = Parameters<
   typeof cloudApi.organizationTenantMembersAdd
 >[2];

@@ -59,7 +59,7 @@ export default function APITokens() {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="API token settings"
+          title="API Tokens"
           description="Create and revoke API tokens used by workers and external systems to authenticate with this tenant."
         />
 
