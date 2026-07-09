@@ -10,6 +10,7 @@ from examples.bug_tests.worker_shutdown_no_premature_reassignment.worker import 
     SLEEP_SECONDS,
     drain_task,
 )
+from examples.test_utils import wait_for_running_status
 from hatchet_sdk import EmptyModel, Hatchet, RunStatus, V1TaskStatus
 from tests.worker_fixture import get_free_port, hatchet_worker
 
@@ -45,13 +46,7 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
         ref = await drain_task.aio_run(input=EmptyModel(), wait_for_result=False)
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-        for _ in range(30):
-            run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-            if run.status == RunStatus.RUNNING:
-                break
-            await asyncio.sleep(1)
-        else:
-            assert False, f"Task never started running, status was {run.status}"
+        await wait_for_running_status(hatchet, ref.workflow_run_id, timeout=30.0)
 
         # Worker B stays idle for the rest of the test, available to (wrongly)
         # steal the task if the engine ever decides worker A is dead.
