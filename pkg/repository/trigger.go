@@ -88,6 +88,9 @@ type TriggerTaskData struct {
 
 	// (optional) when set, the task is created in CANCELLED state immediately (used by DAG operator)
 	IsCancelled bool `json:"is_cancelled,omitempty"`
+
+	// (optional) when set, overrides the workflow_run_id for the created task (used by DAG operator to group child tasks under the orchestrator's run ID)
+	WorkflowRunId *uuid.UUID `json:"workflow_run_id,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -607,6 +610,15 @@ type triggerTuple struct {
 	targetActionId            *string
 	isSkipped                 bool
 	isCancelled               bool
+	workflowRunId             *uuid.UUID
+}
+
+func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
+	if t.workflowRunId != nil {
+		return *t.workflowRunId
+	}
+
+	return t.externalId
 }
 
 type createCoreUserEventOpts struct {
@@ -798,7 +810,7 @@ func (r *sharedRepository) triggerWorkflows(
 			continue
 		}
 
-		tupleExternalId := tuple.externalId
+		tupleExternalId := tuple.effectiveWorkflowRunId()
 
 		steps, ok := workflowVersionToSteps[tuple.workflowVersionId]
 
@@ -1084,7 +1096,7 @@ func (r *sharedRepository) triggerWorkflows(
 
 					opt := CreateTaskOpts{
 						ExternalId:                taskExternalId,
-						WorkflowRunId:             tuple.externalId,
+						WorkflowRunId:             tuple.effectiveWorkflowRunId(),
 						StepId:                    step.ID,
 						Input:                     r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds),
 						AdditionalMetadata:        tuple.additionalMetadata,
@@ -2451,6 +2463,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				targetActionId:       opt.TargetActionId,
 				isSkipped:            opt.IsSkipped,
 				isCancelled:          opt.IsCancelled,
+				workflowRunId:        opt.WorkflowRunId,
 			})
 		}
 	}

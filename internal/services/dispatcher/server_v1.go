@@ -1234,6 +1234,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		stepLabel = parts[1]
 	}
 
+	orchestratorWorkflowRunId := task.ExternalID
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		TriggerTaskData: &v1.TriggerTaskData{
 			WorkflowName:         req.WorkflowName,
@@ -1249,6 +1250,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			IsSkipped:            req.IsSkipped,
 			IsCancelled:          req.IsCancelled,
 			DesiredWorkerLabels:  req.DesiredWorkerLabels,
+			WorkflowRunId:        &orchestratorWorkflowRunId,
 		},
 	}}
 
