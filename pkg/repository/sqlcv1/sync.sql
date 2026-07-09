@@ -59,6 +59,15 @@ SET
     "slug" = @slug::text
 WHERE "id" = @id::uuid;
 
+-- name: SyncListUsers :many
+SELECT
+    "id",
+    "email"
+FROM
+    "User"
+WHERE
+    "deletedAt" IS NULL;
+
 -- name: SyncUpsertUser :one
 INSERT INTO "User" (
     "id",
