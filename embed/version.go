@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"runtime/debug"
 	"strings"
-
-	"github.com/hatchet-dev/hatchet/pkg/version"
 )
 
 const hatchetModulePath = "github.com/hatchet-dev/hatchet"
@@ -29,7 +27,8 @@ func resolveVersion() string {
 			}
 		}
 	}
-	return version.Version
+
+	panic("could not resolve version")
 }
 
 func isUsableTag(v string) bool {

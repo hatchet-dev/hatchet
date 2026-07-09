@@ -12,7 +12,6 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
-	"github.com/hatchet-dev/hatchet/pkg/version"
 )
 
 var printVersion bool
@@ -46,11 +45,8 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Version is the engine version reported to SDK clients. Release builds override it via
-// `-ldflags "-X main.Version=<tag>"`; otherwise it falls back to the canonical pkg/version constant,
-// which is the single source of truth (kept in sync with the release tag by the
-// check-version-matches-tag CI guard).
-var Version = version.Version
+// Version will be linked by an ldflag during build
+var Version = "v0.83.4"
 
 func main() {
 	rootCmd.PersistentFlags().BoolVar(

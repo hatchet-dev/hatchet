@@ -11,11 +11,11 @@ tasks:
       - task: set-env-all
       - task: seed-dev
   dashboard:bundle:
-    desc: "Build the frontend dashboard as a release tarball (bin/dashboard-<version>.tar.gz + .sha256) for the embed runtime fetcher. Pass VERSION=<tag> (CI passes the release tag); defaults to pkg/version."
+    desc: "Build the frontend dashboard as a release tarball (bin/dashboard-<version>.tar.gz + .sha256) for the embed runtime fetcher. Pass VERSION=<tag> (CI passes the release tag); defaults to the latest git tag."
     vars:
-      PKG_VERSION:
-        sh: sed -n 's/^const Version = "\(.*\)".*/\1/p' pkg/version/version.go
-      VERSION: '{{.VERSION | default .PKG_VERSION}}'
+      LATEST_TAG:
+        sh: git describe --tags --abbrev=0 --match='v[0-9]*' 2>/dev/null || echo dev
+      VERSION: '{{.VERSION | default .LATEST_TAG}}'
     cmds:
       - pnpm --dir frontend/app exec vite build --sourcemap false
       - mkdir -p bin
