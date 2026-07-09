@@ -2,7 +2,6 @@ import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
-import { AddOrgMemberToTenantModal } from '@/components/modals/add-org-member-to-tenant-modal';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
 import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
@@ -103,14 +102,12 @@ function AuthenticatedInner() {
     string | undefined
   >();
   const [newTenantAllTags, setNewTenantAllTags] = useState<string[]>([]);
-  const [inviteModalTenantId, setInviteModalTenantId] = useState<
-    string | undefined
+  const [inviteModalOptions, setInviteModalOptions] = useState<
+    | { tenantId?: string; organizationId?: string; defaultEmail?: string }
+    | undefined
   >();
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
-  >();
-  const [addOrgMemberToTenantModal, setAddOrgMemberToTenantModal] = useState<
-    { tenantId: string; organizationId: string } | undefined
   >();
   const [showWelcome, setShowWelcome] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -413,8 +410,8 @@ function AuthenticatedInner() {
 
   useEffect(
     () =>
-      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
-        setInviteModalTenantId(tenantId);
+      globalEmitter.on('create-tenant-invite', (options) => {
+        setInviteModalOptions(options);
       }),
     [],
   );
@@ -435,17 +432,6 @@ function AuthenticatedInner() {
       globalEmitter.on('open-invite-modal', () => {
         setInviteModalOpen(true);
       }),
-    [],
-  );
-
-  useEffect(
-    () =>
-      globalEmitter.on(
-        'add-org-member-to-tenant',
-        ({ tenantId, organizationId }) => {
-          setAddOrgMemberToTenantModal({ tenantId, organizationId });
-        },
-      ),
     [],
   );
 
@@ -636,13 +622,15 @@ function AuthenticatedInner() {
             </div>
           </DialogContent>
         </Dialog>
-        {inviteModalTenantId && (
+        {inviteModalOptions && (
           <CreateTenantInviteModal
-            tenantId={inviteModalTenantId}
-            onClose={() => setInviteModalTenantId(undefined)}
-            onCreated={(invite) => {
+            tenantId={inviteModalOptions.tenantId}
+            organizationId={inviteModalOptions.organizationId}
+            defaultEmail={inviteModalOptions.defaultEmail}
+            onClose={() => setInviteModalOptions(undefined)}
+            onCreated={(tenantId, invite) => {
               globalEmitter.emit('tenant-invite-created', {
-                tenantId: inviteModalTenantId,
+                tenantId,
                 invite,
               });
             }}
@@ -659,13 +647,6 @@ function AuthenticatedInner() {
                 invite,
               });
             }}
-          />
-        )}
-        {addOrgMemberToTenantModal && (
-          <AddOrgMemberToTenantModal
-            organizationId={addOrgMemberToTenantModal.organizationId}
-            tenantId={addOrgMemberToTenantModal.tenantId}
-            onClose={() => setAddOrgMemberToTenantModal(undefined)}
           />
         )}
         <WelcomeModal

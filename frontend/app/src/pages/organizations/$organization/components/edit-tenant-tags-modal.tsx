@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -28,6 +29,10 @@ interface EditTenantTagsModalProps {
   tenantId: string;
   tenantName: string;
   onSuccess: () => void;
+  // The tenant's currently-known tags (from the tenants list). Used to seed
+  // the editor immediately so it isn't blank while — or if — the authoritative
+  // per-tenant tags request is slow or fails.
+  initialTags?: string[];
   allTenantTags?: string[];
 }
 
@@ -38,12 +43,14 @@ export function EditTenantTagsModal({
   tenantId,
   tenantName,
   onSuccess,
+  initialTags = [],
   allTenantTags = [],
 }: EditTenantTagsModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
-  const { handleApiError } = useApiError({});
-  const [tags, setTags] = useState<string[]>([]);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
+  const [tags, setTags] = useState<string[]>(initialTags);
   const [inputValue, setInputValue] = useState('');
 
   const tagsQuery = useQuery({
@@ -51,6 +58,7 @@ export function EditTenantTagsModal({
     enabled: open,
   });
 
+  // Reconcile with the authoritative per-tenant tags once they load.
   useEffect(() => {
     if (tagsQuery.data) {
       setTags(tagsQuery.data);
@@ -116,8 +124,24 @@ export function EditTenantTagsModal({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <InlineError errors={formErrors} />
           <div className="space-y-2">
             <Label>Tags</Label>
+
+            {tagsQuery.isError && (
+              <p className="text-xs text-destructive">
+                Couldn't load the latest tags for this tenant. Showing the last
+                known tags — saving will overwrite them.
+              </p>
+            )}
+
+            {tags.length === 0 && !tagsQuery.isError && (
+              <p className="text-xs text-muted-foreground">
+                {tagsQuery.isLoading
+                  ? 'Loading tags…'
+                  : 'No tags yet. Add one below.'}
+              </p>
+            )}
 
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -144,8 +168,8 @@ export function EditTenantTagsModal({
             {/* Select from existing tags */}
             {availableTagsToAdd.length > 0 && (
               <Select onValueChange={addTag} disabled={isPending} value="">
-                <SelectTrigger>
-                  <SelectValue placeholder="Add an existing tag…" />
+                <SelectTrigger className="text-muted-foreground">
+                  <SelectValue placeholder="Add an existing tag" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableTagsToAdd.map((tag) => (

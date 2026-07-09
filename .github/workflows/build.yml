@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -77,6 +77,23 @@ jobs:
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled
       - name: Build engine (authdisabled)
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine --build-arg GO_BUILD_TAGS=authdisabled
+      - name: Build admin (authdisabled)
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin --build-arg GO_BUILD_TAGS=authdisabled
+      - name: Build lite (authdisabled)
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite --build-arg GO_BUILD_TAGS=authdisabled
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Build dashboard (authdisabled)
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled \
+            -t hatchet-api-dev-tmp .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-dev-tmp .
 
   admin:
     runs-on: ubuntu-latest
@@ -117,7 +134,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -157,7 +174,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -197,7 +214,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
@@ -221,7 +238,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: "3.14"
       - name: Generate docs snippets and examples
         working-directory: frontend/snippets
         run: python3 generate.py
