@@ -16,8 +16,6 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/hatchet-dev/hatchet/pkg/version"
 )
 
 const dashboardReleaseBaseURL = "https://github.com/hatchet-dev/hatchet/releases/download"
@@ -29,8 +27,7 @@ func dashboardTarballURL() string {
 		return u
 	}
 
-	v := version.Version
-	return fmt.Sprintf("%s/%s/dashboard-%s.tar.gz", dashboardReleaseBaseURL, v, v)
+	return fmt.Sprintf("%s/%s/dashboard-%s.tar.gz", dashboardReleaseBaseURL, embedVersion, embedVersion)
 }
 
 func ensureDashboardAssets(ctx context.Context) (string, error) {
@@ -39,7 +36,7 @@ func ensureDashboardAssets(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("could not resolve user cache dir: %w", err)
 	}
 
-	dir := filepath.Join(cacheRoot, "hatchet", "embedded-dashboard", version.Version)
+	dir := filepath.Join(cacheRoot, "hatchet", "embedded-dashboard", embedVersion)
 	if _, statErr := os.Stat(filepath.Join(dir, "index.html")); statErr == nil {
 		return dir, nil
 	}

@@ -3,8 +3,6 @@ package embed
 import (
 	"fmt"
 	"strings"
-
-	"github.com/hatchet-dev/hatchet/pkg/version"
 )
 
 type Config struct {
@@ -31,7 +29,7 @@ func defaultConfig() *Config {
 		grpcPort:         7070,
 		dashboardPort:    8082,
 		dashboardEnabled: true,
-		version:          version.Version,
+		version:          embedVersion,
 		logLevel:         "warn",
 	}
 }

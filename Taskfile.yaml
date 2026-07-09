@@ -11,10 +11,11 @@ tasks:
       - task: set-env-all
       - task: seed-dev
   dashboard:bundle:
-    desc: Build the frontend dashboard and package it as a release tarball (bin/dashboard-<version>.tar.gz + .sha256) for the embed runtime fetcher. The version comes from pkg/version.
+    desc: "Build the frontend dashboard as a release tarball (bin/dashboard-<version>.tar.gz + .sha256) for the embed runtime fetcher. Pass VERSION=<tag> (CI passes the release tag); defaults to pkg/version."
     vars:
-      VERSION:
+      PKG_VERSION:
         sh: sed -n 's/^const Version = "\(.*\)".*/\1/p' pkg/version/version.go
+      VERSION: '{{.VERSION | default .PKG_VERSION}}'
     cmds:
       - pnpm --dir frontend/app exec vite build --sourcemap false
       - mkdir -p bin
@@ -353,8 +354,6 @@ tasks:
         msg: "{{.TAG}} is already an annotated tag."
       - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
         msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
-      - sh: ./hack/ci/check-version-matches-tag.sh {{.TAG}}
-        msg: "pkg/version/version.go must be bumped to {{.TAG}} (the engine reports it to SDKs and embed embeds it)."
     prompt: Create new release for tag {{.TAG}}?
     cmds:
       # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.
@@ -371,7 +370,6 @@ tasks:
         patch=$((patch + 1))
         next="v${major}.${minor}.${patch}"
         echo "Bumping ${current} → ${next}"
-        ./hack/ci/check-version-matches-tag.sh "${next}"
         git tag "${next}"
         git push origin "${next}"
 
@@ -385,7 +383,6 @@ tasks:
         minor=$((minor + 1))
         next="v${major}.${minor}.0"
         echo "Bumping ${current} → ${next}"
-        ./hack/ci/check-version-matches-tag.sh "${next}"
         git tag "${next}"
         git push origin "${next}"
 
@@ -403,6 +400,5 @@ tasks:
           next="${base}-alpha.0"
         fi
         echo "Bumping ${current} → ${next}"
-        ./hack/ci/check-version-matches-tag.sh "${next}"
         git tag "${next}"
         git push origin "${next}"

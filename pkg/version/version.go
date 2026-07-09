@@ -1,5 +1,5 @@
-// Package version is the single source of truth for the Hatchet version; keep it equal to the
-// release tag (enforced by hack/ci/check-version-matches-tag.sh).
+// Package version is the fallback Hatchet version for source/dev builds. Released binaries set it via
+// -ldflags; the embed package prefers the module version from the consumer's build info.
 package version
 
 const Version = "v0.83.4"

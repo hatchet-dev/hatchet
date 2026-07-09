@@ -4,22 +4,8 @@ on:
       - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
 name: Create prerelease w/ binaries and static assets
 jobs:
-  check-version:
-    name: check version matches tag
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get tag name
-        id: tag_name
-        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TAG: ${{ github.ref }}
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Verify pkg/version matches the tag
-        run: ./hack/ci/check-version-matches-tag.sh ${{ steps.tag_name.outputs.tag }}
   publish-dashboard-bundle:
     name: publish dashboard bundle
-    needs: check-version
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
@@ -39,7 +25,7 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm --dir frontend/app install --frozen-lockfile
       - name: Build dashboard bundle
-        run: task dashboard:bundle
+        run: task dashboard:bundle VERSION=${{ steps.tag_name.outputs.tag }}
       - name: Attach bundle to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,7 +38,6 @@ jobs:
             --clobber
   build-push-hatchet-api-amd:
     name: hatchet-api
-    needs: check-version
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
