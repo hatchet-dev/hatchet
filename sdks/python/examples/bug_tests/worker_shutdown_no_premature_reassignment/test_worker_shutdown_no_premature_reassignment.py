@@ -10,6 +10,7 @@ from examples.bug_tests.worker_shutdown_no_premature_reassignment.worker import 
     SLEEP_SECONDS,
     drain_task,
 )
+from examples.test_utils import wait_for_running_status, wait_for_workflow_run
 from hatchet_sdk import EmptyModel, Hatchet, RunStatus, V1TaskStatus
 from tests.worker_fixture import get_free_port, hatchet_worker
 
@@ -43,15 +44,8 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
 
     with hatchet_worker(COMMAND, get_free_port()) as worker_a_proc:
         ref = await drain_task.aio_run(input=EmptyModel(), wait_for_result=False)
-        run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
-        for _ in range(30):
-            run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-            if run.status == RunStatus.RUNNING:
-                break
-            await asyncio.sleep(1)
-        else:
-            assert False, f"Task never started running, status was {run.status}"
+        await wait_for_running_status(hatchet, ref.workflow_run_id, timeout=30.0)
 
         # Worker B stays idle for the rest of the test, available to (wrongly)
         # steal the task if the engine ever decides worker A is dead.
@@ -62,7 +56,6 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
 
             for _ in range(30):
                 worker_list = await hatchet.workers.aio_list()
-                print(worker_list)
                 paused = [
                     w
                     for w in (worker_list.rows or [])
@@ -75,13 +68,9 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
             else:
                 assert False, f"Worker {WORKER_A_NAME} never reported PAUSED"
 
-            for _ in range(SLEEP_SECONDS + 60):
-                run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-                if run.status == RunStatus.COMPLETED:
-                    break
-                await asyncio.sleep(1)
-            else:
-                assert False, f"Task never completed, status was {run.status}"
+            run = await wait_for_workflow_run(ref.workflow_run_id)
+
+            assert run.status == V1TaskStatus.COMPLETED, f"Task never completed, status was {run.status}"
 
     lines = log_path.read_text().splitlines()
     assert lines == [f"{WORKER_A_NAME} START", f"{WORKER_A_NAME} FINISH"], (
@@ -90,10 +79,10 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
         f"the task was still in flight; got: {lines}"
     )
 
-    completed_run = await hatchet.runs.aio_get(ref.workflow_run_id)
-    assert len(completed_run.tasks) == 1
+    completed_run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
+    assert len(completed_run.task_runs) == 1
 
-    task = completed_run.tasks[0]
+    task = completed_run.task_runs[0]
     assert task.status == V1TaskStatus.COMPLETED
     assert task.attempt == 1, "task must not have been retried/reassigned"
     assert task.retry_count == 0, "task must not have been retried/reassigned"
