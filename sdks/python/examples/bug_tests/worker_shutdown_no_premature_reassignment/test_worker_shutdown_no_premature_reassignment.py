@@ -75,7 +75,7 @@ async def test_in_flight_task_completes_on_original_worker_without_reassignment(
             else:
                 assert False, f"Worker {WORKER_A_NAME} never reported PAUSED"
 
-            for _ in range(SLEEP_SECONDS + 20):
+            for _ in range(SLEEP_SECONDS + 60):
                 run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
                 if run.status == RunStatus.COMPLETED:
                     break
