@@ -6,20 +6,28 @@ import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
+import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Dialog } from '@/components/v1/ui/dialog';
+import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import api, { APIToken, CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, useMemo } from 'react';
 
 export default function APITokens() {
   const { tenantId } = useCurrentTenantId();
+  const authDisabled = useAuthDisabled();
+  const { meta } = useApiMeta();
+  const authDisabledToken =
+    meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
   const [showTokenDialog, setShowTokenDialog] = useState(false);
   const [revokeToken, setRevokeToken] = useState<APIToken | null>(null);
 
   const listTokensQuery = useQuery({
     ...queries.tokens.list(tenantId),
+    enabled: !authDisabled,
   });
 
   const tokenColumns = useMemo(
@@ -54,6 +62,27 @@ export default function APITokens() {
     ],
     [],
   );
+
+  if (authDisabled) {
+    return (
+      <div className="h-full w-full flex-grow">
+        <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
+          <SettingsPageHeader
+            title="API token settings"
+            description="Authentication is disabled. Every worker uses the single built-in token below, scoped to the default tenant - creating or revoking tokens is not available."
+          />
+          {authDisabledToken ? (
+            <CodeHighlighter language="text" code={authDisabledToken} />
+          ) : (
+            <EmptyState
+              title="No token available"
+              description="The built-in worker token could not be loaded."
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full flex-grow">
