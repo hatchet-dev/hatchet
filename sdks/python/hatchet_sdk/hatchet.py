@@ -685,8 +685,6 @@ class Hatchet:
                     name=inferred_name,
                     version=version,
                     description=description,
-                    on_events=on_events or [],
-                    on_crons=on_crons or [],
                     sticky=sticky,
                     default_priority=default_priority,
                     input_validator=TypeAdapter(normalize_validator(input_validator)),

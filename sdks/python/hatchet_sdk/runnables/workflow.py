@@ -1541,6 +1541,9 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                     batch_group_max_runs=batch_group_max_runs,
                     broadcast_output=broadcast_output,
                 ),
+                wait_for=None,
+                skip_if=None,
+                cancel_if=None,
             )
 
             self._default_tasks.append(task)
