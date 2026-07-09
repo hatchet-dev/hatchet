@@ -13,7 +13,7 @@ var authDisabledCmd = &cobra.Command{
 	Short:  "exit 0 if this is an authdisabled build, 1 otherwise",
 	Hidden: true,
 	Run: func(cmd *cobra.Command, args []string) {
-		if !authmode.Disabled {
+		if !authmode.IsDisabled {
 			os.Exit(1)
 		}
 	},

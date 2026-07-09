@@ -149,7 +149,7 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	override := func(scf *server.ServerConfigFile) {
 		// no-auth (embedded) mode — only settable programmatically, never via config.
-		scf.Runtime.AuthDisabled = true
+		scf.Runtime.IsAuthDisabled = true
 
 		// The session store is always constructed; give it a valid local cookie config even though
 		// no-auth mode never issues cookies.

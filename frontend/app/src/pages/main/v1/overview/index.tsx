@@ -16,6 +16,7 @@ import { useCurrentUser } from '@/hooks/use-current-user';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -30,6 +31,9 @@ export default function Overview() {
   const { tenant, tenantId } = useTenantDetails();
   const { currentUser } = useCurrentUser();
   const authDisabled = useAuthDisabled();
+  const { meta } = useApiMeta();
+  const authDisabledToken =
+    meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
   const navigate = useNavigate();
   const { capture } = useAnalytics();
   const [tokenName, setTokenName] = useState('');
@@ -192,6 +196,7 @@ export default function Overview() {
         installMethod={installMethod}
         onInstallMethodChange={setInstallMethod}
         authDisabled={authDisabled}
+        authDisabledToken={authDisabledToken}
         profileToken={profileToken}
         isGeneratingProfileToken={createProfileTokenMutation.isPending}
         profileTokenError={profileTokenError}

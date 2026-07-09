@@ -255,14 +255,14 @@ type ConfigFileRuntime struct {
 	// Allow passwords to be changed
 	AllowChangePassword bool `mapstructure:"allowChangePassword" json:"allowChangePassword,omitempty" default:"true"`
 
-	// AuthDisabled turns off dashboard/REST authentication at runtime, resolving all requests to the
+	// IsAuthDisabled turns off dashboard/REST authentication at runtime, resolving all requests to the
 	// seed admin user. It is the runtime equivalent of the authdisabled build tag.
 	//
 	// This field is deliberately NOT bound to any env var or config-file key (mapstructure:"-"), so
 	// operators cannot enable it through configuration. It can only be set programmatically via a
 	// ServerConfigFileOverride, which is done exclusively by embedded/library mode
 	// (github.com/hatchet-dev/hatchet/embedded). Never enable this in a production deployment.
-	AuthDisabled bool `mapstructure:"-" json:"-"`
+	IsAuthDisabled bool `mapstructure:"-" json:"-"`
 
 	// Rate limiting configuration for API operations by IP
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`

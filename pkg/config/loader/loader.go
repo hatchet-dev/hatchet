@@ -562,15 +562,28 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	cleanupSecurityCheck := func() {}
 
 	if cf.SecurityCheck.Enabled {
+		var oauthProviders []string
+		if cf.Auth.Google.Enabled {
+			oauthProviders = append(oauthProviders, "google")
+		}
+		if cf.Auth.Github.Enabled {
+			oauthProviders = append(oauthProviders, "github")
+		}
+
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
-			Enabled:  cf.SecurityCheck.Enabled,
-			Endpoint: cf.SecurityCheck.Endpoint,
-			Logger:   &l,
-			Version:  version,
+			Enabled:        cf.SecurityCheck.Enabled,
+			Endpoint:       cf.SecurityCheck.Endpoint,
+			Logger:         &l,
+			Version:        version,
+			MQKind:         cf.MessageQueue.Kind,
+			OAuthProviders: oauthProviders,
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())
-		cleanupSecurityCheck = cancel
+		cleanupSecurityCheck = func() {
+			cancel()
+			securityCheck.Shutdown()
+		}
 
 		go securityCheck.Start(securityCheckCtx)
 	}
@@ -643,8 +656,8 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		ConfigFile:             cf.Auth,
 	}
 
-	if authmode.Disabled || cf.Runtime.AuthDisabled {
-		l.Warn().Msg("Authentication is DISABLED: dashboard/REST requests run as the seed admin user. Never use this in production.")
+	if authmode.IsDisabled || cf.Runtime.IsAuthDisabled {
+		l.Warn().Msg("This is an authdisabled build: dashboard/REST authentication is DISABLED and runs as the seed admin user. Never use this in production.")
 
 		applyAuthDisabledOverrides(&cf.Runtime)
 	}
@@ -693,20 +706,27 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	jwtEncryptionSvc := encryptionSvc
 
-	if authmode.Disabled {
+	tokenOpts := &token.TokenOpts{
+		Issuer:               cf.Runtime.ServerURL,
+		Audience:             cf.Runtime.ServerURL,
+		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
+		ServerURL:            cf.Runtime.ServerURL,
+	}
+
+	if authmode.IsDisabled {
 		jwtEncryptionSvc, err = encryption.NewInsecureJWTEncryption(authmode.EmbeddedPrivateKeyset(), authmode.EmbeddedPublicKeyset())
 
 		if err != nil {
 			return nil, nil, fmt.Errorf("could not load authdisabled keyset: %w", err)
 		}
+
+		tokenOpts.Issuer = authmode.EmbeddedTokenIssuer
+		tokenOpts.Audience = authmode.EmbeddedTokenAudience
+		tokenOpts.ServerURL = authmode.EmbeddedTokenServerURL
+		tokenOpts.GRPCBroadcastAddress = authmode.EmbeddedTokenGRPCAddress
 	}
 
-	auth.JWTManager, err = token.NewJWTManager(jwtEncryptionSvc, dc.V1.APIToken(), &token.TokenOpts{
-		Issuer:               cf.Runtime.ServerURL,
-		Audience:             cf.Runtime.ServerURL,
-		GRPCBroadcastAddress: cf.Runtime.GRPCBroadcastAddress,
-		ServerURL:            cf.Runtime.ServerURL,
-	})
+	auth.JWTManager, err = token.NewJWTManager(jwtEncryptionSvc, dc.V1.APIToken(), tokenOpts)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not create JWT manager: %w", err)

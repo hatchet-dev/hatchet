@@ -3,7 +3,9 @@
 FROM golang:1.26-alpine as base
 WORKDIR /hatchet
 
-RUN apk update && apk add --no-cache gcc musl-dev git protoc protobuf-dev
+ENV CGO_ENABLED=0
+
+RUN apk update && apk add --no-cache git protoc protobuf-dev
 
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
@@ -75,7 +77,7 @@ ENV SERVER_TARGET=${SERVER_TARGET}
 WORKDIR /hatchet
 
 # openssl and bash needed for admin build
-RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates tzdata
+RUN apk update && apk add --no-cache openssl bash ca-certificates tzdata
 
 COPY --from=build-go /hatchet/bin/hatchet-${SERVER_TARGET} /hatchet/
 

@@ -91,6 +91,13 @@ function AuthenticatedInner() {
     isLoading: isUserLoading,
   } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+  const [authBannerDismissed, setAuthBannerDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('auth-disabled-banner-dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
@@ -558,8 +565,23 @@ function AuthenticatedInner() {
       <SupportChat user={currentUser}>
         <AppLayout
           banner={
-            meta && 'authDisabled' in meta && meta.authDisabled ? (
-              <AuthDisabledBanner />
+            meta &&
+            'authDisabled' in meta &&
+            meta.authDisabled &&
+            !authBannerDismissed ? (
+              <AuthDisabledBanner
+                onDismiss={() => {
+                  try {
+                    localStorage.setItem(
+                      'auth-disabled-banner-dismissed',
+                      'true',
+                    );
+                  } catch {
+                    /* empty */
+                  }
+                  setAuthBannerDismissed(true);
+                }}
+              />
             ) : undefined
           }
           header={

@@ -3,7 +3,6 @@ import { sideNavItems } from './side-nav-items';
 import { ThreeColumnLayout } from '@/components/layout/three-column-layout';
 import { SidePanel } from '@/components/v1/nav/side-panel';
 import { Loading } from '@/components/v1/ui/loading';
-import useAuthDisabled from '@/hooks/use-auth-disabled';
 import useCloud from '@/hooks/use-cloud';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -24,7 +23,6 @@ export function MainShell({ children }: { children?: ReactNode }) {
   const { cloud, featureFlags, isCloudEnabled } = useCloud(tenantId);
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
   const { getOrganizationIdForTenant } = useOrganizations();
-  const authDisabled = useAuthDisabled();
   const queryClient = useQueryClient();
   const orgId = isCloudEnabled
     ? tenantId
@@ -49,9 +47,8 @@ export function MainShell({ children }: { children?: ReactNode }) {
         managedWorkerEnabled,
         isCloudEnabled,
         orgId,
-        authDisabled,
       }),
-    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled, orgId, authDisabled],
+    [cloud?.canBill, managedWorkerEnabled, isCloudEnabled, orgId],
   );
 
   const childCtx = useContextFromParent({

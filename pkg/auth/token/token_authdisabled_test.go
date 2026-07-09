@@ -48,7 +48,7 @@ func (s *stubAPITokenRepository) DeleteAPIToken(ctx context.Context, tenantId, i
 // TestAuthDisabledKeysetIsolation is the security invariant behind authdisabled mode: the main
 // (production) JWT manager can never validate a token signed by the embedded authdisabled keyset,
 // and vice versa. The embedded token is only accepted via the separate authdisabled manager, which
-// is only wired up (in the gRPC middleware) behind the compile-time authmode.Disabled constant.
+// is only wired up (in the gRPC middleware) behind the compile-time authmode.IsDisabled constant.
 func TestAuthDisabledKeysetIsolation(t *testing.T) {
 	master, mainPriv, mainPub, _, err := encryption.GenerateLocalKeys()
 	require.NoError(t, err)

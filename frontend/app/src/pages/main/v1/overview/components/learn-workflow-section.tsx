@@ -9,11 +9,7 @@ import {
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
 import { TriggerWorkflowForm } from '@/pages/main/v1/workflows/$workflow/components/trigger-workflow-form';
-import {
-  CheckIcon,
-  ChevronRightIcon,
-  ExternalLinkIcon,
-} from '@radix-ui/react-icons';
+import { CheckIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import { useEffect, useState, type ReactNode } from 'react';
 
 export const workflowStepOptions = {
@@ -55,6 +51,7 @@ export function LearnWorkflowSection({
   installMethod,
   onInstallMethodChange,
   authDisabled,
+  authDisabledToken,
 }: {
   tenantName?: string;
   selectedTab: WorkflowStepKey;
@@ -75,6 +72,7 @@ export function LearnWorkflowSection({
   installMethod: InstallMethod;
   onInstallMethodChange: (installMethod: InstallMethod) => void;
   authDisabled?: boolean;
+  authDisabledToken?: string;
 }) {
   const profileName = tenantName?.trim() || 'local';
   const escapeForDoubleQuotes = (value: string) =>
@@ -180,26 +178,17 @@ export function LearnWorkflowSection({
             with an API token.
           </p>
           <p className="text-sm">
-            Use the default token printed when the server started (also written
-            to the config volume), then add it to a CLI profile:
+            This instance ships with a built-in token for the default tenant.
+            Add it to a CLI profile:
           </p>
           <CodeHighlighter
             className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
             code={`hatchet profile add --name "${escapeForDoubleQuotes(
               profileName,
-            )}" --token "<token>"`}
+            )}" --token "${authDisabledToken ?? '<token>'}"`}
             language="shell"
             copy
           />
-          <a
-            href="https://docs.hatchet.run/self-hosting/auth-disabled-images#running-it"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex w-fit items-center gap-1.5 text-sm font-medium text-brand underline-offset-4 hover:underline"
-          >
-            How to retrieve the token
-            <ExternalLinkIcon className="size-3.5" />
-          </a>
           <Button
             variant="outline"
             size="default"

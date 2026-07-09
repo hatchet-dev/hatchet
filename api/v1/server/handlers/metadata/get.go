@@ -37,7 +37,7 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 
 	prometheusServerEnabled := u.config.Prometheus.PrometheusServerURL != ""
 
-	authDisabled := authmode.Disabled || u.config.Runtime.AuthDisabled
+	authDisabled := authmode.IsDisabled || u.config.Runtime.IsAuthDisabled
 
 	meta := gen.APIMeta{
 		Auth: &gen.APIMetaAuth{
@@ -52,6 +52,12 @@ func (u *MetadataService) MetadataGet(ctx echo.Context, request gen.MetadataGetR
 		ObservabilityEnabled:    &observabilityEnabled,
 		PrometheusServerEnabled: &prometheusServerEnabled,
 		AuthDisabled:            &authDisabled,
+	}
+
+	if authDisabled {
+		if embeddedToken := authmode.EmbeddedToken(); embeddedToken != "" {
+			meta.AuthDisabledToken = &embeddedToken
+		}
 	}
 
 	return gen.MetadataGet200JSONResponse(meta), nil
