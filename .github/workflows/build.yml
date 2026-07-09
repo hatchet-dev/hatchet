@@ -68,6 +68,33 @@ jobs:
       - name: Build servers
         run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine
 
+  authdisabled:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Build api (authdisabled)
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled
+      - name: Build engine (authdisabled)
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=engine --build-arg GO_BUILD_TAGS=authdisabled
+      - name: Build admin (authdisabled)
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=admin --build-arg GO_BUILD_TAGS=authdisabled
+      - name: Build lite (authdisabled)
+        run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=lite --build-arg GO_BUILD_TAGS=authdisabled
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+      - name: Generate docs snippets and examples
+        working-directory: frontend/snippets
+        run: python3 generate.py
+      - name: Build dashboard (authdisabled)
+        run: |
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/servers.dockerfile \
+            --build-arg SERVER_TARGET=api --build-arg GO_BUILD_TAGS=authdisabled \
+            -t hatchet-api-dev-tmp .
+          DOCKER_BUILDKIT=1 docker build -f ./build/package/dashboard.dockerfile \
+            --build-arg HATCHET_API_IMAGE=hatchet-api-dev-tmp .
+
   admin:
     runs-on: ubuntu-latest
     steps:

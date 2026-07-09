@@ -4,6 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
@@ -31,6 +32,7 @@ interface UpdateMemberFormProps {
   member: TenantMember;
   isCloudEnabled?: boolean;
   canSetOwnerRole?: boolean;
+  formErrors?: string[];
 }
 
 export function UpdateMemberForm({
@@ -62,6 +64,7 @@ export function UpdateMemberForm({
           })}
         >
           <div className="grid gap-4">
+            <InlineError errors={props.formErrors ?? []} />
             <div className="grid gap-2">
               <Label htmlFor="name">Name</Label>
               <Input

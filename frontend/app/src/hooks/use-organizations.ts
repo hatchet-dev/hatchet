@@ -171,7 +171,9 @@ export function useOrganizations() {
         .managementTokenCreateMutation(data.organizationId)
         .mutationFn(body);
     },
-    onError: handleApiError,
+    // Error handling is delegated to the caller (handleCreateToken) so the
+    // create-token modal can surface it inline instead of via a toast that
+    // would render behind the modal overlay.
   });
 
   const deleteMemberMutation = useMutation({
@@ -245,6 +247,9 @@ export function useOrganizations() {
       duration: ManagementTokenDuration | undefined,
       onSuccess: (data: CreateManagementTokenResponse) => void,
       tags?: string[],
+      // Callers (modals) can surface the error inline; falls back to the
+      // global toast when omitted.
+      onError?: (error: unknown) => void,
     ) => {
       createTokenMutation.mutate(
         { organizationId, name, duration, tags },
@@ -252,13 +257,17 @@ export function useOrganizations() {
           onSuccess: (data) => {
             onSuccess(data);
           },
-          onError: () => {
-            // Error handling is done by the mutation itself via handleApiError
+          onError: (error) => {
+            if (onError) {
+              onError(error);
+            } else {
+              handleApiError(error as Parameters<typeof handleApiError>[0]);
+            }
           },
         },
       );
     },
-    [createTokenMutation],
+    [createTokenMutation, handleApiError],
   );
 
   const handleDeleteMember = useCallback(
