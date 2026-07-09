@@ -23,8 +23,6 @@ import { appRoutes } from '@/router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
-const HIDDEN_FREE_LIMIT_FEATURE_IDS = ['users'];
-
 interface WelcomeModalProps {
   tenantId: string | undefined;
   organizationId: string | undefined;
@@ -47,9 +45,7 @@ export function WelcomeModal({
     enabled: open && isCloudEnabled && !!cloud?.canBill,
   });
 
-  const freeLimits = welcomePlansQuery.data?.freeLimits?.filter(
-    (fl) => !HIDDEN_FREE_LIMIT_FEATURE_IDS.includes(fl.featureId),
-  );
+  const freeLimits = welcomePlansQuery.data?.freeLimits;
 
   const developerPlanMutation = useMutation({
     mutationKey: ['welcome:developer-plan'],

@@ -225,11 +225,14 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                             <div className="mt-0.5 text-xs font-normal text-muted-foreground">
                               Includes access to:{' '}
                               {invite.tenants
+                                .slice(0, 3)
                                 .map(
                                   (tenant) =>
                                     `${tenant.tenantName} (${formatMemberRole(tenant.tenantRole)})`,
                                 )
                                 .join(', ')}
+                              {invite.tenants.length > 3 &&
+                                ` and ${invite.tenants.length - 3} more`}
                             </div>
                           )}
                         </TableCell>

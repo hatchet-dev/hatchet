@@ -35,7 +35,7 @@ function MemberSourceBadge({ member }: { member: TenantMember }) {
         <TooltipContent>
           <p>
             {isDirect
-              ? 'Added directly, bypassing tag matching.'
+              ? 'Added to this tenant directly, rather than through tag matching.'
               : "Membership derived from matching the organization's tenant tags."}
           </p>
         </TooltipContent>
