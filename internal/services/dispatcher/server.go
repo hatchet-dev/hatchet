@@ -1423,10 +1423,10 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 	}, nil
 }
 
-// sendBatchActionEventV1 reports a single lifecycle event (STARTED, FAILED, or CANCELLED) for every
-// task in a batch in one call. It resolves all task external ids in bulk and then feeds the same
-// per-kind message payloads/queues that the single-task handlers (handleTaskStarted, handleTaskFailed,
-// and the CancelTasks flow) already use.
+// sendBatchActionEventV1 reports a single lifecycle event (STARTED, COMPLETED, FAILED, or CANCELLED)
+// for every task in a batch in one call. It resolves all task external ids in bulk and then feeds the
+// same per-kind message payloads/queues that the single-task handlers (handleTaskStarted,
+// handleTaskCompleted, handleTaskFailed, and the CancelTasks flow) already use.
 func (s *DispatcherImpl) sendBatchActionEventV1(ctx context.Context, request *contracts.BatchActionEvent) (*contracts.ActionEventResponse, error) {
 	tenant := ctx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
@@ -1463,6 +1463,8 @@ func (s *DispatcherImpl) sendBatchActionEventV1(ctx context.Context, request *co
 	switch request.EventType {
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_STARTED:
 		return s.handleBatchTaskStarted(ctx, tenantId, tasks, itemsByExternalId, request)
+	case contracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED:
+		return s.handleBatchTaskCompleted(ctx, tenantId, tasks, itemsByExternalId, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED:
 		return s.handleBatchTaskFailed(ctx, tenantId, tasks, itemsByExternalId, request)
 	case contracts.StepActionEventType_STEP_EVENT_TYPE_CANCELLED:
@@ -1552,6 +1554,159 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 
 	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
 		return nil, err
+	}
+
+	return resp, nil
+}
+
+// handleBatchTaskCompleted mirrors handleTaskCompleted for a whole batch: it validates each item's
+// output payload (downgrading individual items to FAILED on invalid JSON, exactly like
+// sendStepActionEventV1 does for a single task), then sends at most one bulk MsgIDTaskCompleted
+// message, at most one bulk MsgIDTaskFailed message for any downgraded items, and one bulk OLAP
+// monitoring event message covering every item.
+func (s *DispatcherImpl) handleBatchTaskCompleted(
+	inputCtx context.Context,
+	tenantId uuid.UUID,
+	tasks []*sqlcv1.FlattenExternalIdsRow,
+	itemsByExternalId map[uuid.UUID]*contracts.BatchActionEventItem,
+	request *contracts.BatchActionEvent,
+) (*contracts.ActionEventResponse, error) {
+	resp := &contracts.ActionEventResponse{
+		TenantId: tenantId.String(),
+		WorkerId: request.WorkerId,
+	}
+
+	idInsertedAts := make([]v1.IdInsertedAt, 0, len(tasks))
+
+	for _, task := range tasks {
+		idInsertedAts = append(idInsertedAts, v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt})
+	}
+
+	durableInvocationCounts, err := s.repov1.DurableEvents().GetDurableTaskInvocationCounts(inputCtx, tenantId, idInsertedAts)
+
+	if err != nil {
+		durableInvocationCounts = nil
+	}
+
+	var workerId *uuid.UUID
+
+	if parsedId, uuidErr := uuid.Parse(request.WorkerId); uuidErr == nil {
+		workerId = &parsedId
+	}
+
+	completedPayloads := make([]tasktypes.CompletedTaskPayload, 0, len(tasks))
+	failedPayloads := make([]tasktypes.FailedTaskPayload, 0)
+	olapPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(tasks))
+
+	for _, task := range tasks {
+		item, ok := itemsByExternalId[task.ExternalID]
+
+		if !ok {
+			continue
+		}
+
+		retryCount := task.RetryCount
+
+		if item.RetryCount != nil {
+			retryCount = *item.RetryCount
+		}
+
+		eventPayload := item.EventPayload
+		olapEventType := sqlcv1.V1EventTypeOlapFINISHED
+
+		if validationErr := v1.ValidateJSONB([]byte(eventPayload), "taskOutput"); validationErr != nil {
+			eventPayload = validationErr.Error()
+			olapEventType = sqlcv1.V1EventTypeOlapFAILED
+
+			failedPayloads = append(failedPayloads, tasktypes.FailedTaskPayload{
+				TaskId:        task.ID,
+				InsertedAt:    task.InsertedAt,
+				ExternalId:    task.ExternalID,
+				WorkflowRunId: task.WorkflowRunID,
+				RetryCount:    retryCount,
+				IsAppError:    true,
+				ErrorMsg:      eventPayload,
+			})
+		} else {
+			completedPayloads = append(completedPayloads, tasktypes.CompletedTaskPayload{
+				TaskId:        task.ID,
+				InsertedAt:    task.InsertedAt,
+				ExternalId:    task.ExternalID,
+				WorkflowRunId: task.WorkflowRunID,
+				RetryCount:    retryCount,
+				Output:        []byte(item.EventPayload),
+			})
+		}
+
+		var durableInvocationCount int32
+
+		if count, ok := durableInvocationCounts[v1.IdInsertedAt{ID: task.ID, InsertedAt: task.InsertedAt}]; ok && count != nil {
+			durableInvocationCount = *count
+		}
+
+		olapPayloads = append(olapPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:                 task.ID,
+			RetryCount:             retryCount,
+			DurableInvocationCount: durableInvocationCount,
+			WorkerId:               workerId,
+			EventType:              olapEventType,
+			EventTimestamp:         request.EventTimestamp.AsTime(),
+			EventPayload:           eventPayload,
+		})
+	}
+
+	if len(completedPayloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDTaskCompleted,
+			false,
+			true,
+			completedPayloads...,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(failedPayloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDTaskFailed,
+			false,
+			true,
+			failedPayloads...,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(olapPayloads) > 0 {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDCreateMonitoringEvent,
+			false,
+			true,
+			olapPayloads...,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+			return nil, err
+		}
 	}
 
 	return resp, nil

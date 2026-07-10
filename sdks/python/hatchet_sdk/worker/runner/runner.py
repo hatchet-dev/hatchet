@@ -460,25 +460,13 @@ class Runner:
             logger.error(f"START_BATCH received with no items for action '{action_id}'")
             return
 
-        item_actions = {
-            ext_id: action.model_copy(
-                update={
-                    "step_run_id": ext_id,
-                    "workflow_run_id": item_data.workflow_run_id,
-                    "action_payload": item_data.payload,
-                    "action_type": ActionType.START_STEP_RUN,
-                }
-            )
-            for ext_id, item_data in action.batch_items.items()
-        }
-
         self.event_queue.put(
             QueuedBatchActionEvent(
                 action=action,
                 type=STEP_EVENT_TYPE_STARTED,
                 items=[
                     BatchEventItem(task_run_external_id=ext_id)
-                    for ext_id in item_actions
+                    for ext_id in action.batch_items
                 ],
             )
         )
@@ -524,41 +512,51 @@ class Runner:
                             type=STEP_EVENT_TYPE_FAILED,
                             items=[
                                 BatchEventItem(
-                                    task_run_external_id=item_action.step_run_id,
+                                    task_run_external_id=ext_id,
                                     payload=TaskRunError.from_exception(
-                                        e, item_action.step_run_id
+                                        e, ext_id
                                     ).serialize(include_metadata=True),
                                     should_not_retry=should_not_retry,
                                 )
-                                for item_action in item_actions.values()
+                                for ext_id in action.batch_items
                             ],
                         )
                     )
                 else:
-                    for item_action in item_actions.values():
-                        self.event_queue.put(
-                            ActionEvent(
-                                action=item_action,
-                                type=STEP_EVENT_TYPE_COMPLETED,
-                                payload=serialized,
-                                should_not_retry=False,
-                            )
+                    self.event_queue.put(
+                        QueuedBatchActionEvent(
+                            action=action,
+                            type=STEP_EVENT_TYPE_COMPLETED,
+                            items=[
+                                BatchEventItem(
+                                    task_run_external_id=ext_id, payload=serialized
+                                )
+                                for ext_id in action.batch_items
+                            ],
                         )
+                    )
             else:
                 if not isinstance(outputs, dict):
                     raise ValueError(
                         f"Batch task '{action_id}' must return a dict of outputs"
                     )
 
-                if len(outputs) != len(item_actions):
+                if len(outputs) != len(action.batch_items):
                     raise ValueError(
-                        f"Batch task '{action_id}' returned {len(outputs)} outputs for {len(item_actions)} inputs"
+                        f"Batch task '{action_id}' returned {len(outputs)} outputs for {len(action.batch_items)} inputs"
                     )
 
+                output_ids = set(outputs)
+                input_ids = set(action.batch_items)
+                if diff := output_ids.difference(input_ids):
+                    raise ValueError(
+                        f"Batch task '{action_id}' returned outputs for unknown step run ids: {diff}"
+                    )
+
+                completed_items: list[BatchEventItem] = []
                 failed_items: list[BatchEventItem] = []
 
                 for step_run_id, output in outputs.items():
-                    item_action = item_actions[step_run_id]
                     try:
                         serialized = self.serialize_output(
                             task._validators.step_output, output
@@ -578,12 +576,19 @@ class Runner:
                         )
                         continue
 
-                    self.event_queue.put(
-                        ActionEvent(
-                            action=item_action,
-                            type=STEP_EVENT_TYPE_COMPLETED,
+                    completed_items.append(
+                        BatchEventItem(
+                            task_run_external_id=step_run_id,
                             payload=serialized,
-                            should_not_retry=False,
+                        )
+                    )
+
+                if completed_items:
+                    self.event_queue.put(
+                        QueuedBatchActionEvent(
+                            action=action,
+                            type=STEP_EVENT_TYPE_COMPLETED,
+                            items=completed_items,
                         )
                     )
 
@@ -595,6 +600,7 @@ class Runner:
                             items=failed_items,
                         )
                     )
+
         except Exception as e:
             logger.exception(
                 f"Batch task '{action_id}' failed for batch {action.batch_id}"
@@ -606,13 +612,13 @@ class Runner:
                     type=STEP_EVENT_TYPE_FAILED,
                     items=[
                         BatchEventItem(
-                            task_run_external_id=item_action.step_run_id,
-                            payload=TaskRunError.from_exception(
-                                e, item_action.step_run_id
-                            ).serialize(include_metadata=True),
+                            task_run_external_id=ext_id,
+                            payload=TaskRunError.from_exception(e, ext_id).serialize(
+                                include_metadata=True
+                            ),
                             should_not_retry=should_not_retry,
                         )
-                        for item_action in item_actions.values()
+                        for ext_id in action.batch_items
                     ],
                 )
             )
