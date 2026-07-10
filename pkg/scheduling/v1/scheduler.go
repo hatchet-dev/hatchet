@@ -269,10 +269,10 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	// if there are any workers which have additional actions not in the actionsToReplenish map, we need
-	// to add them to the actionsToReplenish map. this is a transitive closure over "workers of actions
+	// to add them to the actionsToReplenish map. This is a transitive closure over "workers of actions
 	// being replenished", computed with an explicit worklist so that newly added actions also have their
 	// workers visited. each worker is visited at most once, since a single visit adds all of its actions;
-	// this keeps the closure O(workers x actions-per-worker) instead of O(actions x workers x actions).
+	// this keeps the closure O(workers x actions-per-worker).
 	actionIdQueue := make([]string, 0, len(actionsToReplenish))
 
 	for actionId := range actionsToReplenish {
@@ -535,11 +535,11 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	cleanupNow := time.Now()
 
 	for _, storedAction := range actionsToReplenish {
-		hasExpired := false
+		hasSingleSlotExpired := false
 
 		for i := range storedAction.slots {
 			if storedAction.slots[i].expiredAt(cleanupNow) {
-				hasExpired = true
+				hasSingleSlotExpired = true
 				break
 			}
 		}
@@ -547,7 +547,7 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		// NOTE: actions replenished in the first pass were just given brand-new slots,
 		// so in the common case nothing is expired and we keep the existing slices and
 		// maps untouched instead of reallocating them on every replenish cycle.
-		if !hasExpired {
+		if !hasSingleSlotExpired {
 			continue
 		}
 
