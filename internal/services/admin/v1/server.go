@@ -286,7 +286,7 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 			continue
 		}
 
-		if _, err := a.repo.DurableEvents().HandleBranchForReplay(ctx, tenant.ID, task); err != nil {
+		if _, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenant.ID, task); err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to branch durable task for replay: %v", err)
 		}
 	}
