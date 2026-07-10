@@ -245,12 +245,30 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	// if there are any workers which have additional actions not in the actionsToReplenish map, we need
-	// to add them to the actionsToReplenish map
+	// to add them to the actionsToReplenish map. this is a transitive closure over "workers of actions
+	// being replenished", computed with an explicit worklist so that newly added actions also have their
+	// workers visited. each worker is visited at most once, since a single visit adds all of its actions;
+	// this keeps the closure O(workers x actions-per-worker) instead of O(actions x workers x actions).
+	actionIdQueue := make([]string, 0, len(actionsToReplenish))
+
 	for actionId := range actionsToReplenish {
-		for _, workerId := range actionsToWorkerIds[actionId] {
-			for _, actions := range workerIdsToActions[workerId] {
-				if _, ok := actionsToReplenish[actions]; !ok {
-					actionsToReplenish[actions] = s.actions[actions]
+		actionIdQueue = append(actionIdQueue, actionId)
+	}
+
+	visitedWorkers := make(map[uuid.UUID]struct{})
+
+	for i := 0; i < len(actionIdQueue); i++ {
+		for _, workerId := range actionsToWorkerIds[actionIdQueue[i]] {
+			if _, visited := visitedWorkers[workerId]; visited {
+				continue
+			}
+
+			visitedWorkers[workerId] = struct{}{}
+
+			for _, otherActionId := range workerIdsToActions[workerId] {
+				if _, ok := actionsToReplenish[otherActionId]; !ok {
+					actionsToReplenish[otherActionId] = s.actions[otherActionId]
+					actionIdQueue = append(actionIdQueue, otherActionId)
 				}
 			}
 		}
