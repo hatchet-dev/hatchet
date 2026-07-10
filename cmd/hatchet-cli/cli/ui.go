@@ -52,12 +52,12 @@ func runUI(cmd *cobra.Command) {
 	host, _ := cmd.Flags().GetString("host")
 	noOpen, _ := cmd.Flags().GetBool("no-open")
 
-	target, insecureSkipVerify, profileName := resolveUITarget(apiURLFlag, profileFlag)
-
 	if !ui.Bundled() {
-		configcli.Logger.Warnf("This CLI build does not include the dashboard UI. " +
-			"Use an official release binary, or run 'task embed-cli-ui' before building.")
+		configcli.Logger.Fatal("This CLI build does not include the dashboard UI. " +
+			"Use an official release binary, or run 'task build-cli' to build one with the UI embedded.")
 	}
+
+	target, insecureSkipVerify, profileName := resolveUITarget(apiURLFlag, profileFlag)
 
 	handler, err := newUIHandler(target, insecureSkipVerify)
 	if err != nil {
@@ -222,14 +222,6 @@ func newSPAHandler() (http.Handler, error) {
 		return nil, err
 	}
 
-	if !ui.Bundled() {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Header().Set("Cache-Control", "no-cache")
-			_, _ = w.Write([]byte(uiNotBundledPage))
-		}), nil
-	}
-
 	fileServer := http.FileServer(http.FS(assets))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -301,17 +293,6 @@ func uiStartedView(localURL, targetURL, profileName string) string {
 
 	return styles.SuccessBox.Render(strings.Join(lines, "\n"))
 }
-
-const uiNotBundledPage = `<!doctype html>
-<html>
-  <head><meta charset="utf-8"><title>Hatchet UI</title></head>
-  <body style="font-family: sans-serif; max-width: 40rem; margin: 4rem auto; line-height: 1.5;">
-    <h1>Dashboard UI not bundled</h1>
-    <p>This CLI binary was built without the dashboard UI.</p>
-    <p>Use an official release binary, or build the UI into the CLI with
-       <code>task embed-cli-ui</code> before compiling.</p>
-  </body>
-</html>`
 
 func init() {
 	rootCmd.AddCommand(uiCmd)
