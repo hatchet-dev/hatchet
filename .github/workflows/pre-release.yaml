@@ -4,38 +4,6 @@ on:
       - "v*" # Push events to matching v*, i.e. v1.0, v20.15.10
 name: Create prerelease w/ binaries and static assets
 jobs:
-  publish-dashboard-bundle:
-    name: publish dashboard bundle
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get tag name
-        id: tag_name
-        run: echo "tag=${GITHUB_TAG/refs\/tags\//}" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TAG: ${{ github.ref }}
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Install pnpm
-        run: npm install -g pnpm@10.16.1
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: "24.x"
-      - name: Setup task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
-      - name: Install frontend dependencies
-        run: pnpm --dir frontend/app install --frozen-lockfile
-      - name: Build dashboard bundle
-        run: task dashboard:bundle VERSION=${{ steps.tag_name.outputs.tag }}
-      - name: Attach bundle to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.tag_name.outputs.tag }}
-        run: |
-          gh release create "$TAG" --title "$TAG" --generate-notes --prerelease --verify-tag || true
-          gh release upload "$TAG" \
-            "bin/dashboard-${TAG}.tar.gz" \
-            "bin/dashboard-${TAG}.tar.gz.sha256" \
-            --clobber
   build-push-hatchet-api-amd:
     name: hatchet-api
     runs-on: ubuntu-latest
