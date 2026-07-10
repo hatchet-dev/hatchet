@@ -12,27 +12,22 @@ type Config struct {
 	adminPassword    string
 	version          string
 	logLevel         string
-	dashboardDir     string
 	masterKeyset     []byte
 	privateJWTKeyset []byte
 	publicJWTKeyset  []byte
 	apiPort          int
 	grpcPort         int
-	dashboardPort    int
 	runMigrations    bool
-	dashboardEnabled bool
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		runMigrations:    true,
-		apiPort:          8080,
-		grpcPort:         7070,
-		dashboardPort:    8082,
-		dashboardEnabled: true,
-		logLevel:         "warn",
+		runMigrations: true,
+		apiPort:       8080,
+		grpcPort:      7070,
+		logLevel:      "warn",
 	}
 }
 
@@ -64,18 +59,6 @@ func WithGRPCPort(port int) Option {
 	return func(c *Config) { c.grpcPort = port }
 }
 
-func WithDashboardPort(port int) Option {
-	return func(c *Config) { c.dashboardPort = port }
-}
-
-func WithoutDashboard() Option {
-	return func(c *Config) { c.dashboardEnabled = false }
-}
-
-func WithDashboardDir(dir string) Option {
-	return func(c *Config) { c.dashboardDir = dir }
-}
-
 func WithAdminUser(email, password string) Option {
 	return func(c *Config) {
 		c.adminEmail = email
@@ -102,10 +85,6 @@ func (c *Config) validate() error {
 
 	if c.apiPort == c.grpcPort {
 		return fmt.Errorf("api port and grpc port must differ (both %d)", c.apiPort)
-	}
-
-	if c.dashboardEnabled && (c.dashboardPort == c.apiPort || c.dashboardPort == c.grpcPort) {
-		return fmt.Errorf("dashboard port %d must differ from api and grpc ports", c.dashboardPort)
 	}
 
 	return nil

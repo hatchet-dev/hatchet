@@ -48,7 +48,6 @@ func run() error {
 		embed.WithAPIPort(apiPort),
 		embed.WithGRPCPort(grpcPort),
 		embed.WithVersion(version),
-		embed.WithoutDashboard(),
 	}
 	if os.Getenv("RUN_MIGRATIONS") == "false" {
 		opts = append(opts, embed.WithoutMigrations())

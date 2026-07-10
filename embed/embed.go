@@ -1,4 +1,3 @@
-// Package embed runs a full in-process Hatchet instance (engine, REST API, dashboard) in no-auth mode.
 package embed
 
 import (
@@ -6,12 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"io/fs"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,16 +20,14 @@ import (
 )
 
 type Instance struct {
-	client       *hatchet.Client
-	token        string
-	tenantID     string
-	apiURL       string
-	grpcAddress  string
-	dashboardURL string
+	client      *hatchet.Client
+	token       string
+	tenantID    string
+	apiURL      string
+	grpcAddress string
 
 	interruptCh chan interface{}
 	cancel      context.CancelFunc
-	httpServers []*http.Server
 }
 
 func (i *Instance) Client() *hatchet.Client { return i.client }
@@ -48,9 +40,7 @@ func (i *Instance) APIURL() string { return i.apiURL }
 
 func (i *Instance) GRPCAddress() string { return i.grpcAddress }
 
-func (i *Instance) DashboardURL() string { return i.dashboardURL }
-
-func (i *Instance) Shutdown(ctx context.Context) error {
+func (i *Instance) Shutdown(_ context.Context) error {
 	if i.cancel != nil {
 		i.cancel()
 	}
@@ -59,14 +49,7 @@ func (i *Instance) Shutdown(ctx context.Context) error {
 		close(i.interruptCh)
 	}
 
-	var firstErr error
-	for _, s := range i.httpServers {
-		if err := s.Shutdown(ctx); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-
-	return firstErr
+	return nil
 }
 
 func Start(ctx context.Context, opts ...Option) (*Instance, error) {
@@ -199,35 +182,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		}
 	}()
 
-	inst := &Instance{
-		token:       tok.Token,
-		tenantID:    tenantID,
-		apiURL:      apiURL,
-		grpcAddress: grpcBroadcast,
-		interruptCh: interruptCh,
-		cancel:      cancel,
-	}
-
-	if cfg.dashboardEnabled {
-		assetDir := cfg.dashboardDir
-		if assetDir == "" {
-			fetched, fetchErr := ensureDashboardAssets(ctx, cfg.version)
-			if fetchErr != nil {
-				fmt.Fprintf(os.Stderr, "embed: dashboard unavailable, continuing without it: %v\n", fetchErr)
-			} else {
-				assetDir = fetched
-			}
-		}
-
-		if assetDir != "" {
-			if dashErr := inst.startDashboard(cfg, apiURL, os.DirFS(assetDir)); dashErr != nil {
-				_ = inst.Shutdown(context.Background())
-				return nil, dashErr
-			}
-			inst.dashboardURL = fmt.Sprintf("http://localhost:%d", cfg.dashboardPort)
-		}
-	}
-
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", tok.Token)
 	_ = os.Setenv("HATCHET_CLIENT_HOST_PORT", grpcBroadcast)
 	_ = os.Setenv("HATCHET_CLIENT_TENANT_ID", tenantID)
@@ -238,23 +192,26 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	client, err := hatchet.NewClient()
 	if err != nil {
-		_ = inst.Shutdown(context.Background())
+		cancel()
+		close(interruptCh)
 		return nil, fmt.Errorf("could not build embedded client: %w", err)
 	}
 
-	inst.client = client
-
-	dashStatus := "off"
-	if inst.dashboardURL != "" {
-		dashStatus = inst.dashboardURL
-	}
 	fleetStatus := "starting a new fleet"
 	if fleetSize > 0 {
 		fleetStatus = fmt.Sprintf("joining a fleet of %d engine(s)", fleetSize)
 	}
-	fmt.Fprintf(os.Stderr, "embed engine ready: api=%s grpc=%s dashboard=%s | %s\n", apiURL, grpcBroadcast, dashStatus, fleetStatus)
+	fmt.Fprintf(os.Stderr, "embed engine ready: api=%s grpc=%s | %s\n", apiURL, grpcBroadcast, fleetStatus)
 
-	return inst, nil
+	return &Instance{
+		client:      client,
+		token:       tok.Token,
+		tenantID:    tenantID,
+		apiURL:      apiURL,
+		grpcAddress: grpcBroadcast,
+		interruptCh: interruptCh,
+		cancel:      cancel,
+	}, nil
 }
 
 func randomHex(n int) (string, error) {
@@ -263,45 +220,4 @@ func randomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
-}
-
-func (i *Instance) startDashboard(cfg *Config, apiURL string, assets fs.FS) error {
-	apiTarget, err := url.Parse(apiURL)
-	if err != nil {
-		return fmt.Errorf("could not parse api url: %w", err)
-	}
-
-	spa, err := dashboardHandler(assets)
-	if err != nil {
-		return err
-	}
-
-	apiProxy := &httputil.ReverseProxy{
-		Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(apiTarget) },
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api") {
-			apiProxy.ServeHTTP(w, r)
-			return
-		}
-		spa.ServeHTTP(w, r)
-	})
-
-	srv := &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.dashboardPort),
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	i.httpServers = append(i.httpServers, srv)
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Fprintf(os.Stderr, "embed: dashboard server exited: %v\n", err)
-		}
-	}()
-
-	return nil
 }
