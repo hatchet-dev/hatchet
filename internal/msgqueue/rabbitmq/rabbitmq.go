@@ -87,7 +87,7 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 		disableTenantExchangePubs: false,
 		deadLetterBackoff:         5 * time.Second,
 		enableMessageRejection:    false,
-		maxDeathCount:             5,
+		maxDeathCount:             1000,
 	}
 }
 
@@ -804,8 +804,14 @@ func (t *MessageQueueImpl) subscribe(
 					// message was rejected before
 					deathCount := xDeath[0].(amqp.Table)["count"].(int64)
 
+					logger := t.l.Warn()
+					if deathCount > int64(float64(t.maxDeathCount)*0.8) {
+						// only log as error if we've exceeded 80% of the max death count
+						logger = t.l.Error()
+					}
+
 					if deathCount > 5 {
-						t.l.Error().
+						logger.
 							Int64("death_count", deathCount).
 							Str("message_id", msg.ID).
 							Str("tenant_id", msg.TenantID.String()).
