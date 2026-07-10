@@ -220,7 +220,7 @@ func newSPAHandler() (http.Handler, error) {
 			return
 		}
 
-		if base := path.Base(r.URL.Path); strings.Contains(base, "html") || strings.Contains(base, "js") || base == "." || base == "/" {
+		if base := path.Base(r.URL.Path); strings.HasSuffix(base, ".html") || strings.HasSuffix(base, ".js") || base == "." || base == "/" {
 			w.Header().Set("Cache-Control", "no-cache")
 		}
 
