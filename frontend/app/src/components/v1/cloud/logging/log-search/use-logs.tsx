@@ -34,9 +34,7 @@ const getLogLineKey = (log: V1LogLine): string => {
 };
 
 export type V1LogLineLevelIncludingEvictionNotice =
-  | V1LogLineLevel
-  | 'EVICTION_NOTICE'
-  | 'RESTORE_NOTICE';
+  V1LogLineLevel | 'EVICTION_NOTICE' | 'RESTORE_NOTICE';
 
 export interface LogLine {
   timestamp?: string;

@@ -23,6 +23,7 @@ import {
 import { usePendingInvites } from '@/hooks/use-pending-invites';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant } from '@/lib/api';
+import { formatMemberRole } from '@/pages/main/v1/tenant-settings/components/member-primitives';
 import { useUserUniverse } from '@/providers/user-universe';
 import { CheckIcon, Cross2Icon } from '@radix-ui/react-icons';
 import { useEffect, useMemo, useState } from 'react';
@@ -72,12 +73,16 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     }
   }, [isOpen, invalidatePendingInvites, reset]);
 
-  // Close immediately if opened with stale data that resolves to 0 invites
+  // Close immediately if opened with stale data that resolves to 0 invites.
+  // Gate on `!isFetching`: while a refetch is in flight react-query retains the
+  // previous (possibly stale count=0) data, and closing on it would fight
+  // whatever opened the modal — an open/close loop.
   useEffect(() => {
     if (
       isOpen &&
       phase === 'invites' &&
       pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
       totalInviteCount === 0 &&
       processedIds.size === 0
     ) {
@@ -87,6 +92,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     isOpen,
     phase,
     pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
     totalInviteCount,
     processedIds.size,
     onClose,
@@ -220,6 +226,20 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
                         </TableCell>
                         <TableCell className="font-medium">
                           {invite.organizationName ?? '—'}
+                          {invite.tenants && invite.tenants.length > 0 && (
+                            <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                              Includes access to:{' '}
+                              {invite.tenants
+                                .slice(0, 3)
+                                .map(
+                                  (tenant) =>
+                                    `${tenant.tenantName} (${formatMemberRole(tenant.tenantRole)})`,
+                                )
+                                .join(', ')}
+                              {invite.tenants.length > 3 &&
+                                ` and ${invite.tenants.length - 3} more`}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {invite.role.toLowerCase()}

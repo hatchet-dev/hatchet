@@ -50,6 +50,8 @@ export function LearnWorkflowSection({
   onFinish,
   installMethod,
   onInstallMethodChange,
+  authDisabled,
+  authDisabledToken,
 }: {
   tenantName?: string;
   selectedTab: WorkflowStepKey;
@@ -69,6 +71,8 @@ export function LearnWorkflowSection({
   onFinish: () => void;
   installMethod: InstallMethod;
   onInstallMethodChange: (installMethod: InstallMethod) => void;
+  authDisabled?: boolean;
+  authDisabledToken?: string;
 }) {
   const profileName = tenantName?.trim() || 'local';
   const escapeForDoubleQuotes = (value: string) =>
@@ -167,7 +171,37 @@ export function LearnWorkflowSection({
     },
     {
       ...workflowStepOptions.profile,
-      content: (
+      content: authDisabled ? (
+        <>
+          <p className="text-sm">
+            Authentication is disabled, but workers still authenticate over gRPC
+            with an API token.
+          </p>
+          <p className="text-sm">
+            This instance ships with a built-in token for the default tenant.
+            Add it to a CLI profile:
+          </p>
+          <CodeHighlighter
+            className="bg-muted/20 ring-1 ring-border/50 ring-inset px-1"
+            code={`hatchet profile add --name "${escapeForDoubleQuotes(
+              profileName,
+            )}" --token "${authDisabledToken ?? '<token>'}"`}
+            language="shell"
+            copy
+          />
+          <Button
+            variant="outline"
+            size="default"
+            className="w-fit gap-2 bg-muted/70"
+            onClick={() =>
+              onSelectedTabChange(workflowStepOptions.quickstart.value)
+            }
+          >
+            Continue
+            <ChevronRightIcon className="size-3 text-foreground/50" />
+          </Button>
+        </>
+      ) : (
         <>
           <p className="text-sm">
             Add a Hatchet CLI profile using an API token.

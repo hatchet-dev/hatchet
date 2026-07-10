@@ -7,6 +7,15 @@ import { cn } from '@/lib/utils';
 import { Link, useMatchRoute } from '@tanstack/react-router';
 import React from 'react';
 
+// An extra route pattern that should also mark a sidebar item as active, used
+// when an item's active state spans multiple route subtrees (e.g. "Settings"
+// covering both tenant and organization settings).
+export type SideNavActiveMatch = {
+  to: string;
+  params?: Record<string, string>;
+  fuzzy?: boolean;
+};
+
 type SidebarButtonPrimaryLinkProps = {
   onNavLinkClick: () => void;
   to: string;
@@ -14,6 +23,7 @@ type SidebarButtonPrimaryLinkProps = {
   name: string;
   icon: React.ReactNode;
   prefix?: string;
+  additionalActiveMatches?: SideNavActiveMatch[];
   collapsibleChildren?: React.ReactNode[];
 };
 
@@ -69,20 +79,32 @@ export function SidebarButtonPrimary(
     name,
     icon,
     prefix,
+    additionalActiveMatches = [],
     collapsibleChildren = [],
   } = props;
 
   // `to` (and `prefix`) are TanStack route templates (e.g. `/tenants/$tenant/...`).
   // Use the router matcher instead of raw string comparisons against `location.pathname`.
+  const additionalActive = additionalActiveMatches.some((match) =>
+    Boolean(
+      matchRoute({ to: match.to, params: match.params, fuzzy: match.fuzzy }),
+    ),
+  );
+
   const open =
     collapsibleChildren.length > 0
-      ? prefix
-        ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
-        : Boolean(matchRoute({ to, params, fuzzy: true }))
+      ? (prefix
+          ? Boolean(matchRoute({ to: prefix, params, fuzzy: true }))
+          : Boolean(matchRoute({ to, params, fuzzy: true }))) ||
+        additionalActive
       : false;
 
   const selected =
-    collapsibleChildren.length > 0 ? open : Boolean(matchRoute({ to, params }));
+    collapsibleChildren.length > 0
+      ? open
+      : Boolean(
+          matchRoute({ to: prefix ?? to, params, fuzzy: Boolean(prefix) }),
+        ) || additionalActive;
 
   const primaryLink = (
     <Link to={to} params={params} preload={false} onClick={onNavLinkClick}>

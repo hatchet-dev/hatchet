@@ -28,6 +28,10 @@ export function TenantResourceLimitsTable({
   const { isCloudEnabled } = useCloud();
   const resourceLimitColumns = useResourceLimitColumns();
 
+  // The SERVER_ENFORCE_LIMITS hint and engine-configuration docs only apply to
+  // self-hosted deployments — on cloud, limits come from the billing plan.
+  const showSelfHostDocs = showDocsOnEmpty && !isCloudEnabled;
+
   const billingSyncRefetchInterval = isCloudEnabled
     ? BILLING_SYNC_REFETCH_INTERVAL_MS
     : false;
@@ -66,17 +70,17 @@ export function TenantResourceLimitsTable({
         <EmptyState
           title="No resource limits configured"
           description={
-            showDocsOnEmpty
+            showSelfHostDocs
               ? 'Resource limits cap the number of active runs and tasks in your tenant. Set SERVER_ENFORCE_LIMITS=true to enable them.'
               : 'Resource limits cap the number of active runs and tasks in your tenant.'
           }
           docPage={
-            showDocsOnEmpty
+            showSelfHostDocs
               ? docsPages['self-hosting']['configuration-options']
               : undefined
           }
           docLabel={
-            showDocsOnEmpty
+            showSelfHostDocs
               ? 'Learn about engine configuration options'
               : undefined
           }

@@ -138,17 +138,32 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 
 	defer s.replenishMu.Unlock()
 
+	// NOTE: the span starts before the actionsMu acquisition so that lock wait time is
+	// visible in the trace; the acquire-actions-mu child span isolates that wait.
+	ctx, span := telemetry.NewSpan(ctx, "replenish")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: s.tenantId.String()},
+		telemetry.AttributeKV{Key: "replenish.must_replenish", Value: mustReplenish},
+	)
+
 	// we get a lock on the actions mutexes here because we want to acquire the locks in the same order
 	// as the tryAssignBatch function. otherwise, we could deadlock when tryAssignBatch has a lock
 	// on the actionsMu and tries to acquire the unackedMu lock.
 	// additionally, we have to acquire a lock this early (before the database read) to prevent slots
 	// from being assigned while we read slots from the database.
+	_, lockSpan := telemetry.NewSpan(ctx, "replenish-acquire-actions-mu")
+
 	if mustReplenish {
 		s.actionsMu.Lock()
 	} else if ok := s.actionsMu.TryLock(); !ok {
+		lockSpan.End()
 		s.l.Debug().Ctx(ctx).Msg("skipping replenish because we can't acquire the actions mutex")
 		return nil
 	}
+
+	lockSpan.End()
 
 	defer s.actionsMu.Unlock()
 
@@ -164,11 +179,18 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	start := time.Now()
 	checkpoint := start
 
-	workersToActiveActions, err := s.repo.ListActionsForWorkers(ctx, s.tenantId, workerIds)
+	listActionsCtx, listActionsSpan := telemetry.NewSpan(ctx, "replenish-list-actions-for-workers")
+	telemetry.WithAttributes(listActionsSpan, telemetry.AttributeKV{Key: "replenish.worker_count", Value: len(workerIds)})
+
+	workersToActiveActions, err := s.repo.ListActionsForWorkers(listActionsCtx, s.tenantId, workerIds)
 
 	if err != nil {
+		listActionsSpan.End()
 		return err
 	}
+
+	telemetry.WithAttributes(listActionsSpan, telemetry.AttributeKV{Key: "replenish.worker_action_rows", Value: len(workersToActiveActions)})
+	listActionsSpan.End()
 
 	if sinceStart := time.Since(start); sinceStart > 100*time.Millisecond {
 		s.l.Warn().Ctx(ctx).Msgf("listing actions for workers took %s for %d workers", time.Since(checkpoint), len(workerIds))
@@ -177,6 +199,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	checkpoint = time.Now()
+
+	_, computeActionsSpan := telemetry.NewSpan(ctx, "replenish-compute-actions-to-replenish")
 
 	actionsToWorkerIds := make(map[string][]uuid.UUID)
 	workerIdsToActions := make(map[uuid.UUID][]string)
@@ -245,22 +269,48 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	// if there are any workers which have additional actions not in the actionsToReplenish map, we need
-	// to add them to the actionsToReplenish map
+	// to add them to the actionsToReplenish map. This is a transitive closure over "workers of actions
+	// being replenished", computed with an explicit worklist so that newly added actions also have their
+	// workers visited. each worker is visited at most once, since a single visit adds all of its actions;
+	// this keeps the closure O(workers x actions-per-worker).
+	actionIdQueue := make([]string, 0, len(actionsToReplenish))
+
 	for actionId := range actionsToReplenish {
-		for _, workerId := range actionsToWorkerIds[actionId] {
-			for _, actions := range workerIdsToActions[workerId] {
-				if _, ok := actionsToReplenish[actions]; !ok {
-					actionsToReplenish[actions] = s.actions[actions]
+		actionIdQueue = append(actionIdQueue, actionId)
+	}
+
+	visitedWorkers := make(map[uuid.UUID]struct{})
+
+	for i := 0; i < len(actionIdQueue); i++ {
+		for _, workerId := range actionsToWorkerIds[actionIdQueue[i]] {
+			if _, visited := visitedWorkers[workerId]; visited {
+				continue
+			}
+
+			visitedWorkers[workerId] = struct{}{}
+
+			for _, otherActionId := range workerIdsToActions[workerId] {
+				if _, ok := actionsToReplenish[otherActionId]; !ok {
+					actionsToReplenish[otherActionId] = s.actions[otherActionId]
+					actionIdQueue = append(actionIdQueue, otherActionId)
 				}
 			}
 		}
 	}
 
+	telemetry.WithAttributes(computeActionsSpan, telemetry.AttributeKV{Key: "replenish.actions_to_replenish", Value: len(actionsToReplenish)})
+	computeActionsSpan.End()
+
 	s.l.Debug().Ctx(ctx).Msgf("determining which actions to replenish took %s", time.Since(checkpoint))
 	checkpoint = time.Now()
 
 	// FUNCTION 2: for each action which should be replenished, load the available slots
-	workerSlotConfigs, err := s.repo.ListWorkerSlotConfigs(ctx, s.tenantId, workerIds)
+	listConfigsCtx, listConfigsSpan := telemetry.NewSpan(ctx, "replenish-list-worker-slot-configs")
+
+	workerSlotConfigs, err := s.repo.ListWorkerSlotConfigs(listConfigsCtx, s.tenantId, workerIds)
+
+	listConfigsSpan.End()
+
 	if err != nil {
 		return err
 	}
@@ -296,12 +346,17 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		}
 	}
 
+	_, actionLocksSpan := telemetry.NewSpan(ctx, "replenish-acquire-action-locks")
+	telemetry.WithAttributes(actionLocksSpan, telemetry.AttributeKV{Key: "replenish.actions_to_lock", Value: len(actionsToLock)})
+
 	orderedLock(actionsToLock)
 	unlock := orderedUnlock(actionsToLock)
 	defer unlock()
 
 	s.unackedMu.Lock()
 	defer s.unackedMu.Unlock()
+
+	actionLocksSpan.End()
 
 	availableSlotsByType := make(map[string]map[uuid.UUID]int, len(slotTypeToWorkerIds))
 
@@ -327,11 +382,16 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			workerUUIDs = append(workerUUIDs, workerId)
 		}
 
-		availableSlots, err := s.repo.ListAvailableSlotsForWorkersAndTypes(ctx, s.tenantId, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams{
+		listSlotsCtx, listSlotsSpan := telemetry.NewSpan(ctx, "replenish-list-available-slots")
+
+		availableSlots, err := s.repo.ListAvailableSlotsForWorkersAndTypes(listSlotsCtx, s.tenantId, sqlcv1.ListAvailableSlotsForWorkersAndTypesParams{
 			Tenantid:  s.tenantId,
 			Workerids: workerUUIDs,
 			Slottypes: slotTypes,
 		})
+
+		listSlotsSpan.End()
+
 		if err != nil {
 			return err
 		}
@@ -368,6 +428,8 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	// FUNCTION 4: write the new slots to the scheduler and clean up expired slots
+	_, buildSlotsSpan := telemetry.NewSpan(ctx, "replenish-build-slots")
+
 	actionsToNewSlots := make(map[string][]*slot)
 	actionsToTotalSlots := make(map[string]int)
 	actionsToSlotsByType := make(map[string]map[string]map[uuid.UUID][]*slot)
@@ -463,14 +525,38 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 		s.l.Debug().Ctx(ctx).Msgf("before cleanup, action %s has %d slots", actionId, len(newSlots))
 	}
 
+	telemetry.WithAttributes(buildSlotsSpan, telemetry.AttributeKV{Key: "replenish.actions_with_new_slots", Value: len(actionsToNewSlots)})
+	buildSlotsSpan.End()
+
 	// second pass: clean up expired slots
+	_, cleanupSpan := telemetry.NewSpan(ctx, "replenish-cleanup-expired-slots")
+	defer cleanupSpan.End()
+
+	cleanupNow := time.Now()
+
 	for _, storedAction := range actionsToReplenish {
+		hasSingleSlotExpired := false
+
+		for i := range storedAction.slots {
+			if storedAction.slots[i].expiredAt(cleanupNow) {
+				hasSingleSlotExpired = true
+				break
+			}
+		}
+
+		// NOTE: actions replenished in the first pass were just given brand-new slots,
+		// so in the common case nothing is expired and we keep the existing slices and
+		// maps untouched instead of reallocating them on every replenish cycle.
+		if !hasSingleSlotExpired {
+			continue
+		}
+
 		newSlots := make([]*slot, 0, len(storedAction.slots))
 
 		for i := range storedAction.slots {
 			slotItem := storedAction.slots[i]
 
-			if !slotItem.expired() {
+			if !slotItem.expiredAt(cleanupNow) {
 				newSlots = append(newSlots, slotItem)
 			}
 		}
