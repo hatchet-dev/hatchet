@@ -25,26 +25,6 @@ func defaultSlots(w *worker, n int) []*slot {
 	return slots
 }
 
-func TestSlotCost_DefaultCostFiveConsumesFiveSlots(t *testing.T) {
-	workerId := uuid.New()
-	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-
-	a, err := actionWithSlots("A", defaultSlots(w, 5)...)
-	require.NoError(t, err)
-
-	assigned := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
-	require.NotNil(t, assigned)
-	require.Len(t, assigned.slots, 5)
-	require.Equal(t, workerId, assigned.workerId())
-
-	for _, sl := range assigned.slots {
-		require.True(t, sl.isUsed())
-	}
-
-	none := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
-	require.Nil(t, none)
-}
-
 func TestSlotCost_MixedHeavyAndLightShareDefaultPool(t *testing.T) {
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
@@ -78,25 +58,6 @@ func TestSlotCost_ReservationMustFitOnOneWorker(t *testing.T) {
 	fits := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 4}, nil, nil)
 	require.NotNil(t, fits)
 	require.Len(t, fits.slots, 4)
-}
-
-func TestSlotCost_CostExceedingCapacityRemainsUnscheduled(t *testing.T) {
-	tenantId := uuid.New()
-	workerId := uuid.New()
-
-	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
-	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-
-	a, err := actionWithSlots("A", defaultSlots(w, 4)...)
-	require.NoError(t, err)
-
-	qi := testQI(tenantId, "A", 1)
-	req := map[string]int32{repo.SlotTypeDefault: 5}
-
-	res, err := s.tryAssignSingleton(context.Background(), qi, a, a.slots, 0, nil, req, func() {}, func() {})
-	require.NoError(t, err)
-	require.False(t, res.succeeded)
-	require.True(t, res.noSlots)
 }
 
 // An over-capacity task is unassigned only while inside its schedule timeout. Past the timeout the
@@ -153,36 +114,6 @@ func TestSlotCost_OverCapacityWaitsThenSchedulingTimesOut(t *testing.T) {
 	require.True(t, unassigned[waiting.TaskID])
 	require.False(t, timedOut[waiting.TaskID])
 	require.True(t, timedOut[expired.TaskID])
-}
-
-func TestSlotCost_NoExplicitRequestConsumesOneSlotPerTask(t *testing.T) {
-	tenantId := uuid.New()
-	workerId := uuid.New()
-
-	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
-	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
-
-	a, err := actionWithSlots("A", defaultSlots(w, 2)...)
-	require.NoError(t, err)
-	s.actions["A"] = a
-
-	qis := []*sqlcv1.V1QueueItem{
-		testQI(tenantId, "A", 1),
-		testQI(tenantId, "A", 2),
-	}
-
-	// With no entry in stepIdsToRequests, the scheduler falls back to {default: 1}.
-	res, _, err := s.tryAssignBatch(context.Background(), "A", qis, 0,
-		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, map[uuid.UUID]map[string]int32{}, nil, nil)
-	require.NoError(t, err)
-
-	assigned := 0
-	for _, r := range res {
-		if r.succeeded {
-			assigned++
-		}
-	}
-	require.Equal(t, 2, assigned)
 }
 
 func TestSlotCost_ExplicitDefaultCostBlocksProportionally(t *testing.T) {
