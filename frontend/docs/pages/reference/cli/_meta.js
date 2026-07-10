@@ -12,6 +12,11 @@ export default {
   "running-hatchet-locally": "Running Hatchet Locally",
   "running-workers-locally": "Running Workers Locally",
   "triggering-workflows": "Triggering Workflows",
+  "--dashboard": {
+    title: "Dashboard",
+    type: "separator",
+  },
+  ui: "Serving the Dashboard UI",
   "--tui": {
     title: "TUI",
     type: "separator",

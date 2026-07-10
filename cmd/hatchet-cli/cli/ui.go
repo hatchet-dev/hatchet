@@ -53,8 +53,7 @@ func runUI(cmd *cobra.Command) {
 	noOpen, _ := cmd.Flags().GetBool("no-open")
 
 	if !ui.Bundled() {
-		configcli.Logger.Fatal("This CLI build does not include the dashboard UI. " +
-			"Use an official release binary, or run 'task build-cli' to build one with the UI embedded.")
+		configcli.Logger.Fatal("This CLI build does not include the dashboard UI.")
 	}
 
 	target, insecureSkipVerify, profileName := resolveUITarget(apiURLFlag, profileFlag)
