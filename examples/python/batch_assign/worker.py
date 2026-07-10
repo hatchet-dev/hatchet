@@ -145,7 +145,7 @@ async def batch_broadcast(
     broadcast_output=True,
 )
 async def batch_cancel(_: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
-    context.cancel()
+    await context.aio_cancel()
     return {}
 
 

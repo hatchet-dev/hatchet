@@ -760,11 +760,9 @@ DROP TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runti
 DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- Drop batch buffer table and indexes
-DROP INDEX v1_batched_queue_item_step_batch_id_idx;
 DROP TABLE v1_batched_queue_item;
 
 -- Drop v1 batch runtime table
-DROP INDEX v1_batch_runtime_key_idx;
 DROP TABLE v1_batch_runtime;
 
 -- Drop runtime batch metadata

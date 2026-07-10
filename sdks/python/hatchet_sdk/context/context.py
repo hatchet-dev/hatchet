@@ -444,8 +444,6 @@ class Context:
         """
         logger.debug("cancelling step...")
         if self._action.batch_items:
-            # Note: uses the raising (non-swallowing) variant directly, matching the
-            # previous REST bulk_cancel behavior of propagating failures to the caller.
             await self._dispatcher_client._try_aio_send_batch_action_event(
                 self._action,
                 STEP_EVENT_TYPE_CANCELLED,
