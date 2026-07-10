@@ -135,8 +135,6 @@ func (d *assignmentRepository) ListActionsForWorkers(ctx context.Context, tenant
 		actions := hashToActions[key]
 
 		if len(actions) == 0 {
-			// preserve the LEFT JOIN behavior of the original query: live
-			// workers with no actions still produce a row
 			rows = append(rows, &sqlcv1.ListActionsForWorkersRow{
 				WorkerId: w.ID,
 				ActionId: pgtype.Text{},
