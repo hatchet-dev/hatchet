@@ -1,4 +1,17 @@
+import { WorkflowDeclaration } from '../../declaration';
 import { mapSlotRequestsPb } from './worker-internal';
+
+// Never called. It exists so tsc checks that durable task options reject slotCost; if the
+// omission regresses, the @ts-expect-error goes unused and tsc fails.
+export function durableTaskRejectsSlotCost() {
+  const wf = new WorkflowDeclaration({ name: 'slot-cost-type-check' });
+  wf.durableTask({
+    name: 'd',
+    // @ts-expect-error slotCost is not available on durable tasks
+    slotCost: 1,
+    fn: async () => undefined,
+  });
+}
 
 describe('mapSlotRequestsPb', () => {
   it('maps a slotCost to a request against the default pool', () => {

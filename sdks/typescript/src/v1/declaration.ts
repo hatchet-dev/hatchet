@@ -1032,7 +1032,7 @@ export class WorkflowDeclaration<
         ? FnReturn
         : never,
   >(
-    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
+    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn' | 'slotCost'> & {
       name: Name;
       fn: Fn;
     }

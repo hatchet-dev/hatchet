@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `slotCost` to task options, so a task that needs more memory or CPU can consume more than one worker slot and a worker runs fewer of them at once. Durable tasks ignore it, and on older engines it has no effect. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+- Added `slotCost` to task options, so a task that needs more memory or CPU can consume more than one worker slot and a worker runs fewer of them at once. Durable tasks do not accept it, and on older engines it has no effect. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
 
 ## [1.24.3] - 2026-06-17
 
