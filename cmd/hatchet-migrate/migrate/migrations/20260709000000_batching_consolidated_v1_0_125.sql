@@ -1,10 +1,10 @@
 -- +goose Up
 -- +goose StatementBegin
 -- v0 schema alignment
-ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
+ALTER TYPE "LeaseKind" ADD VALUE 'BATCH';
 
 -- v0 "Step" batching configuration (auxiliary table)
-CREATE TABLE IF NOT EXISTS "StepBatchConfig" (
+CREATE TABLE "StepBatchConfig" (
     "stepId" UUID NOT NULL,
     "batchMaxSize" INTEGER NOT NULL,
     "batchMaxInterval" INTEGER,
@@ -85,11 +85,12 @@ CREATE INDEX v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
 
 -- OLAP enum additions for batching lifecycle events
-ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_BUFFERED';
-ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WAITING_FOR_BATCH';
-ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_FLUSHED';
+ALTER TYPE v1_event_type_olap ADD VALUE 'BATCH_BUFFERED';
+ALTER TYPE v1_event_type_olap ADD VALUE 'WAITING_FOR_BATCH';
+ALTER TYPE v1_event_type_olap ADD VALUE 'BATCH_FLUSHED';
 -- +goose StatementEnd
 
+-- +goose Down
 -- +goose StatementBegin
 -- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql (batch_key propagation)
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
@@ -750,7 +751,7 @@ AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
-ALTER TABLE "StepBatchConfig" ADD COLUMN IF NOT EXISTS "broadcastOutput" BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE "StepBatchConfig" ADD COLUMN "broadcastOutput" BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- +goose StatementEnd
 
