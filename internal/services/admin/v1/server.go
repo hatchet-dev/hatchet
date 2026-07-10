@@ -281,6 +281,16 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
+	for _, task := range tasks {
+		if !task.IsDagOrchestrator {
+			continue
+		}
+
+		if _, err := a.repo.DurableEvents().HandleBranchForReplay(ctx, tenant.ID, task); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to branch durable task for replay: %v", err)
+		}
+	}
+
 	// Deduplicate based on TaskIdInsertedAtRetryCountWithExternalId
 	existingReplays := make(map[tasktypes.TaskIdInsertedAtRetryCountWithExternalId]bool)
 

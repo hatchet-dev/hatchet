@@ -61,6 +61,11 @@ type DAGStepTriggerResult struct {
 	NodeId                int64
 	BranchId              int64
 	WorkflowRunExternalId uuid.UUID
+
+	IsSatisfied   bool
+	ResultPayload []byte
+	IsFailure     bool
+	ErrorMessage  *string
 }
 
 type TaskEventWriter interface {

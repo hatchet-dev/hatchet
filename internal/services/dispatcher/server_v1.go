@@ -1288,5 +1288,9 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		NodeId:                entry.NodeId,
 		BranchId:              entry.BranchId,
 		WorkflowRunExternalId: entry.WorkflowRunExternalId,
+		IsSatisfied:           entry.IsSatisfied,
+		ResultPayload:         entry.ResultPayload,
+		IsFailure:             entry.ChildTaskIsFailure,
+		ErrorMessage:          entry.ChildTaskErrorMessage,
 	}, nil
 }

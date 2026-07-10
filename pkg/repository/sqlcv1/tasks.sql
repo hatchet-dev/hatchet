@@ -184,7 +184,8 @@ WITH lookup_rows AS (
         t.step_readable_id,
         l.external_id AS workflow_run_external_id,
         t.workflow_id,
-        t.step_id
+        t.step_id,
+        t.is_dag_orchestrator
     FROM
         lookup_rows l
     JOIN
@@ -210,7 +211,8 @@ SELECT
     t.step_readable_id,
     t.external_id AS workflow_run_external_id,
     t.workflow_id,
-    t.step_id
+    t.step_id,
+    t.is_dag_orchestrator
 FROM
     lookup_rows l
 JOIN

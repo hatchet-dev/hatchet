@@ -139,6 +139,7 @@ type NodeIdBranchIdTuple struct {
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
+	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
@@ -1016,6 +1017,57 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	return results, nil
 }
 
+func (r *durableEventsRepository) invalidateOrphanedChildDedupes(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	logFile *sqlcv1.V1DurableEventLogFile,
+	nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint,
+	triggerOpts []*WorkflowNameTriggerOpts,
+) error {
+	skipChildIds := make([]uuid.UUID, 0)
+
+	for _, to := range triggerOpts {
+		if to.ShouldSkip {
+			skipChildIds = append(skipChildIds, to.ExternalId)
+		}
+	}
+
+	if len(skipChildIds) == 0 {
+		return nil
+	}
+
+	rows, err := r.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
+		Durabletaskid:         logFile.DurableTaskID,
+		Durabletaskinsertedat: logFile.DurableTaskInsertedAt,
+		Childtaskexternalids:  skipChildIds,
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to get log entries for deduped child runs: %w", err)
+	}
+
+	childOnActiveBranch := make(map[uuid.UUID]bool)
+
+	for _, row := range rows {
+		if row.ChildTaskExternalID == nil {
+			continue
+		}
+
+		if resolveBranchForNode(row.NodeID, logFile.LatestBranchID, nextBranchIdToBranchPoint) == row.BranchID {
+			childOnActiveBranch[*row.ChildTaskExternalID] = true
+		}
+	}
+
+	for _, to := range triggerOpts {
+		if to.ShouldSkip && !childOnActiveBranch[to.ExternalId] {
+			to.ShouldSkip = false
+			to.ExternalId = uuid.New()
+		}
+	}
+
+	return nil
+}
+
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
@@ -1066,6 +1118,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	case sqlcv1.V1DurableEventLogKindRUN:
 		if populateErr := r.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts.TriggerRuns.TriggerOpts); populateErr != nil {
 			return nil, fmt.Errorf("failed to populate external ids for workflow: %w", populateErr)
+		}
+
+		if err := r.invalidateOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts); err != nil {
+			return nil, err
 		}
 
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
@@ -1728,6 +1784,23 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 		BranchId:     newBranchId,
 		EventLogFile: logFile,
 	}, nil
+}
+
+func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error) {
+	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, r.pool, sqlcv1.GetDurableTaskLogFilesParams{
+		Durabletaskids:         []int64{task.ID},
+		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:              []uuid.UUID{tenantId},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get log file for replay branch: %w", err)
+	}
+	if len(logFiles) == 0 {
+		return nil, nil
+	}
+
+	return r.HandleBranch(ctx, tenantId, 0, logFiles[0].LatestBranchID, task)
 }
 
 func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error) {

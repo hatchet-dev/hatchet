@@ -117,6 +117,10 @@ func dagDurableTask(
 			return err
 		}
 
+		if d.isDone() {
+			break
+		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -243,6 +247,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			t.isCancelled = true
 		} else if skip {
 			t.isSkipped = true
+			t.isCompleted = true
 			t.output = map[string]interface{}{"skipped": true}
 		}
 
@@ -250,6 +255,14 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 		t.branchId = result.BranchId
 		t.workflowRunExternalId = &result.WorkflowRunExternalId
 		t.isTriggered = true
+
+		if result.IsSatisfied {
+			errorMessage := ""
+			if result.ErrorMessage != nil {
+				errorMessage = *result.ErrorMessage
+			}
+			t.applyCompletion(result.IsFailure, errorMessage, result.ResultPayload)
+		}
 	}
 
 	return nil
@@ -311,29 +324,33 @@ func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
 				continue
 			}
 
-			t.isCompleted = true
-
-			if m.EntryCompleted.GetIsFailure() && !t.isCancelled {
-				if m.EntryCompleted.GetErrorMessage() == repository.TaskCancelledErrorMessage {
-					t.isCancelled = true
-				} else {
-					t.isFailed = true
-					t.errorMessage = m.EntryCompleted.GetErrorMessage()
-				}
-			} else if payload := m.EntryCompleted.GetPayload(); len(payload) > 0 {
-				outputData := make(map[string]interface{})
-				if err := json.Unmarshal(payload, &outputData); err == nil {
-					t.output = outputData
-					if skipped, ok := outputData["skipped"].(bool); ok && skipped {
-						t.isSkipped = true
-					}
-					if cancelled, ok := outputData["cancelled"].(bool); ok && cancelled {
-						t.isCancelled = true
-					}
-				}
-			}
+			t.applyCompletion(m.EntryCompleted.GetIsFailure(), m.EntryCompleted.GetErrorMessage(), m.EntryCompleted.GetPayload())
 
 			return
+		}
+	}
+}
+
+func (t *task) applyCompletion(isFailure bool, errorMessage string, payload []byte) {
+	t.isCompleted = true
+
+	if isFailure && !t.isCancelled {
+		if errorMessage == repository.TaskCancelledErrorMessage {
+			t.isCancelled = true
+		} else {
+			t.isFailed = true
+			t.errorMessage = errorMessage
+		}
+	} else if len(payload) > 0 {
+		outputData := make(map[string]interface{})
+		if err := json.Unmarshal(payload, &outputData); err == nil {
+			t.output = outputData
+			if skipped, ok := outputData["skipped"].(bool); ok && skipped {
+				t.isSkipped = true
+			}
+			if cancelled, ok := outputData["cancelled"].(bool); ok && cancelled {
+				t.isCancelled = true
+			}
 		}
 	}
 }
