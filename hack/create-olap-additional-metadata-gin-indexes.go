@@ -21,17 +21,14 @@ func main() {
 }
 
 func run() error {
-	dsn := flag.String("database-url", "", "Postgres URL for the OLAP database")
+	dsn := flag.String("database-url", "", "Postgres URL for the Timescale OLAP database")
 	flag.Parse()
 
 	if *dsn == "" {
 		*dsn = os.Getenv("CLOUD_TIMESCALE_V1_DATABASE_URL")
 	}
 	if *dsn == "" {
-		*dsn = os.Getenv("DATABASE_URL")
-	}
-	if *dsn == "" {
-		return fmt.Errorf("set -database-url, CLOUD_TIMESCALE_V1_DATABASE_URL, or DATABASE_URL")
+		return fmt.Errorf("set -database-url or CLOUD_TIMESCALE_V1_DATABASE_URL")
 	}
 
 	db, err := sql.Open("pgx", *dsn)
