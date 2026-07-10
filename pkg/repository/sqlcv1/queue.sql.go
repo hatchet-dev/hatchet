@@ -474,10 +474,6 @@ type ListLiveWorkerActionHashesRow struct {
 	ActionHash []byte    `json:"actionHash"`
 }
 
-// Cheap liveness + actionHash lookup used by the assignment repository to
-// serve worker->action mappings from the per-hash cache. Only workers whose
-// actionHash has not been seen before require hitting the join tables via
-// ListWorkerActionSets.
 func (q *Queries) ListLiveWorkerActionHashes(ctx context.Context, db DBTX, arg ListLiveWorkerActionHashesParams) ([]*ListLiveWorkerActionHashesRow, error) {
 	rows, err := db.Query(ctx, listLiveWorkerActionHashes, arg.Tenantid, arg.Workerids)
 	if err != nil {
@@ -706,11 +702,6 @@ type ListWorkerActionSetsRow struct {
 	ActionId   pgtype.Text `json:"actionId"`
 }
 
-// Returns (actionHash, actionId) rows describing the action sets of the given
-// workers. Callers pass one worker per distinct actionHash, since all workers
-// sharing a hash have identical action sets by construction. The CTEs are
-// materialized to force a hash join against the tenant's actions instead of a
-// per-pair index lookup.
 func (q *Queries) ListWorkerActionSets(ctx context.Context, db DBTX, arg ListWorkerActionSetsParams) ([]*ListWorkerActionSetsRow, error) {
 	rows, err := db.Query(ctx, listWorkerActionSets, arg.Tenantid, arg.Workerids)
 	if err != nil {
