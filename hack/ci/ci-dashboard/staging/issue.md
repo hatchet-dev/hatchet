@@ -1,51 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-09T07:06:46Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-10T07:08:13Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 83% (1748/2113) · main: 66% (76/116)
+**Gating-CI pass rate** — PR: 82% (1780/2171) · main: 64% (77/120)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [25, 26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  x-axis [26, 27, 28, 29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [79, 87, 79, 100, 79, 82, 78, 85, 76, 95, 85, 81, 85, 86, 90]
-  line "main" [40, 82, 100, 100, 90, 50, 67, 53, 67, 67, 67, 100, 67, 60, 60]
+  line "CI" [87, 79, 100, 79, 82, 78, 85, 76, 95, 85, 81, 84, 86, 76]
+  line "main" [82, 100, 100, 90, 50, 67, 53, 67, 67, 67, 100, 67, 60, 36]
 ```
 
-_X-axis = day of month (Jun 25 → Jul 09). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jun 26 → Jul 09). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `test-templates` | cli-e2e-tests | 5 | 0 | 6 | 83% | flaky | main + PR | **timeout** — CLI quickstart template E2E suite exceeded time budget (524s) |
-| 2 | `lint` | frontend / app | 5 | 0 | 37 | 14% | flaky | PR | **infra/CI** — Frontend lint: prettier formatting drift on settings nav tabs |
-| 3 | `integration` | test | 5 | 0 | 38 | 13% | flaky | PR | **product bug** — Scheduling integration: is_dag_orchestrator NOT NULL constraint on v1_task partition |
-| 4 | `test` | python | 4 | 0 | 36 | 11% | flaky | main + PR | **infra/CI** — Python test job: poetry.lock out of sync with pyproject.toml |
-| 5 | `old-engine-new-sdk` | python | 4 | 0 | 36 | 11% | flaky | PR | **infra/CI** — Python old-engine-new-sdk: poetry.lock out of sync with pyproject.toml |
-| 6 | `generate` | test | 4 | 0 | 38 | 10% | flaky | PR | **infra/CI** — Codegen check-for-diff: generated Python examples differ from committed files |
-| 7 | `unit` | test | 4 | 0 | 38 | 10% | flaky | main + PR | **flaky test** — TestMsgIdBufferMemoryLeak intermittently fails under load |
-| 8 | `e2e-pgmq` | test | 3 | 0 | 38 | 8% | flaky | main + PR | **flaky test** — TestMultipleEvictionCycle e2e-pgmq eviction timing race |
-| 9 | `test` | ruby | 2 | 0 | 11 | 18% | flaky | PR | **data/env** — Ruby integration tests skip when no recent workflow runs exist in test namespace |
-| 10 | `old-engine-new-sdk` | ruby | 2 | 0 | 11 | 18% | flaky | PR | **infra/CI** — Ruby examples Gemfile.lock frozen; gemspec changed without lockfile update on old-engine-new-sdk job |
+| 1 | `e2e` | test | 12 | 0 | 40 | 30% | flaky | main + PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout during durable eviction replay |
+| 2 | `unit` | test | 10 | 1 | 40 | 25% | flaky | main + PR | **flaky test** — scheduler latency threshold flake: max 2.147s vs 2.1s budget on replenish timeouts |
+| 3 | `test-templates` | cli-e2e-tests | 10 | 0 | 13 | 77% | flaky | main + PR | **timeout** — CLI quickstart template E2E suite exceeds time budget (551s) |
+| 4 | `e2e-pgmq` | test | 9 | 0 | 40 | 22% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout during durable eviction replay |
+| 5 | `lint` | lint all | 6 | 0 | 36 | 17% | flaky | PR | **infra/CI** — pre-commit sync-python/typescript-changelog hooks leave unstaged changelog diffs |
+| 6 | `generate` | test | 6 | 0 | 40 | 15% | flaky | PR | **infra/CI** — generate check-for-diff: changelog python/typescript.mdx drift after codegen |
+| 7 | `rampup` | test | 5 | 0 | 40 | 12% | flaky | main + PR | **product bug** — rbac.yaml lists V1HttpOperatorList missing from specs; test panics on nil authorizer |
+| 8 | `old-engine-new-sdk` | typescript | 4 | 0 | 29 | 14% | flaky | PR | **infra/CI** — old-engine-new-sdk docker pull fails: manifest unknown for hatchet-api release image |
+| 9 | `old-engine-new-sdk` | python | 4 | 0 | 33 | 12% | flaky | PR | **infra/CI** — old-engine-new-sdk docker pull fails: manifest unknown for hatchet-api release image |
+| 10 | `test` | python | 4 | 0 | 33 | 12% | flaky | PR | **flaky test** — test_waits asserts skipped=True but gets random_number from race/timing |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `TestQuickstartTemplates` | `test-templates` | 5 | 6 | 83% | flaky | main + PR | **timeout** — CLI quickstart template E2E suite exceeded time budget (524s) |
-| 2 | `TestQuickstartTemplates/go_go` | `test-templates` | 5 | 6 | 83% | flaky | main + PR | **timeout** — CLI quickstart go_go template E2E exceeded ~300s job budget (315s) |
-| 3 | `(unparsed)` | `lint` | 5 | 37 | 14% | flaky | PR | **infra/CI** — Frontend lint: prettier formatting drift on settings nav tabs |
-| 4 | `(unparsed)` | `generate` | 4 | 38 | 10% | flaky | PR | **infra/CI** — Codegen check-for-diff: generated Python examples differ from committed files |
-| 5 | `TestConcurrency_GroupRoundRobin` | `integration` | 4 | 38 | 10% | flaky | PR | **product bug** — Scheduling integration: is_dag_orchestrator NOT NULL constraint on v1_task partition |
-| 6 | `(unparsed)` | `test` | 3 | 36 | 8% | flaky | PR | **infra/CI** — Python test job: poetry.lock out of sync with pyproject.toml |
-| 7 | `(unparsed)` | `lint` | 3 | 36 | 8% | flaky | PR | **infra/CI** — Python lint: poetry.lock out of sync with pyproject.toml |
-| 8 | `(unparsed)` | `old-engine-new-sdk` | 3 | 36 | 8% | flaky | PR | **infra/CI** — Python old-engine-new-sdk: poetry.lock out of sync with pyproject.toml |
-| 9 | `TestMultipleEvictionCycle` | `e2e-pgmq` | 3 | 38 | 8% | flaky | main + PR | **flaky test** — TestMultipleEvictionCycle e2e-pgmq eviction timing race |
-| 10 | `(unparsed)` | `test` | 2 | 11 | 18% | flaky | PR | **data/env** — Ruby integration tests skip when no recent workflow runs exist in test namespace |
+| 1 | `TestQuickstartTemplates` | `test-templates` | 10 | 13 | 77% | flaky | main + PR | **timeout** — CLI quickstart template E2E suite exceeds time budget (551s) |
+| 2 | `TestQuickstartTemplates/go_go` | `test-templates` | 10 | 13 | 77% | flaky | main + PR | **timeout** — CLI quickstart go_go template E2E exceeds ~300s job budget (319s) |
+| 3 | `examples/conditions/test_conditions.py::test_waits` | `test` | 7 | 33 | 21% | flaky | PR | **flaky test** — test_waits asserts skipped=True but gets random_number from race/timing |
+| 4 | `TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts` | `unit` | 7 | 40 | 18% | flaky | main + PR | **flaky test** — scheduler latency threshold flake: max 2.147s vs 2.1s budget on replenish timeouts |
+| 5 | `(unparsed)` | `lint` | 6 | 36 | 17% | flaky | PR | **infra/CI** — pre-commit sync-python/typescript-changelog hooks leave unstaged changelog diffs |
+| 6 | `TestEvictableTaskRestoreCompletes` | `e2e` | 6 | 40 | 15% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout during durable eviction replay |
+| 7 | `TestEvictableTaskRestoreCompletes` | `e2e-pgmq` | 6 | 40 | 15% | flaky | PR | **timeout** — TestEvictableTaskRestoreCompletes hits 300s task timeout during durable eviction replay |
+| 8 | `(unparsed)` | `generate` | 5 | 40 | 12% | flaky | PR | **infra/CI** — generate check-for-diff: changelog python/typescript.mdx drift after codegen |
+| 9 | `(unparsed)` | `old-engine-new-sdk` | 4 | 29 | 14% | flaky | PR | **infra/CI** — old-engine-new-sdk docker pull fails: manifest unknown for hatchet-api release image |
+| 10 | `(unparsed)` | `old-engine-new-sdk` | 4 | 33 | 12% | flaky | PR | **infra/CI** — old-engine-new-sdk docker pull fails: manifest unknown for hatchet-api release image |
 
 ## Recent CI-health wins (`ci-health`)
 
