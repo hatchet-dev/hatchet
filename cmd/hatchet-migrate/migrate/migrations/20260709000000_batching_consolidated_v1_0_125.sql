@@ -88,10 +88,7 @@ CREATE INDEX v1_batch_runtime_key_idx
 ALTER TYPE v1_event_type_olap ADD VALUE 'BATCH_BUFFERED';
 ALTER TYPE v1_event_type_olap ADD VALUE 'WAITING_FOR_BATCH';
 ALTER TYPE v1_event_type_olap ADD VALUE 'BATCH_FLUSHED';
--- +goose StatementEnd
 
--- +goose Down
--- +goose StatementBegin
 -- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql (batch_key propagation)
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$
