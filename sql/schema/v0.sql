@@ -1091,6 +1091,7 @@ CREATE TABLE
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
         "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
+        "dagShape" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

@@ -4072,4 +4072,5 @@ type WorkflowVersion struct {
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
 	IsUsingDagOperator        bool               `json:"isUsingDagOperator"`
+	DagShape                  []byte             `json:"dagShape"`
 }

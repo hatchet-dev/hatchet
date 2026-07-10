@@ -955,7 +955,7 @@ INSERT INTO "WorkflowVersion" (
     $12::jsonb,
     coalesce($13::boolean, false),
     coalesce($14::jsonb, NULL)
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "isUsingDagOperator"
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "isUsingDagOperator", "dagShape"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -1010,6 +1010,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.CreateWorkflowVersionOpts,
 		&i.InputJsonSchema,
 		&i.IsUsingDagOperator,
+		&i.DagShape,
 	)
 	return &i, err
 }
@@ -1265,7 +1266,7 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."isUsingDagOperator",
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."isUsingDagOperator", wv."dagShape",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused"
 FROM
     "WorkflowVersion" as wv
@@ -1301,6 +1302,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.U
 		&i.WorkflowVersion.CreateWorkflowVersionOpts,
 		&i.WorkflowVersion.InputJsonSchema,
 		&i.WorkflowVersion.IsUsingDagOperator,
+		&i.WorkflowVersion.DagShape,
 		&i.Workflow.ID,
 		&i.Workflow.CreatedAt,
 		&i.Workflow.UpdatedAt,
@@ -1389,7 +1391,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."isUsingDagOperator",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."isUsingDagOperator", workflowversions."dagShape",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1448,6 +1450,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.CreateWorkflowVersionOpts,
 			&i.WorkflowVersion.InputJsonSchema,
 			&i.WorkflowVersion.IsUsingDagOperator,
+			&i.WorkflowVersion.DagShape,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -1514,7 +1517,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "isUsingDagOperator"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "isUsingDagOperator", "dagShape"
 `
 
 type LinkOnFailureJobParams struct {
@@ -1542,6 +1545,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.CreateWorkflowVersionOpts,
 		&i.InputJsonSchema,
 		&i.IsUsingDagOperator,
+		&i.DagShape,
 	)
 	return &i, err
 }

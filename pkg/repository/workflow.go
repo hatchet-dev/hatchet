@@ -25,14 +25,14 @@ import (
 var ErrDagParentNotFound = errors.New("dag parent not found")
 
 type DagNode struct {
-	ReadableId string
-
 	// include both of these to make it easier to render the dag in other places
 	ParentReadableIds []string
 	ChildReadableIds  []string
 
 	// todo: expand this to include conditions and other stuff so we can render dags from json?
 }
+
+type DagShape map[StepReadableId]DagNode
 
 type CreateWorkflowVersionOpts struct {
 	// (required) the workflow name
@@ -479,7 +479,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	}
 
 	if isUsingDagOperator {
-		nodes := make([]DagNode, 0, len(opts.Tasks))
+		shape := make(DagShape)
 
 		for _, t := range opts.Tasks {
 			if t.IsDagOrchestrator {
@@ -493,14 +493,13 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 				}
 			}
 
-			nodes = append(nodes, DagNode{
-				ReadableId:        t.ReadableId,
+			shape[StepReadableId(t.ReadableId)] = DagNode{
 				ParentReadableIds: t.Parents,
 				ChildReadableIds:  children,
-			})
+			}
 		}
 
-		dagShape, err := json.Marshal(nodes)
+		dagShape, err := json.Marshal(shape)
 
 		if err != nil {
 			return nil, err
