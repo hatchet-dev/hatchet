@@ -482,13 +482,31 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	}
 
 	// second pass: clean up expired slots
+	cleanupNow := time.Now()
+
 	for _, storedAction := range actionsToReplenish {
+		hasExpired := false
+
+		for i := range storedAction.slots {
+			if storedAction.slots[i].expiredAt(cleanupNow) {
+				hasExpired = true
+				break
+			}
+		}
+
+		// NOTE: actions replenished in the first pass were just given brand-new slots,
+		// so in the common case nothing is expired and we keep the existing slices and
+		// maps untouched instead of reallocating them on every replenish cycle.
+		if !hasExpired {
+			continue
+		}
+
 		newSlots := make([]*slot, 0, len(storedAction.slots))
 
 		for i := range storedAction.slots {
 			slotItem := storedAction.slots[i]
 
-			if !slotItem.expired() {
+			if !slotItem.expiredAt(cleanupNow) {
 				newSlots = append(newSlots, slotItem)
 			}
 		}
