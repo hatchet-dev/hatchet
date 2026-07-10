@@ -8,13 +8,17 @@ import { redirect, useNavigate } from '@tanstack/react-router';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function loader(_args: { request: Request }) {
-  const [{ isCloudEnabled }, { isControlPlaneEnabled }] = await Promise.all([
-    queryClient.fetchQuery(getCloudMetadataQuery),
-    fetchControlPlaneStatus(),
-  ]);
+  const [{ isLegacyCloudEnabled }, { isControlPlaneEnabled }] =
+    await Promise.all([
+      queryClient.fetchQuery(getCloudMetadataQuery),
+      fetchControlPlaneStatus(),
+    ]);
 
   const { inviteCount } = await queryClient.fetchQuery(
-    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
+    pendingInvitesQuery(
+      isControlPlaneEnabled || isLegacyCloudEnabled,
+      isControlPlaneEnabled,
+    ),
   );
 
   if (inviteCount === 0) {

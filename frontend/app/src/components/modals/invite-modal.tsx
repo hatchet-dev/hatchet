@@ -73,12 +73,16 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     }
   }, [isOpen, invalidatePendingInvites, reset]);
 
-  // Close immediately if opened with stale data that resolves to 0 invites
+  // Close immediately if opened with stale data that resolves to 0 invites.
+  // Gate on `!isFetching`: while a refetch is in flight react-query retains the
+  // previous (possibly stale count=0) data, and closing on it would fight
+  // whatever opened the modal — an open/close loop.
   useEffect(() => {
     if (
       isOpen &&
       phase === 'invites' &&
       pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
       totalInviteCount === 0 &&
       processedIds.size === 0
     ) {
@@ -88,6 +92,7 @@ export function InviteModal({ isOpen, onClose }: InviteModalProps) {
     isOpen,
     phase,
     pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
     totalInviteCount,
     processedIds.size,
     onClose,
