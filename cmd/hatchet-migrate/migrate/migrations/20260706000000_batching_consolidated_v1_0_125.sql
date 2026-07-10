@@ -1096,7 +1096,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         nt.tenant_id,
@@ -1114,7 +1115,8 @@ BEGIN
         nt.sticky,
         nt.desired_worker_id,
         nt.retry_count,
-        nt.desired_worker_label
+        nt.desired_worker_label,
+        nt.batch_key
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'

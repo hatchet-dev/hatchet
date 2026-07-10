@@ -589,7 +589,7 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [dict[str, EmptyModel], Context],
+                Concatenate[dict[str, EmptyModel], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
@@ -622,7 +622,7 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [dict[str, TWorkflowInput], Context],
+                Concatenate[dict[str, TWorkflowInput], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
@@ -654,7 +654,7 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                [dict[str, TWorkflowInput], Context],
+                Concatenate[dict[str, TWorkflowInput], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
@@ -674,7 +674,7 @@ class Hatchet:
 
         def inner(
             func: Callable[
-                [dict[str, TWorkflowInput], Context],
+                Concatenate[dict[str, TWorkflowInput], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ],
         ) -> Standalone[TWorkflowInput, R]:

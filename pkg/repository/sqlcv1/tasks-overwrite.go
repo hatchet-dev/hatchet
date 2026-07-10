@@ -433,7 +433,7 @@ WITH input AS (
         unnest($7::jsonb[]) AS desired_worker_label,
         unnest($8::uuid[]) AS triggering_event_external_id,
         unnest($9::text[]) AS triggering_event_key,
-		unnest($7::text[]) AS batch_key
+		unnest($10::text[]) AS batch_key
 )
 UPDATE
     v1_task
@@ -447,7 +447,7 @@ SET
     initial_state_reason = i.initial_state_reason,
     desired_worker_label = COALESCE(i.desired_worker_label, v1_task.desired_worker_label),
     triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
-    triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key)
+    triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key),
     batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key)
 FROM
     input i

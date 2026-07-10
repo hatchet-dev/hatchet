@@ -1464,7 +1464,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> Callable[
         [
             Callable[
-                [dict[str, TWorkflowInput], Context],
+                Concatenate[dict[str, TWorkflowInput], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ]
         ],
@@ -1504,7 +1504,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         def inner(
             func: Callable[
-                [dict[str, TWorkflowInput], Context],
+                Concatenate[dict[str, TWorkflowInput], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ],
         ) -> Task[TWorkflowInput, R]:

@@ -143,7 +143,7 @@ class Task(Generic[TWorkflowInput, R]):
             Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
             | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
             | Callable[
-                [dict[str, TWorkflowInput], Context],
+                Concatenate[dict[str, TWorkflowInput], Context, P],
                 dict[str, R] | CoroutineLike[dict[str, R]],
             ]
             | (
