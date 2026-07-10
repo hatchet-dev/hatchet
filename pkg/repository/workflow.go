@@ -24,6 +24,16 @@ import (
 
 var ErrDagParentNotFound = errors.New("dag parent not found")
 
+type DagNode struct {
+	ReadableId string
+
+	// include both of these to make it easier to render the dag in other places
+	ParentReadableIds []string
+	ChildReadableIds  []string
+
+	// todo: expand this to include conditions and other stuff so we can render dags from json?
+}
+
 type CreateWorkflowVersionOpts struct {
 	// (required) the workflow name
 	Name string `validate:"required,hatchetName"`
@@ -415,9 +425,9 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	workflowVersionId := uuid.New()
 
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := sqlchelpers.BoolFromBoolean(r.dagOperatorEnabled && len(opts.Tasks) > 1)
+	isUsingDagOperator := r.dagOperatorEnabled && len(opts.Tasks) > 1
 
-	if isUsingDagOperator.Bool {
+	if isUsingDagOperator {
 		opts.Tasks = append(opts.Tasks, CreateStepOpts{
 			ReadableId:        opts.Name,
 			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
@@ -435,7 +445,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	// if the checksum matches and the version's DAG operator flag matches the current server
 	// flag, reuse the existing version — no change needed.
 	if oldWorkflowVersion != nil && oldWorkflowVersion.WorkflowVersion.Checksum == cs &&
-		oldWorkflowVersion.WorkflowVersion.IsUsingDagOperator == isUsingDagOperator.Bool {
+		oldWorkflowVersion.WorkflowVersion.IsUsingDagOperator == isUsingDagOperator {
 		return &oldWorkflowVersion.WorkflowVersion.ID, nil
 	}
 
@@ -451,7 +461,7 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 		Workflowid:                workflowId,
 		CreateWorkflowVersionOpts: optsJson,
 		InputJsonSchema:           opts.InputJsonSchema,
-		IsUsingDagOperator:        isUsingDagOperator,
+		IsUsingDagOperator:        sqlchelpers.BoolFromBoolean(isUsingDagOperator),
 	}
 
 	if opts.Sticky != nil {
@@ -467,6 +477,38 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Valid: true,
 		}
 	}
+
+	if isUsingDagOperator {
+		nodes := make([]DagNode, 0, len(opts.Tasks))
+
+		for _, t := range opts.Tasks {
+			if t.IsDagOrchestrator {
+				continue
+			}
+
+			children := make([]string, 0)
+			for _, maybeChild := range opts.Tasks {
+				if slices.Contains(maybeChild.Parents, t.ReadableId) {
+					children = append(children, maybeChild.ReadableId)
+				}
+			}
+
+			nodes = append(nodes, DagNode{
+				ReadableId:        t.ReadableId,
+				ParentReadableIds: t.Parents,
+				ChildReadableIds:  children,
+			})
+		}
+
+		dagShape, err := json.Marshal(nodes)
+
+		if err != nil {
+			return nil, err
+		}
+
+		createParams.DagShape = dagShape
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,

@@ -936,7 +936,8 @@ INSERT INTO "WorkflowVersion" (
     "defaultPriority",
     "createWorkflowVersionOpts",
     "inputJsonSchema",
-    "isUsingDagOperator"
+    "isUsingDagOperator",
+    "dagShape"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -952,7 +953,8 @@ INSERT INTO "WorkflowVersion" (
     $10 :: integer,
     $11::jsonb,
     $12::jsonb,
-    coalesce($13::boolean, false)
+    coalesce($13::boolean, false),
+    coalesce($14::jsonb, NULL)
 ) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "isUsingDagOperator"
 `
 
@@ -970,6 +972,7 @@ type CreateWorkflowVersionParams struct {
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
 	IsUsingDagOperator        pgtype.Bool        `json:"isUsingDagOperator"`
+	DagShape                  []byte             `json:"dagShape"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -987,6 +990,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.CreateWorkflowVersionOpts,
 		arg.InputJsonSchema,
 		arg.IsUsingDagOperator,
+		arg.DagShape,
 	)
 	var i WorkflowVersion
 	err := row.Scan(

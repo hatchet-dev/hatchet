@@ -122,7 +122,8 @@ INSERT INTO "WorkflowVersion" (
     "defaultPriority",
     "createWorkflowVersionOpts",
     "inputJsonSchema",
-    "isUsingDagOperator"
+    "isUsingDagOperator",
+    "dagShape"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -138,7 +139,8 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('defaultPriority') :: integer,
     sqlc.narg('createWorkflowVersionOpts')::jsonb,
     sqlc.narg('inputJsonSchema')::jsonb,
-    coalesce(sqlc.narg('isUsingDagOperator')::boolean, false)
+    coalesce(sqlc.narg('isUsingDagOperator')::boolean, false),
+    coalesce(sqlc.narg('dagShape')::jsonb, NULL)
 ) RETURNING *;
 
 -- name: CreateJob :one
