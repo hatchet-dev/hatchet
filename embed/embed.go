@@ -97,8 +97,6 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	}
 
 	override := func(scf *server.ServerConfigFile) {
-		scf.Runtime.IsAuthDisabled = true
-
 		scf.Auth.Cookie.Domain = "localhost"
 		scf.Auth.Cookie.Insecure = true
 		scf.Auth.Cookie.Secrets = hashKey + " " + blockKey

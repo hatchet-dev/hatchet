@@ -9,9 +9,5 @@ import (
 )
 
 func (a *AuthZ) authPreflight(c echo.Context, r *middleware.RouteInfo) (handled bool, err error) {
-	if a.config.Runtime.IsAuthDisabled {
-		return a.authorizeAuthDisabled(c, r)
-	}
-
 	return false, nil
 }
