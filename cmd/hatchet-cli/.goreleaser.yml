@@ -2,6 +2,11 @@ version: 2
 
 project_name: hatchet
 
+# Build the dashboard UI and embed it into the CLI binary before compiling.
+before:
+  hooks:
+    - bash ../../hack/build/embed-ui.sh
+
 builds:
   - id: hatchet
     main: ./main.go
