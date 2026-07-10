@@ -70,9 +70,10 @@ sleep 6
 RUNS="$RUNS" ENGINE_FILE="$RUNDIR/engine-0.json" "$BIN/trigger"
 
 TENANT=707d0855-80ab-4e1f-a156-f1c4546cbf52
+TOKEN=$(python3 -c "import json;print(json.load(open('$RUNDIR/engine-0.json'))['token'])")
 echo
 echo "REST API is live on each engine (no frontend). Recent runs from engine 0:"
-curl -s "http://localhost:8080/api/v1/stable/tenants/$TENANT/workflow-runs?only_tasks=true&limit=5&since=2020-01-01T00:00:00Z" \
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/v1/stable/tenants/$TENANT/workflow-runs?only_tasks=true&limit=5&since=2020-01-01T00:00:00Z" \
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  API returned {len(d.get(\"rows\",[]))} run(s) on page 1 of {d.get(\"pagination\",{}).get(\"num_pages\",\"?\")}')" 2>/dev/null \
   || echo "  (API responded)"
 
