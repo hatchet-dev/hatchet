@@ -98,6 +98,27 @@ def _compute_memo_key(task_run_external_id: str, *args: Any, **kwargs: Any) -> b
     return h.digest()
 
 
+def _first_wait_match_or_none(result: dict[str, Any]) -> dict[str, Any] | None:
+    """
+    Extract the first match from a durable wait result's `CREATE` dict, if present.
+
+    The engine returns an object shaped like `{"CREATE": {"signal_key_1": [{"id": ...}]}}`.
+    A durable wait can legitimately complete with an empty payload (e.g. `aio_wait_for`
+    already falls back to `{}` when the proto payload is empty), in which case `CREATE`
+    may be missing, `{}`, or map to an empty match list. Treat all of those as "no match"
+    instead of letting `next(iter(...))`/list-indexing raise on an empty collection.
+    """
+    matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
+    if not matches:
+        return None
+
+    _, raw_matches = next(iter(matches.items()))
+    if not raw_matches:
+        return None
+
+    return raw_matches[0]
+
+
 class Context:
     def __init__(
         self,
@@ -911,10 +932,10 @@ class DurableContext(Context):
         ## the engine returns an object like this:
         ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
         ## since we have a single match we're looking for, we know that
-        ## the list of matches will only have one item, so we can extract and parse it
-        matches: dict[str, list[dict[str, Any]]] = res.get("CREATE", {})
-        _, raw_matches = next(iter(matches.items()))
-        sleep = raw_matches[0]
+        ## the list of matches will only have one item, so we can extract and parse it.
+        ## An empty payload is a legitimate response (see `_first_wait_match_or_none`),
+        ## so fall back to an empty dict rather than raising.
+        sleep = _first_wait_match_or_none(res) or {}
 
         return SleepResult(
             duration=expr_to_timedelta(
@@ -997,10 +1018,10 @@ class DurableContext(Context):
         ## the engine returns an object like this:
         ## {"CREATE": {"signal_key_1": [{"id": ...}]}}
         ## since we have a single match we're looking for, we know that
-        ## the list of matches will only have one item, so we can extract and parse it
-        matches: dict[str, list[dict[str, Any]]] = result.get("CREATE", {})
-        _, raw_matches = next(iter(matches.items()))
-        raw_payload = raw_matches[0]
+        ## the list of matches will only have one item, so we can extract and parse it.
+        ## An empty payload is a legitimate response (see `_first_wait_match_or_none`),
+        ## so fall back to an empty dict rather than raising.
+        raw_payload = _first_wait_match_or_none(result) or {}
 
         if payload_validator is not None:
             adapter = TypeAdapter(payload_validator)
