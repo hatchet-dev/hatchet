@@ -51,6 +51,11 @@ type ListTaskRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
+	// StrictAdditionalMetadata switches AdditionalMetadata filtering from
+	// any-pair-matches semantics to all-pairs-match jsonb containment (@>),
+	// which is backed by the GIN indexes on the OLAP tables.
+	StrictAdditionalMetadata bool
+
 	TriggeringEventExternalId *uuid.UUID
 
 	Limit int64
@@ -72,6 +77,11 @@ type ListWorkflowRunOpts struct {
 	FinishedBefore *time.Time
 
 	AdditionalMetadata map[string]interface{}
+
+	// StrictAdditionalMetadata switches AdditionalMetadata filtering from
+	// any-pair-matches semantics to all-pairs-match jsonb containment (@>),
+	// which is backed by the GIN indexes on the OLAP tables.
+	StrictAdditionalMetadata bool
 
 	Limit int64
 
@@ -866,11 +876,22 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	for key, value := range opts.AdditionalMetadata {
-		params.Keys = append(params.Keys, key)
-		params.Values = append(params.Values, value.(string))
-		countParams.Keys = append(countParams.Keys, key)
-		countParams.Values = append(countParams.Values, value.(string))
+	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
+		metadataFilter, marshalErr := json.Marshal(opts.AdditionalMetadata)
+
+		if marshalErr != nil {
+			return nil, 0, marshalErr
+		}
+
+		params.AdditionalMetadataContains = metadataFilter
+		countParams.AdditionalMetadataContains = metadataFilter
+	} else {
+		for key, value := range opts.AdditionalMetadata {
+			params.Keys = append(params.Keys, key)
+			params.Values = append(params.Values, value.(string))
+			countParams.Keys = append(countParams.Keys, key)
+			countParams.Values = append(countParams.Values, value.(string))
+		}
 	}
 
 	var (
@@ -1217,11 +1238,22 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	for key, value := range opts.AdditionalMetadata {
-		params.Keys = append(params.Keys, key)
-		params.Values = append(params.Values, value.(string))
-		countParams.Keys = append(countParams.Keys, key)
-		countParams.Values = append(countParams.Values, value.(string))
+	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
+		metadataFilter, marshalErr := json.Marshal(opts.AdditionalMetadata)
+
+		if marshalErr != nil {
+			return nil, 0, marshalErr
+		}
+
+		params.AdditionalMetadataContains = metadataFilter
+		countParams.AdditionalMetadataContains = metadataFilter
+	} else {
+		for key, value := range opts.AdditionalMetadata {
+			params.Keys = append(params.Keys, key)
+			params.Values = append(params.Values, value.(string))
+			countParams.Keys = append(countParams.Keys, key)
+			countParams.Values = append(countParams.Values, value.(string))
+		}
 	}
 
 	var (

@@ -38,6 +38,10 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+        AND (
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
+        )
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -60,15 +64,16 @@ FROM filtered
 `
 
 type CountTasksParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Statuses                  []string           `json:"statuses"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	WorkerId                  *uuid.UUID         `json:"workerId"`
-	Keys                      []string           `json:"keys"`
-	Values                    []string           `json:"values"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                   uuid.UUID          `json:"tenantid"`
+	Since                      pgtype.Timestamptz `json:"since"`
+	Statuses                   []string           `json:"statuses"`
+	Until                      pgtype.Timestamptz `json:"until"`
+	WorkflowIds                []uuid.UUID        `json:"workflowIds"`
+	WorkerId                   *uuid.UUID         `json:"workerId"`
+	Keys                       []string           `json:"keys"`
+	Values                     []string           `json:"values"`
+	TriggeringEventExternalId  *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetadataContains []byte             `json:"additionalMetadataContains"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -82,6 +87,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.Keys,
 		arg.Values,
 		arg.TriggeringEventExternalId,
+		arg.AdditionalMetadataContains,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -115,6 +121,10 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
+        AND (
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
+        )
 		AND (
 			$8::UUID IS NULL
 			OR parent_task_external_id = $8::UUID
@@ -140,15 +150,16 @@ FROM filtered
 `
 
 type CountWorkflowRunsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Statuses                  []string           `json:"statuses"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	Keys                      []string           `json:"keys"`
-	Values                    []string           `json:"values"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                   uuid.UUID          `json:"tenantid"`
+	Statuses                   []string           `json:"statuses"`
+	WorkflowIds                []uuid.UUID        `json:"workflowIds"`
+	Since                      pgtype.Timestamptz `json:"since"`
+	Until                      pgtype.Timestamptz `json:"until"`
+	Keys                       []string           `json:"keys"`
+	Values                     []string           `json:"values"`
+	ParentTaskExternalId       *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId  *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetadataContains []byte             `json:"additionalMetadataContains"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -162,6 +173,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Values,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
+		arg.AdditionalMetadataContains,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -195,6 +207,10 @@ WHERE
         )
     )
     AND (
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
+    )
+    AND (
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
     )
@@ -216,17 +232,18 @@ OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Statuses                  []string           `json:"statuses"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	Keys                      []string           `json:"keys"`
-	Values                    []string           `json:"values"`
-	Listworkflowrunsoffset    int32              `json:"listworkflowrunsoffset"`
-	Listworkflowrunslimit     int32              `json:"listworkflowrunslimit"`
-	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                   uuid.UUID          `json:"tenantid"`
+	Statuses                   []string           `json:"statuses"`
+	WorkflowIds                []uuid.UUID        `json:"workflowIds"`
+	Since                      pgtype.Timestamptz `json:"since"`
+	Until                      pgtype.Timestamptz `json:"until"`
+	Keys                       []string           `json:"keys"`
+	Values                     []string           `json:"values"`
+	Listworkflowrunsoffset     int32              `json:"listworkflowrunsoffset"`
+	Listworkflowrunslimit      int32              `json:"listworkflowrunslimit"`
+	ParentTaskExternalId       *uuid.UUID         `json:"parentTaskExternalId"`
+	TriggeringEventExternalId  *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetadataContains []byte             `json:"additionalMetadataContains"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -249,6 +266,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
+		arg.AdditionalMetadataContains,
 	)
 
 	if err != nil {
@@ -306,6 +324,10 @@ WHERE
         )
     )
     AND (
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
+    )
+    AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
 			SELECT etr.run_id, etr.run_inserted_at
@@ -324,17 +346,18 @@ OFFSET $9::integer
 `
 
 type ListTasksOlapParams struct {
-	Tenantid                  uuid.UUID          `json:"tenantid"`
-	Since                     pgtype.Timestamptz `json:"since"`
-	Statuses                  []string           `json:"statuses"`
-	Until                     pgtype.Timestamptz `json:"until"`
-	WorkflowIds               []uuid.UUID        `json:"workflowIds"`
-	WorkerId                  *uuid.UUID         `json:"workerId"`
-	Keys                      []string           `json:"keys"`
-	Values                    []string           `json:"values"`
-	Taskoffset                int32              `json:"taskoffset"`
-	Tasklimit                 int32              `json:"tasklimit"`
-	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	Tenantid                   uuid.UUID          `json:"tenantid"`
+	Since                      pgtype.Timestamptz `json:"since"`
+	Statuses                   []string           `json:"statuses"`
+	Until                      pgtype.Timestamptz `json:"until"`
+	WorkflowIds                []uuid.UUID        `json:"workflowIds"`
+	WorkerId                   *uuid.UUID         `json:"workerId"`
+	Keys                       []string           `json:"keys"`
+	Values                     []string           `json:"values"`
+	Taskoffset                 int32              `json:"taskoffset"`
+	Tasklimit                  int32              `json:"tasklimit"`
+	TriggeringEventExternalId  *uuid.UUID         `json:"triggeringEventExternalId"`
+	AdditionalMetadataContains []byte             `json:"additionalMetadataContains"`
 }
 
 type ListTasksOlapRow struct {
@@ -355,6 +378,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Taskoffset,
 		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
+		arg.AdditionalMetadataContains,
 	)
 	if err != nil {
 		return nil, err
