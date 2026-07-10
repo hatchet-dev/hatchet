@@ -462,7 +462,7 @@ func (q *Queries) InsertBufferedTaskRuntimes(ctx context.Context, db DBTX, arg I
 	return err
 }
 
-const listActionsForWorkers = `-- name: ListActionsForWorkers :many
+const listActionsForWorkersLegacyFallback = `-- name: ListActionsForWorkersLegacyFallback :many
 SELECT
     w."id" as "workerId",
     a."actionId"
@@ -481,25 +481,28 @@ WHERE
     AND w."isPaused" = false
 `
 
-type ListActionsForWorkersParams struct {
+type ListActionsForWorkersLegacyFallbackParams struct {
 	Tenantid  uuid.UUID   `json:"tenantid"`
 	Workerids []uuid.UUID `json:"workerids"`
 }
 
-type ListActionsForWorkersRow struct {
+type ListActionsForWorkersLegacyFallbackRow struct {
 	WorkerId uuid.UUID   `json:"workerId"`
 	ActionId pgtype.Text `json:"actionId"`
 }
 
-func (q *Queries) ListActionsForWorkers(ctx context.Context, db DBTX, arg ListActionsForWorkersParams) ([]*ListActionsForWorkersRow, error) {
-	rows, err := db.Query(ctx, listActionsForWorkers, arg.Tenantid, arg.Workerids)
+// Fallback for workers registered before actionHash existed; expands the full
+// worker<>action join per worker. Prefer the hash-cached path in the
+// assignment repository (ListLiveWorkerActionHashes + ListWorkerActionSets).
+func (q *Queries) ListActionsForWorkersLegacyFallback(ctx context.Context, db DBTX, arg ListActionsForWorkersLegacyFallbackParams) ([]*ListActionsForWorkersLegacyFallbackRow, error) {
+	rows, err := db.Query(ctx, listActionsForWorkersLegacyFallback, arg.Tenantid, arg.Workerids)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListActionsForWorkersRow
+	var items []*ListActionsForWorkersLegacyFallbackRow
 	for rows.Next() {
-		var i ListActionsForWorkersRow
+		var i ListActionsForWorkersLegacyFallbackRow
 		if err := rows.Scan(&i.WorkerId, &i.ActionId); err != nil {
 			return nil, err
 		}
@@ -793,6 +796,51 @@ func (q *Queries) ListExistingBatchedQueueItemIds(ctx context.Context, db DBTX, 
 	return items, nil
 }
 
+const listLiveWorkerActionHashes = `-- name: ListLiveWorkerActionHashes :many
+SELECT
+    w."id",
+    w."actionHash"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = $1::uuid
+    AND w."id" = ANY($2::uuid[])
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false
+`
+
+type ListLiveWorkerActionHashesParams struct {
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
+}
+
+type ListLiveWorkerActionHashesRow struct {
+	ID         uuid.UUID `json:"id"`
+	ActionHash []byte    `json:"actionHash"`
+}
+
+func (q *Queries) ListLiveWorkerActionHashes(ctx context.Context, db DBTX, arg ListLiveWorkerActionHashesParams) ([]*ListLiveWorkerActionHashesRow, error) {
+	rows, err := db.Query(ctx, listLiveWorkerActionHashes, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListLiveWorkerActionHashesRow
+	for rows.Next() {
+		var i ListLiveWorkerActionHashesRow
+		if err := rows.Scan(&i.ID, &i.ActionHash); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueueItemsForQueue = `-- name: ListQueueItemsForQueue :many
 SELECT
     id, tenant_id, queue, task_id, task_inserted_at, external_id, action_id, step_id, workflow_id, workflow_run_id, schedule_timeout_at, step_timeout, priority, sticky, desired_worker_id, retry_count, desired_worker_label, batch_key
@@ -987,6 +1035,67 @@ func (q *Queries) ListStepsWithBatchConfig(ctx context.Context, db DBTX, stepids
 			return nil, err
 		}
 		items = append(items, step_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkerActionSets = `-- name: ListWorkerActionSets :many
+WITH worker_actions AS MATERIALIZED (
+    SELECT
+        w."id",
+        w."actionHash",
+        atw."A" AS action_id
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "_ActionToWorker" atw ON w."id" = atw."B"
+    WHERE
+        w."tenantId" = $1::uuid
+        AND w."id" = ANY($2::uuid[])
+), tenant_actions AS MATERIALIZED (
+    SELECT
+        a."id",
+        a."actionId"
+    FROM
+        "Action" a
+    WHERE
+        a."tenantId" = $1::uuid
+)
+SELECT
+    wa."actionHash",
+    ta."actionId"
+FROM
+    worker_actions wa
+LEFT JOIN
+    tenant_actions ta ON ta."id" = wa.action_id
+`
+
+type ListWorkerActionSetsParams struct {
+	Tenantid  uuid.UUID   `json:"tenantid"`
+	Workerids []uuid.UUID `json:"workerids"`
+}
+
+type ListWorkerActionSetsRow struct {
+	ActionHash []byte      `json:"actionHash"`
+	ActionId   pgtype.Text `json:"actionId"`
+}
+
+func (q *Queries) ListWorkerActionSets(ctx context.Context, db DBTX, arg ListWorkerActionSetsParams) ([]*ListWorkerActionSetsRow, error) {
+	rows, err := db.Query(ctx, listWorkerActionSets, arg.Tenantid, arg.Workerids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*ListWorkerActionSetsRow
+	for rows.Next() {
+		var i ListWorkerActionSetsRow
+		if err := rows.Scan(&i.ActionHash, &i.ActionId); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
