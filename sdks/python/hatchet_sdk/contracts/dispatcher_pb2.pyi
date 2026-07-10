@@ -39,6 +39,7 @@ class StepActionEventType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     STEP_EVENT_TYPE_COMPLETED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_FAILED: _ClassVar[StepActionEventType]
     STEP_EVENT_TYPE_ACKNOWLEDGED: _ClassVar[StepActionEventType]
+    STEP_EVENT_TYPE_CANCELLED: _ClassVar[StepActionEventType]
 
 class ResourceType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -77,6 +78,7 @@ STEP_EVENT_TYPE_STARTED: StepActionEventType
 STEP_EVENT_TYPE_COMPLETED: StepActionEventType
 STEP_EVENT_TYPE_FAILED: StepActionEventType
 STEP_EVENT_TYPE_ACKNOWLEDGED: StepActionEventType
+STEP_EVENT_TYPE_CANCELLED: StepActionEventType
 RESOURCE_TYPE_UNKNOWN: ResourceType
 RESOURCE_TYPE_STEP_RUN: ResourceType
 RESOURCE_TYPE_WORKFLOW_RUN: ResourceType
@@ -311,6 +313,36 @@ class StepActionEvent(_message.Message):
     retry_count: int
     should_not_retry: bool
     def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., job_run_id: _Optional[str] = ..., task_id: _Optional[str] = ..., task_run_external_id: _Optional[str] = ..., action_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+
+class BatchActionEventItem(_message.Message):
+    __slots__ = ("task_run_external_id", "event_payload", "retry_count", "should_not_retry")
+    TASK_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_PAYLOAD_FIELD_NUMBER: _ClassVar[int]
+    RETRY_COUNT_FIELD_NUMBER: _ClassVar[int]
+    SHOULD_NOT_RETRY_FIELD_NUMBER: _ClassVar[int]
+    task_run_external_id: str
+    event_payload: str
+    retry_count: int
+    should_not_retry: bool
+    def __init__(self, task_run_external_id: _Optional[str] = ..., event_payload: _Optional[str] = ..., retry_count: _Optional[int] = ..., should_not_retry: bool = ...) -> None: ...
+
+class BatchActionEvent(_message.Message):
+    __slots__ = ("worker_id", "job_id", "action_id", "batch_id", "event_timestamp", "event_type", "items")
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    JOB_ID_FIELD_NUMBER: _ClassVar[int]
+    ACTION_ID_FIELD_NUMBER: _ClassVar[int]
+    BATCH_ID_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    job_id: str
+    action_id: str
+    batch_id: str
+    event_timestamp: _timestamp_pb2.Timestamp
+    event_type: StepActionEventType
+    items: _containers.RepeatedCompositeFieldContainer[BatchActionEventItem]
+    def __init__(self, worker_id: _Optional[str] = ..., job_id: _Optional[str] = ..., action_id: _Optional[str] = ..., batch_id: _Optional[str] = ..., event_timestamp: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., event_type: _Optional[_Union[StepActionEventType, str]] = ..., items: _Optional[_Iterable[_Union[BatchActionEventItem, _Mapping]]] = ...) -> None: ...
 
 class ActionEventResponse(_message.Message):
     __slots__ = ("tenant_id", "worker_id")

@@ -42,7 +42,12 @@ from hatchet_sdk.exceptions import (
 )
 from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action, ActionKey, ActionType
+from hatchet_sdk.runnables.action import (
+    Action,
+    ActionKey,
+    ActionType,
+    BatchEventItem,
+)
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_additional_metadata,
@@ -64,7 +69,10 @@ from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
 from hatchet_sdk.utils.serde import remove_null_unicode_character
 from hatchet_sdk.utils.typing import STOP_LOOP_TYPE
-from hatchet_sdk.worker.action_listener_process import ActionEvent
+from hatchet_sdk.worker.action_listener_process import (
+    ActionEvent,
+    QueuedBatchActionEvent,
+)
 from hatchet_sdk.worker.durable_eviction.cache import DurableRunRecord
 from hatchet_sdk.worker.durable_eviction.manager import DurableEvictionManager
 from hatchet_sdk.worker.runner.utils.capture_logs import (
@@ -97,7 +105,7 @@ class WorkerStatus(Enum):
 class Runner:
     def __init__(
         self,
-        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+        event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
         config: ClientConfig,
         slots: int,
         durable_slots: int,
@@ -464,16 +472,16 @@ class Runner:
             for ext_id, item_data in action.batch_items.items()
         }
 
-        # Send STARTED events for all items
-        for item_action in item_actions.values():
-            self.event_queue.put(
-                ActionEvent(
-                    action=item_action,
-                    type=STEP_EVENT_TYPE_STARTED,
-                    payload=None,
-                    should_not_retry=False,
-                )
+        self.event_queue.put(
+            QueuedBatchActionEvent(
+                action=action,
+                type=STEP_EVENT_TYPE_STARTED,
+                items=[
+                    BatchEventItem(task_run_external_id=ext_id)
+                    for ext_id in item_actions
+                ],
             )
+        )
 
         def cast_input(input: Any) -> Any:
             return task._workflow.input_validator.validate_python(
@@ -510,16 +518,22 @@ class Runner:
                         )
                 except Exception as e:
                     should_not_retry = isinstance(e, NonRetryableException)
-                    for item_action in item_actions.values():
-                        exc = TaskRunError.from_exception(e, item_action.step_run_id)
-                        self.event_queue.put(
-                            ActionEvent(
-                                action=item_action,
-                                type=STEP_EVENT_TYPE_FAILED,
-                                payload=exc.serialize(include_metadata=True),
-                                should_not_retry=should_not_retry,
-                            )
+                    self.event_queue.put(
+                        QueuedBatchActionEvent(
+                            action=action,
+                            type=STEP_EVENT_TYPE_FAILED,
+                            items=[
+                                BatchEventItem(
+                                    task_run_external_id=item_action.step_run_id,
+                                    payload=TaskRunError.from_exception(
+                                        e, item_action.step_run_id
+                                    ).serialize(include_metadata=True),
+                                    should_not_retry=should_not_retry,
+                                )
+                                for item_action in item_actions.values()
+                            ],
                         )
+                    )
                 else:
                     for item_action in item_actions.values():
                         self.event_queue.put(
@@ -541,6 +555,8 @@ class Runner:
                         f"Batch task '{action_id}' returned {len(outputs)} outputs for {len(item_actions)} inputs"
                     )
 
+                failed_items: list[BatchEventItem] = []
+
                 for step_run_id, output in outputs.items():
                     item_action = item_actions[step_run_id]
                     try:
@@ -553,10 +569,9 @@ class Runner:
                             )
                     except Exception as e:
                         exc = TaskRunError.from_exception(e, step_run_id)
-                        self.event_queue.put(
-                            ActionEvent(
-                                action=item_action,
-                                type=STEP_EVENT_TYPE_FAILED,
+                        failed_items.append(
+                            BatchEventItem(
+                                task_run_external_id=step_run_id,
                                 payload=exc.serialize(include_metadata=True),
                                 should_not_retry=False,
                             )
@@ -571,21 +586,36 @@ class Runner:
                             should_not_retry=False,
                         )
                     )
+
+                if failed_items:
+                    self.event_queue.put(
+                        QueuedBatchActionEvent(
+                            action=action,
+                            type=STEP_EVENT_TYPE_FAILED,
+                            items=failed_items,
+                        )
+                    )
         except Exception as e:
             logger.exception(
                 f"Batch task '{action_id}' failed for batch {action.batch_id}"
             )
             should_not_retry = isinstance(e, NonRetryableException)
-            for item_action in item_actions.values():
-                exc = TaskRunError.from_exception(e, item_action.step_run_id)
-                self.event_queue.put(
-                    ActionEvent(
-                        action=item_action,
-                        type=STEP_EVENT_TYPE_FAILED,
-                        payload=exc.serialize(include_metadata=True),
-                        should_not_retry=should_not_retry,
-                    )
+            self.event_queue.put(
+                QueuedBatchActionEvent(
+                    action=action,
+                    type=STEP_EVENT_TYPE_FAILED,
+                    items=[
+                        BatchEventItem(
+                            task_run_external_id=item_action.step_run_id,
+                            payload=TaskRunError.from_exception(
+                                e, item_action.step_run_id
+                            ).serialize(include_metadata=True),
+                            should_not_retry=should_not_retry,
+                        )
+                        for item_action in item_actions.values()
+                    ],
                 )
+            )
 
     async def log_thread_pool_status(self) -> None:
         thread_pool_details = {

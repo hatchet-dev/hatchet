@@ -689,8 +689,6 @@ JOIN
     "StepBatchConfig" sbc ON sbc."stepId" = b.step_id
 WHERE
     b.tenant_id = @tenantId::uuid
--- sbc."stepId" is StepBatchConfig's primary key, so grouping by it lets the
--- other sbc columns be selected without aggregation (functional dependency).
 GROUP BY
     b.step_id,
     b.batch_key,

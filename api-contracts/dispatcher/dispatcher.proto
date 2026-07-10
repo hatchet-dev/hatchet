@@ -22,6 +22,10 @@ service Dispatcher {
 
     rpc SendStepActionEvent(StepActionEvent) returns (ActionEventResponse) {}
 
+    // SendBatchActionEvent reports a single lifecycle event (STARTED, FAILED, or CANCELLED)
+    // for every task in a batch in one call, instead of one SendStepActionEvent call per task.
+    rpc SendBatchActionEvent(BatchActionEvent) returns (ActionEventResponse) {}
+
     rpc SendGroupKeyActionEvent(GroupKeyActionEvent) returns (ActionEventResponse) {}
 
     rpc PutOverridesData(OverridesData) returns (OverridesDataResponse) {}
@@ -271,6 +275,7 @@ enum StepActionEventType {
     STEP_EVENT_TYPE_COMPLETED = 2;
     STEP_EVENT_TYPE_FAILED = 3;
     STEP_EVENT_TYPE_ACKNOWLEDGED = 4;
+    STEP_EVENT_TYPE_CANCELLED = 5;
 }
 
 message StepActionEvent {
@@ -305,6 +310,42 @@ message StepActionEvent {
 
     // a flag indicating if the task should _not_ be retried
     optional bool should_not_retry = 11;
+}
+
+message BatchActionEventItem {
+    // the task external run id
+    string task_run_external_id = 1;
+
+    // the event payload (e.g. serialized error for FAILED; unused for STARTED/CANCELLED)
+    string event_payload = 2;
+
+    // the retry count (falls back to the task's current retry count if unset)
+    optional int32 retry_count = 3;
+
+    // a flag indicating if the task should _not_ be retried (FAILED only)
+    optional bool should_not_retry = 4;
+}
+
+message BatchActionEvent {
+    // the id of the worker
+    string worker_id = 1;
+
+    // the id of the job (shared across all items in the batch)
+    string job_id = 2;
+
+    // the action id (shared across all items in the batch)
+    string action_id = 3;
+
+    // (optional) the batch identifier, for observability
+    optional string batch_id = 4;
+
+    google.protobuf.Timestamp event_timestamp = 5;
+
+    // the task event type -- applies uniformly to every item in this batch
+    StepActionEventType event_type = 6;
+
+    // the items in this batch
+    repeated BatchActionEventItem items = 7;
 }
 
 message ActionEventResponse {

@@ -42,12 +42,13 @@ from hatchet_sdk.conditions import (
 )
 from hatchet_sdk.context.pre_eviction import aio_wait_for_pre_eviction
 from hatchet_sdk.context.worker_context import WorkerContext
+from hatchet_sdk.contracts.dispatcher_pb2 import STEP_EVENT_TYPE_CANCELLED
 from hatchet_sdk.deprecated.deprecation import semver_less_than
 from hatchet_sdk.engine_version import MinEngineVersion
 from hatchet_sdk.exceptions import TaskRunError
-from hatchet_sdk.features.runs import BulkCancelReplayOpts, RunsClient
+from hatchet_sdk.features.runs import RunsClient
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import ActionPayload
+from hatchet_sdk.runnables.action import ActionPayload, BatchEventItem
 from hatchet_sdk.runnables.types import (
     R,
     TWorkflowInput,
@@ -423,8 +424,13 @@ class Context:
         """
         logger.debug("cancelling step...")
         if self._action.batch_items:
-            self._runs_client.bulk_cancel(
-                opts=BulkCancelReplayOpts(ids=list(self._action.batch_items.keys()))
+            self._dispatcher_client.send_batch_action_event(
+                self._action,
+                STEP_EVENT_TYPE_CANCELLED,
+                [
+                    BatchEventItem(task_run_external_id=ext_id)
+                    for ext_id in self._action.batch_items
+                ],
             )
         else:
             self._runs_client.cancel(self._step_run_id)
@@ -438,8 +444,15 @@ class Context:
         """
         logger.debug("cancelling step...")
         if self._action.batch_items:
-            await self._runs_client.aio_bulk_cancel(
-                opts=BulkCancelReplayOpts(ids=list(self._action.batch_items.keys()))
+            # Note: uses the raising (non-swallowing) variant directly, matching the
+            # previous REST bulk_cancel behavior of propagating failures to the caller.
+            await self._dispatcher_client._try_aio_send_batch_action_event(
+                self._action,
+                STEP_EVENT_TYPE_CANCELLED,
+                [
+                    BatchEventItem(task_run_external_id=ext_id)
+                    for ext_id in self._action.batch_items
+                ],
             )
         else:
             await self._runs_client.aio_cancel(self._step_run_id)

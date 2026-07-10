@@ -1454,7 +1454,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         parents: list[Task[TWorkflowInput, Any]] | None = None,
-        retries: int = 0,
         rate_limits: list[RateLimit] | None = None,
         desired_worker_labels: (
             dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
@@ -1496,8 +1495,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
             execution_timeout=execution_timeout,
-            retries=retries,
             backoff_factor=backoff_factor,
+            retries=0,
             backoff_max_seconds=backoff_max_seconds,
             task_defaults=self.config.task_defaults,
         )

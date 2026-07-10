@@ -63,6 +63,14 @@ class BatchItemData(BaseModel):
     workflow_run_id: str
 
 
+class BatchEventItem(BaseModel):
+    """A single task's contribution to a batched STARTED/FAILED/CANCELLED action event."""
+
+    task_run_external_id: str
+    payload: str | None = None
+    should_not_retry: bool = False
+
+
 class Action(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

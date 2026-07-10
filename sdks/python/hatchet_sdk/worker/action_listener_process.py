@@ -24,9 +24,10 @@ from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     STEP_EVENT_TYPE_STARTED,
     ActionEventResponse,
+    StepActionEventType,
 )
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action, ActionType
+from hatchet_sdk.runnables.action import Action, ActionType, BatchEventItem
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
     ctx_step_run_id,
@@ -56,6 +57,15 @@ class ActionEvent:
     should_not_retry: bool
 
 
+@dataclass
+class QueuedBatchActionEvent:
+    """A single lifecycle event (STARTED/FAILED/CANCELLED) covering every task in a batch."""
+
+    action: Action
+    type: StepActionEventType
+    items: list[BatchEventItem]
+
+
 BLOCKED_THREAD_WARNING = "THE TIME TO START THE TASK RUN IS TOO LONG, THE EVENT LOOP MAY BE BLOCKED. See https://docs.hatchet.run/blog/warning-event-loop-blocked for details and debugging help."
 
 
@@ -67,7 +77,7 @@ class WorkerActionListenerProcess:
         slot_config: dict[str, int],
         config: ClientConfig,
         action_queue: "Queue[Action]",
-        event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+        event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
         handle_kill: bool,
         debug: bool,
         labels: list[WorkerLabel],
@@ -340,7 +350,7 @@ class WorkerActionListenerProcess:
         self._stop_event_task = asyncio.create_task(self._wait_for_stop_event())
 
     # TODO move event methods to separate class
-    async def _get_event(self) -> ActionEvent | STOP_LOOP_TYPE:
+    async def _get_event(self) -> ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self.event_queue.get)
 
@@ -377,8 +387,27 @@ class WorkerActionListenerProcess:
                 self._waiting_steps_blocked_since = None
             await asyncio.sleep(1)
 
-    async def send_event(self, event: ActionEvent, retry_attempt: int = 1) -> None:
+    async def send_event(
+        self,
+        event: ActionEvent | QueuedBatchActionEvent,
+        retry_attempt: int = 1,
+    ) -> None:
         try:
+            if isinstance(event, QueuedBatchActionEvent):
+                send_batch_event_task = asyncio.create_task(
+                    self.dispatcher_client.aio_send_batch_action_event(
+                        event.action,
+                        event.type,
+                        event.items,
+                    )
+                )
+
+                self.step_action_events.add(send_batch_event_task)
+                send_batch_event_task.add_done_callback(
+                    lambda t: self.step_action_events.discard(t)
+                )
+                return
+
             match event.action.action_type:
                 # FIXME: all events sent from an execution of a function are of type ActionType.START_STEP_RUN since
                 # the action is re-used. We should change this.
@@ -539,7 +568,7 @@ def worker_action_listener_process(
     slot_config: dict[str, int],
     config: ClientConfig,
     action_queue: "Queue[Action]",
-    event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
+    event_queue: "Queue[ActionEvent | QueuedBatchActionEvent | STOP_LOOP_TYPE]",
     handle_kill: bool,
     debug: bool,
     labels: list[WorkerLabel],
