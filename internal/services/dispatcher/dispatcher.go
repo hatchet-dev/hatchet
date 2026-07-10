@@ -1064,9 +1064,8 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 		BatchStartPayload: batchStart,
 		BatchId:           &batchID,
 	}
-
-	if strings.TrimSpace(payload.BatchKey) != "" {
-		key := strings.TrimSpace(payload.BatchKey)
+	key := strings.TrimSpace(payload.BatchKey)
+	if strings.TrimSpace(key) != "" {
 		action.BatchKey = &key
 	}
 

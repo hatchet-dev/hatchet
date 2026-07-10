@@ -1412,7 +1412,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	}
 
 	// Check for batched tasks and collect all tasks in affected batches
-	batchIdsToFail := make(map[string]bool)
+	batchIdsToFail := make(map[uuid.UUID]bool)
 	taskIdsToFail := make(map[string]bool) // key is "taskId:retryCount"
 
 	for _, task := range toTimeout {
@@ -1421,23 +1421,18 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 
 		// If this task is part of a batch, we need to fail the entire batch
 		if task.BatchID != nil {
-			batchId := task.BatchID.String()
-			if batchId != "" {
-				batchIdsToFail[batchId] = true
+			batchId := task.BatchID
+			if batchId != nil {
+				batchIdsToFail[*batchId] = true
 			}
 		}
 	}
 
 	// For each batch that has a timed-out task, get all tasks in that batch and add them to the fail list
 	for batchId := range batchIdsToFail {
-		bId, batchIdErr := uuid.Parse(batchId)
-		if batchIdErr != nil {
-			return nil, false, fmt.Errorf("failed to parse batch id %s: %w", batchId, batchIdErr)
-		}
-
 		batchTasks, err := r.queries.ListTasksInBatch(ctx, tx, sqlcv1.ListTasksInBatchParams{
 			Tenantid: tenantId,
-			Batchid:  bId,
+			Batchid:  batchId,
 		})
 
 		if err != nil {

@@ -137,11 +137,14 @@ func newBatchScheduler(
 	}
 
 	var flushInterval time.Duration
-	if resource.BatchMaxInterval > 0 {
-		flushInterval = time.Duration(resource.BatchMaxInterval) * time.Millisecond
+	if resource.BatchMaxInterval.Valid {
+		flushInterval = time.Duration(resource.BatchMaxInterval.Int32) * time.Millisecond
 	}
 
-	maxRuns := resource.BatchGroupMaxRuns
+	var maxRuns int32
+	if resource.BatchGroupMaxRuns.Valid {
+		maxRuns = resource.BatchGroupMaxRuns.Int32
+	}
 
 	return &BatchScheduler{
 		cf:            cf,

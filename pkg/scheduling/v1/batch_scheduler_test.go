@@ -209,10 +209,9 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 	}
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
-		StepID:           stepId,
-		BatchKey:         "batch",
-		BatchMaxSize:     2,
-		BatchMaxInterval: 0,
+		StepID:       stepId,
+		BatchKey:     "batch",
+		BatchMaxSize: 2,
 	}
 
 	notifyCh := make(chan []string, 1) // deprecated path, preserved for compatibility
@@ -254,7 +253,7 @@ func TestBatchSchedulerFlushOnInterval(t *testing.T) {
 		StepID:           stepId,
 		BatchKey:         "interval",
 		BatchMaxSize:     10,
-		BatchMaxInterval: 50,
+		BatchMaxInterval: pgtype.Int4{Int32: 50, Valid: true},
 	}
 
 	notifyCh := make(chan []string, 1)
@@ -289,8 +288,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 			StepID:            stepId,
 			BatchKey:          "group",
 			BatchMaxSize:      2,
-			BatchMaxInterval:  0,
-			BatchGroupMaxRuns: 1,
+			BatchGroupMaxRuns: pgtype.Int4{Int32: 1, Valid: true},
 		},
 		queueFactory,
 		&Scheduler{},
@@ -413,10 +411,9 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		newTestSharedConfig(repo),
 		tenantId,
 		&sqlcv1.ListDistinctBatchResourcesRow{
-			StepID:           stepId,
-			BatchKey:         "single-slot",
-			BatchMaxSize:     3,
-			BatchMaxInterval: 0,
+			StepID:       stepId,
+			BatchKey:     "single-slot",
+			BatchMaxSize: 3,
 		},
 		queueFactory,
 		&Scheduler{},
@@ -525,10 +522,9 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 	}
 
 	resource := &sqlcv1.ListDistinctBatchResourcesRow{
-		StepID:           stepId,
-		BatchKey:         "timeout-batch",
-		BatchMaxSize:     5,
-		BatchMaxInterval: 0,
+		StepID:       stepId,
+		BatchKey:     "timeout-batch",
+		BatchMaxSize: 5,
 	}
 
 	var emitted []*QueueResults

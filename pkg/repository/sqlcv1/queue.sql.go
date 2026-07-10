@@ -703,9 +703,9 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    COALESCE(MAX(sbc."batchMaxSize"), -1)::integer AS batch_max_size,
-    COALESCE(MAX(sbc."batchMaxInterval"), -1)::integer AS batch_max_interval,
-    COALESCE(MAX(sbc."batchGroupMaxRuns"), -1)::integer AS batch_group_max_runs
+    sbc."batchMaxSize" AS batch_max_size,
+    sbc."batchMaxInterval" AS batch_max_interval,
+    sbc."batchGroupMaxRuns" AS batch_group_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
@@ -714,7 +714,8 @@ WHERE
     b.tenant_id = $1::uuid
 GROUP BY
     b.step_id,
-    b.batch_key
+    b.batch_key,
+    sbc."stepId"
 ORDER BY
     oldest_item_at ASC
 `
@@ -725,10 +726,12 @@ type ListDistinctBatchResourcesRow struct {
 	OldestItemAt      pgtype.Timestamptz `json:"oldest_item_at"`
 	PendingCount      int64              `json:"pending_count"`
 	BatchMaxSize      int32              `json:"batch_max_size"`
-	BatchMaxInterval  int32              `json:"batch_max_interval"`
-	BatchGroupMaxRuns int32              `json:"batch_group_max_runs"`
+	BatchMaxInterval  pgtype.Int4        `json:"batch_max_interval"`
+	BatchGroupMaxRuns pgtype.Int4        `json:"batch_group_max_runs"`
 }
 
+// sbc."stepId" is StepBatchConfig's primary key, so grouping by it lets the
+// other sbc columns be selected without aggregation (functional dependency).
 func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListDistinctBatchResourcesRow, error) {
 	rows, err := db.Query(ctx, listDistinctBatchResources, tenantid)
 	if err != nil {
