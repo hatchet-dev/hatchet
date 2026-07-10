@@ -63,23 +63,21 @@ func runUI(cmd *cobra.Command) {
 		configcli.Logger.Fatalf("could not build UI server: %v", err)
 	}
 
-	listenPort, err := resolveUIPort(host, port)
+	listener, err := listenUI(host, port)
 	if err != nil {
 		configcli.Logger.Fatalf("%v", err)
 	}
 
-	addr := fmt.Sprintf("%s:%d", host, listenPort)
-	localURL := fmt.Sprintf("http://%s:%d", host, listenPort)
+	localURL := fmt.Sprintf("http://%s:%d", browserHost(host), listener.Addr().(*net.TCPAddr).Port)
 
 	server := &http.Server{
-		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()
@@ -102,9 +100,6 @@ func runUI(cmd *cobra.Command) {
 	}
 }
 
-// resolveUITarget determines the API server the UI should be proxied to. An
-// explicit --api-url wins; otherwise the selected profile's API server URL is
-// used.
 func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureSkipVerify bool, profileName string) {
 	if apiURLFlag != "" {
 		parsed, err := url.Parse(apiURLFlag)
@@ -141,8 +136,6 @@ func resolveUITarget(apiURLFlag, profileFlag string) (target *url.URL, insecureS
 	return parsed, profile.TLSStrategy == "none", selectedProfile
 }
 
-// newUIHandler builds the HTTP handler that serves the embedded UI and proxies
-// /api requests to the target Hatchet API server.
 func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error) {
 	origin := target.Scheme + "://" + target.Host
 
@@ -150,8 +143,6 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(target)
 
-			// Present the request to the API server as same-origin so cookie/CSRF
-			// checks pass, since the browser only ever talks to our local origin.
 			pr.Out.Host = target.Host
 			if pr.Out.Header.Get("Origin") != "" {
 				pr.Out.Header.Set("Origin", origin)
@@ -160,8 +151,6 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 				pr.Out.Header.Set("Referer", origin+pr.Out.URL.Path)
 			}
 		},
-		// Rewrite Set-Cookie so session cookies from the (possibly remote, https)
-		// API server are accepted by the browser against our local http origin.
 		ModifyResponse: func(resp *http.Response) error {
 			if cookies := resp.Header["Set-Cookie"]; len(cookies) > 0 {
 				for i, c := range cookies {
@@ -174,7 +163,7 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 
 	if insecureSkipVerify {
 		proxy.Transport = &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec // opt-in via profile tlsStrategy=none
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // nolint:gosec
 		}
 	}
 
@@ -190,8 +179,6 @@ func newUIHandler(target *url.URL, insecureSkipVerify bool) (http.Handler, error
 	return mux, nil
 }
 
-// rewriteSetCookie strips the Domain attribute and the Secure flag so a cookie
-// scoped to a remote https host is stored against our local http origin.
 func rewriteSetCookie(cookie string) string {
 	parts := strings.Split(cookie, ";")
 	out := parts[:0]
@@ -199,7 +186,6 @@ func rewriteSetCookie(cookie string) string {
 	for i, p := range parts {
 		trimmed := strings.TrimSpace(p)
 
-		// index 0 is the name=value pair, which we always keep.
 		if i > 0 {
 			lower := strings.ToLower(trimmed)
 			if strings.HasPrefix(lower, "domain=") || lower == "secure" {
@@ -213,8 +199,6 @@ func rewriteSetCookie(cookie string) string {
 	return strings.Join(out, "; ")
 }
 
-// newSPAHandler serves the embedded UI bundle with single-page-app fallback to
-// index.html, or a built-in notice when no UI build is bundled.
 func newSPAHandler() (http.Handler, error) {
 	assets, err := ui.Assets()
 	if err != nil {
@@ -232,7 +216,6 @@ func newSPAHandler() (http.Handler, error) {
 		}
 
 		if _, err := fs.Stat(assets, reqPath); err != nil {
-			// Unknown path: fall back to index.html so client-side routing works.
 			serveIndex(w, assets)
 			return
 		}
@@ -257,11 +240,14 @@ func serveIndex(w http.ResponseWriter, assets fs.FS) {
 	_, _ = w.Write(index)
 }
 
-// resolveUIPort returns the port to listen on. A non-zero port is used as-is;
-// port 0 auto-detects a free port starting at the default base.
-func resolveUIPort(host string, port int) (int, error) {
+func listenUI(host string, port int) (net.Listener, error) {
 	if port != 0 {
-		return port, nil
+		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, port))
+		if err != nil {
+			return nil, fmt.Errorf("could not bind to %s:%d: %w", host, port, err)
+		}
+
+		return ln, nil
 	}
 
 	const base = 8080
@@ -269,12 +255,20 @@ func resolveUIPort(host string, port int) (int, error) {
 	for p := base; p < base+100; p++ {
 		ln, err := net.Listen("tcp", fmt.Sprintf("%s:%d", host, p))
 		if err == nil {
-			_ = ln.Close()
-			return p, nil
+			return ln, nil
 		}
 	}
 
-	return 0, fmt.Errorf("could not find a free port starting at %d; specify one with --port", base)
+	return nil, fmt.Errorf("could not find a free port starting at %d; specify one with --port", base)
+}
+
+func browserHost(host string) string {
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		return "localhost"
+	default:
+		return host
+	}
 }
 
 func uiStartedView(localURL, targetURL, profileName string) string {
