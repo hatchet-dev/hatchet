@@ -320,7 +320,7 @@ type TaskRepository interface {
 
 	GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error)
 
-	UpdateTaskBatchMetadata(ctx context.Context, tenantId, batchId, workerId, batchKey string, batchSize int, assignments []TaskBatchAssignment) error
+	UpdateTaskBatchMetadata(ctx context.Context, tenantId uuid.UUID, batchId string, workerId uuid.UUID, batchKey string, batchSize int, assignments []TaskBatchAssignment) error
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
 
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
@@ -1244,47 +1244,7 @@ func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tena
 			continue
 		}
 
-		task := &sqlcv1.V1Task{
-			ID:                           row.ID,
-			InsertedAt:                   row.InsertedAt,
-			TenantID:                     row.TenantID,
-			Queue:                        row.Queue,
-			ActionID:                     row.ActionID,
-			StepID:                       row.StepID,
-			StepReadableID:               row.StepReadableID,
-			WorkflowID:                   row.WorkflowID,
-			WorkflowVersionID:            row.WorkflowVersionID,
-			WorkflowRunID:                row.WorkflowRunID,
-			ScheduleTimeout:              row.ScheduleTimeout,
-			StepTimeout:                  row.StepTimeout,
-			Priority:                     row.Priority,
-			Sticky:                       row.Sticky,
-			DesiredWorkerID:              row.DesiredWorkerID,
-			ExternalID:                   row.ExternalID,
-			DisplayName:                  row.DisplayName,
-			Input:                        row.Input,
-			RetryCount:                   row.RetryCount,
-			InternalRetryCount:           row.InternalRetryCount,
-			AppRetryCount:                row.AppRetryCount,
-			StepIndex:                    row.StepIndex,
-			AdditionalMetadata:           row.AdditionalMetadata,
-			DagID:                        row.DagID,
-			DagInsertedAt:                row.DagInsertedAt,
-			ParentTaskExternalID:         row.ParentTaskExternalID,
-			ParentTaskID:                 row.ParentTaskID,
-			ParentTaskInsertedAt:         row.ParentTaskInsertedAt,
-			ChildIndex:                   row.ChildIndex,
-			ChildKey:                     row.ChildKey,
-			InitialState:                 row.InitialState,
-			InitialStateReason:           row.InitialStateReason,
-			ConcurrencyParentStrategyIds: row.ConcurrencyParentStrategyIds,
-			ConcurrencyStrategyIds:       row.ConcurrencyStrategyIds,
-			ConcurrencyKeys:              row.ConcurrencyKeys,
-			RetryBackoffFactor:           row.RetryBackoffFactor,
-			RetryMaxBackoff:              row.RetryMaxBackoff,
-		}
-
-		result = append(result, task)
+		result = append(result, row)
 	}
 
 	return result, nil
@@ -4533,7 +4493,7 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 	return result, nil
 }
 
-func (r *TaskRepositoryImpl) UpdateTaskBatchMetadata(ctx context.Context, tenantId, batchId, workerId, batchKey string, batchSize int, assignments []TaskBatchAssignment) error {
+func (r *TaskRepositoryImpl) UpdateTaskBatchMetadata(ctx context.Context, tenantId uuid.UUID, batchId string, workerId uuid.UUID, batchKey string, batchSize int, assignments []TaskBatchAssignment) error {
 	if len(assignments) == 0 {
 		return nil
 	}
@@ -4554,9 +4514,9 @@ func (r *TaskRepositoryImpl) UpdateTaskBatchMetadata(ctx context.Context, tenant
 	err := r.queries.UpdateTaskBatchMetadata(ctx, r.pool, sqlcv1.UpdateTaskBatchMetadataParams{
 		Batchid:         uuid.MustParse(batchId),
 		Batchsize:       int32(batchSize), // nolint: gosec
-		Workerid:        uuid.MustParse(workerId),
+		Workerid:        workerId,
 		Batchkey:        batchKey,
-		Tenantid:        uuid.MustParse(tenantId),
+		Tenantid:        tenantId,
 		Taskids:         taskIds,
 		Taskinsertedats: taskInsertedAts,
 		Batchindexes:    batchIndexes,

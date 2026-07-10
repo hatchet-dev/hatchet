@@ -91,14 +91,14 @@ type TaskAssignedBulkTaskPayload struct {
 
 type BatchTaskItem struct {
 	InsertedAt    time.Time `json:"inserted_at"`
-	ExternalID    string    `json:"external_id"`
-	WorkflowRunID string    `json:"workflow_run_id"`
+	ExternalID    uuid.UUID `json:"external_id"`
+	WorkflowRunID uuid.UUID `json:"workflow_run_id"`
 	TaskID        int64     `json:"task_id"`
 }
 
 type StartBatchTaskPayload struct {
-	TenantId      string          `json:"tenant_id" validate:"required"`
-	WorkerId      string          `json:"worker_id" validate:"required"`
+	TenantId      uuid.UUID       `json:"tenant_id" validate:"required"`
+	WorkerId      uuid.UUID       `json:"worker_id" validate:"required"`
 	ActionId      string          `json:"action_id" validate:"required"`
 	BatchId       string          `json:"batch_id" validate:"required"`
 	ExpectedSize  int             `json:"expected_size" validate:"required"`

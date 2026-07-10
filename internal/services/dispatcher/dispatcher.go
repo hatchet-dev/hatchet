@@ -969,7 +969,7 @@ func (d *DispatcherImpl) handleRetries(
 }
 
 type batchItemPayload struct {
-	WorkflowRunID string          `json:"workflow_run_id"`
+	WorkflowRunID uuid.UUID       `json:"workflow_run_id"`
 	Payload       json.RawMessage `json:"payload"`
 }
 
@@ -986,17 +986,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 		return fmt.Errorf("batch start payload missing action id for batch %s", payload.BatchId)
 	}
 
-	tenantIdParsed, err := uuid.Parse(payload.TenantId)
-	if err != nil {
-		return fmt.Errorf("could not parse tenant id %q for batch %s: %w", payload.TenantId, payload.BatchId, err)
-	}
-
-	workerIdParsed, err := uuid.Parse(payload.WorkerId)
-	if err != nil {
-		return fmt.Errorf("could not parse worker id %q for batch %s: %w", payload.WorkerId, payload.BatchId, err)
-	}
-
-	workers, err := d.workers.Get(workerIdParsed)
+	workers, err := d.workers.Get(payload.WorkerId)
 	if err != nil {
 		if errors.Is(err, ErrWorkerNotFound) {
 			// If the worker isn't connected, ignore (the tasks will be retried separately).
@@ -1009,8 +999,8 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	var actionPayload string
 	if len(payload.Items) > 0 {
 		taskIds := make([]int64, 0, len(payload.Items))
-		externalIDByTaskID := make(map[int64]string, len(payload.Items))
-		workflowRunIDByTaskID := make(map[int64]string, len(payload.Items))
+		externalIDByTaskID := make(map[int64]uuid.UUID, len(payload.Items))
+		workflowRunIDByTaskID := make(map[int64]uuid.UUID, len(payload.Items))
 
 		for _, item := range payload.Items {
 			taskIds = append(taskIds, item.TaskID)
@@ -1018,12 +1008,12 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 			workflowRunIDByTaskID[item.TaskID] = item.WorkflowRunID
 		}
 
-		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, tenantIdParsed, taskIds)
+		taskIdToData, populateErr := d.populateTaskData(ctx, func(_ *sqlcv1.V1Task) {}, payload.TenantId, taskIds)
 		if populateErr != nil {
 			return fmt.Errorf("could not populate task data for batch %s: %w", payload.BatchId, populateErr)
 		}
 
-		batchItems := make(map[string]batchItemPayload, len(payload.Items))
+		batchItems := make(map[uuid.UUID]batchItemPayload, len(payload.Items))
 		for taskID, data := range taskIdToData {
 			extID, ok := externalIDByTaskID[taskID]
 			if !ok {
@@ -1067,14 +1057,13 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 	}
 
 	action := &contracts.AssignedAction{
-		TenantId:          payload.TenantId,
+		TenantId:          payload.TenantId.String(),
 		ActionType:        contracts.ActionType_START_BATCH,
 		ActionId:          payload.ActionId,
 		ActionPayload:     actionPayload,
 		BatchStartPayload: batchStart,
+		BatchId:           &batchID,
 	}
-
-	action.BatchId = &batchID
 
 	if strings.TrimSpace(payload.BatchKey) != "" {
 		key := strings.TrimSpace(payload.BatchKey)

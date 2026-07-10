@@ -905,7 +905,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 	}
 
 	type batchGroupKey struct {
-		WorkerID string
+		WorkerID uuid.UUID
 		StepID   string
 		ActionID string
 		BatchKey string
@@ -918,7 +918,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		workerID := assignment.WorkerId.String()
+		workerID := assignment.WorkerId
 		stepID := assignment.QueueItem.StepID.String()
 		actionID := assignment.QueueItem.ActionID
 		batchKey := ""
@@ -957,7 +957,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 		s.l.Debug().
 			Str("tenant_id", tenantId.String()).
-			Str("worker_id", key.WorkerID).
+			Str("worker_id", key.WorkerID.String()).
 			Str("step_id", key.StepID).
 			Str("action_id", key.ActionID).
 			Str("batch_key", key.BatchKey).
@@ -993,12 +993,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			}
 		}
 
-		workerUUID, parseErr := uuid.Parse(key.WorkerID)
-		if parseErr != nil {
-			result = multierror.Append(result, fmt.Errorf("invalid worker id %s: %w", key.WorkerID, parseErr))
-			continue
-		}
-		dispatcherID, ok := workerIdToDispatcherId[workerUUID]
+		dispatcherID, ok := workerIdToDispatcherId[key.WorkerID]
 		if !ok {
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
@@ -1035,8 +1030,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 			batchItems = append(batchItems, tasktypes.BatchTaskItem{
 				TaskID:        item.QueueItem.TaskID,
-				ExternalID:    item.QueueItem.ExternalID.String(),
-				WorkflowRunID: item.QueueItem.WorkflowRunID.String(),
+				ExternalID:    item.QueueItem.ExternalID,
+				WorkflowRunID: item.QueueItem.WorkflowRunID,
 				InsertedAt:    item.QueueItem.TaskInsertedAt.Time,
 			})
 		}
@@ -1045,7 +1040,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			releaseOnError()
 			continue
 		}
-		if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, tenantId.String(), batchID, key.WorkerID, key.BatchKey, batchSize, assignmentsPayload); err != nil {
+		if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, tenantId, batchID, key.WorkerID, key.BatchKey, batchSize, assignmentsPayload); err != nil {
 			s.internalRetry(ctx, tenantId, group...)
 			releaseOnError()
 			result = multierror.Append(result, fmt.Errorf("could not persist batch metadata: %w", err))
@@ -1053,7 +1048,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 		}
 
 		startPayload := tasktypes.StartBatchTaskPayload{
-			TenantId:      tenantId.String(),
+			TenantId:      tenantId,
 			WorkerId:      key.WorkerID,
 			ActionId:      key.ActionID,
 			BatchId:       batchID,
@@ -1133,8 +1128,6 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 		batchPayload := buildBatchEventPayload(batchPayloadFields)
 
-		workerPtr := &workerUUID
-
 		monitoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(group))
 		for _, item := range group {
 			if item == nil || item.QueueItem == nil {
@@ -1144,7 +1137,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			monitoringPayloads = append(monitoringPayloads, tasktypes.CreateMonitoringEventPayload{
 				TaskId:         item.QueueItem.TaskID,
 				RetryCount:     item.QueueItem.RetryCount,
-				WorkerId:       workerPtr,
+				WorkerId:       &key.WorkerID,
 				EventType:      eventTypeBatchFlushed,
 				EventTimestamp: triggeredAt,
 				EventMessage:   batchMessage,
