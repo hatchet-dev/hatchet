@@ -730,8 +730,6 @@ type ListDistinctBatchResourcesRow struct {
 	BatchGroupMaxRuns pgtype.Int4        `json:"batch_group_max_runs"`
 }
 
-// sbc."stepId" is StepBatchConfig's primary key, so grouping by it lets the
-// other sbc columns be selected without aggregation (functional dependency).
 func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListDistinctBatchResourcesRow, error) {
 	rows, err := db.Query(ctx, listDistinctBatchResources, tenantid)
 	if err != nil {

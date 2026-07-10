@@ -1442,6 +1442,64 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         return inner
 
+    @overload
+    def batch_task(
+        self,
+        name: str | None = None,
+        *,
+        batch_max_size: int,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[True],
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[str, TWorkflowInput], Context, P],
+                R | CoroutineLike[R],
+            ]
+        ],
+        Task[TWorkflowInput, R],
+    ]: ...
+
+    @overload
+    def batch_task(
+        self,
+        name: str | None = None,
+        *,
+        batch_max_size: int,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[False] = False,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        parents: list[Task[TWorkflowInput, Any]] | None = None,
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: (
+            dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
+        ) = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[str, TWorkflowInput], Context, P],
+                dict[str, R] | CoroutineLike[dict[str, R]],
+            ]
+        ],
+        Task[TWorkflowInput, R],
+    ]: ...
+
     def batch_task(
         self,
         name: str | None = None,
@@ -1464,7 +1522,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         [
             Callable[
                 Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | CoroutineLike[dict[str, R]],
+                dict[str, R] | R | CoroutineLike[dict[str, R]] | CoroutineLike[R],
             ]
         ],
         Task[TWorkflowInput, R],
@@ -1504,7 +1562,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         def inner(
             func: Callable[
                 Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | CoroutineLike[dict[str, R]],
+                dict[str, R] | R | CoroutineLike[dict[str, R]] | CoroutineLike[R],
             ],
         ) -> Task[TWorkflowInput, R]:
             _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)
