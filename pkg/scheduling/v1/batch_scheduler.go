@@ -280,18 +280,12 @@ func (b *BatchScheduler) fetchNewItems() error {
 		return b.ctx.Err()
 	}
 
-	after := pgtype.Int8{}
-	if b.afterID > 0 {
-		after.Int64 = b.afterID
-		after.Valid = true
-	}
-
 	limit := pgtype.Int4{
 		Int32: batchFetchLimit,
 		Valid: true,
 	}
 
-	items, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, b.batchKey, after, limit.Int32)
+	items, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, b.batchKey, limit.Int32)
 	if err != nil {
 		return err
 	}
@@ -318,16 +312,10 @@ func (b *BatchScheduler) fetchNewItems() error {
 		// Check if item has exceeded schedule timeout
 		if item.ScheduleTimeoutAt.Valid && item.ScheduleTimeoutAt.Time.Before(now) {
 			timedOutItems = append(timedOutItems, item)
-			if item.ID > b.afterID {
-				b.afterID = item.ID
-			}
 			continue
 		}
 
 		b.buffer = append(b.buffer, item)
-		if item.ID > b.afterID {
-			b.afterID = item.ID
-		}
 
 		newItems = append(newItems, item)
 	}
@@ -369,8 +357,7 @@ func (b *BatchScheduler) maybeStopIfIdle() {
 	}
 
 	// Confirm there are no DB items for this (step_id, batch_key).
-	after := pgtype.Int8{}
-	rows, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, b.batchKey, after, 1)
+	rows, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, b.batchKey, 1)
 	if err != nil {
 		b.l.Debug().Err(err).Msg("idle check failed to list batched queue items")
 		return

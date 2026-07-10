@@ -27,7 +27,7 @@ func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListD
 	return nil, nil
 }
 
-func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, batchKey string, afterId pgtype.Int8, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, batchKey string, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

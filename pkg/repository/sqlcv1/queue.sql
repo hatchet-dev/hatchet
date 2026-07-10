@@ -677,10 +677,6 @@ WHERE
     tenant_id = @tenantId::uuid
     AND step_id = @stepId::uuid
     AND batch_key = @batchKey::text
-    AND (
-        sqlc.narg('afterId')::bigint IS NULL
-        OR id > sqlc.narg('afterId')::bigint
-    )
 ORDER BY
     priority DESC,
     id ASC
@@ -767,12 +763,10 @@ WITH locked_qis AS (
     LEFT JOIN v1_task t ON t.id = lqi.task_id AND t.inserted_at = lqi.task_inserted_at
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
-), deleted AS (
-    DELETE FROM v1_queue_item
-    WHERE id IN (SELECT id FROM locked_qis)
-    RETURNING id
 )
-SELECT id FROM deleted;
+DELETE FROM v1_queue_item
+WHERE id IN (SELECT id FROM locked_qis)
+RETURNING id;
 
 -- name: DeleteBatchedQueueItems :exec
 DELETE FROM

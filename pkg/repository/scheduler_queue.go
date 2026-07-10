@@ -970,7 +970,7 @@ func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv
 	return rows, nil
 }
 
-func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, batchKey string, afterId pgtype.Int8, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, batchKey string, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	ctx, span := telemetry.NewSpan(ctx, "list-batched-queue-items")
 	defer span.End()
 
@@ -978,7 +978,6 @@ func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId
 		Tenantid: b.tenantId,
 		Stepid:   stepId,
 		Batchkey: batchKey,
-		AfterId:  afterId,
 	}
 
 	if limit > 0 {

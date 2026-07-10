@@ -538,22 +538,17 @@ WHERE
     tenant_id = $1::uuid
     AND step_id = $2::uuid
     AND batch_key = $3::text
-    AND (
-        $4::bigint IS NULL
-        OR id > $4::bigint
-    )
 ORDER BY
     priority DESC,
     id ASC
 LIMIT
-    COALESCE($5::integer, 1000)
+    COALESCE($4::integer, 1000)
 `
 
 type ListBatchedQueueItemsForBatchParams struct {
 	Tenantid uuid.UUID   `json:"tenantid"`
 	Stepid   uuid.UUID   `json:"stepid"`
 	Batchkey string      `json:"batchkey"`
-	AfterId  pgtype.Int8 `json:"afterId"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
@@ -562,7 +557,6 @@ func (q *Queries) ListBatchedQueueItemsForBatch(ctx context.Context, db DBTX, ar
 		arg.Tenantid,
 		arg.Stepid,
 		arg.Batchkey,
-		arg.AfterId,
 		arg.Limit,
 	)
 	if err != nil {
@@ -1153,12 +1147,10 @@ WITH locked_qis AS (
     LEFT JOIN v1_task t ON t.id = lqi.task_id AND t.inserted_at = lqi.task_inserted_at
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     RETURNING task_id
-), deleted AS (
-    DELETE FROM v1_queue_item
-    WHERE id IN (SELECT id FROM locked_qis)
-    RETURNING id
 )
-SELECT id FROM deleted
+DELETE FROM v1_queue_item
+WHERE id IN (SELECT id FROM locked_qis)
+RETURNING id
 `
 
 func (q *Queries) MoveQueueItemsToBatchedQueue(ctx context.Context, db DBTX, ids []int64) ([]int64, error) {

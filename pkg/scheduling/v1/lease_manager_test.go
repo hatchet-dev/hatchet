@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -70,7 +69,7 @@ func (f *fakeBatchQueueRepo) ListBatchResources(context.Context) ([]*sqlcv1.List
 	return f.resources, nil
 }
 
-func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, string, pgtype.Int8, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, string, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	return nil, nil
 }
 
