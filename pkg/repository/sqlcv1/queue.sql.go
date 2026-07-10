@@ -1474,15 +1474,6 @@ WITH input AS (
         input i ON (t.id, t.inserted_at) = (i.id, i.inserted_at)
     WHERE
         t.inserted_at >= $4::timestamptz
-        AND NOT EXISTS (
-            SELECT 1
-            FROM v1_task_event e
-            WHERE
-                e.task_id = t.id
-                AND e.task_inserted_at = t.inserted_at
-                AND e.retry_count = t.retry_count
-                AND e.event_type = 'CANCELLED'::v1_task_event_type
-        )
     ORDER BY t.id
 ), assigned_tasks AS (
     INSERT INTO v1_task_runtime (

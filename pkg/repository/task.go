@@ -1230,7 +1230,7 @@ func (r *TaskRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 
 func (r *sharedRepository) listTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error) {
 	rows, err := r.queries.ListTasks(ctx, dbtx, sqlcv1.ListTasksParams{
-		Tenantid: tenantId,
+		TenantID: tenantId,
 		Ids:      tasks,
 	})
 	if err != nil {

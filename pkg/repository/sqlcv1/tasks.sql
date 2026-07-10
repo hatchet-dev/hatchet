@@ -235,49 +235,12 @@ WHERE
     AND tenant_id = @tenantId::uuid;
 
 -- name: ListTasks :many
-SELECT
-    t.id,
-    t.inserted_at,
-    t.tenant_id,
-    t.queue,
-    t.action_id,
-    t.step_id,
-    t.step_readable_id,
-    t.workflow_id,
-    t.workflow_version_id,
-    t.workflow_run_id,
-    t.schedule_timeout,
-    t.step_timeout,
-    t.priority,
-    t.sticky,
-    t.desired_worker_id,
-    t.external_id,
-    t.display_name,
-    t.input,
-    t.retry_count,
-    t.internal_retry_count,
-    t.app_retry_count,
-    t.step_index,
-    t.additional_metadata,
-    t.dag_id,
-    t.dag_inserted_at,
-    t.parent_task_external_id,
-    t.parent_task_id,
-    t.parent_task_inserted_at,
-    t.child_index,
-    t.child_key,
-    t.initial_state,
-    t.initial_state_reason,
-    t.concurrency_parent_strategy_ids,
-    t.concurrency_strategy_ids,
-    t.concurrency_keys,
-    t.retry_backoff_factor,
-    t.retry_max_backoff
+SELECT *
 FROM
-    v1_task t
+    v1_task
 WHERE
-    t.tenant_id = @tenantId::uuid
-    AND t.id = ANY(@ids::bigint[]);
+    tenant_id = $1
+    AND id = ANY(@ids::bigint[]);
 
 -- name: UpdateTaskBatchMetadata :exec
 WITH input AS (
