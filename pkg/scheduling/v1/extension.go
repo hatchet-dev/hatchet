@@ -15,8 +15,13 @@ type PostAssignInput struct {
 }
 
 type SnapshotInput struct {
-	Workers               map[uuid.UUID]*WorkerCp
+	Workers map[uuid.UUID]*WorkerCp
+
+	// WorkerSlotUtilization is the per-worker slot utilization summed across slot types.
 	WorkerSlotUtilization map[uuid.UUID]*SlotUtilization
+
+	// WorkerSlotUtilizationByType breaks WorkerSlotUtilization down by slot type.
+	WorkerSlotUtilizationByType map[uuid.UUID]map[string]*SlotUtilization
 }
 
 type SlotUtilization struct {

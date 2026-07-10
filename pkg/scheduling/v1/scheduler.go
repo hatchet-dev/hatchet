@@ -1171,14 +1171,23 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 	workers := s.copyWorkers()
 
 	res := &SnapshotInput{
-		Workers: make(map[uuid.UUID]*WorkerCp),
+		Workers:                     make(map[uuid.UUID]*WorkerCp, len(workers)),
+		WorkerSlotUtilization:       make(map[uuid.UUID]*SlotUtilization, len(workers)),
+		WorkerSlotUtilizationByType: make(map[uuid.UUID]map[string]*SlotUtilization, len(workers)),
 	}
 
 	for workerId, worker := range workers {
+		totalSlots := 0
+
+		for _, units := range worker.TotalSlotsByType {
+			totalSlots += units
+		}
+
 		res.Workers[workerId] = &WorkerCp{
 			WorkerId: workerId,
 			Labels:   worker.Labels,
 			Name:     worker.Name,
+			MaxRuns:  totalSlots,
 		}
 	}
 
@@ -1192,13 +1201,10 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 	uniqueSlots := make(map[*slot]bool)
 
-	workerSlotUtilization := make(map[uuid.UUID]*SlotUtilization)
+	utilizationByType := make(map[uuid.UUID]map[string]*SlotUtilization)
 
 	for workerId := range workers {
-		workerSlotUtilization[workerId] = &SlotUtilization{
-			UtilizedSlots:    0,
-			NonUtilizedSlots: 0,
-		}
+		utilizationByType[workerId] = make(map[string]*SlotUtilization)
 	}
 
 	for _, actionId := range actionKeys {
@@ -1216,26 +1222,73 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 			workerId := slot.worker.ID
 
-			if _, ok := workerSlotUtilization[workerId]; !ok {
-				// initialize the worker slot utilization
-				workerSlotUtilization[workerId] = &SlotUtilization{
-					UtilizedSlots:    0,
-					NonUtilizedSlots: 0,
-				}
+			slotType, err := slot.getSlotType()
+			if err != nil {
+				slotType = ""
+			}
+
+			byType, ok := utilizationByType[workerId]
+			if !ok {
+				byType = make(map[string]*SlotUtilization)
+				utilizationByType[workerId] = byType
+			}
+
+			utilization, ok := byType[slotType]
+			if !ok {
+				utilization = &SlotUtilization{}
+				byType[slotType] = utilization
 			}
 
 			uniqueSlots[slot] = true
 
 			if slot.isUsed() {
-				workerSlotUtilization[workerId].UtilizedSlots++
+				utilization.UtilizedSlots++
 			} else {
-				workerSlotUtilization[workerId].NonUtilizedSlots++
+				utilization.NonUtilizedSlots++
 			}
 		}
 		action.mu.RUnlock()
 	}
 
-	res.WorkerSlotUtilization = workerSlotUtilization
+	// The in-memory pool only holds slots which have not been assigned (plus assigned slots
+	// which are not yet flushed to the database), so the used counts walked above miss any
+	// slot consumed by a running task. Derive the true used count per slot type from the
+	// worker's slot capacity instead: everything that is not free is in use.
+	for workerId, byType := range utilizationByType {
+		var capacities map[string]int
+
+		if worker, ok := workers[workerId]; ok {
+			capacities = worker.TotalSlotsByType
+		}
+
+		// slot types with capacity but no walked slots still get reported: an empty
+		// in-memory pool for a type means all of its slots are in use
+		for slotType := range capacities {
+			if _, ok := byType[slotType]; !ok {
+				byType[slotType] = &SlotUtilization{}
+			}
+		}
+
+		aggregate := &SlotUtilization{}
+
+		for slotType, utilization := range byType {
+			if capacity := capacities[slotType]; capacity > 0 {
+				used := capacity - utilization.NonUtilizedSlots
+				if used < 0 {
+					used = 0
+				}
+
+				utilization.UtilizedSlots = used
+			}
+			// no capacity known for this slot type; fall back to the walked counts
+
+			aggregate.UtilizedSlots += utilization.UtilizedSlots
+			aggregate.NonUtilizedSlots += utilization.NonUtilizedSlots
+		}
+
+		res.WorkerSlotUtilizationByType[workerId] = byType
+		res.WorkerSlotUtilization[workerId] = aggregate
+	}
 
 	return res, true
 }
