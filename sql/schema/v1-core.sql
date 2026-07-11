@@ -566,6 +566,17 @@ CREATE TABLE v1_batch_runtime (
 CREATE INDEX v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
 
+-- Per-step batching configuration
+CREATE TABLE v1_step_batch_config (
+    step_id UUID NOT NULL,
+    batch_max_size INTEGER NOT NULL,
+    batch_max_interval INTEGER,
+    batch_group_key TEXT,
+    batch_group_max_runs INTEGER,
+    broadcast_output BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT v1_step_batch_config_pkey PRIMARY KEY (step_id)
+);
+
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
     autovacuum_analyze_scale_factor='0.05',

@@ -130,13 +130,13 @@ SELECT
 	i.triggering_event_external_id,
 	i.triggering_event_key,
 	CASE
-		WHEN sbc."batchMaxSize" IS NOT NULL AND sbc."batchMaxSize" >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
+		WHEN sbc.batch_max_size IS NOT NULL AND sbc.batch_max_size >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
 		ELSE NULLIF(BTRIM(i.batch_key), '')
 	END
 FROM
     input i
 LEFT JOIN
-	"StepBatchConfig" sbc ON sbc."stepId" = i.step_id
+	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
     id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, batch_key
 `

@@ -1043,7 +1043,7 @@ func (d *DispatcherImpl) sendBatchStartFromPayload(ctx context.Context, payload 
 
 	expectedSize := payload.ExpectedSize
 	if expectedSize < 0 {
-		expectedSize = 0
+		return fmt.Errorf("batch item payload has negative expected size %s", payload.BatchId)
 	}
 
 	batchID := payload.BatchId

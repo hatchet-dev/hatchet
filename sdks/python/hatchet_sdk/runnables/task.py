@@ -51,6 +51,7 @@ from hatchet_sdk.exceptions import InvalidDependencyError
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
+    BatchMemberId,
     BatchTaskConfig,
     R,
     StepType,
@@ -143,8 +144,8 @@ class Task(Generic[TWorkflowInput, R]):
             Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]
             | Callable[Concatenate[TWorkflowInput, Context, P], AwaitableLike[R]]
             | Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | CoroutineLike[dict[str, R]],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
             ]
             | (
                 Callable[

@@ -53,7 +53,7 @@ SELECT
     COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
     COUNT(sc.id) as "concurrencyCount",
-    sbc."batchGroupKey" AS "batchGroupKey"
+    sbc.batch_group_key AS "batchGroupKey"
 FROM
     "Step" s
 JOIN
@@ -67,14 +67,14 @@ LEFT JOIN
 LEFT JOIN
     "StepExpression" se ON se."stepId" = s."id"
 LEFT JOIN
-    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
+    v1_step_batch_config sbc ON sbc.step_id = s."id"
 WHERE
     s."id" = ANY(@ids::uuid[])
     AND w."tenantId" = @tenantId::uuid
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id", wv."sticky", sbc."batchGroupKey";
+    s."id", wv."id", w."name", w."id", wv."sticky", sbc.batch_group_key;
 
 -- name: ListStepExpressions :many
 SELECT
@@ -310,13 +310,13 @@ INSERT INTO "Step" (
 ) RETURNING *;
 
 -- name: CreateStepBatchConfig :exec
-INSERT INTO "StepBatchConfig" (
-    "stepId",
-    "batchMaxSize",
-    "batchMaxInterval",
-    "batchGroupKey",
-    "batchGroupMaxRuns",
-    "broadcastOutput"
+INSERT INTO v1_step_batch_config (
+    step_id,
+    batch_max_size,
+    batch_max_interval,
+    batch_group_key,
+    batch_group_max_runs,
+    broadcast_output
 ) VALUES (
     @stepId::uuid,
     @batchMaxSize::integer,
@@ -324,12 +324,12 @@ INSERT INTO "StepBatchConfig" (
     sqlc.narg('batchGroupKey')::text,
     sqlc.narg('batchGroupMaxRuns')::integer,
     @broadcastOutput::boolean
-) ON CONFLICT ("stepId") DO UPDATE SET
-    "batchMaxSize" = EXCLUDED."batchMaxSize",
-    "batchMaxInterval" = EXCLUDED."batchMaxInterval",
-    "batchGroupKey" = EXCLUDED."batchGroupKey",
-    "batchGroupMaxRuns" = EXCLUDED."batchGroupMaxRuns",
-    "broadcastOutput" = EXCLUDED."broadcastOutput";
+) ON CONFLICT (step_id) DO UPDATE SET
+    batch_max_size = EXCLUDED.batch_max_size,
+    batch_max_interval = EXCLUDED.batch_max_interval,
+    batch_group_key = EXCLUDED.batch_group_key,
+    batch_group_max_runs = EXCLUDED.batch_group_max_runs,
+    broadcast_output = EXCLUDED.broadcast_output;
 
 -- name: CreateStepSlotRequests :exec
 INSERT INTO v1_step_slot_request (

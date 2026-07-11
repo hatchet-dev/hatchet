@@ -115,6 +115,10 @@ class BatchTaskConfig(BaseModel):
     broadcast_output: bool = False
 
 
+BatchMemberId: TypeAlias = str
+"""The key identifying a single item within a batch task's input/output dict (its task run external id)."""
+
+
 class StepType(str, Enum):
     DEFAULT = "default"
     ON_FAILURE = "on_failure"

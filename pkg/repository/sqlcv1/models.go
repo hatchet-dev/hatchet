@@ -2786,14 +2786,6 @@ type Step struct {
 	IsDurable          bool             `json:"isDurable"`
 }
 
-type StepBatchConfig struct {
-	StepId            uuid.UUID   `json:"stepId"`
-	BatchMaxSize      int32       `json:"batchMaxSize"`
-	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
-	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
-	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
-}
-
 type StepDesiredWorkerLabel struct {
 	ID         int64                 `json:"id"`
 	CreatedAt  pgtype.Timestamp      `json:"createdAt"`
@@ -3599,6 +3591,15 @@ type V1StatusesOlap struct {
 	WorkflowID     uuid.UUID            `json:"workflow_id"`
 	Kind           V1RunKind            `json:"kind"`
 	ReadableStatus V1ReadableStatusOlap `json:"readable_status"`
+}
+
+type V1StepBatchConfig struct {
+	StepID            uuid.UUID   `json:"step_id"`
+	BatchMaxSize      int32       `json:"batch_max_size"`
+	BatchMaxInterval  pgtype.Int4 `json:"batch_max_interval"`
+	BatchGroupKey     pgtype.Text `json:"batch_group_key"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batch_group_max_runs"`
+	BroadcastOutput   bool        `json:"broadcast_output"`
 }
 
 type V1StepConcurrency struct {

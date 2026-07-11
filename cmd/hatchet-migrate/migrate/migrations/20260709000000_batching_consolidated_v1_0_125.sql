@@ -3,17 +3,6 @@
 -- v0 schema alignment
 ALTER TYPE "LeaseKind" ADD VALUE 'BATCH';
 
--- v0 "Step" batching configuration (auxiliary table)
-CREATE TABLE "StepBatchConfig" (
-    "stepId" UUID NOT NULL,
-    "batchMaxSize" INTEGER NOT NULL,
-    "batchMaxInterval" INTEGER,
-    "batchGroupKey" TEXT,
-    "batchGroupMaxRuns" INTEGER,
-    CONSTRAINT "StepBatchConfig_pkey" PRIMARY KEY ("stepId"),
-    CONSTRAINT "StepBatchConfig_stepId_fkey" FOREIGN KEY ("stepId") REFERENCES "Step"("id") ON DELETE CASCADE ON UPDATE CASCADE
-);
-
 -- v1 batching propagation fields
 ALTER TABLE v1_task
     ADD COLUMN batch_key TEXT;
@@ -33,6 +22,17 @@ ALTER TABLE v1_task_runtime
 CREATE INDEX v1_task_runtime_batch_id_idx
     ON v1_task_runtime USING BTREE (batch_id)
     WHERE batch_id IS NOT NULL;
+
+-- Per-step batching configuration
+CREATE TABLE v1_step_batch_config (
+    step_id UUID NOT NULL,
+    batch_max_size INTEGER NOT NULL,
+    batch_max_interval INTEGER,
+    batch_group_key TEXT,
+    batch_group_max_runs INTEGER,
+    broadcast_output BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT v1_step_batch_config_pkey PRIMARY KEY (step_id)
+);
 
 -- Batched queue items buffer table
 CREATE TABLE v1_batched_queue_item (
@@ -748,19 +748,19 @@ AFTER DELETE ON v1_task_runtime
 REFERENCING OLD TABLE AS deleted_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
-ALTER TABLE "StepBatchConfig" ADD COLUMN "broadcastOutput" BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-ALTER TABLE "StepBatchConfig" DROP COLUMN IF EXISTS "broadcastOutput";
-
 DROP TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime ON v1_task_runtime;
 DROP FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
 
 -- Drop batch buffer table and indexes
 DROP TABLE v1_batched_queue_item;
+
+-- Drop per-step batching configuration
+DROP TABLE v1_step_batch_config;
 
 -- Drop v1 batch runtime table
 DROP TABLE v1_batch_runtime;
@@ -783,11 +783,6 @@ ALTER TABLE v1_queue_item
 ALTER TABLE v1_rate_limited_queue_items
     DROP COLUMN batch_key;
 
-DROP TABLE IF EXISTS "StepBatchConfig";
-
--- +goose StatementEnd
-
--- +goose StatementBegin
 -- Restore trigger functions to pre-batching versions (from v1_0_106 baseline), so down migrations remain functional.
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
 RETURNS TRIGGER AS $$

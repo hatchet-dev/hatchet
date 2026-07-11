@@ -47,6 +47,7 @@ from hatchet_sdk.runnables.eviction import (
 )
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.runnables.types import (
+    BatchMemberId,
     BatchTaskConfig,
     EmptyModel,
     R,
@@ -1464,7 +1465,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
                 R | CoroutineLike[R],
             ]
         ],
@@ -1493,8 +1494,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | CoroutineLike[dict[str, R]],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
             ]
         ],
         Task[TWorkflowInput, R],
@@ -1521,8 +1522,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | R | CoroutineLike[dict[str, R]] | CoroutineLike[R],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
             ]
         ],
         Task[TWorkflowInput, R],
@@ -1561,8 +1565,11 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         def inner(
             func: Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | R | CoroutineLike[dict[str, R]] | CoroutineLike[R],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
             ],
         ) -> Task[TWorkflowInput, R]:
             _warn_if_dict_desired_worker_labels(desired_worker_labels, stacklevel=5)

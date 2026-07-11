@@ -706,19 +706,19 @@ SELECT
     b.batch_key,
     MIN(b.inserted_at)::timestamptz AS oldest_item_at,
     COUNT(*) AS pending_count,
-    sbc."batchMaxSize" AS batch_max_size,
-    sbc."batchMaxInterval" AS batch_max_interval,
-    sbc."batchGroupMaxRuns" AS batch_group_max_runs
+    sbc.batch_max_size AS batch_max_size,
+    sbc.batch_max_interval AS batch_max_interval,
+    sbc.batch_group_max_runs AS batch_group_max_runs
 FROM
     v1_batched_queue_item b
 JOIN
-    "StepBatchConfig" sbc ON sbc."stepId" = b.step_id
+    v1_step_batch_config sbc ON sbc.step_id = b.step_id
 WHERE
     b.tenant_id = $1::uuid
 GROUP BY
     b.step_id,
     b.batch_key,
-    sbc."stepId"
+    sbc.step_id
 ORDER BY
     oldest_item_at ASC
 `
@@ -1016,10 +1016,10 @@ SELECT
 FROM
     "Step" s
 JOIN
-    "StepBatchConfig" sbc ON sbc."stepId" = s."id"
+    v1_step_batch_config sbc ON sbc.step_id = s."id"
 WHERE
     s."id" = ANY($1::uuid[])
-    AND sbc."batchMaxSize" >= 1
+    AND sbc.batch_max_size >= 1
 `
 
 func (q *Queries) ListStepsWithBatchConfig(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]uuid.UUID, error) {
@@ -1205,10 +1205,10 @@ WITH locked_qis AS (
     FROM
         v1_queue_item qi
     JOIN
-        "StepBatchConfig" sbc ON sbc."stepId" = qi.step_id
+        v1_step_batch_config sbc ON sbc.step_id = qi.step_id
     WHERE
         qi.id = ANY($1::bigint[])
-        AND sbc."batchMaxSize" >= 1
+        AND sbc.batch_max_size >= 1
     ORDER BY
         qi.id ASC
     FOR UPDATE

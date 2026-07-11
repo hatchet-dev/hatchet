@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -66,7 +67,7 @@ class BatchItemData(BaseModel):
 class BatchEventItem(BaseModel):
     """A single task's contribution to a batched STARTED/FAILED/CANCELLED action event."""
 
-    task_run_external_id: str
+    task_run_external_id: BatchMemberId
     payload: str | None = None
     should_not_retry: bool = False
 
@@ -96,7 +97,7 @@ class Action(BaseModel):
     batch_key: str | None = None
     batch_start: BatchStartPayload | None = None
     # Populated for START_BATCH: maps task_run_external_id -> item data (payload + workflow_run_id)
-    batch_items: dict[str, BatchItemData] | None = None
+    batch_items: dict[BatchMemberId, BatchItemData] | None = None
 
     child_workflow_index: int | None = None
     child_workflow_key: str | None = None

@@ -31,6 +31,7 @@ from hatchet_sdk.runnables.eviction import (
     EvictionPolicy,
 )
 from hatchet_sdk.runnables.types import (
+    BatchMemberId,
     DefaultFilter,
     EmptyModel,
     R,
@@ -588,7 +589,7 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, EmptyModel], Context, P],
+                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
                 R | CoroutineLike[R],
             ]
         ],
@@ -620,8 +621,8 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, EmptyModel], Context, P],
-                dict[str, R] | CoroutineLike[dict[str, R]],
+                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
             ]
         ],
         Standalone[EmptyModel, R],
@@ -652,7 +653,7 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
                 R | CoroutineLike[R],
             ]
         ],
@@ -684,8 +685,8 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | CoroutineLike[dict[str, R]],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
             ]
         ],
         Standalone[TWorkflowInput, R],
@@ -718,8 +719,11 @@ class Hatchet:
     ) -> Callable[
         [
             Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | R | CoroutineLike[dict[str, R]] | CoroutineLike[R],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
             ]
         ],
         Standalone[TWorkflowInput, R],
@@ -738,8 +742,11 @@ class Hatchet:
 
         def inner(
             func: Callable[
-                Concatenate[dict[str, TWorkflowInput], Context, P],
-                dict[str, R] | R | CoroutineLike[dict[str, R]] | CoroutineLike[R],
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
             ],
         ) -> Standalone[TWorkflowInput, R]:
             inferred_name = name or func.__name__
@@ -779,7 +786,9 @@ class Hatchet:
                 created_task = broadcast_task_wrapper(
                     cast(
                         Callable[
-                            Concatenate[dict[str, TWorkflowInput], Context, P],
+                            Concatenate[
+                                dict[BatchMemberId, TWorkflowInput], Context, P
+                            ],
                             R | CoroutineLike[R],
                         ],
                         func,
@@ -804,8 +813,11 @@ class Hatchet:
                 created_task = dict_task_wrapper(
                     cast(
                         Callable[
-                            Concatenate[dict[str, TWorkflowInput], Context, P],
-                            dict[str, R] | CoroutineLike[dict[str, R]],
+                            Concatenate[
+                                dict[BatchMemberId, TWorkflowInput], Context, P
+                            ],
+                            dict[BatchMemberId, R]
+                            | CoroutineLike[dict[BatchMemberId, R]],
                         ],
                         func,
                     )
