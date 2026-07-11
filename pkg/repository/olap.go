@@ -51,9 +51,11 @@ type ListTaskRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
-	// StrictAdditionalMetadata switches AdditionalMetadata filtering from
-	// any-pair-matches semantics to all-pairs-match jsonb containment (@>),
-	// which is backed by the GIN indexes on the OLAP tables.
+	// StrictAdditionalMetadata switches AdditionalMetadata filtering to jsonb
+	// containment (@>), which is backed by the GIN indexes on the OLAP tables.
+	// Matching keeps any-pair-matches semantics via @> ANY(jsonb[]).
+	// TODO: add a logical operator param to the workflow-runs list endpoint so
+	// callers can opt into all-pairs-match semantics (AdditionalMetadataContainsAll).
 	StrictAdditionalMetadata bool
 
 	TriggeringEventExternalId *uuid.UUID
@@ -78,9 +80,11 @@ type ListWorkflowRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
-	// StrictAdditionalMetadata switches AdditionalMetadata filtering from
-	// any-pair-matches semantics to all-pairs-match jsonb containment (@>),
-	// which is backed by the GIN indexes on the OLAP tables.
+	// StrictAdditionalMetadata switches AdditionalMetadata filtering to jsonb
+	// containment (@>), which is backed by the GIN indexes on the OLAP tables.
+	// Matching keeps any-pair-matches semantics via @> ANY(jsonb[]).
+	// TODO: add a logical operator param to the workflow-runs list endpoint so
+	// callers can opt into all-pairs-match semantics (AdditionalMetadataContainsAll).
 	StrictAdditionalMetadata bool
 
 	Limit int64
@@ -877,14 +881,20 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
-		metadataFilter, marshalErr := json.Marshal(opts.AdditionalMetadata)
+		metadataFilters := make([][]byte, 0, len(opts.AdditionalMetadata))
 
-		if marshalErr != nil {
-			return nil, 0, marshalErr
+		for key, value := range opts.AdditionalMetadata {
+			pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
+
+			if marshalErr != nil {
+				return nil, 0, marshalErr
+			}
+
+			metadataFilters = append(metadataFilters, pairFilter)
 		}
 
-		params.AdditionalMetadataContains = metadataFilter
-		countParams.AdditionalMetadataContains = metadataFilter
+		params.AdditionalMetadataContainsAny = metadataFilters
+		countParams.AdditionalMetadataContainsAny = metadataFilters
 	} else {
 		for key, value := range opts.AdditionalMetadata {
 			params.Keys = append(params.Keys, key)
@@ -1239,14 +1249,20 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	}
 
 	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
-		metadataFilter, marshalErr := json.Marshal(opts.AdditionalMetadata)
+		metadataFilters := make([][]byte, 0, len(opts.AdditionalMetadata))
 
-		if marshalErr != nil {
-			return nil, 0, marshalErr
+		for key, value := range opts.AdditionalMetadata {
+			pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
+
+			if marshalErr != nil {
+				return nil, 0, marshalErr
+			}
+
+			metadataFilters = append(metadataFilters, pairFilter)
 		}
 
-		params.AdditionalMetadataContains = metadataFilter
-		countParams.AdditionalMetadataContains = metadataFilter
+		params.AdditionalMetadataContainsAny = metadataFilters
+		countParams.AdditionalMetadataContainsAny = metadataFilters
 	} else {
 		for key, value := range opts.AdditionalMetadata {
 			params.Keys = append(params.Keys, key)

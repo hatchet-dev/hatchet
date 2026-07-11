@@ -362,6 +362,10 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 	strictAdditionalMetadata := false
 
+	// TODO: add a logical operator param (any/all) to this endpoint so callers can
+	// choose between any-pair-matches (@> ANY(jsonb[])) and all-pairs-match (@>)
+	// additional_metadata filtering. Entitled tenants currently always get
+	// any-pair semantics, matching the legacy filter.
 	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
 		enabled, err := t.config.V1.TenantEntitlement().IsStrictAdditionalMetadataFiltersEnabled(spanContext, tenantId)
 
