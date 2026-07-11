@@ -7,6 +7,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+// The queries below that filter on additional_metadata containment come in two
+// variants. The base variant guards the filter with "$n::jsonb IS NULL OR
+// additional_metadata @> $n::jsonb". Once a cached generic plan is used for that
+// statement, the planner cannot assume the parameter is non-null, so the GIN index
+// on additional_metadata is unusable and the query degrades to scanning all of the
+// tenant's rows. The strict variants use a bare "additional_metadata @> $n::jsonb"
+// clause so their generic plan can still use the index; they must only be run with a
+// non-null containment parameter, which is why each function selects the strict text
+// based on AdditionalMetadataContains. Parameter numbering is identical across both
+// variants so they share the same argument list.
+
 const countTasks = `-- name: CountTasks :one
 WITH filtered AS (
     SELECT
@@ -63,6 +74,59 @@ SELECT COUNT(*)
 FROM filtered
 `
 
+const countTasksStrictMetadata = `-- name: CountTasksStrictMetadata :one
+WITH filtered AS (
+    SELECT
+        tenant_id, id, inserted_at, external_id, queue, action_id, step_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, display_name, input, additional_metadata, readable_status, latest_retry_count, latest_worker_id, dag_id, dag_inserted_at
+    FROM
+        v1_tasks_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND inserted_at >= $2::timestamptz
+        AND readable_status = ANY($3::v1_readable_status_olap[])
+        AND (
+            $4::timestamptz IS NULL
+            OR inserted_at <= $4::timestamptz
+        )
+        AND (
+            $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+        )
+        AND (
+            $6::uuid IS NULL OR latest_worker_id = $6::uuid
+        )
+        AND (
+            $7::text[] IS NULL
+            OR $8::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($7::text[]) AS k,
+                        unnest($8::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> $10::jsonb
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+    ORDER BY
+        inserted_at DESC
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filtered
+`
+
 type CountTasksParams struct {
 	Tenantid                   uuid.UUID          `json:"tenantid"`
 	Since                      pgtype.Timestamptz `json:"since"`
@@ -77,7 +141,13 @@ type CountTasksParams struct {
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
-	row := db.QueryRow(ctx, countTasks,
+	query := countTasks
+
+	if arg.AdditionalMetadataContains != nil {
+		query = countTasksStrictMetadata
+	}
+
+	row := db.QueryRow(ctx, query,
 		arg.Tenantid,
 		arg.Since,
 		arg.Statuses,
@@ -149,6 +219,58 @@ SELECT COUNT(*)
 FROM filtered
 `
 
+const countWorkflowRunsStrictMetadata = `-- name: CountWorkflowRunsStrictMetadata :one
+WITH filtered AS (
+    SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
+    FROM v1_runs_olap
+    WHERE
+        tenant_id = $1::uuid
+        AND readable_status = ANY($2::v1_readable_status_olap[])
+        AND (
+            $3::uuid[] IS NULL
+            OR workflow_id = ANY($3::uuid[])
+        )
+        AND inserted_at >= $4::timestamptz
+        AND (
+            $5::timestamptz IS NULL
+            OR inserted_at <= $5::timestamptz
+        )
+        AND (
+            $6::text[] IS NULL
+            OR $7::text[] IS NULL
+            OR EXISTS (
+                SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+                JOIN LATERAL (
+                    SELECT unnest($6::text[]) AS k,
+                        unnest($7::text[]) AS v
+                ) AS u ON kv.key = u.k AND kv.value = u.v
+            )
+        )
+        AND additional_metadata @> $10::jsonb
+		AND (
+			$8::UUID IS NULL
+			OR parent_task_external_id = $8::UUID
+		)
+
+		AND (
+			$9::UUID IS NULL
+			OR (id, inserted_at) IN (
+                SELECT etr.run_id, etr.run_inserted_at
+                FROM v1_event_lookup_table_olap lt
+                JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+                JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+    			WHERE
+					lt.tenant_id = $1::uuid
+					AND lt.external_id = $9::UUID
+            )
+		)
+    LIMIT 20000
+)
+
+SELECT COUNT(*)
+FROM filtered
+`
+
 type CountWorkflowRunsParams struct {
 	Tenantid                   uuid.UUID          `json:"tenantid"`
 	Statuses                   []string           `json:"statuses"`
@@ -163,7 +285,13 @@ type CountWorkflowRunsParams struct {
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
-	row := db.QueryRow(ctx, countWorkflowRuns,
+	query := countWorkflowRuns
+
+	if arg.AdditionalMetadataContains != nil {
+		query = countWorkflowRunsStrictMetadata
+	}
+
+	row := db.QueryRow(ctx, query,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -231,6 +359,54 @@ LIMIT $9::integer
 OFFSET $8::integer
 `
 
+const fetchWorkflowRunIdsStrictMetadata = `-- name: FetchWorkflowRunIdsStrictMetadata :many
+SELECT id, inserted_at, kind, external_id
+FROM v1_runs_olap
+WHERE
+    tenant_id = $1::uuid
+    AND readable_status = ANY($2::v1_readable_status_olap[])
+    AND (
+        $3::uuid[] IS NULL
+        OR workflow_id = ANY($3::uuid[])
+    )
+    AND inserted_at >= $4::timestamptz
+    AND (
+        $5::timestamptz IS NULL
+        OR inserted_at <= $5::timestamptz
+    )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($6::text[]) AS k,
+                    unnest($7::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> $12::jsonb
+    AND (
+        $10::UUID IS NULL
+        OR parent_task_external_id = $10::UUID
+    )
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer
+OFFSET $8::integer
+`
+
 type FetchWorkflowRunIdsParams struct {
 	Tenantid                   uuid.UUID          `json:"tenantid"`
 	Statuses                   []string           `json:"statuses"`
@@ -254,7 +430,13 @@ type FetchWorkflowRunIdsRow struct {
 }
 
 func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWorkflowRunIdsParams) ([]*FetchWorkflowRunIdsRow, error) {
-	rows, err := db.Query(ctx, fetchWorkflowRunIds,
+	query := fetchWorkflowRunIds
+
+	if arg.AdditionalMetadataContains != nil {
+		query = fetchWorkflowRunIdsStrictMetadata
+	}
+
+	rows, err := db.Query(ctx, query,
 		arg.Tenantid,
 		arg.Statuses,
 		arg.WorkflowIds,
@@ -345,6 +527,56 @@ LIMIT $10::integer
 OFFSET $9::integer
 `
 
+const listTasksOlapStrictMetadata = `-- name: ListTasksOlapStrictMetadata :many
+SELECT
+    id,
+    inserted_at
+FROM
+    v1_tasks_olap
+WHERE
+    tenant_id = $1::uuid
+    AND inserted_at >= $2::timestamptz
+    AND readable_status = ANY($3::v1_readable_status_olap[])
+    AND (
+        $4::timestamptz IS NULL
+        OR inserted_at <= $4::timestamptz
+    )
+    AND (
+        $5::uuid[] IS NULL OR workflow_id = ANY($5::uuid[])
+    )
+    AND (
+        $6::uuid IS NULL OR latest_worker_id = $6::uuid
+    )
+    AND (
+        $7::text[] IS NULL
+        OR $8::text[] IS NULL
+        OR EXISTS (
+            SELECT 1 FROM jsonb_each_text(additional_metadata) kv
+            JOIN LATERAL (
+                SELECT unnest($7::text[]) AS k,
+                    unnest($8::text[]) AS v
+            ) AS u ON kv.key = u.k AND kv.value = u.v
+        )
+    )
+    AND additional_metadata @> $12::jsonb
+    AND (
+        $11::UUID IS NULL
+		OR (id, inserted_at) IN (
+			SELECT etr.run_id, etr.run_inserted_at
+			FROM v1_event_lookup_table_olap lt
+			JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
+			JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
+			WHERE
+				lt.tenant_id = $1::uuid
+				AND lt.external_id = $11::UUID
+		)
+    )
+ORDER BY
+    inserted_at DESC
+LIMIT $10::integer
+OFFSET $9::integer
+`
+
 type ListTasksOlapParams struct {
 	Tenantid                   uuid.UUID          `json:"tenantid"`
 	Since                      pgtype.Timestamptz `json:"since"`
@@ -366,7 +598,13 @@ type ListTasksOlapRow struct {
 }
 
 func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapParams) ([]*ListTasksOlapRow, error) {
-	rows, err := db.Query(ctx, listTasksOlap,
+	query := listTasksOlap
+
+	if arg.AdditionalMetadataContains != nil {
+		query = listTasksOlapStrictMetadata
+	}
+
+	rows, err := db.Query(ctx, query,
 		arg.Tenantid,
 		arg.Since,
 		arg.Statuses,
