@@ -8,11 +8,17 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var tables = []string{"v1_runs_olap", "v1_tasks_olap"}
+
+type indexJob struct {
+	table     string
+	partition string
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -22,7 +28,12 @@ func main() {
 
 func run() error {
 	dsn := flag.String("database-url", "", "Postgres URL for the Timescale OLAP database")
+	parallel := flag.Int("parallel", 1, "Number of partition indexes to build concurrently")
 	flag.Parse()
+
+	if *parallel < 1 {
+		return fmt.Errorf("-parallel must be at least 1")
+	}
 
 	if *dsn == "" {
 		*dsn = os.Getenv("CLOUD_TIMESCALE_V1_DATABASE_URL")
@@ -36,6 +47,8 @@ func run() error {
 		return fmt.Errorf("open db: %w", err)
 	}
 	defer db.Close()
+	db.SetMaxOpenConns(*parallel + 2)
+	db.SetMaxIdleConns(*parallel + 2)
 
 	ctx := context.Background()
 
@@ -43,35 +56,114 @@ func run() error {
 		return fmt.Errorf("ping db: %w", err)
 	}
 
+	jobs, err := listIndexJobs(ctx, db)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("creating %d partition indexes with parallel=%d", len(jobs), *parallel)
+
+	if err := createPartitionIndexes(ctx, db, jobs, *parallel); err != nil {
+		return err
+	}
+
 	for _, table := range tables {
-		if err := createIndexesForTable(ctx, db, table); err != nil {
-			return fmt.Errorf("create indexes for %s: %w", table, err)
+		if err := createParentIndex(ctx, db, table); err != nil {
+			return fmt.Errorf("create parent index for %s: %w", table, err)
 		}
 	}
 
 	return nil
 }
 
-func createIndexesForTable(ctx context.Context, db *sql.DB, table string) error {
-	partitions, err := listLeafPartitions(ctx, db, table)
-	if err != nil {
-		return err
-	}
+func listIndexJobs(ctx context.Context, db *sql.DB) ([]indexJob, error) {
+	var jobs []indexJob
 
-	for _, partition := range partitions {
-		indexName := ginIndexName(partition)
-		stmt := fmt.Sprintf(
-			`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s USING gin (additional_metadata jsonb_path_ops);`,
-			quoteIdent(indexName),
-			quoteIdent(partition),
-		)
+	for _, table := range tables {
+		partitions, err := listLeafPartitions(ctx, db, table)
+		if err != nil {
+			return nil, err
+		}
 
-		log.Printf("creating %s", indexName)
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("create partition index %s: %w", indexName, err)
+		for _, partition := range partitions {
+			jobs = append(jobs, indexJob{
+				table:     table,
+				partition: partition,
+			})
 		}
 	}
 
+	return jobs, nil
+}
+
+func createPartitionIndexes(ctx context.Context, db *sql.DB, jobs []indexJob, parallel int) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	jobCh := make(chan indexJob)
+	errCh := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	for workerID := 1; workerID <= parallel; workerID++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			for job := range jobCh {
+				if err := createPartitionIndex(ctx, db, workerID, job); err != nil {
+					select {
+					case errCh <- err:
+						cancel()
+					default:
+					}
+					return
+				}
+			}
+		}(workerID)
+	}
+
+	for _, job := range jobs {
+		select {
+		case jobCh <- job:
+		case err := <-errCh:
+			close(jobCh)
+			wg.Wait()
+			return err
+		case <-ctx.Done():
+			close(jobCh)
+			wg.Wait()
+			return ctx.Err()
+		}
+	}
+
+	close(jobCh)
+	wg.Wait()
+
+	select {
+	case err := <-errCh:
+		return err
+	default:
+		return nil
+	}
+}
+
+func createPartitionIndex(ctx context.Context, db *sql.DB, workerID int, job indexJob) error {
+	indexName := ginIndexName(job.partition)
+	stmt := fmt.Sprintf(
+		`CREATE INDEX CONCURRENTLY IF NOT EXISTS %s ON %s USING gin (additional_metadata jsonb_path_ops);`,
+		quoteIdent(indexName),
+		quoteIdent(job.partition),
+	)
+
+	log.Printf("worker %d creating %s (%s)", workerID, indexName, job.table)
+	if _, err := db.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("create partition index %s: %w", indexName, err)
+	}
+
+	return nil
+}
+
+func createParentIndex(ctx context.Context, db *sql.DB, table string) error {
 	// Attach the equivalent child indexes to the parent and make future
 	// partitions inherit this index via CREATE TABLE ... LIKE INCLUDING INDEXES.
 	parentIndexName := ginIndexName(table)
