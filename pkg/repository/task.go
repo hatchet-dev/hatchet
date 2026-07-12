@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strings"
 	"sync"
@@ -3059,9 +3058,7 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 }
 
 func hash(s string) int64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return int64(h.Sum64())
+	return sqlchelpers.AdvisoryLockKey(s)
 }
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {

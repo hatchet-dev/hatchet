@@ -21,9 +21,9 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "building engine + worker + trigger..."
-go build -o "$BIN/engine" ./embed/example/engine
-go build -o "$BIN/worker" ./embed/example/worker
-go build -o "$BIN/trigger" ./embed/example/trigger
+(cd embed/example && go build -o "$BIN/engine" ./engine)
+(cd embed/example && go build -o "$BIN/worker" ./worker)
+(cd embed/example && go build -o "$BIN/trigger" ./trigger)
 
 start_engine() {
   local idx="$1" migrate="$2"
@@ -71,6 +71,6 @@ curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/stable/tenants/$TENANT/wo
 
 echo
 echo "cluster still running. re-trigger anytime with:"
-echo "  RUNS=50 ENGINE_FILE=$RUNDIR/engine-0.json go run ./embed/example/trigger"
+echo "  RUNS=50 ENGINE_FILE=$RUNDIR/engine-0.json go run -C embed/example ./trigger"
 echo "Ctrl+C to stop."
 wait

@@ -9,24 +9,24 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
+	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
-const (
-	keysetDatabase     = "hatchet_embed"
-	keysetAdvisoryLock = 0x6861746368
-)
+const keysetDatabase = "hatchet_embed"
 
 func resolveKeysets(ctx context.Context, databaseURL string) (master, privateJWT, publicJWT []byte, err error) {
+	lockKey := sqlchelpers.AdvisoryLockKey("hatchet-embed-keyset")
+
 	mainConn, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 	defer func() { _ = mainConn.Close(ctx) }()
 
-	if _, advLkErr := mainConn.Exec(ctx, "SELECT pg_advisory_lock($1)", int64(keysetAdvisoryLock)); advLkErr != nil {
+	if _, advLkErr := mainConn.Exec(ctx, "SELECT pg_advisory_lock($1)", lockKey); advLkErr != nil {
 		return nil, nil, nil, fmt.Errorf("could not acquire keyset lock: %w", advLkErr)
 	}
-	defer func() { _, _ = mainConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", int64(keysetAdvisoryLock)) }()
+	defer func() { _, _ = mainConn.Exec(ctx, "SELECT pg_advisory_unlock($1)", lockKey) }()
 
 	if dbCheckErr := ensureKeysetDatabase(ctx, mainConn); dbCheckErr != nil {
 		return nil, nil, nil, dbCheckErr

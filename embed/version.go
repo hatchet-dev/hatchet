@@ -14,12 +14,14 @@ func resolveVersion() (string, error) {
 			return info.Main.Version, nil
 		}
 		for _, d := range info.Deps {
-			m := d
-			if m.Replace != nil {
-				m = m.Replace
+			if d.Path != hatchetModulePath {
+				continue
 			}
-			if m.Path == hatchetModulePath && isUsableVersion(m.Version) {
-				return m.Version, nil
+			if d.Replace != nil && isUsableVersion(d.Replace.Version) {
+				return d.Replace.Version, nil
+			}
+			if isUsableVersion(d.Version) {
+				return d.Version, nil
 			}
 		}
 	}
