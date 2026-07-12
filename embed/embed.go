@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,8 +27,10 @@ type Instance struct {
 	apiURL      string
 	grpcAddress string
 
-	interruptCh chan interface{}
-	cancel      context.CancelFunc
+	interruptCh  chan interface{}
+	cancel       context.CancelFunc
+	wg           *sync.WaitGroup
+	shutdownOnce sync.Once
 }
 
 func (i *Instance) Client() *hatchet.Client { return i.client }
@@ -40,16 +43,24 @@ func (i *Instance) APIURL() string { return i.apiURL }
 
 func (i *Instance) GRPCAddress() string { return i.grpcAddress }
 
-func (i *Instance) Shutdown(_ context.Context) error {
-	if i.cancel != nil {
+func (i *Instance) Shutdown(ctx context.Context) error {
+	i.shutdownOnce.Do(func() {
 		i.cancel()
-	}
-
-	if i.interruptCh != nil {
 		close(i.interruptCh)
-	}
+	})
 
-	return nil
+	done := make(chan struct{})
+	go func() {
+		i.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func Start(ctx context.Context, opts ...Option) (*Instance, error) {
@@ -62,13 +73,11 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		return nil, err
 	}
 
-	if cfg.version == "" {
-		v, err := resolveVersion()
-		if err != nil {
-			return nil, err
-		}
-		cfg.version = v
+	version, err := resolveVersion()
+	if err != nil {
+		return nil, err
 	}
+	cfg.version = version
 
 	if err := os.Setenv("DATABASE_URL", cfg.postgresURL); err != nil {
 		return nil, fmt.Errorf("could not set DATABASE_URL: %w", err)
@@ -82,6 +91,16 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	if cfg.runMigrations {
 		migrate.RunMigrations(ctx)
+	}
+
+	if len(cfg.masterKeyset) == 0 {
+		master, privateJWT, publicJWT, keysetErr := resolveKeysets(ctx, cfg.postgresURL)
+		if keysetErr != nil {
+			return nil, keysetErr
+		}
+		cfg.masterKeyset = master
+		cfg.privateJWTKeyset = privateJWT
+		cfg.publicJWTKeyset = publicJWT
 	}
 
 	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", cfg.grpcPort)
@@ -167,14 +186,18 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	interruptCh := make(chan interface{})
 	engineCtx, cancel := context.WithCancel(ctx)
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
 
 	go func() {
+		defer wg.Done()
 		if startErr := api.Start(cf, interruptCh, cfg.version, override); startErr != nil {
 			fmt.Fprintf(os.Stderr, "embed: api exited: %v\n", startErr)
 		}
 	}()
 
 	go func() {
+		defer wg.Done()
 		if runErr := engine.Run(engineCtx, cf, cfg.version, override); runErr != nil {
 			fmt.Fprintf(os.Stderr, "embed: engine exited: %v\n", runErr)
 		}
@@ -209,6 +232,7 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		grpcAddress: grpcBroadcast,
 		interruptCh: interruptCh,
 		cancel:      cancel,
+		wg:          wg,
 	}, nil
 }
 

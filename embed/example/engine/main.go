@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 
@@ -22,32 +21,10 @@ func main() {
 func run() error {
 	ctx := context.Background()
 
-	databaseURL := env("DATABASE_URL")
-	keysetDir := env("HATCHET_KEYSET_DIR")
-	apiPort := atoi(env("API_PORT"))
-	grpcPort := atoi(env("GRPC_PORT"))
-	version := env("HATCHET_EMBED_VERSION")
-	outputFile := env("OUTPUT_FILE")
-
-	master, err := readKeyset(keysetDir, "master.key")
-	if err != nil {
-		return err
-	}
-	privateJWT, err := readKeyset(keysetDir, "private_ec256.key")
-	if err != nil {
-		return err
-	}
-	publicJWT, err := readKeyset(keysetDir, "public_ec256.key")
-	if err != nil {
-		return err
-	}
-
 	opts := []embed.Option{
-		embed.WithPostgres(databaseURL),
-		embed.WithKeysets(master, privateJWT, publicJWT),
-		embed.WithAPIPort(apiPort),
-		embed.WithGRPCPort(grpcPort),
-		embed.WithVersion(version),
+		embed.WithPostgres(env("DATABASE_URL")),
+		embed.WithAPIPort(atoi(env("API_PORT"))),
+		embed.WithGRPCPort(atoi(env("GRPC_PORT"))),
 	}
 	if os.Getenv("RUN_MIGRATIONS") == "false" {
 		opts = append(opts, embed.WithoutMigrations())
@@ -68,7 +45,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(outputFile, info, 0o600); err != nil {
+	if err := os.WriteFile(env("OUTPUT_FILE"), info, 0o600); err != nil {
 		return err
 	}
 
@@ -92,8 +69,4 @@ func atoi(s string) int {
 		log.Fatalf("invalid int %q: %v", s, err)
 	}
 	return n
-}
-
-func readKeyset(dir, name string) ([]byte, error) {
-	return os.ReadFile(filepath.Join(dir, name)) //nolint:gosec
 }
