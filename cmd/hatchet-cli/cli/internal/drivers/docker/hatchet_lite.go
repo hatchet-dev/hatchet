@@ -52,6 +52,9 @@ const (
 	startingGrpcPort             = 7077
 	hatchetInternalDashboardPort = 8888
 	hatchetInternalGrpcPort      = 7077
+
+	defaultLiteImageRepo = "ghcr.io/hatchet-dev/hatchet/hatchet-lite"
+	devLiteImageRepo     = "ghcr.io/hatchet-dev/hatchet/hatchet-lite-dev"
 )
 
 type HatchetLiteOpts struct {
@@ -63,6 +66,7 @@ type HatchetLiteOpts struct {
 	serviceName           string
 	overrideDashboardPort int
 	overrideGrpcPort      int
+	imageRepo             string
 	imageTag              string
 	pullPolicy            pullPolicy
 }
@@ -73,8 +77,17 @@ func initDefaultHatchetLiteOpts() *HatchetLiteOpts {
 		hatchetName:  defaulthatchetName,
 		projectName:  defaultprojectName,
 		serviceName:  defaultserviceName,
+		imageRepo:    defaultLiteImageRepo,
 		imageTag:     "latest",
 		pullPolicy:   pullPolicyAlways,
+	}
+}
+
+// WithDevImage runs the auth-disabled hatchet-lite-dev image instead of hatchet-lite.
+func WithDevImage() HatchetLiteOpt {
+	return func(o *HatchetLiteOpts) error {
+		o.imageRepo = devLiteImageRepo
+		return nil
 	}
 }
 
@@ -389,7 +402,7 @@ func (d *DockerDriver) stopPostgresContainer(ctx context.Context, opts *HatchetL
 }
 
 func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *HatchetLiteOpts, networkId string, dashboardPort, grpcPort int, sharedLabels map[string]string) error {
-	imageName := "ghcr.io/hatchet-dev/hatchet/hatchet-lite:" + opts.imageTag
+	imageName := opts.imageRepo + ":" + opts.imageTag
 	containerName := canonicalContainerName(opts.projectName, opts.hatchetName)
 
 	if err := d.pullImageWithPolicy(ctx, imageName, opts.pullPolicy); err != nil {
@@ -417,21 +430,23 @@ func (d *DockerDriver) startHatchetLiteContainer(ctx context.Context, opts *Hatc
 	labels["com.docker.compose.depends_on"] = opts.postgresName
 	labels["com.docker.compose.image"] = imageInspect.ID
 
+	env := []string{
+		"DATABASE_URL=postgresql://hatchet:hatchet@" + opts.postgresName + ":5432/hatchet?sslmode=disable",
+		"SERVER_AUTH_COOKIE_DOMAIN=localhost",
+		"SERVER_AUTH_COOKIE_INSECURE=t",
+		"SERVER_GRPC_BIND_ADDRESS=0.0.0.0",
+		"SERVER_GRPC_INSECURE=t",
+		"SERVER_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", grpcPort),
+		"SERVER_GRPC_PORT=" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
+		"SERVER_URL=http://localhost:" + fmt.Sprintf("%d", dashboardPort),
+		"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
+		"SERVER_DEFAULT_ENGINE_VERSION=V1",
+		"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
+	}
+
 	containerConfig := &container.Config{
-		Image: imageName,
-		Env: []string{
-			"DATABASE_URL=postgresql://hatchet:hatchet@" + opts.postgresName + ":5432/hatchet?sslmode=disable",
-			"SERVER_AUTH_COOKIE_DOMAIN=localhost",
-			"SERVER_AUTH_COOKIE_INSECURE=t",
-			"SERVER_GRPC_BIND_ADDRESS=0.0.0.0",
-			"SERVER_GRPC_INSECURE=t",
-			"SERVER_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", grpcPort),
-			"SERVER_GRPC_PORT=" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
-			"SERVER_URL=http://localhost:" + fmt.Sprintf("%d", dashboardPort),
-			"SERVER_AUTH_SET_EMAIL_VERIFIED=t",
-			"SERVER_DEFAULT_ENGINE_VERSION=V1",
-			"SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS=localhost:" + fmt.Sprintf("%d", hatchetInternalGrpcPort),
-		},
+		Image:        imageName,
+		Env:          env,
 		ExposedPorts: exposedPorts,
 		Labels:       labels,
 		Healthcheck: &container.HealthConfig{

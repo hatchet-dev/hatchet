@@ -6,6 +6,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -45,7 +46,8 @@ export function EditUserGroupModal({
 }: EditUserGroupModalProps) {
   const orgApi = useOrganizationApi();
   const queryClient = useQueryClient();
-  const { handleApiError } = useApiError({});
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
 
   const groupId = group.metadata.id;
 
@@ -175,6 +177,7 @@ export function EditUserGroupModal({
           <DialogTitle>Edit User Group</DialogTitle>
         </DialogHeader>
         <div className="space-y-6">
+          <InlineError errors={formErrors} />
           {/* Name & Role */}
           <div className="space-y-3">
             <div className="space-y-2">

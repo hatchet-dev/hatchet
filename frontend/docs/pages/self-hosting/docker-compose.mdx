@@ -246,3 +246,27 @@ services:
       start_period: 10s
 # ...
 ```
+
+## Running without authentication
+
+<Callout type="warning">
+  Auth-disabled mode is for local development only.
+</Callout>
+
+The compose stack above is fully authenticated. To run it without a login screen, swap the `setup-config`, `hatchet-engine` and `hatchet-dashboard` services to their `-dev` variants, which are built with authentication compiled out:
+
+```yaml filename="docker-compose.yml"
+setup-config:
+  image: ghcr.io/hatchet-dev/hatchet/hatchet-admin-dev:latest
+  # ... rest of the service unchanged
+hatchet-engine:
+  image: ghcr.io/hatchet-dev/hatchet/hatchet-engine-dev:latest
+  # ... rest of the service unchanged
+hatchet-dashboard:
+  image: ghcr.io/hatchet-dev/hatchet/hatchet-dashboard-dev:latest
+  # ... rest of the service unchanged
+```
+
+Workers still authenticate over gRPC with the fixed worker token the dev images ship which you can view under **Settings → API Tokens** in the dashboard.
+
+If you only want a single-container local instance, `hatchet server start --disable-auth` runs the all-in-one `hatchet-lite-dev` image instead. See [Running Hatchet Locally](/reference/cli/running-hatchet-locally#running-without-authentication) for details.
