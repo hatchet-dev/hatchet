@@ -19,10 +19,6 @@ ALTER TABLE v1_task_runtime
     ADD COLUMN batch_index INTEGER,
     ADD COLUMN batch_key TEXT;
 
-CREATE INDEX v1_task_runtime_batch_id_idx
-    ON v1_task_runtime USING BTREE (batch_id)
-    WHERE batch_id IS NOT NULL;
-
 -- Per-step batching configuration
 CREATE TABLE v1_step_batch_config (
     step_id UUID NOT NULL,
@@ -766,8 +762,6 @@ DROP TABLE v1_step_batch_config;
 DROP TABLE v1_batch_runtime;
 
 -- Drop runtime batch metadata
-DROP INDEX v1_task_runtime_batch_id_idx;
-
 ALTER TABLE v1_task_runtime
     DROP COLUMN batch_key,
     DROP COLUMN batch_index,
