@@ -615,7 +615,10 @@ export function DataTableOptions<TData>({
           return false;
         }
 
-        if (f.id === runningFilterKey || f.id === additionalMetadataOperatorKey) {
+        if (
+          f.id === runningFilterKey ||
+          f.id === additionalMetadataOperatorKey
+        ) {
           return false;
         }
 
