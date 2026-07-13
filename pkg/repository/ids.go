@@ -32,6 +32,12 @@ type WorkflowNameTriggerOpts struct {
 
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
+
+	// ReplayOrphanedChildren controls what happens when the child-spawn dedupe resolves to a
+	// child whose log entry is only reachable on a branch orphaned by a replay reset. When set
+	// (DAG operator steps), the existing child run is re-executed in place, preserving task
+	// identity; otherwise a fresh child run is spawned on the active branch.
+	ReplayOrphanedChildren bool
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {

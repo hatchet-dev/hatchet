@@ -96,7 +96,9 @@ async def test_durable_sleep_cancel_replay(hatchet: Hatchet) -> None:
     await wait_for_running_status(hatchet, first_sleep.workflow_run_id)
     await hatchet.runs.aio_cancel(first_sleep.workflow_run_id)
 
-    await first_sleep.aio_result()
+    with pytest.raises(Exception) as exc_info:
+        assert "HatchetError: task was cancelled" in str(exc_info.value)
+        await first_sleep.aio_result()
 
     replay_start = time.time()
     await hatchet.runs.aio_replay(
@@ -362,9 +364,9 @@ async def test_event_lookback_before_wait(hatchet: Hatchet) -> None:
 
     result = await wait_for_event_lookback.aio_run(EventLookbackInput(user_id=user_id))
 
-    assert (
-        result.elapsed < 1 + TIMING_TOLERANCE
-    ), "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    assert result.elapsed < 1 + TIMING_TOLERANCE, (
+        "Event lookback should find the event that was pushed before the wait started, so should be basically instantaneous"
+    )
     assert result.event.order == "first"
 
 

@@ -1222,6 +1222,49 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExtern
 	})
 }
 
+func (d *DispatcherServiceImpl) replayDAGStepChild(ctx context.Context, tenantId, childExternalId uuid.UUID) error {
+	childTasks, err := d.repo.Tasks().FlattenExternalIds(ctx, tenantId, []uuid.UUID{childExternalId})
+	if err != nil {
+		return fmt.Errorf("failed to look up child task %s for replay: %w", childExternalId, err)
+	}
+
+	if len(childTasks) == 0 {
+		return fmt.Errorf("child task %s not found for replay", childExternalId)
+	}
+
+	replayTasks := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0, len(childTasks))
+
+	for _, ct := range childTasks {
+		replayTasks = append(replayTasks, tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         ct.ID,
+				InsertedAt: ct.InsertedAt,
+				RetryCount: ct.RetryCount,
+			},
+			WorkflowRunExternalId: ct.WorkflowRunID,
+			TaskExternalId:        ct.ExternalID,
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDReplayTasks,
+		false,
+		true,
+		tasktypes.ReplayTasksPayload{Tasks: replayTasks},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create replay message for child task %s: %w", childExternalId, err)
+	}
+
+	if err := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return fmt.Errorf("failed to send replay message for child task %s: %w", childExternalId, err)
+	}
+
+	return nil
+}
+
 func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
 	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ParentTaskExternalId, false)
 	if err != nil {
@@ -1236,6 +1279,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 
 	orchestratorWorkflowRunId := task.ExternalID
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
+		ReplayOrphanedChildren: true,
 		TriggerTaskData: &v1.TriggerTaskData{
 			WorkflowName:         req.WorkflowName,
 			TargetActionId:       &req.ActionId,
@@ -1283,6 +1327,12 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	}
 
 	entry := ingestionResult.TriggerRunsResult.Entries[0]
+
+	if entry.ChildNeedsReplay {
+		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
+			return nil, err
+		}
+	}
 
 	return &operator.DAGStepTriggerResult{
 		NodeId:                entry.NodeId,

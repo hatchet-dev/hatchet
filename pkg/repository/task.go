@@ -1241,6 +1241,10 @@ func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx contex
 	return r.listTaskOutputEvents(ctx, r.pool, tenantId, childExternalIds)
 }
 
+func (r *TaskRepositoryImpl) ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error) {
+	return r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
+}
+
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {
 	eventTypes := make([][]string, 0)
 
@@ -4354,24 +4358,43 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, nil
 	}
 
-	childExternalIds, err := r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{externalId})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to list durable orchestrator child task external ids: %w", err)
-	}
-
-	isOperatorDAG := len(childExternalIds) > 0
 	rootExternalIds := []uuid.UUID{externalId}
-	rootExternalIds = append(rootExternalIds, childExternalIds...)
+	isOperatorDAG := len(flat) == 1 && flat[0].IsDagOrchestrator
+	var orchestratorDagShape DagShape
+
+	var childExternalIds []uuid.UUID
 
 	if isOperatorDAG {
-		childFlat, err := r.FlattenExternalIds(ctx, tenantId, childExternalIds)
+		orchestrator := flat[0]
+		childExternalIds, err = r.ListDurableOrchestratorChildExternalIds(ctx, tenantId, orchestrator.ExternalID)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to flatten durable orchestrator child external ids: %w", err)
+			return nil, fmt.Errorf("failed to list child task external ids: %w", err)
 		}
 
-		flat = append(flat, childFlat...)
+		flattenedChildren, err := r.FlattenExternalIds(ctx, tenantId, childExternalIds)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to flatten child task external ids: %w", err)
+		}
+
+		flat = append(flat, flattenedChildren...)
+
+		for _, child := range flattenedChildren {
+			rootExternalIds = append(rootExternalIds, child.ExternalID)
+		}
+
+		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, orchestrator.WorkflowVersionID)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get workflow version: %w", err)
+		}
+
+		err = json.Unmarshal(version.WorkflowVersion.DagShape, &orchestratorDagShape)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dag shape: %w", err)
+		}
 	}
 
 	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, rootExternalIds)
@@ -4516,6 +4539,19 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 				Status:        *status,
 				Error:         &event.ErrorMessage,
 				ExternalId:    event.TaskExternalId,
+			}
+		}
+	}
+
+	if isOperatorDAG {
+		for readableId := range orchestratorDagShape {
+			if _, ok := taskRunDetails[StepReadableId(readableId)]; !ok {
+				taskRunDetails[StepReadableId(readableId)] = TaskRunDetails{
+					OutputPayload: nil,
+					Status:        statusutils.V1RunStatusQueued,
+					Error:         nil,
+					ExternalId:    uuid.Nil,
+				}
 			}
 		}
 	}
