@@ -2,6 +2,7 @@ from examples.affinity_workers.worker import affinity_worker_workflow
 from examples.batch_assign.worker import (
     batch_keyed,
     batch_keyed_interval,
+    batch_keyed_failable,
     batch_large,
     batch_simple,
     batch_single,
@@ -136,6 +137,7 @@ def main() -> None:
             batch_simple,
             batch_keyed,
             batch_keyed_interval,
+            batch_keyed_failable,
             batch_large,
             batch_single,
             batch_ordered,

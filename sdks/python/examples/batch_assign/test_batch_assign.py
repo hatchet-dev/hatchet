@@ -68,11 +68,6 @@ async def test_partitions_batches_by_key_when_batch_size_reached() -> None:
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_batch_group_key_parse_failure_fails_only_that_task() -> None:
-    # "input.group" is an int here, which fails to evaluate to a string batch group key. This must
-    # only fail the one offending task, not silently drop the entire batch of tasks triggered
-    # alongside it (which was the behavior before this fix - a bad batch group key aborted the whole
-    # underlying insert, and since the queue message backing that insert is only acked on success,
-    # every task in the batch was left stuck rather than retried or run).
     good = KeyedFailableInput(message="hello", group="tenant-1")
     bad = KeyedFailableInput(message="world", group=123)
 
