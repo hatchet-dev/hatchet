@@ -141,7 +141,7 @@ func TestPrometheusExtensionAggregatesSlotsByLabelPairAndSlotType(t *testing.T) 
 		},
 	}
 
-	ext.ReportSnapshot(context.Background(), tenantId,snapshotInput(workers, utilizationByType))
+	ext.ReportSnapshot(context.Background(), tenantId, snapshotInput(workers, utilizationByType))
 
 	total := collectLabelPairSeries(t, prometheus.TenantWorkerLabelSlots, tenantId.String())
 	used := collectLabelPairSeries(t, prometheus.TenantUsedWorkerLabelSlots, tenantId.String())
@@ -197,7 +197,7 @@ func TestPrometheusExtensionDeletesStaleLabelPairs(t *testing.T) {
 		worker2: {repo.SlotTypeDefault: {UtilizedSlots: 2, NonUtilizedSlots: 2}},
 	}
 
-	ext.ReportSnapshot(context.Background(), tenantId,snapshotInput(workers, utilizationByType))
+	ext.ReportSnapshot(context.Background(), tenantId, snapshotInput(workers, utilizationByType))
 
 	require.Len(t, collectLabelPairSeries(t, prometheus.TenantWorkerLabelSlots, tenantId.String()), 2)
 
@@ -205,7 +205,7 @@ func TestPrometheusExtensionDeletesStaleLabelPairs(t *testing.T) {
 	delete(workers, worker2)
 	delete(utilizationByType, worker2)
 
-	ext.ReportSnapshot(context.Background(), tenantId,snapshotInput(workers, utilizationByType))
+	ext.ReportSnapshot(context.Background(), tenantId, snapshotInput(workers, utilizationByType))
 
 	total := collectLabelPairSeries(t, prometheus.TenantWorkerLabelSlots, tenantId.String())
 	require.Equal(t, map[LabelPairPromLabels]float64{
@@ -227,13 +227,13 @@ func TestPrometheusExtensionSkipsTransientZeroSlotLabelPairs(t *testing.T) {
 		},
 	}
 
-	ext.ReportSnapshot(context.Background(), tenantId,snapshotInput(workers, map[uuid.UUID]map[string]*SlotUtilization{
+	ext.ReportSnapshot(context.Background(), tenantId, snapshotInput(workers, map[uuid.UUID]map[string]*SlotUtilization{
 		worker1: {repo.SlotTypeDefault: {UtilizedSlots: 3, NonUtilizedSlots: 1}},
 	}))
 
 	// a replenishment gap reports 0 slots; the previous values should be preserved
 	// and the series should not be deleted
-	ext.ReportSnapshot(context.Background(), tenantId,snapshotInput(workers, map[uuid.UUID]map[string]*SlotUtilization{
+	ext.ReportSnapshot(context.Background(), tenantId, snapshotInput(workers, map[uuid.UUID]map[string]*SlotUtilization{
 		worker1: {repo.SlotTypeDefault: {UtilizedSlots: 0, NonUtilizedSlots: 0}},
 	}))
 
@@ -251,7 +251,7 @@ func TestPrometheusExtensionSkipsTransientZeroSlotLabelPairs(t *testing.T) {
 		Labels:   []*sqlcv1.ListManyWorkerLabelsRow{strLabel("pool", "cpu")},
 	}
 
-	ext.ReportSnapshot(context.Background(), tenantId,snapshotInput(workers, map[uuid.UUID]map[string]*SlotUtilization{
+	ext.ReportSnapshot(context.Background(), tenantId, snapshotInput(workers, map[uuid.UUID]map[string]*SlotUtilization{
 		worker1: {repo.SlotTypeDefault: {UtilizedSlots: 3, NonUtilizedSlots: 1}},
 		worker2: {repo.SlotTypeDefault: {UtilizedSlots: 0, NonUtilizedSlots: 0}},
 	}))
@@ -294,7 +294,7 @@ func TestPrometheusExtensionCleanupTenantDeletesLabelPairs(t *testing.T) {
 		},
 	)
 
-	ext.ReportSnapshot(context.Background(), tenantId,input)
+	ext.ReportSnapshot(context.Background(), tenantId, input)
 	ext.ReportSnapshot(context.Background(), otherTenantId, otherInput)
 
 	require.NoError(t, ext.CleanupTenant(tenantId))
