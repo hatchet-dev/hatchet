@@ -29,6 +29,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+ async rewrites() {
+    return [
+      { source: "/reference/changelog/:component/feed.xml", destination: "/api/feeds/:component" },
+      { source: "/cookbooks/feed.xml", destination: "/api/feeds/cookbooks" },
+    ]
+ },
   async redirects() {
     return [
       // --- New site: section index redirects ---
