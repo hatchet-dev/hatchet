@@ -93,6 +93,8 @@ V1WebhookGetDeleteReceiveUpdate:
     x-resources: ["tenant", "v1-webhook"]
     description: Post an incoming webhook message
     operationId: v1-webhook:receive
+    # !!! IMPORTANT: we directly reference this path in the webhook rate limiter in `webhook_rate_limit.go`
+    # changing this path will break the rate limiter. !!!
     security: []
     parameters:
       - description: The tenant id
