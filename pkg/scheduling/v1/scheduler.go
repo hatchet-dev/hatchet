@@ -642,17 +642,39 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 			// require that 1 out of every 20 snapshots is taken
 			must := count%20 == 0
 
-			in, ok := s.getSnapshotInput(must)
-
-			if !ok {
-				continue
+			// only advance the counter when a snapshot was actually taken, so
+			// the "must" cadence counts real snapshots rather than skipped ticks
+			if s.snapshot(ctx, must) {
+				count++
 			}
-
-			s.exts.ReportSnapshot(s.tenantId, in)
-
-			count++
 		}
 	}
+}
+
+// snapshot builds a point-in-time view of the tenant's slot utilization and
+// reports it to the registered extensions. It returns false when the snapshot
+// was skipped because the scheduler was busy (non-must path).
+func (s *Scheduler) snapshot(ctx context.Context, mustSnapshot bool) bool {
+	ctx, span := telemetry.NewSpan(ctx, "snapshot")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: s.tenantId.String()},
+		telemetry.AttributeKV{Key: "snapshot.must", Value: mustSnapshot},
+	)
+
+	in, ok := s.getSnapshotInput(ctx, mustSnapshot)
+
+	if !ok {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.skipped", Value: true})
+		return false
+	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(in.Workers)})
+
+	s.exts.ReportSnapshot(ctx, s.tenantId, in)
+
+	return true
 }
 
 func (s *Scheduler) start(ctx context.Context) {
@@ -1251,14 +1273,23 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput
 	}
 }
 
-func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
+func (s *Scheduler) getSnapshotInput(ctx context.Context, mustSnapshot bool) (*SnapshotInput, bool) {
+	ctx, span := telemetry.NewSpan(ctx, "get-snapshot-input")
+	defer span.End()
+
+	// isolate the lock-acquire wait in its own child span; on the non-must path
+	// a contended lock makes us skip the snapshot entirely.
+	_, lockSpan := telemetry.NewSpan(ctx, "get-snapshot-input-acquire-actions-mu")
 	if mustSnapshot {
 		s.actionsMu.RLock()
 	} else {
 		if ok := s.actionsMu.TryRLock(); !ok {
+			lockSpan.End()
+			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.lock_contended", Value: true})
 			return nil, false
 		}
 	}
+	lockSpan.End()
 
 	defer s.actionsMu.RUnlock()
 
@@ -1301,6 +1332,7 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		utilizationByType[workerId] = make(map[string]*SlotUtilization)
 	}
 
+	_, walkSpan := telemetry.NewSpan(ctx, "get-snapshot-input-walk-slots")
 	for _, actionId := range actionKeys {
 		action, ok := s.actions[actionId]
 
@@ -1343,6 +1375,11 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		}
 		action.mu.RUnlock()
 	}
+	telemetry.WithAttributes(walkSpan,
+		telemetry.AttributeKV{Key: "snapshot.action_count", Value: len(actionKeys)},
+		telemetry.AttributeKV{Key: "snapshot.unique_slots", Value: len(uniqueSlots)},
+	)
+	walkSpan.End()
 
 	// prune warm state for workers which are no longer registered
 	for workerId := range s.warmedSlotTypes {
@@ -1409,6 +1446,11 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		res.WorkerSlotUtilizationByType[workerId] = byType
 		res.WorkerSlotUtilization[workerId] = aggregate
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(workers)},
+		telemetry.AttributeKV{Key: "snapshot.action_count", Value: len(actionKeys)},
+	)
 
 	return res, true
 }

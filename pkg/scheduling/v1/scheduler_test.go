@@ -783,7 +783,7 @@ func TestScheduler_GetSnapshotInput_BestEffortTryLock(t *testing.T) {
 	s.actionsMu.Lock()
 	defer s.actionsMu.Unlock()
 
-	in, ok := s.getSnapshotInput(false)
+	in, ok := s.getSnapshotInput(context.Background(), false)
 	require.False(t, ok)
 	require.Nil(t, in)
 }
@@ -822,7 +822,7 @@ func TestScheduler_GetSnapshotInput_DerivesUsedSlotsFromCapacity(t *testing.T) {
 
 	require.NoError(t, s.replenish(context.Background(), true))
 
-	in, ok := s.getSnapshotInput(true)
+	in, ok := s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.NotNil(t, in)
 	require.Len(t, in.Workers, 1)
@@ -863,7 +863,7 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	require.NoError(t, err)
 	s.actions["B"] = actB
 
-	in, ok := s.getSnapshotInput(true)
+	in, ok := s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.NotNil(t, in)
 	require.Len(t, in.Workers, 1)
@@ -889,7 +889,7 @@ func TestScheduler_GetSnapshotInput_WarmupAndSaturation(t *testing.T) {
 
 	// before any slots have entered the pool (i.e. before the first replenish), the worker
 	// must report zero slots rather than full utilization
-	in, ok := s.getSnapshotInput(true)
+	in, ok := s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.Equal(t, &SlotUtilization{UtilizedSlots: 0, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
 
@@ -900,7 +900,7 @@ func TestScheduler_GetSnapshotInput_WarmupAndSaturation(t *testing.T) {
 	require.NoError(t, err)
 	s.actions["A"] = actA
 
-	in, ok = s.getSnapshotInput(true)
+	in, ok = s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.Equal(t, &SlotUtilization{UtilizedSlots: 2, NonUtilizedSlots: 1}, in.WorkerSlotUtilization[workerId])
 
@@ -908,14 +908,14 @@ func TestScheduler_GetSnapshotInput_WarmupAndSaturation(t *testing.T) {
 	// full utilization instead of a transient zero
 	delete(s.actions, "A")
 
-	in, ok = s.getSnapshotInput(true)
+	in, ok = s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.Equal(t, &SlotUtilization{UtilizedSlots: 3, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
 
 	// removing the worker prunes its warm state
 	s.setWorkers([]*repo.ListActiveWorkersResult{})
 
-	in, ok = s.getSnapshotInput(true)
+	in, ok = s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.NotContains(t, in.WorkerSlotUtilization, workerId)
 	require.Empty(t, s.warmedSlotTypes)
@@ -938,7 +938,7 @@ func TestScheduler_GetSnapshotInput_FallsBackToWalkedCountsWithoutCapacity(t *te
 	require.NoError(t, err)
 	s.actions["A"] = actA
 
-	in, ok := s.getSnapshotInput(true)
+	in, ok := s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 
 	util := in.WorkerSlotUtilization[workerId]

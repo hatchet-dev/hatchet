@@ -9,6 +9,7 @@ import (
 
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type PrometheusExtension struct {
@@ -84,13 +85,21 @@ func workerLabelPairs(labels []*sqlcv1.ListManyWorkerLabelsRow) []WorkerLabelPai
 	return pairs
 }
 
-func (p *PrometheusExtension) ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput) {
+func (p *PrometheusExtension) ReportSnapshot(ctx context.Context, tenantId uuid.UUID, input *SnapshotInput) {
+	ctx, span := telemetry.NewSpan(ctx, "prometheus-extension-report-snapshot")
+	defer span.End()
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	tenantIdStr := tenantId.String()
 
-	tenantMetricsEnabled := p.promGate.Enabled(context.Background(), tenantId)
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: tenantIdStr},
+		telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(input.Workers)},
+	)
+
+	tenantMetricsEnabled := p.promGate.Enabled(ctx, tenantId)
 
 	workerPromLabelsToSlotData := make(map[WorkerPromLabels]*SlotUtilization)
 	labelPairsToSlotData := make(map[LabelPairPromLabels]*SlotUtilization)

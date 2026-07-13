@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type PostAssignInput struct {
@@ -43,7 +45,7 @@ type SlotCp struct {
 
 type SchedulerExtension interface {
 	SetTenants(tenants []*sqlcv1.Tenant)
-	ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput)
+	ReportSnapshot(ctx context.Context, tenantId uuid.UUID, input *SnapshotInput)
 	PostAssign(tenantId uuid.UUID, input *PostAssignInput)
 	CleanupTenant(tenantId uuid.UUID) error
 	Cleanup() error
@@ -65,13 +67,21 @@ func (e *Extensions) Add(ext SchedulerExtension) {
 	e.exts = append(e.exts, ext)
 }
 
-func (e *Extensions) ReportSnapshot(tenantId uuid.UUID, input *SnapshotInput) {
+func (e *Extensions) ReportSnapshot(ctx context.Context, tenantId uuid.UUID, input *SnapshotInput) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
+	// Extensions run in their own goroutines. `ctx` is the scheduler-lifetime
+	// context (not a per-iteration one), so it's safe to hand to a fire-and-
+	// forget goroutine; each gets its own child span under the snapshot trace.
 	for _, ext := range e.exts {
 		f := ext.ReportSnapshot
-		go f(tenantId, input)
+		go func() {
+			spanCtx, span := telemetry.NewSpan(ctx, "report-snapshot")
+			defer span.End()
+
+			f(spanCtx, tenantId, input)
+		}()
 	}
 }
 
