@@ -63,7 +63,12 @@ from hatchet_sdk.runnables.contextvars import (
     workflow_spawn_indices,
 )
 from hatchet_sdk.runnables.task import Task
-from hatchet_sdk.runnables.types import R, TaskPayloadForInternalUse, TWorkflowInput
+from hatchet_sdk.runnables.types import (
+    BatchMemberId,
+    R,
+    TaskPayloadForInternalUse,
+    TWorkflowInput,
+)
 from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.cache import BoundedDict
@@ -476,7 +481,7 @@ class Runner:
                 input, context=HATCHET_PYDANTIC_SENTINEL
             )
 
-        task_inputs: dict[str, Any] = {
+        task_inputs: dict[BatchMemberId, Any] = {
             i: cast_input(item.payload.input) for i, item in action.batch_items.items()
         }
         context = self.create_context(action=action, task=task, is_durable=False)

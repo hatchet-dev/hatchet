@@ -34,6 +34,7 @@ from hatchet_sdk.runnables.action import (
     BatchItemData,
     BatchStartPayload,
 )
+from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
@@ -198,7 +199,7 @@ class ActionListener:
                         ActionTypeProto,
                     )
 
-                    batch_items: dict[str, BatchItemData] | None = None
+                    batch_items: dict[BatchMemberId, BatchItemData] | None = None
                     if (
                         action_type == ActionType.START_BATCH
                         and assigned_action.action_payload

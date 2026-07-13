@@ -1,11 +1,12 @@
 import asyncio
 import uuid
 from datetime import timedelta
-from typing import Any
+from typing import Any, Never
 
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
+from hatchet_sdk.runnables.types import BatchMemberId
 
 hatchet = Hatchet()
 
@@ -32,14 +33,22 @@ class LargePayloadInput(BaseModel):
     data: str
 
 
+class BroadcastOutput(BaseModel):
+    sum: int
+
+
+class ChildBatchOutput(BaseModel):
+    out: dict[BatchMemberId, SimpleInput]
+
+
 @hatchet.batch_task(
     batch_max_size=3,
     batch_max_interval=timedelta(milliseconds=200),
     input_validator=SimpleInput,
 )
 async def batch_simple(
-    tasks: dict[str, SimpleInput], context: Context
-) -> dict[str, Any]:
+    tasks: dict[BatchMemberId, SimpleInput], context: Context
+) -> dict[BatchMemberId, Any]:
     return {
         id: {"TransformedMessage": inp.message.upper()} for id, inp in tasks.items()
     }
@@ -51,7 +60,9 @@ async def batch_simple(
     batch_group_key="input.group",
     input_validator=KeyedInput,
 )
-async def batch_keyed(tasks: dict[str, KeyedInput], context: Context) -> dict[str, Any]:
+async def batch_keyed(
+    tasks: dict[BatchMemberId, KeyedInput], context: Context
+) -> dict[BatchMemberId, Any]:
     unique_keys = len({inp.group for _, inp in tasks.items()})
     return {
         id: {
@@ -71,8 +82,8 @@ async def batch_keyed(tasks: dict[str, KeyedInput], context: Context) -> dict[st
     input_validator=KeyedFailableInput,
 )
 async def batch_keyed_failable(
-    tasks: dict[str, KeyedFailableInput], context: Context
-) -> dict[str, Any]:
+    tasks: dict[BatchMemberId, KeyedFailableInput], context: Context
+) -> dict[BatchMemberId, Any]:
     return {id: {"uppercase": inp.message.upper()} for id, inp in tasks.items()}
 
 
@@ -83,9 +94,9 @@ async def batch_keyed_failable(
     input_validator=KeyedInput,
 )
 async def batch_keyed_interval(
-    tasks: dict[str, KeyedInput],
+    tasks: dict[BatchMemberId, KeyedInput],
     context: Context,
-) -> dict[str, Any]:
+) -> dict[BatchMemberId, Any]:
     unique_keys = len({inp.group for _, inp in tasks.items()})
     return {
         id: {
@@ -104,8 +115,8 @@ async def batch_keyed_interval(
     input_validator=LargePayloadInput,
 )
 async def batch_large(
-    tasks: dict[str, LargePayloadInput], context: Context
-) -> dict[str, Any]:
+    tasks: dict[BatchMemberId, LargePayloadInput], context: Context
+) -> dict[BatchMemberId, Any]:
     batch_id = str(uuid.uuid4())
     return {
         id: {
@@ -124,8 +135,8 @@ async def batch_large(
     input_validator=SimpleInput,
 )
 async def batch_single(
-    tasks: dict[str, SimpleInput], context: Context
-) -> dict[str, Any]:
+    tasks: dict[BatchMemberId, SimpleInput], context: Context
+) -> dict[BatchMemberId, Any]:
     return {
         id: {"original": inp.message, "batchSize": len(tasks)}
         for id, inp in tasks.items()
@@ -138,8 +149,8 @@ async def batch_single(
     input_validator=OrderedInput,
 )
 async def batch_ordered(
-    tasks: dict[str, OrderedInput], context: Context
-) -> dict[str, Any]:
+    tasks: dict[BatchMemberId, OrderedInput], context: Context
+) -> dict[BatchMemberId, Any]:
     return {id: {"index": inp.index} for id, inp in tasks.items()}
 
 
@@ -150,9 +161,9 @@ async def batch_ordered(
     broadcast_output=True,
 )
 async def batch_broadcast(
-    tasks: dict[str, SimpleInput], context: Context
-) -> dict[str, Any]:
-    return {"sum": sum(len(i.message) for _, i in tasks.items())}
+    tasks: dict[BatchMemberId, SimpleInput], context: Context
+) -> BroadcastOutput:
+    return BroadcastOutput(sum=sum(len(i.message) for _, i in tasks.items()))
 
 
 @hatchet.batch_task(
@@ -161,9 +172,9 @@ async def batch_broadcast(
     input_validator=SimpleInput,
     broadcast_output=True,
 )
-async def batch_cancel(_: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
+async def batch_cancel(_: dict[BatchMemberId, SimpleInput], context: Context) -> None:
     await context.aio_cancel()
-    return {}
+    return None
 
 
 @hatchet.task(input_validator=SimpleInput)
@@ -177,8 +188,10 @@ async def child(input: SimpleInput, context: Context) -> dict[str, Any]:
     input_validator=SimpleInput,
     broadcast_output=True,
 )
-async def child_batch(inp: dict[str, SimpleInput], context: Context) -> dict[str, Any]:
-    return inp
+async def child_batch(
+    inp: dict[BatchMemberId, SimpleInput], context: Context
+) -> ChildBatchOutput:
+    return ChildBatchOutput(out=inp)
 
 
 @hatchet.batch_task(
@@ -189,8 +202,8 @@ async def child_batch(inp: dict[str, SimpleInput], context: Context) -> dict[str
     execution_timeout=timedelta(seconds=60),
 )
 async def batch_child_spawn(
-    inp: dict[str, SimpleInput], context: Context
-) -> dict[str, Any]:
+    inp: dict[BatchMemberId, SimpleInput], context: Context
+) -> dict[BatchMemberId, Any]:
     return {
         id: await child.aio_run(SimpleInput(message="blahblah"))
         for id, inp in inp.items()
@@ -205,17 +218,18 @@ async def batch_child_spawn(
     execution_timeout=timedelta(seconds=60),
 )
 async def batch_child_batch_spawn(
-    inp: dict[str, SimpleInput], context: Context
-) -> dict[str, Any]:
+    inp: dict[BatchMemberId, SimpleInput], context: Context
+) -> dict[BatchMemberId, Any]:
     async def inner(id: str, inp: SimpleInput) -> Any:
         return id, await child_batch.aio_run(inp)
 
-    return {
+    ret = {
         id: result
         for id, result in await asyncio.gather(
             *(inner(id, inp) for id, inp in inp.items())
         )
     }
+    return ret
 
 
 def main() -> None:
