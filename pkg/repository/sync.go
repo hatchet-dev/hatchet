@@ -32,6 +32,7 @@ type SyncRepository interface {
 	SyncSoftDeleteTenant(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncSoftDeleteTenantParams) error
 
 	SyncUpsertUser(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertUserParams) (*sqlcv1.User, error)
+	SyncListUsers(ctx context.Context, db sqlcv1.DBTX) ([]*sqlcv1.SyncListUsersRow, error)
 
 	SyncUpsertTenantInvite(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantInviteParams) (*sqlcv1.TenantInviteLink, error)
 	SyncUpdateTenantInvite(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpdateTenantInviteParams) (*sqlcv1.TenantInviteLink, error)
@@ -76,6 +77,10 @@ func (r *syncRepository) SyncSoftDeleteTenant(ctx context.Context, db sqlcv1.DBT
 
 func (r *syncRepository) SyncUpsertUser(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertUserParams) (*sqlcv1.User, error) {
 	return r.queries.SyncUpsertUser(ctx, db, arg)
+}
+
+func (r *syncRepository) SyncListUsers(ctx context.Context, db sqlcv1.DBTX) ([]*sqlcv1.SyncListUsersRow, error) {
+	return r.queries.SyncListUsers(ctx, db)
 }
 
 func (r *syncRepository) SyncUpsertTenantInvite(ctx context.Context, db sqlcv1.DBTX, arg sqlcv1.SyncUpsertTenantInviteParams) (*sqlcv1.TenantInviteLink, error) {

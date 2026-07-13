@@ -20,7 +20,7 @@ ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
 COPY ./cmd/hatchet-staticfileserver/ ./cmd/hatchet-staticfileserver/
 
-RUN go build -o hatchet-staticfileserver ./cmd/hatchet-staticfileserver/main.go
+RUN go build -ldflags="-w -s" -a -o hatchet-staticfileserver ./cmd/hatchet-staticfileserver/main.go
 RUN chmod +x ./hatchet-staticfileserver
 
 # Stage 3: Run the static fileserver

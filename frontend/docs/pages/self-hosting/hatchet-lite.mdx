@@ -22,6 +22,15 @@ The easiest way to get Hatchet Lite running is via the Hatchet CLI. Simply run t
 hatchet server start
 ```
 
+<Callout type="info">
+  For local development you can add `--disable-auth` to run the
+  `hatchet-lite-dev` image, which has authentication compiled out. Workers still
+  authenticate over gRPC with the fixed worker token the dev image ships
+  (viewable from the dashboard banner). See [Running Hatchet
+  Locally](/reference/cli/running-hatchet-locally#running-without-authentication)
+  for details.
+</Callout>
+
 </Tabs.Tab>
 
   <Tabs.Tab>

@@ -3,6 +3,7 @@
 ### Highlights
 
 - Fixes timeouts in `UserSession` cleanup jobs by adding an index via a new `hatchet-migrate` migration.
+- `hatchet quickstart` supports use-case templates through a new `--use-case` flag. The first use case is `scheduled`, a Go template whose workflow runs on a cron schedule and can also be run on demand. The default quickstart behavior is unchanged. See the [quickstart CLI docs](https://docs.hatchet.run/cli/quickstarts).
 
 ## [0.90.13] - 2026-06-29
 

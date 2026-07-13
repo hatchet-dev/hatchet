@@ -1361,6 +1361,16 @@ export interface APIMeta {
    * @example false
    */
   prometheusServerEnabled?: boolean;
+  /**
+   * whether or not authentication is disabled (authdisabled build) on this instance
+   * @example false
+   */
+  authDisabled?: boolean;
+  /**
+   * the embedded worker API token, only set on authdisabled builds
+   * @example "eyJhbGciOiJFUzI1NiIs..."
+   */
+  authDisabledToken?: string;
 }
 
 export interface APIMetaIntegration {

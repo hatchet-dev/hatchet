@@ -112,6 +112,11 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
+from examples.bug_tests.durable_spawn_index_collision.worker import (
+    durable_spawn_index_collision,
+    spawn_index_child_a,
+    spawn_index_child_b,
+)
 from hatchet_sdk import Hatchet
 
 hatchet = Hatchet()
@@ -210,6 +215,9 @@ def main() -> None:
             welcome_email,
             durable_parent_child_key_bug,
             child_child_key_bug,
+            durable_spawn_index_collision,
+            spawn_index_child_a,
+            spawn_index_child_b,
             durable_child_key_dedup_replay,
             durable_spawn_many_dags,
             error_raising_durable_parent,

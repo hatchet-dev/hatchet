@@ -913,8 +913,26 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 		}
 
 		for _, o := range skipOpts {
-			if _, ok := childTaskExternalIdToSkipEntry[o.ChildTaskExternalId]; !ok {
+			e, ok := childTaskExternalIdToSkipEntry[o.ChildTaskExternalId]
+
+			if !ok {
 				return nil, fmt.Errorf("expected to find log entry for skipped child task external id %s", o.ChildTaskExternalId)
+			}
+
+			if len(o.IdempotencyKey) > 0 && !bytes.Equal(o.IdempotencyKey, e.IdempotencyKey) {
+				return nil, &NonDeterminismError{
+					BranchId:                e.BranchID,
+					NodeId:                  e.NodeID,
+					TaskExternalId:          opts.DurableTaskExternalId,
+					ExpectedIdempotencyKey:  e.IdempotencyKey,
+					ActualIdempotencyKey:    o.IdempotencyKey,
+					ExpectedKind:            e.Kind,
+					ActualKind:              o.Kind,
+					ExistingEntryId:         e.ID,
+					ExistingEntryInsertedAt: e.InsertedAt,
+					ExistingEntryTenantId:   e.TenantID,
+					ExistingEntryExternalId: e.ExternalID,
+				}
 			}
 		}
 	}
@@ -1131,9 +1149,22 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			externalIdToTriggerOpts[triggerOpts.ExternalId] = triggerOpts
 
 			if triggerOpts.ShouldSkip {
+				// only index-based dedupe is validated against the existing entry's
+				// idempotency key: an explicit child_key intentionally reuses the
+				// cached child even when the inputs differ
+				var idempotencyKey []byte
+				if triggerOpts.ChildKey == nil {
+					key, keyErr := r.createIdempotencyKey(sqlcv1.V1DurableEventLogKindRUN, triggerOpts, nil)
+					if keyErr != nil {
+						return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
+					}
+					idempotencyKey = key
+				}
+
 				innerOpts[i] = GetOrCreateLogEntryOpt{
 					Kind:                sqlcv1.V1DurableEventLogKindRUN,
 					ChildTaskExternalId: triggerOpts.ExternalId,
+					IdempotencyKey:      idempotencyKey,
 					ShouldSkip:          true,
 				}
 				continue
