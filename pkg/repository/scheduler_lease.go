@@ -16,6 +16,9 @@ type ListActiveWorkersResult struct {
 	ID     uuid.UUID
 	Name   string
 	Labels []*sqlcv1.ListManyWorkerLabelsRow
+
+	// TotalSlotsByType is the worker's total slot capacity keyed by slot type.
+	TotalSlotsByType map[string]int
 }
 
 type leaseRepository struct {
@@ -116,16 +119,32 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 	ctx, span := telemetry.NewSpan(ctx, "list-active-workers")
 	defer span.End()
 
-	activeWorkers, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
+	// the query returns one row per (worker, slot type)
+	activeWorkerRows, err := d.queries.ListActiveWorkers(ctx, d.pool, tenantId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	workerIds := make([]uuid.UUID, 0, len(activeWorkers))
+	workerIdsToResults := make(map[uuid.UUID]*ListActiveWorkersResult, len(activeWorkerRows))
+	res := make([]*ListActiveWorkersResult, 0, len(activeWorkerRows))
+	workerIds := make([]uuid.UUID, 0, len(activeWorkerRows))
 
-	for _, worker := range activeWorkers {
-		workerIds = append(workerIds, worker.ID)
+	for _, row := range activeWorkerRows {
+		worker, ok := workerIdsToResults[row.ID]
+		if !ok {
+			worker = &ListActiveWorkersResult{
+				ID:               row.ID,
+				Name:             row.Name,
+				TotalSlotsByType: make(map[string]int),
+			}
+
+			workerIdsToResults[row.ID] = worker
+			res = append(res, worker)
+			workerIds = append(workerIds, row.ID)
+		}
+
+		worker.TotalSlotsByType[row.SlotType] += int(row.MaxUnits)
 	}
 
 	labels, err := d.queries.ListManyWorkerLabels(ctx, d.pool, workerIds)
@@ -134,27 +153,37 @@ func (d *leaseRepository) ListActiveWorkers(ctx context.Context, tenantId uuid.U
 		return nil, err
 	}
 
-	workerIdsToLabels := make(map[uuid.UUID][]*sqlcv1.ListManyWorkerLabelsRow, len(labels))
-
 	for _, label := range labels {
-		if _, ok := workerIdsToLabels[label.WorkerId]; !ok {
-			workerIdsToLabels[label.WorkerId] = make([]*sqlcv1.ListManyWorkerLabelsRow, 0)
+		if worker, ok := workerIdsToResults[label.WorkerId]; ok {
+			worker.Labels = append(worker.Labels, label)
 		}
-
-		workerIdsToLabels[label.WorkerId] = append(workerIdsToLabels[label.WorkerId], label)
-	}
-
-	res := make([]*ListActiveWorkersResult, 0, len(activeWorkers))
-
-	for _, worker := range activeWorkers {
-		res = append(res, &ListActiveWorkersResult{
-			ID:     worker.ID,
-			Labels: workerIdsToLabels[worker.ID],
-			Name:   worker.Name,
-		})
 	}
 
 	return res, nil
+}
+
+// listTotalSlotsForWorkers returns each worker's total slot capacity keyed by slot type.
+func (d *leaseRepository) listTotalSlotsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]map[string]int, error) {
+	slotConfigs, err := d.queries.ListWorkerSlotConfigs(ctx, d.pool, sqlcv1.ListWorkerSlotConfigsParams{
+		Tenantid:  tenantId,
+		Workerids: workerIds,
+	})
+
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+
+	workerIdsToTotalSlots := make(map[uuid.UUID]map[string]int, len(workerIds))
+
+	for _, config := range slotConfigs {
+		if _, ok := workerIdsToTotalSlots[config.WorkerID]; !ok {
+			workerIdsToTotalSlots[config.WorkerID] = make(map[string]int)
+		}
+
+		workerIdsToTotalSlots[config.WorkerID][config.SlotType] += int(config.MaxUnits)
+	}
+
+	return workerIdsToTotalSlots, nil
 }
 
 func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerId uuid.UUID) (*ListActiveWorkersResult, error) {
@@ -186,10 +215,17 @@ func (d *leaseRepository) GetActiveWorker(ctx context.Context, tenantId, workerI
 		workerIdsToLabels[label.WorkerId] = append(workerIdsToLabels[label.WorkerId], label)
 	}
 
+	workerIdsToTotalSlots, err := d.listTotalSlotsForWorkers(ctx, tenantId, []uuid.UUID{workerId})
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &ListActiveWorkersResult{
-		ID:     worker.Worker.ID,
-		Labels: workerIdsToLabels[worker.Worker.ID],
-		Name:   worker.Worker.Name,
+		ID:               worker.Worker.ID,
+		Labels:           workerIdsToLabels[worker.Worker.ID],
+		Name:             worker.Worker.Name,
+		TotalSlotsByType: workerIdsToTotalSlots[worker.Worker.ID],
 	}, nil
 }
 
