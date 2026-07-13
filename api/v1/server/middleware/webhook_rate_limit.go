@@ -41,14 +41,9 @@ func WebhookRateLimitMiddleware(rateLimit rate.Limit, burst int, l *zerolog.Logg
 		IdentifierExtractor: func(c echo.Context) (string, error) {
 			tenantId := c.Param("tenant")
 			webhookName := c.Param("v1-webhook")
-			method := c.Request().Method
-
-			if method != http.MethodPost {
-				return "", fmt.Errorf("method not allowed for rate limiting: %s", method)
-			}
 
 			if tenantId == "" || webhookName == "" {
-				return "", fmt.Errorf("missing tenant or webhook name in request path")
+				return c.RealIP(), nil
 			}
 
 			return fmt.Sprintf("%s-%s", tenantId, webhookName), nil
