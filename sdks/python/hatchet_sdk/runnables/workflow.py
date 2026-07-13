@@ -1954,11 +1954,11 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         self._task = task
 
         return_type = get_type_hints(self._task._fn).get("return")
-        if self._task.is_batch:
+        if self._task.batch and not self._task.batch.broadcast_output:
             origin = get_origin(return_type)
             args = get_args(return_type)
-            if origin is list and len(args) == 1:
-                return_type = args[0]
+            if origin is dict and len(args) == 2:
+                return_type = args[1]
 
         self._output_validator: TypeAdapter[TaskPayloadForInternalUse] = TypeAdapter(
             normalize_validator(return_type)

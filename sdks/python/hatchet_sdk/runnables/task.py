@@ -178,7 +178,6 @@ class Task(Generic[TWorkflowInput, R]):
     ) -> None:
         self._is_durable = is_durable
         self.batch = batch
-        self.is_batch = batch is not None
         self.eviction_policy = eviction_policy
 
         if slot_requests is None:
@@ -218,12 +217,13 @@ class Task(Generic[TWorkflowInput, R]):
 
         return_type = get_type_hints(_fn).get("return")
 
-        # For batch tasks, the handler returns a list of per-item outputs. We validate the item type.
-        if self.is_batch:
+        # For batch tasks, the handler returns a dict of per-item outputs. We validate the item type,
+        # unless broadcast_output is true
+        if self.batch and not self.batch.broadcast_output:
             origin = get_origin(return_type)
             args = get_args(return_type)
-            if origin is list and len(args) == 1:
-                return_type = args[0]
+            if origin is dict and len(args) == 2:
+                return_type = args[1]
 
         self._validators: TaskIOValidator = TaskIOValidator(
             workflow_input=workflow._config.input_validator,

@@ -34,7 +34,7 @@ async def test_flushes_when_batch_size_is_reached() -> None:
     )
 
     assert len(results) == 3
-    assert [r["TransformedMessage"] for r in results] == [m.upper() for m in inputs]
+    assert [r.transformed_message for r in results] == [m.upper() for m in inputs]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -45,7 +45,7 @@ async def test_flushes_when_fewer_items_buffered_than_batch_size() -> None:
     await asyncio.sleep(0.5)
     results = await asyncio.gather(*futures)
 
-    assert [r["TransformedMessage"] for r in results] == [m.upper() for m in inputs]
+    assert [r.transformed_message for r in results] == [m.upper() for m in inputs]
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -61,10 +61,10 @@ async def test_partitions_batches_by_key_when_batch_size_reached() -> None:
 
     assert len(results) == len(inputs)
     for result, inp in zip(results, inputs):
-        assert result["batchKey"] == inp.group
-        assert result["batchSize"] == 2
-        assert result["uniqueKeys"] == 1
-        assert result["uppercase"] == inp.message.upper()
+        assert result.batch_key == inp.group
+        assert result.batch_size == 2
+        assert result.unique_keys == 1
+        assert result.uppercase == inp.message.upper()
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -83,7 +83,7 @@ async def test_batch_group_key_parse_failure_fails_only_that_task() -> None:
         await bad_run.aio_result()
 
     good_result = await good_run.aio_result()
-    assert good_result["uppercase"] == "HELLO"
+    assert good_result.uppercase == "HELLO"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -99,11 +99,11 @@ async def test_flushes_keyed_batches_independently_when_interval_elapses() -> No
         *[batch_keyed_interval.aio_run(inp) for inp in inputs]
     )
 
-    assert [r["batchKey"] for r in results] == [inp.group for inp in inputs]
-    assert all(r["batchSize"] == 3 for r in results[:3])
-    assert results[3]["batchSize"] == 1
-    assert all(r["uniqueKeys"] == 1 for r in results)
-    assert results[3]["payload"] == "hotel"
+    assert [r.batch_key for r in results] == [inp.group for inp in inputs]
+    assert all(r.batch_size == 3 for r in results[:3])
+    assert results[3].batch_size == 1
+    assert all(r.unique_keys == 1 for r in results)
+    assert results[3].uppercase == "HOTEL"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -122,9 +122,9 @@ async def test_completes_all_tasks_with_large_payloads() -> None:
     )
     assert len(results) == task_count
     # test that the batch got flushed each time the batch payload size got over 4mb
-    assert len(set(r["batchId"] for r in results)) == 3
-    assert all(r["received"] for r in results)
-    assert all(r["dataLength"] == payload_size for r in results)
+    assert len(set(r.batch_id for r in results)) == 3
+    assert all(r.received for r in results)
+    assert all(r.data_length == payload_size for r in results)
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -135,8 +135,8 @@ async def test_handles_batch_size_of_one_without_keys() -> None:
         *[batch_single.aio_run(SimpleInput(message=msg)) for msg in inputs]
     )
 
-    assert [r["batchSize"] for r in results] == [1, 1]
-    assert [r["original"] for r in results] == inputs
+    assert [r.batch_size for r in results] == [1, 1]
+    assert [r.original for r in results] == inputs
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -149,7 +149,7 @@ async def test_returns_results_in_submission_order() -> None:
 
     assert len(results) == count
     for i, result in enumerate(results):
-        assert result["index"] == i
+        assert result.index == i
 
 
 @pytest.mark.asyncio(loop_scope="session")
