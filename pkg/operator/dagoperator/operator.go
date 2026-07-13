@@ -307,10 +307,7 @@ func (d *DAGOperator) fail(action *contracts.AssignedAction, err error) error {
 
 func (d *DAGOperator) cancelDAG(action *contracts.AssignedAction, msg string) error {
 	if reportErr := d.SendCancelled(action, msg); reportErr != nil {
-		d.Logger().Error().Err(reportErr).
-			Str("task_run_external_id", action.TaskRunExternalId).
-			Msg("could not report task cancellation")
-		return reportErr
+		return fmt.Errorf("could not report task cancellation for task run id %s: %w", action.TaskRunExternalId, reportErr)
 	}
 
 	return nil
