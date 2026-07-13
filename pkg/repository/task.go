@@ -2015,6 +2015,50 @@ func (r *sharedRepository) createTasks(
 	return r.insertTasks(ctx, tx, tenantId, filteredTasks, stepIdsToConfig)
 }
 
+// evalBatchGroupKey evaluates a step's batch group key expression against a task's input, returning
+// the resolved (and trimmed) batch key string.
+func (r *sharedRepository) evalBatchGroupKey(
+	externalId uuid.UUID,
+	input *TaskInput,
+	additionalMetadata []byte,
+	expression string,
+) (string, error) {
+	var additionalMeta map[string]interface{}
+
+	if len(additionalMetadata) > 0 {
+		if err := json.Unmarshal(additionalMetadata, &additionalMeta); err != nil {
+			return "", fmt.Errorf("failed to process batch key additional metadata: not a json object")
+		}
+	}
+
+	if input == nil {
+		return "", fmt.Errorf("failed to parse batch group key expression (%s): input is nil", expression)
+	}
+
+	res, err := r.celParser.ParseAndEvalStepRun(expression, cel.NewInput(
+		cel.WithInput(input.Input),
+		cel.WithAdditionalMetadata(additionalMeta),
+		cel.WithWorkflowRunID(externalId),
+		cel.WithParents(input.TriggerData),
+	))
+
+	if err != nil {
+		return "", fmt.Errorf("failed to parse batch group key expression (%s): %w", expression, err)
+	}
+
+	if res.String == nil {
+		prefix := "expected string output for batch key"
+
+		if res.Int != nil {
+			return "", fmt.Errorf("failed to parse batch group key expression (%s): %s, got int", expression, prefix)
+		}
+
+		return "", fmt.Errorf("failed to parse batch group key expression (%s): %s, got unknown type", expression, prefix)
+	}
+
+	return strings.TrimSpace(*res.String), nil
+}
+
 // insertTasks inserts new tasks into the database. note that we're using Postgres rules to automatically insert the created
 // tasks into the queue_items table.
 func (r *sharedRepository) insertTasks(
@@ -2142,55 +2186,30 @@ func (r *sharedRepository) insertTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
-		if stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
-			var additionalMeta map[string]interface{}
-
-			if len(additionalMetadatas[i]) > 0 {
-				if err := json.Unmarshal(additionalMetadatas[i], &additionalMeta); err != nil {
-					return nil, fmt.Errorf("failed to process batch key additional metadata: not a json object")
-				}
-			}
-
-			if task.Input == nil {
-				return nil, fmt.Errorf("failed to parse batch group key expression (%s): input is nil", stepConfig.BatchGroupKey.String)
-			}
-
-			res, err := r.celParser.ParseAndEvalStepRun(stepConfig.BatchGroupKey.String, cel.NewInput(
-				cel.WithInput(task.Input.Input),
-				cel.WithAdditionalMetadata(additionalMeta),
-				cel.WithWorkflowRunID(task.ExternalId),
-				cel.WithParents(task.Input.TriggerData),
-			))
-
-			// TODO write an event for failed parse
+		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED && stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
+			value, err := r.evalBatchGroupKey(task.ExternalId, task.Input, additionalMetadatas[i], stepConfig.BatchGroupKey.String) //nolint:govet
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %w", stepConfig.BatchGroupKey.String, err)
-			}
+				// place the task into a failed state rather than failing the entire batch insert
+				initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-			if res.String == nil {
-				prefix := "expected string output for batch key"
-
-				if res.Int != nil {
-					return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got int", stepConfig.BatchGroupKey.String, prefix)
+				initialStateReasons[i] = pgtype.Text{
+					String: err.Error(),
+					Valid:  true,
 				}
 
-				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got unknown type", stepConfig.BatchGroupKey.String, prefix)
-			}
-
-			value := strings.TrimSpace(*res.String)
-
-			if value != "" {
-				r.l.Debug().
-					Str("tenant_id", tenantId.String()).
-					Str("step_id", task.StepId.String()).
-					Str("workflow_run_id", task.WorkflowRunId.String()).
-					Str("external_id", task.ExternalId.String()).
-					Str("batch_key", value).
-					Msg("evaluated batch key for task")
-				batchKeys[i] = value
-			} else {
 				batchKeys[i] = ""
+			} else {
+				if value != "" {
+					r.l.Debug().
+						Str("tenant_id", tenantId.String()).
+						Str("step_id", task.StepId.String()).
+						Str("workflow_run_id", task.WorkflowRunId.String()).
+						Str("external_id", task.ExternalId.String()).
+						Str("batch_key", value).
+						Msg("evaluated batch key for task")
+				}
+				batchKeys[i] = value
 			}
 		} else {
 			batchKeys[i] = ""
@@ -2708,43 +2727,18 @@ func (r *sharedRepository) replayTasks(
 			additionalMetadatas[i] = task.AdditionalMetadata
 		}
 
-		if stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
-			var additionalMeta map[string]interface{}
-
-			if len(additionalMetadatas[i]) > 0 {
-				if err := json.Unmarshal(additionalMetadatas[i], &additionalMeta); err != nil {
-					return nil, fmt.Errorf("failed to process batch key additional metadata: not a json object")
-				}
-			}
-
-			if task.Input == nil {
-				return nil, fmt.Errorf("failed to parse batch group key expression (%s): input is nil", stepConfig.BatchGroupKey.String)
-			}
-
-			res, err := r.celParser.ParseAndEvalStepRun(stepConfig.BatchGroupKey.String, cel.NewInput(
-				cel.WithInput(task.Input.Input),
-				cel.WithAdditionalMetadata(additionalMeta),
-				cel.WithWorkflowRunID(task.ExternalId),
-				cel.WithParents(task.Input.TriggerData),
-			))
+		if task.InitialState == sqlcv1.V1TaskInitialStateQUEUED && stepConfig.BatchGroupKey.Valid && stepConfig.BatchGroupKey.String != "" {
+			value, err := r.evalBatchGroupKey(task.ExternalId, task.Input, additionalMetadatas[i], stepConfig.BatchGroupKey.String) //nolint:govet
 
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %w", stepConfig.BatchGroupKey.String, err)
-			}
+				// place the task into a failed state rather than failing the entire batch replay
+				initialStates[i] = string(sqlcv1.V1TaskInitialStateFAILED)
 
-			if res.String == nil {
-				prefix := "expected string output for batch key"
-
-				if res.Int != nil {
-					return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got int", stepConfig.BatchGroupKey.String, prefix)
+				initialStateReasons[i] = pgtype.Text{
+					String: err.Error(),
+					Valid:  true,
 				}
-
-				return nil, fmt.Errorf("failed to parse batch group key expression (%s): %s, got unknown type", stepConfig.BatchGroupKey.String, prefix)
-			}
-
-			value := strings.TrimSpace(*res.String)
-
-			if value != "" {
+			} else {
 				batchKeys[i] = value
 			}
 		}

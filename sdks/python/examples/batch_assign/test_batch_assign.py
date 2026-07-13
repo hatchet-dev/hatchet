@@ -3,23 +3,25 @@ import asyncio
 import pytest
 
 # pytestmark = [pytest.mark.usefixtures("_skip_unless_batching")]
-
 from examples.batch_assign.worker import (
+    KeyedFailableInput,
     KeyedInput,
     LargePayloadInput,
     OrderedInput,
     SimpleInput,
+    batch_broadcast,
+    batch_cancel,
+    batch_child_batch_spawn,
+    batch_child_spawn,
     batch_keyed,
+    batch_keyed_failable,
     batch_keyed_interval,
     batch_large,
     batch_ordered,
     batch_simple,
     batch_single,
-    batch_broadcast,
-    batch_cancel,
-    batch_child_spawn,
-    batch_child_batch_spawn,
 )
+from hatchet_sdk.exceptions import FailedTaskRunExceptionGroup
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -62,6 +64,30 @@ async def test_partitions_batches_by_key_when_batch_size_reached() -> None:
         assert result["batchSize"] == 2
         assert result["uniqueKeys"] == 1
         assert result["uppercase"] == inp.message.upper()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_batch_group_key_parse_failure_fails_only_that_task() -> None:
+    # "input.group" is an int here, which fails to evaluate to a string batch group key. This must
+    # only fail the one offending task, not silently drop the entire batch of tasks triggered
+    # alongside it (which was the behavior before this fix - a bad batch group key aborted the whole
+    # underlying insert, and since the queue message backing that insert is only acked on success,
+    # every task in the batch was left stuck rather than retried or run).
+    good = KeyedFailableInput(message="hello", group="tenant-1")
+    bad = KeyedFailableInput(message="world", group=123)
+
+    good_run, bad_run = await asyncio.gather(
+        batch_keyed_failable.aio_run(good, wait_for_result=False),
+        batch_keyed_failable.aio_run(bad, wait_for_result=False),
+    )
+
+    with pytest.raises(
+        FailedTaskRunExceptionGroup, match="failed to parse batch group key expression"
+    ):
+        await bad_run.aio_result()
+
+    good_result = await good_run.aio_result()
+    assert good_result["uppercase"] == "HELLO"
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -1,11 +1,11 @@
 import asyncio
 import uuid
 from datetime import timedelta
+from typing import Any
 
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
-from typing import Any
 
 hatchet = Hatchet()
 
@@ -21,6 +21,11 @@ class SimpleInput(BaseModel):
 class KeyedInput(BaseModel):
     message: str
     group: str
+
+
+class KeyedFailableInput(BaseModel):
+    message: str
+    group: str | int
 
 
 class LargePayloadInput(BaseModel):
@@ -57,6 +62,18 @@ async def batch_keyed(tasks: dict[str, KeyedInput], context: Context) -> dict[st
         }
         for id, inp in tasks.items()
     }
+
+
+@hatchet.batch_task(
+    batch_max_size=2,
+    batch_max_interval=timedelta(milliseconds=200),
+    batch_group_key="input.group",
+    input_validator=KeyedFailableInput,
+)
+async def batch_keyed_failable(
+    tasks: dict[str, KeyedFailableInput], context: Context
+) -> dict[str, Any]:
+    return {id: {"uppercase": inp.message.upper()} for id, inp in tasks.items()}
 
 
 @hatchet.batch_task(
@@ -207,6 +224,7 @@ def main() -> None:
         workflows=[
             batch_simple,
             batch_keyed,
+            batch_keyed_failable,
             batch_keyed_interval,
             batch_large,
             batch_single,
