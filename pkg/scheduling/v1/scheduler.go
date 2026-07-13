@@ -44,6 +44,13 @@ type Scheduler struct {
 	unackedSlots map[int]*assignedSlots
 	unackedMu    mutex
 
+	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
+	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
+	// been replenished yet looks identical to a fully saturated one — so utilization is
+	// only derived from capacity once the pair has warmed up. Accessed exclusively from
+	// the snapshot loop goroutine (via getSnapshotInput).
+	warmedSlotTypes map[uuid.UUID]map[string]struct{}
+
 	rl   *rateLimiter
 	exts *Extensions
 }
@@ -57,6 +64,7 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 		l:               &l,
 		actions:         make(map[string]*action),
 		unackedSlots:    make(map[int]*assignedSlots),
+		warmedSlotTypes: make(map[uuid.UUID]map[string]struct{}),
 		rl:              rl,
 		actionsMu:       newRWMu(cf.l),
 		replenishMu:     newMu(cf.l),
@@ -1250,6 +1258,13 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		action.mu.RUnlock()
 	}
 
+	// prune warm state for workers which are no longer registered
+	for workerId := range s.warmedSlotTypes {
+		if _, ok := workers[workerId]; !ok {
+			delete(s.warmedSlotTypes, workerId)
+		}
+	}
+
 	// The in-memory pool only holds slots which have not been assigned (plus assigned slots
 	// which are not yet flushed to the database), so the used counts walked above miss any
 	// slot consumed by a running task. Derive the true used count per slot type from the
@@ -1261,8 +1276,21 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 			capacities = worker.TotalSlotsByType
 		}
 
-		// slot types with capacity but no walked slots still get reported: an empty
-		// in-memory pool for a type means all of its slots are in use
+		warmed := s.warmedSlotTypes[workerId]
+
+		for slotType, utilization := range byType {
+			if utilization.UtilizedSlots+utilization.NonUtilizedSlots > 0 {
+				if warmed == nil {
+					warmed = make(map[string]struct{})
+					s.warmedSlotTypes[workerId] = warmed
+				}
+
+				warmed[slotType] = struct{}{}
+			}
+		}
+
+		// slot types with capacity but no walked slots still get reported: once the
+		// type has warmed up, an empty in-memory pool means all of its slots are in use
 		for slotType := range capacities {
 			if _, ok := byType[slotType]; !ok {
 				byType[slotType] = &SlotUtilization{}
@@ -1272,7 +1300,13 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 		aggregate := &SlotUtilization{}
 
 		for slotType, utilization := range byType {
-			if capacity := capacities[slotType]; capacity > 0 {
+			_, isWarmed := warmed[slotType]
+
+			// Only derive from capacity once the slot type has had slots in the pool:
+			// a never-replenished worker would otherwise report full utilization
+			// between registration and its first replenish. Un-warmed types report
+			// zero slots, which extensions treat as a transient state.
+			if capacity := capacities[slotType]; capacity > 0 && isWarmed {
 				used := capacity - utilization.NonUtilizedSlots
 				if used < 0 {
 					used = 0

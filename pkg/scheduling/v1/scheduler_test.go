@@ -876,6 +876,51 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	require.Equal(t, 1, util.NonUtilizedSlots)
 }
 
+func TestScheduler_GetSnapshotInput_WarmupAndSaturation(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 3},
+	}})
+
+	// before any slots have entered the pool (i.e. before the first replenish), the worker
+	// must report zero slots rather than full utilization
+	in, ok := s.getSnapshotInput(true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 0, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
+
+	// slots appear in the pool: the slot type warms up and utilization is derived from capacity
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	freeSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	actA, err := actionWithSlots("A", freeSlot)
+	require.NoError(t, err)
+	s.actions["A"] = actA
+
+	in, ok = s.getSnapshotInput(true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 2, NonUtilizedSlots: 1}, in.WorkerSlotUtilization[workerId])
+
+	// the pool empties out (all slots assigned and flushed): the warmed type now reports
+	// full utilization instead of a transient zero
+	delete(s.actions, "A")
+
+	in, ok = s.getSnapshotInput(true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 3, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
+
+	// removing the worker prunes its warm state
+	s.setWorkers([]*repo.ListActiveWorkersResult{})
+
+	in, ok = s.getSnapshotInput(true)
+	require.True(t, ok)
+	require.NotContains(t, in.WorkerSlotUtilization, workerId)
+	require.Empty(t, s.warmedSlotTypes)
+}
+
 func TestScheduler_GetSnapshotInput_FallsBackToWalkedCountsWithoutCapacity(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
