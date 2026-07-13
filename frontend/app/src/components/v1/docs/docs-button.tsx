@@ -1,5 +1,4 @@
 import { Button } from '../ui/button';
-import { useSidePanel } from '@/hooks/use-side-panel';
 import { BookOpenText } from 'lucide-react';
 
 export type DocPage = {
@@ -14,6 +13,21 @@ type DocsButtonProps = {
   variant?: 'button' | 'text';
 };
 
+function buildUrl(
+  doc: DocPage,
+  queryParams?: Record<string, string>,
+  scrollTo?: string,
+): string {
+  const url = new URL(doc.href);
+  for (const [key, value] of Object.entries(queryParams ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  if (scrollTo) {
+    url.hash = scrollTo;
+  }
+  return url.toString();
+}
+
 export const DocsButton = ({
   doc,
   label,
@@ -21,36 +35,31 @@ export const DocsButton = ({
   scrollTo,
   variant = 'button',
 }: DocsButtonProps) => {
-  const { open } = useSidePanel();
-
-  const handleClick = () => {
-    open({
-      type: 'docs',
-      content: doc,
-      queryParams,
-      scrollTo,
-    });
-  };
+  const url = buildUrl(doc, queryParams, scrollTo);
 
   switch (variant) {
     case 'button':
       return (
         <Button
-          onClick={handleClick}
+          asChild
           leftIcon={<BookOpenText className="size-4" />}
           variant="outline"
         >
-          <span>{label}</span>
+          <a href={url} target="_blank" rel="noreferrer">
+            <span>{label}</span>
+          </a>
         </Button>
       );
     case 'text':
       return (
-        <span
-          onClick={handleClick}
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
           className="underline hover:text-gray-900 dark:hover:text-gray-100 hover:cursor-pointer"
         >
           {label}
-        </span>
+        </a>
       );
     default:
       const exhaustiveCheck: never = variant;

@@ -1,8 +1,8 @@
 on:
-  push:
-    tags:
-      - "v*" # Trigger on version tags like v0.73.10
-      - "!v*-alpha*" # Do not trigger for alpha releases
+  workflow_run:
+    workflows: ["Create prerelease w/ binaries and static assets"]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       tag:
@@ -10,8 +10,34 @@ on:
         required: true
 name: Release
 jobs:
+  verify:
+      runs-on: ubuntu-latest
+      if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+      outputs:
+        tag: ${{ steps.tag_name.outputs.tag }}
+        should_publish: ${{ steps.skip.outputs.should_publish }}
+      steps:
+        - id: tag_name
+          run: |
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+            fi
+
+        - id: skip
+          run: |
+            tag="${{ steps.tag_name.outputs.tag }}"
+            if echo "$tag" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            fi
+
   load:
     runs-on: ubicloud-standard-8
+    needs: [verify]
+    if: needs.verify.outputs.should_publish == 'true'
     timeout-minutes: 30
     strategy:
       matrix:
@@ -21,7 +47,10 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ needs.verify.outputs.tag }}
+          fetch-depth: 0
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -31,7 +60,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
-          go-version: "1.25.9"
+          go-version: "1.26"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -51,19 +80,13 @@ jobs:
           TESTING_MATRIX_PG_VERSION: ${{ matrix.pg-version }}
   push-hatchet-server:
     name: Push latest
+    needs: [verify]
+    if: needs.verify.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Get tag name
         id: tag_name
-        run: |
-          if [ -z "${{ github.event.inputs.tag }}" ]; then
-            tag=${GITHUB_TAG/refs\/tags\//}
-          else
-            tag=${{ github.event.inputs.tag }}
-          fi
-          echo ::set-output name=tag::$tag
-        env:
-          GITHUB_TAG: ${{ github.ref }}
+        run: echo "tag=${{ needs.verify.outputs.tag }}" >> "$GITHUB_OUTPUT"
       - name: Login to GHCR
         id: login-ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -127,6 +150,18 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+      - name: Pull and push dev images
+        run: |
+          for img in hatchet-api hatchet-engine hatchet-admin hatchet-lite hatchet-dashboard; do
+            docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64
+            docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64
+
+            docker manifest create ghcr.io/hatchet-dev/hatchet/$img-dev:latest \
+              ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64 \
+              ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64
+
+            docker manifest push ghcr.io/hatchet-dev/hatchet/$img-dev:latest
+          done
       - name: Pull and push hatchet-dashboard
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64

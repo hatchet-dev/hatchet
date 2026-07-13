@@ -658,6 +658,8 @@ export interface V1TriggerWorkflowRunRequest {
   additionalMetadata?: object;
   /** The priority of the workflow run. */
   priority?: number;
+  /** A boolean flag indicating whether to only return the id of the created run. */
+  return_only_id?: boolean;
 }
 
 export interface V1WorkflowRun {
@@ -1298,6 +1300,21 @@ export interface APIMeta {
    * @example false
    */
   observabilityEnabled?: boolean;
+  /**
+   * whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance
+   * @example false
+   */
+  prometheusServerEnabled?: boolean;
+  /**
+   * whether or not authentication is disabled (authdisabled build) on this instance
+   * @example false
+   */
+  authDisabled?: boolean;
+  /**
+   * the embedded worker API token, only set on authdisabled builds
+   * @example "eyJhbGciOiJFUzI1NiIs..."
+   */
+  authDisabledToken?: string;
 }
 
 export interface APIMetaIntegration {
@@ -1466,6 +1483,8 @@ export interface TenantMember {
   role: TenantMemberRole;
   /** The tenant associated with this tenant member. */
   tenant?: Tenant;
+  /** Whether this membership was explicitly granted (as opposed to synced via user-group tags). Only explicit members can have their role edited or be removed. */
+  manually_added?: boolean;
 }
 
 export interface UserTenantMembershipsList {
@@ -2524,6 +2543,8 @@ export interface TaskStatusStat {
   concurrency?: ConcurrencyStat[];
   /** @format date-time */
   oldest?: string;
+  /** @format date-time */
+  oldestExcludingRetries?: string;
 }
 
 export interface TaskStat {

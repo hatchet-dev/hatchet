@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 
@@ -10,13 +10,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	quickstarts "github.com/hatchet-dev/hatchet-quickstarts"
+
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/styles"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/templater"
 )
-
-//go:embed all:templates/*
-var content embed.FS
 
 var quickstartCmd = &cobra.Command{
 	Use:   "quickstart",
@@ -26,8 +25,12 @@ var quickstartCmd = &cobra.Command{
 Supports multiple package managers:
   Python: poetry, uv, pip
   TypeScript: npm, pnpm, yarn, bun
-  Go: go modules`,
-	Example: `  # Generate a project interactively (prompts for language, package manager, name, and directory)
+  Go: go modules
+
+Use-case templates are selected with --use-case. The default, simple, is a
+minimal worker with one workflow. Other use cases, such as scheduled, may
+support a subset of languages.`,
+	Example: `  # Generate a project interactively (prompts for use case, language, package manager, name, and directory)
   hatchet quickstart
 
   # Generate a Python project with Poetry
@@ -35,6 +38,9 @@ Supports multiple package managers:
 
   # Generate a TypeScript project with pnpm
   hatchet quickstart --language typescript --package-manager pnpm --project-name my-worker
+
+  # Generate the scheduled use case in Go
+  hatchet quickstart --use-case scheduled --language go
 
   # Generate a Python project with uv using short flags
   hatchet quickstart -l python -m uv -p my-worker -d ./my-worker`,
@@ -47,21 +53,28 @@ Supports multiple package managers:
 		}
 
 		// Get flag values
+		useCase, _ := cmd.Flags().GetString("use-case")
 		language, _ := cmd.Flags().GetString("language")
 		packageManager, _ := cmd.Flags().GetString("package-manager")
 		projectName, _ := cmd.Flags().GetString("project-name")
 		dir, _ := cmd.Flags().GetString("directory")
 
+		templatesFS := quickstarts.TemplatesFS()
+
 		// Use interactive forms only if flags not provided
-		if language == "" {
-			language = selectLanguageForm()
+		if useCase == "" {
+			// Commands that pass --language or --package-manager ran
+			// without prompts before use cases existed and must keep
+			// doing so. They get the simple template.
+			if cmd.Flags().Changed("language") || cmd.Flags().Changed("package-manager") {
+				useCase = templater.DefaultUseCase
+			} else {
+				useCase = selectUseCaseForm(templatesFS)
+			}
 		}
 
-		// Validate language
-		validLanguages := map[string]bool{"python": true, "typescript": true, "go": true}
-
-		if !validLanguages[language] {
-			cli.Logger.Fatalf("invalid language: %s (must be one of: python, typescript, go)", language)
+		if language == "" {
+			language = selectLanguageForm(templatesFS, useCase)
 		}
 
 		// Get package manager
@@ -69,19 +82,14 @@ Supports multiple package managers:
 			packageManager = selectPackageManagerForm(language)
 		}
 
-		// Validate package manager for the selected language
-		validPackageManagers := map[string]map[string]bool{
-			"python":     {"poetry": true, "uv": true, "pip": true},
-			"typescript": {"npm": true, "pnpm": true, "yarn": true, "bun": true},
-			"go":         {"go": true},
+		selection := templater.Selection{
+			UseCase:        useCase,
+			Language:       language,
+			PackageManager: packageManager,
 		}
 
-		if !validPackageManagers[language][packageManager] {
-			var validOptions []string
-			for pm := range validPackageManagers[language] {
-				validOptions = append(validOptions, pm)
-			}
-			cli.Logger.Fatalf("invalid package manager '%s' for language '%s' (must be one of: %s)", packageManager, language, strings.Join(validOptions, ", "))
+		if err := templater.Validate(templatesFS, selection); err != nil {
+			cli.Logger.Fatalf("%v", err)
 		}
 
 		if projectName == "" {
@@ -97,7 +105,7 @@ Supports multiple package managers:
 			}
 		}
 
-		postQuickstart, err := GenerateQuickstart(language, packageManager, projectName, dir)
+		postQuickstart, err := GenerateQuickstart(selection, projectName, dir)
 		if err != nil {
 			cli.Logger.Fatalf("could not generate quickstart: %v", err)
 		}
@@ -108,19 +116,21 @@ Supports multiple package managers:
 
 // GenerateQuickstart generates a quickstart project without interactive forms.
 // Returns the post-quickstart content that should be displayed to the user.
-func GenerateQuickstart(language, packageManager, projectName, dir string) (string, error) {
+func GenerateQuickstart(selection templater.Selection, projectName, dir string) (string, error) {
 	templateData := templater.Data{
 		Name:           projectName,
-		PackageManager: packageManager,
+		PackageManager: selection.PackageManager,
 	}
 
-	err := templater.ProcessMultiSource(content, language, packageManager, dir, templateData)
+	templatesFS := quickstarts.TemplatesFS()
+
+	err := templater.ProcessMultiSource(templatesFS, selection, dir, templateData)
 	if err != nil {
 		return "", fmt.Errorf("could not process templates: %w", err)
 	}
 
 	// Process POST_QUICKSTART.md if it exists
-	postQuickstart, err := templater.ProcessPostQuickstartMultiSource(content, language, packageManager, templateData)
+	postQuickstart, err := templater.ProcessPostQuickstartMultiSource(templatesFS, selection, templateData)
 	if err != nil {
 		return "", fmt.Errorf("could not process post-quickstart content: %w", err)
 	}
@@ -132,31 +142,87 @@ func init() {
 	rootCmd.AddCommand(quickstartCmd)
 
 	// Add flags for quickstart command
+	quickstartCmd.Flags().StringP("use-case", "u", "", "Use case template (default: simple)")
 	quickstartCmd.Flags().StringP("language", "l", "", "Programming language (python, typescript, go)")
 	quickstartCmd.Flags().StringP("package-manager", "m", "", "Package manager (poetry, uv, pip for Python; npm, pnpm, yarn, bun for TypeScript)")
 	quickstartCmd.Flags().StringP("project-name", "p", "", "Name of the project (default: hatchet-worker)")
 	quickstartCmd.Flags().StringP("directory", "d", "", "Directory to create the project in (default: ./{project-name})")
 }
 
-func selectLanguageForm() string {
+func selectUseCaseForm(templatesFS fs.FS) string {
+	useCases, err := templater.UseCases(templatesFS)
+	if err != nil {
+		cli.Logger.Fatalf("could not list use cases: %v", err)
+	}
+
+	if len(useCases) == 1 {
+		return useCases[0]
+	}
+
+	options := make([]huh.Option[string], 0, len(useCases))
+	for _, useCase := range useCases {
+		label := useCase
+		if useCase == templater.DefaultUseCase {
+			label = useCase + " (default)"
+		}
+		options = append(options, huh.NewOption(label, useCase))
+	}
+
+	useCase := ""
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Choose a use case").
+				Options(options...).
+				Value(&useCase),
+		),
+	).WithTheme(styles.HatchetTheme())
+
+	if err := form.Run(); err != nil {
+		cli.Logger.Fatalf("could not run quickstart form: %v", err)
+	}
+
+	return useCase
+}
+
+var languageLabels = map[string]string{
+	"python":     "Python",
+	"typescript": "Typescript",
+	"go":         "Go",
+}
+
+func selectLanguageForm(templatesFS fs.FS, useCase string) string {
+	languages, err := templater.LanguagesFor(templatesFS, useCase)
+	if err != nil {
+		cli.Logger.Fatalf("could not list languages for use case %q: %v", useCase, err)
+	}
+
+	if len(languages) == 0 {
+		cli.Logger.Fatalf("use case %q has no language templates", useCase)
+	}
+
+	if len(languages) == 1 {
+		return languages[0]
+	}
+
+	options := make([]huh.Option[string], 0, len(languages))
+	for _, lang := range languages {
+		options = append(options, huh.NewOption(languageLabels[lang], lang))
+	}
+
 	language := ""
 
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("Choose your language").
-				Options(
-					huh.NewOption("Python", "python"),
-					huh.NewOption("Typescript", "typescript"),
-					huh.NewOption("Go", "go"),
-				).
+				Options(options...).
 				Value(&language),
 		),
 	).WithTheme(styles.HatchetTheme())
 
-	err := form.Run()
-
-	if err != nil {
+	if err := form.Run(); err != nil {
 		cli.Logger.Fatalf("could not run quickstart form: %v", err)
 	}
 

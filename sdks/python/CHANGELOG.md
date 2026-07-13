@@ -5,12 +5,97 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.33.7] - 2026-06-06
+## [Unreleased]
+
+### Fixed
+
+- Ensure that the sdist also contains the Python sources.
+
+## [1.33.18] - 2026-07-08
+
+### Fixed
+
+- Fixes an issue in the action listener which would stop sending heartbeats before all in-flight tasks were completed.
+
+## [1.33.17] - 2026-07-07
+
+### Fixed
+
+- Fixes an issue in the durable event listener where we could hang indefinitely waiting for an ack. Now, we'll time out and allow the task to retry, so it should be able to recover independently.
+- Fixes an issue in the durable execution logic where collisions in id + retry count would cause unexpected behavior - fixed by adding the invocation count to the key, when it's provided.
+- Fixes an issue in the durable execution logic where a listener reconnect could cause messages to be stuck in the old request queue, causing the listener to hang indefinitely. Now, we will shovel messages from the old queue to the new queue on reconnect, so that they can be processed normally.
+
+## [1.33.16] - 2026-07-05
+
+### Fixed
+
+- Fixes the type of `__name__` in the `DependencyFunc` protocol to be a string instead of a method, which was failing on `ty`.
+
+## [1.33.15] - 2026-07-02
+
+### Added
+
+- Adds `oldest_excluding_retries` to the task stats response
+
+### Changed
+
+- Rolled back required SDK dependencies to the state at `v1.29.5`.
+
+
+## [1.33.14] - 2026-06-26
+
+### Fixed
+
+- Updates the bulk spawn methods on the internal admin client to dynamically chunk bulk-spawned workflows by the protobuf message size, to avoid hitting gRPC limits on large bulk spawns.
+
+## [1.33.13] - 2026-06-26
+
+### Fixed
+
+- Reworks the internals of event pushes and stream event pubs to use `grpc.aio` directly to limit threading overhead on high-throughput workers.
+- Reworks how logs are forwarded to the engine to publish from a thread instead of from an `asyncio.Task` to try to avoid event loop blocking issues.
+
+## [1.33.12] - 2026-06-21
+
+### Fixed
+
+- Fixed a bug where `_aio_memo` crashes on durable task replay when the engine returns `memo_already_existed=True` with an empty payload (`b''`). Proto3 unset bytes fields deserialize to `b''` rather than `None`, slipping past the `is not None` guard and crashing `validate_json(b'')`.
+
+## [1.33.11] - 2026-06-18
+
+### Fixed
+
+- Fixes a bug in the durable event logic where wrapping child spawns `asyncio.gather` causes a race condition with causes a future to hang. Added a lock around various `send_event` calls to synchronize those to prevent the race.
+
+## [1.33.10] - 2026-06-16
+
+### Fixed
+
+- Properly suppresses gRPC fork support log lines on startup when fork support is disabled
+- Improves logging around worker startup and shutdown
+- Improves retry logic around sending step action events to the engine to better handle transient failures and avoid losing events
+
+## [1.33.9] - 2026-06-14
+
+### Fixed
+
+- Fixes a race condition in the durable event listener where an engine restart can cause the listener to get stuck because of the existence of two separate request queues that are not kept in sync, causing requests to hang indefinitely after being added to the old queue in some cases.
+
+## [1.33.8] - 2026-06-12
+
+### Fixed
+
+- Fixed an issue where errors raised by child tasks spawned inside a durable parent task were not propagated back to the parent. The parent can now catch the child's error and handle it gracefully.
+
+## [1.33.7] - 2026-06-09
+
+### Added
+
+- Added an `individual_run_spans_for_bulk_run` OpenTelemetry config option. When enabled, a child `hatchet.run_workflow` span is created for each item in a bulk run (`run_workflows`), nested under the parent `hatchet.run_workflows` span, with each item's traceparent pointing at its own span. Defaults to `false` to preserve the existing span structure.
 
 ### Fixed
 
 - Fixed a bug where synchronous log calls via `asyncio.to_thread` (or other threads) could block workers.
-- Ensure that the sdist also contains the Python sources.
 
 ## [1.33.6] - 2026-05-27
 

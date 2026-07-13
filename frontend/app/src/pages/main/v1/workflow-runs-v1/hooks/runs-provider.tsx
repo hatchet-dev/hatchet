@@ -232,9 +232,11 @@ export const RunsProvider = ({
     isStatusCountsRefetching,
     isQueueMetricsLoading,
   } = useMetrics({
-    workflow,
+    workflowIds:
+      filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
     parentTaskExternalId,
     createdAfter: filters.apiFilters.since,
+    createdBefore: filters.apiFilters.until,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     showQueueMetrics,
   });

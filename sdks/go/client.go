@@ -596,6 +596,23 @@ func (st *StandaloneTask) Dump() (*v1.CreateWorkflowVersionRequest, []internal.N
 // This interface allows both WorkflowOption and TaskOption to be used interchangeably.
 type StandaloneTaskOption any
 
+// promoteTaskTriggers moves cron and event triggers from task options to workflow
+// options. The engine treats these as workflow-level concerns, but the standalone
+// task API exposes them as TaskOption (WithCron, WithEvents) for ergonomics.
+func promoteTaskTriggers(taskOptions []TaskOption, workflowOptions []WorkflowOption) []WorkflowOption {
+	cfg := &taskConfig{}
+	for _, opt := range taskOptions {
+		opt(cfg)
+	}
+	if len(cfg.onCron) > 0 {
+		workflowOptions = append(workflowOptions, WithWorkflowCron(cfg.onCron...))
+	}
+	if len(cfg.onEvents) > 0 {
+		workflowOptions = append(workflowOptions, WithWorkflowEvents(cfg.onEvents...))
+	}
+	return workflowOptions
+}
+
 // NewStandaloneTask creates a standalone task that can be triggered independently.
 // This is a specialized workflow containing only one task, making it easier to create
 // simple single-task workflows without the workflow boilerplate.
@@ -626,6 +643,8 @@ func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTas
 			panic("invalid option type for standalone task - must be WorkflowOption or TaskOption")
 		}
 	}
+
+	workflowOptions = promoteTaskTriggers(taskOptions, workflowOptions)
 
 	// Create a workflow with the same name as the task
 	workflow := c.NewWorkflow(name, workflowOptions...)
@@ -669,6 +688,8 @@ func (c *Client) NewStandaloneDurableTask(name string, fn any, options ...Standa
 			panic("invalid option type for standalone durable task - must be WorkflowOption or TaskOption")
 		}
 	}
+
+	workflowOptions = promoteTaskTriggers(taskOptions, workflowOptions)
 
 	// Create a workflow with the same name as the task
 	workflow := c.NewWorkflow(name, workflowOptions...)

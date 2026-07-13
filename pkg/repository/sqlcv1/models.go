@@ -2945,6 +2945,14 @@ type TenantAlertingSettings struct {
 	EnableTenantResourceLimitAlerts bool             `json:"enableTenantResourceLimitAlerts"`
 }
 
+type TenantEntitlement struct {
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	AuditLogs         bool               `json:"audit_logs"`
+	PrometheusMetrics bool               `json:"prometheus_metrics"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type TenantInviteLink struct {
 	ID           uuid.UUID        `json:"id"`
 	CreatedAt    pgtype.Timestamp `json:"createdAt"`
@@ -3172,6 +3180,8 @@ type V1DurableEventLogEntry struct {
 	ExternalID              uuid.UUID             `json:"external_id"`
 	ResultPayloadExternalID uuid.UUID             `json:"result_payload_external_id"`
 	ChildTaskExternalID     *uuid.UUID            `json:"child_task_external_id"`
+	ChildTaskIsFailure      bool                  `json:"child_task_is_failure"`
+	ChildTaskErrorMessage   pgtype.Text           `json:"child_task_error_message"`
 	InsertedAt              pgtype.Timestamptz    `json:"inserted_at"`
 	ID                      int64                 `json:"id"`
 	DurableTaskID           int64                 `json:"durable_task_id"`
@@ -3553,6 +3563,7 @@ type V1StepConcurrency struct {
 	WorkflowVersionID uuid.UUID             `json:"workflow_version_id"`
 	StepID            uuid.UUID             `json:"step_id"`
 	IsActive          bool                  `json:"is_active"`
+	LastActiveAt      pgtype.Timestamptz    `json:"last_active_at"`
 	Strategy          V1ConcurrencyStrategy `json:"strategy"`
 	Expression        string                `json:"expression"`
 	TenantID          uuid.UUID             `json:"tenant_id"`

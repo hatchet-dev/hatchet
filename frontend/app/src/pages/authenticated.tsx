@@ -1,7 +1,9 @@
 import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
+import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
 import { CreateTenantInviteModal } from '@/components/modals/create-tenant-invite-modal';
+import { InviteModal } from '@/components/modals/invite-modal';
 import { OrganizationInviteMemberModal } from '@/components/modals/organization-invite-member-modal';
 import { WelcomeModal } from '@/components/modals/welcome-modal';
 import {
@@ -39,6 +41,7 @@ import { globalEmitter } from '@/lib/global-emitter';
 import { useContextFromParent } from '@/lib/outlet';
 import { REDIRECT_TARGET_KEY } from '@/lib/redirect';
 import { OutletWithContext } from '@/lib/router-helpers';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useInactivityDetection } from '@/pages/auth/hooks/use-inactivity-detection';
 import { PostHogProvider } from '@/providers/posthog';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -62,15 +65,17 @@ const DevtoolsFooter = import.meta.env.DEV
 export async function loader(_args: { request: Request }) {
   const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
 
-  const { isCloudEnabled, ...meta } = isControlPlaneEnabled
-    ? { isCloudEnabled: false as const }
+  const { isLegacyCloudEnabled, ...meta } = isControlPlaneEnabled
+    ? { isLegacyCloudEnabled: false as const }
     : await queryClient.fetchQuery(getCloudMetadataQuery);
+
+  const isCloudEnabled = isControlPlaneEnabled || isLegacyCloudEnabled;
 
   await queryClient.fetchQuery(
     pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
   return {
-    isCloudEnabled,
+    isLegacyCloudEnabled,
     isControlPlaneEnabled,
     inactivityLogoutMs:
       'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
@@ -79,6 +84,7 @@ export async function loader(_args: { request: Request }) {
 
 function AuthenticatedInner() {
   const { tenant, organizationId } = useTenantDetails();
+  const { meta } = useApiMeta();
   const { capture } = useAnalytics();
   const {
     currentUser,
@@ -86,17 +92,27 @@ function AuthenticatedInner() {
     isLoading: isUserLoading,
   } = useCurrentUser();
   const [lastTenant, setLastTenant] = useAtom(lastTenantAtom);
+  const [authBannerDismissed, setAuthBannerDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('auth-disabled-banner-dismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
   const [defaultOrganizationId, setDefaultOrganizationId] = useState<
     string | undefined
   >();
-  const [inviteModalTenantId, setInviteModalTenantId] = useState<
-    string | undefined
+  const [newTenantAllTags, setNewTenantAllTags] = useState<string[]>([]);
+  const [inviteModalOptions, setInviteModalOptions] = useState<
+    | { tenantId?: string; organizationId?: string; defaultEmail?: string }
+    | undefined
   >();
   const [orgInviteModal, setOrgInviteModal] = useState<
     { organizationId: string; organizationName: string } | undefined
   >();
   const [showWelcome, setShowWelcome] = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   const loaderData = useLoaderData({ from: '/' });
 
@@ -126,11 +142,15 @@ function AuthenticatedInner() {
   const isOnboardingCreateOrganizationPage = Boolean(
     matchRoute({ to: appRoutes.onboardingCreateOrganizationRoute.to }),
   );
+  const isOnboardingNoTenantsPage = Boolean(
+    matchRoute({ to: appRoutes.onboardingNoTenantsRoute.to }),
+  );
   const isOnboardingPage =
     isOnboardingVerifyEmailPage ||
     isOnboardingInvitesPage ||
     isOnboardingCreateTenantPage ||
-    isOnboardingCreateOrganizationPage;
+    isOnboardingCreateOrganizationPage ||
+    isOnboardingNoTenantsPage;
 
   const { userUpdateLogoutMutation } = useUserApi();
   const logoutMutation = useMutation({
@@ -142,10 +162,7 @@ function AuthenticatedInner() {
     },
   });
 
-  const { pendingInvitesQuery } = usePendingInvites({
-    isCloudEnabled: loaderData.isCloudEnabled,
-    isControlPlaneEnabled: loaderData.isControlPlaneEnabled,
-  });
+  const { pendingInvitesQuery } = usePendingInvites();
 
   const {
     isCloudEnabled,
@@ -242,23 +259,15 @@ function AuthenticatedInner() {
     const shouldHaveAnOrganizationButDoesnt =
       isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
 
-    const mustAcceptOrganizationInviteNow =
+    // Redirect to invites page only for users with no memberships yet (new users).
+    // Existing users with memberships see the InviteModal overlay instead.
+    const mustRedirectToInvitesPage =
       okayToMakeOnboardingRedirectDecisions &&
-      shouldHaveAnOrganizationButDoesnt &&
+      (tenantMemberships?.length ?? 0) === 0 &&
       pendingInvites &&
-      pendingInvites.organizationInvites.length > 0;
+      pendingInvites.inviteCount > 0;
 
-    const mustAcceptTenantInviteNow =
-      okayToMakeOnboardingRedirectDecisions &&
-      tenantMemberships &&
-      tenantMemberships.length === 0 &&
-      pendingInvites &&
-      pendingInvites.tenantInvites.length > 0;
-
-    if (
-      !isOnboardingInvitesPage &&
-      (mustAcceptOrganizationInviteNow || mustAcceptTenantInviteNow)
-    ) {
+    if (!isOnboardingInvitesPage && mustRedirectToInvitesPage) {
       navigate({ to: appRoutes.onboardingInvitesRoute.to, replace: true });
       return;
     } else if (
@@ -268,6 +277,19 @@ function AuthenticatedInner() {
       storeRedirectPath();
       navigate({
         to: appRoutes.onboardingCreateOrganizationRoute.to,
+        replace: true,
+      });
+      return;
+    } else if (
+      okayToMakeOnboardingRedirectDecisions &&
+      isControlPlaneEnabled &&
+      organizations &&
+      organizations.length > 0 &&
+      tenantMemberships.length === 0
+    ) {
+      storeRedirectPath();
+      navigate({
+        to: appRoutes.onboardingNoTenantsRoute.to,
         replace: true,
       });
       return;
@@ -368,22 +390,27 @@ function AuthenticatedInner() {
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
+    isControlPlaneEnabled,
     loaderData.isControlPlaneEnabled,
   ]);
 
   useEffect(
     () =>
-      globalEmitter.on('create-new-tenant', ({ defaultOrganizationId }) => {
-        setDefaultOrganizationId(defaultOrganizationId);
-        setNewTenantModalOpen(true);
-      }),
+      globalEmitter.on(
+        'create-new-tenant',
+        ({ defaultOrganizationId, allTenantTags }) => {
+          setDefaultOrganizationId(defaultOrganizationId);
+          setNewTenantAllTags(allTenantTags ?? []);
+          setNewTenantModalOpen(true);
+        },
+      ),
     [],
   );
 
   useEffect(
     () =>
-      globalEmitter.on('create-tenant-invite', ({ tenantId }) => {
-        setInviteModalTenantId(tenantId);
+      globalEmitter.on('create-tenant-invite', (options) => {
+        setInviteModalOptions(options);
       }),
     [],
   );
@@ -396,6 +423,14 @@ function AuthenticatedInner() {
           setOrgInviteModal({ organizationId, organizationName });
         },
       ),
+    [],
+  );
+
+  useEffect(
+    () =>
+      globalEmitter.on('open-invite-modal', () => {
+        setInviteModalOpen(true);
+      }),
     [],
   );
 
@@ -483,6 +518,29 @@ function AuthenticatedInner() {
     welcomeBillingState.isPending,
   ]);
 
+  // Auto-open invite modal for users who already have memberships when new invites appear.
+  // New users with no memberships are redirected to /onboarding/invites instead.
+  // Requires settled data (!isFetching): while a post-accept refetch is in
+  // flight the cached inviteCount is stale, and opening on it would resurface
+  // an already-processed invite.
+  useEffect(() => {
+    if (
+      !isOnboardingInvitesPage &&
+      pendingInvitesQuery.isSuccess &&
+      !pendingInvitesQuery.isFetching &&
+      (pendingInvitesQuery.data?.inviteCount ?? 0) > 0 &&
+      (tenantMemberships?.length ?? 0) > 0
+    ) {
+      setInviteModalOpen(true);
+    }
+  }, [
+    pendingInvitesQuery.isSuccess,
+    pendingInvitesQuery.isFetching,
+    pendingInvitesQuery.data?.inviteCount,
+    isOnboardingInvitesPage,
+    tenantMemberships?.length,
+  ]);
+
   if (!currentUser) {
     return <Loading />;
   }
@@ -491,6 +549,26 @@ function AuthenticatedInner() {
     <PostHogProvider user={currentUser}>
       <SupportChat user={currentUser}>
         <AppLayout
+          banner={
+            meta &&
+            'authDisabled' in meta &&
+            meta.authDisabled &&
+            !authBannerDismissed ? (
+              <AuthDisabledBanner
+                onDismiss={() => {
+                  try {
+                    localStorage.setItem(
+                      'auth-disabled-banner-dismissed',
+                      'true',
+                    );
+                  } catch {
+                    /* empty */
+                  }
+                  setAuthBannerDismissed(true);
+                }}
+              />
+            ) : undefined
+          }
           header={
             <TopNav
               user={currentUser}
@@ -518,8 +596,10 @@ function AuthenticatedInner() {
             <div className="flex justify-center">
               <NewTenantSaverForm
                 defaultOrganizationId={defaultOrganizationId}
+                allTenantTags={newTenantAllTags}
                 afterSave={(result) => {
                   setDefaultOrganizationId(undefined);
+                  setNewTenantAllTags([]);
                   setNewTenantModalOpen(false);
                   const tenantId =
                     result.type === 'cloud'
@@ -541,13 +621,15 @@ function AuthenticatedInner() {
             </div>
           </DialogContent>
         </Dialog>
-        {inviteModalTenantId && (
+        {inviteModalOptions && (
           <CreateTenantInviteModal
-            tenantId={inviteModalTenantId}
-            onClose={() => setInviteModalTenantId(undefined)}
-            onCreated={(invite) => {
+            tenantId={inviteModalOptions.tenantId}
+            organizationId={inviteModalOptions.organizationId}
+            defaultEmail={inviteModalOptions.defaultEmail}
+            onClose={() => setInviteModalOptions(undefined)}
+            onCreated={(tenantId, invite) => {
               globalEmitter.emit('tenant-invite-created', {
-                tenantId: inviteModalTenantId,
+                tenantId,
                 invite,
               });
             }}
@@ -571,6 +653,10 @@ function AuthenticatedInner() {
           organizationId={organizationId}
           open={showWelcome}
           onClose={() => setShowWelcome(false)}
+        />
+        <InviteModal
+          isOpen={inviteModalOpen}
+          onClose={() => setInviteModalOpen(false)}
         />
       </SupportChat>
     </PostHogProvider>

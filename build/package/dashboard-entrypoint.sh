@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Trap SIGTERM and SIGINT signals to gracefully shut down
 trap 'shutdown' SIGTERM SIGINT

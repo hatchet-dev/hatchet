@@ -584,10 +584,19 @@ getTimings:
 
 listDurableEventLog:
   get:
-    x-resources: ["durable-task"]
+    x-resources: ["tenant", "durable-task"]
     description: Lists all event log entries for a durable task.
     operationId: v1-durable-task:event-log:list
     parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
       - description: The durable task external id
         in: path
         name: durable-task

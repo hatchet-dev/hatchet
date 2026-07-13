@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -507,7 +508,7 @@ func hashActions(actions []string) []byte {
 }
 
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
-	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
+	preWorker, postWorker := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
 	if err := preWorker(); err != nil {
 		return nil, err
@@ -520,7 +521,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		slots += units
 	}
 
-	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
 
 	if err := preWorkerSlot(); err != nil {
 		return nil, err
@@ -866,7 +867,7 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {
 	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
 		Tenantid:  tenantId,
-		Workerids: sqlchelpers.UniqueSet(workerIds),
+		Workerids: listutils.Uniq(workerIds),
 	})
 
 	if err != nil {

@@ -5,6 +5,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -555,6 +556,75 @@ func TestScheduler_Replenish_DoesNotLockUnackedMuBeforeActionLocks(t *testing.T)
 	case <-time.After(2 * time.Second):
 		t.Fatalf("timed out waiting for replenish to complete (possible deadlock)")
 	}
+}
+
+func TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(workerId)})
+
+	const (
+		assignBudget = 2100 * time.Millisecond // no more than one lost replenish cycle
+		numProbers   = 64
+		probeFor     = 10 * time.Second
+	)
+	qis := []*sqlcv1.V1QueueItem{testQI(tenantId, "missing", 1)}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	loopDone := make(chan struct{})
+	go func() {
+		defer close(loopDone)
+		s.loopReplenish(ctx)
+	}()
+	time.Sleep(1100 * time.Millisecond)
+
+	// A single sequential prober always loses the race to reacquire actionsMu against
+	// an immediately-relocking writer, so it only ever observes one lost cycle. Many
+	// concurrent probers, as in production with many actions/queue items in flight,
+	// give some of them a chance to lose the race across multiple consecutive cycles.
+	probeCtx, stopProbing := context.WithTimeout(context.Background(), probeFor)
+	defer stopProbing()
+
+	var (
+		mu         sync.Mutex
+		maxLatency time.Duration
+		wg         sync.WaitGroup
+	)
+
+	for i := 0; i < numProbers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for probeCtx.Err() == nil {
+				start := time.Now()
+				_, _, _ = s.tryAssignBatch(context.Background(), "missing", qis, 0, nil, nil, nil, nil)
+				d := time.Since(start)
+
+				mu.Lock()
+				if d > maxLatency {
+					maxLatency = d
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+
+	cancel()
+	<-loopDone
+
+	t.Logf("max latency observed: %s", maxLatency)
+	require.LessOrEqual(t, maxLatency, assignBudget,
+		"tryAssignBatch was starved by repeated replenish timeouts: max latency %s", maxLatency)
 }
 
 func TestScheduler_TryAssignBatch_AssignsUntilExhausted(t *testing.T) {
@@ -1174,6 +1244,197 @@ func TestScheduler_Replenish_CleansExpiredSlotsWhenNoNewSlotsLoaded(t *testing.T
 	require.NotNil(t, a)
 	require.Len(t, a.slots, 1)
 	require.Same(t, used, a.slots[0])
+}
+
+func TestScheduler_Replenish_ClosureVisitsWorkersOfNewlyAddedActions(t *testing.T) {
+	tenantId := uuid.New()
+
+	// Chain topology: w1 registers {A, B}, w2 registers {B, C}, w3 registers {C, D}.
+	// Only A independently triggers a replenish (it is a new action). D is reachable
+	// only transitively: A -> w1 -> B -> w2 -> C -> w3 -> D. The closure must include
+	// D so its expired slots get cleaned up.
+	w1Id := uuid.New()
+	w2Id := uuid.New()
+	w3Id := uuid.New()
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{WorkerId: w1Id, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: w1Id, ActionId: pgtype.Text{String: "B", Valid: true}},
+				{WorkerId: w2Id, ActionId: pgtype.Text{String: "B", Valid: true}},
+				{WorkerId: w2Id, ActionId: pgtype.Text{String: "C", Valid: true}},
+				{WorkerId: w3Id, ActionId: pgtype.Text{String: "C", Valid: true}},
+				{WorkerId: w3Id, ActionId: pgtype.Text{String: "D", Valid: true}},
+			}, nil
+		},
+		// no new slots available, so replenish only performs expired-slot cleanup
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			return []*sqlcv1.ListAvailableSlotsForWorkersRow{}, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(w1Id), testWorker(w2Id), testWorker(w3Id)})
+
+	w1 := &worker{ListActiveWorkersResult: testWorker(w1Id)}
+	w2 := &worker{ListActiveWorkersResult: testWorker(w2Id)}
+	w3 := &worker{ListActiveWorkersResult: testWorker(w3Id)}
+
+	// seedAction creates an action with enough active slots that FUNCTION 1 does not
+	// independently mark it for replenish (activeCount > lastReplenishedSlotCount/2
+	// and worker count unchanged).
+	seedAction := func(actionId string, workerCount int, w *worker, extraSlots ...*slot) *action {
+		slots := []*slot{
+			newSlot(w, newSlotMeta([]string{actionId}, repo.SlotTypeDefault)),
+			newSlot(w, newSlotMeta([]string{actionId}, repo.SlotTypeDefault)),
+		}
+		slots = append(slots, extraSlots...)
+
+		a, err := actionWithSlots(actionId, slots...)
+		require.NoError(t, err)
+
+		a.lastReplenishedSlotCount = 2
+		a.lastReplenishedWorkerCount = workerCount
+		s.actions[actionId] = a
+
+		return a
+	}
+
+	seedAction("B", 2, w1)
+	seedAction("C", 2, w2)
+
+	expired := newSlot(w3, newSlotMeta([]string{"D"}, repo.SlotTypeDefault))
+	past := time.Now().Add(-1 * time.Second)
+	expired.mu.Lock()
+	expired.expiresAt = &past
+	expired.mu.Unlock()
+
+	actD := seedAction("D", 1, w3, expired)
+
+	require.NoError(t, s.replenish(context.Background(), false))
+
+	// D was only reachable through the worklist closure; its expired slot must be gone.
+	require.Len(t, actD.slots, 2)
+	for _, sl := range actD.slots {
+		require.NotSame(t, expired, sl)
+	}
+}
+
+func TestScheduler_Replenish_DenseSharedActions(t *testing.T) {
+	tenantId := uuid.New()
+
+	const (
+		numWorkers = 50
+		numActions = 200
+	)
+
+	workerIds := make([]uuid.UUID, numWorkers)
+	activeWorkers := make([]*repo.ListActiveWorkersResult, numWorkers)
+	for i := range workerIds {
+		workerIds[i] = uuid.New()
+		activeWorkers[i] = testWorker(workerIds[i])
+	}
+
+	actionIds := make([]string, numActions)
+	for i := range actionIds {
+		actionIds[i] = fmt.Sprintf("action-%03d", i)
+	}
+
+	ar := &mockAssignmentRepo{
+		// every worker registers every action
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, ids []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			rows := make([]*sqlcv1.ListActionsForWorkersRow, 0, numWorkers*numActions)
+			for _, wid := range workerIds {
+				for _, aid := range actionIds {
+					rows = append(rows, &sqlcv1.ListActionsForWorkersRow{
+						WorkerId: wid,
+						ActionId: pgtype.Text{String: aid, Valid: true},
+					})
+				}
+			}
+			return rows, nil
+		},
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			rows := make([]*sqlcv1.ListAvailableSlotsForWorkersRow, 0, len(params.Workerids))
+			for _, wid := range params.Workerids {
+				rows = append(rows, &sqlcv1.ListAvailableSlotsForWorkersRow{ID: wid, AvailableSlots: 1})
+			}
+			return rows, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers(activeWorkers)
+
+	require.NoError(t, s.replenish(context.Background(), true))
+
+	require.Len(t, s.actions, numActions)
+
+	for _, aid := range actionIds {
+		a := s.actions[aid]
+		require.NotNil(t, a, "action %s missing after replenish", aid)
+		require.Len(t, a.slots, numWorkers, "action %s should have one slot per worker", aid)
+		require.Equal(t, numWorkers, a.lastReplenishedSlotCount)
+		require.Equal(t, numWorkers, a.lastReplenishedWorkerCount)
+	}
+}
+
+func BenchmarkScheduler_Replenish_DenseSharedActions(b *testing.B) {
+	tenantId := uuid.New()
+
+	const (
+		numWorkers = 100
+		numActions = 500
+	)
+
+	workerIds := make([]uuid.UUID, numWorkers)
+	activeWorkers := make([]*repo.ListActiveWorkersResult, numWorkers)
+	for i := range workerIds {
+		workerIds[i] = uuid.New()
+		activeWorkers[i] = testWorker(workerIds[i])
+	}
+
+	actionIds := make([]string, numActions)
+	for i := range actionIds {
+		actionIds[i] = fmt.Sprintf("action-%04d", i)
+	}
+
+	actionRows := make([]*sqlcv1.ListActionsForWorkersRow, 0, numWorkers*numActions)
+	for _, wid := range workerIds {
+		for _, aid := range actionIds {
+			actionRows = append(actionRows, &sqlcv1.ListActionsForWorkersRow{
+				WorkerId: wid,
+				ActionId: pgtype.Text{String: aid, Valid: true},
+			})
+		}
+	}
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, ids []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return actionRows, nil
+		},
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			rows := make([]*sqlcv1.ListAvailableSlotsForWorkersRow, 0, len(params.Workerids))
+			for _, wid := range params.Workerids {
+				rows = append(rows, &sqlcv1.ListAvailableSlotsForWorkersRow{ID: wid, AvailableSlots: 1})
+			}
+			return rows, nil
+		},
+	}
+
+	l := zerolog.Nop()
+	sr := &mockSchedulerRepo{assignment: ar}
+	cf := &sharedConfig{repo: sr, l: &l}
+	s := newScheduler(cf, tenantId, nil, &Extensions{})
+	s.setWorkers(activeWorkers)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := s.replenish(context.Background(), true); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func TestScheduler_Replenish_UpdatesAllWorkerActionsForLockSafety(t *testing.T) {

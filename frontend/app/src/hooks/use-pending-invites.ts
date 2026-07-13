@@ -3,8 +3,16 @@ import useControlPlane from '@/hooks/use-control-plane';
 import api, { TenantInvite } from '@/lib/api';
 import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationInviteTenant } from '@/lib/api/generated/control-plane/data-contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+
+// The cloud client's OrganizationInvite lacks the control-plane-only `tenants`
+// field. It is absent (not `[]`) when there are no tenant grants, the invite is
+// for an OWNER, or the server is older — never assume it exists.
+export type PendingOrganizationInvite = OrganizationInvite & {
+  tenants?: OrganizationInviteTenant[];
+};
 
 export const pendingInvitesQuery = (
   isCloudEnabled: boolean,
@@ -16,18 +24,18 @@ export const pendingInvitesQuery = (
       isControlPlaneEnabled
         ? controlPlaneApi.userListTenantInvites()
         : api.userListTenantInvites(),
-      isCloudEnabled || isControlPlaneEnabled
-        ? isControlPlaneEnabled
-          ? controlPlaneApi.userListOrganizationInvites()
-          : cloudApi.userListOrganizationInvites()
-        : Promise.resolve({ data: { rows: [] } }),
+      isControlPlaneEnabled
+        ? controlPlaneApi.userListOrganizationInvites()
+        : isCloudEnabled
+          ? cloudApi.userListOrganizationInvites()
+          : Promise.resolve({ data: { rows: [] } }),
     ]);
 
     const tenantInvites: TenantInvite[] =
       tenantInvitesRes.status === 'fulfilled'
         ? tenantInvitesRes.value.data.rows || []
         : [];
-    const organizationInvites: OrganizationInvite[] =
+    const organizationInvites: PendingOrganizationInvite[] =
       orgInvitesRes.status === 'fulfilled'
         ? orgInvitesRes.value.data.rows || []
         : [];
@@ -41,26 +49,21 @@ export const pendingInvitesQuery = (
       organizationInvites,
     };
   },
-  refetchInterval: 60_000,
+  refetchInterval: 30_000,
+  staleTime: 30_000,
 });
 
-export const usePendingInvites = (opts?: {
-  isCloudEnabled?: boolean;
-  isControlPlaneEnabled?: boolean;
-}) => {
+export const usePendingInvites = () => {
   const { isCloudEnabled, isCloudLoading } = useCloud();
   const { isControlPlaneEnabled } = useControlPlane();
   const queryClient = useQueryClient();
-  const resolvedIsCloudEnabled = opts?.isCloudEnabled ?? isCloudEnabled;
-  const resolvedIsControlPlaneEnabled =
-    opts?.isControlPlaneEnabled ?? isControlPlaneEnabled;
 
   const query = useQuery(
-    pendingInvitesQuery(resolvedIsCloudEnabled, resolvedIsControlPlaneEnabled),
+    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
   );
 
   const invalidate = useCallback(() => {
-    queryClient.resetQueries({
+    queryClient.invalidateQueries({
       queryKey: ['pending-invites'],
     });
   }, [queryClient]);

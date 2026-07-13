@@ -1,7 +1,9 @@
 # Base Go environment
 # -------------------
-FROM golang:1.25.9-alpine as base
+FROM golang:1.26-alpine as base
 WORKDIR /hatchet
+
+ENV CGO_ENABLED=0
 
 COPY go.mod go.sum ./
 
@@ -16,7 +18,7 @@ COPY /cmd/hatchet-loadtest ./cli
 # --------------------
 FROM base AS build-go
 
-RUN go build -a -o ./bin/hatchet-load-test ./cli
+RUN go build -ldflags="-w -s" -a -o ./bin/hatchet-load-test ./cli
 
 # Deployment environment
 # ----------------------
@@ -25,7 +27,7 @@ FROM alpine AS deployment
 WORKDIR /hatchet
 
 # openssl and bash needed for admin build
-RUN apk update && apk add --no-cache gcc musl-dev openssl bash ca-certificates tzdata
+RUN apk update && apk add --no-cache openssl bash ca-certificates tzdata
 
 COPY --from=build-go /hatchet/bin/hatchet-load-test /hatchet/
 

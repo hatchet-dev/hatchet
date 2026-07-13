@@ -129,8 +129,9 @@ func zeroTaskStatusStat() *gen.TaskStatusStat {
 
 func toTaskStatusStat(stat v1.TaskStatusStat) *gen.TaskStatusStat {
 	result := &gen.TaskStatusStat{
-		Total:  &stat.Total,
-		Oldest: stat.Oldest,
+		Total:                  &stat.Total,
+		Oldest:                 stat.Oldest,
+		OldestExcludingRetries: stat.OldestExcludingRetries,
 	}
 
 	if len(stat.Concurrency) > 0 {

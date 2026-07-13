@@ -487,8 +487,8 @@ class Worker:
         main_pid = os.getpid()
 
         logger.info("------------------------------------------")
-        logger.info("STARTING HATCHET...")
-        logger.debug(f"worker runtime starting on PID: {main_pid}")
+        logger.info("starting hatchet...")
+        logger.debug(f"worker starting on PID: {main_pid}")
 
         self._status = WorkerStatus.STARTING
 
@@ -773,15 +773,16 @@ class Worker:
         # tell the engine that the worker is paused
         await self._pause_task_assignment()
 
-        # stop the gRPC stream — no new actions will be dispatched.
-        self._stop_listener_action_loops()
-
         # wait for tasks to complete, needs the event queue so that completion tasks aren't dropped
         if self._action_runner:
             await self._action_runner.exit_gracefully()
 
         if self._legacy_durable_action_runner:
             await self._legacy_durable_action_runner.exit_gracefully()
+
+        # Only now that in-flight tasks have finished draining is it safe to
+        # stop the gRPC stream.
+        self._stop_listener_action_loops()
 
         # drain event_send_loop
         self._event_queue.put(STOP_LOOP)

@@ -12,6 +12,7 @@ import {
   SidebarButtonPrimary,
   SidebarButtonPrimaryAction,
   SidebarButtonSecondary,
+  type SideNavActiveMatch,
 } from '@/components/v1/nav/sidebar-buttons';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -30,6 +31,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect,
 } from 'react';
 
 interface SideNavProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -49,6 +51,9 @@ export type SideNavItem = {
   prefix?: string;
   displayAsActiveWhenThisRouteIsMatched?: string;
   activeFuzzy?: boolean;
+  // Extra route patterns that should also mark this item as active, for items
+  // whose active state spans multiple route subtrees
+  additionalActiveMatches?: SideNavActiveMatch[];
   children?: SideNavChild[];
   params?: Record<string, string>;
 } & (
@@ -66,6 +71,8 @@ export type SideNavSection = {
   itemsClassName: string;
   items: SideNavItem[];
 };
+
+const savedScrollTop = { current: 0 };
 
 export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const {
@@ -89,6 +96,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
   const didDragRef = useRef(false);
   const [showResizeToggle, setShowResizeToggle] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const onNavLinkClick = useCallback(() => {
     if (isWide) {
@@ -246,6 +254,12 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
     [tenantId],
   );
 
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = savedScrollTop.current;
+    }
+  }, []);
+
   const toggleCollapsed = useCallback(() => {
     setStoredCollapsed(!storedCollapsed);
     setLiveWidth(null);
@@ -352,15 +366,25 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                         ('to' in item ? item.to : null);
 
                       const activeFuzzy = item.activeFuzzy ?? false;
-                      const active = displayAsActiveWhenThisRouteIsMatched
-                        ? Boolean(
+                      const active =
+                        (displayAsActiveWhenThisRouteIsMatched
+                          ? Boolean(
+                              matchRoute({
+                                to: displayAsActiveWhenThisRouteIsMatched,
+                                params: itemParams,
+                                fuzzy: activeFuzzy,
+                              }),
+                            )
+                          : false) ||
+                        (item.additionalActiveMatches ?? []).some((match) =>
+                          Boolean(
                             matchRoute({
-                              to: displayAsActiveWhenThisRouteIsMatched,
-                              params: itemParams,
-                              fuzzy: activeFuzzy,
+                              to: match.to,
+                              params: match.params,
+                              fuzzy: match.fuzzy,
                             }),
-                          )
-                        : false;
+                          ),
+                        );
 
                       if (item.children && item.children.length > 0) {
                         return (
@@ -394,6 +418,7 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                                   <Link
                                     to={child.to}
                                     params={commonParams}
+                                    preload={false}
                                     onClick={onNavLinkClick}
                                   >
                                     {child.name}
@@ -455,7 +480,11 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
           <>
             {/* Scrollable navigation area (keep scrollbar flush to sidebar edge) */}
             <div
+              ref={scrollRef}
               data-cy="v1-sidebar-scroll"
+              onScroll={() => {
+                savedScrollTop.current = scrollRef.current?.scrollTop ?? 0;
+              }}
               className="min-h-0 flex-1 overflow-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable] scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground"
             >
               <div className="px-4 py-4">
@@ -483,6 +512,9 @@ export function SideNav({ className, navItems: navSections }: SideNavProps) {
                             to={item.to!}
                             params={itemParams}
                             prefix={item.prefix}
+                            additionalActiveMatches={
+                              item.additionalActiveMatches
+                            }
                             name={item.name}
                             icon={item.icon({
                               collapsed: false,

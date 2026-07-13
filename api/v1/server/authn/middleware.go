@@ -60,6 +60,13 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
+	// authPreflight only returns handled=true in authdisabled builds, where it resolves the
+	// request as the seeded admin and short-circuits the strategies below. In normal builds it
+	// is a no-op (returns false), so authentication always proceeds. Do not invert this check.
+	if handled, err := a.authPreflight(c); handled {
+		return err
+	}
+
 	var bearerErr error
 
 	if r.Security.BearerAuth() {

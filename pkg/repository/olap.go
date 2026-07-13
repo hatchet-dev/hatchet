@@ -350,6 +350,32 @@ func newOLAPRepository(shared *sharedRepository, olapRetentionPeriod time.Durati
 	}
 }
 
+// Only CREATE TABLE / ALTER TABLE ATTACH PARTITION may be passed in fn. DETACH PARTITION
+// CONCURRENTLY cannot run inside a transaction and must use a raw connection instead.
+func runPartitionDDLWithLockTimeout(ctx context.Context, pool *pgxpool.Pool, logger *zerolog.Logger, fn func(tx pgx.Tx) error) error {
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, pool, logger)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if _, err = tx.Exec(ctx, "SET LOCAL lock_timeout = '1min'"); err != nil {
+		return fmt.Errorf("set lock_timeout: %w", err)
+	}
+
+	err = fn(tx)
+
+	if err != nil && isLockNotAvailable(err) {
+		return ErrPartitionLockConflict
+	} else if err != nil {
+		return err
+	}
+
+	return commit(ctx)
+}
+
 func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	const leaseKey = "v1_olap_partitions"
 
@@ -378,70 +404,55 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 	// important: uses the ddlPool because these operations are critical (shouldn't be blocked by the main app pool)
 	// and not all can run inside of a transaction (e.g. DETACH PARTITION CONCURRENTLY),
 	// so they cannot go through pgbouncer when it's configured.
-	err = r.queries.CreateOLAPPartitions(ctx, r.ddlPool, sqlcv1.CreateOLAPPartitionsParams{
-		Date: pgtype.Date{
-			Time:  today,
-			Valid: true,
-		},
-		Partitions: NUM_PARTITIONS,
-	})
-
-	if err != nil {
+	//
+	// Each CreateXxx call runs in its own short-lock_timeout transaction so we fail fast
+	// (ErrPartitionLockConflict) if ANALYZE is holding a conflicting lock.
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+			Date:       pgtype.Date{Time: today, Valid: true},
+			Partitions: NUM_PARTITIONS,
+		})
+	}); err != nil {
 		return err
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
-			Time:  today,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
 
 	if r.shouldPartitionOtelTables {
-		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
-			Time:  today,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: today, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
 
-	err = r.queries.CreateOLAPPartitions(ctx, r.pool, sqlcv1.CreateOLAPPartitionsParams{
-		Date: pgtype.Date{
-			Time:  tomorrow,
-			Valid: true,
-		},
-		Partitions: NUM_PARTITIONS,
-	})
-
-	if err != nil {
+	if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+		return r.queries.CreateOLAPPartitions(ctx, tx, sqlcv1.CreateOLAPPartitionsParams{
+			Date:       pgtype.Date{Time: tomorrow, Valid: true},
+			Partitions: NUM_PARTITIONS,
+		})
+	}); err != nil {
 		return err
 	}
 
 	if r.shouldPartitionEventsTables {
-		err = r.queries.CreateOLAPEventPartitions(ctx, r.ddlPool, pgtype.Date{
-			Time:  tomorrow,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPEventPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
 
 	if r.shouldPartitionOtelTables {
-		err = r.queries.CreateOLAPOtelPartitions(ctx, r.pool, pgtype.Date{
-			Time:  tomorrow,
-			Valid: true,
-		})
-
-		if err != nil {
+		if err = runPartitionDDLWithLockTimeout(ctx, r.ddlPool, r.l, func(tx pgx.Tx) error {
+			return r.queries.CreateOLAPOtelPartitions(ctx, tx, pgtype.Date{Time: tomorrow, Valid: true})
+		}); err != nil {
 			return err
 		}
 	}
@@ -474,15 +485,48 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 			return err
 		}
 
+		// releaseConn resets lock_timeout to 0 before returning the connection to the pool so
+		// the setting doesn't bleed into subsequent users of the same ddlPool connection.
+		releaseConn := func() {
+			resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, resetErr := conn.Exec(resetCtx, "SET lock_timeout = 0"); resetErr != nil {
+				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+			}
+			release()
+		}
+
+		if _, err = conn.Exec(ctx, "SET lock_timeout = '1min'"); err != nil {
+			releaseConn()
+			return fmt.Errorf("failed to set lock_timeout for detach: %w", err)
+		}
+
 		// important: DETACH PARTITION CONCURRENTLY cannot run inside a transaction
 		_, err = conn.Exec(
 			ctx,
 			fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s CONCURRENTLY", partition.ParentTable, partition.PartitionName),
 		)
 
-		if err != nil {
-			release()
+		if err != nil && !isPendingDetach(err) {
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
+		} else if isPendingDetach(err) {
+			if _, resetErr := conn.Exec(ctx, "SET lock_timeout = 0"); resetErr != nil {
+				r.l.Error().Err(resetErr).Msg("failed to reset lock_timeout on DDL connection")
+			}
+
+			_, err = conn.Exec(
+				ctx,
+				fmt.Sprintf("ALTER TABLE %s DETACH PARTITION %s FINALIZE", partition.ParentTable, partition.PartitionName),
+			)
+
+			if err != nil {
+				releaseConn()
+				return fmt.Errorf("failed to finalize pending detach for partition %s: %w", partition.PartitionName, err)
+			}
 		}
 
 		_, err = conn.Exec(
@@ -491,11 +535,14 @@ func (r *OLAPRepositoryImpl) UpdateTablePartitions(ctx context.Context) error {
 		)
 
 		if err != nil {
-			release()
+			releaseConn()
+			if isLockNotAvailable(err) {
+				return ErrPartitionLockConflict
+			}
 			return err
 		}
 
-		release()
+		releaseConn()
 	}
 
 	if err = r.queries.DeleteOldOLAPPayloadOffloadedBlockIndexRows(ctx, r.ddlPool, pgtype.Date{
@@ -827,26 +874,19 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	var (
-		rows     []*sqlcv1.ListTasksOlapRow
-		count    int64
-		countErr error
+		rows  []*sqlcv1.ListTasksOlapRow
+		count int64
 	)
 
-	// A pgx.Tx must not be used concurrently, so we run the count query against the pool.
-	g, gctx := errgroup.WithContext(ctx)
+	rows, err = r.queries.ListTasksOlap(ctx, tx, params)
 
-	g.Go(func() error {
-		var err error
-		rows, err = r.queries.ListTasksOlap(gctx, tx, params)
-		return err
-	})
+	if err != nil {
+		return nil, 0, err
+	}
 
-	g.Go(func() error {
-		count, countErr = r.queries.CountTasks(gctx, r.readPool, countParams)
-		return nil
-	})
+	count, err = r.queries.CountTasks(ctx, tx, countParams)
 
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -917,10 +957,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 			output,
 			int64(0),
 		})
-	}
-
-	if countErr != nil {
-		count = int64(len(tasksWithData))
 	}
 
 	if err := commit(ctx); err != nil {
@@ -1138,8 +1174,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
-		Tenantid: tenantId,
-		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Tenantid:                  tenantId,
+		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		ParentTaskExternalId:      opts.ParentTaskExternalId,
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 	}
 
 	statuses := make([]string, 0)
@@ -1189,17 +1227,14 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	var (
 		workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow
 		count          int64
-		countErr       error
 	)
 
-	// A pgx.Tx must not be used concurrently; run count on the pool in the background while we do tx work.
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		count, countErr = r.queries.CountWorkflowRuns(gctx, r.readPool, countParams)
-		return nil
-	})
-
 	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err = r.queries.CountWorkflowRuns(ctx, tx, countParams)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1278,16 +1313,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	if err := commit(ctx); err != nil {
 		return nil, 0, err
-	}
-
-	// Join the count goroutine before returning.
-	if err := g.Wait(); err != nil {
-		return nil, 0, err
-	}
-
-	if countErr != nil {
-		r.l.Error().Ctx(ctx).Msgf("error counting workflow runs: %v", countErr)
-		count = int64(len(workflowRunIds))
 	}
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)

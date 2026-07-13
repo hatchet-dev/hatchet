@@ -78,10 +78,14 @@ func do(config LoadTestConfig) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
 	after := 10 * time.Second
+	registrationTimeout := config.RegistrationTimeout
+	if registrationTimeout == 0 {
+		registrationTimeout = 60 * time.Second
+	}
 
 	// The worker may intentionally be delayed (WorkerDelay) before it starts consuming tasks.
-	// The test timeout must include this delay, otherwise we can cancel while work is still expected to complete.
-	timeout := config.WorkerDelay + after + config.Duration + config.Wait + 30*time.Second
+	// The test timeout must include registration and this delay, otherwise we can cancel while work is still expected to complete.
+	timeout := registrationTimeout + config.WorkerDelay + after + config.Duration + config.Wait + 30*time.Second
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -90,7 +94,7 @@ func do(config LoadTestConfig) error {
 	durations := make(chan executionEvent, config.Events)
 
 	// Compute running average for executed durations using a rolling average.
-	durationsResult := make(chan avgResult)
+	durationsResult := make(chan avgResult, 1)
 	go func() {
 		var count int64
 		var avg time.Duration
@@ -111,31 +115,19 @@ func do(config LoadTestConfig) error {
 		durationsResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
-	// Start worker and ensure it has time to register
-	workerStarted := make(chan struct{})
+	registered := make(chan error, 1)
 
 	go func() {
-		if config.WorkerDelay > 0 {
-			// run a worker to register the workflow
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			run(ctx, config, durations)
-			cancel()
-			l.Info().Msgf("wait %s before starting the worker", config.WorkerDelay)
-			time.Sleep(config.WorkerDelay)
-		}
-		l.Info().Msg("starting worker now")
-
-		// Signal that worker is starting
-		close(workerStarted)
-
-		count, uniques := run(ctx, config, durations)
+		count, uniques := run(ctx, config, durations, registered)
 		close(durations)
 		ch <- count
 		ch <- uniques
 	}()
 
-	// Wait for worker to start, then give it time to register workflows
-	<-workerStarted
+	if err := waitForRegistration(registered, registrationTimeout); err != nil {
+		return fmt.Errorf("❌ workflow registration failed within %s — engine must accept PutWorkflow on the current (pre-migration) schema: %w", registrationTimeout, err)
+	}
+
 	time.Sleep(after)
 
 	scheduled := make(chan time.Duration, config.Events)

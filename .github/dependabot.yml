@@ -1,4 +1,11 @@
 version: 2
+
+multi-ecosystem-groups:
+  hatchet-sdk-examples:
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 1
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -13,9 +20,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: "gomod"
-    directories:
-      - "/"
-      - "/examples/go/quickstart"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -24,19 +29,13 @@ updates:
       semver-minor-days: 7
       semver-patch-days: 3
     open-pull-requests-limit: 2
-    ignore:
-      - dependency-name: "go"
     groups:
       go-modules:
         patterns: ["*"]
         update-types: ["patch", "minor"]
 
   - package-ecosystem: "pip"
-    directories:
-      - "/sdks/python"
-      - "/sdks/python/examples/quickstart"
-      - "/cmd/hatchet-cli/cli/templates/python/poetry"
-      - "/examples/python/quickstart"
+    directory: /sdks/python
     schedule:
       interval: "weekly"
       day: "monday"
@@ -44,15 +43,49 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
-    open-pull-requests-limit: 3
+    allow:
+      - dependency-type: "development"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 2
     groups:
       python-deps:
-        dependency-type: "production"
+        applies-to: version-updates
+        dependency-type: "development"
         patterns: ["*"]
-        update-types: ["patch", "minor"]
-      python-dev-deps:
+      python-security:
+        applies-to: security-updates
         patterns: ["*"]
-        update-types: ["patch", "minor"]
+
+  - package-ecosystem: uv
+    directory: /sdks/python
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    cooldown:
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    allow:
+      - dependency-type: "development"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 2
+    groups:
+      uv-deps:
+        applies-to: version-updates
+        dependency-type: "development"
+        patterns: ["*"]
+      uv-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: "pip"
+    directory: "/sdks/python/examples/quickstart"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["hatchet-sdk"]
 
   - package-ecosystem: "npm"
     directories:
@@ -79,10 +112,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: "npm"
-    directories:
-      - "/sdks/typescript"
-      - "/cmd/hatchet-cli/cli/templates/typescript/pnpm"
-      - "/examples/typescript"
+    directory: "/sdks/typescript"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -90,21 +120,29 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    allow:
+      - dependency-type: "development"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 3
     groups:
       npm-sdk-deps:
-        dependency-type: "production"
+        applies-to: version-updates
+        dependency-type: "development"
         patterns: ["*"]
-      npm-sdk-dev-deps:
+      npm-sdk-security:
+        applies-to: security-updates
         patterns: ["*"]
 
+
   - package-ecosystem: "bundler"
-    directories:
-      - "/sdks/ruby/src"
-      - "/sdks/ruby/examples"
+    directory: "/sdks/ruby/examples"
+    multi-ecosystem-group: "hatchet-sdk-examples"
+    patterns: ["hatchet-sdk"]
+
+  - package-ecosystem: "bundler"
+    directory: "/sdks/ruby/src"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -112,8 +150,17 @@ updates:
       semver-major-days: 30
       semver-minor-days: 7
       semver-patch-days: 3
+    allow:
+      - dependency-type: "development"
     open-pull-requests-limit: 2
     groups:
       ruby-deps:
+        applies-to: version-updates
+        dependency-type: "development"
         patterns: ["*"]
-        update-types: ["patch", "minor"]
+      ruby-security:
+        applies-to: security-updates
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
