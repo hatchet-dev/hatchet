@@ -2757,27 +2757,6 @@ func (r *sharedRepository) replayTasks(
 	return res, nil
 }
 
-func sortConcurrencyStrategies(strats []*sqlcv1.V1StepConcurrency) {
-	sort.SliceStable(strats, func(i, j int) bool {
-		iStrat := strats[i]
-		jStrat := strats[j]
-
-		if iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid && iStrat.ParentStrategyID.Int64 != jStrat.ParentStrategyID.Int64 {
-			return iStrat.ParentStrategyID.Int64 < jStrat.ParentStrategyID.Int64
-		}
-
-		if iStrat.ParentStrategyID.Valid && !jStrat.ParentStrategyID.Valid {
-			return true
-		}
-
-		if !iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid {
-			return false
-		}
-
-		return iStrat.ID < jStrat.ID
-	})
-}
-
 func (r *sharedRepository) getConcurrencyExpressions(
 	ctx context.Context,
 	tx sqlcv1.DBTX,
@@ -2798,6 +2777,27 @@ func (r *sharedRepository) getConcurrencyExpressions(
 
 	cacheKey := func(stepId uuid.UUID) string {
 		return fmt.Sprintf("concurrency-strategies:%s:%s", tenantId, stepId)
+	}
+
+	sortStrategies := func(strats []*sqlcv1.V1StepConcurrency) {
+		sort.SliceStable(strats, func(i, j int) bool {
+			iStrat := strats[i]
+			jStrat := strats[j]
+
+			if iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid && iStrat.ParentStrategyID.Int64 != jStrat.ParentStrategyID.Int64 {
+				return iStrat.ParentStrategyID.Int64 < jStrat.ParentStrategyID.Int64
+			}
+
+			if iStrat.ParentStrategyID.Valid && !jStrat.ParentStrategyID.Valid {
+				return true
+			}
+
+			if !iStrat.ParentStrategyID.Valid && jStrat.ParentStrategyID.Valid {
+				return false
+			}
+
+			return iStrat.ID < jStrat.ID
+		})
 	}
 
 	stepIdToStrats := make(map[uuid.UUID][]*sqlcv1.V1StepConcurrency, len(stepIdsWithExpressions))
@@ -2841,7 +2841,7 @@ func (r *sharedRepository) getConcurrencyExpressions(
 		if stepStrats == nil {
 			stepStrats = []*sqlcv1.V1StepConcurrency{}
 		} else {
-			sortConcurrencyStrategies(stepStrats)
+			sortStrategies(stepStrats)
 		}
 
 		r.concurrencyStrategyCache.Set(cacheKey(stepId), stepStrats)
