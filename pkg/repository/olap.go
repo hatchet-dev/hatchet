@@ -36,6 +36,39 @@ import (
 // TODO: make this dynamic for the instance
 const NUM_PARTITIONS = 4
 
+type AdditionalMetadataOperator string
+
+const (
+	AdditionalMetadataOperatorOr  AdditionalMetadataOperator = "OR"
+	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
+)
+
+func buildAdditionalMetadataContains(metadata map[string]interface{}, operator AdditionalMetadataOperator) (containsAny [][]byte, containsAll []byte, err error) {
+	if operator == AdditionalMetadataOperatorAnd {
+		containsAll, err = json.Marshal(metadata)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, containsAll, nil
+	}
+
+	containsAny = make([][]byte, 0, len(metadata))
+
+	for key, value := range metadata {
+		pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
+
+		if marshalErr != nil {
+			return nil, nil, marshalErr
+		}
+
+		containsAny = append(containsAny, pairFilter)
+	}
+
+	return containsAny, nil, nil
+}
+
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -52,11 +85,11 @@ type ListTaskRunOpts struct {
 	AdditionalMetadata map[string]interface{}
 
 	// StrictAdditionalMetadata switches AdditionalMetadata filtering to jsonb
-	// containment (@>), which is backed by the GIN indexes on the OLAP tables.
-	// Matching keeps any-pair-matches semantics via @> ANY(jsonb[]).
-	// TODO: add a logical operator param to the workflow-runs list endpoint so
-	// callers can opt into all-pairs-match semantics (AdditionalMetadataContainsAll).
+	// containment, which is backed by the GIN indexes on the OLAP tables. See
+	// AdditionalMetadataOperator for how multiple pairs are combined.
 	StrictAdditionalMetadata bool
+
+	AdditionalMetadataOperator AdditionalMetadataOperator
 
 	TriggeringEventExternalId *uuid.UUID
 
@@ -81,11 +114,11 @@ type ListWorkflowRunOpts struct {
 	AdditionalMetadata map[string]interface{}
 
 	// StrictAdditionalMetadata switches AdditionalMetadata filtering to jsonb
-	// containment (@>), which is backed by the GIN indexes on the OLAP tables.
-	// Matching keeps any-pair-matches semantics via @> ANY(jsonb[]).
-	// TODO: add a logical operator param to the workflow-runs list endpoint so
-	// callers can opt into all-pairs-match semantics (AdditionalMetadataContainsAll).
+	// containment, which is backed by the GIN indexes on the OLAP tables. See
+	// AdditionalMetadataOperator for how multiple pairs are combined.
 	StrictAdditionalMetadata bool
+
+	AdditionalMetadataOperator AdditionalMetadataOperator
 
 	Limit int64
 
@@ -881,20 +914,16 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 	}
 
 	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
-		metadataFilters := make([][]byte, 0, len(opts.AdditionalMetadata))
+		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
-		for key, value := range opts.AdditionalMetadata {
-			pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
-
-			if marshalErr != nil {
-				return nil, 0, marshalErr
-			}
-
-			metadataFilters = append(metadataFilters, pairFilter)
+		if marshalErr != nil {
+			return nil, 0, marshalErr
 		}
 
-		params.AdditionalMetadataContainsAny = metadataFilters
-		countParams.AdditionalMetadataContainsAny = metadataFilters
+		params.AdditionalMetadataContainsAny = containsAny
+		params.AdditionalMetadataContainsAll = containsAll
+		countParams.AdditionalMetadataContainsAny = containsAny
+		countParams.AdditionalMetadataContainsAll = containsAll
 	} else {
 		for key, value := range opts.AdditionalMetadata {
 			params.Keys = append(params.Keys, key)
@@ -1249,20 +1278,16 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	}
 
 	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
-		metadataFilters := make([][]byte, 0, len(opts.AdditionalMetadata))
+		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
-		for key, value := range opts.AdditionalMetadata {
-			pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
-
-			if marshalErr != nil {
-				return nil, 0, marshalErr
-			}
-
-			metadataFilters = append(metadataFilters, pairFilter)
+		if marshalErr != nil {
+			return nil, 0, marshalErr
 		}
 
-		params.AdditionalMetadataContainsAny = metadataFilters
-		countParams.AdditionalMetadataContainsAny = metadataFilters
+		params.AdditionalMetadataContainsAny = containsAny
+		params.AdditionalMetadataContainsAll = containsAll
+		countParams.AdditionalMetadataContainsAny = containsAny
+		countParams.AdditionalMetadataContainsAll = containsAll
 	} else {
 		for key, value := range opts.AdditionalMetadata {
 			params.Keys = append(params.Keys, key)

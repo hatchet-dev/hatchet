@@ -133,13 +133,14 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter:             since,
-		Statuses:                 statuses,
-		WorkflowIds:              workflowIds,
-		Limit:                    limit,
-		Offset:                   offset,
-		IncludePayloads:          includePayloads,
-		StrictAdditionalMetadata: strictAdditionalMetadata,
+		CreatedAfter:               since,
+		Statuses:                   statuses,
+		WorkflowIds:                workflowIds,
+		Limit:                      limit,
+		Offset:                     offset,
+		IncludePayloads:            includePayloads,
+		StrictAdditionalMetadata:   strictAdditionalMetadata,
+		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -281,14 +282,15 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter:             since,
-		Statuses:                 statuses,
-		WorkflowIds:              workflowIds,
-		Limit:                    limit,
-		Offset:                   offset,
-		WorkerId:                 request.Params.WorkerId,
-		IncludePayloads:          includePayloads,
-		StrictAdditionalMetadata: strictAdditionalMetadata,
+		CreatedAfter:               since,
+		Statuses:                   statuses,
+		WorkflowIds:                workflowIds,
+		Limit:                      limit,
+		Offset:                     offset,
+		WorkerId:                   request.Params.WorkerId,
+		IncludePayloads:            includePayloads,
+		StrictAdditionalMetadata:   strictAdditionalMetadata,
+		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -362,10 +364,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 	strictAdditionalMetadata := false
 
-	// TODO: add a logical operator param (any/all) to this endpoint so callers can
-	// choose between any-pair-matches (@> ANY(jsonb[])) and all-pairs-match (@>)
-	// additional_metadata filtering. Entitled tenants currently always get
-	// any-pair semantics, matching the legacy filter.
 	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
 		enabled, err := t.config.V1.TenantEntitlement().IsStrictAdditionalMetadataFiltersEnabled(spanContext, tenantId)
 
@@ -381,6 +379,16 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	} else {
 		return t.WithDags(spanContext, request, tenantId, strictAdditionalMetadata)
 	}
+}
+
+// additionalMetadataOperator maps the optional additional_metadata_operator query
+// param to the repository operator, defaulting to OR
+func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator) v1.AdditionalMetadataOperator {
+	if param != nil && *param == gen.AND {
+		return v1.AdditionalMetadataOperatorAnd
+	}
+
+	return v1.AdditionalMetadataOperatorOr
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
