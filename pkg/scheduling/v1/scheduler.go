@@ -44,6 +44,13 @@ type Scheduler struct {
 	unackedSlots map[int]*assignedSlots
 	unackedMu    mutex
 
+	// warmedSlotTypes tracks (worker, slot type) pairs whose slots have appeared in the
+	// in-memory pool at least once. An empty pool is ambiguous — a worker which has not
+	// been replenished yet looks identical to a fully saturated one — so utilization is
+	// only derived from capacity once the pair has warmed up. Accessed exclusively from
+	// the snapshot loop goroutine (via getSnapshotInput).
+	warmedSlotTypes map[uuid.UUID]map[string]struct{}
+
 	rl   *rateLimiter
 	exts *Extensions
 
@@ -77,6 +84,7 @@ func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *E
 		l:                  &l,
 		actions:            make(map[string]*action),
 		unackedSlots:       make(map[int]*assignedSlots),
+		warmedSlotTypes:    make(map[uuid.UUID]map[string]struct{}),
 		rl:                 rl,
 		actionsMu:          newRWMu(cf.l),
 		replenishMu:        newMu(cf.l),
@@ -669,17 +677,39 @@ func (s *Scheduler) loopSnapshot(ctx context.Context) {
 			// require that 1 out of every 20 snapshots is taken
 			must := count%20 == 0
 
-			in, ok := s.getSnapshotInput(must)
-
-			if !ok {
-				continue
+			// only advance the counter when a snapshot was actually taken, so
+			// the "must" cadence counts real snapshots rather than skipped ticks
+			if s.snapshot(ctx, must) {
+				count++
 			}
-
-			s.exts.ReportSnapshot(s.tenantId, in)
-
-			count++
 		}
 	}
+}
+
+// snapshot builds a point-in-time view of the tenant's slot utilization and
+// reports it to the registered extensions. It returns false when the snapshot
+// was skipped because the scheduler was busy (non-must path).
+func (s *Scheduler) snapshot(ctx context.Context, mustSnapshot bool) bool {
+	ctx, span := telemetry.NewSpan(ctx, "snapshot")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: s.tenantId.String()},
+		telemetry.AttributeKV{Key: "snapshot.must", Value: mustSnapshot},
+	)
+
+	in, ok := s.getSnapshotInput(ctx, mustSnapshot)
+
+	if !ok {
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.skipped", Value: true})
+		return false
+	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(in.Workers)})
+
+	s.exts.ReportSnapshot(ctx, s.tenantId, in)
+
+	return true
 }
 
 func (s *Scheduler) start(ctx context.Context) {
@@ -1454,28 +1484,46 @@ func (s *Scheduler) getExtensionInput(results []*assignResults) *PostAssignInput
 	}
 }
 
-func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
+func (s *Scheduler) getSnapshotInput(ctx context.Context, mustSnapshot bool) (*SnapshotInput, bool) {
+	ctx, span := telemetry.NewSpan(ctx, "get-snapshot-input")
+	defer span.End()
+
+	// isolate the lock-acquire wait in its own child span; on the non-must path
+	// a contended lock makes us skip the snapshot entirely.
+	_, lockSpan := telemetry.NewSpan(ctx, "get-snapshot-input-acquire-actions-mu")
 	if mustSnapshot {
 		s.actionsMu.RLock()
 	} else {
 		if ok := s.actionsMu.TryRLock(); !ok {
+			lockSpan.End()
+			telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "snapshot.lock_contended", Value: true})
 			return nil, false
 		}
 	}
+	lockSpan.End()
 
 	defer s.actionsMu.RUnlock()
 
 	workers := s.copyWorkers()
 
 	res := &SnapshotInput{
-		Workers: make(map[uuid.UUID]*WorkerCp),
+		Workers:                     make(map[uuid.UUID]*WorkerCp, len(workers)),
+		WorkerSlotUtilization:       make(map[uuid.UUID]*SlotUtilization, len(workers)),
+		WorkerSlotUtilizationByType: make(map[uuid.UUID]map[string]*SlotUtilization, len(workers)),
 	}
 
 	for workerId, worker := range workers {
+		totalSlots := 0
+
+		for _, units := range worker.TotalSlotsByType {
+			totalSlots += units
+		}
+
 		res.Workers[workerId] = &WorkerCp{
 			WorkerId: workerId,
 			Labels:   worker.Labels,
 			Name:     worker.Name,
+			MaxRuns:  totalSlots,
 		}
 	}
 
@@ -1489,15 +1537,13 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 	uniqueSlots := make(map[*slot]bool)
 
-	workerSlotUtilization := make(map[uuid.UUID]*SlotUtilization)
+	utilizationByType := make(map[uuid.UUID]map[string]*SlotUtilization)
 
 	for workerId := range workers {
-		workerSlotUtilization[workerId] = &SlotUtilization{
-			UtilizedSlots:    0,
-			NonUtilizedSlots: 0,
-		}
+		utilizationByType[workerId] = make(map[string]*SlotUtilization)
 	}
 
+	_, walkSpan := telemetry.NewSpan(ctx, "get-snapshot-input-walk-slots")
 	for _, actionId := range actionKeys {
 		action, ok := s.actions[actionId]
 
@@ -1513,26 +1559,109 @@ func (s *Scheduler) getSnapshotInput(mustSnapshot bool) (*SnapshotInput, bool) {
 
 			workerId := slot.worker.ID
 
-			if _, ok := workerSlotUtilization[workerId]; !ok {
-				// initialize the worker slot utilization
-				workerSlotUtilization[workerId] = &SlotUtilization{
-					UtilizedSlots:    0,
-					NonUtilizedSlots: 0,
-				}
+			slotType, err := slot.getSlotType()
+			if err != nil {
+				slotType = ""
+			}
+
+			byType, ok := utilizationByType[workerId]
+			if !ok {
+				byType = make(map[string]*SlotUtilization)
+				utilizationByType[workerId] = byType
+			}
+
+			utilization, ok := byType[slotType]
+			if !ok {
+				utilization = &SlotUtilization{}
+				byType[slotType] = utilization
 			}
 
 			uniqueSlots[slot] = true
 
 			if slot.isUsed() {
-				workerSlotUtilization[workerId].UtilizedSlots++
+				utilization.UtilizedSlots++
 			} else {
-				workerSlotUtilization[workerId].NonUtilizedSlots++
+				utilization.NonUtilizedSlots++
 			}
 		}
 		action.mu.RUnlock()
 	}
+	telemetry.WithAttributes(walkSpan,
+		telemetry.AttributeKV{Key: "snapshot.action_count", Value: len(actionKeys)},
+		telemetry.AttributeKV{Key: "snapshot.unique_slots", Value: len(uniqueSlots)},
+	)
+	walkSpan.End()
 
-	res.WorkerSlotUtilization = workerSlotUtilization
+	// prune warm state for workers which are no longer registered
+	for workerId := range s.warmedSlotTypes {
+		if _, ok := workers[workerId]; !ok {
+			delete(s.warmedSlotTypes, workerId)
+		}
+	}
+
+	// The in-memory pool only holds slots which have not been assigned (plus assigned slots
+	// which are not yet flushed to the database), so the used counts walked above miss any
+	// slot consumed by a running task. Derive the true used count per slot type from the
+	// worker's slot capacity instead: everything that is not free is in use.
+	for workerId, byType := range utilizationByType {
+		var capacities map[string]int
+
+		if worker, ok := workers[workerId]; ok {
+			capacities = worker.TotalSlotsByType
+		}
+
+		warmed := s.warmedSlotTypes[workerId]
+
+		for slotType, utilization := range byType {
+			if utilization.UtilizedSlots+utilization.NonUtilizedSlots > 0 {
+				if warmed == nil {
+					warmed = make(map[string]struct{})
+					s.warmedSlotTypes[workerId] = warmed
+				}
+
+				warmed[slotType] = struct{}{}
+			}
+		}
+
+		// slot types with capacity but no walked slots still get reported: once the
+		// type has warmed up, an empty in-memory pool means all of its slots are in use
+		for slotType := range capacities {
+			if _, ok := byType[slotType]; !ok {
+				byType[slotType] = &SlotUtilization{}
+			}
+		}
+
+		aggregate := &SlotUtilization{}
+
+		for slotType, utilization := range byType {
+			_, isWarmed := warmed[slotType]
+
+			// Only derive from capacity once the slot type has had slots in the pool:
+			// a never-replenished worker would otherwise report full utilization
+			// between registration and its first replenish. Un-warmed types report
+			// zero slots, which extensions treat as a transient state.
+			if capacity := capacities[slotType]; capacity > 0 && isWarmed {
+				used := capacity - utilization.NonUtilizedSlots
+				if used < 0 {
+					used = 0
+				}
+
+				utilization.UtilizedSlots = used
+			}
+			// no capacity known for this slot type; fall back to the walked counts
+
+			aggregate.UtilizedSlots += utilization.UtilizedSlots
+			aggregate.NonUtilizedSlots += utilization.NonUtilizedSlots
+		}
+
+		res.WorkerSlotUtilizationByType[workerId] = byType
+		res.WorkerSlotUtilization[workerId] = aggregate
+	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "snapshot.worker_count", Value: len(workers)},
+		telemetry.AttributeKV{Key: "snapshot.action_count", Value: len(actionKeys)},
+	)
 
 	return res, true
 }
