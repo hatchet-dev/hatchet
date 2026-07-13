@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 
 	"github.com/hatchet-dev/hatchet/internal/signature"
@@ -229,7 +230,7 @@ func (h *HTTPOperator) refreshActions(ctx context.Context) {
 		return
 	}
 
-	if operator.SlicesEqualUnordered(actions, h.lastActions) {
+	if listutils.AreUnorderedEqual(actions, h.lastActions) {
 		return
 	}
 

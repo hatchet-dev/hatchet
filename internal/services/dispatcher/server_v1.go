@@ -1281,7 +1281,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		ReplayOrphanedChildren: true,
 		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:         req.WorkflowName,
+			WorkflowName:         req.WorkflowName, // todo: check if this should be `task.WorkflowName` instead
 			TargetActionId:       &req.ActionId,
 			UserMessage:          &stepLabel,
 			Data:                 []byte(req.Input),

@@ -1,6 +1,9 @@
 package listutils
 
-import "slices"
+import (
+	"cmp"
+	"slices"
+)
 
 // inspiration: uniq/1 https://elixir.hexdocs.pm/Enum.html#uniq/1
 func Uniq[T comparable](xs []T) []T {
@@ -55,4 +58,61 @@ func MaxOf[T any](xs []T, fn func(T) int) int {
 		}
 	}
 	return m
+}
+
+// checks if two slices are strictly equal, meaning they have the same elements in the same order
+func AreStrictlyEqual[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// checks if two slices are equal, meaning they have the same elements regardless of order
+func AreUnorderedEqual[T cmp.Ordered](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	ac := slices.Clone(a)
+	bc := slices.Clone(b)
+	slices.Sort(ac)
+	slices.Sort(bc)
+
+	return slices.Equal(ac, bc)
+}
+
+// checks if two slices are equal as sets, meaning they have the same unique elements regardless of order and duplicates
+func AreSetEqual[T comparable](a, b []T) bool {
+	aSeen := make(map[T]struct{})
+	bSeen := make(map[T]struct{})
+
+	for _, x := range a {
+		aSeen[x] = struct{}{}
+	}
+
+	for _, x := range b {
+		bSeen[x] = struct{}{}
+	}
+
+	for x := range aSeen {
+		if _, ok := bSeen[x]; !ok {
+			return false
+		}
+	}
+
+	for x := range bSeen {
+		if _, ok := aSeen[x]; !ok {
+			return false
+		}
+	}
+
+	return true
 }

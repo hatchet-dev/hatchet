@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
@@ -149,7 +150,7 @@ func (d *DAGOperator) refreshActions(ctx context.Context) {
 		return
 	}
 
-	if operator.SlicesEqualUnordered(actions, d.lastActions) {
+	if listutils.AreUnorderedEqual(actions, d.lastActions) {
 		return
 	}
 
