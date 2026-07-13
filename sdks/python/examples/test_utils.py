@@ -11,14 +11,17 @@ from hatchet_sdk.clients.rest.models.v1_task_status import V1TaskStatus
 
 
 async def wait_for_running_status(
-    hatchet: Hatchet, run_id: str, timeout: float = 60.0
+    hatchet: Hatchet,
+    run_id: str,
+    timeout: float = 60.0,
+    min_task_runs: int = 0,
 ) -> None:
-    """Poll until the workflow run reaches RUNNING status or timeout is exceeded."""
+    """Poll until the workflow run reaches RUNNING status (and has at least min_task_runs child tasks) or timeout is exceeded."""
     interval = 0.5
     max_iters = int(timeout / interval)
     for _ in range(max_iters):
         run = await hatchet.runs.aio_get_details(run_id)
-        if run.status == RunStatus.RUNNING:
+        if run.status == RunStatus.RUNNING and len(run.task_runs) >= min_task_runs:
             return
         await asyncio.sleep(interval)
 

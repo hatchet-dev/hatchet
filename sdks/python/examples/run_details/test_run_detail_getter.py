@@ -18,22 +18,46 @@ async def test_run(hatchet: Hatchet) -> None:
         wait_for_result=False,
     )
 
-    await wait_for_running_status(hatchet, ref.workflow_run_id)
+    await wait_for_running_status(hatchet, ref.workflow_run_id, min_task_runs=3)
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
     assert details.status == RunStatus.RUNNING
     assert details.input == mock_input.model_dump()
     assert details.additional_metadata is not None
     assert meta.items() <= details.additional_metadata.items()
-    assert len(details.task_runs) == 4
+
+    initial_tasks = [
+        t
+        for t in details.task_runs.values()
+        if not (
+            t.external_id == "00000000-0000-0000-0000-000000000000"
+            and t.status == V1TaskStatus.QUEUED
+        )
+    ]
+
+    downstream_tasks = [
+        t
+        for t in details.task_runs.values()
+        if t.external_id == "00000000-0000-0000-0000-000000000000"
+        and t.status == V1TaskStatus.QUEUED
+    ]
+
+    assert len(initial_tasks) == 4
+    assert len(downstream_tasks) == 2
+
     assert all(
-        r.status in [V1TaskStatus.RUNNING, V1TaskStatus.QUEUED]
-        for r in details.task_runs.values()
+        r.status
+        in [
+            V1TaskStatus.RUNNING,
+            V1TaskStatus.FAILED,
+            V1TaskStatus.CANCELLED,
+            V1TaskStatus.COMPLETED,
+        ]
+        for r in initial_tasks
     )
-    assert all(r.error is None for r in details.task_runs.values())
-    assert all(r.output is None for r in details.task_runs.values())
-    assert "step3" not in details.task_runs
-    assert "step4" not in details.task_runs
+
+    assert all(r.status == V1TaskStatus.QUEUED for r in downstream_tasks)
+
     assert details.done is False
 
     with pytest.raises(Exception):

@@ -10,7 +10,7 @@ from examples.bug_tests.payload_bug_on_replay.worker import (
     step1,
     step2,
 )
-from hatchet_sdk import EmptyModel, Hatchet, V1TaskStatus
+from hatchet_sdk import EmptyModel, Hatchet, V1TaskStatus, FailedTaskRunExceptionGroup
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -29,11 +29,8 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
         wait_for_result=False,
     )
 
-    result = await ref.aio_result()
-
-    step_1_output = StepOutput.model_validate(result[step1.name])
-
-    assert step_1_output.should_cancel is True
+    with pytest.raises(FailedTaskRunExceptionGroup, match="task was cancelled"):
+        result = await ref.aio_result()
 
     await asyncio.sleep(3)
 
