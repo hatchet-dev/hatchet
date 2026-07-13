@@ -77,34 +77,36 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg.version = version
+	cfg.version = &version
 
 	if err := os.Setenv("DATABASE_URL", cfg.postgresURL); err != nil {
 		return nil, fmt.Errorf("could not set DATABASE_URL: %w", err)
 	}
-	if cfg.adminEmail != "" {
-		_ = os.Setenv("ADMIN_EMAIL", cfg.adminEmail)
+	if cfg.adminEmail != nil && *cfg.adminEmail != "" {
+		_ = os.Setenv("ADMIN_EMAIL", *cfg.adminEmail)
 	}
-	if cfg.adminPassword != "" {
-		_ = os.Setenv("ADMIN_PASSWORD", cfg.adminPassword)
-	}
-
-	if cfg.runMigrations {
-		migrate.RunMigrations(ctx)
+	if cfg.adminPassword != nil && *cfg.adminPassword != "" {
+		_ = os.Setenv("ADMIN_PASSWORD", *cfg.adminPassword)
 	}
 
-	if len(cfg.masterKeyset) == 0 {
+	if cfg.runMigrations != nil && *cfg.runMigrations {
+		if migrateErr := migrate.RunMigrations(ctx); migrateErr != nil {
+			return nil, fmt.Errorf("could not run migrations: %w", migrateErr)
+		}
+	}
+
+	if cfg.masterKeyset == nil || len(*cfg.masterKeyset) == 0 {
 		master, privateJWT, publicJWT, keysetErr := resolveKeysets(ctx, cfg.postgresURL)
 		if keysetErr != nil {
 			return nil, keysetErr
 		}
-		cfg.masterKeyset = master
-		cfg.privateJWTKeyset = privateJWT
-		cfg.publicJWTKeyset = publicJWT
+		cfg.masterKeyset = &master
+		cfg.privateJWTKeyset = &privateJWT
+		cfg.publicJWTKeyset = &publicJWT
 	}
 
-	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", cfg.grpcPort)
-	apiURL := fmt.Sprintf("http://localhost:%d", cfg.apiPort)
+	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", *cfg.grpcPort)
+	apiURL := fmt.Sprintf("http://localhost:%d", *cfg.apiPort)
 
 	hashKey, err := randomHex(32)
 	if err != nil {
@@ -120,9 +122,9 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Auth.Cookie.Insecure = true
 		scf.Auth.Cookie.Secrets = hashKey + " " + blockKey
 
-		scf.Runtime.Port = cfg.apiPort
+		scf.Runtime.Port = *cfg.apiPort
 		scf.Runtime.ServerURL = apiURL
-		scf.Runtime.GRPCPort = cfg.grpcPort
+		scf.Runtime.GRPCPort = *cfg.grpcPort
 		scf.Runtime.GRPCBindAddress = "127.0.0.1"
 		scf.Runtime.GRPCBroadcastAddress = grpcBroadcast
 		scf.Runtime.GRPCInsecure = true
@@ -134,12 +136,12 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 			scf.MessageQueue.Kind = "postgres"
 		} else {
 			scf.MessageQueue.Kind = "rabbitmq"
-			scf.MessageQueue.RabbitMQ.URL = cfg.rabbitMQURL
+			scf.MessageQueue.RabbitMQ.URL = *cfg.rabbitMQURL
 		}
 
-		scf.Encryption.MasterKeyset = string(cfg.masterKeyset)
-		scf.Encryption.JWT.PrivateJWTKeyset = string(cfg.privateJWTKeyset)
-		scf.Encryption.JWT.PublicJWTKeyset = string(cfg.publicJWTKeyset)
+		scf.Encryption.MasterKeyset = string(*cfg.masterKeyset)
+		scf.Encryption.JWT.PrivateJWTKeyset = string(*cfg.privateJWTKeyset)
+		scf.Encryption.JWT.PublicJWTKeyset = string(*cfg.publicJWTKeyset)
 	}
 
 	cf := loader.NewConfigLoader("")
@@ -159,7 +161,7 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		fmt.Fprintf(os.Stderr, "embed: could not read fleet size: %v\n", err)
 	}
 
-	tokenCleanup, sc, err := cf.CreateServerFromConfig(cfg.version, override)
+	tokenCleanup, sc, err := cf.CreateServerFromConfig(*cfg.version, override)
 	if err != nil {
 		_ = dc.Disconnect()
 		return nil, fmt.Errorf("could not build server config: %w", err)
@@ -191,14 +193,14 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	go func() {
 		defer wg.Done()
-		if startErr := api.Start(cf, interruptCh, cfg.version, override); startErr != nil {
+		if startErr := api.Start(cf, interruptCh, *cfg.version, override); startErr != nil {
 			fmt.Fprintf(os.Stderr, "embed: api exited: %v\n", startErr)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		if runErr := engine.Run(engineCtx, cf, cfg.version, override); runErr != nil {
+		if runErr := engine.Run(engineCtx, cf, *cfg.version, override); runErr != nil {
 			fmt.Fprintf(os.Stderr, "embed: engine exited: %v\n", runErr)
 		}
 	}()
@@ -207,8 +209,8 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	_ = os.Setenv("HATCHET_CLIENT_HOST_PORT", grpcBroadcast)
 	_ = os.Setenv("HATCHET_CLIENT_TENANT_ID", tenantID)
 	_ = os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
-	if cfg.logLevel != "" {
-		_ = os.Setenv("HATCHET_CLIENT_LOG_LEVEL", cfg.logLevel)
+	if cfg.logLevel != nil && *cfg.logLevel != "" {
+		_ = os.Setenv("HATCHET_CLIENT_LOG_LEVEL", *cfg.logLevel)
 	}
 
 	client, err := hatchet.NewClient()

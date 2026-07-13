@@ -7,27 +7,27 @@ import (
 
 type Config struct {
 	postgresURL      string
-	rabbitMQURL      string
-	adminEmail       string
-	adminPassword    string
-	version          string
-	logLevel         string
-	masterKeyset     []byte
-	privateJWTKeyset []byte
-	publicJWTKeyset  []byte
-	apiPort          int
-	grpcPort         int
-	runMigrations    bool
+	rabbitMQURL      *string
+	adminEmail       *string
+	adminPassword    *string
+	version          *string
+	logLevel         *string
+	masterKeyset     *[]byte
+	privateJWTKeyset *[]byte
+	publicJWTKeyset  *[]byte
+	apiPort          *int
+	grpcPort         *int
+	runMigrations    *bool
 }
 
 type Option func(*Config)
 
 func defaultConfig() *Config {
 	return &Config{
-		runMigrations: true,
-		apiPort:       8080,
-		grpcPort:      7070,
-		logLevel:      "warn",
+		runMigrations: new(true),
+		apiPort:       new(8080),
+		grpcPort:      new(7070),
+		logLevel:      new("warn"),
 	}
 }
 
@@ -37,37 +37,37 @@ func WithPostgres(url string) Option {
 
 func WithKeysets(master, privateJWT, publicJWT []byte) Option {
 	return func(c *Config) {
-		c.masterKeyset = master
-		c.privateJWTKeyset = privateJWT
-		c.publicJWTKeyset = publicJWT
+		c.masterKeyset = &master
+		c.privateJWTKeyset = &privateJWT
+		c.publicJWTKeyset = &publicJWT
 	}
 }
 
 func WithRabbitMQ(url string) Option {
-	return func(c *Config) { c.rabbitMQURL = url }
+	return func(c *Config) { c.rabbitMQURL = &url }
 }
 
 func WithoutMigrations() Option {
-	return func(c *Config) { c.runMigrations = false }
+	return func(c *Config) { c.runMigrations = new(false) }
 }
 
 func WithAPIPort(port int) Option {
-	return func(c *Config) { c.apiPort = port }
+	return func(c *Config) { c.apiPort = &port }
 }
 
 func WithGRPCPort(port int) Option {
-	return func(c *Config) { c.grpcPort = port }
+	return func(c *Config) { c.grpcPort = &port }
 }
 
 func WithAdminUser(email, password string) Option {
 	return func(c *Config) {
-		c.adminEmail = email
-		c.adminPassword = password
+		c.adminEmail = &email
+		c.adminPassword = &password
 	}
 }
 
 func WithLogLevel(level string) Option {
-	return func(c *Config) { c.logLevel = level }
+	return func(c *Config) { c.logLevel = &level }
 }
 
 func (c *Config) validate() error {
@@ -79,9 +79,17 @@ func (c *Config) validate() error {
 		return fmt.Errorf("api port and grpc port must differ (both %d)", c.apiPort)
 	}
 
+	if c.rabbitMQURL != nil && *c.rabbitMQURL == "" {
+		return fmt.Errorf("invalid RabbitMQ URL provided")
+	}
+
 	return nil
 }
 
 func (c *Config) usePostgresMQ() bool {
-	return strings.TrimSpace(c.rabbitMQURL) == ""
+	if c.rabbitMQURL != nil && *c.rabbitMQURL != "" {
+		return false
+	}
+
+	return true
 }
