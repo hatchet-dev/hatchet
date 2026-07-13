@@ -4,7 +4,7 @@ Hatchet v0.94.7 headlines two DevEx improvements: development images that run wi
 
 ### Highlights
 
-- Hatchet ships a new set of development images that can be run without authentication, removing the need to manage API tokens in development and testing environments. See [Running without authentication](#running-without-authentication).
+- Introduces a set of development images that allow Hatchet to be run without authentication, removing the need to manage API tokens in development and testing environments. See [Running without authentication](#running-without-authentication).
 - Hatchet Cloud now supports tagging tenants and organization user groups, automatically adding group members to tenants with matching tags. Additionally, the tenant and organization-scoped settings pages have been consolidated into a single `Settings` section.
 - OLAP and core data retention can be configured independently on the Hatchet engine via `SERVER_LIMITS_OLAP_PARTITION_RETENTION` and `SERVER_LIMITS_CORE_PARTITION_RETENTION`, falling back to `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` when unset.
 - The Go SDK's streaming listeners now reconnect automatically with jittered backoff: `Workflow.Result()` no longer hangs if its listener dies, and transient network failures no longer kill workers.
