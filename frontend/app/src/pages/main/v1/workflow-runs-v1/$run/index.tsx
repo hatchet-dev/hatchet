@@ -217,10 +217,12 @@ export default function Run() {
         <ResourceNotFound
           resource="Run"
           description={
-            <span>
-              Your run was triggered successfully.{' '}
-              <strong>Do not re-trigger it.</strong> It may take a few seconds
-              to appear — this page will refresh automatically.
+            <span className="mx-auto block max-w-96">
+              The run was triggered successfully, but has not been replicated to
+              the analytics database yet.{' '}
+              <strong className="text-foreground">
+                You do not need to re-trigger the run.
+              </strong>
             </span>
           }
           primaryAction={{
