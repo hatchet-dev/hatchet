@@ -410,8 +410,10 @@ func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient clien
 		cli.Logger.Fatalf("invalid tenant ID: %v", err)
 	}
 
-	// Fetch workflows
-	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{})
+	// Fetch workflows — use Name search to find the workflow directly
+	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+		Name: &workflowName,
+	})
 	if err != nil {
 		cli.Logger.Fatalf("could not fetch workflows: %v", err)
 	}
