@@ -709,7 +709,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogURI:       true,
 		LogStatus:    true,
 		LogError:     true,
 		LogLatency:   true,
@@ -742,7 +741,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 				Dur("latency", v.Latency).
 				Int("status", statusCode).
 				Str("method", v.Method).
-				Str("uri", v.URI).
+				Str("uri", v.URIPath).
 				Str("user_agent", v.UserAgent).
 				Str("remote_ip", v.RemoteIP).
 				Str("host", v.Host).
