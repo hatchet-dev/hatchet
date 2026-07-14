@@ -150,11 +150,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
-
-	var tw *trigger.TriggerWriter
-	if opts.grpcTriggersEnabled {
-		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
-	}
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler
 
