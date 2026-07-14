@@ -134,11 +134,11 @@ tasks:
   seed-dev:
     dotenv: [.env]
     cmds:
-      - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed
+      - go run ./cmd/hatchet-admin seed
   seed-cypress:
     dotenv: [.env]
     cmds:
-      - SEED_DEVELOPMENT=true go run ./cmd/hatchet-admin seed-cypress
+      - go run ./cmd/hatchet-admin seed-cypress
   start-dev:
     deps:
       - task: goose-migrate

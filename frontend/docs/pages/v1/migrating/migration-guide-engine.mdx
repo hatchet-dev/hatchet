@@ -16,13 +16,9 @@ If you navigate to the Tenant Settings page and click the "Downgrade to v0" butt
 
 After upgrading, you will be able to view your old workflows by clicking on your account icon (in the top right) and selecting **View Legacy V0 Data**.
 
-### Setting v1 as the default engine
+### Default engine for new tenants
 
-For self-hosted instances, you can set v1 to be the default engine for all new tenants by setting the following environment variable:
-
-```
-SERVER_DEFAULT_ENGINE_VERSION=V1
-```
+New tenants are created on the v1 engine by default, including on self-hosted instances — no additional configuration is required. To move an existing tenant, use the "Upgrade to v1" toggle described in [How to upgrade](#how-to-upgrade).
 
 ### Workflow Run Migration
 

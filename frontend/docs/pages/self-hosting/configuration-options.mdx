@@ -60,14 +60,15 @@ SERVER_AUTH_COOKIE_SECRETS="<secret1> <secret2>"
 DATABASE_URL="postgresql://user:password@host:port/dbname"
 ```
 
-**Option B: Individual Parameters** (uses defaults if not specified)
+**Option B: Individual Parameters** (each falls back to its default if not set)
 
 ```bash
-DATABASE_POSTGRES_HOST
-DATABASE_POSTGRES_USERNAME
-DATABASE_POSTGRES_PASSWORD
-DATABASE_POSTGRES_DB_NAME
-DATABASE_POSTGRES_SSL_MODE
+DATABASE_POSTGRES_HOST=127.0.0.1
+DATABASE_POSTGRES_PORT=5432
+DATABASE_POSTGRES_USERNAME=hatchet
+DATABASE_POSTGRES_PASSWORD=<your-password>
+DATABASE_POSTGRES_DB_NAME=hatchet
+DATABASE_POSTGRES_SSL_MODE=disable
 ```
 
 ## Minimal Configuration Example
