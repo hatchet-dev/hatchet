@@ -9,12 +9,20 @@ import RelativeDate from '@/components/v1/molecules/relative-date';
 import { Duration } from '@/components/v1/shared/duration';
 import { Button } from '@/components/v1/ui/button';
 import { Checkbox } from '@/components/v1/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { V1TaskStatus, V1TaskSummary } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { CopyIcon } from '@radix-ui/react-icons';
 import { Link } from '@tanstack/react-router';
 import { ColumnDef } from '@tanstack/react-table';
+import { useState } from 'react';
 
 export const TaskRunColumn = {
   taskName: 'Task Name',
@@ -28,6 +36,7 @@ export const TaskRunColumn = {
   finishedAt: 'Finished At',
   duration: 'Duration',
   additionalMetadata: 'Metadata',
+  idempotencyKey: 'Idempotency Key',
 } as const;
 
 export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
@@ -48,6 +57,65 @@ export const finishedBeforeKey = 'finishedBefore';
 export const isCustomTimeRangeKey = 'isCustomTimeRange';
 export const timeWindowKey = 'timeWindow';
 export const runningFilterKey: TaskRunColumnKeys = 'runningFilter';
+export const idempotencyKeyKey: TaskRunColumnKeys = 'idempotencyKey';
+
+function IdempotencyKeyCell({
+  value,
+  onClick,
+}: {
+  value: string;
+  onClick: (key: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const truncated = value.length > 24 ? `${value.slice(0, 24)}…` : value;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className="group inline-flex max-w-[200px] cursor-pointer items-center gap-1.5"
+            onClick={() => onClick(value)}
+          >
+            <span className="truncate font-mono text-xs text-muted-foreground">
+              {truncated}
+            </span>
+            <button
+              className="flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={handleCopy}
+              aria-label="Copy idempotency key"
+            >
+              {copied ? (
+                <svg
+                  className="size-3 text-green-500"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="2,8 6,12 14,4" />
+                </svg>
+              ) : (
+                <CopyIcon className="size-3 text-muted-foreground hover:text-foreground" />
+              )}
+            </button>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="font-mono text-xs">
+          {value}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export const columns: (
   tenantId: string,
@@ -55,12 +123,14 @@ export const columns: (
   onAdditionalMetadataClick: (click: AdditionalMetadataClick) => void,
   onTaskRunIdClick: (taskRunId: string) => void,
   onAdditionalMetadataOpenChange: (rowId: string, open: boolean) => void,
+  onIdempotencyKeyClick: (idempotencyKey: string) => void,
 ) => ColumnDef<V1TaskSummary>[] = (
   tenantId,
   selectedAdditionalMetaRunId,
   onAdditionalMetadataClick,
   onTaskRunIdClick,
   onAdditionalMetadataOpenChange,
+  onIdempotencyKeyClick,
 ) => [
   {
     id: 'select',
@@ -329,6 +399,31 @@ export const columns: (
       );
     },
     enableSorting: false,
+  },
+  {
+    accessorKey: idempotencyKeyKey,
+    header: ({ column }) => (
+      <DataTableColumnHeader
+        column={column}
+        title={TaskRunColumn.idempotencyKey}
+      />
+    ),
+    cell: ({ row }) => {
+      const idempotencyKey = row.original.idempotencyKey;
+
+      if (!idempotencyKey) {
+        return <div />;
+      }
+
+      return (
+        <IdempotencyKeyCell
+          value={idempotencyKey}
+          onClick={onIdempotencyKeyClick}
+        />
+      );
+    },
+    enableSorting: false,
+    enableHiding: true,
   },
   {
     id: 'actions',

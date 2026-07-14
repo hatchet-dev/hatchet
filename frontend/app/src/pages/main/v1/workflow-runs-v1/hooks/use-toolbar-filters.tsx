@@ -2,6 +2,7 @@ import {
   additionalMetadataKey,
   createdAtKey,
   flattenDAGsKey,
+  idempotencyKeyKey,
   runningFilterKey,
   statusKey,
   workflowKey,
@@ -136,6 +137,11 @@ export const useToolbarFilters = ({
         { value: 'true', label: 'Flatten' },
         { value: 'false', label: 'All' },
       ],
+    },
+    {
+      columnId: idempotencyKeyKey,
+      title: 'Idempotency Key',
+      type: ToolbarType.Array,
     },
   ].filter((filter) => filterVisibility[filter.columnId] != false);
 };

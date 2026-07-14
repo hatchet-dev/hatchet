@@ -19,6 +19,7 @@ type UseRunsProps = {
   statuses?: V1TaskStatus[];
   runningFilter?: V1RunningFilter;
   additionalMetadata?: string[];
+  idempotencyKeys?: string[];
   workerId: string | undefined;
   workflowIds?: string[];
   parentTaskExternalId: string | undefined;
@@ -35,6 +36,7 @@ export const useRuns = ({
   statuses,
   runningFilter,
   additionalMetadata,
+  idempotencyKeys,
   workerId,
   workflowIds,
   parentTaskExternalId,
@@ -52,6 +54,7 @@ export const useRuns = ({
       statuses,
       runningFilter,
       additionalMetadata,
+      idempotencyKeys,
       workerId,
       workflowIds,
       parentTaskExternalId,
@@ -83,6 +86,7 @@ export const useRuns = ({
       since,
       until: finishedBefore,
       additional_metadata: additionalMetadata,
+      idempotency_keys: idempotencyKeys,
       worker_id: workerId,
       only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,
