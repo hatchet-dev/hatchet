@@ -109,12 +109,16 @@ func (u *UserService) upsertAzureUserFromToken(ctx context.Context, config *serv
 		ExpiresAt:      &expiresAt,
 	}
 
+	// Azure AD's OIDC userinfo endpoint does not return an email_verified claim, and
+	// Hatchet's authz middleware blocks users whose email is unverified. The email is
+	// sourced from the Azure AD directory (not self-asserted), so we treat it as verified,
+	// consistent with the Google/GitHub providers whose OAuth users are always verified.
 	user, err := u.config.V1.User().GetUserByEmail(ctx, aInfo.Email)
 
 	switch err {
 	case nil:
 		user, err = u.config.V1.User().UpdateUser(ctx, user.ID, &v1.UpdateUserOpts{
-			EmailVerified: v1.BoolPtr(aInfo.EmailVerified),
+			EmailVerified: v1.BoolPtr(true),
 			Name:          v1.StringPtr(aInfo.Name),
 			OAuth:         oauthOpts,
 		})
@@ -125,7 +129,7 @@ func (u *UserService) upsertAzureUserFromToken(ctx context.Context, config *serv
 	case pgx.ErrNoRows:
 		user, err = u.config.V1.User().CreateUser(ctx, &v1.CreateUserOpts{
 			Email:         aInfo.Email,
-			EmailVerified: v1.BoolPtr(aInfo.EmailVerified),
+			EmailVerified: v1.BoolPtr(true),
 			Name:          v1.StringPtr(aInfo.Name),
 			OAuth:         oauthOpts,
 		})
@@ -142,27 +146,14 @@ func (u *UserService) upsertAzureUserFromToken(ctx context.Context, config *serv
 
 var ErrAzureNoEmail = fmt.Errorf("azure account must have an email")
 
+// azureUserInfo holds the claims we consume from the Microsoft identity platform
+// OIDC userinfo endpoint. Per the Microsoft docs that endpoint returns only sub,
+// name, family_name, given_name, picture and (with the "email" scope) email — it
+// does not return email_verified or preferred_username, so we don't model those.
 type azureUserInfo struct {
-	Email         string
-	EmailVerified bool
-	Sub           string
-	Name          string
-}
-
-// azureUserInfoResponse mirrors the claims returned by the Microsoft identity
-// platform OIDC userinfo endpoint. The `email` claim is only present when the
-// "email" scope is granted and the account has a mail attribute; when it is
-// absent we fall back to `preferred_username`, which for work/school accounts
-// is the UPN (typically the user's email address).
-type azureUserInfoResponse struct {
-	Sub               string `json:"sub"`
-	Name              string `json:"name"`
-	Email             string `json:"email"`
-	PreferredUsername string `json:"preferred_username"`
-	// email_verified is not consistently returned by Azure AD. When absent we
-	// treat the email as verified, since the user has authenticated against the
-	// Azure AD directory. When Azure explicitly returns false, we honor it.
-	EmailVerified *bool `json:"email_verified"`
+	Sub   string `json:"sub"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 func getAzureUserInfoFromToken(tok *oauth2.Token) (*azureUserInfo, error) {
@@ -191,32 +182,21 @@ func getAzureUserInfoFromToken(tok *oauth2.Token) (*azureUserInfo, error) {
 		return nil, fmt.Errorf("failed reading response body: %s", err.Error())
 	}
 
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("userinfo endpoint returned status %d: %s", response.StatusCode, string(contents))
+	}
+
 	// parse contents into Azure userinfo claims
-	resp := &azureUserInfoResponse{}
-	err = json.Unmarshal(contents, &resp)
+	aInfo := &azureUserInfo{}
+	err = json.Unmarshal(contents, &aInfo)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed parsing response body: %s", err.Error())
 	}
 
-	email := resp.Email
-	if email == "" {
-		email = resp.PreferredUsername
-	}
-
-	if email == "" {
+	if aInfo.Email == "" {
 		return nil, ErrAzureNoEmail
 	}
 
-	emailVerified := true
-	if resp.EmailVerified != nil {
-		emailVerified = *resp.EmailVerified
-	}
-
-	return &azureUserInfo{
-		Email:         email,
-		EmailVerified: emailVerified,
-		Sub:           resp.Sub,
-		Name:          resp.Name,
-	}, nil
+	return aInfo, nil
 }
