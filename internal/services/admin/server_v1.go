@@ -157,7 +157,7 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
 
-	_, err = a.ingest(
+	idempotencyKeyCollisions, err := a.ingest(
 		ctx,
 		tenantId,
 		opts...,
@@ -185,6 +185,24 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
 		grpcmiddleware.TriggerCallback(ctx)
+	}
+
+	for _, collision := range idempotencyKeyCollisions {
+		fmt.Println("collision", collision) // do something with this
+
+		// if collision.RequestedExternalId == opt.ExternalId {
+		// 	st, stErr := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
+		// 		&v1contracts.IdempotencyCollisionError{
+		// 			ExistingRunExternalId: collision.ExistingExternalId.String(),
+		// 		},
+		// 	)
+
+		// 	if stErr != nil {
+		// 		return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", stErr)
+		// 	}
+
+		// 	return nil, st.Err()
+		// }
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{
