@@ -219,7 +219,8 @@ export default function Run() {
           description={
             <span className="mx-auto block max-w-96">
               The run was triggered successfully, but has not been replicated to
-              the analytics database yet.{' '}
+              the analytics database yet. Once it's replicated, it will show up
+              on this page.{' '}
               <strong className="text-foreground">
                 You do not need to re-trigger the run.
               </strong>
