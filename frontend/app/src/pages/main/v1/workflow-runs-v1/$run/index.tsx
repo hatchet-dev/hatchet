@@ -194,7 +194,7 @@ export default function Run() {
 
   if (
     taskRunQuery.isError &&
-    wasRedirectedFromTrigger &&
+    wasRedirectedFromTrigger === 'true' &&
     getErrorStatus(taskRunQuery.error) === 404
   ) {
     seenRedirect404.current = true;
