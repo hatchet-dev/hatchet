@@ -270,6 +270,11 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_AUTH_GITHUB_CLIENT_ID` ⚠️      | GitHub auth client ID (required if GitHub auth enabled)     |                                  |
 | `SERVER_AUTH_GITHUB_CLIENT_SECRET` ⚠️  | GitHub auth client secret (required if GitHub auth enabled) |                                  |
 | `SERVER_AUTH_GITHUB_SCOPES`            | GitHub auth scopes                                          | `["read:user", "user:email"]`    |
+| `SERVER_AUTH_AZURE_ENABLED`            | Whether Azure auth is enabled                               | `false`                          |
+| `SERVER_AUTH_AZURE_CLIENT_ID` ⚠️       | Azure auth client ID (required if Azure auth enabled)       |                                  |
+| `SERVER_AUTH_AZURE_CLIENT_SECRET` ⚠️   | Azure auth client secret (required if Azure auth enabled)   |                                  |
+| `SERVER_AUTH_AZURE_TENANT_ID`          | Azure AD tenant ID/domain (empty allows any organization)   | `organizations`                  |
+| `SERVER_AUTH_AZURE_SCOPES`             | Azure auth scopes                                           | `["openid", "profile", "email"]` |
 
 ## Task Queue Configuration
 
