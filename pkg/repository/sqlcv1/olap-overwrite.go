@@ -57,8 +57,8 @@ WITH filtered AS (
             )
         )
         AND (
-            $11::jsonb IS NULL
-            OR additional_metadata @> $11::jsonb
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
         )
 		AND (
 			$9::UUID IS NULL
@@ -73,8 +73,8 @@ WITH filtered AS (
             )
 		)
 		AND (
-			$10::TEXT[] IS NULL
-			OR idempotency_key = ANY($10::TEXT[])
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     ORDER BY
         inserted_at DESC
@@ -116,7 +116,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> $11::jsonb
+        AND additional_metadata @> $10::jsonb
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -130,8 +130,8 @@ WITH filtered AS (
             )
 		)
 		AND (
-			$10::TEXT[] IS NULL
-			OR idempotency_key = ANY($10::TEXT[])
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     ORDER BY
         inserted_at DESC
@@ -173,7 +173,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> ANY($11::jsonb[])
+        AND additional_metadata @> ANY($10::jsonb[])
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -187,8 +187,8 @@ WITH filtered AS (
             )
 		)
 		AND (
-			$10::TEXT[] IS NULL
-			OR idempotency_key = ANY($10::TEXT[])
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     ORDER BY
         inserted_at DESC
@@ -237,8 +237,8 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.Keys,
 		arg.Values,
 		arg.TriggeringEventExternalId,
-		arg.IdempotencyKeys,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -273,8 +273,8 @@ WITH filtered AS (
             )
         )
         AND (
-            $11::jsonb IS NULL
-            OR additional_metadata @> $11::jsonb
+            $10::jsonb IS NULL
+            OR additional_metadata @> $10::jsonb
         )
 		AND (
 			$8::UUID IS NULL
@@ -294,8 +294,8 @@ WITH filtered AS (
             )
 		)
 		AND (
-			$10::TEXT[] IS NULL
-			OR idempotency_key = ANY($10::TEXT[])
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     LIMIT 20000
 )
@@ -331,7 +331,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> $11::jsonb
+        AND additional_metadata @> $10::jsonb
 		AND (
 			$8::UUID IS NULL
 			OR parent_task_external_id = $8::UUID
@@ -350,8 +350,8 @@ WITH filtered AS (
             )
 		)
 		AND (
-			$10::TEXT[] IS NULL
-			OR idempotency_key = ANY($10::TEXT[])
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     LIMIT 20000
 )
@@ -387,7 +387,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> ANY($11::jsonb[])
+        AND additional_metadata @> ANY($10::jsonb[])
 		AND (
 			$8::UUID IS NULL
 			OR parent_task_external_id = $8::UUID
@@ -406,8 +406,8 @@ WITH filtered AS (
             )
 		)
 		AND (
-			$10::TEXT[] IS NULL
-			OR idempotency_key = ANY($10::TEXT[])
+			$11::TEXT[] IS NULL
+			OR idempotency_key = ANY($11::TEXT[])
 		)
     LIMIT 20000
 )
@@ -454,8 +454,8 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Values,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
-		arg.IdempotencyKeys,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -489,8 +489,8 @@ WHERE
         )
     )
     AND (
-        $13::jsonb IS NULL
-        OR additional_metadata @> $13::jsonb
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
     )
     AND (
         $10::UUID IS NULL
@@ -509,8 +509,8 @@ WHERE
 		)
     )
     AND (
-        $12::TEXT[] IS NULL
-        OR idempotency_key = ANY($12::TEXT[])
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -543,7 +543,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> $13::jsonb
+    AND additional_metadata @> $12::jsonb
     AND (
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
@@ -561,8 +561,8 @@ WHERE
 		)
     )
     AND (
-        $12::TEXT[] IS NULL
-        OR idempotency_key = ANY($12::TEXT[])
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -595,7 +595,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> ANY($13::jsonb[])
+    AND additional_metadata @> ANY($12::jsonb[])
     AND (
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
@@ -613,8 +613,8 @@ WHERE
 		)
     )
     AND (
-        $12::TEXT[] IS NULL
-        OR idempotency_key = ANY($12::TEXT[])
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -670,8 +670,8 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
-		arg.IdempotencyKeys,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 
 	if err != nil {
@@ -729,8 +729,8 @@ WHERE
         )
     )
     AND (
-        $13::jsonb IS NULL
-        OR additional_metadata @> $13::jsonb
+        $12::jsonb IS NULL
+        OR additional_metadata @> $12::jsonb
     )
     AND (
         $11::UUID IS NULL
@@ -745,8 +745,8 @@ WHERE
 		)
     )
     AND (
-        $12::TEXT[] IS NULL
-        OR idempotency_key = ANY($12::TEXT[])
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY
     inserted_at DESC
@@ -785,7 +785,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> $13::jsonb
+    AND additional_metadata @> $12::jsonb
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
@@ -799,8 +799,8 @@ WHERE
 		)
     )
     AND (
-        $12::TEXT[] IS NULL
-        OR idempotency_key = ANY($12::TEXT[])
+        $13::TEXT[] IS NULL
+        OR idempotency_key = ANY($13::TEXT[])
     )
 ORDER BY
     inserted_at DESC
@@ -839,7 +839,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> ANY($13::jsonb[])
+    AND additional_metadata @> ANY($12::jsonb[])
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
@@ -853,8 +853,8 @@ WHERE
 		)
     )
 	AND (
-		$12::TEXT[] IS NULL
-		OR idempotency_key = ANY($12::TEXT[])
+		$13::TEXT[] IS NULL
+		OR idempotency_key = ANY($13::TEXT[])
 	)
 ORDER BY
     inserted_at DESC
@@ -909,8 +909,8 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Taskoffset,
 		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
-		arg.IdempotencyKeys,
 		metadataContains,
+		arg.IdempotencyKeys,
 	)
 	if err != nil {
 		return nil, err
