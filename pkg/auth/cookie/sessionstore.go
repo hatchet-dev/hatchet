@@ -132,7 +132,7 @@ func NewUserSessionStore(fs ...UserSessionStoreOpt) (*UserSessionStore, error) {
 	}
 	codecs := securecookie.CodecsFromPairs(keyPairs...)
 	// try to encode with dummy value to validate codecs
-	_, err := securecookie.EncodeMulti("name", nil, codecs...)
+	_, err := securecookie.EncodeMulti("name", "value", codecs...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate SERVER_AUTH_COOKIE_SECRETS, secrets must be 16/24/32 bytes: %s", err)
 	}
