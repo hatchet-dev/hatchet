@@ -164,12 +164,6 @@ type TaskIdInsertedAtSignalKey struct {
 	SignalKey string
 }
 
-type TaskBatchAssignment struct {
-	TaskID         int64
-	TaskInsertedAt time.Time
-	BatchIndex     int
-}
-
 type CompleteTaskOpts struct {
 	*TaskIdInsertedAtRetryCount
 
@@ -308,7 +302,6 @@ type TaskRepository interface {
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
 	CountActiveTaskBatchRuns(ctx context.Context, tenantId, stepId, batchKey string) (int, error)
-	ReserveTaskBatchRun(ctx context.Context, tenantId, stepId, actionId, batchKey, batchId string, maxRuns int) (bool, error)
 	DeleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error
 
 	// AnalyzeTaskTables runs ANALYZE on the task tables
@@ -320,7 +313,6 @@ type TaskRepository interface {
 
 	GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error)
 
-	UpdateTaskBatchMetadata(ctx context.Context, tenantId uuid.UUID, batchId string, workerId uuid.UUID, batchKey string, batchSize int, assignments []TaskBatchAssignment) error
 	FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error)
 
 	FindOldestTaskInsertedAt(ctx context.Context) (*time.Time, error)
@@ -4480,42 +4472,6 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 	return result, nil
 }
 
-func (r *TaskRepositoryImpl) UpdateTaskBatchMetadata(ctx context.Context, tenantId uuid.UUID, batchId string, workerId uuid.UUID, batchKey string, batchSize int, assignments []TaskBatchAssignment) error {
-	if len(assignments) == 0 {
-		return nil
-	}
-
-	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.UpdateTaskBatchMetadata")
-	defer span.End()
-
-	taskIds := make([]int64, len(assignments))
-	taskInsertedAts := make([]pgtype.Timestamptz, len(assignments))
-	batchIndexes := make([]int32, len(assignments))
-
-	for i, assignment := range assignments {
-		taskIds[i] = assignment.TaskID
-		taskInsertedAts[i] = sqlchelpers.TimestamptzFromTime(assignment.TaskInsertedAt)
-		batchIndexes[i] = int32(assignment.BatchIndex)
-	}
-
-	err := r.queries.UpdateTaskBatchMetadata(ctx, r.pool, sqlcv1.UpdateTaskBatchMetadataParams{
-		Batchid:         uuid.MustParse(batchId),
-		Batchsize:       int32(batchSize), // nolint: gosec
-		Workerid:        workerId,
-		Batchkey:        batchKey,
-		Tenantid:        tenantId,
-		Taskids:         taskIds,
-		Taskinsertedats: taskInsertedAts,
-		Batchindexes:    batchIndexes,
-	})
-
-	if err != nil {
-		return fmt.Errorf("could not update task batch metadata: %w", err)
-	}
-
-	return nil
-}
-
 func (r *TaskRepositoryImpl) CountActiveTaskBatchRuns(ctx context.Context, tenantId, stepId, batchKey string) (int, error) {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CountActiveTaskBatchRuns")
 	defer span.End()
@@ -4527,45 +4483,6 @@ func (r *TaskRepositoryImpl) CountActiveTaskBatchRuns(ctx context.Context, tenan
 	})
 
 	return int(count), err
-}
-
-func (r *TaskRepositoryImpl) ReserveTaskBatchRun(ctx context.Context, tenantId, stepId, actionId, batchKey, batchId string, maxRuns int) (bool, error) {
-	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.ReserveTaskBatchRun")
-	defer span.End()
-
-	reserved, err := r.queries.ReserveTaskBatchRun(ctx, r.pool, sqlcv1.ReserveTaskBatchRunParams{
-		Tenantid: uuid.MustParse(tenantId),
-		Stepid:   uuid.MustParse(stepId),
-		Batchkey: batchKey,
-		Actionid: actionId,
-		Batchid:  uuid.MustParse(batchId),
-		Maxruns:  int32(maxRuns), // nolint: gosec
-	})
-
-	if err != nil {
-		return false, err
-	}
-
-	if reserved {
-		r.l.Info().
-			Str("tenant_id", tenantId).
-			Str("step_id", stepId).
-			Str("action_id", actionId).
-			Str("batch_key", batchKey).
-			Str("batch_id", batchId).
-			Int("max_runs", maxRuns).
-			Msg("reserved task batch run")
-	} else {
-		r.l.Debug().
-			Str("tenant_id", tenantId).
-			Str("step_id", stepId).
-			Str("action_id", actionId).
-			Str("batch_key", batchKey).
-			Int("max_runs", maxRuns).
-			Msg("could not reserve task batch run (limit reached)")
-	}
-
-	return reserved, nil
 }
 
 func (r *TaskRepositoryImpl) DeleteTaskBatchRun(ctx context.Context, tenantId, batchId string) error {

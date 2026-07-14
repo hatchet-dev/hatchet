@@ -846,9 +846,9 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 			continue
 		}
 
-		// Reserving the batch run slot and committing these assignments happen atomically, in one
-		// transaction: reservation alone isn't enough, since a batch run only counts toward
-		// maxRuns once its assignments are committed (see ReserveAndCommitBatchRun's comment).
+		// Reserving the batch run slot and committing these assignments happen atomically in one transaction
+		// to make sure there isn't a race with maxRuns that could lead it to not being respected with multiple
+		// concurrent schedulers
 		reserved, succeededAssignments, err := b.repo.ReserveAndCommitBatchRun(
 			ctx, b.tenantId, stepID, actionID, batchKeyNormalized, batchID, b.maxRuns, batchAssignments,
 		)

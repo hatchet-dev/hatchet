@@ -1173,14 +1173,8 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 	return succeeded, nil
 }
 
-// applyBatchMetadataTx sets batch_id/batch_size/batch_index/batch_key/worker_id on the
-// v1_task_runtime rows just written by commitAssignmentsTx, reusing the same
-// UpdateTaskBatchMetadata query the async scheduler service (internal/services/scheduler/v1)
-// applies later on its own. Doing it here too, inside the same transaction as the reservation and
-// commit, means a batch run counts toward ReserveTaskBatchRun's active-run cap (which joins on
-// v1_task_runtime.batch_id) the moment this transaction commits, rather than only once that later,
-// channel-decoupled call happens - closing the window where a second reservation attempt could
-// still read a stale, not-yet-active count.
+// applyBatchMetadataTx sets batch_id/batch_size/batch_index/batch_key/worker_id using the same transaction used for
+// reserving and committing the batch
 func (b *batchQueueRepository) applyBatchMetadataTx(ctx context.Context, tx pgx.Tx, assignments []*BatchAssignment) error {
 	groups := make(map[string][]*BatchAssignment)
 	order := make([]string, 0, 1)

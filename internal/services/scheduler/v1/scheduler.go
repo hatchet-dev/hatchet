@@ -1014,19 +1014,15 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 
 		flushReason := describeBatchFlushReason(meta.Reason, configuredSize, time.Duration(meta.ConfiguredBatchMaxIntervalMs)*time.Millisecond)
 
-		assignmentsPayload := make([]repov1.TaskBatchAssignment, 0, len(group))
+		// batch_id/batch_size/batch_index/worker_id/batch_key were already set on these
+		// v1_task_runtime rows by ReserveAndCommitBatchRun, atomically with the reservation itself
+		// - no separate persistence step is needed here.
 		batchItems := make([]tasktypes.BatchTaskItem, 0, len(group))
 
-		for idx, item := range group {
+		for _, item := range group {
 			if item == nil || item.QueueItem == nil || !item.QueueItem.TaskInsertedAt.Valid {
 				continue
 			}
-
-			assignmentsPayload = append(assignmentsPayload, repov1.TaskBatchAssignment{
-				TaskID:         item.QueueItem.TaskID,
-				TaskInsertedAt: item.QueueItem.TaskInsertedAt.Time,
-				BatchIndex:     idx,
-			})
 
 			batchItems = append(batchItems, tasktypes.BatchTaskItem{
 				TaskID:        item.QueueItem.TaskID,
@@ -1036,14 +1032,8 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 			})
 		}
 
-		if len(assignmentsPayload) == 0 {
+		if len(batchItems) == 0 {
 			releaseOnError()
-			continue
-		}
-		if err := s.repov1.Tasks().UpdateTaskBatchMetadata(ctx, tenantId, batchID, key.WorkerID, key.BatchKey, batchSize, assignmentsPayload); err != nil {
-			s.internalRetry(ctx, tenantId, group...)
-			releaseOnError()
-			result = multierror.Append(result, fmt.Errorf("could not persist batch metadata: %w", err))
 			continue
 		}
 
