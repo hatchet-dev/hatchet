@@ -63,6 +63,26 @@ export function useUserApi() {
           ).data,
       }),
 
+      userUpdateAzureOauthStartQuery: () => ({
+        queryKey: ['user:azure-oauth:start'] as const,
+        queryFn: async () =>
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateAzureOauthStart()
+              : api.userUpdateAzureOauthStart())
+          ).data,
+      }),
+
+      userUpdateAzureOauthCallbackQuery: () => ({
+        queryKey: ['user:azure-oauth:callback'] as const,
+        queryFn: async () =>
+          (
+            await (isControlPlaneEnabled
+              ? controlPlaneApi.cloudUserUpdateAzureOauthCallback()
+              : api.userUpdateAzureOauthCallback())
+          ).data,
+      }),
+
       // ── Mutations ──────────────────────────────────────────────────────────
 
       userUpdateLoginMutation: () => ({

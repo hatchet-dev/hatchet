@@ -4,7 +4,7 @@ import useControlPlane from '@/hooks/use-control-plane.ts';
 import { ArrowLeft, LockOpen } from 'lucide-react';
 import React, { useState } from 'react';
 
-export type SocialAuthProvider = 'google' | 'github' | 'sso';
+export type SocialAuthProvider = 'google' | 'github' | 'azure' | 'sso';
 
 const PROVIDER_CONFIG: Record<
   SocialAuthProvider,
@@ -19,6 +19,11 @@ const PROVIDER_CONFIG: Record<
     href: 'users/github/start',
     label: 'GitHub',
     icon: <Icons.gitHub className="size-4" />,
+  },
+  azure: {
+    href: 'users/azure/start',
+    label: 'Azure',
+    icon: <Icons.azure className="size-4" />,
   },
   sso: {
     href: 'users/sso/start',

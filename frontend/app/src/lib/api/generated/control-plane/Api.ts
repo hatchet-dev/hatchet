@@ -258,6 +258,34 @@ export class Api<
    * @description Starts the OAuth flow
    *
    * @tags User
+   * @name CloudUserUpdateAzureOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/control-plane/users/azure/start
+   */
+  cloudUserUpdateAzureOauthStart = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/azure/start`,
+      method: "GET",
+      ...params,
+    });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name CloudUserUpdateAzureOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/control-plane/users/azure/callback
+   */
+  cloudUserUpdateAzureOauthCallback = (params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/control-plane/users/azure/callback`,
+      method: "GET",
+      ...params,
+    });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
    * @name CloudUserUpdateGithubOauthStart
    * @summary Start OAuth flow
    * @request GET:/api/v1/control-plane/users/github/start
