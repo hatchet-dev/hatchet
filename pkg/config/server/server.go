@@ -467,6 +467,8 @@ type ConfigFileAuth struct {
 
 	Github ConfigFileAuthGithub `mapstructure:"github" json:"github,omitempty"`
 
+	Azure ConfigFileAuthAzure `mapstructure:"azure" json:"azure,omitempty"`
+
 	ControlPlaneExchangeTokenConfig ConfigFileAuthControlPlaneExchangeToken `mapstructure:"controlPlaneExchangeToken" json:"controlPlaneExchangeToken,omitempty"`
 }
 
@@ -518,6 +520,20 @@ type ConfigFileAuthGithub struct {
 	ClientID     string   `mapstructure:"clientID" json:"clientID,omitempty"`
 	ClientSecret string   `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
 	Scopes       []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"read:user\", \"user:email\"]"`
+}
+
+type ConfigFileAuthAzure struct {
+	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" default:"false"`
+
+	ClientID     string `mapstructure:"clientID" json:"clientID,omitempty"`
+	ClientSecret string `mapstructure:"clientSecret" json:"clientSecret,omitempty"`
+
+	// TenantID is the Azure AD (Entra ID) tenant to authenticate against. Leave
+	// empty to allow any organizational directory (gated by RestrictedEmailDomains),
+	// or set a specific tenant GUID/domain to lock sign-in to a single directory.
+	TenantID string `mapstructure:"tenantID" json:"tenantID,omitempty"`
+
+	Scopes []string `mapstructure:"scopes" json:"scopes,omitempty" default:"[\"openid\", \"profile\", \"email\"]"`
 }
 
 type ConfigFileAuthCookie struct {
@@ -616,6 +632,8 @@ type AuthConfig struct {
 	GoogleOAuthConfig *oauth2.Config
 
 	GithubOAuthConfig *oauth2.Config
+
+	AzureOAuthConfig *oauth2.Config
 
 	JWTManager token.JWTManager
 
@@ -873,6 +891,11 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("auth.github.clientID", "SERVER_AUTH_GITHUB_CLIENT_ID")
 	_ = v.BindEnv("auth.github.clientSecret", "SERVER_AUTH_GITHUB_CLIENT_SECRET")
 	_ = v.BindEnv("auth.github.scopes", "SERVER_AUTH_GITHUB_SCOPES")
+	_ = v.BindEnv("auth.azure.enabled", "SERVER_AUTH_AZURE_ENABLED")
+	_ = v.BindEnv("auth.azure.clientID", "SERVER_AUTH_AZURE_CLIENT_ID")
+	_ = v.BindEnv("auth.azure.clientSecret", "SERVER_AUTH_AZURE_CLIENT_SECRET")
+	_ = v.BindEnv("auth.azure.tenantID", "SERVER_AUTH_AZURE_TENANT_ID")
+	_ = v.BindEnv("auth.azure.scopes", "SERVER_AUTH_AZURE_SCOPES")
 
 	// task queue options
 	// legacy options
