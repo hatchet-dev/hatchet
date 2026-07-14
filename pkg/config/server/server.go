@@ -216,9 +216,6 @@ type ConfigFileRuntime struct {
 	// Default limit values
 	Limits limits.LimitConfigFile `mapstructure:"limits" json:"limits,omitempty"`
 
-	// RequeueLimit is the number of times a message will be requeued in each attempt
-	RequeueLimit int `mapstructure:"requeueLimit" json:"requeueLimit,omitempty" default:"100"`
-
 	// QueueLimit is the limit of items to return from a single queue at a time
 	SingleQueueLimit int `mapstructure:"singleQueueLimit" json:"singleQueueLimit,omitempty" default:"100"`
 
@@ -233,12 +230,6 @@ type ConfigFileRuntime struct {
 
 	// The number of slots for gRPC writes
 	GRPCTriggerWriteSlots int `mapstructure:"grpcTriggerWriteSlots" json:"grpcTriggerWriteSlots,omitempty" default:"5"`
-
-	// How many buckets to hash into for parallelizing updates
-	UpdateHashFactor int `mapstructure:"updateHashFactor" json:"updateHashFactor,omitempty" default:"100"`
-
-	// How many concurrent updates to allow
-	UpdateConcurrentFactor int `mapstructure:"updateConcurrentFactor" json:"updateConcurrentFactor,omitempty" default:"10"`
 
 	// Allow new tenants to be created
 	AllowSignup bool `mapstructure:"allowSignup" json:"allowSignup,omitempty" default:"true"`
@@ -271,25 +262,10 @@ type ConfigFileRuntime struct {
 	// MaxInternalRetryCount is the maximum number of internal retries before a step run is considered failed (default: 10)
 	MaxInternalRetryCount int32 `mapstructure:"maxInternalRetryCount" json:"maxInternalRetryCount,omitempty" default:"10"`
 
-	// WaitForFlush is the time to wait for the buffer to flush used for exerting some back pressure on writers
-	WaitForFlush time.Duration `mapstructure:"waitForFlush" json:"waitForFlush,omitempty" default:"1"`
-
-	// MaxConcurrent is the maximum number of concurrent flushes
-	MaxConcurrent int `mapstructure:"maxConcurrent" json:"maxConcurrent,omitempty" default:"50"`
-
-	// FlushPeriodMilliseconds is the default number of milliseconds before flush
-	FlushPeriodMilliseconds int `mapstructure:"flushPeriodMilliseconds" json:"flushPeriodMilliseconds,omitempty" default:"10"`
-
-	// FlushItemsThreshold is the default number of items to hold in memory until flushing to the database
-	FlushItemsThreshold int `mapstructure:"flushItemsThreshold" json:"flushItemsThreshold,omitempty" default:"100"`
-
 	Monitoring ConfigFileMonitoring `mapstructure:"monitoring" json:"monitoring,omitempty"`
 
 	// PreventTenantVersionUpgrade controls whether the server prevents tenant version upgrades
 	PreventTenantVersionUpgrade bool `mapstructure:"preventTenantVersionUpgrade" json:"preventTenantVersionUpgrade,omitempty" default:"false"`
-
-	// DefaultEngineVersion is the default engine version to use for new tenants
-	DefaultEngineVersion string `mapstructure:"defaultEngineVersion" json:"defaultEngineVersion,omitempty" default:"V1"`
 
 	// ReplayEnabled controls whether the server enables replay for tasks
 	ReplayEnabled bool `mapstructure:"replayEnabled" json:"replayEnabled,omitempty" default:"true"`
@@ -780,7 +756,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.disableTenantPubs", "SERVER_DISABLE_TENANT_PUBS")
 	_ = v.BindEnv("runtime.maxInternalRetryCount", "SERVER_MAX_INTERNAL_RETRY_COUNT")
 	_ = v.BindEnv("runtime.preventTenantVersionUpgrade", "SERVER_PREVENT_TENANT_VERSION_UPGRADE")
-	_ = v.BindEnv("runtime.defaultEngineVersion", "SERVER_DEFAULT_ENGINE_VERSION")
 	_ = v.BindEnv("runtime.replayEnabled", "SERVER_REPLAY_ENABLED")
 	_ = v.BindEnv("runtime.allowedOriginsString", "SERVER_ALLOWED_ORIGINS")
 
@@ -807,20 +782,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.limits.defaultEventAlarmLimit", "SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultEventWindow", "SERVER_LIMITS_DEFAULT_EVENT_WINDOW")
 
-	_ = v.BindEnv("runtime.limits.defaultCronLimit", "SERVER_LIMITS_DEFAULT_CRON_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultCronAlarmLimit", "SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT")
-
-	_ = v.BindEnv("runtime.limits.defaultScheduleLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT")
-	_ = v.BindEnv("runtime.limits.defaultScheduleAlarmLimit", "SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT")
-
 	_ = v.BindEnv("runtime.limits.defaultIncomingWebhookLimit", "SERVER_LIMITS_DEFAULT_INCOMING_WEBHOOK_LIMIT")
-
-	// buffer options
-	_ = v.BindEnv("runtime.waitForFlush", "SERVER_WAIT_FOR_FLUSH")
-	_ = v.BindEnv("runtime.maxConcurrent", "SERVER_MAX_CONCURRENT")
-	_ = v.BindEnv("runtime.flushPeriodMilliseconds", "SERVER_FLUSH_PERIOD_MILLISECONDS")
-	_ = v.BindEnv("runtime.flushItemsThreshold", "SERVER_FLUSH_ITEMS_THRESHOLD")
-	_ = v.BindEnv("runtime.flushStrategy", "SERVER_FLUSH_STRATEGY")
 
 	// log ingestion
 	_ = v.BindEnv("runtime.logIngestionEnabled", "SERVER_LOG_INGESTION_ENABLED")
@@ -890,14 +852,11 @@ func BindAllEnv(v *viper.Viper) {
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
-	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")
 	_ = v.BindEnv("runtime.grpcTriggerWritesEnabled", "SERVER_GRPC_TRIGGER_WRITES_ENABLED")
 	_ = v.BindEnv("runtime.grpcTriggerWriteSlots", "SERVER_GRPC_TRIGGER_WRITE_SLOTS")
-	_ = v.BindEnv("runtime.updateHashFactor", "SERVER_UPDATE_HASH_FACTOR")
-	_ = v.BindEnv("runtime.updateConcurrentFactor", "SERVER_UPDATE_CONCURRENT_FACTOR")
 
 	// internal client options
 	_ = v.BindEnv("internalClient.base.tlsStrategy", "SERVER_INTERNAL_CLIENT_BASE_STRATEGY")
@@ -920,7 +879,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("tls.tlsRootCA", "SERVER_TLS_ROOT_CA")
 	_ = v.BindEnv("tls.tlsRootCAFile", "SERVER_TLS_ROOT_CA_FILE")
 	_ = v.BindEnv("tls.tlsMinVersion", "SERVER_TLS_MIN_VERSION")
-	_ = v.BindEnv("tls.tlsServerName", "SERVER_TLS_SERVER_NAME")
 
 	// logger options
 	_ = v.BindEnv("logger.level", "SERVER_LOGGER_LEVEL")
@@ -993,12 +951,6 @@ func BindAllEnv(v *viper.Viper) {
 	// operations options
 	_ = v.BindEnv("olap.jitter", "SERVER_OPERATIONS_JITTER")
 	_ = v.BindEnv("olap.pollInterval", "SERVER_OPERATIONS_POLL_INTERVAL")
-
-	// task operation limits options
-	_ = v.BindEnv("taskOperationLimits.timeoutLimit", "SERVER_TASK_OPERATION_LIMITS_TIMEOUT_LIMIT")
-	_ = v.BindEnv("taskOperationLimits.reassignLimit", "SERVER_TASK_OPERATION_LIMITS_REASSIGN_LIMIT")
-	_ = v.BindEnv("taskOperationLimits.retryQueueLimit", "SERVER_TASK_OPERATION_LIMITS_RETRY_QUEUE_LIMIT")
-	_ = v.BindEnv("taskOperationLimits.durableSleepLimit", "SERVER_TASK_OPERATION_LIMITS_DURABLE_SLEEP_LIMIT")
 
 	// dispatcher options
 	_ = v.BindEnv("runtime.workflowRunBufferSize", "SERVER_WORKFLOW_RUN_BUFFER_SIZE")

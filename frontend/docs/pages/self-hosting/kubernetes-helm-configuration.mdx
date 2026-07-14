@@ -110,10 +110,10 @@ For all available options, see [Encryption Configuration](/self-hosting/configur
 
 ### Seeding Data
 
-The `sharedConfig` object also allows you to seed the database with a default tenant and user. The following environment variables are used for seeding:
+The `sharedConfig` object also allows you to seed the database with a default tenant and user. The default admin credentials are set directly on `sharedConfig`, and the remaining seed values are passed as environment variables via `sharedConfig.env`:
 
 ```yaml
-seed:
+sharedConfig:
   defaultAdminEmail: "admin@example.com" # in exposed/production environments, change this to a valid email
   defaultAdminPassword: "Admin123!!" # in exposed/production environments, change this to a secure password
   env:

@@ -2,22 +2,24 @@ import { Callout } from "nextra/components";
 
 # Configuration Options
 
-The Hatchet server and engine can be configured via environment variables using several prefixes. This document contains a comprehensive list of all 197+ available options organized by component.
+The Hatchet server and engine are configured through environment variables, grouped by prefix. This page documents the available options by component.
 
 ## Environment Variable Prefixes
 
 Hatchet uses the following environment variable prefixes:
 
-- **`SERVER_`** (172 variables) - Main server configuration including runtime, authentication, encryption, monitoring, and integrations
-- **`DATABASE_`** (19 variables) - PostgreSQL database connection and configuration
-- **`READ_REPLICA_`** (4 variables) - Read replica database configuration
-- **`ADMIN_`** (3 variables) - Administrator user setup for initial seeding
-- **`DEFAULT_`** (3 variables) - Default tenant configuration
-- **`SCHEDULER_`** (1 variable) - Scheduler-specific rate limiting
-- **`SEED_`** (1 variable) - Development environment seeding
-- **`CACHE_`** (1 variable) - Cache duration settings
+- **`SERVER_`** — main server configuration: runtime, authentication, encryption, monitoring, and integrations
+- **`DATABASE_`** — PostgreSQL connection and connection pooling
+- **`READ_REPLICA_`** — read replica database configuration
+- **`ADMIN_`** — administrator user for initial seeding
+- **`DEFAULT_`** — default tenant configuration
+- **`SCHEDULER_`** — scheduler concurrency and polling intervals
+- **`CACHE_`** — cache duration for repository lookups
 
-_Note: This documentation excludes `HATCHET*CLIENT*_` variables which are specific to Go SDK client configuration.\*
+<Callout type="info">
+  Client-side `HATCHET_CLIENT_*` variables (used by the Go SDK) are configured
+  separately and are not covered here.
+</Callout>
 
 ## Required Environment Variables
 
@@ -144,7 +146,6 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_DISABLE_TENANT_PUBS`                 | Disable tenant pubsub                   |                         |
 | `SERVER_MAX_INTERNAL_RETRY_COUNT`            | Max internal retry count                | `10`                    |
 | `SERVER_PREVENT_TENANT_VERSION_UPGRADE`      | Prevent tenant version upgrades         | `false`                 |
-| `SERVER_DEFAULT_ENGINE_VERSION`              | Default engine version                  | `V1`                    |
 | `SERVER_REPLAY_ENABLED`                      | Enable task replay                      | `true`                  |
 
 ## Database Configuration
@@ -156,40 +157,37 @@ Variables marked with ⚠️ are conditionally required when specific features a
   for local development on the same host.
 </Callout>
 
-| Variable                      | Description                                                                | Default Value       |
-| ----------------------------- | -------------------------------------------------------------------------- | ------------------- |
-| `DATABASE_URL`                | PostgreSQL connection string constructed from database settings if unset   |                     |
-| `DATABASE_POSTGRES_HOST`      | PostgreSQL host                                                            | `127.0.0.1`         |
-| `DATABASE_POSTGRES_PORT`      | PostgreSQL port                                                            | `5431`              |
-| `DATABASE_POSTGRES_USERNAME`  | PostgreSQL username                                                        | `hatchet`           |
-| `DATABASE_POSTGRES_PASSWORD`  | PostgreSQL password                                                        | `hatchet`           |
-| `DATABASE_POSTGRES_DB_NAME`   | PostgreSQL database name                                                   | `hatchet`           |
-| `DATABASE_POSTGRES_SSL_MODE`  | PostgreSQL SSL mode                                                        | `disable`           |
-| `DATABASE_MAX_CONNS`          | Max database connections                                                   | `50`                |
-| `DATABASE_MIN_CONNS`          | Min database connections                                                   | `10`                |
-| `DATABASE_MAX_QUEUE_CONNS`    | Max queue connections                                                      | `50`                |
-| `DATABASE_MIN_QUEUE_CONNS`    | Min queue connections                                                      | `10`                |
-| `DATABASE_MAX_CONN_LIFETIME`  | Max lifetime of a connection                                               | `15m`               |
-| `DATABASE_MAX_CONN_IDLE_TIME` | Max time a connection can be idle before being closed                      | `1m`                |
-| `DATABASE_LOG_QUERIES`        | Log database queries                                                       | `false`             |
-| `DATABASE_PGBOUNCER_ENABLED`  | Enable pgbouncer support; requires `DATABASE_DIRECT_URL` to be set         | `false`             |
-| `DATABASE_DIRECT_URL`         | Direct PostgreSQL connection string bypassing pgbouncer for DDL operations |                     |
-| `DATABASE_DIRECT_MAX_CONNS`   | Max connections for the direct (non-pgbouncer) pool                        | `2`                 |
-| `DATABASE_DIRECT_MIN_CONNS`   | Min connections for the direct (non-pgbouncer) pool                        | `1`                 |
-| `CACHE_DURATION`              | Cache duration                                                             | `5s`                |
-| `ADMIN_EMAIL`                 | Admin email for seeding                                                    | `admin@example.com` |
-| `ADMIN_PASSWORD`              | Admin password for seeding                                                 | `Admin123!!`        |
-| `ADMIN_NAME`                  | Admin name for seeding                                                     | `Admin`             |
-| `DEFAULT_TENANT_NAME`         | Default tenant name                                                        | `Default`           |
-| `DEFAULT_TENANT_SLUG`         | Default tenant slug                                                        | `default`           |
-| `DEFAULT_TENANT_ID`           | Default tenant ID                                                          |                     |
-| `SEED_DEVELOPMENT`            | Development seeding flag                                                   |                     |
-| `READ_REPLICA_ENABLED`        | Enable read replica                                                        | `false`             |
-| `READ_REPLICA_DATABASE_URL`   | Read replica database URL                                                  |                     |
-| `READ_REPLICA_MAX_CONNS`      | Read replica max connections                                               | `50`                |
-| `READ_REPLICA_MIN_CONNS`      | Read replica min connections                                               | `10`                |
-| `DATABASE_LOGGER_LEVEL`       | Database logger level                                                      |                     |
-| `DATABASE_LOGGER_FORMAT`      | Database logger format                                                     |                     |
+| Variable                        | Description                                                                                                                                                                                           | Default Value       |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `DATABASE_URL`                  | PostgreSQL connection string constructed from database settings if unset                                                                                                                              |                     |
+| `DATABASE_POSTGRES_HOST`        | PostgreSQL host                                                                                                                                                                                       | `127.0.0.1`         |
+| `DATABASE_POSTGRES_PORT`        | PostgreSQL port                                                                                                                                                                                       | `5431`              |
+| `DATABASE_POSTGRES_USERNAME`    | PostgreSQL username                                                                                                                                                                                   | `hatchet`           |
+| `DATABASE_POSTGRES_PASSWORD`    | PostgreSQL password                                                                                                                                                                                   | `hatchet`           |
+| `DATABASE_POSTGRES_DB_NAME`     | PostgreSQL database name                                                                                                                                                                              | `hatchet`           |
+| `DATABASE_POSTGRES_SSL_MODE`    | PostgreSQL SSL mode                                                                                                                                                                                   | `disable`           |
+| `DATABASE_MAX_CONNS`            | Max database connections                                                                                                                                                                              | `50`                |
+| `DATABASE_MIN_CONNS`            | Min database connections                                                                                                                                                                              | `1`                 |
+| `DATABASE_MAX_CONN_LIFETIME`    | Max lifetime of a connection                                                                                                                                                                          | `15m`               |
+| `DATABASE_MAX_CONN_IDLE_TIME`   | Max time a connection can be idle before being closed                                                                                                                                                 | `1m`                |
+| `DATABASE_LOG_QUERIES`          | Log database queries                                                                                                                                                                                  | `false`             |
+| `DATABASE_PGBOUNCER_URL`        | Optional PgBouncer connection string. When set, most queries route through PgBouncer while DDL statements use the direct pool (`DATABASE_URL`). See [Using PgBouncer](/self-hosting/using-pgbouncer). |                     |
+| `DATABASE_DDL_POOL_MAX_CONNS`   | Max connections for the direct (DDL) pool that bypasses PgBouncer                                                                                                                                     | `5`                 |
+| `DATABASE_DDL_POOL_MIN_CONNS`   | Min connections for the direct (DDL) pool that bypasses PgBouncer                                                                                                                                     | `1`                 |
+| `DATABASE_ENFORCE_UTC_TIMEZONE` | Panic on startup if the database instance timezone is not UTC                                                                                                                                         | `true`              |
+| `CACHE_DURATION`                | Cache duration                                                                                                                                                                                        | `5s`                |
+| `ADMIN_EMAIL`                   | Admin email for seeding                                                                                                                                                                               | `admin@example.com` |
+| `ADMIN_PASSWORD`                | Admin password for seeding                                                                                                                                                                            | `Admin123!!`        |
+| `ADMIN_NAME`                    | Admin name for seeding                                                                                                                                                                                | `Admin`             |
+| `DEFAULT_TENANT_NAME`           | Default tenant name                                                                                                                                                                                   | `Default`           |
+| `DEFAULT_TENANT_SLUG`           | Default tenant slug                                                                                                                                                                                   | `default`           |
+| `DEFAULT_TENANT_ID`             | Default tenant ID                                                                                                                                                                                     |                     |
+| `READ_REPLICA_ENABLED`          | Enable read replica                                                                                                                                                                                   | `false`             |
+| `READ_REPLICA_DATABASE_URL`     | Read replica database URL                                                                                                                                                                             |                     |
+| `READ_REPLICA_MAX_CONNS`        | Read replica max connections                                                                                                                                                                          | `50`                |
+| `READ_REPLICA_MIN_CONNS`        | Read replica min connections                                                                                                                                                                          | `10`                |
+| `DATABASE_LOGGER_LEVEL`         | Database logger level                                                                                                                                                                                 |                     |
+| `DATABASE_LOGGER_FORMAT`        | Database logger format                                                                                                                                                                                |                     |
 
 ## Security Check Configuration
 
@@ -205,20 +203,16 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` | Default tenant retention period | `720h`         |
 | `SERVER_LIMITS_CORE_PARTITION_RETENTION`        | Core partition retention period | Tenant default |
 | `SERVER_LIMITS_OLAP_PARTITION_RETENTION`        | OLAP partition retention period | Tenant default |
-| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`            | Default worker limit            | `4`            |
+| `SERVER_LIMITS_DEFAULT_WORKER_LIMIT`            | Default worker limit            | `3`            |
 | `SERVER_LIMITS_DEFAULT_WORKER_ALARM_LIMIT`      | Default worker alarm limit      | `2`            |
 | `SERVER_LIMITS_DEFAULT_EVENT_LIMIT`             | Default event limit             | `1000`         |
-| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`       | Default event alarm limit       | `750`          |
+| `SERVER_LIMITS_DEFAULT_EVENT_ALARM_LIMIT`       | Default event alarm limit       | `800`          |
 | `SERVER_LIMITS_DEFAULT_EVENT_WINDOW`            | Default event window            | `24h`          |
-| `SERVER_LIMITS_DEFAULT_CRON_LIMIT`              | Default cron limit              | `5`            |
-| `SERVER_LIMITS_DEFAULT_CRON_ALARM_LIMIT`        | Default cron alarm limit        | `2`            |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_LIMIT`          | Default schedule limit          | `1000`         |
-| `SERVER_LIMITS_DEFAULT_SCHEDULE_ALARM_LIMIT`    | Default schedule alarm limit    | `750`          |
 | `SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT`          | Default task run limit          | `2000`         |
-| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`    | Default task run alarm limit    | `1500`         |
+| `SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT`    | Default task run alarm limit    | `1600`         |
 | `SERVER_LIMITS_DEFAULT_TASK_RUN_WINDOW`         | Default task run window         | `24h`          |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`       | Default worker slot limit       | `4000`         |
-| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT` | Default worker slot alarm limit | `3000`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_LIMIT`       | Default worker slot limit       | `2000`         |
+| `SERVER_LIMITS_DEFAULT_WORKER_SLOT_ALARM_LIMIT` | Default worker slot alarm limit | `1600`         |
 
 ## Alerting Configuration
 
@@ -273,15 +267,12 @@ Variables marked with ⚠️ are conditionally required when specific features a
 
 ## Task Queue Configuration
 
-| Variable                          | Description              | Default Value |
-| --------------------------------- | ------------------------ | ------------- |
-| `SERVER_MSGQUEUE_KIND`            | Message queue kind       | `rabbitmq`    |
-| `SERVER_MSGQUEUE_RABBITMQ_URL`    | RabbitMQ URL             |               |
-| `SERVER_MSGQUEUE_RABBITMQ_QOS`    | RabbitMQ QoS             | `100`         |
-| `SERVER_REQUEUE_LIMIT`            | Requeue limit            | `100`         |
-| `SERVER_SINGLE_QUEUE_LIMIT`       | Single queue limit       | `100`         |
-| `SERVER_UPDATE_HASH_FACTOR`       | Update hash factor       | `100`         |
-| `SERVER_UPDATE_CONCURRENT_FACTOR` | Update concurrent factor | `10`          |
+| Variable                       | Description        | Default Value |
+| ------------------------------ | ------------------ | ------------- |
+| `SERVER_MSGQUEUE_KIND`         | Message queue kind | `rabbitmq`    |
+| `SERVER_MSGQUEUE_RABBITMQ_URL` | RabbitMQ URL       |               |
+| `SERVER_MSGQUEUE_RABBITMQ_QOS` | RabbitMQ QoS       | `100`         |
+| `SERVER_SINGLE_QUEUE_LIMIT`    | Single queue limit | `100`         |
 
 ## TLS Configuration
 
@@ -294,7 +285,6 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_TLS_KEY_FILE`                                    | Path to the TLS key file         |               |
 | `SERVER_TLS_ROOT_CA`                                     | TLS root CA                      |               |
 | `SERVER_TLS_ROOT_CA_FILE`                                | Path to the TLS root CA file     |               |
-| `SERVER_TLS_SERVER_NAME`                                 | TLS server name                  |               |
 | `SERVER_TLS_MIN_VERSION`                                 | Minimum TLS version (1.2, 1.3)   | `1.3`         |
 | `SERVER_INTERNAL_CLIENT_BASE_STRATEGY`                   | Internal client TLS strategy     |               |
 | `SERVER_INTERNAL_CLIENT_BASE_INHERIT_BASE`               | Inherit base TLS config          | `true`        |
@@ -380,11 +370,6 @@ For how to enable and use internal trace export with these settings, see [Intern
 | `SERVER_CRON_OPERATIONS_WORKER_METRICS_INTERVAL`    | Interval for collecting worker metrics (OTel)                         | `60s`         |
 | `SERVER_CRON_OPERATIONS_YESTERDAY_RUN_COUNT_HOUR`   | Hour (0-23) at which to collect yesterday's workflow run count (OTel) | `0`           |
 | `SERVER_CRON_OPERATIONS_YESTERDAY_RUN_COUNT_MINUTE` | Minute (0-59) at which to collect yesterday's workflow run count      | `5`           |
-| `SERVER_WAIT_FOR_FLUSH`                             | Default wait for flush                                                | `1ms`         |
-| `SERVER_MAX_CONCURRENT`                             | Default max concurrent                                                | `50`          |
-| `SERVER_FLUSH_PERIOD_MILLISECONDS`                  | Default flush period                                                  | `10ms`        |
-| `SERVER_FLUSH_ITEMS_THRESHOLD`                      | Default flush threshold                                               | `100`         |
-| `SERVER_FLUSH_STRATEGY`                             | Default flush strategy                                                | `DYNAMIC`     |
 
 ## OLAP Database Configuration
 
