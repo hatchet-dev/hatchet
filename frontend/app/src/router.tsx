@@ -22,6 +22,7 @@ import {
 import { Outlet } from '@tanstack/react-router';
 import { FC } from 'react';
 import { validate } from 'uuid';
+import { z } from 'zod';
 
 const rootRoute = createRootRoute({
   component: Root,
@@ -611,13 +612,18 @@ const tenantRunsRoute = createRoute({
   ),
 });
 
-const tenantRunRoute = createRoute({
+const runSearchSchema = z.object({
+  wasRedirectedFromTrigger: z.boolean().optional(),
+});
+
+export const tenantRunRoute = createRoute({
   getParentRoute: () => tenantRoute,
   path: 'runs/$run',
   component: lazyRouteComponent(
     () => import('./pages/main/v1/workflow-runs-v1/$run'),
     'default',
   ),
+  validateSearch: runSearchSchema,
 });
 
 const tenantTaskRunsRoute = createRoute({
