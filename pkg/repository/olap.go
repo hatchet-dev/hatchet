@@ -58,6 +58,8 @@ type ListTaskRunOpts struct {
 	Offset int64
 
 	IncludePayloads bool
+
+	IdempotencyKeys *[]string
 }
 
 type ListWorkflowRunOpts struct {
@@ -82,6 +84,8 @@ type ListWorkflowRunOpts struct {
 	TriggeringEventExternalId *uuid.UUID
 
 	IncludePayloads bool
+
+	IdempotencyKeys *[]string
 }
 
 type ReadTaskRunMetricsOpts struct {
@@ -120,6 +124,7 @@ type WorkflowRunData struct {
 	WorkflowID           uuid.UUID                   `json:"workflow_id"`
 	WorkflowVersionId    uuid.UUID                   `json:"workflow_version_id"`
 	RetryCount           *int                        `json:"retry_count,omitempty"`
+	IdempotencyKey       *string                     `json:"idempotency_key"`
 }
 
 type V1WorkflowRunPopulator struct {
@@ -820,6 +825,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		Taskoffset:                int32(opts.Offset),
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		WorkerId:                  opts.WorkerId,
+		IdempotencyKeys:           opts.IdempotencyKeys,
 	}
 
 	countParams := sqlcv1.CountTasksParams{
@@ -827,6 +833,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 		WorkerId:                  opts.WorkerId,
+		IdempotencyKeys:           opts.IdempotencyKeys,
 	}
 
 	statuses := make([]string, 0)
@@ -1171,6 +1178,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		Listworkflowrunsoffset:    int32(opts.Offset),
 		ParentTaskExternalId:      opts.ParentTaskExternalId,
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
+		IdempotencyKeys:           opts.IdempotencyKeys,
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
@@ -1178,6 +1186,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
 		ParentTaskExternalId:      opts.ParentTaskExternalId,
 		TriggeringEventExternalId: opts.TriggeringEventExternalId,
+		IdempotencyKeys:           opts.IdempotencyKeys,
 	}
 
 	statuses := make([]string, 0)
@@ -1365,6 +1374,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 			// TODO !IMPORTANT: verify this is correct
 			retryCount := int(dag.RetryCount)
 
+			var idempotencyKey *string
+			if dag.IdempotencyKey.Valid {
+				idempotencyKey = &dag.IdempotencyKey.String
+			}
+
 			res = append(res, &WorkflowRunData{
 				TenantID:             dag.TenantID,
 				InsertedAt:           dag.InsertedAt,
@@ -1386,6 +1400,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				Input:                inputPayload,
 				ParentTaskExternalId: dag.ParentTaskExternalID,
 				RetryCount:           &retryCount,
+				IdempotencyKey:       idempotencyKey,
 			})
 		} else {
 			task, ok := tasksToPopulated[externalId]
@@ -1422,6 +1437,11 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				inputPayload = task.Input
 			}
 
+			var idempotencyKey *string
+			if task.IdempotencyKey.Valid {
+				idempotencyKey = &task.IdempotencyKey.String
+			}
+
 			res = append(res, &WorkflowRunData{
 				TenantID:           task.TenantID,
 				InsertedAt:         task.InsertedAt,
@@ -1443,6 +1463,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 				Input:              inputPayload,
 				StepId:             &task.StepID,
 				RetryCount:         &retryCount,
+				IdempotencyKey:     idempotencyKey,
 			})
 		}
 	}

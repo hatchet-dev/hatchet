@@ -50,6 +50,10 @@ WITH filtered AS (
 					AND lt.external_id = $9::UUID
             )
 		)
+		AND (
+			$10::TEXT[] IS NULL
+			OR idempotency_key = ANY($10::TEXT[])
+		)
     ORDER BY
         inserted_at DESC
     LIMIT 20000
@@ -69,6 +73,7 @@ type CountTasksParams struct {
 	Keys                      []string           `json:"keys"`
 	Values                    []string           `json:"values"`
 	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	IdempotencyKeys           *[]string          `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams) (int64, error) {
@@ -82,6 +87,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 		arg.Keys,
 		arg.Values,
 		arg.TriggeringEventExternalId,
+		arg.IdempotencyKeys,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -132,6 +138,10 @@ WITH filtered AS (
 					AND lt.external_id = $9::UUID
             )
 		)
+		AND (
+			$10::TEXT[] IS NULL
+			OR idempotency_key = ANY($10::TEXT[])
+		)
     LIMIT 20000
 )
 
@@ -149,6 +159,7 @@ type CountWorkflowRunsParams struct {
 	Values                    []string           `json:"values"`
 	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
 	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	IdempotencyKeys           *[]string          `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkflowRunsParams) (int64, error) {
@@ -162,6 +173,7 @@ func (q *Queries) CountWorkflowRuns(ctx context.Context, db DBTX, arg CountWorkf
 		arg.Values,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
+		arg.IdempotencyKeys,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -210,6 +222,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
+	AND (
+		$12::TEXT[] IS NULL
+		OR idempotency_key = ANY($12::TEXT[])
+	)
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -227,6 +243,7 @@ type FetchWorkflowRunIdsParams struct {
 	Listworkflowrunslimit     int32              `json:"listworkflowrunslimit"`
 	ParentTaskExternalId      *uuid.UUID         `json:"parentTaskExternalId"`
 	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	IdempotencyKeys           *[]string          `json:"idempotencyKeys"`
 }
 
 type FetchWorkflowRunIdsRow struct {
@@ -249,6 +266,7 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 		arg.Listworkflowrunslimit,
 		arg.ParentTaskExternalId,
 		arg.TriggeringEventExternalId,
+		arg.IdempotencyKeys,
 	)
 
 	if err != nil {
@@ -317,6 +335,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
+	AND (
+		$12::TEXT[] IS NULL
+		OR idempotency_key = ANY($12::TEXT[])
+	)
 ORDER BY
     inserted_at DESC
 LIMIT $10::integer
@@ -335,6 +357,7 @@ type ListTasksOlapParams struct {
 	Taskoffset                int32              `json:"taskoffset"`
 	Tasklimit                 int32              `json:"tasklimit"`
 	TriggeringEventExternalId *uuid.UUID         `json:"triggeringEventExternalId"`
+	IdempotencyKeys           *[]string          `json:"idempotencyKeys"`
 }
 
 type ListTasksOlapRow struct {
@@ -355,6 +378,7 @@ func (q *Queries) ListTasksOlap(ctx context.Context, db DBTX, arg ListTasksOlapP
 		arg.Taskoffset,
 		arg.Tasklimit,
 		arg.TriggeringEventExternalId,
+		arg.IdempotencyKeys,
 	)
 	if err != nil {
 		return nil, err

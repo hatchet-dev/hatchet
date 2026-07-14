@@ -139,6 +139,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		Limit:           limit,
 		Offset:          offset,
 		IncludePayloads: includePayloads,
+		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -287,6 +288,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		Offset:          offset,
 		WorkerId:        request.Params.WorkerId,
 		IncludePayloads: includePayloads,
+		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})

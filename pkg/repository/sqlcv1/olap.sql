@@ -518,7 +518,8 @@ WITH input AS (
         t.workflow_run_id,
         t.latest_retry_count,
         t.dag_id,
-        t.is_durable
+        t.is_durable,
+        t.idempotency_key
     FROM
         v1_tasks_olap t
     JOIN
@@ -653,7 +654,8 @@ SELECT
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
-    COALESCE(t.is_durable, FALSE) AS is_durable
+    COALESCE(t.is_durable, FALSE) AS is_durable,
+    t.idempotency_key
 FROM
     tasks t
 LEFT JOIN
@@ -1381,7 +1383,8 @@ WITH input AS (
         END::JSONB AS input,
         d.additional_metadata,
         d.workflow_version_id,
-        d.parent_task_external_id
+        d.parent_task_external_id,
+        d.idempotency_key
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)

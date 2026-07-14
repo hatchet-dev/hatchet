@@ -105,6 +105,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 		RetryCount:            &retryCount,
 		Attempt:               &attempt,
 		ParentTaskExternalId:  parentTaskExternalId,
+		IdempotencyKey:        task.IdempotencyKey,
 	}
 
 	if isEvicted {
@@ -192,6 +193,12 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 
 	taskStatus, isEvicted := mapOlapStatus(string(task.Status))
 
+	var idempotencyKey *string
+
+	if task.IdempotencyKey.Valid {
+		idempotencyKey = &task.IdempotencyKey.String
+	}
+
 	summary := gen.V1TaskSummary{
 		Metadata: gen.APIResourceMeta{
 			Id:        task.ExternalID.String(),
@@ -223,6 +230,7 @@ func PopulateTaskRunDataRowToV1TaskSummary(task *v1.TaskWithPayloads, workflowNa
 		Attempt:               &attempt,
 		WorkflowRunExternalId: task.WorkflowRunID,
 		ParentTaskExternalId:  task.ParentTaskExternalID,
+		IdempotencyKey:        idempotencyKey,
 	}
 
 	if isEvicted {

@@ -2192,7 +2192,8 @@ WITH input AS (
         END::JSONB AS input,
         d.additional_metadata,
         d.workflow_version_id,
-        d.parent_task_external_id
+        d.parent_task_external_id,
+        d.idempotency_key
     FROM input i
     JOIN v1_runs_olap r ON (i.id, i.inserted_at) = (r.id, r.inserted_at)
     JOIN v1_dags_olap d ON (r.id, r.inserted_at) = (d.id, d.inserted_at)
@@ -2240,7 +2241,7 @@ WITH input AS (
 )
 
 SELECT
-    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id,
+    r.dag_id, r.run_id, r.tenant_id, r.inserted_at, r.external_id, r.readable_status, r.kind, r.workflow_id, r.display_name, r.input, r.additional_metadata, r.workflow_version_id, r.parent_task_external_id, r.idempotency_key,
     m.created_at,
     m.started_at,
     m.finished_at,
@@ -2281,6 +2282,7 @@ type PopulateDAGMetadataRow struct {
 	AdditionalMetadata    []byte               `json:"additional_metadata"`
 	WorkflowVersionID     uuid.UUID            `json:"workflow_version_id"`
 	ParentTaskExternalID  *uuid.UUID           `json:"parent_task_external_id"`
+	IdempotencyKey        pgtype.Text          `json:"idempotency_key"`
 	CreatedAt             pgtype.Timestamptz   `json:"created_at"`
 	StartedAt             pgtype.Timestamptz   `json:"started_at"`
 	FinishedAt            pgtype.Timestamptz   `json:"finished_at"`
@@ -2319,6 +2321,7 @@ func (q *Queries) PopulateDAGMetadata(ctx context.Context, db DBTX, arg Populate
 			&i.AdditionalMetadata,
 			&i.WorkflowVersionID,
 			&i.ParentTaskExternalID,
+			&i.IdempotencyKey,
 			&i.CreatedAt,
 			&i.StartedAt,
 			&i.FinishedAt,
@@ -2652,7 +2655,8 @@ WITH input AS (
         t.workflow_run_id,
         t.latest_retry_count,
         t.dag_id,
-        t.is_durable
+        t.is_durable,
+        t.idempotency_key
     FROM
         v1_tasks_olap t
     JOIN
@@ -2787,7 +2791,8 @@ SELECT
     END::JSONB as output,
     o.output_event_external_id AS output_event_external_id,
     o.output_event_inserted_at AS output_event_inserted_at,
-    COALESCE(t.is_durable, FALSE) AS is_durable
+    COALESCE(t.is_durable, FALSE) AS is_durable,
+    t.idempotency_key
 FROM
     tasks t
 LEFT JOIN
@@ -2840,6 +2845,7 @@ type PopulateTaskRunDataRow struct {
 	OutputEventExternalID *uuid.UUID           `json:"output_event_external_id"`
 	OutputEventInsertedAt pgtype.Timestamptz   `json:"output_event_inserted_at"`
 	IsDurable             bool                 `json:"is_durable"`
+	IdempotencyKey        pgtype.Text          `json:"idempotency_key"`
 }
 
 func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg PopulateTaskRunDataParams) ([]*PopulateTaskRunDataRow, error) {
@@ -2886,6 +2892,7 @@ func (q *Queries) PopulateTaskRunData(ctx context.Context, db DBTX, arg Populate
 			&i.OutputEventExternalID,
 			&i.OutputEventInsertedAt,
 			&i.IsDurable,
+			&i.IdempotencyKey,
 		); err != nil {
 			return nil, err
 		}

@@ -468,6 +468,8 @@ export interface V1TaskSummary {
    * @format uuid
    */
   parentTaskExternalId?: string;
+  /** The idempotency key that was claimed by the task run */
+  idempotencyKey?: string;
 }
 
 export interface APIError {
