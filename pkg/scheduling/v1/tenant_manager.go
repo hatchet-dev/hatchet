@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -376,37 +375,6 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 			continue
 		}
 
-		reserveFunc := func(ctx context.Context, req *BatchReservationRequest) (bool, error) {
-			if req == nil || t.cf.taskRepo == nil {
-				return true, nil
-			}
-
-			if req.MaxRuns <= 0 || strings.TrimSpace(req.BatchKey) == "" {
-				return true, nil
-			}
-
-			if strings.TrimSpace(req.BatchID) == "" {
-				return false, fmt.Errorf("batch id required for reservation")
-			}
-
-			stepID := req.StepID.String()
-
-			tenantID := strings.TrimSpace(req.TenantID)
-			if tenantID == "" {
-				tenantID = t.tenantId.String()
-			}
-
-			return t.cf.taskRepo.ReserveTaskBatchRun(
-				ctx,
-				tenantID,
-				stepID,
-				req.ActionID,
-				req.BatchKey,
-				req.BatchID,
-				req.MaxRuns,
-			)
-		}
-
 		sched := newBatchScheduler(
 			t.cf,
 			t.tenantId,
@@ -427,7 +395,6 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 					}()
 				}
 			},
-			reserveFunc,
 		)
 		if sched == nil {
 			continue

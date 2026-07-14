@@ -30,7 +30,6 @@ type BatchScheduler struct {
 	scheduler      *Scheduler
 	emitResults    func(*QueueResults)
 	assignOverride assignmentFn
-	reserveBatch   batchReservationFunc
 	maxRuns        int
 
 	ctx    context.Context
@@ -96,17 +95,6 @@ func (b *BatchScheduler) reconcileBuffer() {
 
 type assignmentFn func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, labels map[string][]*sqlcv1.GetDesiredLabelsRow, rateLimits map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error)
 
-type batchReservationFunc func(context.Context, *BatchReservationRequest) (bool, error)
-
-type BatchReservationRequest struct {
-	TenantID string
-	StepID   uuid.UUID
-	ActionID string
-	BatchKey string
-	BatchID  string
-	MaxRuns  int
-}
-
 func newBatchScheduler(
 	cf *sharedConfig,
 	tenantId uuid.UUID,
@@ -114,7 +102,6 @@ func newBatchScheduler(
 	queueFactory v1repo.QueueFactoryRepository,
 	scheduler *Scheduler,
 	emitResults func(*QueueResults),
-	reserveBatch batchReservationFunc,
 ) *BatchScheduler {
 	if resource == nil {
 		return nil
@@ -155,7 +142,6 @@ func newBatchScheduler(
 		queueFactory:  queueFactory,
 		scheduler:     scheduler,
 		emitResults:   emitResults,
-		reserveBatch:  reserveBatch,
 		batchSize:     int(batchSize),
 		flushInterval: flushInterval,
 		maxRuns:       int(maxRuns),
@@ -801,30 +787,6 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 		}
 
 		batchID := uuid.NewString()
-		allowed := true
-
-		if b.reserveBatch != nil && b.maxRuns > 0 && batchKeyNormalized != "" {
-			req := &BatchReservationRequest{
-				TenantID: b.tenantId.String(),
-				StepID:   stepID,
-				ActionID: actionID,
-				BatchKey: batchKeyNormalized,
-				BatchID:  batchID,
-				MaxRuns:  b.maxRuns,
-			}
-
-			var err error
-			allowed, err = b.reserveBatch(ctx, req)
-			if err != nil {
-				b.l.Error().Err(err).Msg("failed to reserve batch run")
-				allowed = false
-			}
-		}
-
-		if !allowed {
-			requeueGroup()
-			continue
-		}
 
 		batchAssignments := make([]*v1repo.BatchAssignment, 0, len(group))
 		queueResultsByTaskID := make(map[int64]*v1repo.AssignedItem, len(group))
@@ -884,12 +846,22 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, items []*sqlcv1.
 			continue
 		}
 
-		succeededAssignments, err := b.repo.CommitAssignments(ctx, batchAssignments)
+		// Reserving the batch run slot and committing these assignments happen atomically, in one
+		// transaction: reservation alone isn't enough, since a batch run only counts toward
+		// maxRuns once its assignments are committed (see ReserveAndCommitBatchRun's comment).
+		reserved, succeededAssignments, err := b.repo.ReserveAndCommitBatchRun(
+			ctx, b.tenantId, stepID, actionID, batchKeyNormalized, batchID, b.maxRuns, batchAssignments,
+		)
 		if err != nil {
 			if len(ackIds) > 0 {
 				b.scheduler.nack(ackIds)
 			}
-			return items, fmt.Errorf("commit batch assignments: %w", err)
+			return items, fmt.Errorf("reserve and commit batch assignments: %w", err)
+		}
+
+		if !reserved {
+			requeueGroup()
+			continue
 		}
 
 		// Only emit/ack tasks that were actually assigned (e.g. drop cancellations).

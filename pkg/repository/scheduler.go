@@ -120,6 +120,17 @@ type BatchQueueRepository interface {
 	DeleteBatchedQueueItems(ctx context.Context, ids []int64) error
 	MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error)
 	CommitAssignments(ctx context.Context, assignments []*BatchAssignment) ([]*BatchAssignment, error)
+
+	// ReserveAndCommitBatchRun atomically reserves a batch run slot bounded by maxRuns and, if
+	// granted, commits the given assignments in the SAME transaction. This is to prevent races amongst
+	// concurrent batch schedulers that would cause maxRuns to not be respected.
+	ReserveAndCommitBatchRun(
+		ctx context.Context,
+		tenantId, stepId uuid.UUID,
+		actionId, batchKey, batchId string,
+		maxRuns int,
+		assignments []*BatchAssignment,
+	) (reserved bool, succeeded []*BatchAssignment, err error)
 }
 
 type BatchAssignment struct {

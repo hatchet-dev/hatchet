@@ -16,11 +16,25 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+type fakeReserveCall struct {
+	TenantID string
+	StepID   uuid.UUID
+	ActionID string
+	BatchKey string
+	BatchID  string
+	MaxRuns  int
+}
+
 type fakeBatchRepo struct {
 	mu            sync.Mutex
 	listResponses [][]*sqlcv1.V1BatchedQueueItem
 	moveCalls     [][]int64
 	commitCalls   [][]*v1repo.BatchAssignment
+	reserveCalls  []*fakeReserveCall
+
+	// reserveFunc, if set, overrides whether ReserveAndCommitBatchRun grants the reservation.
+	// Defaults to always granting, matching the old default of a nil reservation hook.
+	reserveFunc func(call *fakeReserveCall) (bool, error)
 }
 
 func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
@@ -89,6 +103,48 @@ func (f *fakeBatchRepo) CommitAssignments(ctx context.Context, assignments []*v1
 
 	f.commitCalls = append(f.commitCalls, copied)
 	return copied, nil
+}
+
+func (f *fakeBatchRepo) ReserveAndCommitBatchRun(
+	ctx context.Context,
+	tenantId, stepId uuid.UUID,
+	actionId, batchKey, batchId string,
+	maxRuns int,
+	assignments []*v1repo.BatchAssignment,
+) (bool, []*v1repo.BatchAssignment, error) {
+	call := &fakeReserveCall{
+		TenantID: tenantId.String(),
+		StepID:   stepId,
+		ActionID: actionId,
+		BatchKey: batchKey,
+		BatchID:  batchId,
+		MaxRuns:  maxRuns,
+	}
+
+	f.mu.Lock()
+	f.reserveCalls = append(f.reserveCalls, call)
+	reserveFunc := f.reserveFunc
+	f.mu.Unlock()
+
+	reserved := true
+	if reserveFunc != nil {
+		var err error
+		reserved, err = reserveFunc(call)
+		if err != nil {
+			return false, nil, err
+		}
+	}
+
+	if !reserved {
+		return false, nil, nil
+	}
+
+	succeeded, err := f.CommitAssignments(ctx, assignments)
+	if err != nil {
+		return true, nil, err
+	}
+
+	return true, succeeded, nil
 }
 
 type fakeQueueFactory struct {
@@ -223,7 +279,6 @@ func TestBatchSchedulerFlushOnBatchSize(t *testing.T) {
 		nil,
 		nil,
 		func(*QueueResults) {},
-		nil,
 	)
 	_ = notifyCh // retain for compile-time compatibility
 	require.NotNil(t, scheduler)
@@ -265,7 +320,6 @@ func TestBatchSchedulerFlushOnInterval(t *testing.T) {
 		nil,
 		nil,
 		func(*QueueResults) {},
-		nil,
 	)
 	_ = notifyCh
 	require.NotNil(t, scheduler)
@@ -279,7 +333,6 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 	queueFactory := &fakeQueueFactory{repo: &fakeQueueRepository{}}
 
 	var emitted []*QueueResults
-	var reserveRequests []*BatchReservationRequest
 
 	scheduler := newBatchScheduler(
 		newTestSharedConfig(repo),
@@ -296,13 +349,6 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 			if res != nil {
 				emitted = append(emitted, res)
 			}
-		},
-		func(ctx context.Context, req *BatchReservationRequest) (bool, error) {
-			if req != nil {
-				c := *req
-				reserveRequests = append(reserveRequests, &c)
-			}
-			return true, nil
 		},
 	)
 	require.NotNil(t, scheduler)
@@ -354,12 +400,12 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 
-	require.Len(t, reserveRequests, 1)
-	require.Equal(t, "group", reserveRequests[0].BatchKey)
-	require.Equal(t, 1, reserveRequests[0].MaxRuns)
-	require.Equal(t, "action", reserveRequests[0].ActionID)
-	require.NotNil(t, reserveRequests[0].StepID)
-	require.NotEmpty(t, reserveRequests[0].BatchID)
+	require.Len(t, repo.reserveCalls, 1)
+	require.Equal(t, "group", repo.reserveCalls[0].BatchKey)
+	require.Equal(t, 1, repo.reserveCalls[0].MaxRuns)
+	require.Equal(t, "action", repo.reserveCalls[0].ActionID)
+	require.NotEqual(t, uuid.Nil, repo.reserveCalls[0].StepID)
+	require.NotEmpty(t, repo.reserveCalls[0].BatchID)
 
 	require.Len(t, repo.commitCalls, 1)
 	require.Len(t, repo.commitCalls[0], 2)
@@ -418,7 +464,6 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		queueFactory,
 		&Scheduler{},
 		func(*QueueResults) {},
-		nil,
 	)
 	require.NotNil(t, scheduler)
 
@@ -538,7 +583,6 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 		func(res *QueueResults) {
 			emitted = append(emitted, res)
 		},
-		nil,
 	)
 	require.NotNil(t, scheduler)
 

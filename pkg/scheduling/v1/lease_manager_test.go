@@ -89,6 +89,16 @@ func (f *fakeBatchQueueRepo) CommitAssignments(context.Context, []*v1repo.BatchA
 	return nil, nil
 }
 
+func (f *fakeBatchQueueRepo) ReserveAndCommitBatchRun(
+	context.Context,
+	uuid.UUID, uuid.UUID,
+	string, string, string,
+	int,
+	[]*v1repo.BatchAssignment,
+) (bool, []*v1repo.BatchAssignment, error) {
+	return true, nil, nil
+}
+
 type fakeLeaseRepo struct {
 	resourceSets [][]string
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -1035,6 +1036,32 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 	ctx, span := telemetry.NewSpan(ctx, "commit-batch-assignments")
 	defer span.End()
 
+	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			b.l.Error().Err(rollbackErr).Msg("rollback failed after commit assignments")
+		}
+	}()
+
+	succeeded, err := b.commitAssignmentsTx(ctx, tx, assignments)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("could not commit batch assignment transaction: %w", err)
+	}
+
+	return succeeded, nil
+}
+
+// commitAssignmentsTx holds CommitAssignments' dedup-and-write logic, factored out so
+// ReserveAndCommitBatchRun can run it inside the same transaction as the reservation itself,
+// instead of opening a second, separate transaction the way CommitAssignments does on its own.
+func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.Tx, assignments []*BatchAssignment) ([]*BatchAssignment, error) {
 	// Deduplicate assignments by (task_id, task_inserted_at) to avoid
 	// "cannot affect row a second time" errors in UpdateTasksToAssigned.
 	// UpdateTasksToAssigned joins on (id, inserted_at) and uses the DB-stored
@@ -1107,16 +1134,6 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 		return nil, nil
 	}
 
-	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("could not begin transaction: %w", err)
-	}
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-			b.l.Error().Err(err).Msg("rollback failed after commit assignments")
-		}
-	}()
-
 	if err := b.queries.DeleteBatchedQueueItems(ctx, tx, ids); err != nil {
 		return nil, fmt.Errorf("could not delete batched queue items: %w", err)
 	}
@@ -1130,10 +1147,6 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 	})
 	if err != nil {
 		return nil, fmt.Errorf("could not update tasks to assigned: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("could not commit batch assignment transaction: %w", err)
 	}
 
 	updatedTaskIDs := make(map[int64]struct{}, len(updated))
@@ -1153,7 +1166,128 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 		}
 	}
 
+	if err := b.applyBatchMetadataTx(ctx, tx, succeeded); err != nil {
+		return nil, err
+	}
+
 	return succeeded, nil
+}
+
+// applyBatchMetadataTx sets batch_id/batch_size/batch_index/batch_key/worker_id on the
+// v1_task_runtime rows just written by commitAssignmentsTx, reusing the same
+// UpdateTaskBatchMetadata query the async scheduler service (internal/services/scheduler/v1)
+// applies later on its own. Doing it here too, inside the same transaction as the reservation and
+// commit, means a batch run counts toward ReserveTaskBatchRun's active-run cap (which joins on
+// v1_task_runtime.batch_id) the moment this transaction commits, rather than only once that later,
+// channel-decoupled call happens - closing the window where a second reservation attempt could
+// still read a stale, not-yet-active count.
+func (b *batchQueueRepository) applyBatchMetadataTx(ctx context.Context, tx pgx.Tx, assignments []*BatchAssignment) error {
+	groups := make(map[string][]*BatchAssignment)
+	order := make([]string, 0, 1)
+
+	for _, a := range assignments {
+		if a == nil || strings.TrimSpace(a.BatchID) == "" {
+			continue
+		}
+
+		if _, ok := groups[a.BatchID]; !ok {
+			order = append(order, a.BatchID)
+		}
+
+		groups[a.BatchID] = append(groups[a.BatchID], a)
+	}
+
+	for _, batchID := range order {
+		group := groups[batchID]
+
+		taskIds := make([]int64, len(group))
+		taskInsertedAts := make([]pgtype.Timestamptz, len(group))
+		batchIndexes := make([]int32, len(group))
+
+		for i, a := range group {
+			taskIds[i] = a.TaskID
+			taskInsertedAts[i] = a.TaskInsertedAt
+			batchIndexes[i] = int32(i) // nolint: gosec
+		}
+
+		if err := b.queries.UpdateTaskBatchMetadata(ctx, tx, sqlcv1.UpdateTaskBatchMetadataParams{
+			Batchid:         uuid.MustParse(batchID),
+			Batchsize:       int32(len(group)), // nolint: gosec
+			Workerid:        group[0].WorkerID,
+			Batchkey:        group[0].BatchKey,
+			Tenantid:        b.tenantId,
+			Taskids:         taskIds,
+			Taskinsertedats: taskInsertedAts,
+			Batchindexes:    batchIndexes,
+		}); err != nil {
+			return fmt.Errorf("could not update task batch metadata: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (b *batchQueueRepository) ReserveAndCommitBatchRun(
+	ctx context.Context,
+	tenantId, stepId uuid.UUID,
+	actionId, batchKey, batchId string,
+	maxRuns int,
+	assignments []*BatchAssignment,
+) (bool, []*BatchAssignment, error) {
+	if maxRuns <= 0 || strings.TrimSpace(batchKey) == "" {
+		succeeded, err := b.CommitAssignments(ctx, assignments)
+		return true, succeeded, err
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "reserve-and-commit-batch-run")
+	defer span.End()
+
+	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return false, nil, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer func() {
+		if txErr := tx.Rollback(ctx); txErr != nil && !errors.Is(txErr, pgx.ErrTxClosed) {
+			b.l.Error().Err(txErr).Msg("rollback failed after reserve and commit batch run")
+		}
+	}()
+
+	// Serializes concurrent reservation attempts for the same (tenant, step, batch_key) group
+	// across the whole reserve-then-activate sequence.
+	if advisoryLockErr := b.queries.AdvisoryLock(ctx, tx, hash(tenantId.String()+":"+stepId.String()+":"+batchKey)); advisoryLockErr != nil {
+		return false, nil, fmt.Errorf("could not acquire batch reservation lock: %w", advisoryLockErr)
+	}
+
+	reserved, err := b.queries.ReserveTaskBatchRun(ctx, tx, sqlcv1.ReserveTaskBatchRunParams{
+		Tenantid: tenantId,
+		Stepid:   stepId,
+		Batchkey: batchKey,
+		Actionid: actionId,
+		Batchid:  uuid.MustParse(batchId),
+		Maxruns:  int32(maxRuns), // nolint: gosec
+	})
+	if err != nil {
+		return false, nil, err
+	}
+
+	if !reserved {
+		if commitErr := tx.Commit(ctx); commitErr != nil {
+			return false, nil, fmt.Errorf("could not commit batch reservation transaction: %w", commitErr)
+		}
+
+		return false, nil, nil
+	}
+
+	succeeded, err := b.commitAssignmentsTx(ctx, tx, assignments)
+	if err != nil {
+		return true, nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return true, nil, fmt.Errorf("could not commit batch reservation transaction: %w", err)
+	}
+
+	return true, succeeded, nil
 }
 
 func getLargerDuration(s1, s2 string) (string, error) {
