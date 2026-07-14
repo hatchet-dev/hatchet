@@ -570,7 +570,9 @@ class AdminClient:
                         if detail.Is(
                             workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
                         ):
-                            info = workflow_protos.BulkTriggerIdempotencyCollisionError()
+                            info = (
+                                workflow_protos.BulkTriggerIdempotencyCollisionError()
+                            )
                             detail.Unpack(info)
 
                             raise BulkTriggerIdempotencyCollisionError(
@@ -644,7 +646,9 @@ class AdminClient:
                         if detail.Is(
                             workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
                         ):
-                            info = workflow_protos.BulkTriggerIdempotencyCollisionError()
+                            info = (
+                                workflow_protos.BulkTriggerIdempotencyCollisionError()
+                            )
                             detail.Unpack(info)
 
                             raise BulkTriggerIdempotencyCollisionError(

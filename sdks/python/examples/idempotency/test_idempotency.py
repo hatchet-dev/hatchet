@@ -7,11 +7,17 @@ from examples.idempotency.worker import (
     EVENT_KEY,
 )
 
-from hatchet_sdk import Hatchet, IdempotencyCollisionError, RunStatus
+from hatchet_sdk import (
+    Hatchet,
+    IdempotencyCollisionError,
+    RunStatus,
+    BulkTriggerIdempotencyCollisionError,
+)
 from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 import asyncio
+from typing import cast
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -49,6 +55,34 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
     assert runs is not None
     assert len(runs.rows) == 1
     assert runs.rows[0].metadata.id == ref1.workflow_run_id
+
+    result = await ref1.aio_result()
+    assert "hello" in result["result"].lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_keys_prevent_duplicate_runs_bulk_trigger(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+
+    with pytest.raises(BulkTriggerIdempotencyCollisionError) as exc_info:
+        await idempotent_task.aio_run_many(
+            [
+                idempotent_task.create_bulk_run_item(
+                    input=IdempotencyInput(id=test_run_id),
+                    additional_metadata={"test_run_id": test_run_id},
+                )
+                for _ in range(2)
+            ],
+            wait_for_result=False,
+        )
+
+    successes = exc_info.value.successful_workflow_run_external_ids
+    collisions = exc_info.value.collisions
+
+    assert len(successes) == 1
+    assert len(collisions) == 1
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -95,6 +129,12 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
 
     assert runs.rows
     assert len(runs.rows) == 3
+
+    for id in [r.metadata.id for r in runs.rows]:
+        ref = hatchet.runs.get_run_ref(id)
+        res = await ref.aio_result()
+
+        assert "hello" in str(res).lower()
 
 
 @pytest.mark.asyncio(loop_scope="session")
