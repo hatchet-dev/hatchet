@@ -43,6 +43,17 @@ class IdempotencyCollisionError(Exception):
         self.existing_run_external_id = existing_run_external_id
 
 
+class BulkTriggerIdempotencyCollisionError(Exception):
+    def __init__(
+        self,
+        successful_workflow_run_external_ids: list[str],
+        collisions: list[IdempotencyCollisionError],
+    ) -> None:
+        super().__init__()
+        self.successful_workflow_run_external_ids = successful_workflow_run_external_ids
+        self.collisions = collisions
+
+
 TASK_RUN_ERROR_METADATA_KEY = "__hatchet_error_metadata__"
 
 

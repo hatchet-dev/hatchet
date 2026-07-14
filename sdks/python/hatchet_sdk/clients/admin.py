@@ -21,7 +21,11 @@ from hatchet_sdk.contracts.v1 import workflows_pb2 as workflow_protos
 from hatchet_sdk.contracts.v1.shared import trigger_pb2 as trigger_protos
 from hatchet_sdk.contracts.v1.workflows_pb2_grpc import AdminServiceStub
 from hatchet_sdk.contracts.workflows_pb2_grpc import WorkflowServiceStub
-from hatchet_sdk.exceptions import DedupeViolationError, IdempotencyCollisionError
+from hatchet_sdk.exceptions import (
+    BulkTriggerIdempotencyCollisionError,
+    DedupeViolationError,
+    IdempotencyCollisionError,
+)
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.contextvars import (
     ctx_action_key,
@@ -547,13 +551,41 @@ class AdminClient:
                 workflows=chunk
             )
 
-            resp = cast(
-                v0_workflow_protos.BulkTriggerWorkflowResponse,
-                bulk_trigger_workflow(
-                    bulk_request,
-                    metadata=create_authorization_header(self.token),
-                ),
-            )
+            try:
+                resp = cast(
+                    v0_workflow_protos.BulkTriggerWorkflowResponse,
+                    bulk_trigger_workflow(
+                        bulk_request,
+                        metadata=create_authorization_header(self.token),
+                    ),
+                )
+            except (grpc.RpcError, grpc.aio.AioRpcError) as e:
+                if (
+                    e.code() == grpc.StatusCode.ALREADY_EXISTS
+                    and e.details() == "idempotency key collision"
+                ):
+                    status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+
+                    for detail in status.details:  # type: ignore[attr-defined]
+                        if detail.Is(
+                            workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
+                        ):
+                            info = workflow_protos.BulkTriggerIdempotencyCollisionError()
+                            detail.Unpack(info)
+
+                            raise BulkTriggerIdempotencyCollisionError(
+                                successful_workflow_run_external_ids=list(
+                                    info.successful_workflow_run_external_ids
+                                ),
+                                collisions=[
+                                    IdempotencyCollisionError(
+                                        existing_run_external_id=collision.existing_run_external_id
+                                    )
+                                    for collision in info.collisions
+                                ],
+                            ) from e
+
+                raise e
 
             refs.extend(
                 [
@@ -592,14 +624,42 @@ class AdminClient:
                 workflows=chunk
             )
 
-            resp = cast(
-                v0_workflow_protos.BulkTriggerWorkflowResponse,
-                await asyncio.to_thread(
-                    bulk_trigger_workflow,
-                    bulk_request,
-                    metadata=create_authorization_header(self.token),
-                ),
-            )
+            try:
+                resp = cast(
+                    v0_workflow_protos.BulkTriggerWorkflowResponse,
+                    await asyncio.to_thread(
+                        bulk_trigger_workflow,
+                        bulk_request,
+                        metadata=create_authorization_header(self.token),
+                    ),
+                )
+            except (grpc.RpcError, grpc.aio.AioRpcError) as e:
+                if (
+                    e.code() == grpc.StatusCode.ALREADY_EXISTS
+                    and e.details() == "idempotency key collision"
+                ):
+                    status: list[Any] = rpc_status.from_call(e)  # type: ignore[arg-type]
+
+                    for detail in status.details:  # type: ignore[attr-defined]
+                        if detail.Is(
+                            workflow_protos.BulkTriggerIdempotencyCollisionError.DESCRIPTOR
+                        ):
+                            info = workflow_protos.BulkTriggerIdempotencyCollisionError()
+                            detail.Unpack(info)
+
+                            raise BulkTriggerIdempotencyCollisionError(
+                                successful_workflow_run_external_ids=list(
+                                    info.successful_workflow_run_external_ids
+                                ),
+                                collisions=[
+                                    IdempotencyCollisionError(
+                                        existing_run_external_id=collision.existing_run_external_id
+                                    )
+                                    for collision in info.collisions
+                                ],
+                            ) from e
+
+                raise e
 
             refs.extend(
                 [

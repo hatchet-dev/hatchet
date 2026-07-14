@@ -144,6 +144,7 @@ from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
+    BulkTriggerIdempotencyCollisionError,
     DedupeViolationError,
     EvictionNotSupportedError,
     FailedTaskRunExceptionGroup,
@@ -234,6 +235,7 @@ __all__ = [
     "EvictionNotSupportedError",
     "FailedTaskRunExceptionGroup",
     "GetStepRunDiffResponse",
+    "BulkTriggerIdempotencyCollisionError",
     "GithubAppInstallation",
     "GithubBranch",
     "GithubRepo",

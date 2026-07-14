@@ -196,10 +196,20 @@ class IdempotencyConfig(_message.Message):
     def __init__(self, expression: _Optional[str] = ..., ttl_ms: _Optional[int] = ...) -> None: ...
 
 class IdempotencyCollisionError(_message.Message):
-    __slots__ = ("existing_run_external_id",)
+    __slots__ = ("existing_run_external_id", "colliding_run_external_id")
     EXISTING_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    COLLIDING_RUN_EXTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
     existing_run_external_id: str
-    def __init__(self, existing_run_external_id: _Optional[str] = ...) -> None: ...
+    colliding_run_external_id: str
+    def __init__(self, existing_run_external_id: _Optional[str] = ..., colliding_run_external_id: _Optional[str] = ...) -> None: ...
+
+class BulkTriggerIdempotencyCollisionError(_message.Message):
+    __slots__ = ("successful_workflow_run_external_ids", "collisions")
+    SUCCESSFUL_WORKFLOW_RUN_EXTERNAL_IDS_FIELD_NUMBER: _ClassVar[int]
+    COLLISIONS_FIELD_NUMBER: _ClassVar[int]
+    successful_workflow_run_external_ids: _containers.RepeatedScalarFieldContainer[str]
+    collisions: _containers.RepeatedCompositeFieldContainer[IdempotencyCollisionError]
+    def __init__(self, successful_workflow_run_external_ids: _Optional[_Iterable[str]] = ..., collisions: _Optional[_Iterable[_Union[IdempotencyCollisionError, _Mapping]]] = ...) -> None: ...
 
 class DefaultFilter(_message.Message):
     __slots__ = ("expression", "scope", "payload")
