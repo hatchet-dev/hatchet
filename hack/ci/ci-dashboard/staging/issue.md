@@ -1,41 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-13T07:08:01Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-14T07:06:51Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 82% (1932/2356) · main: 64% (72/113)
+**Gating-CI pass rate** — PR: 82% (1967/2394) · main: 62% (69/112)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [29, 30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+  x-axis [30, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [77, 82, 78, 85, 76, 95, 85, 81, 84, 86, 76, 83, 96, 97, 82]
-  line "main" [90, 50, 67, 53, 67, 67, 67, 100, 67, 60, 36, 100, 100, 100, 100]
+  line "CI" [85, 78, 85, 76, 95, 85, 81, 84, 86, 76, 83, 96, 97, 77, 92]
+  line "main" [50, 67, 53, 67, 67, 67, 100, 67, 60, 36, 100, 100, 100, 67, 67]
 ```
 
-_X-axis = day of month (Jun 29 → Jul 13). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jun 30 → Jul 14). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `cypress` | frontend / app | 1 | 0 | 3 | 33% | flaky | PR | **flaky test** — Cypress UI element timeouts (tenant switcher, new-tenant) in frontend E2E |
-| 2 | `unit` | test | 1 | 0 | 5 | 20% | flaky | PR | **flaky test** — msgqueue TestMsgIdBufferMemoryLeak times out sending messages under CI concurrency |
-| 3 | `test` | python | 1 | 0 | 5 | 20% | flaky | PR | **flaky test** — test_waits races on random_number vs skipped condition |
-| 4 | `api` | build | 1 | 0 | 7 | 14% | flaky | PR | **infra/CI** — Alpine apk mirror TLS error during api Docker build |
-| 5 | `migrate-arm` | build | 1 | 0 | 7 | 14% | flaky | PR | **infra/CI** — Alpine apk mirror TLS error during migrate-arm Docker build |
+| 1 | `generate` | test | 16 | 0 | 38 | 42% | flaky | PR | **infra/CI** — generate job Check for diff: protobuf/codegen outputs drift from committed files |
+| 2 | `integration` | test | 10 | 0 | 38 | 26% | flaky | main + PR | **flaky test** — TestValidateOAuthState_EmptyStateBypass fails on duplicate Tenant_pkey (test DB isolation) |
+| 3 | `build` | frontend / app | 7 | 0 | 24 | 29% | flaky | PR | **product bug** — Frontend org-invites TypeScript build errors on frontend/app workflow |
+| 4 | `dashboard-arm` | build | 7 | 0 | 35 | 20% | flaky | PR | **product bug** — Docker dashboard-arm build fails: npm run build hits frontend org-invites TS errors |
+| 5 | `dashboard-amd` | build | 7 | 0 | 35 | 20% | flaky | PR | **product bug** — Docker dashboard-amd build fails: npm run build hits frontend org-invites TS errors |
+| 6 | `lite-amd` | build | 7 | 0 | 35 | 20% | flaky | PR | **product bug** — Docker lite-amd build fails: npm run build hits frontend org-invites TS errors |
+| 7 | `lite-arm` | build | 7 | 0 | 35 | 20% | flaky | PR | **product bug** — Docker lite-arm build fails: npm run build hits frontend org-invites TS errors |
+| 8 | `authdisabled` | build | 7 | 0 | 35 | 20% | flaky | PR | **product bug** — Docker authdisabled build fails: npm run build hits frontend org-invites TS errors |
+| 9 | `frontend` | build | 7 | 0 | 35 | 20% | flaky | PR | **product bug** — Frontend org-invites TS errors in new-organization-saver-form (Organization union mismatch) |
+| 10 | `unit` | test | 4 | 0 | 38 | 10% | flaky | PR | **product bug** — RBAC TestAuthorizeTenantOperations nil deref in Authorizer.IsAuthorized (pkg/auth/rbac) |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `(unparsed)` | `cypress` | 1 | 3 | 33% | flaky | PR | **flaky test** — Cypress UI element timeouts (tenant switcher, new-tenant) in frontend E2E |
-| 2 | `TestMsgIdBufferMemoryLeak` | `unit` | 1 | 5 | 20% | flaky | PR | **flaky test** — msgqueue TestMsgIdBufferMemoryLeak times out sending messages under CI concurrency |
-| 3 | `examples/conditions/test_conditions.py::test_waits` | `test` | 1 | 5 | 20% | flaky | PR | **flaky test** — test_waits races on random_number vs skipped condition |
-| 4 | `(unparsed)` | `api` | 1 | 7 | 14% | flaky | PR | **infra/CI** — Alpine apk mirror TLS error during api Docker build |
-| 5 | `(unparsed)` | `migrate-arm` | 1 | 7 | 14% | flaky | PR | **infra/CI** — Alpine apk mirror TLS error during migrate-arm Docker build |
+| 1 | `(unparsed)` | `generate` | 16 | 38 | 42% | flaky | PR | **infra/CI** — generate job Check for diff: protobuf/codegen outputs drift from committed files |
+| 2 | `(unparsed)` | `build` | 7 | 24 | 29% | flaky | PR | **product bug** — Frontend org-invites TypeScript build errors on frontend/app workflow |
+| 3 | `(unparsed)` | `dashboard-arm` | 7 | 35 | 20% | flaky | PR | **product bug** — Docker dashboard-arm build fails: npm run build hits frontend org-invites TS errors |
+| 4 | `(unparsed)` | `dashboard-amd` | 7 | 35 | 20% | flaky | PR | **product bug** — Docker dashboard-amd build fails: npm run build hits frontend org-invites TS errors |
+| 5 | `(unparsed)` | `authdisabled` | 7 | 35 | 20% | flaky | PR | **product bug** — Docker authdisabled build fails: npm run build hits frontend org-invites TS errors |
+| 6 | `(unparsed)` | `frontend` | 7 | 35 | 20% | flaky | PR | **product bug** — Frontend org-invites TS errors in new-organization-saver-form (Organization union mismatch) |
+| 7 | `(unparsed)` | `lite-arm` | 6 | 35 | 17% | flaky | PR | **product bug** — Docker lite-arm build fails: npm run build hits frontend org-invites TS errors |
+| 8 | `(unparsed)` | `lite-amd` | 5 | 35 | 14% | flaky | PR | **product bug** — Docker lite-amd build fails: npm run build hits frontend org-invites TS errors |
+| 9 | `TestValidateOAuthState_EmptyStateBypass` | `integration` | 4 | 38 | 10% | flaky | main + PR | **flaky test** — TestValidateOAuthState_EmptyStateBypass fails on duplicate Tenant_pkey (test DB isolation) |
+| 10 | `(unparsed)` | `load-deadlock` | 4 | 38 | 10% | flaky | PR | **flaky test** — load-deadlock goleak reports unexpected goroutines in hatchet-loadtest after long run |
 
 ## Recent CI-health wins (`ci-health`)
 
