@@ -16,16 +16,11 @@ Hatchet uses the following environment variable prefixes:
 - **`SCHEDULER_`** — scheduler concurrency and polling intervals
 - **`CACHE_`** — cache duration for repository lookups
 
-<Callout type="info">
-  Client-side `HATCHET_CLIENT_*` variables (used by the Go SDK) are configured
-  separately and are not covered here.
-</Callout>
-
 ## Required Environment Variables
 
 The following variables are **absolutely required** for Hatchet to start successfully:
 
-### Encryption Keys (Required - Choose One Strategy)
+### Encryption Keys
 
 **Option A: Local Encryption Keys**
 
@@ -57,7 +52,7 @@ SERVER_ENCRYPTION_CLOUDKMS_CREDENTIALS_JSON="<credentials-json>"
 SERVER_AUTH_COOKIE_SECRETS="<secret1> <secret2>"
 ```
 
-### Database Connection (Required)
+### Database Connection
 
 **Option A: Connection String**
 
@@ -68,8 +63,11 @@ DATABASE_URL="postgresql://user:password@host:port/dbname"
 **Option B: Individual Parameters** (uses defaults if not specified)
 
 ```bash
-DATABASE_POSTGRES_HOST=your-postgres-host
-DATABASE_POSTGRES_PASSWORD=your-secure-password
+DATABASE_POSTGRES_HOST
+DATABASE_POSTGRES_USERNAME
+DATABASE_POSTGRES_PASSWORD
+DATABASE_POSTGRES_DB_NAME
+DATABASE_POSTGRES_SSL_MODE
 ```
 
 ## Minimal Configuration Example
@@ -107,10 +105,12 @@ DATABASE_LOGGER_LEVEL=error
 DATABASE_LOGGER_FORMAT=console
 ```
 
-Generate encryption keys with:
+Generate encryption keys with the `hatchet-admin` image. This writes `master.key`, `private_ec256.key` and `public_ec256.key` into `./keys`:
 
 ```bash
-go run ./cmd/hatchet-admin keyset create-local-keys --key-dir ./keys
+docker run --rm -v "$(pwd)/keys:/keys" \
+  ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest \
+  /hatchet/hatchet-admin keyset create-local-keys --key-dir /keys
 ```
 
 ## Runtime Configuration
