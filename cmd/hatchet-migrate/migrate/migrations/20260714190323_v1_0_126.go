@@ -36,7 +36,7 @@ func upV10126(ctx context.Context, db *sql.DB) error {
 			}
 		}
 
-		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;", quoteIdent(table), quoteIdent(v10126IndexName(table)))
+		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;", quoteIdent(v10126IndexName(table)), quoteIdent(table))
 
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("failed to create index on %s: %w", table, err)
