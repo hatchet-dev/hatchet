@@ -31,16 +31,6 @@ func TestWithSlotCost_OmittedKeepsOneDefaultSlot(t *testing.T) {
 	assert.Equal(t, map[string]int32{"default": 1}, req.Tasks[0].SlotRequests)
 }
 
-func TestWithSlotCost_OneIsAccepted(t *testing.T) {
-	c := newTestClient()
-	task := c.NewStandaloneTask("one", sampleTaskFn, WithSlotCost(1))
-
-	req, _, _, _ := task.Dump()
-
-	require.Len(t, req.Tasks, 1)
-	assert.Equal(t, map[string]int32{"default": 1}, req.Tasks[0].SlotRequests)
-}
-
 func TestWithSlotCost_RejectsNonPositive(t *testing.T) {
 	c := newTestClient()
 

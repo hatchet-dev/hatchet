@@ -7,10 +7,11 @@ from tests.child_spawn_cache_on_retry.worker import (
     spawn_cache_on_retry_child,
     spawn_cache_on_retry_parent,
 )
+from tests.concurrency_strategies.workflow import concurrency_strategy_workflow
 from tests.correct_failure_on_timeout_with_multi_concurrency.workflow import (
     multiple_concurrent_cancellations_test_workflow,
 )
-from tests.concurrency_strategies.workflow import concurrency_strategy_workflow
+from tests.slot_cost.workflow import slot_cost_workflow
 
 hatchet = Hatchet()
 HatchetInstrumentor().instrument()
@@ -23,6 +24,7 @@ def main(slots: int) -> None:
         workflows=[
             concurrency_strategy_workflow,
             multiple_concurrent_cancellations_test_workflow,
+            slot_cost_workflow,
             spawn_cache_on_retry_parent,
             spawn_cache_on_retry_child,
         ],

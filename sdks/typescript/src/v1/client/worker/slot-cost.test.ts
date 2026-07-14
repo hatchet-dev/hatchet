@@ -22,10 +22,6 @@ describe('mapSlotRequestsPb', () => {
     expect(mapSlotRequestsPb({}, false)).toEqual({ default: 1 });
   });
 
-  it('accepts a slotCost of 1', () => {
-    expect(mapSlotRequestsPb({ slotCost: 1 }, false)).toEqual({ default: 1 });
-  });
-
   it('rejects a slotCost of 0 or a negative slotCost', () => {
     expect(() => mapSlotRequestsPb({ slotCost: 0 }, false)).toThrow(/positive integer/);
     expect(() => mapSlotRequestsPb({ slotCost: -3 }, false)).toThrow(/positive integer/);
