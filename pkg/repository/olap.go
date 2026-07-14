@@ -1725,7 +1725,7 @@ func (r *OLAPRepositoryImpl) prepareDAGStatusUpdateBatch(taskRows []*sqlcv1.Upda
 	dagInsertedAts := make([]pgtype.Timestamptz, 0)
 
 	for _, row := range taskRows {
-		if !row.DagID.Valid {
+		if !row.WasUpdated || !row.DagID.Valid {
 			continue
 		}
 
