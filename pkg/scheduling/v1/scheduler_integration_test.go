@@ -33,7 +33,7 @@ type captureSnapshotsExt struct {
 
 func (c *captureSnapshotsExt) SetTenants(_ []*sqlcv1.Tenant) {}
 
-func (c *captureSnapshotsExt) ReportSnapshot(tenantId uuid.UUID, input *schedv1.SnapshotInput) {
+func (c *captureSnapshotsExt) ReportSnapshot(_ context.Context, tenantId uuid.UUID, input *schedv1.SnapshotInput) {
 	// non-blocking
 	select {
 	case c.ch <- snapshotEvent{tenantId: tenantId, input: input}:
