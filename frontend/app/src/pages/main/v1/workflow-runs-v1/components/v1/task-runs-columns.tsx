@@ -37,6 +37,7 @@ export const TaskRunColumn = {
   duration: 'Duration',
   additionalMetadata: 'Metadata',
   idempotencyKey: 'Idempotency Key',
+  additionalMetadataOperator: 'Metadata Match',
 } as const;
 
 export type TaskRunColumnKeys = keyof typeof TaskRunColumn;
@@ -49,6 +50,8 @@ const startedAtKey: TaskRunColumnKeys = 'startedAt';
 const finishedAtKey: TaskRunColumnKeys = 'finishedAt';
 const durationKey: TaskRunColumnKeys = 'duration';
 export const additionalMetadataKey: TaskRunColumnKeys = 'additionalMetadata';
+export const additionalMetadataOperatorKey: TaskRunColumnKeys =
+  'additionalMetadataOperator';
 const taskNameKey: TaskRunColumnKeys = 'taskName';
 export const statusKey: TaskRunColumnKeys = 'status';
 

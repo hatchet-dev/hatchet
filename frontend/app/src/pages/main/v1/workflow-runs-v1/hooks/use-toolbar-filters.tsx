@@ -15,7 +15,11 @@ import {
   ToolbarType,
   TimeRangeConfig,
 } from '@/components/v1/molecules/data-table/data-table-toolbar';
-import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
+import {
+  V1AdditionalMetadataOperator,
+  V1RunningFilter,
+  V1TaskStatus,
+} from '@/lib/api';
 import { useMemo, useState } from 'react';
 
 export const workflowRunStatusFilters: FilterOption[] = [
@@ -128,6 +132,15 @@ export const useToolbarFilters = ({
       columnId: additionalMetadataKey,
       title: 'Metadata',
       type: ToolbarType.KeyValue,
+      operatorConfig: {
+        value: filterActions.apiFilters.additionalMetadataOperator,
+        onChange: (operator: 'AND' | 'OR') =>
+          filterActions.setAdditionalMetadataOperator(
+            operator === 'AND'
+              ? V1AdditionalMetadataOperator.AND
+              : V1AdditionalMetadataOperator.OR,
+          ),
+      },
     },
     {
       columnId: flattenDAGsKey,

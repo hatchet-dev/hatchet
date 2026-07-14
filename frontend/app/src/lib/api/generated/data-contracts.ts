@@ -301,6 +301,11 @@ export enum V1RunningFilter {
   ON_WORKER = "ON_WORKER",
 }
 
+export enum V1AdditionalMetadataOperator {
+  OR = "OR",
+  AND = "AND",
+}
+
 export enum V1LogLineOrderByDirection {
   ASC = "ASC",
   DESC = "DESC",

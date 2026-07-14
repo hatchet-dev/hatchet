@@ -3,6 +3,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   queries,
+  V1AdditionalMetadataOperator,
   V1RunningFilter,
   V1TaskSummary,
   V1TaskStatus,
@@ -20,6 +21,7 @@ type UseRunsProps = {
   runningFilter?: V1RunningFilter;
   additionalMetadata?: string[];
   idempotencyKeys?: string[];
+  additionalMetadataOperator?: V1AdditionalMetadataOperator;
   workerId: string | undefined;
   workflowIds?: string[];
   parentTaskExternalId: string | undefined;
@@ -37,6 +39,7 @@ export const useRuns = ({
   runningFilter,
   additionalMetadata,
   idempotencyKeys,
+  additionalMetadataOperator,
   workerId,
   workflowIds,
   parentTaskExternalId,
@@ -55,6 +58,7 @@ export const useRuns = ({
       runningFilter,
       additionalMetadata,
       idempotencyKeys,
+      additionalMetadataOperator,
       workerId,
       workflowIds,
       parentTaskExternalId,
@@ -87,6 +91,7 @@ export const useRuns = ({
       until: finishedBefore,
       additional_metadata: additionalMetadata,
       idempotency_keys: idempotencyKeys,
+      additional_metadata_operator: additionalMetadataOperator,
       worker_id: workerId,
       only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,

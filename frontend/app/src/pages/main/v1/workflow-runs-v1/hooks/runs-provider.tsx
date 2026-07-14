@@ -212,6 +212,7 @@ export const RunsProvider = ({
     runningFilter: filters.apiFilters.runningFilter,
     additionalMetadata: filters.apiFilters.additionalMetadata,
     idempotencyKeys: filters.apiFilters.idempotencyKeys,
+    additionalMetadataOperator: filters.apiFilters.additionalMetadataOperator,
     workerId,
     workflowIds:
       filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),

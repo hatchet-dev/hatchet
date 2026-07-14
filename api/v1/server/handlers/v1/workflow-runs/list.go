@@ -97,7 +97,7 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
@@ -133,13 +133,15 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		IncludePayloads: includePayloads,
-		IdempotencyKeys: request.Params.IdempotencyKeys,
+		CreatedAfter:               since,
+		Statuses:                   statuses,
+		WorkflowIds:                workflowIds,
+		Limit:                      limit,
+		Offset:                     offset,
+		IncludePayloads:            includePayloads,
+		UseGinIndex:                useGinIndex,
+		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
+		IdempotencyKeys:            request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -245,7 +247,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
@@ -281,14 +283,16 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter:    since,
-		Statuses:        statuses,
-		WorkflowIds:     workflowIds,
-		Limit:           limit,
-		Offset:          offset,
-		WorkerId:        request.Params.WorkerId,
-		IncludePayloads: includePayloads,
-		IdempotencyKeys: request.Params.IdempotencyKeys,
+		CreatedAfter:               since,
+		Statuses:                   statuses,
+		WorkflowIds:                workflowIds,
+		Limit:                      limit,
+		Offset:                     offset,
+		WorkerId:                   request.Params.WorkerId,
+		IncludePayloads:            includePayloads,
+		UseGinIndex:                useGinIndex,
+		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
+		IdempotencyKeys:            request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -360,11 +364,33 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
 
-	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId)
-	} else {
-		return t.WithDags(spanContext, request, tenantId)
+	useGinIndex := false
+
+	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
+		enabled, err := t.config.V1.TenantEntitlement().IsStrictAdditionalMetadataFiltersEnabled(spanContext, tenantId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		useGinIndex = enabled
 	}
+
+	if request.Params.OnlyTasks {
+		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex)
+	} else {
+		return t.WithDags(spanContext, request, tenantId, useGinIndex)
+	}
+}
+
+// additionalMetadataOperator maps the optional additional_metadata_operator query
+// param to the repository operator, defaulting to OR
+func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator) v1.AdditionalMetadataOperator {
+	if param != nil && *param == gen.AND {
+		return v1.AdditionalMetadataOperatorAnd
+	}
+
+	return v1.AdditionalMetadataOperatorOr
 }
 
 func (t *V1WorkflowRunsService) V1WorkflowRunDisplayNamesList(ctx echo.Context, request gen.V1WorkflowRunDisplayNamesListRequestObject) (gen.V1WorkflowRunDisplayNamesListResponseObject, error) {
