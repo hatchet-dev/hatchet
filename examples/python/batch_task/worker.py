@@ -4,6 +4,7 @@ from datetime import timedelta
 from pydantic import BaseModel
 
 from hatchet_sdk import Context, Hatchet
+from hatchet_sdk.runnables.types import BatchMemberId
 
 
 # > Declaring a batched task
@@ -25,8 +26,8 @@ workflow = hatchet.workflow(name="batch-task-example", input_validator=BatchInpu
     batch_group_max_runs=1,
 )
 async def uppercase(
-    tasks: dict[str, BatchInput], context: Context
-) -> dict[str, dict[str, str]]:
+    tasks: dict[BatchMemberId, BatchInput], context: Context
+) -> dict[BatchMemberId, dict[str, str]]:
     await asyncio.sleep(10)
     return {
         id: {"group": inp.group, "uppercase": inp.message.upper()}

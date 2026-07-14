@@ -151,6 +151,8 @@ class APIMeta(BaseModel):
                 "allowChangePassword": obj.get("allowChangePassword"),
                 "observabilityEnabled": obj.get("observabilityEnabled"),
                 "prometheusServerEnabled": obj.get("prometheusServerEnabled"),
+                "authDisabled": obj.get("authDisabled"),
+                "authDisabledToken": obj.get("authDisabledToken"),
             }
         )
         return _obj
