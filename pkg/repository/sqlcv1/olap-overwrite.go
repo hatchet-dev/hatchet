@@ -57,8 +57,8 @@ WITH filtered AS (
             )
         )
         AND (
-            $10::jsonb IS NULL
-            OR additional_metadata @> $10::jsonb
+            $11::jsonb IS NULL
+            OR additional_metadata @> $11::jsonb
         )
 		AND (
 			$9::UUID IS NULL
@@ -71,6 +71,10 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$10::TEXT[] IS NULL
+			OR idempotency_key = ANY($10::TEXT[])
 		)
     ORDER BY
         inserted_at DESC
@@ -112,7 +116,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> $10::jsonb
+        AND additional_metadata @> $11::jsonb
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -124,6 +128,10 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$10::TEXT[] IS NULL
+			OR idempotency_key = ANY($10::TEXT[])
 		)
     ORDER BY
         inserted_at DESC
@@ -165,7 +173,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> ANY($10::jsonb[])
+        AND additional_metadata @> ANY($11::jsonb[])
 		AND (
 			$9::UUID IS NULL
 			OR (id, inserted_at) IN (
@@ -265,8 +273,8 @@ WITH filtered AS (
             )
         )
         AND (
-            $10::jsonb IS NULL
-            OR additional_metadata @> $10::jsonb
+            $11::jsonb IS NULL
+            OR additional_metadata @> $11::jsonb
         )
 		AND (
 			$8::UUID IS NULL
@@ -284,6 +292,10 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$10::TEXT[] IS NULL
+			OR idempotency_key = ANY($10::TEXT[])
 		)
     LIMIT 20000
 )
@@ -319,7 +331,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> $10::jsonb
+        AND additional_metadata @> $11::jsonb
 		AND (
 			$8::UUID IS NULL
 			OR parent_task_external_id = $8::UUID
@@ -336,6 +348,10 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
+		)
+		AND (
+			$10::TEXT[] IS NULL
+			OR idempotency_key = ANY($10::TEXT[])
 		)
     LIMIT 20000
 )
@@ -371,7 +387,7 @@ WITH filtered AS (
                 ) AS u ON kv.key = u.k AND kv.value = u.v
             )
         )
-        AND additional_metadata @> ANY($10::jsonb[])
+        AND additional_metadata @> ANY($11::jsonb[])
 		AND (
 			$8::UUID IS NULL
 			OR parent_task_external_id = $8::UUID
@@ -473,8 +489,8 @@ WHERE
         )
     )
     AND (
-        $12::jsonb IS NULL
-        OR additional_metadata @> $12::jsonb
+        $13::jsonb IS NULL
+        OR additional_metadata @> $13::jsonb
     )
     AND (
         $10::UUID IS NULL
@@ -491,6 +507,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
+    )
+    AND (
+        $12::TEXT[] IS NULL
+        OR idempotency_key = ANY($12::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -523,7 +543,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> $12::jsonb
+    AND additional_metadata @> $13::jsonb
     AND (
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
@@ -539,6 +559,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
+    )
+    AND (
+        $12::TEXT[] IS NULL
+        OR idempotency_key = ANY($12::TEXT[])
     )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
@@ -571,7 +595,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> ANY($12::jsonb[])
+    AND additional_metadata @> ANY($13::jsonb[])
     AND (
         $10::UUID IS NULL
         OR parent_task_external_id = $10::UUID
@@ -588,10 +612,10 @@ WHERE
 				AND lt.external_id = $11::UUID
 		)
     )
-	AND (
-		$12::TEXT[] IS NULL
-		OR idempotency_key = ANY($12::TEXT[])
-	)
+    AND (
+        $12::TEXT[] IS NULL
+        OR idempotency_key = ANY($12::TEXT[])
+    )
 ORDER BY inserted_at DESC, id DESC
 LIMIT $9::integer
 OFFSET $8::integer
@@ -705,8 +729,8 @@ WHERE
         )
     )
     AND (
-        $12::jsonb IS NULL
-        OR additional_metadata @> $12::jsonb
+        $13::jsonb IS NULL
+        OR additional_metadata @> $13::jsonb
     )
     AND (
         $11::UUID IS NULL
@@ -719,6 +743,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
+    )
+    AND (
+        $12::TEXT[] IS NULL
+        OR idempotency_key = ANY($12::TEXT[])
     )
 ORDER BY
     inserted_at DESC
@@ -757,7 +785,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> $12::jsonb
+    AND additional_metadata @> $13::jsonb
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
@@ -769,6 +797,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
+    )
+    AND (
+        $12::TEXT[] IS NULL
+        OR idempotency_key = ANY($12::TEXT[])
     )
 ORDER BY
     inserted_at DESC
@@ -807,7 +839,7 @@ WHERE
             ) AS u ON kv.key = u.k AND kv.value = u.v
         )
     )
-    AND additional_metadata @> ANY($12::jsonb[])
+    AND additional_metadata @> ANY($13::jsonb[])
     AND (
         $11::UUID IS NULL
 		OR (id, inserted_at) IN (
