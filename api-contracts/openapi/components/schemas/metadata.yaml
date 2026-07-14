@@ -53,6 +53,7 @@ APIMetaAuth:
       example:
         - basic
         - google
+        - azure
 
 APIMetaPosthog:
   type: object
