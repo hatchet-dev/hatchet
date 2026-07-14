@@ -48,7 +48,7 @@ func upV10126(ctx context.Context, db *sql.DB) error {
 
 func downV10126(ctx context.Context, db *sql.DB) error {
 	for _, table := range []string{"v1_tasks_olap", "v1_runs_olap"} {
-		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s ON", quoteIdent(v10126IndexName(table)))
+		stmt := fmt.Sprintf("DROP INDEX IF EXISTS %s", quoteIdent(v10126IndexName(table)))
 
 		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("failed to drop index on %s: %w", table, err)
