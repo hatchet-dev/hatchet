@@ -288,6 +288,16 @@ func (b *BatchScheduler) fetchNewItems() error {
 		b.flushDeadline = &deadline
 	}
 
+	// ListBatchedQueueItems has no cursor: it keeps returning the same still-pending rows on
+	// every call until they're actually flushed. Without this check, a group that doesn't flush
+	// on the very next tick (e.g. flushInterval > defaultBatchPollInterval) would have duplicates
+	alreadyBuffered := make(map[int64]struct{}, len(b.buffer))
+	for _, item := range b.buffer {
+		if item != nil {
+			alreadyBuffered[item.ID] = struct{}{}
+		}
+	}
+
 	newItems := make([]*sqlcv1.V1BatchedQueueItem, 0, len(items))
 	timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
 
@@ -295,6 +305,10 @@ func (b *BatchScheduler) fetchNewItems() error {
 
 	for _, item := range items {
 		if item == nil {
+			continue
+		}
+
+		if _, ok := alreadyBuffered[item.ID]; ok {
 			continue
 		}
 

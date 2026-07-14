@@ -1062,60 +1062,19 @@ func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignment
 // ReserveAndCommitBatchRun can run it inside the same transaction as the reservation itself,
 // instead of opening a second, separate transaction the way CommitAssignments does on its own.
 func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.Tx, assignments []*BatchAssignment) ([]*BatchAssignment, error) {
-	// Deduplicate assignments by (task_id, task_inserted_at) to avoid
-	// "cannot affect row a second time" errors in UpdateTasksToAssigned.
-	// UpdateTasksToAssigned joins on (id, inserted_at) and uses the DB-stored
-	// retry_count, so multiple assignments for the same (task_id, inserted_at)
-	// in a single call will target the same v1_task_runtime row.
-
-	// FIXME: It is not clear why we're ending up in this state, but we should investigate why and fix it.
-	type taskKey struct {
-		taskId     int64
-		insertedAt time.Time
-	}
-
-	seenTasks := make(map[taskKey]bool)
-	deduplicatedAssignments := make([]*BatchAssignment, 0, len(assignments))
-
-	for _, assignment := range assignments {
-		if assignment == nil {
-			continue
-		}
-
-		key := taskKey{
-			taskId:     assignment.TaskID,
-			insertedAt: assignment.TaskInsertedAt.Time,
-		}
-
-		if seenTasks[key] {
-			b.l.Warn().
-				Int64("task_id", assignment.TaskID).
-				Int32("retry_count", assignment.RetryCount).
-				Str("step_id", assignment.StepID.String()).
-				Str("action_id", assignment.ActionID).
-				Str("batch_key", assignment.BatchKey).
-				Str("batch_id", assignment.BatchID).
-				Msg("skipping duplicate task in batch assignments")
-			continue
-		}
-
-		seenTasks[key] = true
-		deduplicatedAssignments = append(deduplicatedAssignments, assignment)
-	}
 
 	b.l.Debug().
 		Int("incoming_assignment_count", len(assignments)).
-		Int("deduped_assignment_count", len(deduplicatedAssignments)).
 		Msg("prepared batch assignments for commit")
 
-	ids := make([]int64, 0, len(deduplicatedAssignments))
-	taskIds := make([]int64, 0, len(deduplicatedAssignments))
-	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(deduplicatedAssignments))
-	workerIds := make([]uuid.UUID, 0, len(deduplicatedAssignments))
+	ids := make([]int64, 0, len(assignments))
+	taskIds := make([]int64, 0, len(assignments))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(assignments))
+	workerIds := make([]uuid.UUID, 0, len(assignments))
 
 	var minTaskInsertedAt pgtype.Timestamptz
 
-	for _, assignment := range deduplicatedAssignments {
+	for _, assignment := range assignments {
 		if assignment == nil {
 			continue
 		}
@@ -1156,8 +1115,8 @@ func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.T
 		}
 	}
 
-	succeeded := make([]*BatchAssignment, 0, len(deduplicatedAssignments))
-	for _, a := range deduplicatedAssignments {
+	succeeded := make([]*BatchAssignment, 0, len(assignments))
+	for _, a := range assignments {
 		if a == nil {
 			continue
 		}
