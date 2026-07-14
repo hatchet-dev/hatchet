@@ -17,7 +17,11 @@ BEGIN
         kind,
         readable_status
     )
-    SELECT
+    -- DISTINCT ON: nothing constraint-enforces (external_id, inserted_at)
+    -- uniqueness across new_rows, and ON CONFLICT DO UPDATE errors if a single
+    -- statement affects the same row twice. On duplicates, keep the
+    -- highest-priority status.
+    SELECT DISTINCT ON (external_id, inserted_at)
         external_id,
         inserted_at,
         tenant_id,
@@ -25,6 +29,7 @@ BEGIN
         kind,
         readable_status
     FROM new_rows
+    ORDER BY external_id, inserted_at, v1_status_to_priority(readable_status) DESC
     ON CONFLICT (external_id, inserted_at) DO UPDATE
     SET readable_status = EXCLUDED.readable_status
     WHERE v1_statuses_olap.readable_status IS DISTINCT FROM EXCLUDED.readable_status;
