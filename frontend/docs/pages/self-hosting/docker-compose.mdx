@@ -194,7 +194,7 @@ docker compose pull
 
 ## Connecting to the engine from within Docker
 
-If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `hatchet-engine` as the hostname. Use port `7070` here — that is the port the engine listens on _inside_ the Docker network. (`7077` is only the host-side mapping for workers running on your machine.) For example:
+If you're also running your worker application inside of `docker-compose`, you should modify the `SERVER_GRPC_BROADCAST_ADDRESS` environment variable in the `setup-config` service to use `hatchet-engine` as the hostname. For example:
 
 ```yaml
 SERVER_GRPC_BROADCAST_ADDRESS: "hatchet-engine:7070"
