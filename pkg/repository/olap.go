@@ -84,10 +84,10 @@ type ListTaskRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
-	// StrictAdditionalMetadata switches AdditionalMetadata filtering to jsonb
-	// containment, which is backed by the GIN indexes on the OLAP tables. See
+	// UseGinIndex switches AdditionalMetadata filtering to jsonb containment,
+	// which is backed by the GIN indexes on the OLAP tables. See
 	// AdditionalMetadataOperator for how multiple pairs are combined.
-	StrictAdditionalMetadata bool
+	UseGinIndex bool
 
 	AdditionalMetadataOperator AdditionalMetadataOperator
 
@@ -113,10 +113,10 @@ type ListWorkflowRunOpts struct {
 
 	AdditionalMetadata map[string]interface{}
 
-	// StrictAdditionalMetadata switches AdditionalMetadata filtering to jsonb
-	// containment, which is backed by the GIN indexes on the OLAP tables. See
+	// UseGinIndex switches AdditionalMetadata filtering to jsonb containment,
+	// which is backed by the GIN indexes on the OLAP tables. See
 	// AdditionalMetadataOperator for how multiple pairs are combined.
-	StrictAdditionalMetadata bool
+	UseGinIndex bool
 
 	AdditionalMetadataOperator AdditionalMetadataOperator
 
@@ -913,7 +913,7 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
+	if opts.UseGinIndex && len(opts.AdditionalMetadata) > 0 {
 		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
 		if marshalErr != nil {
@@ -1277,7 +1277,7 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	if opts.StrictAdditionalMetadata && len(opts.AdditionalMetadata) > 0 {
+	if opts.UseGinIndex && len(opts.AdditionalMetadata) > 0 {
 		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
 
 		if marshalErr != nil {

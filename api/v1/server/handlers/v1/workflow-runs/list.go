@@ -97,7 +97,7 @@ func normalizeWorkflowRunStatuses(statuses []gen.V1TaskStatus, runningFilter *ge
 	return normalized
 }
 
-func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, strictAdditionalMetadata bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-with-dags-tasks")
 	defer span.End()
 
@@ -139,7 +139,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		Limit:                      limit,
 		Offset:                     offset,
 		IncludePayloads:            includePayloads,
-		StrictAdditionalMetadata:   strictAdditionalMetadata,
+		UseGinIndex:                useGinIndex,
 		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
 	}
 
@@ -246,7 +246,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	), nil
 }
 
-func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, strictAdditionalMetadata bool) (gen.V1WorkflowRunListResponseObject, error) {
+func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1WorkflowRunListRequestObject, tenantId uuid.UUID, useGinIndex bool) (gen.V1WorkflowRunListResponseObject, error) {
 	ctx, span := telemetry.NewSpan(ctx, "v1-workflow-runs-list-only-tasks")
 	defer span.End()
 
@@ -289,7 +289,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		Offset:                     offset,
 		WorkerId:                   request.Params.WorkerId,
 		IncludePayloads:            includePayloads,
-		StrictAdditionalMetadata:   strictAdditionalMetadata,
+		UseGinIndex:                useGinIndex,
 		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
 	}
 
@@ -362,7 +362,7 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 	spanContext, span := telemetry.NewSpan(ctx.Request().Context(), "v1-workflow-runs-list")
 	defer span.End()
 
-	strictAdditionalMetadata := false
+	useGinIndex := false
 
 	if request.Params.AdditionalMetadata != nil && len(*request.Params.AdditionalMetadata) > 0 {
 		enabled, err := t.config.V1.TenantEntitlement().IsStrictAdditionalMetadataFiltersEnabled(spanContext, tenantId)
@@ -371,13 +371,13 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 			return nil, err
 		}
 
-		strictAdditionalMetadata = enabled
+		useGinIndex = enabled
 	}
 
 	if request.Params.OnlyTasks {
-		return t.OnlyTasks(spanContext, request, tenantId, strictAdditionalMetadata)
+		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex)
 	} else {
-		return t.WithDags(spanContext, request, tenantId, strictAdditionalMetadata)
+		return t.WithDags(spanContext, request, tenantId, useGinIndex)
 	}
 }
 
