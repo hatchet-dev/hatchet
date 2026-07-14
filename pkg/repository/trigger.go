@@ -134,6 +134,9 @@ type createDAGOpts struct {
 
 	// (optional) overrides for desired worker labels, propagated to all downstream tasks
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
+
+	// (optional) the idempotency key that the dag claimed before being run
+	IdempotencyKey *string
 }
 
 type TriggerRepository interface {
@@ -1316,7 +1319,7 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		if isDag {
-			dagOpts = append(dagOpts, createDAGOpts{
+			dagOpt := createDAGOpts{
 				ExternalId:           tuple.externalId,
 				Input:                tuple.input,
 				TaskIds:              dagToTaskIds[tuple.externalId],
@@ -1327,7 +1330,13 @@ func (r *sharedRepository) triggerWorkflows(
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
-			})
+			}
+
+			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
+				dagOpt.IdempotencyKey = &idempotencyKey
+			}
+
+			dagOpts = append(dagOpts, dagOpt)
 		}
 	}
 
@@ -1566,6 +1575,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	parentTaskExternalIds := make([]uuid.UUID, 0, len(opts))
 	dagIdToOpt := make(map[uuid.UUID]createDAGOpts, 0)
 	desiredWorkerLabels := make([][]byte, 0, len(opts))
+	idempotencyKeys := make([]string, 0, len(opts))
 
 	unix := time.Now().UnixMilli()
 
@@ -1580,6 +1590,12 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			parentTaskExternalIds = append(parentTaskExternalIds, uuid.UUID{})
 		} else {
 			parentTaskExternalIds = append(parentTaskExternalIds, *opt.ParentTaskExternalID)
+		}
+
+		if opt.IdempotencyKey == nil {
+			idempotencyKeys = append(idempotencyKeys, "")
+		} else {
+			idempotencyKeys = append(idempotencyKeys, *opt.IdempotencyKey)
 		}
 
 		var desiredWorkerLabelsBytes []byte
@@ -1605,6 +1621,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		Workflowversionids:    workflowVersionIds,
 		Parenttaskexternalids: parentTaskExternalIds,
 		Desiredworkerlabels:   desiredWorkerLabels,
+		Idempotencykeys:       idempotencyKeys,
 	})
 
 	if err != nil {

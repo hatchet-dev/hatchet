@@ -220,6 +220,7 @@ CREATE TABLE v1_tasks_olap (
     dag_inserted_at TIMESTAMPTZ,
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
+    idempotency_key TEXT,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
@@ -242,6 +243,7 @@ CREATE TABLE v1_dags_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
+    idempotency_key TEXT,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -263,12 +265,14 @@ CREATE TABLE v1_runs_olap (
     workflow_version_id UUID NOT NULL,
     additional_metadata JSONB,
     parent_task_external_id UUID,
+    idempotency_key TEXT,
 
     PRIMARY KEY (inserted_at, id, readable_status, kind)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
 CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);
+CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
@@ -608,7 +612,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     )
     SELECT
         tenant_id,
@@ -620,7 +625,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     FROM new_rows
     WHERE dag_id IS NULL
     ON CONFLICT (inserted_at, id) DO NOTHING;
@@ -729,7 +735,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     )
     SELECT
         tenant_id,
@@ -741,7 +748,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     FROM new_rows
     ON CONFLICT (inserted_at, id) DO NOTHING;
 

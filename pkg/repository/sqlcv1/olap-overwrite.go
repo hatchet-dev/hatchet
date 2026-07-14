@@ -528,7 +528,8 @@ WITH inputs AS (
         UNNEST($19::BIGINT[]) AS dag_id,
         UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($21::UUID[]) AS parent_task_external_id,
-        UNNEST($22::BOOLEAN[]) AS is_durable
+        UNNEST($22::BOOLEAN[]) AS is_durable,
+		UNNEST($23::TEXT[]) AS idempotency_key
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -552,7 +553,8 @@ INSERT INTO v1_tasks_olap (
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable
+    is_durable,
+	idempotency_key
 )
 SELECT
     tenant_id,
@@ -576,7 +578,8 @@ SELECT
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable
+    is_durable,
+	idempotency_key
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -604,6 +607,7 @@ type CreateTasksOLAPParams struct {
 	Daginsertedats        []pgtype.Timestamptz `json:"daginsertedats"`
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Isdurables            []bool               `json:"isdurables"`
+	IdempotencyKeys       []pgtype.Text        `json:"idempotencykeys"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -630,6 +634,7 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Daginsertedats,
 		arg.Parenttaskexternalids,
 		arg.Isdurables,
+		arg.IdempotencyKeys,
 	)
 	return err
 }
@@ -647,7 +652,8 @@ WITH inputs AS (
         UNNEST($8::JSONB[]) AS input,
         UNNEST($9::JSONB[]) AS additional_metadata,
         UNNEST($10::UUID[]) AS parent_task_external_id,
-        UNNEST($11::INTEGER[]) AS total_tasks
+        UNNEST($11::INTEGER[]) AS total_tasks,
+		UNNEST($12::TEXT[]) AS idempotency_key
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -692,7 +698,8 @@ INSERT INTO v1_dags_olap (
     additional_metadata,
     parent_task_external_id,
     total_tasks,
-    readable_status
+    readable_status,
+	idempotency_key
 )
 SELECT
     i.tenant_id,
@@ -706,7 +713,8 @@ SELECT
     i.additional_metadata,
     i.parent_task_external_id,
     i.total_tasks,
-    COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap)
+    COALESCE(ds.computed_status, 'QUEUED'::v1_readable_status_olap),
+	i.idempotency_key
 FROM inputs i
 LEFT JOIN dag_statuses ds ON (i.id, i.inserted_at) = (ds.id, ds.inserted_at)
 ON CONFLICT (inserted_at, id) DO UPDATE SET
@@ -729,6 +737,7 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Totaltasks            []int32              `json:"totaltasks"`
+	IdempotencyKeys       []pgtype.Text        `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLAPOverwriteParams) error {
@@ -744,6 +753,7 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Additionalmetadatas,
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,
+		arg.IdempotencyKeys,
 	)
 	return err
 }

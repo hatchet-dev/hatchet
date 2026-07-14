@@ -2248,6 +2248,7 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
 		params.Inputs = append(params.Inputs, payloadToWriteToTask)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
+		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
 
 		if !minInsertedAt.Valid || task.InsertedAt.Time.Before(minInsertedAt.Time) {
 			minInsertedAt = task.InsertedAt
@@ -2372,6 +2373,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		params.Additionalmetadatas = append(params.Additionalmetadatas, dag.AdditionalMetadata)
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, dag.ParentTaskExternalID)
 		params.Totaltasks = append(params.Totaltasks, int32(dag.TotalTasks)) // nolint: gosec
+		params.IdempotencyKeys = append(params.IdempotencyKeys, dag.IdempotencyKey)
 
 		putPayloadOpts = append(putPayloadOpts, StoreOLAPPayloadOpts{
 			ExternalId: dag.ExternalID,
