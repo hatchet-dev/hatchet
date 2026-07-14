@@ -122,6 +122,12 @@ message IdempotencyConfig {
 
 message IdempotencyCollisionError {
     string existing_run_external_id = 1; // the external ID of the existing workflow run that caused the collision
+    string colliding_run_external_id = 2; // the external ID of the workflow run that caused the collision
+}
+
+message BulkTriggerIdempotencyCollisionError {
+    repeated string successful_workflow_run_external_ids = 1; // the external IDs of the successfully triggered workflow runs
+    repeated IdempotencyCollisionError collisions = 2; // the idempotency collision errors
 }
 
 message DefaultFilter {

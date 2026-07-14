@@ -167,10 +167,12 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		return nil, err
 	}
 
-	runIds := make([]string, len(req.Workflows))
+	runIds := make([]uuid.UUID, len(req.Workflows))
+	runIdStrs := make([]string, len(req.Workflows))
 
 	for i, opt := range opts {
-		runIds[i] = opt.ExternalId.String()
+		runIds[i] = opt.ExternalId
+		runIdStrs[i] = opt.ExternalId.String()
 	}
 
 	for i, runId := range runIds {
@@ -181,32 +183,53 @@ func (a *AdminServiceImpl) bulkTriggerWorkflowV1(ctx context.Context, req *contr
 		corrId := datautils.ExtractCorrelationId(additionalMeta)
 
 		ctx = context.WithValue(ctx, constants.CorrelationIdKey, corrId)
-		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId)
+		ctx = context.WithValue(ctx, constants.ResourceIdKey, runId.String())
 		ctx = context.WithValue(ctx, constants.ResourceTypeKey, constants.ResourceTypeWorkflowRun)
 
 		grpcmiddleware.TriggerCallback(ctx)
 	}
 
-	for _, collision := range idempotencyKeyCollisions {
-		fmt.Println("collision", collision) // do something with this
+	if len(idempotencyKeyCollisions) > 0 {
+		collisionSet := make(map[uuid.UUID]struct{}, len(idempotencyKeyCollisions))
 
-		// if collision.RequestedExternalId == opt.ExternalId {
-		// 	st, stErr := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
-		// 		&v1contracts.IdempotencyCollisionError{
-		// 			ExistingRunExternalId: collision.ExistingExternalId.String(),
-		// 		},
-		// 	)
+		for _, collision := range idempotencyKeyCollisions {
+			collisionSet[collision.RequestedExternalId] = struct{}{}
+		}
 
-		// 	if stErr != nil {
-		// 		return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", stErr)
-		// 	}
+		successfullyTriggeredRunIds := make([]string, 0, len(runIds))
+		collisions := make([]*v1contracts.IdempotencyCollisionError, 0, len(idempotencyKeyCollisions))
 
-		// 	return nil, st.Err()
-		// }
+		for _, runId := range runIds {
+			_, isCollision := collisionSet[runId]
+
+			if !isCollision {
+				successfullyTriggeredRunIds = append(successfullyTriggeredRunIds, runId.String())
+			}
+		}
+
+		for _, collision := range idempotencyKeyCollisions {
+			collisions = append(collisions, &v1contracts.IdempotencyCollisionError{
+				ExistingRunExternalId:  collision.ExistingExternalId.String(),
+				CollidingRunExternalId: collision.RequestedExternalId.String(),
+			})
+		}
+
+		st, stErr := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
+			&v1contracts.BulkTriggerIdempotencyCollisionError{
+				SuccessfulWorkflowRunExternalIds: successfullyTriggeredRunIds,
+				Collisions:                       collisions,
+			},
+		)
+
+		if stErr != nil {
+			return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", stErr)
+		}
+
+		return nil, st.Err()
 	}
 
 	return &contracts.BulkTriggerWorkflowResponse{
-		WorkflowRunIds: runIds,
+		WorkflowRunIds: runIdStrs,
 	}, nil
 }
 
