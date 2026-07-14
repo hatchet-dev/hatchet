@@ -34,9 +34,8 @@ type AdminServiceImpl struct {
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
 
-	tw                  *trigger.TriggerWriter
-	pubBuffer           *msgqueue.MQPubBuffer
-	grpcTriggersEnabled bool
+	tw        *trigger.TriggerWriter
+	pubBuffer *msgqueue.MQPubBuffer
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -152,13 +151,10 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
-	slots := 0
+	var tw *trigger.TriggerWriter
 	if opts.grpcTriggersEnabled {
-		slots = opts.grpcTriggerSlots
+		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 	}
-
-	pubBuffer = msgqueue.NewMQPubBuffer(opts.mq)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, slots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler
 
@@ -174,9 +170,8 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		localScheduler:      localScheduler,
 		localDispatcher:     opts.localDispatcher,
 		l:                   opts.l,
-		tw:                  tw,
-		pubBuffer:           pubBuffer,
-		grpcTriggersEnabled: opts.grpcTriggersEnabled,
+		tw:        tw,
+		pubBuffer: pubBuffer,
 	}, nil
 }
 
