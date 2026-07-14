@@ -803,7 +803,8 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
-	var errs []error
+	var otherErrs []error
+	var collisions []*IdempotencyCollisionError
 	var errsMutex sync.Mutex
 	var workflowRefsMutex sync.Mutex
 	wg.Add(len(inputs))
@@ -815,7 +816,11 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 			workflowRef, err := w.RunNoWait(originalCtx, input.Input, input.Opts...)
 			if err != nil {
 				errsMutex.Lock()
-				errs = append(errs, err)
+				if collision, ok := IsIdempotencyCollisionError(err); ok {
+					collisions = append(collisions, collision)
+				} else {
+					otherErrs = append(otherErrs, err)
+				}
 				errsMutex.Unlock()
 				return
 			}
@@ -827,9 +832,22 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 
 	wg.Wait()
 
-	if err := errors.Join(errs...); err != nil {
+	if err := errors.Join(otherErrs...); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
+	}
+
+	if len(collisions) > 0 {
+		successfulIds := make([]string, 0, len(workflowRefs))
+		for _, ref := range workflowRefs {
+			successfulIds = append(successfulIds, ref.RunId)
+		}
+		bulkErr := &BulkTriggerIdempotencyCollisionError{
+			SuccessfulRunExternalIds: successfulIds,
+			Collisions:               collisions,
+		}
+		span.SetStatus(codes.Error, bulkErr.Error())
+		return workflowRefs, bulkErr
 	}
 
 	span.SetStatus(codes.Ok, "")

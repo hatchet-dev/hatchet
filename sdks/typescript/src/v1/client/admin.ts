@@ -1,10 +1,14 @@
 import HatchetError from '@util/errors/hatchet-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
+import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
 import { ClientConfig } from '@clients/hatchet-client/client-config';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
 import { ServiceError, status as GrpcStatus } from '@grpc/grpc-js';
 import { Status as RpcStatus } from '@hatchet/protoc/google/rpc/status';
-import { IdempotencyCollisionError as IdempotencyCollisionErrorProto } from '@hatchet/protoc/v1/workflows';
+import {
+  IdempotencyCollisionError as IdempotencyCollisionErrorProto,
+  BulkTriggerIdempotencyCollisionError as BulkTriggerIdempotencyCollisionErrorProto,
+} from '@hatchet/protoc/v1/workflows';
 import {
   ClientError,
   Metadata as NiceGrpcMetadata,
@@ -54,6 +58,48 @@ function extractExistingRunIdFromGrpcError(e: ServiceError): string {
 
 function isNiceGrpcAlreadyExists(e: unknown): e is ClientError {
   return e instanceof ClientError && e.code === NiceGrpcStatus.ALREADY_EXISTS;
+}
+
+function decodeBulkTriggerCollision(
+  status: ReturnType<typeof RpcStatus.decode>
+): BulkTriggerIdempotencyCollisionError | null {
+  for (const detail of status.details) {
+    if (detail.typeUrl.includes('BulkTriggerIdempotencyCollisionError')) {
+      const proto = BulkTriggerIdempotencyCollisionErrorProto.decode(detail.value);
+      return new BulkTriggerIdempotencyCollisionError(
+        proto.successfulWorkflowRunExternalIds,
+        proto.collisions.map((c) => new IdempotencyCollisionError(c.existingRunExternalId))
+      );
+    }
+  }
+  return null;
+}
+
+function extractBulkTriggerCollisionFromGrpcError(
+  e: ServiceError
+): BulkTriggerIdempotencyCollisionError | null {
+  try {
+    const [binData] = e.metadata.get('grpc-status-details-bin');
+    if (!binData) return null;
+    const status = RpcStatus.decode(binData instanceof Buffer ? binData : Buffer.from(binData));
+    return decodeBulkTriggerCollision(status);
+  } catch {
+    return null;
+  }
+}
+
+function extractBulkTriggerCollisionFromNiceGrpcMetadata(
+  metadata: NiceGrpcMetadata | undefined
+): BulkTriggerIdempotencyCollisionError | null {
+  if (!metadata) return null;
+  try {
+    const binData = metadata.get('grpc-status-details-bin');
+    if (!binData) return null;
+    const status = RpcStatus.decode(binData);
+    return decodeBulkTriggerCollision(status);
+  } catch {
+    return null;
+  }
 }
 
 function extractRunIdFromNiceGrpcMetadata(metadata: NiceGrpcMetadata | undefined): string {
@@ -323,6 +369,8 @@ export class AdminClient {
 
     this.logger.debug(`batching ${batches.length} batches`);
 
+    let bulkTrailerMetadata: NiceGrpcMetadata | undefined;
+
     try {
       const results: WorkflowRunRef<P>[] = [];
 
@@ -334,8 +382,16 @@ export class AdminClient {
 
         // Call the bulk trigger workflow method for this batch
         const bulkTriggerWorkflowResponse = await retrier(
-          async () => this.workflowsGrpc.bulkTriggerWorkflow(request),
-          this.logger
+          async () =>
+            this.workflowsGrpc.bulkTriggerWorkflow(request, {
+              onTrailer: (trailer) => {
+                bulkTrailerMetadata = trailer;
+              },
+            }),
+          this.logger,
+          undefined,
+          undefined,
+          (e) => !isNiceGrpcAlreadyExists(e) && !(isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS)
         );
 
         this.logger.debug(`batch ${batchIndex + 1} of ${batches.length}`);
@@ -357,8 +413,16 @@ export class AdminClient {
         results.push(...batchResults);
       }
       return results;
-    } catch (e: any) {
-      throw new HatchetError(e.message);
+    } catch (e: unknown) {
+      if (isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS) {
+        const collision = extractBulkTriggerCollisionFromGrpcError(e);
+        if (collision) throw collision;
+      }
+      if (isNiceGrpcAlreadyExists(e)) {
+        const collision = extractBulkTriggerCollisionFromNiceGrpcMetadata(bulkTrailerMetadata);
+        if (collision) throw collision;
+      }
+      throw new HatchetError(e instanceof Error ? (e as Error).message : String(e));
     }
   }
 

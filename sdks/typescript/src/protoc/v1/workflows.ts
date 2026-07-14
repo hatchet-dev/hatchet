@@ -328,6 +328,13 @@ export interface IdempotencyCollisionError {
   existingRunExternalId: string;
 }
 
+export interface BulkTriggerIdempotencyCollisionError {
+  /** the external IDs of the successfully triggered workflow runs */
+  successfulWorkflowRunExternalIds: string[];
+  /** the idempotency collision errors */
+  collisions: IdempotencyCollisionError[];
+}
+
 export interface DefaultFilter {
   /** (required) the CEL expression for the filter */
   expression: string;
@@ -1940,6 +1947,102 @@ export const IdempotencyCollisionError: MessageFns<IdempotencyCollisionError> = 
     return message;
   },
 };
+
+function createBaseBulkTriggerIdempotencyCollisionError(): BulkTriggerIdempotencyCollisionError {
+  return { successfulWorkflowRunExternalIds: [], collisions: [] };
+}
+
+export const BulkTriggerIdempotencyCollisionError: MessageFns<BulkTriggerIdempotencyCollisionError> =
+  {
+    encode(
+      message: BulkTriggerIdempotencyCollisionError,
+      writer: BinaryWriter = new BinaryWriter()
+    ): BinaryWriter {
+      for (const v of message.successfulWorkflowRunExternalIds) {
+        writer.uint32(10).string(v);
+      }
+      for (const v of message.collisions) {
+        IdempotencyCollisionError.encode(v, writer.uint32(18).fork()).join();
+      }
+      return writer;
+    },
+
+    decode(
+      input: BinaryReader | Uint8Array,
+      length?: number
+    ): BulkTriggerIdempotencyCollisionError {
+      const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+      const end = length === undefined ? reader.len : reader.pos + length;
+      const message = createBaseBulkTriggerIdempotencyCollisionError();
+      while (reader.pos < end) {
+        const tag = reader.uint32();
+        switch (tag >>> 3) {
+          case 1: {
+            if (tag !== 10) {
+              break;
+            }
+            message.successfulWorkflowRunExternalIds.push(reader.string());
+            continue;
+          }
+          case 2: {
+            if (tag !== 18) {
+              break;
+            }
+            message.collisions.push(IdempotencyCollisionError.decode(reader, reader.uint32()));
+            continue;
+          }
+        }
+        if ((tag & 7) === 4 || tag === 0) {
+          break;
+        }
+        reader.skip(tag & 7);
+      }
+      return message;
+    },
+
+    fromJSON(object: any): BulkTriggerIdempotencyCollisionError {
+      return {
+        successfulWorkflowRunExternalIds: globalThis.Array.isArray(
+          object?.successfulWorkflowRunExternalIds
+        )
+          ? object.successfulWorkflowRunExternalIds.map((e: any) => globalThis.String(e))
+          : globalThis.Array.isArray(object?.successful_workflow_run_external_ids)
+            ? object.successful_workflow_run_external_ids.map((e: any) => globalThis.String(e))
+            : [],
+        collisions: globalThis.Array.isArray(object?.collisions)
+          ? object.collisions.map((e: any) => IdempotencyCollisionError.fromJSON(e))
+          : [],
+      };
+    },
+
+    toJSON(message: BulkTriggerIdempotencyCollisionError): unknown {
+      const obj: any = {};
+      if (message.successfulWorkflowRunExternalIds?.length) {
+        obj.successfulWorkflowRunExternalIds = message.successfulWorkflowRunExternalIds;
+      }
+      if (message.collisions?.length) {
+        obj.collisions = message.collisions.map((e) => IdempotencyCollisionError.toJSON(e));
+      }
+      return obj;
+    },
+
+    create(
+      base?: DeepPartial<BulkTriggerIdempotencyCollisionError>
+    ): BulkTriggerIdempotencyCollisionError {
+      return BulkTriggerIdempotencyCollisionError.fromPartial(base ?? {});
+    },
+
+    fromPartial(
+      object: DeepPartial<BulkTriggerIdempotencyCollisionError>
+    ): BulkTriggerIdempotencyCollisionError {
+      const message = createBaseBulkTriggerIdempotencyCollisionError();
+      message.successfulWorkflowRunExternalIds =
+        object.successfulWorkflowRunExternalIds?.map((e) => e) ?? [];
+      message.collisions =
+        object.collisions?.map((e) => IdempotencyCollisionError.fromPartial(e)) ?? [];
+      return message;
+    },
+  };
 
 function createBaseDefaultFilter(): DefaultFilter {
   return { expression: '', scope: '', payload: undefined };

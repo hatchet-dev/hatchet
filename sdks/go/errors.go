@@ -69,3 +69,26 @@ func IsIdempotencyCollisionError(err error) (*IdempotencyCollisionError, bool) {
 	}
 	return nil, false
 }
+
+// BulkTriggerIdempotencyCollisionError is returned when one or more runs in a bulk
+// trigger collide on idempotency keys. It carries the IDs of successful runs alongside
+// the individual collision errors.
+type BulkTriggerIdempotencyCollisionError struct {
+	SuccessfulRunExternalIds []string
+	Collisions               []*IdempotencyCollisionError
+}
+
+func (e *BulkTriggerIdempotencyCollisionError) Error() string {
+	return fmt.Sprintf(
+		"idempotency key collision in bulk trigger: %d successful, %d collision(s)",
+		len(e.SuccessfulRunExternalIds), len(e.Collisions),
+	)
+}
+
+// IsBulkTriggerIdempotencyCollisionError checks if the error is a BulkTriggerIdempotencyCollisionError.
+func IsBulkTriggerIdempotencyCollisionError(err error) (*BulkTriggerIdempotencyCollisionError, bool) {
+	if e, ok := err.(*BulkTriggerIdempotencyCollisionError); ok {
+		return e, true
+	}
+	return nil, false
+}

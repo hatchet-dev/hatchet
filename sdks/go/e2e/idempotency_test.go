@@ -279,6 +279,22 @@ func TestIdempotencyEventTrigger(t *testing.T) {
 	})
 }
 
+func TestIdempotencyBulkTrigger(t *testing.T) {
+	_, idempotentTask, _ := setupIdempotencyWorker(t)
+	ctx := newTestContext(t)
+	testRunID := uniqueID()
+
+	_, err := idempotentTask.RunMany(ctx, []hatchet.RunManyOpt{
+		{Input: idempotencyInput{ID: testRunID}, Opts: []hatchet.RunOptFunc{hatchet.WithRunMetadata(map[string]string{"test_run_id": testRunID})}},
+		{Input: idempotencyInput{ID: testRunID}},
+	})
+
+	bulkErr, ok := hatchet.IsBulkTriggerIdempotencyCollisionError(err)
+	require.True(t, ok)
+	require.Len(t, bulkErr.SuccessfulRunExternalIds, 1)
+	require.Len(t, bulkErr.Collisions, 1)
+}
+
 func derefTriggeredRuns(triggeredRuns *[]rest.V1EventTriggeredRun) []rest.V1EventTriggeredRun {
 	if triggeredRuns == nil {
 		return nil

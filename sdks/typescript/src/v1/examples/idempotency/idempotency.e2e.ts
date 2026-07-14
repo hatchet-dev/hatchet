@@ -1,7 +1,7 @@
 import sleep from '@hatchet/util/sleep';
 import { randomUUID } from 'crypto';
 import { V1TaskStatus } from '@hatchet/clients/rest/generated/data-contracts';
-import { IdempotencyCollisionError } from '@hatchet/v1';
+import { BulkTriggerIdempotencyCollisionError, IdempotencyCollisionError } from '@hatchet/v1';
 import { makeE2EClient, poll, startWorker, stopWorker } from '../__e2e__/harness';
 import { EVENT_KEY, idempotentTask, idempotentTaskShortWindow } from './workflow';
 
@@ -68,6 +68,30 @@ describe('idempotency-e2e', () => {
 
     expect(runs.rows).toHaveLength(1);
     expect(runs.rows?.[0]?.metadata.id).toBe(await ref1.getWorkflowRunId());
+  }, 60_000);
+
+  it('prevents duplicate bulk triggers', async () => {
+    const testRunId = randomUUID();
+
+    let collisionError: BulkTriggerIdempotencyCollisionError | undefined;
+
+    try {
+      await idempotentTask.runManyNoWait([
+        { input: { id: testRunId }, opts: { additionalMetadata: { test_run_id: testRunId } } },
+        { input: { id: testRunId } },
+      ]);
+    } catch (e) {
+      if (e instanceof BulkTriggerIdempotencyCollisionError) {
+        collisionError = e;
+      } else {
+        throw e;
+      }
+    }
+
+    expect(collisionError).toBeInstanceOf(BulkTriggerIdempotencyCollisionError);
+    expect(collisionError?.successfulWorkflowRunExternalIds).toHaveLength(1);
+    expect(collisionError?.collisions).toHaveLength(1);
+    expect(collisionError?.collisions[0]).toBeInstanceOf(IdempotencyCollisionError);
   }, 60_000);
 
   it('allows reruns after the short idempotency window expires', async () => {

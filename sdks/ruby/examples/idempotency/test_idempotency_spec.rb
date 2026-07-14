@@ -57,6 +57,28 @@ RSpec.describe "Idempotency" do
     expect(runs.rows[0].metadata.id).to eq(ref1.workflow_run_id)
   end
 
+  it 'prevents duplicate bulk triggers' do
+    test_run_id = SecureRandom.uuid
+
+    collision = nil
+
+    expect do
+      IDEMPOTENT_TASK.run_many_no_wait(
+        [
+          IDEMPOTENT_TASK.create_bulk_run_item(
+            input: { 'id' => test_run_id },
+            options: Hatchet::TriggerWorkflowOptions.new(additional_metadata: { 'test_run_id' => test_run_id })
+          ),
+          IDEMPOTENT_TASK.create_bulk_run_item(input: { 'id' => test_run_id })
+        ]
+      )
+    end.to raise_error(Hatchet::BulkTriggerIdempotencyCollisionError) { |error| collision = error }
+
+    expect(collision&.successful_workflow_run_external_ids&.length).to eq(1)
+    expect(collision&.collisions&.length).to eq(1)
+    expect(collision&.collisions&.first).to be_a(Hatchet::IdempotencyCollisionError)
+  end
+
   it "allows reruns after the short idempotency window expires" do
     test_run_id = SecureRandom.uuid
 

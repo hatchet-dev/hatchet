@@ -36,6 +36,22 @@ module Hatchet
     end
   end
 
+  # Raised when one or more runs in a bulk trigger collide on idempotency keys.
+  # Contains the IDs of successfully triggered runs and the individual collision errors.
+  class BulkTriggerIdempotencyCollisionError < Error
+    # @return [Array<String>] External IDs of successfully triggered workflow runs
+    attr_reader :successful_workflow_run_external_ids
+
+    # @return [Array<IdempotencyCollisionError>] The individual collision errors
+    attr_reader :collisions
+
+    def initialize(successful_workflow_run_external_ids:, collisions:)
+      @successful_workflow_run_external_ids = successful_workflow_run_external_ids
+      @collisions = collisions
+      super("idempotency key collision in bulk trigger: #{collisions.length} collision(s)")
+    end
+  end
+
   # Represents an error from a failed task run
   class TaskRunError < Error
     # @return [String] The external ID of the failed task run

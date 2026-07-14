@@ -159,15 +159,15 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repo:                opts.repo,
-		mq:                  opts.mq,
-		v:                   opts.v,
-		analytics:           opts.analytics,
-		localScheduler:      localScheduler,
-		localDispatcher:     opts.localDispatcher,
-		l:                   opts.l,
-		tw:        tw,
-		pubBuffer: pubBuffer,
+		repo:            opts.repo,
+		mq:              opts.mq,
+		v:               opts.v,
+		analytics:       opts.analytics,
+		localScheduler:  localScheduler,
+		localDispatcher: opts.localDispatcher,
+		l:               opts.l,
+		tw:              tw,
+		pubBuffer:       pubBuffer,
 	}, nil
 }
 
