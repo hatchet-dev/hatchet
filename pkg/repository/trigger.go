@@ -695,6 +695,7 @@ func (r *sharedRepository) triggerWorkflows(
 	expiresAts := make([]pgtype.Timestamptz, 0, len(triggerCandidateTuples))
 	claimedByExternalIds := make([]uuid.UUID, 0, len(triggerCandidateTuples))
 	externalIdToTuple := make(map[uuid.UUID]triggerTuple)
+	externalIdToIdempotencyKey := make(map[uuid.UUID]string)
 
 	var celEvaluationFailures []CELEvaluationFailure
 
@@ -719,6 +720,7 @@ func (r *sharedRepository) triggerWorkflows(
 				Valid: true,
 			})
 			claimedByExternalIds = append(claimedByExternalIds, tuple.externalId)
+			externalIdToIdempotencyKey[tuple.externalId] = key
 		}
 	}
 
@@ -1192,6 +1194,12 @@ func (r *sharedRepository) triggerWorkflows(
 						dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
 					} else {
 						nonDagTaskOpts = append(nonDagTaskOpts, opt)
+					}
+
+					idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]
+
+					if ok {
+						opt.IdempotencyKey = &idempotencyKey
 					}
 				}
 			default:
