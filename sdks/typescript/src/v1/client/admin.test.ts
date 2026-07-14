@@ -1,7 +1,5 @@
 import { Metadata, status as GrpcStatus } from '@grpc/grpc-js';
-import {
-  BulkTriggerIdempotencyCollisionError as BulkTriggerIdempotencyCollisionErrorProto,
-} from '@hatchet/protoc/v1/workflows';
+import { BulkTriggerIdempotencyCollisionError as BulkTriggerIdempotencyCollisionErrorProto } from '@hatchet/protoc/v1/workflows';
 import { Status as RpcStatus } from '@hatchet/protoc/google/rpc/status';
 import { BulkTriggerIdempotencyCollisionError } from '@util/errors/bulk-trigger-idempotency-collision-error';
 import { IdempotencyCollisionError } from '@util/errors/idempotency-collision-error';
@@ -115,9 +113,10 @@ describe('AdminClient workflow name normalization', () => {
 describe('AdminClient bulk trigger idempotency collision', () => {
   it('throws BulkTriggerIdempotencyCollisionError on ALREADY_EXISTS', async () => {
     const admin = createMockAdmin();
-    const bulkError = makeBulkTriggerAlreadyExistsError(['run-success-1'], [
-      { existingRunExternalId: 'run-existing-1' },
-    ]);
+    const bulkError = makeBulkTriggerAlreadyExistsError(
+      ['run-success-1'],
+      [{ existingRunExternalId: 'run-existing-1' }]
+    );
 
     admin.workflowsGrpc = {
       bulkTriggerWorkflow: jest.fn().mockRejectedValue(bulkError),

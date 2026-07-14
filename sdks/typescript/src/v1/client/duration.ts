@@ -5,7 +5,11 @@ type TwoUnitDurations = `${number}h${number}m` | `${number}h${number}s` | `${num
 type ThreeUnitDurations = `${number}h${number}m${number}s`;
 
 type DurationString =
-  SecondsDuration | MinutesDuration | HoursDuration | TwoUnitDurations | ThreeUnitDurations;
+  | SecondsDuration
+  | MinutesDuration
+  | HoursDuration
+  | TwoUnitDurations
+  | ThreeUnitDurations;
 
 export interface DurationObject {
   hours?: number;

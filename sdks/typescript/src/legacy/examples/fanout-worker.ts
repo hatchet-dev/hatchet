@@ -26,11 +26,10 @@ const parentWorkflow: Workflow = {
       run: async (ctx) => {
         const promises = Array.from({ length: 3 }, (_, i) =>
           ctx
-            .spawnWorkflow<Input, Output>(
-              'child-workflow',
-              { input: `child-input-${i}` },
-              { additionalMetadata: { childKey: 'childValue' } }
-            )
+            .spawnWorkflow<
+              Input,
+              Output
+            >('child-workflow', { input: `child-input-${i}` }, { additionalMetadata: { childKey: 'childValue' } })
             .then((result) => {
               ctx.logger.info('spawned workflow result:');
               return result.output;

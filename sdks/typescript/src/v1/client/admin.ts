@@ -391,7 +391,9 @@ export class AdminClient {
           this.logger,
           undefined,
           undefined,
-          (e) => !isNiceGrpcAlreadyExists(e) && !(isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS)
+          (e) =>
+            !isNiceGrpcAlreadyExists(e) &&
+            !(isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS)
         );
 
         this.logger.debug(`batch ${batchIndex + 1} of ${batches.length}`);

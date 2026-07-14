@@ -13,7 +13,8 @@ class HatchetError extends Error {
 export function toHatchetError(
   e: unknown,
   defaultMessageOrOptions:
-    string | { defaultMessage?: string; prefix?: string } = 'An error occurred'
+    | string
+    | { defaultMessage?: string; prefix?: string } = 'An error occurred'
 ): HatchetError {
   if (e instanceof HatchetError) {
     return e;
