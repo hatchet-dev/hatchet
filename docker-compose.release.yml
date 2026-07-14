@@ -16,7 +16,6 @@ services:
       SERVER_GRPC_PORT: "7077"
       SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
       SERVER_GRPC_INSECURE: "true"
-      SERVER_DEFAULT_ENGINE_VERSION: V1
       SERVER_MSGQUEUE_KIND: postgres
       SERVER_OBSERVABILITY_ENABLED: true
     volumes:
@@ -38,7 +37,6 @@ services:
       SERVER_URL: "http://localhost:8080"
       SERVER_AUTH_COOKIE_DOMAIN: localhost
       SERVER_AUTH_COOKIE_INSECURE: "true"
-      SERVER_DEFAULT_ENGINE_VERSION: V1
       SERVER_MSGQUEUE_KIND: postgres
       SERVER_LOGGER_LEVEL: warn
       SERVER_LOGGER_FORMAT: console

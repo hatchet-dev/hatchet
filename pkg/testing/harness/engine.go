@@ -152,7 +152,6 @@ func startEngine() func() {
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT", "console")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
-	os.Setenv("SERVER_DEFAULT_ENGINE_VERSION", "V1")
 	os.Setenv("SERVER_ENABLE_DURABLE_USER_EVENT_LOG", "true")
 
 	var cleanupRabbitMQ func() error
