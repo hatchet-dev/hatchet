@@ -51,7 +51,11 @@ export function ResourceNotFound({
       return;
     }
 
-    throw new Error('unhandled action');
+    navigate({
+      to: appRoutes.authenticatedRoute.to,
+      replace: true,
+    });
+    return;
   };
 
   return (
