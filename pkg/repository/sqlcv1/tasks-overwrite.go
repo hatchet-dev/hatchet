@@ -128,7 +128,7 @@ SELECT
 	i.is_durable,
 	i.desired_worker_label,
 	i.triggering_event_external_id,
-	i.triggering_event_key
+	i.triggering_event_key,
 	i.idempotency_key
 FROM
     input i

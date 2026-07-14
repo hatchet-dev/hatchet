@@ -1190,16 +1190,16 @@ func (r *sharedRepository) triggerWorkflows(
 						TriggeringEventKey:        tuple.triggeringEventKey,
 					}
 
-					if isDag {
-						dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
-					} else {
-						nonDagTaskOpts = append(nonDagTaskOpts, opt)
-					}
-
 					idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]
 
 					if ok {
 						opt.IdempotencyKey = &idempotencyKey
+					}
+
+					if isDag {
+						dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
+					} else {
+						nonDagTaskOpts = append(nonDagTaskOpts, opt)
 					}
 				}
 			default:
