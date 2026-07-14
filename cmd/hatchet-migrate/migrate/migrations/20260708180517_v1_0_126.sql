@@ -14,9 +14,6 @@ ALTER TABLE v1_tasks_olap ADD COLUMN idempotency_key TEXT;
 ALTER TABLE v1_dags_olap ADD COLUMN idempotency_key TEXT;
 ALTER TABLE v1_runs_olap ADD COLUMN idempotency_key TEXT;
 
--- todo: do the partition thing to create this (separate migration)
-CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
-
 CREATE OR REPLACE FUNCTION v1_tasks_olap_insert_function()
 RETURNS TRIGGER AS
 $$
