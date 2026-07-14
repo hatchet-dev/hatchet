@@ -47,7 +47,11 @@ Examples:
   # Start server with custom profile name
   hatchet server start --profile my-local
 
+  # Start server with authentication disabled (local development only)
+  hatchet server start --disable-auth
+
 Flags:
+      --disable-auth          Disable authentication by running the hatchet-lite-dev image (local development only)
   -d, --dashboard-port int    Port for the Hatchet dashboard (default: auto-detect starting at 8888)
   -g, --grpc-port int         Port for the Hatchet gRPC server (default: auto-detect starting at 7077)
   -h, --help                  help for start
@@ -57,6 +61,14 @@ Flags:
 Global Flags:
   -v, --version   The version of the hatchet cli.
 ```
+
+#### Running without authentication
+
+`hatchet server start --disable-auth` runs the `hatchet-lite-dev` image, a variant built with authentication compiled out. Everything runs as the seeded admin against the default tenant, so tenant creation, signup and invites are disabled.
+
+Workers and SDK clients still authenticate with the gRPC engine using an API token. The dev image ships a single fixed worker token (the same on every auth-disabled instance, scoped to the default tenant, non-expiring). You can view this token from the **API Tokens** section in **Settings**.
+
+Dev variants exist for the other server images too: `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev` and `hatchet-dashboard-dev` (`ghcr.io/hatchet-dev/hatchet/hatchet-<component>-dev`). They are for local development and testing only - the regular images never compile the embedded token in, so it is inert against any normal deployment.
 
 #### `hatchet server stop`
 

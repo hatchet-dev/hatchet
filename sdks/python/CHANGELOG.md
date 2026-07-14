@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adds support for defining **idempotency keys** on workflows and standalone tasks, which ensures that they're only run once in a provided time window, based on a CEL expression.
 
+## [1.33.18] - 2026-07-08
+
+### Fixed
+
+- Fixes an issue in the action listener which would stop sending heartbeats before all in-flight tasks were completed.
+
 ## [1.33.17] - 2026-07-07
 
 ### Fixed

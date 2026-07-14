@@ -28,7 +28,7 @@ require (
 	github.com/gorilla/sessions v1.4.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/hatchet-dev/hatchet-quickstarts v0.1.0
+	github.com/hatchet-dev/hatchet-quickstarts v0.2.0
 	github.com/hatchet-dev/pgoutbox v0.3.0
 	github.com/hatchet-dev/timediff v0.0.4
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
@@ -44,6 +44,7 @@ require (
 	github.com/pingcap/errors v0.11.4
 	github.com/posthog/posthog-go v1.12.1
 	github.com/pressly/goose/v3 v3.27.1
+	github.com/prometheus/client_model v0.6.2
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/sethvargo/go-retry v0.3.0
 	github.com/spf13/cobra v1.10.2
@@ -197,7 +198,6 @@ require (
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

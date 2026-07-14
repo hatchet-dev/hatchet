@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
+	"golang.org/x/time/rate"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -752,6 +753,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+	webhookRateLimitMW := hatchetmiddleware.WebhookRateLimitMiddleware(
+		rate.Limit(t.config.Runtime.WebhookRateLimit),
+		t.config.Runtime.WebhookRateLimitBurst,
+		t.config.Logger,
+	)
 	otelMW := telemetry.NewOTelMiddleware(t.config)
 
 	// register echo middleware
@@ -759,6 +765,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		loggerMiddleware,
 		middleware.Recover(),
 		rateLimitMW.Middleware(),
+		webhookRateLimitMW,
 		otelMW.Middleware(),
 		otelMW.ErrorStatusMiddleware(),
 		allHatchetMiddleware,

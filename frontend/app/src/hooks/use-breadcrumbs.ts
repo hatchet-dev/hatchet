@@ -1,3 +1,4 @@
+import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { generateBreadcrumbs, BreadcrumbItem } from '@/lib/breadcrumbs';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -22,8 +23,12 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
   );
   const { isCloudEnabled } = useUserUniverse();
 
-  // Get tenant ID and home route at the top level (before any conditional returns)
-  const tenantId = cleanParams.tenant;
+  // Get tenant ID and home route at the top level (before any conditional returns).
+  // Organization routes have no `tenant` URL param, so fall back to the active
+  // tenant resolved from app context to keep the Home crumb pointing somewhere
+  // sensible.
+  const { tenantId: activeTenantId } = useTenantDetails();
+  const tenantId = cleanParams.tenant ?? activeTenantId;
   const { homeRoute } = useTenantHomeRoute(tenantId);
 
   // Check if we're on a tenant route but no child route matched
