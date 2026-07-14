@@ -34,6 +34,7 @@ WITH inputs AS (
             SELECT key
             FROM deduplicated_potential_claims
         )
+    ORDER BY tenant_id, expires_at, key
     FOR UPDATE SKIP LOCKED
 ), claimable_keys AS (
     SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
