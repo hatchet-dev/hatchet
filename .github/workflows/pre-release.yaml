@@ -757,6 +757,10 @@ jobs:
           ADMIN_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-admin:${{steps.tag_name.outputs.tag}}-amd64
           MIGRATE_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:${{steps.tag_name.outputs.tag}}-amd64
         run: bash hack/ci/assert-auth-enabled.sh
+      - name: Assert api tokens cannot escalate on user-scoped tenant operations
+        env:
+          LITE_IMAGE: ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-amd64
+        run: bash hack/ci/assert-bearer-authz.sh
   combine-hatchet-lite:
     name: Combine hatchet-lite
     runs-on: ubuntu-latest
