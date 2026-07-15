@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Highlights
+
+- Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+
 ## [0.94.10] - 2026-07-14
 
 Hatchet v0.94.10 headlines two DevEx improvements: development images that run without authentication, and use-case templates for the `hatchet quickstart` command. The release also adds independent OLAP and core data retention settings to the engine, tenant tagging and consolidated settings pages in Hatchet Cloud, automatic stream listener reconnection in the Go SDK, and RSS feeds for newly published changelog and cookbooks entries.
@@ -12,7 +18,6 @@ Hatchet v0.94.10 headlines two DevEx improvements: development images that run w
 - The Hatchet documentation website now supports RSS feeds for new cookbooks and releases. These can be accessed at [`https://docs.hatchet.run/cookbooks/feed.xml`](https://docs.hatchet.run/cookbooks/feed.xml) and `/reference/changelog/<component>/feed.xml` (e.g. [platform](https://docs.hatchet.run/reference/changelog/platform/feed.xml)), or via autodiscovery by adding a page URL directly to your RSS reader.
 - Fixed timeouts in the `UserSession` cleanup job (introduced in v0.90.13) by indexing the relevant columns; the migration is applied automatically on upgrade.
 - `hatchet quickstart` supports use-case templates via a new `--use-case` flag, starting with `scheduled`: a Go template whose workflow runs on a cron schedule and can also be run on demand. See the [quickstart CLI docs](https://docs.hatchet.run/cli/quickstarts).
-- Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
 
 ### Upgrade Notes
 
