@@ -80,6 +80,8 @@ export function getSpanAttributeLabel(span: OtelSpanTree): string | undefined {
  * A workflow-run label gets a short run id appended because run display names are
  * not unique across concurrent runs. A retried task renders one row per attempt
  * with the same task name, so the retry number is appended to tell them apart.
+ * An event row shows its event key, with a short event id appended because a
+ * single task can emit the same event key more than once.
  * The raw span name stays visible in the detail panel and the tooltip subtitle.
  */
 export function getSpanDisplayLabel(span: OtelSpanTree): string {
@@ -101,6 +103,17 @@ export function getSpanDisplayLabel(span: OtelSpanTree): string {
     }
   }
 
+  if (
+    span.spanName === SPAN.ENGINE_EVENT ||
+    span.spanName === SPAN.ENGINE_EVENT_EMITTED
+  ) {
+    const eventKey = span.spanAttributes?.[ATTR.EVENT_KEY];
+    if (eventKey) {
+      const shortId = span.spanAttributes?.[ATTR.EVENT_ID]?.split('-')[0];
+      return shortId ? `${eventKey} (${shortId})` : eventKey;
+    }
+  }
+
   return span.spanName;
 }
 
@@ -115,6 +128,8 @@ export function getSpanGroupLabel(spanName: string): string {
     case SPAN.ENGINE_START_STEP_RUN:
     case SPAN.START_STEP_RUN:
       return 'tasks';
+    case SPAN.ENGINE_EVENT_EMITTED:
+      return 'emitted events';
     default:
       return spanName;
   }

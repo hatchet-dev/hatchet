@@ -69,6 +69,23 @@ describe('getSpanDisplayLabel', () => {
     assert.strictEqual(getSpanDisplayLabel(span), 'send-email');
   });
 
+  test('engine event rows show the event key with a short event id', () => {
+    const received = node('hatchet.engine.event', {
+      'hatchet.event_key': 'user:created',
+      'hatchet.event_id': 'aaaaaaaa-1111-2222-3333-444444444444',
+    });
+    const emitted = node('hatchet.engine.event_emitted', {
+      'hatchet.event_key': 'order:placed',
+      'hatchet.event_id': '11111111-aaaa-bbbb-cccc-222222222222',
+    });
+
+    assert.strictEqual(
+      getSpanDisplayLabel(received),
+      'user:created (aaaaaaaa)',
+    );
+    assert.strictEqual(getSpanDisplayLabel(emitted), 'order:placed (11111111)');
+  });
+
   test('application/custom spans keep their own span name', () => {
     const span = node('inventory.check-availability', {
       'my.custom.attr': 'value',
@@ -95,6 +112,13 @@ describe('getSpanGroupLabel', () => {
       'tasks',
     );
     assert.strictEqual(getSpanGroupLabel('hatchet.start_step_run'), 'tasks');
+  });
+
+  test('emitted-event groups read as "emitted events"', () => {
+    assert.strictEqual(
+      getSpanGroupLabel('hatchet.engine.event_emitted'),
+      'emitted events',
+    );
   });
 
   test('unknown span names keep their own name', () => {
