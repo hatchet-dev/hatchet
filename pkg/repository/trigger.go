@@ -1601,10 +1601,14 @@ func (r *sharedRepository) registerChildWorkflows(
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, tx, retrievePayloadOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads for signal created events: %w", missingErr)
 	}
 
 	// parse the event match data, and determine whether the child external ID has already been written

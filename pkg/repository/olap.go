@@ -3240,10 +3240,14 @@ func (r *OLAPRepositoryImpl) readPayloads(ctx context.Context, tx sqlcv1.DBTX, t
 	}
 
 	if len(retrieveFromExternalOpts) > 0 && r.payloadStore.ExternalStoreEnabled() {
-		keyToPayload, err := r.payloadStore.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
+		keyToPayload, missing, err := r.payloadStore.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
 
 		if err != nil {
 			return nil, err
+		}
+
+		if missingErr := MissingPayloadsError(missing); missingErr != nil {
+			return nil, missingErr
 		}
 
 		for externalId, opt := range externalIdToRetrieveFromExternalOpt {

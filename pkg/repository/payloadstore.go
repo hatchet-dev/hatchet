@@ -22,6 +22,20 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
+// ErrPayloadNotFound indicates that a payload is permanently missing from the external store
+// (e.g. it was deleted or never uploaded), as opposed to a transient retrieval failure.
+var ErrPayloadNotFound = errors.New("payload not found in external store")
+
+// MissingPayloadsError converts a non-empty list of missing payloads into an error wrapping
+// ErrPayloadNotFound. Callers which cannot proceed with a partial result can use this to fail.
+func MissingPayloadsError[T any](missing []T) error {
+	if len(missing) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("%d payload(s) missing: %w", len(missing), ErrPayloadNotFound)
+}
+
 type StorePayloadOpts struct {
 	Id         int64
 	InsertedAt pgtype.Timestamptz
@@ -98,14 +112,19 @@ type CreateIndexBlockOpts struct {
 
 type ExternalStore interface {
 	Store(ctx context.Context, payloads ...OffloadToExternalStoreOpts) (*ExternalIndexFileLocationKey, error)
-	Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
+	// Retrieve returns the payloads which were found, alongside the opts for any payloads which
+	// are permanently missing from the store, so callers can proceed with the rest of the batch.
+	Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (found map[RetrieveFromExternalOpts][]byte, missing []RetrieveFromExternalOpts, err error)
 }
 
 type PayloadStoreRepository interface {
 	Store(ctx context.Context, tx sqlcv1.DBTX, payloads ...StorePayloadOpts) error
-	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error)
+	// Retrieve returns the payloads which were found, alongside the opts for any payloads which
+	// are permanently missing from the external store, so callers can proceed with the rest of
+	// the batch.
+	Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (found map[RetrievePayloadOpts][]byte, missing []RetrievePayloadOpts, err error)
 	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
-	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
+	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (found map[RetrieveFromExternalOpts][]byte, missing []RetrieveFromExternalOpts, err error)
 	OverwriteExternalStore(store ExternalStore)
 	DualWritesEnabled() bool
 	TaskEventDualWritesEnabled() bool
@@ -261,7 +280,7 @@ func (p *payloadStoreRepositoryImpl) Store(ctx context.Context, tx sqlcv1.DBTX, 
 	return err
 }
 
-func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) Retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, []RetrievePayloadOpts, error) {
 	if tx == nil {
 		tx = p.pool
 	}
@@ -274,10 +293,14 @@ func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlc
 		tx = p.pool
 	}
 
-	optsToPayload, err := p.retrieve(ctx, tx, opt)
+	optsToPayload, missing, err := p.retrieve(ctx, tx, opt)
 
 	if err != nil && err != pgx.ErrNoRows {
 		return nil, err
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, missingErr
 	}
 
 	if len(optsToPayload) == 0 || err == pgx.ErrNoRows {
@@ -287,17 +310,17 @@ func (p *payloadStoreRepositoryImpl) RetrieveSingle(ctx context.Context, tx sqlc
 	return optsToPayload[opt], nil
 }
 
-func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, []RetrieveFromExternalOpts, error) {
 	if !p.externalStoreEnabled {
-		return nil, fmt.Errorf("external store not enabled")
+		return nil, nil, fmt.Errorf("external store not enabled")
 	}
 
 	return p.externalStore.Retrieve(ctx, opts...)
 }
 
-func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, error) {
+func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBTX, opts ...RetrievePayloadOpts) (map[RetrievePayloadOpts][]byte, []RetrievePayloadOpts, error) {
 	if len(opts) == 0 {
-		return make(map[RetrievePayloadOpts][]byte), nil
+		return make(map[RetrievePayloadOpts][]byte), nil, nil
 	}
 
 	ids := make([]int64, len(opts))
@@ -320,7 +343,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to read payload metadata: %w", err)
+		return nil, nil, fmt.Errorf("failed to read payload metadata: %w", err)
 	}
 
 	optsToPayload := make(map[RetrievePayloadOpts][]byte)
@@ -396,7 +419,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 			})
 
 			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				return nil, fmt.Errorf("failed to get offloaded payload index block: %w", err)
+				return nil, nil, fmt.Errorf("failed to get offloaded payload index block: %w", err)
 			}
 
 			for _, k := range indexFileKeys {
@@ -420,10 +443,13 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 		}
 	}
 
+	missing := make([]RetrievePayloadOpts, 0)
+
 	if len(retrieveFromExternalOpts) > 0 {
-		externalData, err := p.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
+		externalData, missingExternal, err := p.RetrieveFromExternal(ctx, retrieveFromExternalOpts...)
+
 		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
+			return nil, nil, fmt.Errorf("failed to retrieve external payloads: %w", err)
 		}
 
 		for retrieveFromExternalOpt, data := range externalData {
@@ -431,9 +457,15 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 				optsToPayload[opt] = data
 			}
 		}
+
+		for _, externalOpt := range missingExternal {
+			if opt, exists := retrieveFromExternalOptsToOpts[externalOpt]; exists {
+				missing = append(missing, opt)
+			}
+		}
 	}
 
-	return optsToPayload, nil
+	return optsToPayload, missing, nil
 }
 
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore) {
@@ -1019,6 +1051,6 @@ func (n *NoOpExternalStore) Store(ctx context.Context, payloads ...OffloadToExte
 	return nil, fmt.Errorf("external store disabled")
 }
 
-func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error) {
-	return nil, fmt.Errorf("external store disabled")
+func (n *NoOpExternalStore) Retrieve(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, []RetrieveFromExternalOpts, error) {
+	return nil, nil, fmt.Errorf("external store disabled")
 }

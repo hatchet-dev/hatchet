@@ -1259,10 +1259,14 @@ func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1
 		matchedEventToRetrieveOpts[event] = opt
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, missingErr
 	}
 
 	res := make([]*TaskOutputEvent, 0, len(matchedEvents))
@@ -3217,10 +3221,14 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, tx, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to bulk retrieve task inputs: %w", missingErr)
 	}
 
 	for _, task := range lockedTasks {
@@ -3840,10 +3848,14 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 		retrieveOptToPayload[opt] = outputTask.Output
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to retrieve task output payloads: %w", missingErr)
 	}
 
 	workflowRunIdsToOutputs := make(map[string][]*TaskOutputEvent)
@@ -3916,10 +3928,14 @@ func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tena
 		retrieveOpts[i] = retrieveOpt
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, r.pool, retrieveOpts...)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to retrieve task event payloads: %w", missingErr)
 	}
 
 	res := make([]*V1TaskEventWithPayload, len(signalEvents))
@@ -4378,10 +4394,14 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		}
 	}
 
-	payloads, err := r.payloadStore.Retrieve(ctx, r.pool, inputRetrieveOpt)
+	payloads, missing, err := r.payloadStore.Retrieve(ctx, r.pool, inputRetrieveOpt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve payloads: %w", err)
+	}
+
+	if missingErr := MissingPayloadsError(missing); missingErr != nil {
+		return nil, fmt.Errorf("failed to retrieve payloads: %w", missingErr)
 	}
 
 	input := payloads[inputRetrieveOpt]
