@@ -257,6 +257,42 @@ func runReplayStatusScenario(
 	assertOLAPRunStatus(t, ctx, pool, f, "COMPLETED")
 }
 
+func TestPrepareDAGStatusUpdateBatchOnlyIncludesUpdatedTasks(t *testing.T) {
+	repo := &OLAPRepositoryImpl{}
+	tenantId := uuid.New()
+	dagInsertedAt := pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+
+	batch := repo.prepareDAGStatusUpdateBatch([]*sqlcv1.UpdateTaskStatusesFromMQRow{
+		{
+			TenantID:      tenantId,
+			DagID:         pgtype.Int8{Int64: 1, Valid: true},
+			DagInsertedAt: dagInsertedAt,
+			WasUpdated:    false,
+		},
+		{
+			TenantID:      tenantId,
+			DagID:         pgtype.Int8{Int64: 2, Valid: true},
+			DagInsertedAt: dagInsertedAt,
+			WasUpdated:    true,
+		},
+		{
+			TenantID:      tenantId,
+			DagID:         pgtype.Int8{Int64: 2, Valid: true},
+			DagInsertedAt: dagInsertedAt,
+			WasUpdated:    true,
+		},
+		{
+			TenantID:   tenantId,
+			DagID:      pgtype.Int8{},
+			WasUpdated: true,
+		},
+	})
+
+	assert.Equal(t, []uuid.UUID{tenantId}, batch.Tenantids)
+	assert.Equal(t, []int64{2}, batch.Dagids)
+	assert.Equal(t, []pgtype.Timestamptz{dagInsertedAt}, batch.Daginsertedats)
+}
+
 // TestOLAPStatusUpdate_ReplayOfCompletedTask is a regression test for runs
 // permanently stuck in RUNNING (or with a stale retry count) after a bulk
 // replay of completed tasks, when the replay's OLAP events are ingested
