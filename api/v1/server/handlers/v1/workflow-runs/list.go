@@ -180,37 +180,10 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	dagExternalIds := make([]uuid.UUID, 0)
-	dagDurableTaskExternalIds := make(map[uuid.UUID]struct{}, 0)
 
 	for _, dag := range dags {
 		if dag.Kind == sqlcv1.V1RunKindDAG {
 			dagExternalIds = append(dagExternalIds, dag.ExternalID)
-		}
-
-		if dag.Kind == sqlcv1.V1RunKindDAG && dag.IsDagOrchestratorTask {
-			dagDurableTaskExternalIds[dag.ExternalID] = struct{}{}
-		}
-	}
-
-	orchestratorChildExternalIds := make(map[uuid.UUID]struct{})
-	idsInsertedAtsForDagChildren := make([]v1.IdInsertedAt, 0)
-	for _, dag := range dags {
-		if dag.IsDagOrchestratorTask || dag.ParentTaskExternalId == nil {
-			continue
-		}
-		if _, parentIsOrchestrator := dagDurableTaskExternalIds[*dag.ParentTaskExternalId]; parentIsOrchestrator {
-			orchestratorChildExternalIds[dag.ExternalID] = struct{}{}
-			idsInsertedAtsForDagChildren = append(idsInsertedAtsForDagChildren, v1.IdInsertedAt{
-				ID:         dag.ID,
-				InsertedAt: dag.InsertedAt,
-			})
-		}
-	}
-
-	filteredDags := make([]*v1.WorkflowRunData, 0, len(dags))
-	for _, dag := range dags {
-		if _, isChild := orchestratorChildExternalIds[dag.ExternalID]; !isChild {
-			filteredDags = append(filteredDags, dag)
 		}
 	}
 
@@ -219,7 +192,6 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		tenantId,
 		dagExternalIds,
 		includePayloads,
-		idsInsertedAtsForDagChildren,
 	)
 
 	if err != nil {
@@ -228,7 +200,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 
 	pgWorkflowIds := make([]uuid.UUID, 0)
 
-	for _, wf := range filteredDags {
+	for _, wf := range dags {
 		pgWorkflowIds = append(pgWorkflowIds, wf.WorkflowID)
 	}
 
@@ -267,7 +239,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		}
 	}
 
-	result := transformers.ToWorkflowRunMany(filteredDags, dagChildren, taskIdToActionId, workflowNames, total, limit, offset)
+	result := transformers.ToWorkflowRunMany(dags, dagChildren, taskIdToActionId, workflowNames, total, limit, offset)
 
 	// Search for api errors to see how we handle errors in other cases
 	return gen.V1WorkflowRunList200JSONResponse(

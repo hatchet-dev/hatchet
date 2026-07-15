@@ -234,7 +234,7 @@ func (q *Queries) CountTasks(ctx context.Context, db DBTX, arg CountTasksParams)
 const countWorkflowRuns = `-- name: CountWorkflowRuns :one
 WITH filtered AS (
     SELECT tenant_id, id, inserted_at, external_id, readable_status, kind, workflow_id, additional_metadata
-    FROM v1_runs_olap r
+    FROM v1_runs_olap
     WHERE
         tenant_id = $1::uuid
         AND readable_status = ANY($2::v1_readable_status_olap[])
@@ -382,16 +382,6 @@ WITH filtered AS (
 					lt.tenant_id = $1::uuid
 					AND lt.external_id = $9::UUID
             )
-		)
-
-		-- fixme: this might be really slow
-		AND NOT EXISTS (
-			SELECT 1
-			FROM v1_tasks_olap t
-			WHERE
-				t.external_id = r.parent_task_external_id
-				AND COALESCE(t.is_dag_orchestrator, FALSE)
-				AND t.tenant_id = r.tenant_id
 		)
     LIMIT 20000
 )
@@ -585,61 +575,10 @@ WHERE
 				lt.tenant_id = $1::uuid
 				AND lt.external_id = $11::UUID
 		)
-		AND inserted_at >= $4::timestamptz
-		AND (
-			$5::timestamptz IS NULL
-			OR inserted_at <= $5::timestamptz
-		)
-		AND (
-			$6::text[] IS NULL
-			OR $7::text[] IS NULL
-			OR EXISTS (
-				SELECT 1 FROM jsonb_each_text(additional_metadata) kv
-				JOIN LATERAL (
-					SELECT unnest($6::text[]) AS k,
-						unnest($7::text[]) AS v
-				) AS u ON kv.key = u.k AND kv.value = u.v
-			)
-		)
-		AND (
-			$10::UUID IS NULL
-			OR parent_task_external_id = $10::UUID
-		)
-		AND (
-			$11::UUID IS NULL
-			OR (id, inserted_at) IN (
-				SELECT etr.run_id, etr.run_inserted_at
-				FROM v1_event_lookup_table_olap lt
-				JOIN v1_events_olap e ON (lt.tenant_id, lt.event_id, lt.event_seen_at) = (e.tenant_id, e.id, e.seen_at)
-				JOIN v1_event_to_run_olap etr ON (e.id, e.seen_at) = (etr.event_id, etr.event_seen_at)
-				WHERE
-					lt.tenant_id = $1::uuid
-					AND lt.external_id = $11::UUID
-			)
-		)
-		-- fixme: this might be really slow
-		AND NOT EXISTS (
-			SELECT 1
-			FROM v1_tasks_olap t
-			WHERE
-				t.external_id = r.parent_task_external_id
-				AND COALESCE(t.is_dag_orchestrator, FALSE)
-				AND t.tenant_id = r.tenant_id
-		)
-	ORDER BY inserted_at DESC, id DESC
-	LIMIT $9::integer
-	OFFSET $8::integer
-)
-
-SELECT
-	c.id,
-	c.inserted_at,
-	c.kind,
-	c.external_id,
-	COALESCE(t.is_dag_orchestrator, FALSE) AS is_dag_orchestrator
-FROM candidates c
-LEFT JOIN v1_tasks_olap t ON (c.id, c.inserted_at) = (t.id, t.inserted_at)
-ORDER BY c.inserted_at DESC, c.id DESC
+    )
+ORDER BY inserted_at DESC, id DESC
+LIMIT $9::integer
+OFFSET $8::integer
 `
 
 type FetchWorkflowRunIdsParams struct {
@@ -659,11 +598,10 @@ type FetchWorkflowRunIdsParams struct {
 }
 
 type FetchWorkflowRunIdsRow struct {
-	ID                int64              `json:"id"`
-	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
-	Kind              V1RunKind          `json:"kind"`
-	ExternalID        uuid.UUID          `json:"external_id"`
-	IsDagOrchestrator bool               `json:"is_dag_orchestrator"`
+	ID         int64              `json:"id"`
+	InsertedAt pgtype.Timestamptz `json:"inserted_at"`
+	Kind       V1RunKind          `json:"kind"`
+	ExternalID uuid.UUID          `json:"external_id"`
 }
 
 func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWorkflowRunIdsParams) ([]*FetchWorkflowRunIdsRow, error) {
@@ -706,7 +644,6 @@ func (q *Queries) FetchWorkflowRunIds(ctx context.Context, db DBTX, arg FetchWor
 			&i.InsertedAt,
 			&i.Kind,
 			&i.ExternalID,
-			&i.IsDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}
@@ -1091,9 +1028,7 @@ WITH inputs AS (
         UNNEST($19::BIGINT[]) AS dag_id,
         UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
         UNNEST($21::UUID[]) AS parent_task_external_id,
-        UNNEST($22::BOOLEAN[]) AS is_durable,
-		UNNEST($23::BOOLEAN[]) AS is_dag_orchestrator,
-		UNNEST($24::BOOLEAN[]) AS is_dag_subtask
+        UNNEST($22::BOOLEAN[]) AS is_durable
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -1117,9 +1052,7 @@ INSERT INTO v1_tasks_olap (
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable,
-	is_dag_orchestrator,
-	is_dag_subtask
+    is_durable
 )
 SELECT
     tenant_id,
@@ -1143,9 +1076,7 @@ SELECT
     dag_id,
     dag_inserted_at,
     parent_task_external_id,
-    is_durable,
-	is_dag_orchestrator,
-	is_dag_subtask
+    is_durable
 FROM inputs
 ON CONFLICT (inserted_at, id) DO NOTHING
 `
@@ -1173,8 +1104,6 @@ type CreateTasksOLAPParams struct {
 	Daginsertedats        []pgtype.Timestamptz `json:"daginsertedats"`
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Isdurables            []bool               `json:"isdurables"`
-	Isdagorchestrators    []bool               `json:"isdagorchestrators"`
-	Isdagsubtasks         []bool               `json:"isdagsubtasks"`
 }
 
 func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksOLAPParams) error {
@@ -1201,8 +1130,6 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Daginsertedats,
 		arg.Parenttaskexternalids,
 		arg.Isdurables,
-		arg.Isdagorchestrators,
-		arg.Isdagsubtasks,
 	)
 	return err
 }

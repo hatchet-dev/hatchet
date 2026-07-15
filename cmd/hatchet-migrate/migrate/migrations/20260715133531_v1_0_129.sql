@@ -5,13 +5,7 @@ ALTER TABLE "Worker" ADD COLUMN "operatorId" UUID;
 ALTER TABLE "Step" ADD COLUMN "isDagOrchestrator" BOOLEAN NOT NULL DEFAULT false;
 
 ALTER TABLE v1_task
-    ADD COLUMN is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN is_dag_subtask BOOLEAN NOT NULL DEFAULT false
-;
-
-ALTER TABLE v1_tasks_olap
-    ADD COLUMN is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN is_dag_subtask BOOLEAN NOT NULL DEFAULT false
+    ADD COLUMN is_dag_orchestrator BOOLEAN NOT NULL DEFAULT false
 ;
 
 ALTER TABLE "WorkflowVersion"
@@ -41,13 +35,8 @@ ALTER TABLE "WorkflowVersion"
     DROP COLUMN "isUsingDagOperator",
     DROP COLUMN "dagShape"
 ;
-ALTER TABLE v1_tasks_olap
-    DROP COLUMN is_dag_orchestrator,
-    DROP COLUMN is_dag_subtask
-;
 ALTER TABLE v1_task
-    DROP COLUMN is_dag_orchestrator,
-    DROP COLUMN is_dag_subtask
+    DROP COLUMN is_dag_orchestrator
 ;
 
 DROP TABLE v1_operator;

@@ -35,7 +35,6 @@ func (t *TasksService) V1DagListTasks(ctx echo.Context, request gen.V1DagListTas
 		tenantId,
 		dagIds,
 		false,
-		nil,
 	)
 
 	if err != nil {

@@ -633,11 +633,6 @@ func (tc *OLAPControllerImpl) emitStandaloneTaskRootSpans(ctx context.Context, t
 		if task.DagID.Valid {
 			continue
 		}
-		// Tasks whose workflow_run_id differs from their own external_id are grouped under another
-		// run (e.g., DAG operator subtasks). They don't get their own workflow_run root span.
-		if task.WorkflowRunID != task.ExternalID {
-			continue
-		}
 
 		insertedAt := time.Now()
 		if task.InsertedAt.Valid {
@@ -886,6 +881,32 @@ func (tc *OLAPControllerImpl) emitEventSpans(ctx context.Context, tenantId uuid.
 	tc.writeEngineSpans(ctx, tenantId, spans, "event")
 }
 
+// orchestratorDAGStatusFromEventType maps an orchestrator task's lifecycle event to the status
+// override for its run's DAG row. Completion events deliberately don't map to COMPLETED: DAG
+// completion must come from child task counting, which protects against the orchestrator
+// finishing while a child event is still in flight.
+func orchestratorDAGStatusFromEventType(eventType sqlcv1.V1EventTypeOlap) (status sqlcv1.V1ReadableStatusOlap, isReset bool, ok bool) {
+	switch eventType {
+	case sqlcv1.V1EventTypeOlapFAILED,
+		sqlcv1.V1EventTypeOlapTIMEDOUT,
+		sqlcv1.V1EventTypeOlapSCHEDULINGTIMEDOUT,
+		sqlcv1.V1EventTypeOlapRATELIMITERROR,
+		sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER:
+		return sqlcv1.V1ReadableStatusOlapFAILED, false, true
+	case sqlcv1.V1EventTypeOlapCANCELLED:
+		return sqlcv1.V1ReadableStatusOlapCANCELLED, false, true
+	case sqlcv1.V1EventTypeOlapRETRYING, sqlcv1.V1EventTypeOlapRETRIEDBYUSER:
+		return sqlcv1.V1ReadableStatusOlapRUNNING, true, true
+	case sqlcv1.V1EventTypeOlapASSIGNED,
+		sqlcv1.V1EventTypeOlapACKNOWLEDGED,
+		sqlcv1.V1EventTypeOlapSENTTOWORKER,
+		sqlcv1.V1EventTypeOlapSTARTED:
+		return sqlcv1.V1ReadableStatusOlapRUNNING, false, true
+	default:
+		return "", false, false
+	}
+}
+
 // handleCreateMonitoringEvent is responsible for sending a group of monitoring events to the OLAP repository
 func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
 	ctx, span := telemetry.NewSpan(ctx, "OLAPControllerImpl.handleCreateMonitoringEvent")
@@ -927,6 +948,16 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 	eventExternalIds := make([]uuid.UUID, 0)
 	msgIxToSpanEvent := make(map[int]engineSpanEvent)
 
+	// orchestrator tasks have no v1_tasks_olap row; their lifecycle events are applied to
+	// their run's DAG row instead. keyed by (dag id, dag inserted_at), last event wins,
+	// except that a plain RUNNING transition never replaces a terminal override.
+	type dagKey struct {
+		id         int64
+		insertedAt int64
+	}
+
+	orchestratorUpdates := make(map[dagKey]v1.OrchestratorDAGStatusUpdate)
+
 	for ix, msg := range msgs {
 		taskMeta := taskIdsToMetas[msg.TaskId]
 
@@ -938,6 +969,24 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		if !tc.sample(taskMeta.WorkflowRunID.String()) {
 			tc.l.Debug().Ctx(ctx).Msgf("skipping task %d for workflow run %s", msg.TaskId, taskMeta.WorkflowRunID.String())
 			continue
+		}
+
+		if taskMeta.IsDagOrchestrator {
+			if status, isReset, ok := orchestratorDAGStatusFromEventType(msg.EventType); ok {
+				key := dagKey{id: msg.TaskId, insertedAt: taskMeta.InsertedAt.Time.UnixNano()}
+
+				existing, hasExisting := orchestratorUpdates[key]
+				existingIsTerminal := hasExisting && (existing.ReadableStatus == sqlcv1.V1ReadableStatusOlapFAILED || existing.ReadableStatus == sqlcv1.V1ReadableStatusOlapCANCELLED)
+
+				if !hasExisting || !existingIsTerminal || isReset {
+					orchestratorUpdates[key] = v1.OrchestratorDAGStatusUpdate{
+						DagId:          msg.TaskId,
+						DagInsertedAt:  taskMeta.InsertedAt,
+						ReadableStatus: status,
+						IsReset:        isReset,
+					}
+				}
+			}
 		}
 
 		taskIds = append(taskIds, msg.TaskId)
@@ -1148,6 +1197,24 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 
 		if len(remainingOpts) > 0 && attempts < maxLockAttempts {
 			tc.sleepWithBackoff(attempts)
+		}
+	}
+
+	if len(orchestratorUpdates) > 0 {
+		updates := make([]v1.OrchestratorDAGStatusUpdate, 0, len(orchestratorUpdates))
+
+		for _, update := range orchestratorUpdates {
+			updates = append(updates, update)
+		}
+
+		result, err := tc.repo.OLAP().ApplyOrchestratorEventsToDAGs(ctx, tenantId, updates)
+
+		if err != nil {
+			return fmt.Errorf("failed to apply orchestrator events to DAGs: %w", err)
+		}
+
+		if err := tc.notifyStatusUpdates(ctx, result); err != nil {
+			return fmt.Errorf("failed to notify DAG status updates from orchestrator events: %w", err)
 		}
 	}
 

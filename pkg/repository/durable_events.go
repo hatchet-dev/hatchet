@@ -1397,6 +1397,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			dagExternalIds := make(map[uuid.UUID]struct{}, len(createdDags))
 
 			for _, dag := range createdDags {
+				// operator runs are signaled by their orchestrator task's completion, not
+				// by per-step conditions, so they're handled in the created tasks loop below
+				if dag.IsOperatorRun {
+					continue
+				}
+
 				dagExternalIds[dag.ExternalID] = struct{}{}
 			}
 
@@ -1461,6 +1467,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			}
 
 			for _, dag := range createdDags {
+				if dag.IsOperatorRun {
+					continue
+				}
+
 				conditions := make([]GroupMatchCondition, 0, len(dag.TaskExternalIDs)*3)
 
 				for i, taskExtId := range dag.TaskExternalIDs {

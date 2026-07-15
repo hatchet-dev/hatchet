@@ -19,7 +19,16 @@ from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
-from examples.conditions.worker import task_condition_workflow, cancel_if_workflow
+from examples.conditions.worker import (
+    task_condition_workflow,
+    cancel_if_workflow,
+    skip_if_sleep_workflow,
+    skip_if_or_workflow,
+    cancel_if_event_workflow,
+    cancel_if_sleep_workflow,
+    cancel_if_or_workflow,
+    wait_for_event_only_workflow,
+)
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
@@ -137,6 +146,12 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
+            skip_if_sleep_workflow,
+            skip_if_or_workflow,
+            cancel_if_event_workflow,
+            cancel_if_sleep_workflow,
+            cancel_if_or_workflow,
+            wait_for_event_only_workflow,
             cancellation_workflow,
             sync_fanout_parent,
             sync_fanout_child,

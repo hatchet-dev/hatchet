@@ -1295,6 +1295,8 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			IsCancelled:          req.IsCancelled,
 			DesiredWorkerLabels:  req.DesiredWorkerLabels,
 			WorkflowRunId:        &orchestratorWorkflowRunId,
+			OlapDagId:            &task.ID,
+			OlapDagInsertedAt:    &task.InsertedAt.Time,
 		},
 	}}
 

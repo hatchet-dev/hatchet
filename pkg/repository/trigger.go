@@ -91,6 +91,14 @@ type TriggerTaskData struct {
 
 	// (optional) when set, overrides the workflow_run_id for the created task (used by DAG operator to group child tasks under the orchestrator's run ID)
 	WorkflowRunId *uuid.UUID `json:"workflow_run_id,omitempty"`
+
+	// (optional) the OLAP DAG identity for operator-managed runs (the orchestrator task's id and
+	// inserted_at). Stamped onto the created task's OLAP representation only — core v1_task.dag_id
+	// stays NULL so native DAG replay semantics don't apply to operator children.
+	OlapDagId *int64 `json:"olap_dag_id,omitempty"`
+
+	// (optional) see OlapDagId
+	OlapDagInsertedAt *time.Time `json:"olap_dag_inserted_at,omitempty"`
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -611,6 +619,8 @@ type triggerTuple struct {
 	isSkipped                 bool
 	isCancelled               bool
 	workflowRunId             *uuid.UUID
+	olapDagId                 *int64
+	olapDagInsertedAt         *time.Time
 }
 
 func (t triggerTuple) effectiveWorkflowRunId() uuid.UUID {
@@ -805,6 +815,19 @@ func (r *sharedRepository) triggerWorkflows(
 		return nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
 	}
 
+	// for operator-managed DAG runs, we synthesize an OLAP-only DAG from the orchestrator
+	// task after it's created, keyed by the run's external id
+	operatorDagTuples := make(map[uuid.UUID]triggerTuple)
+	operatorDagTotalTasks := make(map[uuid.UUID]int)
+
+	// OLAP-only DAG stamps for operator children, keyed by the child's external id
+	type olapDagStamp struct {
+		dagInsertedAt time.Time
+		dagId         int64
+	}
+
+	olapDagStamps := make(map[uuid.UUID]olapDagStamp)
+
 	for i, tuple := range tuples {
 		if _, ok := tuplesToSkip[tuple.externalId]; ok {
 			continue
@@ -844,6 +867,9 @@ func (r *sharedRepository) triggerWorkflows(
 		if useOperatorPath {
 			orchestratorInput := r.newTaskInput(tuple.input, nil, tuple.filterPayload, tuple.dagParentTaskRunIds)
 			orchestratorInput.DesiredWorkerLabels = tuple.desiredWorkerLabels
+
+			operatorDagTuples[tuple.externalId] = tuple
+			operatorDagTotalTasks[tuple.externalId] = len(regularSteps)
 
 			nonDagTaskOpts = append(nonDagTaskOpts, CreateTaskOpts{
 				ExternalId:                tuple.externalId,
@@ -1094,6 +1120,13 @@ func (r *sharedRepository) triggerWorkflows(
 						initialState = sqlcv1.V1TaskInitialStateCANCELLED
 					}
 
+					if tuple.olapDagId != nil && tuple.olapDagInsertedAt != nil {
+						olapDagStamps[taskExternalId] = olapDagStamp{
+							dagId:         *tuple.olapDagId,
+							dagInsertedAt: *tuple.olapDagInsertedAt,
+						}
+					}
+
 					opt := CreateTaskOpts{
 						ExternalId:                taskExternalId,
 						WorkflowRunId:             tuple.effectiveWorkflowRunId(),
@@ -1281,6 +1314,15 @@ func (r *sharedRepository) triggerWorkflows(
 		return nil, nil, fmt.Errorf("failed to create tasks: %w", err)
 	}
 
+	// stamp the OLAP DAG identity onto operator children so they're written to OLAP as DAG
+	// subtasks; core v1_task.dag_id intentionally stays NULL for these tasks
+	for _, task := range tasks {
+		if stamp, ok := olapDagStamps[task.ExternalID]; ok {
+			task.DagID = pgtype.Int8{Int64: stamp.dagId, Valid: true}
+			task.DagInsertedAt = sqlchelpers.TimestamptzFromTime(stamp.dagInsertedAt)
+		}
+	}
+
 	for _, dag := range dags {
 		opts := eventMatches[dag.ExternalID]
 
@@ -1431,6 +1473,39 @@ func (r *sharedRepository) triggerWorkflows(
 		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
 	}
 
+	// synthesize OLAP-only DAGs for operator-managed runs from their orchestrator tasks.
+	// these are appended after payload storage and core event mapping on purpose: the
+	// orchestrator task already covers both (it shares the DAG's external id), and there
+	// is no core v1_dag row to write.
+	if len(operatorDagTuples) > 0 {
+		unix := time.Now().UnixMilli()
+
+		for _, task := range tasks {
+			tuple, ok := operatorDagTuples[task.ExternalID]
+
+			if !ok {
+				continue
+			}
+
+			dags = append(dags, &DAGWithData{
+				V1Dag: &sqlcv1.V1Dag{
+					ID:                   task.ID,
+					InsertedAt:           task.InsertedAt,
+					TenantID:             tenantId,
+					ExternalID:           task.ExternalID,
+					DisplayName:          fmt.Sprintf("%s-%d", tuple.workflowName, unix),
+					WorkflowID:           tuple.workflowId,
+					WorkflowVersionID:    tuple.workflowVersionId,
+					ParentTaskExternalID: tuple.parentExternalId,
+				},
+				Input:              tuple.input,
+				AdditionalMetadata: tuple.additionalMetadata,
+				TotalTasks:         operatorDagTotalTasks[task.ExternalID],
+				IsOperatorRun:      true,
+			})
+		}
+	}
+
 	// commit if we started the transaction
 	if existingTx == nil {
 		if err := commit(ctx); err != nil {
@@ -1459,6 +1534,11 @@ type DAGWithData struct {
 
 	TaskExternalIDs     []uuid.UUID
 	TaskStepReadableIDs []string
+
+	// IsOperatorRun is true when this DAG has no core v1_dag row and represents an
+	// operator-managed run: the orchestrator task shares the DAG's external id, and the
+	// DAG exists only on the OLAP side.
+	IsOperatorRun bool `json:"is_operator_run,omitempty"`
 }
 
 type V1TaskWithPayload struct {
@@ -2464,6 +2544,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				isSkipped:            opt.IsSkipped,
 				isCancelled:          opt.IsCancelled,
 				workflowRunId:        opt.WorkflowRunId,
+				olapDagId:            opt.OlapDagId,
+				olapDagInsertedAt:    opt.OlapDagInsertedAt,
 			})
 		}
 	}
