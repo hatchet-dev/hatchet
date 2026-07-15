@@ -910,12 +910,12 @@ export class WorkflowDeclaration<
    */
   task<
     Name extends string,
-    Fn extends Name extends keyof O
+    Fn extends (Name extends keyof O
       ? (
           input: I & MiddlewareBefore,
           ctx: Context<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void,
+      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void),
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -1024,12 +1024,12 @@ export class WorkflowDeclaration<
    */
   durableTask<
     Name extends string,
-    Fn extends Name extends keyof O
+    Fn extends (Name extends keyof O
       ? (
           input: I & MiddlewareBefore,
           ctx: DurableContext<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void,
+      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void),
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
