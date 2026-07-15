@@ -28,13 +28,15 @@ export function AuthPage({
   const basicEnabled = schemes.includes('basic');
   const googleEnabled = schemes.includes('google');
   const githubEnabled = schemes.includes('github');
+  const azureEnabled = schemes.includes('azure');
   const ssoEnabled = schemes.includes('sso');
 
   const providers = [
     googleEnabled && 'google',
     githubEnabled && 'github',
+    azureEnabled && 'azure',
     ssoEnabled && 'sso',
-  ].filter(Boolean) as Array<'google' | 'github' | 'sso'>;
+  ].filter(Boolean) as Array<'google' | 'github' | 'azure' | 'sso'>;
 
   const sections = [
     providers.length > 0 && (

@@ -1254,7 +1254,7 @@ export interface V1CELDebugResponse {
 export interface APIMetaAuth {
   /**
    * the supported types of authentication
-   * @example ["basic","google"]
+   * @example ["basic","google","azure"]
    */
   schemes?: string[];
 }

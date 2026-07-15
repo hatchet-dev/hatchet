@@ -1483,6 +1483,36 @@ export class Api<
    * @description Starts the OAuth flow
    *
    * @tags User
+   * @name UserUpdateAzureOauthStart
+   * @summary Start OAuth flow
+   * @request GET:/api/v1/users/azure/start
+   */
+  userUpdateAzureOauthStart = Object.assign((params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/azure/start`,
+      method: "GET",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
+  /**
+   * @description Completes the OAuth flow
+   *
+   * @tags User
+   * @name UserUpdateAzureOauthCallback
+   * @summary Complete OAuth flow
+   * @request GET:/api/v1/users/azure/callback
+   */
+  userUpdateAzureOauthCallback = Object.assign((params: RequestParams = {}) =>
+    this.request<any, void>({
+      path: `/api/v1/users/azure/callback`,
+      method: "GET",
+      ...params,
+      xResources: [],
+    }), { resources: new Set<string>([]) });
+  /**
+   * @description Starts the OAuth flow
+   *
+   * @tags User
    * @name UserUpdateSlackOauthStart
    * @summary Start OAuth flow
    * @request GET:/api/v1/tenants/{tenant}/slack/start

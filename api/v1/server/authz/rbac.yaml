@@ -82,6 +82,7 @@ roles:
       - WebhookCreate
       - CloudMetadataGet
       - UserUpdateGoogleOauthCallback
+      - UserUpdateAzureOauthCallback
       - UserUpdateSlackOauthCallback
       - V1WorkflowRunCreate
       - V1WorkflowRunDisplayNamesList
@@ -111,6 +112,7 @@ roles:
       - TenantResourcePolicyGet
       - UserUpdateSlackOauthStart
       - UserUpdateGoogleOauthStart
+      - UserUpdateAzureOauthStart
       - SlackWebhookDelete
       - V1CelDebug
       - V1WorkflowRunGetTimings

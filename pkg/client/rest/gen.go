@@ -3950,6 +3950,12 @@ type ClientInterface interface {
 	// WorkflowGetWorkersCount request
 	WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UserUpdateAzureOauthCallback request
+	UserUpdateAzureOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UserUpdateAzureOauthStart request
+	UserUpdateAzureOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UserGetCurrent request
 	UserGetCurrent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5832,6 +5838,30 @@ func (c *Client) ScheduledWorkflowRunCreate(ctx context.Context, tenant openapi_
 
 func (c *Client) WorkflowGetWorkersCount(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewWorkflowGetWorkersCountRequest(c.Server, tenant, workflow)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdateAzureOauthCallback(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdateAzureOauthCallbackRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UserUpdateAzureOauthStart(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUserUpdateAzureOauthStartRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -13491,6 +13521,60 @@ func NewWorkflowGetWorkersCountRequest(server string, tenant openapi_types.UUID,
 	return req, nil
 }
 
+// NewUserUpdateAzureOauthCallbackRequest generates requests for UserUpdateAzureOauthCallback
+func NewUserUpdateAzureOauthCallbackRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/azure/callback")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUserUpdateAzureOauthStartRequest generates requests for UserUpdateAzureOauthStart
+func NewUserUpdateAzureOauthStartRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/users/azure/start")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUserGetCurrentRequest generates requests for UserGetCurrent
 func NewUserGetCurrentRequest(server string) (*http.Request, error) {
 	var err error
@@ -14882,6 +14966,12 @@ type ClientWithResponsesInterface interface {
 
 	// WorkflowGetWorkersCountWithResponse request
 	WorkflowGetWorkersCountWithResponse(ctx context.Context, tenant openapi_types.UUID, workflow openapi_types.UUID, reqEditors ...RequestEditorFn) (*WorkflowGetWorkersCountResponse, error)
+
+	// UserUpdateAzureOauthCallbackWithResponse request
+	UserUpdateAzureOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateAzureOauthCallbackResponse, error)
+
+	// UserUpdateAzureOauthStartWithResponse request
+	UserUpdateAzureOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateAzureOauthStartResponse, error)
 
 	// UserGetCurrentWithResponse request
 	UserGetCurrentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserGetCurrentResponse, error)
@@ -17855,6 +17945,48 @@ func (r WorkflowGetWorkersCountResponse) StatusCode() int {
 	return 0
 }
 
+type UserUpdateAzureOauthCallbackResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdateAzureOauthCallbackResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdateAzureOauthCallbackResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UserUpdateAzureOauthStartResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r UserUpdateAzureOauthStartResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UserUpdateAzureOauthStartResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type UserGetCurrentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -19768,6 +19900,24 @@ func (c *ClientWithResponses) WorkflowGetWorkersCountWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParseWorkflowGetWorkersCountResponse(rsp)
+}
+
+// UserUpdateAzureOauthCallbackWithResponse request returning *UserUpdateAzureOauthCallbackResponse
+func (c *ClientWithResponses) UserUpdateAzureOauthCallbackWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateAzureOauthCallbackResponse, error) {
+	rsp, err := c.UserUpdateAzureOauthCallback(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdateAzureOauthCallbackResponse(rsp)
+}
+
+// UserUpdateAzureOauthStartWithResponse request returning *UserUpdateAzureOauthStartResponse
+func (c *ClientWithResponses) UserUpdateAzureOauthStartWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*UserUpdateAzureOauthStartResponse, error) {
+	rsp, err := c.UserUpdateAzureOauthStart(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUserUpdateAzureOauthStartResponse(rsp)
 }
 
 // UserGetCurrentWithResponse request returning *UserGetCurrentResponse
@@ -25083,6 +25233,38 @@ func ParseWorkflowGetWorkersCountResponse(rsp *http.Response) (*WorkflowGetWorke
 		}
 		response.JSON403 = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdateAzureOauthCallbackResponse parses an HTTP response from a UserUpdateAzureOauthCallbackWithResponse call
+func ParseUserUpdateAzureOauthCallbackResponse(rsp *http.Response) (*UserUpdateAzureOauthCallbackResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdateAzureOauthCallbackResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseUserUpdateAzureOauthStartResponse parses an HTTP response from a UserUpdateAzureOauthStartWithResponse call
+func ParseUserUpdateAzureOauthStartResponse(rsp *http.Response) (*UserUpdateAzureOauthStartResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UserUpdateAzureOauthStartResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
 	}
 
 	return response, nil

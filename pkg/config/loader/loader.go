@@ -569,6 +569,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		if cf.Auth.Github.Enabled {
 			oauthProviders = append(oauthProviders, "github")
 		}
+		if cf.Auth.Azure.Enabled {
+			oauthProviders = append(oauthProviders, "azure")
+		}
 
 		securityCheck := security.NewSecurityCheck(&security.DefaultSecurityCheck{
 			Enabled:        cf.SecurityCheck.Enabled,
@@ -695,6 +698,24 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			ClientSecret: cf.Auth.Github.ClientSecret,
 			BaseURL:      cf.Runtime.ServerURL,
 			Scopes:       cf.Auth.Github.Scopes,
+		})
+	}
+
+	if cf.Auth.Azure.Enabled {
+		if cf.Auth.Azure.ClientID == "" {
+			return nil, nil, fmt.Errorf("azure client id is required")
+		}
+
+		if cf.Auth.Azure.ClientSecret == "" {
+			return nil, nil, fmt.Errorf("azure client secret is required")
+		}
+
+		auth.AzureOAuthConfig = oauth.NewAzureClient(&oauth.Config{
+			ClientID:     cf.Auth.Azure.ClientID,
+			ClientSecret: cf.Auth.Azure.ClientSecret,
+			BaseURL:      cf.Runtime.ServerURL,
+			TenantID:     cf.Auth.Azure.TenantID,
+			Scopes:       cf.Auth.Azure.Scopes,
 		})
 	}
 
