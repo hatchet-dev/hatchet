@@ -394,6 +394,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        slot_cost: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -425,6 +426,7 @@ class Hatchet:
         backoff_max_seconds: int | None = None,
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        slot_cost: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -504,6 +506,8 @@ class Hatchet:
         :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+
+        :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
 
         :returns: A decorator which creates a `Standalone` task object.
         """

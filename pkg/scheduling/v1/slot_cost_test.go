@@ -5,6 +5,7 @@ package v1
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -96,6 +97,62 @@ func TestSlotCost_CostExceedingCapacityRemainsUnscheduled(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, res.succeeded)
 	require.True(t, res.noSlots)
+}
+
+// An over-capacity task is unassigned only while inside its schedule timeout. Past the timeout the
+// scheduler routes it to schedulingTimedOut, which the engine cancels with reason
+// SCHEDULING_TIMED_OUT, so the wait is bounded.
+func TestSlotCost_OverCapacityWaitsThenSchedulingTimesOut(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	a, err := actionWithSlots("A", defaultSlots(w, 4)...)
+	require.NoError(t, err)
+	s.actions["A"] = a
+
+	waiting := testQI(tenantId, "A", 1)
+	waiting.ScheduleTimeoutAt = ts(time.Now().UTC().Add(5 * time.Minute))
+
+	expired := testQI(tenantId, "A", 2)
+	expired.ScheduleTimeoutAt = ts(time.Now().UTC().Add(-1 * time.Second))
+
+	stepRequests := map[uuid.UUID]map[string]int32{
+		waiting.StepID: {repo.SlotTypeDefault: 5},
+		expired.StepID: {repo.SlotTypeDefault: 5},
+	}
+
+	ch := s.tryAssign(
+		context.Background(),
+		[]*sqlcv1.V1QueueItem{waiting, expired},
+		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{},
+		stepRequests,
+		nil,
+		nil,
+	)
+
+	assigned := map[int64]bool{}
+	unassigned := map[int64]bool{}
+	timedOut := map[int64]bool{}
+
+	for r := range ch {
+		for _, as := range r.assigned {
+			assigned[as.QueueItem.TaskID] = true
+		}
+		for _, u := range r.unassigned {
+			unassigned[u.TaskID] = true
+		}
+		for _, to := range r.schedulingTimedOut {
+			timedOut[to.TaskID] = true
+		}
+	}
+
+	require.Empty(t, assigned)
+	require.True(t, unassigned[waiting.TaskID])
+	require.False(t, timedOut[waiting.TaskID])
+	require.True(t, timedOut[expired.TaskID])
 }
 
 func TestSlotCost_NoExplicitRequestConsumesOneSlotPerTask(t *testing.T) {

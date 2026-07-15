@@ -1388,6 +1388,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
 
         :returns: A decorator which creates a `Task` object.
+
+        :raises ValueError: If `slot_cost` is not positive.
         """
 
         _warn_if_str_duration(schedule_timeout, execution_timeout)

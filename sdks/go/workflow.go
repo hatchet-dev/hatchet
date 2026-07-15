@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -317,12 +318,13 @@ func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 // once. A single worker must have that many free slots to run it. Durable tasks ignore it. Panics
 // if cost is not positive.
 func WithSlotCost(cost int) TaskOption {
-	if cost <= 0 {
+	if cost <= 0 || cost > math.MaxInt32 {
 		panic("slot cost must be a positive integer")
 	}
 
+	c := int32(cost)
+
 	return func(config *taskConfig) {
-		c := int32(cost)
 		config.slotCost = &c
 	}
 }
