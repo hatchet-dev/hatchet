@@ -157,6 +157,8 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		opts.AdditionalMetadata = additionalMetadataFilters
 	}
 
+	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata))
+
 	if request.Params.Until != nil {
 		opts.FinishedBefore = request.Params.Until
 	}
@@ -308,6 +310,8 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		opts.AdditionalMetadata = additionalMetadataFilters
 	}
 
+	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata))
+
 	if request.Params.Until != nil {
 		opts.FinishedBefore = request.Params.Until
 	}
@@ -373,7 +377,8 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 			return nil, err
 		}
 
-		useGinIndex = enabled
+		// if there's only one filter, we should always use the `AND` path with the index, since it's the most performant and all methods are equivalent in that case
+		useGinIndex = enabled || len(*request.Params.AdditionalMetadata) == 1
 	}
 
 	if request.Params.OnlyTasks {
@@ -385,7 +390,12 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query
 // param to the repository operator, defaulting to OR
-func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator) v1.AdditionalMetadataOperator {
+func additionalMetadataOperator(param *gen.V1AdditionalMetadataOperator, numFilters int) v1.AdditionalMetadataOperator {
+	// if we only have one filter, always use the `AND` since it's the most performant way, and both methods are equivalent
+	if numFilters <= 1 {
+		return v1.AdditionalMetadataOperatorAnd
+	}
+
 	if param != nil && *param == gen.AND {
 		return v1.AdditionalMetadataOperatorAnd
 	}

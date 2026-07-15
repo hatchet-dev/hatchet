@@ -257,7 +257,6 @@ CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_i
 CREATE TYPE v1_run_kind AS ENUM ('TASK', 'DAG');
 
 -- v1_runs_olap represents an invocation of a workflow. it can either refer to a DAG or a task.
--- we partition this table on status to allow for efficient querying of tasks in different states.
 CREATE TABLE v1_runs_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
@@ -271,7 +270,7 @@ CREATE TABLE v1_runs_olap (
     parent_task_external_id UUID,
     idempotency_key TEXT,
 
-    PRIMARY KEY (inserted_at, id, readable_status, kind)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
@@ -867,18 +866,37 @@ REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_runs_olap_insert_function();
 
+-- We use INSERT INTO rather than UPDATE for ensuring this query is fast on TimescaleDB,
+-- which does not have effective runtime partition pruning on UPDATE and would involve scanning
+-- every partition in v1_statuses_olap.
 CREATE OR REPLACE FUNCTION v1_runs_olap_status_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    UPDATE
-        v1_statuses_olap s
-    SET
-        readable_status = n.readable_status
-    FROM new_rows n
-    WHERE
-        s.external_id = n.external_id
-        AND s.inserted_at = n.inserted_at;
+    INSERT INTO v1_statuses_olap (
+        external_id,
+        inserted_at,
+        tenant_id,
+        workflow_id,
+        kind,
+        readable_status
+    )
+    -- DISTINCT ON: nothing constraint-enforces (external_id, inserted_at)
+    -- uniqueness across new_rows, and ON CONFLICT DO UPDATE errors if a single
+    -- statement affects the same row twice. On duplicates, keep the
+    -- highest-priority status.
+    SELECT DISTINCT ON (external_id, inserted_at)
+        external_id,
+        inserted_at,
+        tenant_id,
+        workflow_id,
+        kind,
+        readable_status
+    FROM new_rows
+    ORDER BY external_id, inserted_at, v1_status_to_priority(readable_status) DESC
+    ON CONFLICT (external_id, inserted_at) DO UPDATE
+    SET readable_status = EXCLUDED.readable_status
+    WHERE v1_statuses_olap.readable_status IS DISTINCT FROM EXCLUDED.readable_status;
 
     RETURN NULL;
 END;
