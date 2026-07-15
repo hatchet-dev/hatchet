@@ -1,4 +1,8 @@
-import { getStableKey, hasErrorInTree } from '../utils/span-tree-utils';
+import {
+  getSpanGroupLabel,
+  getStableKey,
+  hasErrorInTree,
+} from '../utils/span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 
 const GROUP_THRESHOLD = 5;
@@ -124,7 +128,7 @@ export function groupSiblings(
         kind: 'group' as const,
         group: {
           groupId: `__group_${parentSpanId || 'root'}_${name}`,
-          groupName: name,
+          groupName: getSpanGroupLabel(name),
           spans: sorted,
           errorCount: errors.length,
           totalCount: sorted.length,

@@ -1,4 +1,8 @@
-import { getSpanAttributeLabel, isEngineSpan } from '../utils/span-tree-utils';
+import {
+  getSpanAttributeLabel,
+  getSpanDisplayLabel,
+  isEngineSpan,
+} from '../utils/span-tree-utils';
 import {
   ROW_HEIGHT,
   CONNECTOR_WIDTH,
@@ -234,8 +238,12 @@ export const TimelineLabels = memo(function TimelineLabels({
         }
 
         const isSelected = selectedSpan?.spanId === row.span.spanId;
-        const displayName = row.span.spanName;
+        const displayName = getSpanDisplayLabel(row.span);
+        // On step-run rows the badge would repeat the primary label, so show it
+        // only when it differs.
         const attributeLabel = getSpanAttributeLabel(row.span);
+        const showAttributeLabel =
+          !!attributeLabel && attributeLabel !== displayName;
 
         return (
           <LabelRow
@@ -284,7 +292,7 @@ export const TimelineLabels = memo(function TimelineLabels({
                 <TooltipContent>{displayName}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {attributeLabel && (
+            {showAttributeLabel && (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
