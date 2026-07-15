@@ -783,9 +783,61 @@ func TestScheduler_GetSnapshotInput_BestEffortTryLock(t *testing.T) {
 	s.actionsMu.Lock()
 	defer s.actionsMu.Unlock()
 
-	in, ok := s.getSnapshotInput(false)
+	in, ok := s.getSnapshotInput(context.Background(), false)
 	require.False(t, ok)
 	require.Nil(t, in)
+}
+
+func TestScheduler_GetSnapshotInput_DerivesUsedSlotsFromCapacity(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+			}, nil
+		},
+		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			return []*sqlcv1.ListWorkerSlotConfigsRow{
+				{WorkerID: workerId, SlotType: repo.SlotTypeDefault, MaxUnits: 5},
+				{WorkerID: workerId, SlotType: repo.SlotTypeDurable, MaxUnits: 10},
+			}, nil
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			// 3 of the 5 default slots are consumed by running tasks, so only 2 free
+			// default slots make it into the in-memory pool; durable slots are idle
+			return []*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{
+				{ID: workerId, SlotType: repo.SlotTypeDefault, AvailableSlots: 2},
+				{ID: workerId, SlotType: repo.SlotTypeDurable, AvailableSlots: 10},
+			}, nil
+		},
+	})
+
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 5, repo.SlotTypeDurable: 10},
+	}})
+
+	require.NoError(t, s.replenish(context.Background(), true))
+
+	in, ok := s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.NotNil(t, in)
+	require.Len(t, in.Workers, 1)
+	require.Equal(t, workerId, in.Workers[workerId].WorkerId)
+	require.Equal(t, 15, in.Workers[workerId].MaxRuns)
+
+	util := in.WorkerSlotUtilization[workerId]
+	require.NotNil(t, util)
+	require.Equal(t, 3, util.UtilizedSlots)
+	require.Equal(t, 12, util.NonUtilizedSlots)
+
+	byType := in.WorkerSlotUtilizationByType[workerId]
+	require.NotNil(t, byType)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 3, NonUtilizedSlots: 2}, byType[repo.SlotTypeDefault])
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 0, NonUtilizedSlots: 10}, byType[repo.SlotTypeDurable])
 }
 
 func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
@@ -793,7 +845,11 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	workerId := uuid.New()
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 
-	s.setWorkers([]*repo.ListActiveWorkersResult{{ID: workerId, Name: "w1", Labels: nil}})
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 3},
+	}})
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 	sharedSlot := newSlot(w, newSlotMeta([]string{"A", "B"}, repo.SlotTypeDefault))
@@ -807,11 +863,83 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	require.NoError(t, err)
 	s.actions["B"] = actB
 
-	in, ok := s.getSnapshotInput(true)
+	in, ok := s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.NotNil(t, in)
 	require.Len(t, in.Workers, 1)
 	require.Equal(t, workerId, in.Workers[workerId].WorkerId)
+
+	// the free slot must be counted once across both actions, so 3 total - 1 free = 2 used
+	util := in.WorkerSlotUtilization[workerId]
+	require.NotNil(t, util)
+	require.Equal(t, 2, util.UtilizedSlots)
+	require.Equal(t, 1, util.NonUtilizedSlots)
+}
+
+func TestScheduler_GetSnapshotInput_WarmupAndSaturation(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 3},
+	}})
+
+	// before any slots have entered the pool (i.e. before the first replenish), the worker
+	// must report zero slots rather than full utilization
+	in, ok := s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 0, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
+
+	// slots appear in the pool: the slot type warms up and utilization is derived from capacity
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	freeSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	actA, err := actionWithSlots("A", freeSlot)
+	require.NoError(t, err)
+	s.actions["A"] = actA
+
+	in, ok = s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 2, NonUtilizedSlots: 1}, in.WorkerSlotUtilization[workerId])
+
+	// the pool empties out (all slots assigned and flushed): the warmed type now reports
+	// full utilization instead of a transient zero
+	delete(s.actions, "A")
+
+	in, ok = s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 3, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
+
+	// removing the worker prunes its warm state
+	s.setWorkers([]*repo.ListActiveWorkersResult{})
+
+	in, ok = s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.NotContains(t, in.WorkerSlotUtilization, workerId)
+	require.Empty(t, s.warmedSlotTypes)
+}
+
+func TestScheduler_GetSnapshotInput_FallsBackToWalkedCountsWithoutCapacity(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	// no TotalSlots on the worker record
+	s.setWorkers([]*repo.ListActiveWorkersResult{{ID: workerId, Name: "w1", Labels: nil}})
+
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	usedSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	require.True(t, usedSlot.use(nil, nil))
+	unusedSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+
+	actA, err := actionWithSlots("A", usedSlot, unusedSlot)
+	require.NoError(t, err)
+	s.actions["A"] = actA
+
+	in, ok := s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
 
 	util := in.WorkerSlotUtilization[workerId]
 	require.NotNil(t, util)

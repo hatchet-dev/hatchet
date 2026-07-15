@@ -91,6 +91,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1AdditionalMetadataOperator,
   V1BranchDurableTaskRequest,
   V1BranchDurableTaskResponse,
   V1CELDebugRequest,
@@ -502,6 +503,8 @@ export class Api<
       until?: string;
       /** Additional metadata k-v pairs to filter by */
       additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
       /**

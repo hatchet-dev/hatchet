@@ -323,7 +323,7 @@ func startLocalServerAndCreateProfile(cmd *cobra.Command) string {
 	}
 
 	// Show success message
-	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, "Starting worker..."))
+	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, false, "Starting worker..."))
 
 	return result.ProfileName
 }

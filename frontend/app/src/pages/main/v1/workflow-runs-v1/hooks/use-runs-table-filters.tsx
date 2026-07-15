@@ -2,6 +2,7 @@ import {
   statusKey,
   workflowKey,
   additionalMetadataKey,
+  additionalMetadataOperatorKey,
   flattenDAGsKey,
   createdAfterKey,
   finishedBeforeKey,
@@ -10,7 +11,11 @@ import {
   runningFilterKey,
 } from '../components/v1/task-runs-columns';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
-import { V1RunningFilter, V1TaskStatus } from '@/lib/api';
+import {
+  V1AdditionalMetadataOperator,
+  V1RunningFilter,
+  V1TaskStatus,
+} from '@/lib/api';
 import { useSearchParams } from '@/lib/router-helpers';
 import { ColumnFiltersState } from '@tanstack/react-table';
 import { useCallback, useMemo } from 'react';
@@ -46,6 +51,7 @@ type APIFilters = {
   statuses?: V1TaskStatus[];
   workflowIds?: string[];
   additionalMetadata?: string[];
+  additionalMetadataOperator: V1AdditionalMetadataOperator;
   flattenDAGs: boolean;
   runningFilter?: V1RunningFilter;
 };
@@ -59,6 +65,9 @@ export type FilterActions = {
   updateCurrentTimeWindow: () => void;
   setStatuses: (statuses: V1TaskStatus[]) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
+  setAdditionalMetadataOperator: (
+    operator: V1AdditionalMetadataOperator,
+  ) => void;
   setColumnFilters: (filters: ColumnFiltersState) => void;
   resetFilters: () => void;
 };
@@ -79,6 +88,11 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
         initialValues?.workflowIds?.length ? initialValues.workflowIds : [],
       ),
     m: z.array(z.string()).optional(), // additional metadata
+    // metadata match operator. The frontend defaults to AND (all pairs must
+    // match) even though the API defaults to OR, so the param is always sent.
+    mo: z
+      .nativeEnum(V1AdditionalMetadataOperator)
+      .default(V1AdditionalMetadataOperator.AND),
     f: z.boolean().default(false), // flatten dags
     rf: z.nativeEnum(V1RunningFilter).optional(), // running sub-filter (undefined = ALL)
   });
@@ -106,6 +120,7 @@ export const useRunsTableFilters = (
     st: statusKey,
     w: workflowKey,
     m: additionalMetadataKey,
+    mo: additionalMetadataOperatorKey,
     f: flattenDAGsKey,
     rf: runningFilterKey,
   });
@@ -125,6 +140,7 @@ export const useRunsTableFilters = (
     st: selectedStatuses,
     w: selectedWorkflowIds,
     m: selectedAdditionalMetadata,
+    mo: selectedAdditionalMetadataOperator,
     f: selectedFlattenDAGs,
     rf: selectedRunningFilter,
   } = zodState;
@@ -216,6 +232,17 @@ export const useRunsTableFilters = (
     [setColumnFilters, columnFilters, selectedAdditionalMetadata],
   );
 
+  const setAdditionalMetadataOperator = useCallback(
+    (operator: V1AdditionalMetadataOperator) => {
+      const newColumnFilters = columnFilters
+        .filter((f) => f.id !== additionalMetadataOperatorKey)
+        .concat([{ id: additionalMetadataOperatorKey, value: operator }]);
+
+      setColumnFilters(newColumnFilters);
+    },
+    [setColumnFilters, columnFilters],
+  );
+
   const apiFilters = useMemo(
     () => ({
       since: createdAfter || getCreatedAfterFromTimeRange('1d'),
@@ -223,6 +250,7 @@ export const useRunsTableFilters = (
       statuses: selectedStatuses,
       workflowIds: selectedWorkflowIds,
       additionalMetadata: selectedAdditionalMetadata,
+      additionalMetadataOperator: selectedAdditionalMetadataOperator,
       flattenDAGs: selectedFlattenDAGs || false,
       runningFilter: selectedRunningFilter,
     }),
@@ -232,6 +260,7 @@ export const useRunsTableFilters = (
       selectedStatuses,
       selectedWorkflowIds,
       selectedAdditionalMetadata,
+      selectedAdditionalMetadataOperator,
       selectedFlattenDAGs,
       selectedRunningFilter,
     ],
@@ -247,6 +276,7 @@ export const useRunsTableFilters = (
     updateCurrentTimeWindow,
     setStatuses,
     setAdditionalMetadata,
+    setAdditionalMetadataOperator,
     setColumnFilters,
     resetFilters,
   };
