@@ -2946,11 +2946,12 @@ type TenantAlertingSettings struct {
 }
 
 type TenantEntitlement struct {
-	TenantID          uuid.UUID          `json:"tenant_id"`
-	AuditLogs         bool               `json:"audit_logs"`
-	PrometheusMetrics bool               `json:"prometheus_metrics"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	TenantID                        uuid.UUID          `json:"tenant_id"`
+	AuditLogs                       bool               `json:"audit_logs"`
+	PrometheusMetrics               bool               `json:"prometheus_metrics"`
+	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
+	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type TenantInviteLink struct {

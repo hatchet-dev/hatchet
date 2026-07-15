@@ -106,8 +106,10 @@ func (q *Queries) GetLeasesToAcquire(ctx context.Context, db DBTX, arg GetLeases
 
 const listActiveWorkers = `-- name: ListActiveWorkers :many
 SELECT
-    DISTINCT w."id",
-    w."name"
+    w."id",
+    w."name",
+    wsc."slot_type" AS "slotType",
+    SUM(wsc."max_units")::int AS "maxUnits"
 FROM
     "Worker" w
 JOIN
@@ -118,11 +120,17 @@ WHERE
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
     AND w."isPaused" = false
+GROUP BY
+    w."id",
+    w."name",
+    wsc."slot_type"
 `
 
 type ListActiveWorkersRow struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	SlotType string    `json:"slotType"`
+	MaxUnits int32     `json:"maxUnits"`
 }
 
 func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListActiveWorkersRow, error) {
@@ -134,7 +142,12 @@ func (q *Queries) ListActiveWorkers(ctx context.Context, db DBTX, tenantid uuid.
 	var items []*ListActiveWorkersRow
 	for rows.Next() {
 		var i ListActiveWorkersRow
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SlotType,
+			&i.MaxUnits,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
