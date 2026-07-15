@@ -15,7 +15,6 @@ operations:
     - UserListTenantInvites
     - UserUpdateLogout
     - UserUpdatePassword
-    - V1DagListTasks
   allowed:
     - AlertEmailGroupCreate
     - AlertEmailGroupDelete
@@ -144,3 +143,4 @@ operations:
     - WorkflowScheduledUpdate
     - WorkflowUpdate
     - WorkflowVersionGet
+    - V1DagListTasks
