@@ -18,9 +18,13 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import useCloud from '@/hooks/use-cloud';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -36,9 +40,11 @@ import {
   useParams,
 } from '@tanstack/react-router';
 import {
+  Check,
   ChevronDown,
   LogOut,
   Menu,
+  Monitor,
   Moon,
   Sun,
   UserCircle2,
@@ -50,17 +56,26 @@ interface TopNavProps {
   tenantMemberships: TenantMember[];
 }
 
+const THEME_OPTIONS = [
+  { value: 'light' as const, label: 'Light', icon: Sun },
+  { value: 'dark' as const, label: 'Dark', icon: Moon },
+  { value: 'system' as const, label: 'System', icon: Monitor },
+];
+
 function AccountDropdown({ user }: { user?: User }) {
   const [open, setOpen] = React.useState(false);
   const { logoutMutation } = useUserUniverse();
-  const { currentlyVisibleTheme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const authDisabled = useAuthDisabled();
 
   if (!user) {
     return null;
   }
 
   const displayName = user.name || user.email;
-  const nextThemeLabel = currentlyVisibleTheme === 'dark' ? 'Dark' : 'Light';
+  const activeThemeOption =
+    THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[2];
+  const ThemeIcon = activeThemeOption.icon;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -89,29 +104,41 @@ function AccountDropdown({ user }: { user?: User }) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="interactive"
-          onClick={toggleTheme}
-          className="cursor-pointer"
-        >
-          {currentlyVisibleTheme === 'dark' ? (
-            <Moon className="mr-2 size-4" />
-          ) : (
-            <Sun className="mr-2 size-4" />
-          )}
-          Theme: {nextThemeLabel}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="interactive"
-          className="cursor-pointer"
-          onClick={() => logoutMutation.mutate()}
-          disabled={logoutMutation.isPending}
-        >
-          <LogOut className="mr-2 size-4" />
-          {logoutMutation.isPending ? 'Logging out...' : 'Log out'}
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="cursor-pointer">
+            <ThemeIcon className="mr-2 size-4" />
+            Theme: {activeThemeOption.label}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {THEME_OPTIONS.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                variant="interactive"
+                className="cursor-pointer"
+                onClick={() => setTheme(option.value)}
+              >
+                <option.icon className="mr-2 size-4" />
+                {option.label}
+                {theme === option.value && <Check className="ml-auto size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        {!authDisabled && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="interactive"
+              className="cursor-pointer"
+              onClick={() => logoutMutation.mutate()}
+              disabled={logoutMutation.isPending}
+            >
+              <LogOut className="mr-2 size-4" />
+              {logoutMutation.isPending ? 'Logging out...' : 'Log out'}
+              <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

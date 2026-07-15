@@ -6,7 +6,7 @@ export function SettingsPageHeader({
   children,
 }: {
   title: string;
-  description: string;
+  description: ReactNode;
   children?: ReactNode;
 }) {
   return (

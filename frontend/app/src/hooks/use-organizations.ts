@@ -152,18 +152,28 @@ export function useOrganizations() {
       organizationId: string;
       name: string;
       duration?: ManagementTokenDuration;
+      tags?: string[];
     }) => {
-      const body: { name: string; duration?: ManagementTokenDuration } = {
+      const body: {
+        name: string;
+        duration?: ManagementTokenDuration;
+        tags?: string[];
+      } = {
         name: data.name,
       };
       if (data.duration != null) {
         body.duration = data.duration;
       }
+      if (data.tags && data.tags.length > 0) {
+        body.tags = data.tags;
+      }
       return orgApi
         .managementTokenCreateMutation(data.organizationId)
         .mutationFn(body);
     },
-    onError: handleApiError,
+    // Error handling is delegated to the caller (handleCreateToken) so the
+    // create-token modal can surface it inline instead of via a toast that
+    // would render behind the modal overlay.
   });
 
   const deleteMemberMutation = useMutation({
@@ -236,20 +246,28 @@ export function useOrganizations() {
       name: string,
       duration: ManagementTokenDuration | undefined,
       onSuccess: (data: CreateManagementTokenResponse) => void,
+      tags?: string[],
+      // Callers (modals) can surface the error inline; falls back to the
+      // global toast when omitted.
+      onError?: (error: unknown) => void,
     ) => {
       createTokenMutation.mutate(
-        { organizationId, name, duration },
+        { organizationId, name, duration, tags },
         {
           onSuccess: (data) => {
             onSuccess(data);
           },
-          onError: () => {
-            // Error handling is done by the mutation itself via handleApiError
+          onError: (error) => {
+            if (onError) {
+              onError(error);
+            } else {
+              handleApiError(error as Parameters<typeof handleApiError>[0]);
+            }
           },
         },
       );
     },
-    [createTokenMutation],
+    [createTokenMutation, handleApiError],
   );
 
   const handleDeleteMember = useCallback(

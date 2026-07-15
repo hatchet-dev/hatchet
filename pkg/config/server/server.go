@@ -25,6 +25,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/encryption"
 	"github.com/hatchet-dev/hatchet/pkg/errors"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/email"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
@@ -112,7 +113,7 @@ type ConfigFileOperations struct {
 	PollInterval int `mapstructure:"pollInterval" json:"pollInterval,omitempty" default:"2"`
 
 	// OLAPMQQos is the prefetch count (QOS) for the OLAP controller's message queue consumer
-	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"2000"`
+	OLAPMQQos int `mapstructure:"olapMqQos" json:"olapMqQos,omitempty" default:"100"`
 }
 
 type TaskOperationLimitsConfigFile struct {
@@ -206,6 +207,9 @@ type ConfigFileRuntime struct {
 	// GRPCRateLimit is the rate limit for the grpc server. We count limits separately for the Workflow, Dispatcher and Events services. Workflow and Events service are set to this rate, Dispatcher is 10X this rate. The rate limit is per second, per engine, per api token.
 	GRPCRateLimit float64 `mapstructure:"grpcRateLimit" json:"grpcRateLimit,omitempty" default:"1000"`
 
+	// GRPCShutdownTimeout is the maximum time to wait for the grpc server to drain in-flight requests and streams on graceful shutdown before forcing a hard stop
+	GRPCShutdownTimeout time.Duration `mapstructure:"grpcShutdownTimeout" json:"grpcShutdownTimeout,omitempty" default:"10s"`
+
 	// EnforceLimits controls whether the server enforces tenant limits
 	EnforceLimits bool `mapstructure:"enforceLimits" json:"enforceLimits,omitempty" default:"false"`
 
@@ -254,6 +258,12 @@ type ConfigFileRuntime struct {
 	// Rate limiting configuration for API operations by IP
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
+
+	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
+	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
+
+	// WebhookRateLimitBurst is the burst size for webhook rate limiting
+	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
 
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
@@ -311,6 +321,9 @@ type ConfigFileRuntime struct {
 	SchedulerCheckActiveMaxInterval time.Duration `mapstructure:"schedulerCheckActiveMaxInterval" json:"schedulerCheckActiveMaxInterval,omitempty" default:"60s"`
 
 	SchedulerAdvisoryLockTimeout time.Duration `mapstructure:"schedulerAdvisoryLockTimeout" json:"schedulerAdvisoryLockTimeout,omitempty" default:"5s"`
+
+	// ConcurrencyInMemoryIndexEnabled controls whether the in-memory index + outbox approach is used for concurrency strategies
+	ConcurrencyInMemoryIndexEnabled bool `mapstructure:"concurrencyInMemoryIndexEnabled" json:"concurrencyInMemoryIndexEnabled,omitempty" default:"false"`
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
@@ -536,7 +549,7 @@ type RabbitMQConfigFile struct {
 	CompressionEnabled     bool   `mapstructure:"compressionEnabled" json:"compressionEnabled,omitempty" default:"false"`
 	CompressionThreshold   int    `mapstructure:"compressionThreshold" json:"compressionThreshold,omitempty" default:"5120"`
 	EnableMessageRejection bool   `mapstructure:"enableMessageRejection" json:"enableMessageRejection,omitempty" default:"false"`
-	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"5"`
+	MaxDeathCount          int    `mapstructure:"maxDeathCount" json:"maxDeathCount,omitempty" default:"1000"`
 }
 
 type ConfigFileEmail struct {
@@ -674,6 +687,8 @@ type ServerConfig struct {
 
 	Prometheus shared.PrometheusConfigFile
 
+	PrometheusGate *prometheus.Gate
+
 	Observability shared.ObservabilityConfigFile
 
 	Email email.EmailService
@@ -740,12 +755,16 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
+	_ = v.BindEnv("runtime.grpcShutdownTimeout", "SERVER_GRPC_SHUTDOWN_TIMEOUT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMaxInterval", "SCHEDULER_CONCURRENCY_POLLING_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerCheckActiveMinInterval", "SCHEDULER_CHECK_ACTIVE_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerCheckActiveMaxInterval", "SCHEDULER_CHECK_ACTIVE_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerAdvisoryLockTimeout", "SCHEDULER_ADVISORY_LOCK_TIMEOUT")
+	_ = v.BindEnv("runtime.concurrencyInMemoryIndexEnabled", "SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
@@ -771,6 +790,8 @@ func BindAllEnv(v *viper.Viper) {
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
+	_ = v.BindEnv("runtime.limits.corePartitionRetention", "SERVER_LIMITS_CORE_PARTITION_RETENTION")
+	_ = v.BindEnv("runtime.limits.olapPartitionRetention", "SERVER_LIMITS_OLAP_PARTITION_RETENTION")
 
 	_ = v.BindEnv("runtime.limits.defaultTaskRunLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultTaskRunAlarmLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT")
@@ -930,6 +951,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("prometheus.enabled", "SERVER_PROMETHEUS_ENABLED")
 	_ = v.BindEnv("prometheus.address", "SERVER_PROMETHEUS_ADDRESS")
 	_ = v.BindEnv("prometheus.path", "SERVER_PROMETHEUS_PATH")
+	_ = v.BindEnv("prometheus.tenantScoped", "SERVER_PROMETHEUS_SERVER_TENANT_SCOPED")
 
 	// tenant alerting options
 	_ = v.BindEnv("tenantAlerting.slack.enabled", "SERVER_TENANT_ALERTING_SLACK_ENABLED")

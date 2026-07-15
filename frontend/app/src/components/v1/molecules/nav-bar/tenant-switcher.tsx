@@ -8,6 +8,12 @@ import {
   CommandSeparator,
 } from '@/components/v1/ui/command';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/v1/ui/tooltip';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { TenantMember } from '@/lib/api';
@@ -70,100 +76,112 @@ export function TenantSwitcher({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          role="combobox"
-          aria-expanded={open}
-          aria-label="Select a tenant"
-          className={cn(
-            'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
-            open && 'bg-muted/30',
-            className,
-          )}
-          disabled={!isUserUniverseLoaded || memberships.length === 0}
-        >
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-            <BuildingOffice2Icon className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
-            <TenantRegionBadge region={tenant.region} />
-          </div>
-          {!isUserUniverseLoaded ? (
-            <Spinner className="mr-0" />
-          ) : (
-            <CaretSortIcon className="size-4 shrink-0 opacity-50" />
-          )}
-        </Button>
-      </PopoverTrigger>
-      {/* Portal so the popover can render above the mobile sidebar overlay (header is z-50). */}
-      <PopoverPortal>
-        <PopoverContent
-          side="bottom"
-          align="start"
-          sideOffset={8}
-          // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
-          className="z-[200] w-[min(18rem,100vw)] max-w-[calc(100vw-2rem)] p-0"
-        >
-          <Command className="">
-            <CommandList data-cy="tenant-switcher-list">
-              <CommandEmpty>No tenants found.</CommandEmpty>
-              {memberships.map((membership) => (
-                <CommandItem
-                  key={membership.metadata.id}
-                  onSelect={() => {
-                    invariant(membership.tenant);
-                    setCurrTenant(membership.tenant);
-                    setOpen(false);
-                  }}
-                  value={membership.tenant?.slug}
-                  data-cy={
-                    membership.tenant?.slug
-                      ? `tenant-switcher-item-${membership.tenant.slug}`
-                      : undefined
-                  }
-                  className="cursor-pointer text-sm"
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <BuildingOffice2Icon className="size-4 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">
-                      {membership.tenant?.name}
-                    </span>
-                    <TenantRegionBadge region={membership.tenant?.region} />
-                  </div>
-                  <CheckIcon
-                    className={cn(
-                      'ml-2 size-4 shrink-0',
-                      tenant?.slug === membership.tenant?.slug
-                        ? 'opacity-100'
-                        : 'opacity-0',
-                    )}
-                  />
-                </CommandItem>
-              ))}
-            </CommandList>
-            {meta?.allowCreateTenant && !hasOrganizations && (
-              <>
-                <CommandSeparator />
-                <CommandList>
+    <TooltipProvider delayDuration={200}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            role="combobox"
+            aria-expanded={open}
+            aria-label="Select a tenant"
+            className={cn(
+              'min-w-0 justify-between gap-2 bg-muted/20 shadow-none hover:bg-muted/30',
+              open && 'bg-muted/30',
+              className,
+            )}
+            disabled={!isUserUniverseLoaded || memberships.length === 0}
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <BuildingOffice2Icon className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{tenant.name}</span>
+              <TenantRegionBadge region={tenant.region} />
+            </div>
+            {!isUserUniverseLoaded ? (
+              <Spinner className="mr-0" />
+            ) : (
+              <CaretSortIcon className="size-4 shrink-0 opacity-50" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        {/* Portal so the popover can render above the mobile sidebar overlay (header is z-50). */}
+        <PopoverPortal>
+          <PopoverContent
+            side="bottom"
+            align="start"
+            sideOffset={8}
+            // Must render above the mobile sidebar overlay (`side-nav` uses z-[100]).
+            className="z-[200] w-[min(18rem,100vw)] max-w-[calc(100vw-2rem)] p-0"
+          >
+            <Command className="">
+              <CommandList data-cy="tenant-switcher-list">
+                <CommandEmpty>No tenants found.</CommandEmpty>
+                {memberships.map((membership) => (
                   <CommandItem
-                    className="cursor-pointer text-sm"
-                    data-cy="new-tenant"
+                    key={membership.metadata.id}
                     onSelect={() => {
-                      globalEmitter.emit('create-new-tenant', {});
+                      invariant(membership.tenant);
+                      setCurrTenant(membership.tenant);
                       setOpen(false);
                     }}
+                    value={membership.tenant?.slug}
+                    data-cy={
+                      membership.tenant?.slug
+                        ? `tenant-switcher-item-${membership.tenant.slug}`
+                        : undefined
+                    }
+                    className="cursor-pointer text-sm"
                   >
-                    <PlusCircledIcon className="mr-2 size-4" />
-                    New Tenant
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <BuildingOffice2Icon className="size-4 shrink-0" />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="min-w-0 flex-1 truncate text-left">
+                            {membership.tenant?.name}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="right"
+                          className="max-w-[min(24rem,calc(100vw-2rem))] break-words"
+                        >
+                          {membership.tenant?.name}
+                        </TooltipContent>
+                      </Tooltip>
+                      <TenantRegionBadge region={membership.tenant?.region} />
+                    </div>
+                    <CheckIcon
+                      className={cn(
+                        'ml-2 size-4 shrink-0',
+                        tenant?.slug === membership.tenant?.slug
+                          ? 'opacity-100'
+                          : 'opacity-0',
+                      )}
+                    />
                   </CommandItem>
-                </CommandList>
-              </>
-            )}
-          </Command>
-        </PopoverContent>
-      </PopoverPortal>
-    </Popover>
+                ))}
+              </CommandList>
+              {meta?.allowCreateTenant && !hasOrganizations && (
+                <>
+                  <CommandSeparator />
+                  <CommandList>
+                    <CommandItem
+                      className="cursor-pointer text-sm"
+                      data-cy="new-tenant"
+                      onSelect={() => {
+                        globalEmitter.emit('create-new-tenant', {});
+                        setOpen(false);
+                      }}
+                    >
+                      <PlusCircledIcon className="mr-2 size-4" />
+                      New Tenant
+                    </CommandItem>
+                  </CommandList>
+                </>
+              )}
+            </Command>
+          </PopoverContent>
+        </PopoverPortal>
+      </Popover>
+    </TooltipProvider>
   );
 }

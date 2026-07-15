@@ -802,6 +802,8 @@ WITH tenant_step_concurrencies AS (
     FROM v1_step_concurrency sc
     WHERE sc.tenant_id = @tenantId::UUID
         AND sc.is_active = TRUE
+        -- we use 25 hours because there's a 1-hour cache on updating last_active_at
+        AND sc.last_active_at < NOW() - INTERVAL '25 hours'
         AND NOT EXISTS (
             SELECT 1 FROM v1_concurrency_slot cs
             WHERE
@@ -822,3 +824,31 @@ UPDATE v1_step_concurrency sc
 SET is_active = FALSE
 FROM tenant_step_concurrencies
 WHERE sc.id = tenant_step_concurrencies.id;
+
+-- name: ListConcurrencySlotsForIndexing :many
+SELECT
+    sort_id,
+    task_id,
+    task_inserted_at,
+    task_retry_count,
+    key,
+    priority,
+    tenant_id,
+    strategy_id,
+    is_filled,
+    schedule_timeout_at
+FROM v1_concurrency_slot
+WHERE tenant_id = @tenantId::UUID
+AND strategy_id = @strategyId::BIGINT
+AND (key, sort_id) > (sqlc.arg('lastKey')::TEXT, sqlc.arg('lastSortId')::BIGINT)
+ORDER BY key ASC, sort_id ASC
+LIMIT sqlc.arg('limit')::int;
+
+-- name: UpdateConcurrencySlotIsFilled :one
+UPDATE v1_concurrency_slot
+SET is_filled = $1
+WHERE task_id = $2
+  AND task_inserted_at = $3
+  AND task_retry_count = $4
+  AND strategy_id = $5
+RETURNING *;

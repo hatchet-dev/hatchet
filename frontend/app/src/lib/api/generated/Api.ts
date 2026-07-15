@@ -91,6 +91,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1AdditionalMetadataOperator,
   V1BranchDurableTaskRequest,
   V1BranchDurableTaskResponse,
   V1CELDebugRequest,
@@ -498,6 +499,8 @@ export class Api<
       until?: string;
       /** Additional metadata k-v pairs to filter by */
       additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
       /**
@@ -661,10 +664,11 @@ export class Api<
    * @tags Durable Tasks
    * @name V1DurableTaskEventLogList
    * @summary List durable event log
-   * @request GET:/api/v1/stable/durable-tasks/{durable-task}
+   * @request GET:/api/v1/stable/tenants/{tenant}/durable-tasks/{durable-task}
    * @secure
    */
   v1DurableTaskEventLogList = Object.assign((
+    tenant: string,
     durableTask: string,
     query?: {
       /**
@@ -681,14 +685,14 @@ export class Api<
     params: RequestParams = {},
   ) =>
     this.request<V1DurableEventLogList, APIErrors>({
-      path: `/api/v1/stable/durable-tasks/${durableTask}`,
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/${durableTask}`,
       method: "GET",
       query: query,
       secure: true,
       format: "json",
       ...params,
-      xResources: ["durable-task"],
-    }), { resources: new Set<string>(["durable-task"]) });
+      xResources: ["tenant", "durable-task"],
+    }), { resources: new Set<string>(["tenant", "durable-task"]) });
   /**
    * @description Get a workflow run and its metadata to display on the "detail" page
    *

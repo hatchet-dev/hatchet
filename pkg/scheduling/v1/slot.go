@@ -116,11 +116,14 @@ func (s *slot) isUsed() bool {
 	return s.used
 }
 
-func (s *slot) expired() bool {
+// expiredAt reports whether the slot is expired relative to t. Hot paths which
+// check many slots in a single pass should call this with a single timestamp
+// to avoid a time.Now() call per slot.
+func (s *slot) expiredAt(t time.Time) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.expiresAt == nil || s.expiresAt.Before(time.Now())
+	return s.expiresAt == nil || s.expiresAt.Before(t)
 }
 
 func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {

@@ -9,6 +9,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
@@ -52,6 +53,8 @@ type AdminServiceOpts struct {
 
 	grpcTriggersEnabled bool
 	grpcTriggerSlots    int
+
+	promGate *prometheus.Gate
 }
 
 func defaultAdminServiceOpts() *AdminServiceOpts {
@@ -125,6 +128,12 @@ func WithGrpcTriggerSlots(slots int) AdminServiceOpt {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.promGate = gate
+	}
+}
+
 func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	opts := defaultAdminServiceOpts()
 
@@ -146,7 +155,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	if opts.grpcTriggersEnabled {
 		pubBuffer = msgqueue.NewMQPubBuffer(opts.mq)
 
-		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots)
+		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 	}
 
 	var localScheduler *scheduler.Scheduler

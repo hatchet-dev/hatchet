@@ -6,7 +6,7 @@ This document provides an overview of the Prometheus metrics exposed by Hatchet,
 
 ### Setup
 
-To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parantheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on both the `controllers` as well as `scheduler` deployments.
+To enable Prometheus metrics for your Hatchet instance, you can set the following environment variables. The corresponding configuration YAML values are mentioned in parentheses. If you are deploying [Hatchet in HA mode](/self-hosting/high-availability), these should be set on both the `controllers` as well as `scheduler` deployments.
 
 - Required
   - **`SERVER_PROMETHEUS_ENABLED`** (`prometheus.enabled`)
@@ -184,6 +184,20 @@ rate(hatchet_reassigned_tasks[5m])
 | `hatchet_tenant_used_worker_slots`               | Gauge     | The current number of worker slots being used                                        |
 | `hatchet_tenant_available_worker_slots`          | Gauge     | The current number of worker slots available (free)                                  |
 | `hatchet_tenant_worker_slots`                    | Gauge     | The total number of worker slots (free + used)                                       |
+| `hatchet_tenant_used_worker_label_slots`         | Gauge     | The current number of worker slots being used, by worker label pair and slot type    |
+| `hatchet_tenant_available_worker_label_slots`    | Gauge     | The current number of free worker slots, by worker label pair and slot type          |
+| `hatchet_tenant_worker_label_slots`              | Gauge     | The total number of worker slots (free + used), by worker label pair and slot type   |
+
+The `hatchet_tenant_*_worker_label_slots` metrics expose gauges for each unique worker label `(key, value)` pair and slot type, using the `label_key`, `label_value`, and `slot_type` Prometheus labels. A worker's slots count towards every label pair the worker carries, so a worker labeled `pool=gpu, region=us-east` contributes its slots to both the `{label_key="pool", label_value="gpu"}` and `{label_key="region", label_value="us-east"}` series.
+
+The `slot_type` label separates the worker's slot pools (e.g. `default` and `durable`), which have independent capacities. Filter to the slot type you care about — usually `default` — when computing utilization; a worker's large durable slot pool would otherwise mask saturation of its default slots. Summing across `slot_type` values is safe (the pools are disjoint), unlike summing across `label_key` values.
+
+<Callout type="warning">
+  Because a worker contributes to one series per label key, summing these
+  metrics across different `label_key` values counts the same slots multiple
+  times. Always filter to a single `(label_key, label_value)` pair when
+  querying.
+</Callout>
 
 #### Example PromQL Queries
 
@@ -266,6 +280,16 @@ rate(hatchet_tenant_created_tasks[5m]) by (tenant_id)
 ```promql
 rate(hatchet_tenant_reassigned_tasks[5m]) by (tenant_id)
 ```
+
+##### 12. Worker Slot Utilization by Label Pair
+
+```promql
+hatchet_tenant_used_worker_label_slots{label_key="pool", label_value="gpu", slot_type="default"}
+/
+hatchet_tenant_worker_label_slots{label_key="pool", label_value="gpu", slot_type="default"}
+```
+
+The worker slot gauges are designed to drive autoscalers — see [Autoscaling Workers](/v1/autoscaling-workers#scaling-based-on-worker-slot-utilization) for how to use them with KEDA.
 
 ### Cross-Tenant Analysis
 

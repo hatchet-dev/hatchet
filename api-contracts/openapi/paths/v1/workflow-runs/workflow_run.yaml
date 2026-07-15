@@ -57,6 +57,12 @@ listWorkflowRuns:
           type: array
           items:
             type: string
+      - description: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+        in: query
+        name: additional_metadata_operator
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1AdditionalMetadataOperator"
       - description: The workflow ids to find runs for
         in: query
         name: workflow_ids
@@ -584,10 +590,19 @@ getTimings:
 
 listDurableEventLog:
   get:
-    x-resources: ["durable-task"]
+    x-resources: ["tenant", "durable-task"]
     description: Lists all event log entries for a durable task.
     operationId: v1-durable-task:event-log:list
     parameters:
+      - description: The tenant id
+        in: path
+        name: tenant
+        required: true
+        schema:
+          type: string
+          format: uuid
+          minLength: 36
+          maxLength: 36
       - description: The durable task external id
         in: path
         name: durable-task

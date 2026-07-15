@@ -60,10 +60,6 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { tenantId } = useCurrentTenantId();
   const { refetchInterval } = useRefetchInterval();
-  const { limit, offset, pagination, setPagination, setPageSize } =
-    usePagination({
-      key,
-    });
 
   const paramKey = `filters-${key}`;
 
@@ -82,6 +78,12 @@ export const useFilters = ({ key, scopeOverrides }: UseFiltersProps) => {
 
     return s;
   }, [searchParams, paramKey, scopeOverrides]);
+
+  const { limit, offset, pagination, setPagination, setPageSize } =
+    usePagination({
+      key,
+      resetPageOnChange: [selectedWorkflowIds, selectedScopes],
+    });
 
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const { w, s } = parseFilterParam(searchParams, paramKey);

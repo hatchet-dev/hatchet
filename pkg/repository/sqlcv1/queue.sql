@@ -32,7 +32,54 @@ SELECT $1, name, NOW()
 FROM names_to_insert
 ON CONFLICT (tenant_id, name) DO NOTHING;
 
--- name: ListActionsForWorkers :many
+-- name: ListLiveWorkerActionHashes :many
+SELECT
+    w."id",
+    w."actionHash"
+FROM
+    "Worker" w
+WHERE
+    w."tenantId" = @tenantId::uuid
+    AND w."id" = ANY(@workerIds::uuid[])
+    AND w."dispatcherId" IS NOT NULL
+    AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
+    AND w."isActive" = true
+    AND w."isPaused" = false;
+
+-- name: ListWorkerActionSets :many
+WITH worker_actions AS MATERIALIZED (
+    SELECT
+        w."id",
+        w."actionHash",
+        atw."A" AS action_id
+    FROM
+        "Worker" w
+    LEFT JOIN
+        "_ActionToWorker" atw ON w."id" = atw."B"
+    WHERE
+        w."tenantId" = @tenantId::uuid
+        AND w."id" = ANY(@workerIds::uuid[])
+), tenant_actions AS MATERIALIZED (
+    SELECT
+        a."id",
+        a."actionId"
+    FROM
+        "Action" a
+    WHERE
+        a."tenantId" = @tenantId::uuid
+)
+SELECT
+    wa."actionHash",
+    ta."actionId"
+FROM
+    worker_actions wa
+LEFT JOIN
+    tenant_actions ta ON ta."id" = wa.action_id;
+
+-- name: ListActionsForWorkersLegacyFallback :many
+-- Fallback for workers registered before actionHash existed; expands the full
+-- worker<>action join per worker. Prefer the hash-cached path in the
+-- assignment repository (ListLiveWorkerActionHashes + ListWorkerActionSets).
 SELECT
     w."id" as "workerId",
     a."actionId"

@@ -1,4 +1,24 @@
 repos:
+  - repo: local
+    hooks:
+      - id: sync-python-changelog
+        name: sync python changelog docs
+        entry: bash hack/docs/sync-changelog.sh sdks/python/CHANGELOG.md frontend/docs/pages/reference/changelog/python.mdx
+        language: system
+        pass_filenames: false
+        files: ^sdks/python/CHANGELOG\.md$
+      - id: sync-typescript-changelog
+        name: sync typescript changelog docs
+        entry: bash hack/docs/sync-changelog.sh sdks/typescript/CHANGELOG.md frontend/docs/pages/reference/changelog/typescript.mdx
+        language: system
+        pass_filenames: false
+        files: ^sdks/typescript/CHANGELOG\.md$
+      - id: sync-ruby-changelog
+        name: sync ruby changelog docs
+        entry: bash hack/docs/sync-changelog.sh sdks/ruby/src/CHANGELOG.md frontend/docs/pages/reference/changelog/ruby.mdx
+        language: system
+        pass_filenames: false
+        files: ^sdks/ruby/src/CHANGELOG\.md$
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -6,15 +26,15 @@ repos:
         exclude: ^examples/
       - id: mixed-line-ending
         args: ["--fix=lf"]
-        exclude: ^examples/
+        exclude: (^examples/|^pkg/authmode/keyset/)
       - id: end-of-file-fixer
-        exclude: ^examples/
+        exclude: (^examples/|^pkg/authmode/keyset/)
       - id: trailing-whitespace
-        exclude: ^examples/
+        exclude: (^examples/|^pkg/authmode/keyset/)
       - id: check-yaml
         exclude: (^examples/|^cmd/hatchet-cli/cli/templates/)
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.8.0
+    rev: v2.12.2
     hooks:
       - id: golangci-lint
         args: ["--config=.golangci.yml", "--allow-parallel-runners"]

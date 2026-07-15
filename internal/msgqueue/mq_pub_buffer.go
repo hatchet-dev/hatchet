@@ -2,9 +2,6 @@ package msgqueue
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,38 +11,10 @@ import (
 // nolint: staticcheck
 var (
 	PUB_FLUSH_INTERVAL  = 10 * time.Millisecond
-	PUB_BUFFER_SIZE     = 1000
+	PUB_BUFFER_SIZE     = 10
 	PUB_MAX_CONCURRENCY = 1
 	PUB_TIMEOUT         = 10 * time.Second
 )
-
-func init() {
-	if os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL") != "" {
-		if v, err := time.ParseDuration(os.Getenv("SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL")); err == nil {
-			PUB_FLUSH_INTERVAL = v
-		}
-	}
-
-	if os.Getenv("SERVER_DEFAULT_BUFFER_SIZE") != "" {
-		v := os.Getenv("SERVER_DEFAULT_BUFFER_SIZE")
-
-		maxSize, err := strconv.Atoi(v)
-
-		if err == nil {
-			PUB_BUFFER_SIZE = maxSize
-		}
-	}
-
-	if os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY") != "" {
-		v := os.Getenv("SERVER_DEFAULT_BUFFER_CONCURRENCY")
-
-		maxConcurrency, err := strconv.Atoi(v)
-
-		if err == nil {
-			PUB_MAX_CONCURRENCY = maxConcurrency
-		}
-	}
-}
 
 type PubFunc func(m *Message) error
 
@@ -63,12 +32,7 @@ type MQPubBuffer struct {
 
 func NewMQPubBuffer(mq MessageQueue) *MQPubBuffer {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	return &MQPubBuffer{
-		mq:     mq,
-		ctx:    ctx,
-		cancel: cancel,
-	}
+	return &MQPubBuffer{mq: mq, ctx: ctx, cancel: cancel}
 }
 
 func (m *MQPubBuffer) Stop() {
@@ -93,17 +57,21 @@ func (m *MQPubBuffer) Pub(ctx context.Context, queue Queue, msg *Message, wait b
 		msgBuf, _ = m.buffers.LoadOrStore(k, newMsgIDPubBuffer(m.ctx, msg.TenantID, msg.ID, func(msg *Message) error {
 			msgCtx, cancel := context.WithTimeout(context.Background(), PUB_TIMEOUT)
 			defer cancel()
-
 			return m.mq.SendMessage(msgCtx, queue, msg)
 		}))
 	}
 
-	msgWithErr := &msgWithErrCh{
-		msg: msg,
-	}
-
+	msgWithErr := &msgWithErrCh{msg: msg}
 	if wait {
 		msgWithErr.errCh = make(chan error)
+	}
+
+	// Signal early flush if the channel is already at capacity — the send below may block.
+	if len(msgBuf.msgIdPubBufferCh) >= msgBuf.bufferSize {
+		select {
+		case msgBuf.capacityRelease <- struct{}{}:
+		default:
+		}
 	}
 
 	// this places some backpressure on the consumer if buffers are full
@@ -122,75 +90,25 @@ func getPubKey(q Queue, tenantId uuid.UUID, msgId string) string {
 }
 
 type msgIdPubBuffer struct {
-	tenantId uuid.UUID
-	msgId    string
+	bufferCore
 
+	tenantId         uuid.UUID
+	msgId            string
 	msgIdPubBufferCh chan *msgWithErrCh
-	notifier         chan struct{}
-
-	pub PubFunc
-
-	semaphore        chan struct{}
-	semaphoreRelease chan time.Duration
-
-	serialize func(t any) ([]byte, error)
+	pub              PubFunc
 }
 
 func newMsgIDPubBuffer(ctx context.Context, tenantID uuid.UUID, msgID string, pub PubFunc) *msgIdPubBuffer {
 	b := &msgIdPubBuffer{
+		bufferCore:       newBufferCore(PUB_FLUSH_INTERVAL, PUB_BUFFER_SIZE, PUB_MAX_CONCURRENCY, false, true),
 		tenantId:         tenantID,
 		msgId:            msgID,
 		msgIdPubBufferCh: make(chan *msgWithErrCh, PUB_BUFFER_SIZE),
-		notifier:         make(chan struct{}),
 		pub:              pub,
-		serialize:        json.Marshal,
-		semaphore:        make(chan struct{}, PUB_MAX_CONCURRENCY),
-		semaphoreRelease: make(chan time.Duration, PUB_MAX_CONCURRENCY),
 	}
-
-	b.startFlusher(ctx)
-	b.startSemaphoreReleaser(ctx)
-
+	b.startFlusher(ctx, b.flush)
+	b.startSemaphoreReleaser(ctx, func() int { return len(b.msgIdPubBufferCh) }, b.flush)
 	return b
-}
-
-func (m *msgIdPubBuffer) startFlusher(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(PUB_FLUSH_INTERVAL)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				m.flush()
-				return
-			case <-ticker.C:
-				go m.flush()
-			case <-m.notifier:
-				go m.flush()
-			}
-		}
-	}()
-}
-
-func (m *msgIdPubBuffer) startSemaphoreReleaser(ctx context.Context) {
-	go func() {
-		timer := time.NewTimer(0)
-		defer timer.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case delay := <-m.semaphoreRelease:
-				if delay > 0 {
-					timer.Reset(delay)
-					<-timer.C
-				}
-				<-m.semaphore
-			}
-		}
-	}()
 }
 
 func (m *msgIdPubBuffer) flush() {
@@ -201,46 +119,33 @@ func (m *msgIdPubBuffer) flush() {
 	}
 
 	startedFlush := time.Now()
-
 	defer func() {
 		go func() {
-			delay := PUB_FLUSH_INTERVAL - time.Since(startedFlush)
-			m.semaphoreRelease <- delay
+			m.semaphoreRelease <- m.flushInterval - time.Since(startedFlush)
 		}()
 	}()
 
-	msgsWithErrCh := make([]*msgWithErrCh, 0)
-	payloadBytes := make([][]byte, 0)
+	drained := drainN(m.msgIdPubBufferCh, m.bufferSize)
+	if len(drained) == 0 {
+		return
+	}
+
+	payloadBytes := make([][]byte, 0, len(drained))
 	var isPersistent *bool
 	var immediatelyExpire *bool
 	var retries *int
 
-	// read all messages currently in the buffer
-	for i := 0; i < PUB_BUFFER_SIZE; i++ {
-		select {
-		case msg := <-m.msgIdPubBufferCh:
-			msgsWithErrCh = append(msgsWithErrCh, msg)
-
-			payloadBytes = append(payloadBytes, msg.msg.Payloads...)
-
-			if isPersistent == nil {
-				isPersistent = &msg.msg.Persistent
-			}
-
-			if immediatelyExpire == nil {
-				immediatelyExpire = &msg.msg.ImmediatelyExpire
-			}
-
-			if retries == nil {
-				retries = &msg.msg.Retries
-			}
-		default:
-			i = PUB_BUFFER_SIZE
+	for _, item := range drained {
+		payloadBytes = append(payloadBytes, item.msg.Payloads...)
+		if isPersistent == nil {
+			isPersistent = &item.msg.Persistent
 		}
-	}
-
-	if len(payloadBytes) == 0 {
-		return
+		if immediatelyExpire == nil {
+			immediatelyExpire = &item.msg.ImmediatelyExpire
+		}
+		if retries == nil {
+			retries = &item.msg.Retries
+		}
 	}
 
 	msgToSend := &Message{
@@ -248,24 +153,21 @@ func (m *msgIdPubBuffer) flush() {
 		ID:       m.msgId,
 		Payloads: payloadBytes,
 	}
-
 	if isPersistent != nil {
 		msgToSend.Persistent = *isPersistent
 	}
-
 	if immediatelyExpire != nil {
 		msgToSend.ImmediatelyExpire = *immediatelyExpire
 	}
-
 	if retries != nil {
 		msgToSend.Retries = *retries
 	}
 
 	err := m.pub(msgToSend)
 
-	for _, msgWithErrCh := range msgsWithErrCh {
-		if msgWithErrCh.errCh != nil {
-			msgWithErrCh.errCh <- err
+	for _, item := range drained {
+		if item.errCh != nil {
+			item.errCh <- err
 		}
 	}
 }

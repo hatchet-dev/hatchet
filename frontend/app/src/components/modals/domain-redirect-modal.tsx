@@ -15,13 +15,15 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
-type CloudMetadataQueryData = APICloudMetadata & { isCloudEnabled?: boolean };
+type CloudMetadataQueryData = APICloudMetadata & {
+  isLegacyCloudEnabled?: boolean;
+};
 
 function isCloudEnabledMetadata(data: unknown): data is CloudMetadataQueryData {
   return (
     typeof data === 'object' &&
     data !== null &&
-    (data as CloudMetadataQueryData).isCloudEnabled === true
+    (data as CloudMetadataQueryData).isLegacyCloudEnabled === true
   );
 }
 

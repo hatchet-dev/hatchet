@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	v1 "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
+	"github.com/hatchet-dev/hatchet/pkg/client/retry"
 )
 
 const (
@@ -337,7 +338,9 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 				return
 			}
 			l.l.Error().Err(err).Msg("DurableTaskListener: connection failed, retrying")
-			time.Sleep(l.reconnectInterval)
+			if sleepErr := retry.Sleep(ctx, l.reconnectInterval); sleepErr != nil {
+				return
+			}
 			continue
 		}
 
@@ -352,7 +355,9 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 			}
 			l.failPendingAcks(fmt.Errorf("connection reset: %w", err))
 			l.l.Warn().Err(err).Msg("DurableTaskListener: stream ended, reconnecting")
-			time.Sleep(l.reconnectInterval)
+			if sleepErr := retry.Sleep(ctx, l.reconnectInterval); sleepErr != nil {
+				return
+			}
 			continue
 		}
 
@@ -360,7 +365,9 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context) {
 		if isCancelled(ctx) {
 			return
 		}
-		time.Sleep(l.reconnectInterval)
+		if sleepErr := retry.Sleep(ctx, l.reconnectInterval); sleepErr != nil {
+			return
+		}
 	}
 }
 
@@ -552,6 +559,13 @@ func (l *DurableTaskListener) WaitForCallback(
 		completed := result.Resp.GetEntryCompleted()
 		if completed == nil {
 			return nil, fmt.Errorf("durable callback missing entry_completed for task %s", taskExternalID)
+		}
+		if completed.GetIsFailure() {
+			msg := completed.GetErrorMessage()
+			if msg == "" {
+				msg = "child task failed"
+			}
+			return nil, fmt.Errorf("%s", msg)
 		}
 		return completed.GetPayload(), nil
 	}
