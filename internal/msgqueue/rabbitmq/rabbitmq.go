@@ -469,13 +469,8 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.End()
 
-	// if this is a tenant msg, publish to the tenant exchange
 	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != uuid.Nil {
-		// determine if the tenant exchange exists
 		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
-			// Reuse the already-held publish channel. Calling RegisterTenant here would
-			// Acquire a second pub channel while this one is still checked out and can
-			// exhaust the pool under concurrent publish load (e.g. top-of-hour crons).
 			err = t.declareTenantExchange(ctx, pub, msg.TenantID)
 
 			if err != nil {
