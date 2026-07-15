@@ -133,15 +133,14 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	opts := v1.ListWorkflowRunOpts{
-		CreatedAfter:               since,
-		Statuses:                   statuses,
-		WorkflowIds:                workflowIds,
-		Limit:                      limit,
-		Offset:                     offset,
-		IncludePayloads:            includePayloads,
-		UseGinIndex:                useGinIndex,
-		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
-		IdempotencyKeys:            request.Params.IdempotencyKeys,
+		CreatedAfter:    since,
+		Statuses:        statuses,
+		WorkflowIds:     workflowIds,
+		Limit:           limit,
+		Offset:          offset,
+		IncludePayloads: includePayloads,
+		UseGinIndex:     useGinIndex,
+		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
@@ -285,16 +284,15 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	opts := v1.ListTaskRunOpts{
-		CreatedAfter:               since,
-		Statuses:                   statuses,
-		WorkflowIds:                workflowIds,
-		Limit:                      limit,
-		Offset:                     offset,
-		WorkerId:                   request.Params.WorkerId,
-		IncludePayloads:            includePayloads,
-		UseGinIndex:                useGinIndex,
-		AdditionalMetadataOperator: additionalMetadataOperator(request.Params.AdditionalMetadataOperator),
-		IdempotencyKeys:            request.Params.IdempotencyKeys,
+		CreatedAfter:    since,
+		Statuses:        statuses,
+		WorkflowIds:     workflowIds,
+		Limit:           limit,
+		Offset:          offset,
+		WorkerId:        request.Params.WorkerId,
+		IncludePayloads: includePayloads,
+		UseGinIndex:     useGinIndex,
+		IdempotencyKeys: request.Params.IdempotencyKeys,
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
