@@ -328,15 +328,24 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 }
 
 const getWorkerActionsByWorkerActionHash = `-- name: GetWorkerActionsByWorkerActionHash :many
-SELECT DISTINCT
-    w."actionHash" AS action_hash,
+SELECT
+    rep.action_hash,
     a."actionId" AS action_id
-FROM "Worker" w
-JOIN "_ActionToWorker" aw ON w.id = aw."B"
-JOIN "Action" a ON aw."A" = a.id
-WHERE
-    w."tenantId" = $1::UUID
-    AND w."actionHash" = ANY($2::BYTEA[])
+FROM (
+    SELECT
+        h.hash::BYTEA AS action_hash,
+        (
+            SELECT w.id
+            FROM "Worker" w
+            WHERE
+                w."tenantId" = $1::UUID
+                AND w."actionHash" = h.hash
+            LIMIT 1
+        ) AS worker_id
+    FROM unnest($2::BYTEA[]) AS h(hash)
+) rep
+JOIN "_ActionToWorker" aw ON aw."B" = rep.worker_id
+JOIN "Action" a ON a.id = aw."A"
 `
 
 type GetWorkerActionsByWorkerActionHashParams struct {
@@ -349,6 +358,10 @@ type GetWorkerActionsByWorkerActionHashRow struct {
 	ActionID   string `json:"action_id"`
 }
 
+// NOTE: workers with the same action hash have identical action sets by construction,
+// so we only look up the actions for a single representative worker per hash. Joining
+// through every worker with a matching hash degrades badly when inactive workers
+// accumulate, since each hash can match tens of thousands of historical workers.
 func (q *Queries) GetWorkerActionsByWorkerActionHash(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerActionHashParams) ([]*GetWorkerActionsByWorkerActionHashRow, error) {
 	rows, err := db.Query(ctx, getWorkerActionsByWorkerActionHash, arg.Tenantid, arg.Actionhashes)
 	if err != nil {
