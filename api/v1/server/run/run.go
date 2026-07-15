@@ -14,6 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/rs/zerolog"
+	"golang.org/x/time/rate"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/authn"
 	"github.com/hatchet-dev/hatchet/api/v1/server/authz"
@@ -400,7 +401,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("workflow-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		config.Logger.Error().Msgf("deprecated call to workflow-run with parent id %s and id %s: use 'v1-workflow-run' getter with parent tenant id", parentId, id)
+		config.Logger.Warn().Msgf("deprecated call to workflow-run with parent id %s and id %s: use 'v1-workflow-run' getter with parent tenant id", parentId, id)
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
@@ -453,7 +454,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("step-run", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		config.Logger.Error().Msgf("deprecated call to step-run with parent id %s and id %s: use 'v1-task' getter with parent tenant id", parentId, id)
+		config.Logger.Warn().Msgf("deprecated call to step-run with parent id %s and id %s: use 'v1-task' getter with parent tenant id", parentId, id)
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
@@ -549,7 +550,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	populatorMW.RegisterGetter("webhook", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
-		config.Logger.Error().Msgf("deprecated call to webhook with parent id %s and id %s: do not use", parentId, id)
+		config.Logger.Warn().Msgf("deprecated call to webhook with parent id %s and id %s: do not use", parentId, id)
 		return nil, "", echo.NewHTTPError(http.StatusBadRequest, "This endpoint is deprecated.")
 	})
 
@@ -730,7 +731,6 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	}
 
 	loggerMiddleware := middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogURI:       true,
 		LogStatus:    true,
 		LogError:     true,
 		LogLatency:   true,
@@ -763,7 +763,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 				Dur("latency", v.Latency).
 				Int("status", statusCode).
 				Str("method", v.Method).
-				Str("uri", v.URI).
+				Str("uri", v.URIPath).
 				Str("user_agent", v.UserAgent).
 				Str("remote_ip", v.RemoteIP).
 				Str("host", v.Host).
@@ -774,6 +774,11 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 	})
 
 	rateLimitMW := ratelimit.NewRateLimitMiddleware(t.config, spec)
+	webhookRateLimitMW := hatchetmiddleware.WebhookRateLimitMiddleware(
+		rate.Limit(t.config.Runtime.WebhookRateLimit),
+		t.config.Runtime.WebhookRateLimitBurst,
+		t.config.Logger,
+	)
 	otelMW := telemetry.NewOTelMiddleware(t.config)
 
 	// register echo middleware
@@ -781,6 +786,7 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		loggerMiddleware,
 		middleware.Recover(),
 		rateLimitMW.Middleware(),
+		webhookRateLimitMW,
 		otelMW.Middleware(),
 		otelMW.ErrorStatusMiddleware(),
 		allHatchetMiddleware,

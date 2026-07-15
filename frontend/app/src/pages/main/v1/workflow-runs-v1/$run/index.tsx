@@ -41,11 +41,12 @@ import api, {
 import { preferredWorkflowRunViewAtom } from '@/lib/atoms';
 import { getErrorStatus, shouldRetryQueryError } from '@/lib/error-utils';
 import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
-import { appRoutes } from '@/router';
+import { appRoutes, tenantRunRoute } from '@/router';
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useAtom } from 'jotai';
+import { RefreshCcw } from 'lucide-react';
 import { useCallback, useMemo, useRef } from 'react';
 
 class StatusError extends Error {
@@ -135,6 +136,12 @@ async function fetchDAGRun(id: string) {
 export default function Run() {
   const params = useParams({ from: appRoutes.tenantRunRoute.to });
   const { run } = params;
+  const { wasRedirectedFromTrigger } = tenantRunRoute.useSearch();
+
+  // Once we've shown the redirect-404 page, stay on it during subsequent refetches
+  // instead of flashing back to the full-page spinner (which would unmount the component
+  // and reset the icon spin animation state).
+  const seenRedirect404 = useRef(false);
 
   const taskRunQuery = useQuery({
     queryKey: ['workflow-run', run],
@@ -185,15 +192,48 @@ export default function Run() {
     retry: (_failureCount, error) => shouldRetryQueryError(error),
   });
 
-  if (taskRunQuery.isLoading) {
+  if (
+    taskRunQuery.isError &&
+    wasRedirectedFromTrigger === 'true' &&
+    getErrorStatus(taskRunQuery.error) === 404
+  ) {
+    seenRedirect404.current = true;
+  }
+
+  if (taskRunQuery.isLoading && !seenRedirect404.current) {
     return <Spinner />;
   }
 
-  if (taskRunQuery.isError) {
-    const status = getErrorStatus(taskRunQuery.error);
+  if (
+    taskRunQuery.isError ||
+    (seenRedirect404.current && taskRunQuery.isLoading)
+  ) {
+    const status = taskRunQuery.isError
+      ? getErrorStatus(taskRunQuery.error)
+      : 404;
 
-    // Treat malformed IDs (often 400) and missing resources (404) as not found.
-    if (status === 400 || status === 404) {
+    if (status === 404 && wasRedirectedFromTrigger) {
+      return (
+        <ResourceNotFound
+          resource="Run"
+          description={
+            <span className="mx-auto block max-w-96">
+              The run was triggered successfully, but has not been replicated to
+              the analytics database yet. Once it's replicated, it will show up
+              on this page.{' '}
+              <strong className="text-foreground">
+                You do not need to re-trigger the run.
+              </strong>
+            </span>
+          }
+          primaryAction={{
+            label: 'Try refreshing',
+            icon: RefreshCcw,
+            actionOverride: () => taskRunQuery.refetch(),
+          }}
+        />
+      );
+    } else if (status === 400 || status === 404) {
       return (
         <ResourceNotFound
           resource="Run"
@@ -208,7 +248,9 @@ export default function Run() {
       );
     }
 
-    throw taskRunQuery.error;
+    if (taskRunQuery.isError) {
+      throw taskRunQuery.error;
+    }
   }
 
   const runData = taskRunQuery.data;

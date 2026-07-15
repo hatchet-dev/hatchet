@@ -203,6 +203,12 @@ const (
 	V1 TenantVersion = "V1"
 )
 
+// Defines values for V1AdditionalMetadataOperator.
+const (
+	AND V1AdditionalMetadataOperator = "AND"
+	OR  V1AdditionalMetadataOperator = "OR"
+)
+
 // Defines values for V1CELDebugResponseStatus.
 const (
 	V1CELDebugResponseStatusERROR   V1CELDebugResponseStatus = "ERROR"
@@ -1448,6 +1454,9 @@ type UserTenantPublic struct {
 	// Name The display name of the user.
 	Name *string `json:"name,omitempty"`
 }
+
+// V1AdditionalMetadataOperator defines model for V1AdditionalMetadataOperator.
+type V1AdditionalMetadataOperator string
 
 // V1BranchDurableTaskRequest defines model for V1BranchDurableTaskRequest.
 type V1BranchDurableTaskRequest struct {
@@ -2962,6 +2971,9 @@ type V1WorkflowRunListParams struct {
 
 	// AdditionalMetadata Additional metadata k-v pairs to filter by
 	AdditionalMetadata *[]string `form:"additional_metadata,omitempty" json:"additional_metadata,omitempty"`
+
+	// AdditionalMetadataOperator How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+	AdditionalMetadataOperator *V1AdditionalMetadataOperator `form:"additional_metadata_operator,omitempty" json:"additional_metadata_operator,omitempty"`
 
 	// WorkflowIds The workflow ids to find runs for
 	WorkflowIds *[]openapi_types.UUID `form:"workflow_ids,omitempty" json:"workflow_ids,omitempty"`
@@ -9375,6 +9387,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.AdditionalMetadata != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata", runtime.ParamLocationQuery, *params.AdditionalMetadata); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.AdditionalMetadataOperator != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "additional_metadata_operator", runtime.ParamLocationQuery, *params.AdditionalMetadataOperator); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

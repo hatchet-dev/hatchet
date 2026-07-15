@@ -4203,6 +4203,12 @@ type ConcurrencyStat struct {
 	Keys       map[string]int64 `json:"keys"`
 }
 
+const (
+	taskStatsRowKindQueued             = "queued"
+	taskStatsRowKindRunningTotal       = "running_total"
+	taskStatsRowKindRunningConcurrency = "running_concurrency"
+)
+
 func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error) {
 	rows, err := r.queries.GetTenantTaskStats(ctx, r.pool, tenantId)
 
@@ -4214,11 +4220,8 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 
 	for _, row := range rows {
 		stepReadableId := row.StepReadableID
-		taskStatus := row.TaskStatus
+		rowKind := row.RowKind
 		queue := row.Queue
-		expression := row.Expression.String
-		strategy := row.Strategy.String
-		key := row.Key.String
 		count := row.Count
 		oldest := row.Oldest
 		oldestExcludingRetries := row.OldestExcludingRetries
@@ -4229,17 +4232,17 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 			taskStat = result[stepReadableId]
 		}
 
-		var statusStat *TaskStatusStat
-
-		switch taskStatus {
-		case "queued":
+		switch rowKind {
+		case taskStatsRowKindQueued:
 			if taskStat.Queued == nil {
 				taskStat.Queued = &TaskStatusStat{
 					Queues: make(map[string]int64),
 				}
 				result[stepReadableId] = taskStat
 			}
-			statusStat = result[stepReadableId].Queued
+			statusStat := result[stepReadableId].Queued
+
+			statusStat.Total += count
 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
@@ -4248,12 +4251,21 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
 				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
 			}
-		case "running":
-			if taskStat.Running == nil {
-				taskStat.Running = &TaskStatusStat{}
-				result[stepReadableId] = taskStat
+
+			if queue != "" {
+				if statusStat.Queues == nil {
+					statusStat.Queues = make(map[string]int64)
+				}
+				statusStat.Queues[queue] += count
 			}
-			statusStat = result[stepReadableId].Running
+
+			if isTaskStatsConcurrencyDetail(row.Expression, row.Strategy, row.Key) {
+				addTaskStatsConcurrencyEntry(statusStat, row.Expression.String, row.Strategy.String, row.Key.String, count)
+			}
+		case taskStatsRowKindRunningTotal:
+			statusStat := getOrCreateRunningTaskStatus(result, stepReadableId)
+
+			statusStat.Total += count
 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
@@ -4262,44 +4274,62 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
 				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
 			}
-		}
+		case taskStatsRowKindRunningConcurrency:
+			statusStat := getOrCreateRunningTaskStatus(result, stepReadableId)
 
-		statusStat.Total += count
-
-		if taskStatus == "queued" && queue != "" {
-			if statusStat.Queues == nil {
-				statusStat.Queues = make(map[string]int64)
+			if isTaskStatsConcurrencyDetail(row.Expression, row.Strategy, row.Key) {
+				addTaskStatsConcurrencyEntry(statusStat, row.Expression.String, row.Strategy.String, row.Key.String, count)
 			}
-			statusStat.Queues[queue] += count
-		}
-
-		if expression != "" && key != "" && strategy != "NONE" {
-			var concurrencyEntry *ConcurrencyStat
-			for i := range statusStat.Concurrency {
-				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
-					concurrencyEntry = &statusStat.Concurrency[i]
-					break
-				}
-			}
-
-			if concurrencyEntry == nil {
-				newEntry := ConcurrencyStat{
-					Expression: expression,
-					Type:       strategy,
-					Keys:       make(map[string]int64),
-				}
-				statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
-				concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
-			}
-
-			if concurrencyEntry.Keys == nil {
-				concurrencyEntry.Keys = make(map[string]int64)
-			}
-			concurrencyEntry.Keys[key] += count
+		default:
+			return nil, fmt.Errorf("unknown task stats row kind: %q", rowKind)
 		}
 	}
 
 	return result, nil
+}
+
+func getOrCreateRunningTaskStatus(result map[string]TaskStat, stepReadableId string) *TaskStatusStat {
+	taskStat := result[stepReadableId]
+	if taskStat.Running == nil {
+		taskStat.Running = &TaskStatusStat{}
+		result[stepReadableId] = taskStat
+	}
+
+	return taskStat.Running
+}
+
+func isTaskStatsConcurrencyDetail(expression, strategy, key pgtype.Text) bool {
+	return expression.Valid &&
+		expression.String != "" &&
+		strategy.Valid &&
+		strategy.String != string(sqlcv1.V1ConcurrencyStrategyNONE) &&
+		key.Valid &&
+		key.String != ""
+}
+
+func addTaskStatsConcurrencyEntry(statusStat *TaskStatusStat, expression, strategy, key string, count int64) {
+	var concurrencyEntry *ConcurrencyStat
+	for i := range statusStat.Concurrency {
+		if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
+			concurrencyEntry = &statusStat.Concurrency[i]
+			break
+		}
+	}
+
+	if concurrencyEntry == nil {
+		newEntry := ConcurrencyStat{
+			Expression: expression,
+			Type:       strategy,
+			Keys:       make(map[string]int64),
+		}
+		statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
+		concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
+	}
+
+	if concurrencyEntry.Keys == nil {
+		concurrencyEntry.Keys = make(map[string]int64)
+	}
+	concurrencyEntry.Keys[key] += count
 }
 
 func (r *TaskRepositoryImpl) FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error) {

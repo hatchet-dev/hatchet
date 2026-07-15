@@ -2482,6 +2482,10 @@ CREATE TABLE tenant_entitlement (
 
     prometheus_metrics BOOLEAN NOT NULL DEFAULT FALSE,
 
+    -- Opts the tenant into AND-semantics additional_metadata filters backed by
+    -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
+    strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

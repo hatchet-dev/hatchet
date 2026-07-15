@@ -280,6 +280,12 @@ V1RunningFilter:
     - EVICTED
     - ON_WORKER
 
+V1AdditionalMetadataOperator:
+  type: string
+  enum:
+    - OR
+    - AND
+
 V1TaskEventType:
   type: string
   enum:
