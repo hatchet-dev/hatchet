@@ -20,6 +20,12 @@ export function isEngineSpan(span: OtelSpanTree): boolean {
   return span.spanAttributes?.['hatchet.span_source'] === 'engine';
 }
 
+export function isSpanError(span: OtelSpanTree): boolean {
+  return isEngineSpan(span)
+    ? span.statusCode === OtelStatusCode.ERROR
+    : hasErrorInTree(span);
+}
+
 export function hasOnlyEngineSpans(trees: OtelSpanTree[]): boolean {
   const stack = [...trees];
   let realSpanCount = 0;
@@ -71,17 +77,19 @@ export function getSpanAttributeLabel(span: OtelSpanTree): string | undefined {
 }
 
 /**
- * The short run id is appended to a workflow-run label because run display names
- * are not unique across concurrent runs. The raw span name stays visible in the
- * detail panel and the tooltip subtitle.
+ * A workflow-run label gets a short run id appended because run display names are
+ * not unique across concurrent runs. A retried task renders one row per attempt
+ * with the same task name, so the retry number is appended to tell them apart.
+ * The raw span name stays visible in the detail panel and the tooltip subtitle.
  */
 export function getSpanDisplayLabel(span: OtelSpanTree): string {
   if (isStartStepRunSpan(span)) {
-    return (
+    const name =
       span.spanAttributes?.[ATTR.TASK_NAME] ??
       span.spanAttributes?.[ATTR.STEP_NAME] ??
-      span.spanName
-    );
+      span.spanName;
+    const retryCount = Number(span.spanAttributes?.[ATTR.RETRY_COUNT]);
+    return retryCount > 0 ? `${name} (retry ${retryCount})` : name;
   }
 
   if (span.spanName === SPAN.ENGINE_WORKFLOW_RUN) {
@@ -170,13 +178,5 @@ export function getBarColor(span: OtelSpanTree): string {
   if (isQueuedOnlyRoot(span) || isQueuedOnly(span)) {
     return 'bg-yellow-500';
   }
-  if (isEngineSpan(span)) {
-    return span.statusCode === OtelStatusCode.ERROR
-      ? 'bg-red-500'
-      : 'bg-green-500';
-  }
-  if (hasErrorInTree(span)) {
-    return 'bg-red-500';
-  }
-  return 'bg-green-500';
+  return isSpanError(span) ? 'bg-red-500' : 'bg-green-500';
 }

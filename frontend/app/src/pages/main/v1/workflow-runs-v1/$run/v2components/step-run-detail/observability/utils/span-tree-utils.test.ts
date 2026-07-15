@@ -2,6 +2,7 @@ import {
   getSpanAttributeLabel,
   getSpanDisplayLabel,
   getSpanGroupLabel,
+  isSpanError,
 } from './span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
 import * as assert from 'node:assert';
@@ -41,14 +42,23 @@ describe('getSpanDisplayLabel', () => {
     assert.strictEqual(getSpanDisplayLabel(b), `${shared} (33333333)`);
   });
 
-  test('engine step-run span shows the task name', () => {
-    const span = node('hatchet.engine.start_step_run', {
-      'hatchet.span_source': 'engine',
-      'hatchet.task_name': 'process-message',
-      'hatchet.step_name': 'process-message',
+  test('a retried step-run row shows the task name with the retry number', () => {
+    const base = node('hatchet.engine.start_step_run', {
+      'hatchet.task_name': 'retry-repro',
+      'hatchet.retry_count': '0',
+    });
+    const retry1 = node('hatchet.engine.start_step_run', {
+      'hatchet.task_name': 'retry-repro',
+      'hatchet.retry_count': '1',
+    });
+    const retry2 = node('hatchet.engine.start_step_run', {
+      'hatchet.task_name': 'retry-repro',
+      'hatchet.retry_count': '2',
     });
 
-    assert.strictEqual(getSpanDisplayLabel(span), 'process-message');
+    assert.strictEqual(getSpanDisplayLabel(base), 'retry-repro');
+    assert.strictEqual(getSpanDisplayLabel(retry1), 'retry-repro (retry 1)');
+    assert.strictEqual(getSpanDisplayLabel(retry2), 'retry-repro (retry 2)');
   });
 
   test('step-run span without a task name falls back to the step name', () => {
@@ -110,5 +120,41 @@ describe('getSpanAttributeLabel', () => {
     });
 
     assert.strictEqual(getSpanAttributeLabel(span), undefined);
+  });
+});
+
+describe('isSpanError', () => {
+  const errored = (spanName: string): OtelSpanTree => ({
+    ...node(spanName),
+    statusCode: 'ERROR' as OtelSpanTree['statusCode'],
+  });
+
+  test('an engine span with status OK is not an error even if a child failed', () => {
+    const span: OtelSpanTree = {
+      ...node('hatchet.engine.start_step_run', {
+        'hatchet.span_source': 'engine',
+      }),
+      children: [errored('hatchet.engine.start_step_run')],
+    };
+
+    assert.strictEqual(isSpanError(span), false);
+  });
+
+  test('an engine span with status ERROR is an error', () => {
+    const span: OtelSpanTree = {
+      ...errored('hatchet.engine.start_step_run'),
+      spanAttributes: { 'hatchet.span_source': 'engine' },
+    };
+
+    assert.strictEqual(isSpanError(span), true);
+  });
+
+  test('a non-engine span inherits an error from its subtree', () => {
+    const span: OtelSpanTree = {
+      ...node('inventory.check-availability'),
+      children: [errored('db.query')],
+    };
+
+    assert.strictEqual(isSpanError(span), true);
   });
 });
