@@ -3,10 +3,19 @@ operations:
     - ApiTokenCreate
     - ApiTokenList
     - ApiTokenUpdateRevoke
+    - TenantCreate
+    - TenantInviteAccept
     - TenantInviteCreate
+    - TenantInviteReject
     - TenantInviteUpdate
     - TenantMemberDelete
     - TenantMemberUpdate
+    - TenantMembershipsList
+    - UserGetCurrent
+    - UserListTenantInvites
+    - UserUpdateLogout
+    - UserUpdatePassword
+    - V1DagListTasks
   allowed:
     - AlertEmailGroupCreate
     - AlertEmailGroupDelete
@@ -46,35 +55,26 @@ operations:
     - StepRunUpdateCancel
     - StepRunUpdateRerun
     - TenantAlertingSettingsGet
-    - TenantCreate
     - TenantFeatureFlagEvaluate
     - TenantGet
     - TenantGetPrometheusMetrics
     - TenantGetQueueMetrics
     - TenantGetStepRunQueueMetrics
     - TenantGetTaskStats
-    - TenantInviteAccept
     - TenantInviteDelete
     - TenantInviteList
-    - TenantInviteReject
     - TenantMemberList
-    - TenantMembershipsList
     - TenantResourcePolicyGet
     - TenantUpdate
     - UserCreate
-    - UserGetCurrent
-    - UserListTenantInvites
     - UserUpdateGithubOauthCallback
     - UserUpdateGithubOauthStart
     - UserUpdateGoogleOauthCallback
     - UserUpdateGoogleOauthStart
     - UserUpdateLogin
-    - UserUpdateLogout
-    - UserUpdatePassword
     - UserUpdateSlackOauthCallback
     - UserUpdateSlackOauthStart
     - V1CelDebug
-    - V1DagListTasks
     - V1DurableTaskBranch
     - V1DurableTaskEventLogList
     - V1EventGet
