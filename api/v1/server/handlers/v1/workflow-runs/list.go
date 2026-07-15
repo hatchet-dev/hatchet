@@ -143,10 +143,8 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
-	numAdditionalMetaFilters := 1
 
 	if request.Params.AdditionalMetadata != nil {
-		numAdditionalMetaFilters = len(*request.Params.AdditionalMetadata)
 		for _, v := range *request.Params.AdditionalMetadata {
 			kv_pairs := strings.SplitN(v, ":", 2)
 			if len(kv_pairs) == 2 {
@@ -157,7 +155,7 @@ func (t *V1WorkflowRunsService) WithDags(ctx context.Context, request gen.V1Work
 		opts.AdditionalMetadata = additionalMetadataFilters
 	}
 
-	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, numAdditionalMetaFilters)
+	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata))
 
 	if request.Params.Until != nil {
 		opts.FinishedBefore = request.Params.Until
@@ -296,10 +294,8 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 	}
 
 	additionalMetadataFilters := make(map[string]interface{})
-	numAdditionalMetaFilters := 1
 
 	if request.Params.AdditionalMetadata != nil {
-		numAdditionalMetaFilters = len(*request.Params.AdditionalMetadata)
 		for _, v := range *request.Params.AdditionalMetadata {
 			kv_pairs := strings.SplitN(v, ":", 2)
 			if len(kv_pairs) == 2 {
@@ -310,7 +306,7 @@ func (t *V1WorkflowRunsService) OnlyTasks(ctx context.Context, request gen.V1Wor
 		opts.AdditionalMetadata = additionalMetadataFilters
 	}
 
-	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, numAdditionalMetaFilters)
+	opts.AdditionalMetadataOperator = additionalMetadataOperator(request.Params.AdditionalMetadataOperator, len(opts.AdditionalMetadata))
 
 	if request.Params.Until != nil {
 		opts.FinishedBefore = request.Params.Until
