@@ -11,9 +11,7 @@ WORKER_SLOTS = 2 * SLOT_COST - 1
 # e2e test rules out.
 SLEEP_TIME = 2
 
-slot_cost_workflow = hatchet.workflow(name="slot-cost-e2e")
 
-
-@slot_cost_workflow.task(slot_cost=SLOT_COST)
-async def heavy_task(input: EmptyModel, ctx: Context) -> None:
+@hatchet.task(slot_cost=SLOT_COST)
+async def slot_cost_test_heavy_task(input: EmptyModel, ctx: Context) -> None:
     await asyncio.sleep(SLEEP_TIME)
