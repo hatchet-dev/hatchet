@@ -4,7 +4,6 @@ import queue
 import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from io import StringIO
 from typing import Any, Literal, ParamSpec, TypeVar
 
 from pydantic import BaseModel, Field
@@ -161,15 +160,13 @@ class AsyncLogSender:
         self._thread = None
 
 
-class LogForwardingHandler(logging.StreamHandler):  # type: ignore[type-arg]
-    def __init__(self, log_sender: AsyncLogSender, stream: StringIO):
-        super().__init__(stream)
+class LogForwardingHandler(logging.Handler): # type: ignore[type-arg]
+    def __init__(self, log_sender: AsyncLogSender):
+        super().__init__()
 
         self.log_sender = log_sender
 
     def emit(self, record: logging.LogRecord) -> None:
-        super().emit(record)
-
         log_entry = self.format(record)
         step_run_id = ctx_step_run_id.get()
         task_retry_count = ctx_task_retry_count.get()
@@ -192,8 +189,7 @@ def capture_logs(
 ) -> Callable[P, Awaitable[T]]:
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-        log_stream = StringIO()
-        log_forwarder = LogForwardingHandler(log_sender, log_stream)
+        log_forwarder = LogForwardingHandler(log_sender)
         log_forwarder.setLevel(logger.level)
 
         if logger.handlers:
@@ -214,7 +210,6 @@ def capture_logs(
         finally:
             log_forwarder.flush()
             logger.removeHandler(log_forwarder)
-            log_stream.close()
 
         return result
 
