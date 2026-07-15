@@ -19,6 +19,17 @@ SERVER_MSGQUEUE_KIND=postgres
 
 This deployment requires [Docker](https://docs.docker.com/engine/install/) installed locally to work.
 
+Generate unique credentials for Postgres, RabbitMQ, and the initial Hatchet owner account, then add them to a `.env` file next to `docker-compose.yml`:
+
+```dotenv filename=".env"
+POSTGRES_PASSWORD=<random-password>
+RABBITMQ_PASSWORD=<random-password>
+HATCHET_ADMIN_EMAIL=<owner-email>
+HATCHET_ADMIN_PASSWORD=<random-password>
+```
+
+You can generate URL-safe random passwords with `openssl rand -hex 32`. Do not commit the `.env` file to source control.
+
 ### Create files
 
 We will be creating a `docker-compose.yml` file in the root of your repository:
@@ -39,10 +50,8 @@ services:
     hostname: "postgres"
     environment:
       - POSTGRES_USER=hatchet
-      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       - POSTGRES_DB=hatchet
-    ports:
-      - "5435:5432"
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -54,12 +63,9 @@ services:
   rabbitmq:
     image: "rabbitmq:3-management"
     hostname: "rabbitmq"
-    ports:
-      - "5673:5672" # RabbitMQ
-      - "15673:15672" # Management UI
     environment:
-      RABBITMQ_DEFAULT_USER: "user"
-      RABBITMQ_DEFAULT_PASS: "password"
+      RABBITMQ_DEFAULT_USER: "hatchet"
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}
     volumes:
       - "hatchet_rabbitmq_data:/var/lib/rabbitmq"
       - "hatchet_rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf" # Configuration file mount
@@ -72,7 +78,7 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-migrate:latest
     command: /hatchet/hatchet-migrate
     environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      DATABASE_URL: "postgres://hatchet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/hatchet"
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,8 +86,10 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-admin:latest
     command: /hatchet/hatchet-admin quickstart --skip certs --generated-config-dir /hatchet/config --overwrite=false
     environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
-      SERVER_MSGQUEUE_RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
+      DATABASE_URL: "postgres://hatchet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/hatchet"
+      SERVER_MSGQUEUE_RABBITMQ_URL: "amqp://hatchet:${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}@rabbitmq:5672/"
+      ADMIN_EMAIL: ${HATCHET_ADMIN_EMAIL:?HATCHET_ADMIN_EMAIL must be set}
+      ADMIN_PASSWORD: ${HATCHET_ADMIN_PASSWORD:?HATCHET_ADMIN_PASSWORD must be set}
       SERVER_AUTH_COOKIE_DOMAIN: localhost:8080
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
@@ -111,7 +119,7 @@ services:
     ports:
       - "7077:7070"
     environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      DATABASE_URL: "postgres://hatchet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/hatchet"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
     volumes:
@@ -129,7 +137,7 @@ services:
       migration:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: "postgres://hatchet:hatchet@postgres:5432/hatchet"
+      DATABASE_URL: "postgres://hatchet:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/hatchet"
     volumes:
       - hatchet_certs:/hatchet/certs
       - hatchet_config:/hatchet/config
@@ -156,12 +164,7 @@ Wait for the `hatchet-engine` and `hatchet-dashboard` services to start.
 
 Once the Hatchet instance is running, you can access the Hatchet UI at [http://localhost:8080](http://localhost:8080).
 
-By default, a user is created with the following credentials:
-
-```
-Email: admin@example.com
-Password: Admin123!!
-```
+The quickstart creates the initial owner account using `HATCHET_ADMIN_EMAIL` and `HATCHET_ADMIN_PASSWORD` from the `.env` file.
 
 ## Run tasks against the Hatchet instance
 
@@ -232,10 +235,8 @@ services:
     hostname: "postgres"
     environment:
       - POSTGRES_USER=hatchet
-      - POSTGRES_PASSWORD=hatchet
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
       - POSTGRES_DB=hatchet
-    ports:
-      - "5435:5432"
     volumes:
       - hatchet_postgres_data:/var/lib/postgresql/data
     healthcheck:
