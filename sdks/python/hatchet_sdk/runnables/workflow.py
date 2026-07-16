@@ -148,9 +148,7 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
 
 
 class BaseWorkflow(Generic[TWorkflowInput]):
-    def __init__(
-        self, config: WorkflowConfig[TWorkflowInput], client: "Hatchet"
-    ) -> None:
+    def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
         self._config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
         self._durable_tasks: list[Task[TWorkflowInput, Any]] = []
@@ -159,7 +157,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._client = client
 
     @property
-    def config(self) -> WorkflowConfig[TWorkflowInput]:
+    def config(self) -> WorkflowConfig:
         warn(
             "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,

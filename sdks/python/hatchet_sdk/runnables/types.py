@@ -5,7 +5,6 @@ from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
-    Generic,
     ParamSpec,
     TypeAlias,
     TypeGuard,
@@ -90,7 +89,7 @@ class TaskIOValidator:
         self.step_output = step_output
 
 
-class WorkflowConfig(BaseModel, Generic[TWorkflowInput]):
+class WorkflowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     name: str
@@ -102,7 +101,7 @@ class WorkflowConfig(BaseModel, Generic[TWorkflowInput]):
     # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
     # type is generic per-workflow; it is serialized via `input_validator` in
     # `BaseWorkflow.to_proto`.
-    cron_input: TWorkflowInput | None = None
+    cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
