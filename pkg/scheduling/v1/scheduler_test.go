@@ -306,6 +306,8 @@ func TestSelectSlotsForWorker_SkipsInactive(t *testing.T) {
 
 	pool := &slotPool{worker: w, slotType: repo.SlotTypeDefault}
 	pool.resetSlots([]*slot{s1, s2, s3})
+	require.Equal(t, 1, pool.unusedCount(), "expired/used slots must not inflate unused")
+
 	selected, ok := selectSlotsFromPools(
 		map[string]*slotPool{repo.SlotTypeDefault: pool},
 		map[string]int32{repo.SlotTypeDefault: 1},
@@ -313,6 +315,39 @@ func TestSelectSlotsForWorker_SkipsInactive(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, selected, 1)
 	require.Same(t, s3, selected[0])
+}
+
+func TestSelectSlotsFromPools_IgnoresStaleUnusedCount(t *testing.T) {
+	workerId := uuid.New()
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+
+	active := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	expired := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	past := time.Now().Add(-time.Second)
+	expired.setExpiry(past)
+
+	pool := &slotPool{worker: w, slotType: repo.SlotTypeDefault}
+	pool.slots = []*slot{expired, active}
+	active.pool = pool
+	expired.pool = pool
+	// Simulate counter drift: expiry never decremented unused, so it still
+	// reports 2 even though only one slot is schedulable. Also cover the
+	// opposite drift (undercount) which used to hard-fail selection.
+	pool.unused.Store(0)
+
+	selected, ok := selectSlotsFromPools(
+		map[string]*slotPool{repo.SlotTypeDefault: pool},
+		map[string]int32{repo.SlotTypeDefault: 1},
+	)
+	require.True(t, ok, "selection must follow active slots, not unusedCount")
+	require.Len(t, selected, 1)
+	require.Same(t, active, selected[0])
+
+	_, ok = selectSlotsFromPools(
+		map[string]*slotPool{repo.SlotTypeDefault: pool},
+		map[string]int32{repo.SlotTypeDefault: 2},
+	)
+	require.False(t, ok, "must still fail when too few active slots exist")
 }
 
 func TestScheduler_TryAssignSingleton_RingWraparound(t *testing.T) {

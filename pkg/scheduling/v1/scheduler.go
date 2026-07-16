@@ -403,16 +403,22 @@ func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 			availableCount = 0
 		}
 
+		// Align pool refreshedAt with every slot's expiresAt so staleAt and
+		// active() flip together. Otherwise unusedCount can still report
+		// capacity after individual slots have expired.
+		refreshedAt := time.Now()
+		expiresAt := refreshedAt.Add(defaultSlotExpiry)
+
 		slots := make([]*slot, 0, availableCount+len(unackedSlots))
 		meta := newSlotMeta(nil, key.slotType)
 		for index := 0; index < availableCount; index++ {
-			slots = append(slots, newSlot(w, meta))
+			slots = append(slots, newSlotWithExpiry(w, meta, expiresAt))
 		}
 		for _, unackedSlot := range unackedSlots {
-			unackedSlot.extendExpiry()
+			unackedSlot.setExpiry(expiresAt)
 		}
 		slots = append(slots, unackedSlots...)
-		pool.resetSlots(slots)
+		pool.resetSlotsAt(slots, refreshedAt)
 
 		nextPools[key] = pool
 		if nextPoolsByWorker[key.workerId] == nil {
@@ -838,10 +844,13 @@ func selectSlotsFromPools(poolsByType map[string]*slotPool, requests map[string]
 		}
 
 		pool := poolsByType[slotType]
-		if pool == nil || pool.unusedCount() < int(units) {
+		if pool == nil {
 			return nil, false
 		}
 
+		// Do not gate on unusedCount: expiry does not decrement the counter, so it
+		// can drift above (or, after concurrent use/nack, below) the number of
+		// active slots. Selection must follow active() only.
 		found := 0
 		for _, sl := range pool.slots {
 			if !sl.active() {

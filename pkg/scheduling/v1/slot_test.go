@@ -4,6 +4,7 @@ package v1
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -12,6 +13,14 @@ import (
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
+
+func newSlot(worker *worker, meta *slotMeta) *slot {
+	return newSlotWithExpiry(worker, meta, time.Now().Add(defaultSlotExpiry))
+}
+
+func (p *slotPool) resetSlots(slots []*slot) {
+	p.resetSlotsAt(slots, time.Now())
+}
 
 var stableWorkerId1 = uuid.New()
 var stableWorkerId2 = uuid.New()

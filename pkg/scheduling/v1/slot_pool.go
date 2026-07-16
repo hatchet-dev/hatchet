@@ -29,14 +29,19 @@ func (p *slotPool) unusedCount() int {
 	return int(p.unused.Load())
 }
 
-func (p *slotPool) resetSlots(slots []*slot) {
+// resetSlotsAt replaces the pool's slot list and rebuilds the unused counter from
+// currently schedulable slots. Expired unused slots are not counted: expiry does
+// not go through use()/nack(), so counting !isUsed() would leave unused inflated
+// relative to active(). at is used so replenish can keep pool staleness aligned
+// with slot expiry.
+func (p *slotPool) resetSlotsAt(slots []*slot, at time.Time) {
 	p.slots = slots
-	p.refreshedAt = time.Now()
+	p.refreshedAt = at
 
 	unused := int64(0)
 	for _, sl := range slots {
 		sl.pool = p
-		if !sl.isUsed() {
+		if sl.active() {
 			unused++
 		}
 	}

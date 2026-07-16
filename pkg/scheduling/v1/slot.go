@@ -73,9 +73,7 @@ func (a *assignedSlots) nack() {
 	}
 }
 
-func newSlot(worker *worker, meta *slotMeta) *slot {
-	expires := time.Now().Add(defaultSlotExpiry)
-
+func newSlotWithExpiry(worker *worker, meta *slotMeta, expires time.Time) *slot {
 	return &slot{
 		worker:    worker,
 		meta:      meta,
@@ -95,11 +93,10 @@ func (s *slot) getSlotType() (string, error) {
 	return s.meta.slotType, nil
 }
 
-func (s *slot) extendExpiry() {
+func (s *slot) setExpiry(expires time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	expires := time.Now().Add(defaultSlotExpiry)
 	s.expiresAt = &expires
 }
 
