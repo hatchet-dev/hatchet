@@ -25,6 +25,7 @@ import {
   Concurrency,
   DurableTaskFn,
   WorkerLabelComparator,
+  IdempotencyConfig,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -208,6 +209,12 @@ export type CreateBaseWorkflowOpts = {
    * can be used on the dashboard for autocomplete.
    */
   inputValidator?: z.ZodType<any>;
+
+  /**
+   * (optional) idempotency configuration for the workflow.
+   * Prevents more than one run from occurring for a given key within the TTL window.
+   */
+  idempotency?: IdempotencyConfig;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -1032,7 +1039,7 @@ export class WorkflowDeclaration<
         ? FnReturn
         : never,
   >(
-    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
+    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn' | 'slotCost'> & {
       name: Name;
       fn: Fn;
     }

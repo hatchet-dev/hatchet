@@ -20,6 +20,7 @@ from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
 from examples.conditions.worker import task_condition_workflow
+from examples.cron.cron_input import cron_input_example_send_greeting
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
@@ -103,6 +104,7 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
+from examples.idempotency.worker import idempotent_task, idempotent_task_short_window
 from examples.bug_tests.durable_spawn_index_collision.worker import (
     durable_spawn_index_collision,
     spawn_index_child_a,
@@ -137,6 +139,7 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
+            cron_input_example_send_greeting,
             cancellation_workflow,
             sync_fanout_parent,
             sync_fanout_child,
@@ -205,6 +208,8 @@ def main() -> None:
             spawn_index_child_b,
             durable_child_key_dedup_replay,
             durable_spawn_many_dags,
+            idempotent_task,
+            idempotent_task_short_window,
             error_raising_durable_parent,
             error_raising_task,
         ],

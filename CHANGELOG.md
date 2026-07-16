@@ -1,3 +1,9 @@
+## [Unreleased]
+
+### Highlights
+
+- Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+
 ## [0.94.10] - 2026-07-14
 
 Hatchet v0.94.10 headlines two DevEx improvements: development images that run without authentication, and use-case templates for the `hatchet quickstart` command. The release also adds independent OLAP and core data retention settings to the engine, tenant tagging and consolidated settings pages in Hatchet Cloud, automatic stream listener reconnection in the Go SDK, and RSS feeds for newly published changelog and cookbooks entries.
@@ -22,7 +28,6 @@ The Hatchet development images can be pulled directly as `hatchet-api-dev`, `hat
 This approach embeds a single global worker API key in the Hatchet binaries themselves, so it should only be used in development and testing environments.
 
 See the docs for [running without authentication via the CLI](https://docs.hatchet.run/reference/cli/running-hatchet-locally#running-without-authentication) and [via Docker Compose](https://docs.hatchet.run/self-hosting/docker-compose#running-without-authentication).
-
 
 ## [0.90.13] - 2026-06-29
 

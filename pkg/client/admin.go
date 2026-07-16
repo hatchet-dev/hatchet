@@ -174,6 +174,14 @@ func (d *DedupeViolationErr) Error() string {
 	return fmt.Sprintf("DedupeViolationErr: %s", d.details)
 }
 
+type IdempotencyViolationErr struct {
+	ExistingRunExternalId string
+}
+
+func (e *IdempotencyViolationErr) Error() string {
+	return fmt.Sprintf("idempotency key collision: existing run %s", e.ExistingRunExternalId)
+}
+
 type adminClientImpl struct {
 	client   admincontracts.WorkflowServiceClient
 	v1Client v1contracts.AdminServiceClient
@@ -421,6 +429,15 @@ func (a *adminClientImpl) RunWorkflow(workflowName string, input interface{}, op
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
+			if st, ok := status.FromError(err); ok {
+				for _, detail := range st.Details() {
+					if idempotencyErr, ok := detail.(*v1contracts.IdempotencyCollisionError); ok {
+						return nil, &IdempotencyViolationErr{
+							ExistingRunExternalId: idempotencyErr.GetExistingRunExternalId(),
+						}
+					}
+				}
+			}
 			return nil, &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger workflow: %s", err.Error()),
 			}
@@ -491,6 +508,15 @@ func (a *adminClientImpl) RunChildWorkflow(workflowName string, input interface{
 
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
+			if st, ok := status.FromError(err); ok {
+				for _, detail := range st.Details() {
+					if idempotencyErr, ok := detail.(*v1contracts.IdempotencyCollisionError); ok {
+						return "", &IdempotencyViolationErr{
+							ExistingRunExternalId: idempotencyErr.GetExistingRunExternalId(),
+						}
+					}
+				}
+			}
 			return "", &DedupeViolationErr{
 				details: fmt.Sprintf("could not trigger child workflow: %s", err.Error()),
 			}

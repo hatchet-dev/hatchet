@@ -1,0 +1,9 @@
+module Hatchet
+  class TTLBasedIdempotencyConfig
+    attr_reader expression: String
+    attr_reader ttl_ms: Integer
+
+    def initialize: (expression: String, ttl_ms: Integer) -> void
+    def to_proto: () -> untyped
+  end
+end

@@ -2298,6 +2298,10 @@ class WorkflowRunsApi:
                 description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
             ),
         ] = None,
+        idempotency_keys: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The idempotency key(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2342,6 +2346,8 @@ class WorkflowRunsApi:
         :type include_payloads: bool
         :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
         :type running_filter: V1RunningFilter
+        :param idempotency_keys: The idempotency key(s) to filter for
+        :type idempotency_keys: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2379,6 +2385,7 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
             running_filter=running_filter,
+            idempotency_keys=idempotency_keys,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2463,6 +2470,10 @@ class WorkflowRunsApi:
                 description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
             ),
         ] = None,
+        idempotency_keys: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The idempotency key(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2507,6 +2518,8 @@ class WorkflowRunsApi:
         :type include_payloads: bool
         :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
         :type running_filter: V1RunningFilter
+        :param idempotency_keys: The idempotency key(s) to filter for
+        :type idempotency_keys: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2544,6 +2557,7 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
             running_filter=running_filter,
+            idempotency_keys=idempotency_keys,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2628,6 +2642,10 @@ class WorkflowRunsApi:
                 description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
             ),
         ] = None,
+        idempotency_keys: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The idempotency key(s) to filter for"),
+        ] = None,
         _request_timeout: Union[
             None,
             Annotated[StrictFloat, Field(gt=0)],
@@ -2672,6 +2690,8 @@ class WorkflowRunsApi:
         :type include_payloads: bool
         :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
         :type running_filter: V1RunningFilter
+        :param idempotency_keys: The idempotency key(s) to filter for
+        :type idempotency_keys: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2709,6 +2729,7 @@ class WorkflowRunsApi:
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
             running_filter=running_filter,
+            idempotency_keys=idempotency_keys,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2742,6 +2763,7 @@ class WorkflowRunsApi:
         triggering_event_external_id,
         include_payloads,
         running_filter,
+        idempotency_keys,
         _request_auth,
         _content_type,
         _headers,
@@ -2754,6 +2776,7 @@ class WorkflowRunsApi:
             "statuses": "multi",
             "additional_metadata": "multi",
             "workflow_ids": "multi",
+            "idempotency_keys": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -2836,6 +2859,10 @@ class WorkflowRunsApi:
         if running_filter is not None:
 
             _query_params.append(("running_filter", running_filter.value))
+
+        if idempotency_keys is not None:
+
+            _query_params.append(("idempotency_keys", idempotency_keys))
 
         # process the header parameters
         # process the form parameters

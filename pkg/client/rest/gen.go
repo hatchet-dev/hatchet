@@ -1959,6 +1959,9 @@ type V1TaskSummary struct {
 	// FinishedAt The timestamp the task run finished.
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 
+	// IdempotencyKey The idempotency key that was claimed by the task run
+	IdempotencyKey *string `json:"idempotencyKey,omitempty"`
+
 	// Input The input of the task run.
 	Input openapi.NonNullableJSON `json:"input"`
 
@@ -2928,6 +2931,9 @@ type V1WorkflowRunListParams struct {
 
 	// RunningFilter Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
 	RunningFilter *V1RunningFilter `form:"running_filter,omitempty" json:"running_filter,omitempty"`
+
+	// IdempotencyKeys The idempotency key(s) to filter for
+	IdempotencyKeys *[]string `form:"idempotency_keys,omitempty" json:"idempotency_keys,omitempty"`
 }
 
 // V1WorkflowRunDisplayNamesListParams defines parameters for V1WorkflowRunDisplayNamesList.
@@ -9101,6 +9107,22 @@ func NewV1WorkflowRunListRequest(server string, tenant openapi_types.UUID, param
 		if params.RunningFilter != nil {
 
 			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "running_filter", runtime.ParamLocationQuery, *params.RunningFilter); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.IdempotencyKeys != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "idempotency_keys", runtime.ParamLocationQuery, *params.IdempotencyKeys); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
