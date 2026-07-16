@@ -135,17 +135,20 @@ w.RegisterWorkflow(
 
 ### Tuning Buffer Settings
 
-The dispatcher batches events internally to reduce the total number of database queries, which improves throughput at the cost of a small increase in latency. Two environment variables control this batching:
+Hatchet batches message-queue writes to cut down on round-trips to the broker and database. Both the publish (outgoing) buffer and the subscribe (incoming) buffer are governed by the same three settings, applied per `(tenant, message)` buffer:
 
 ```sh
-# Number of workflow run events the dispatcher batches before flushing (default: 1000)
-SERVER_WORKFLOW_RUN_BUFFER_SIZE=1000
+# Max messages a buffer accumulates before flushing early (default: 10)
+SERVER_DEFAULT_BUFFER_SIZE=10
 
-# How long the stream event buffer waits for out-of-order events before flushing (default: 5s)
-SERVER_STREAM_EVENT_BUFFER_TIMEOUT=5s
+# How long a buffer waits before flushing what it has accumulated (default: 10ms)
+SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL=10ms
+
+# Max concurrent in-flight flushes (default: 1 for the publish buffer, 10 for the subscribe buffer)
+SERVER_DEFAULT_BUFFER_CONCURRENCY=10
 ```
 
-Increasing `SERVER_WORKFLOW_RUN_BUFFER_SIZE` batches more work per write, which lowers database load under high throughput. Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
+Larger buffer sizes and longer flush intervals batch more work per write, which lowers broker and database load at the cost of a small increase in latency. Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
 
 ## Slow Time to Start
 
