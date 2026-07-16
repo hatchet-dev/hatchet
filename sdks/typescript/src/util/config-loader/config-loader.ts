@@ -24,7 +24,10 @@ type EnvVars =
   | 'HATCHET_CLIENT_OPENTELEMETRY_INCLUDE_TASK_NAME_IN_SPAN_NAME'
   | 'HATCHET_CLIENT_OPENTELEMETRY_INDIVIDUAL_RUN_SPANS_FOR_BULK_RUN'
   | 'HATCHET_CLIENT_GRPC_MAX_RECV_MESSAGE_LENGTH'
-  | 'HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH';
+  | 'HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH'
+  | 'HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS'
+  | 'HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL'
+  | 'HATCHET_CLIENT_RETRIER_MAX_JITTER';
 
 type TLSStrategy = 'tls' | 'mtls';
 
@@ -122,6 +125,13 @@ export class ConfigLoader {
       this.parseIntEnv('HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH') ??
       4 * 1024 * 1024;
 
+    const retrierConfig = override?.retrier ??
+      yaml?.retrier ?? {
+        maxAttempts: this.parseIntEnv('HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS'),
+        initialInterval: this.parseFloatEnv('HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL'),
+        maxJitter: this.parseIntEnv('HATCHET_CLIENT_RETRIER_MAX_JITTER'),
+      };
+
     return {
       token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
       host_port: grpcBroadcastAddress,
@@ -142,6 +152,7 @@ export class ConfigLoader {
         override?.cancellation_grace_period ?? yaml?.cancellation_grace_period,
       cancellation_warning_threshold:
         override?.cancellation_warning_threshold ?? yaml?.cancellation_warning_threshold,
+      retrier: retrierConfig,
     };
   }
 
@@ -152,6 +163,16 @@ export class ConfigLoader {
       throw new Error(`Invalid value for ${envName}: "${value}". Expected a positive integer.`);
     }
     return parseInt(value, 10);
+  }
+
+  private static parseFloatEnv(envName: EnvVars): number | undefined {
+    const value = this.env(envName);
+    if (value === undefined || value === '') return undefined;
+    const parsed = parseFloat(value.trim());
+    if (isNaN(parsed) || parsed <= 0) {
+      throw new Error(`Invalid value for ${envName}: "${value}". Expected a positive number.`);
+    }
+    return parsed;
   }
 
   private static parseJsonArray(value: string): string[] {

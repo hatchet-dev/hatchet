@@ -88,7 +88,7 @@ export class EventClient {
     };
 
     try {
-      const e = this.retrier(async () => this.client.push(req), this.logger);
+      const e = this.retrier(async () => this.client.push(req), this.logger, this.config.retrier);
       this.logger.info(`Event pushed: ${namespacedType}`);
       return e;
     } catch (e: unknown) {
@@ -123,7 +123,11 @@ export class EventClient {
     };
 
     try {
-      const res = this.retrier(async () => this.client.bulkPush(req), this.logger);
+      const res = this.retrier(
+        async () => this.client.bulkPush(req),
+        this.logger,
+        this.config.retrier
+      );
       this.logger.info(`Bulk events pushed for type: ${namespacedType}`);
       return res;
     } catch (e: unknown) {
