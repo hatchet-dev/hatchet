@@ -140,6 +140,12 @@ func (s *Scheduler) copyWorkers() map[uuid.UUID]*worker {
 	return copied
 }
 
+func (s *Scheduler) workerByID(workerId uuid.UUID) *worker {
+	s.workersMu.Lock()
+	defer s.workersMu.Unlock()
+	return s.workers[workerId]
+}
+
 // replenish loads new slots from the database.
 func (s *Scheduler) replenish(ctx context.Context, mustReplenish bool) error {
 	if ok := s.replenishMu.TryLock(); !ok {
@@ -882,16 +888,6 @@ func (s *Scheduler) rankWorkerIds(
 
 	ranked := make([]rankedWorker, 0, len(workerIds))
 	for _, workerId := range workerIds {
-		w := s.poolsByWorker[workerId]
-		var worker *worker
-		for _, pool := range w {
-			worker = pool.worker
-			break
-		}
-		if worker == nil {
-			continue
-		}
-
 		rank := 0
 		switch qi.Sticky {
 		case sqlcv1.V1StickyStrategyHARD:
@@ -904,6 +900,13 @@ func (s *Scheduler) rankWorkerIds(
 			}
 		default:
 			if len(labels) > 0 {
+				// Label affinity reads worker metadata from s.workers. Do not
+				// require a poolsByWorker entry — candidates can be listed on
+				// the action before pools are populated.
+				worker := s.workerByID(workerId)
+				if worker == nil {
+					continue
+				}
 				rank = worker.computeWeight(labels)
 				if rank < 0 {
 					continue

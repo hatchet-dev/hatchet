@@ -429,6 +429,51 @@ func TestScheduler_TryAssignSingleton_StickyHardForcesRanking(t *testing.T) {
 	require.Equal(t, desiredWorkerId, res.workerId)
 }
 
+func TestScheduler_RankWorkerIds_StickyDoesNotRequirePoolsByWorker(t *testing.T) {
+	tenantId := uuid.New()
+	desiredWorkerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	// Candidate is listed for the action, but has no poolsByWorker entry yet.
+	// Sticky ranking only needs the worker id, so it must not drop the candidate.
+	qi := testQI(tenantId, "A", 1)
+	qi.Sticky = sqlcv1.V1StickyStrategyHARD
+	qi.DesiredWorkerID = &desiredWorkerId
+
+	ranked := s.rankWorkerIds(qi, nil, []uuid.UUID{desiredWorkerId})
+	require.Equal(t, []uuid.UUID{desiredWorkerId}, ranked)
+}
+
+func TestScheduler_RankWorkerIds_LabelsUseWorkersMap(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:   workerId,
+		Name: "w",
+		Labels: []*sqlcv1.ListManyWorkerLabelsRow{
+			{
+				Key:      "region",
+				StrValue: pgtype.Text{String: "us-east-1", Valid: true},
+			},
+		},
+	}})
+
+	qi := testQI(tenantId, "A", 1)
+	labels := []*sqlcv1.GetDesiredLabelsRow{{
+		Key:        "region",
+		StrValue:   pgtype.Text{String: "us-east-1", Valid: true},
+		Comparator: sqlcv1.WorkerLabelComparatorEQUAL,
+		Weight:     10,
+	}}
+
+	// No poolsByWorker entry — label ranking must still resolve the worker via s.workers.
+	ranked := s.rankWorkerIds(qi, labels, []uuid.UUID{workerId})
+	require.Equal(t, []uuid.UUID{workerId}, ranked)
+}
+
 func TestScheduler_TryAssignSingleton_RateLimitAckIsWiredIntoSlotAck(t *testing.T) {
 	tenantId := uuid.New()
 	workerId := uuid.New()
