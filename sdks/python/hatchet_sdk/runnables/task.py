@@ -1,12 +1,12 @@
 import asyncio
-import warnings
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import (
     AbstractAsyncContextManager,
     AbstractContextManager,
     asynccontextmanager,
 )
 from dataclasses import asdict, dataclass, is_dataclass
+from datetime import timedelta
 from inspect import Parameter, iscoroutinefunction, signature
 from typing import (
     TYPE_CHECKING,
@@ -23,7 +23,6 @@ from typing import (
     get_origin,
     get_type_hints,
 )
-from warnings import warn
 
 from pydantic import BaseModel, TypeAdapter
 from typing_inspection.typing_objects import is_typealiastype
@@ -38,14 +37,12 @@ from hatchet_sdk.conditions import (
     flatten_conditions,
 )
 from hatchet_sdk.context.context import Context, DurableContext
-from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.v1.shared.condition_pb2 import TaskConditions
 from hatchet_sdk.contracts.v1.workflows_pb2 import (
     CreateTaskOpts,
     CreateTaskRateLimit,
 )
 from hatchet_sdk.exceptions import InvalidDependencyError
-from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.eviction import EvictionPolicy
 from hatchet_sdk.runnables.types import (
     R,
@@ -61,7 +58,7 @@ from hatchet_sdk.serde import HATCHET_PYDANTIC_SENTINEL
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority
-from hatchet_sdk.utils.timedelta_to_expression import Duration, timedelta_to_expr
+from hatchet_sdk.utils.timedelta_to_expression import timedelta_to_expr
 from hatchet_sdk.utils.typing import (
     AwaitableLike,
     CoroutineLike,
@@ -77,19 +74,27 @@ T_co = TypeVar("T_co", covariant=True)
 P = ParamSpec("P")
 
 
-def is_async_context_manager(obj: Any) -> TypeGuard[AbstractAsyncContextManager[Any]]:
+def is_async_context_manager(
+    obj: Any,  # noqa: ANN401
+) -> TypeGuard[AbstractAsyncContextManager[Any]]:
     """Type guard to check if an object is an async context manager."""
     return hasattr(obj, "__aenter__") and hasattr(obj, "__aexit__")
 
 
-def is_sync_context_manager(obj: Any) -> TypeGuard[AbstractContextManager[Any]]:
+def is_sync_context_manager(
+    obj: Any,  # noqa: ANN401
+) -> TypeGuard[AbstractContextManager[Any]]:
     """Type guard to check if an object is a sync context manager."""
     return hasattr(obj, "__enter__") and hasattr(obj, "__exit__")
 
 
 class DependencyFunc(Protocol[T_co, TWorkflowInput_contra]):
     def __call__(
-        self, input: TWorkflowInput_contra, ctx: Context, *args: Any, **kwargs: Any
+        self,
+        input: TWorkflowInput_contra,
+        ctx: Context,
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
     ) -> (
         T_co
         | CoroutineLike[T_co]
@@ -115,15 +120,6 @@ class Depends(Generic[T, TWorkflowInput]):
             )
 
         self._fn = fn
-
-    @property
-    def fn(self) -> "DependencyFunc[T, TWorkflowInput]":
-        warn(
-            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._fn
 
 
 @dataclass
@@ -151,8 +147,8 @@ class Task(Generic[TWorkflowInput, R]):
         type: StepType,
         workflow: "Workflow[TWorkflowInput]",
         name: str,
-        execution_timeout: Duration,
-        schedule_timeout: Duration,
+        execution_timeout: timedelta,
+        schedule_timeout: timedelta,
         parents: "list[Task[TWorkflowInput, Any]] | None",
         retries: int,
         rate_limits: list[CreateTaskRateLimit] | None,
@@ -174,15 +170,10 @@ class Task(Generic[TWorkflowInput, R]):
         self._slot_requests = slot_requests
 
         self._fn = _fn
-        self._is_async_function = is_async_fn(self._fn)  # type: ignore
+        self._is_async_function = is_async_fn(self._fn)  # type: ignore[arg-type]
 
         if is_durable and not self._is_async_function:
-            warnings.warn(
-                "Non-async durable tasks are deprecated and will be removed in v2.0.0. "
-                "Please convert your durable task to an async function.",
-                DeprecationWarning,
-                stacklevel=4,
-            )
+            raise TypeError("Durable tasks must be async functions.")
 
         self._workflow = workflow
 
@@ -212,63 +203,7 @@ class Task(Generic[TWorkflowInput, R]):
         )
 
         if not self._is_async_function and self._is_durable:
-            logger.warning(
-                f"{self.fn.__name__} is defined as a synchronous, durable task. in the future, durable tasks will only support `async`. please update this durable task to be async, or make it non-durable."
-            )
-
-    @property
-    def fn(self):  # type: ignore[no-untyped-def]
-        warnings.warn(
-            "The fn property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._fn
-
-    @property
-    def is_async_function(self) -> bool:
-        warnings.warn(
-            "The is_async_function property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._is_async_function
-
-    @property
-    def is_durable(self) -> bool:
-        warnings.warn(
-            "The is_durable property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._is_durable
-
-    @property
-    def slot_requests(self) -> dict[str, int]:
-        warnings.warn(
-            "The slot_requests property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._slot_requests
-
-    @property
-    def workflow(self) -> "Workflow[TWorkflowInput]":
-        warnings.warn(
-            "The workflow property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._workflow
-
-    @property
-    def validators(self) -> TaskIOValidator:
-        warnings.warn(
-            "The validators property is internal and should not be used directly. It will be removed in v2.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._validators
+            raise TypeError("Durable tasks must be async functions.")
 
     async def _parse_maybe_cm_param(
         self,
@@ -442,9 +377,8 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_sync_fn(self._fn):  # type: ignore
-            return self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
-
+        if is_sync_fn(self._fn):  # type: ignore[arg-type]
+            return self._fn(workflow_input, ctx, **dependencies)  # type: ignore[arg-type]
         raise TypeError(f"{self.name} is not a sync function. Use `acall` instead.")
 
     async def aio_call(
@@ -458,8 +392,8 @@ class Task(Generic[TWorkflowInput, R]):
         workflow_input = self._workflow._get_workflow_input(ctx)
         dependencies = dependencies or {}
 
-        if is_async_fn(self._fn):  # type: ignore
-            return await self._fn(workflow_input, cast(Context, ctx), **dependencies)  # type: ignore
+        if is_async_fn(self._fn):  # type: ignore[arg-type]
+            return await cast("Awaitable[R]", self._fn(workflow_input, ctx, **dependencies))  # type: ignore[arg-type]
 
         raise TypeError(f"{self.name} is not an async function. Use `call` instead.")
 
@@ -541,7 +475,7 @@ class Task(Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan_context: Any = None,
+        lifespan_context: Any = None,  # noqa: ANN401
     ) -> Context | DurableContext:
         from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
 
@@ -582,16 +516,13 @@ class Task(Generic[TWorkflowInput, R]):
 
         return constructor(
             action=action,
-            dispatcher_client=self._workflow._client._client.dispatcher,
-            admin_client=self._workflow._client._client.admin,
-            event_client=self._workflow._client._client.event,
+            dispatcher_client=self._workflow._client._dispatcher_client,
+            admin_client=self._workflow._client._admin_client,
+            event_client=self._workflow._client._event_client,
             durable_event_listener=None,
-            worker=WorkerContext(
-                labels=[], client=self._workflow._client._client.dispatcher
-            ),
-            runs_client=self._workflow._client._client.runs,
+            runs_client=self._workflow._client._runs_client,
             lifespan_context=lifespan_context,
-            log_sender=AsyncLogSender(self._workflow._client._client.event),
+            log_sender=AsyncLogSender(self._workflow._client._event_client),
             max_attempts=self.retries + 1,
             task_name=self.name,
             workflow_name=self._workflow.name,
@@ -604,7 +535,7 @@ class Task(Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -640,7 +571,7 @@ class Task(Generic[TWorkflowInput, R]):
         additional_metadata: JSONSerializableMapping | None = None,
         parent_outputs: dict[str, JSONSerializableMapping] | None = None,
         retry_count: int = 0,
-        lifespan: Any = None,
+        lifespan: Any = None,  # noqa: ANN401
         dependencies: dict[str, Any] | None = None,
     ) -> R:
         """
@@ -676,8 +607,8 @@ class Task(Generic[TWorkflowInput, R]):
 
     @property
     def output_validator(self) -> TypeAdapter[R]:
-        return cast(TypeAdapter[R], self._validators.step_output)
+        return cast("TypeAdapter[R]", self._validators.step_output)
 
     @property
     def output_validator_type(self) -> type[R]:
-        return cast(type[R], self._validators.step_output._type)
+        return cast("type[R]", self._validators.step_output._type)

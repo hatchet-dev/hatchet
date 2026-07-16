@@ -7,7 +7,6 @@ from pydantic import BaseModel
 
 from hatchet_sdk import (
     Context,
-    EmptyModel,
     Hatchet,
     ParentCondition,
     SleepCondition,
@@ -32,7 +31,7 @@ task_condition_workflow = hatchet.workflow(name="TaskConditionWorkflow")
 
 # > Add base task
 @task_condition_workflow.task()
-def start(input: EmptyModel, ctx: Context) -> StepOutput:
+def start(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -42,7 +41,7 @@ def start(input: EmptyModel, ctx: Context) -> StepOutput:
 @task_condition_workflow.task(
     parents=[start], wait_for=[SleepCondition(timedelta(seconds=10))]
 )
-def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
+def wait_for_sleep(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -53,7 +52,7 @@ def wait_for_sleep(input: EmptyModel, ctx: Context) -> StepOutput:
     parents=[start, wait_for_sleep],
     skip_if=[ParentCondition(parent=start, expression="output.random_number > 0")],
 )
-def skip_with_multiple_parents(input: EmptyModel, ctx: Context) -> StepOutput:
+def skip_with_multiple_parents(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -65,7 +64,7 @@ def skip_with_multiple_parents(input: EmptyModel, ctx: Context) -> StepOutput:
     wait_for=[SleepCondition(timedelta(seconds=30))],
     skip_if=[UserEventCondition(event_key="skip_on_event:skip")],
 )
-def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
+def skip_on_event(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -81,7 +80,7 @@ def skip_on_event(input: EmptyModel, ctx: Context) -> StepOutput:
         )
     ],
 )
-def left_branch(input: EmptyModel, ctx: Context) -> StepOutput:
+def left_branch(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -94,7 +93,7 @@ def left_branch(input: EmptyModel, ctx: Context) -> StepOutput:
         )
     ],
 )
-def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
+def right_branch(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -110,7 +109,7 @@ def right_branch(input: EmptyModel, ctx: Context) -> StepOutput:
         )
     ],
 )
-def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
+def wait_for_event(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
@@ -146,7 +145,7 @@ def wait_for_or_groups(input: EmptyModel, ctx: Context) -> StepOutput:
         right_branch,
     ],
 )
-def sum(input: EmptyModel, ctx: Context) -> RandomSum:
+def sum(input: None, ctx: Context) -> RandomSum:
     one = ctx.task_output(start).random_number
     two = ctx.task_output(wait_for_event).random_number
     three = ctx.task_output(wait_for_sleep).random_number

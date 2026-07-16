@@ -13,11 +13,10 @@ from hatchet_sdk import (
     RunStatus,
     BulkTriggerIdempotencyCollisionError,
 )
-from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from hatchet_sdk.clients.rest.models.v1_task_summary import V1TaskSummary
 from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 import asyncio
-from typing import cast
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -38,7 +37,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -46,15 +45,15 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 1
-    assert runs.rows[0].metadata.id == ref1.workflow_run_id
+    assert len(runs) == 1
+    assert runs[0].metadata.id == ref1.workflow_run_id
 
     result = await ref1.aio_result()
     assert "hello" in result["result"].lower()
@@ -111,7 +110,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
         if i != 3:
             await asyncio.sleep(i + 1.5)
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -119,7 +118,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) < 3:
+        if len(runs) < 3:
             await asyncio.sleep(1)
             continue
 
@@ -127,10 +126,10 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_wind
     else:
         pytest.fail("Expected to find at least one run, but found none.")
 
-    assert runs.rows
-    assert len(runs.rows) == 3
+    assert runs
+    assert len(runs) == 3
 
-    for id in [r.metadata.id for r in runs.rows]:
+    for id in [r.metadata.id for r in runs]:
         ref = hatchet.runs.get_run_ref(id)
         res = await ref.aio_result()
 
@@ -153,7 +152,7 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
         additional_metadata={"test_run_id": test_run_id},
     )
 
-    runs: V1TaskSummaryList | None = None
+    runs: list[V1TaskSummary] = []
 
     for _ in range(15):
         runs = await hatchet.runs.aio_list(
@@ -161,25 +160,25 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
             additional_metadata={"test_run_id": test_run_id},
         )
 
-        if len(runs.rows) == 0:
+        if len(runs) == 0:
             await asyncio.sleep(1)
             continue
 
         break
 
     assert runs is not None
-    assert len(runs.rows) == 1
+    assert len(runs) == 1
 
     details = await hatchet.event.aio_list(
         event_ids=[e1.event_id, e2.event_id],
     )
 
-    assert details.rows
-    assert len(details.rows) == 2
+    assert details
+    assert len(details) == 2
 
     all_triggered_runs = [
-        *(details.rows[0].triggered_runs or []),
-        *(details.rows[1].triggered_runs or []),
+        *(details[0].triggered_runs or []),
+        *(details[1].triggered_runs or []),
     ]
 
     assert len(all_triggered_runs) == 1

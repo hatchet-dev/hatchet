@@ -7,7 +7,7 @@ import psutil
 import pytest
 
 from examples.bug_tests.worker_pause_on_sigterm.worker import long_sleep, WORKER_NAME
-from hatchet_sdk import EmptyModel, Hatchet, RunStatus
+from hatchet_sdk import Hatchet, RunStatus
 
 
 @pytest.mark.parametrize(
@@ -27,11 +27,9 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
     hatchet: Hatchet,
     on_demand_worker: Popen[Any],
 ) -> None:
-    ref = await long_sleep.aio_run(input=EmptyModel(), wait_for_result=False)
+    ref = await long_sleep.aio_run(wait_for_result=False)
+
     run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
-
-    await asyncio.sleep(2)
-
     for _ in range(30):
         run = await hatchet.runs.aio_get_details(ref.workflow_run_id)
         if run.status == RunStatus.RUNNING:
@@ -51,7 +49,7 @@ async def test_worker_pauses_when_only_parent_receives_sigterm(
 
         matching = [
             w
-            for w in (worker_list.rows or [])
+            for w in (worker_list or [])
             if w.name == hatchet.config.apply_namespace(WORKER_NAME)
             and w.status == "PAUSED"
         ]

@@ -69,9 +69,8 @@ async def dummy_runs() -> None:
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_priority(
-    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high", "default"]
     N = 30
 
@@ -93,9 +92,7 @@ async def test_priority(
 
     await asyncio.gather(*[r.aio_result() for r in run_refs])
 
-    workflows = (
-        await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
-    ).rows
+    workflows = await hatchet.workflows.aio_list(workflow_name=priority_workflow.name)
 
     assert workflows
 
@@ -120,7 +117,7 @@ async def test_priority(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -151,9 +148,8 @@ async def test_priority(
 )
 @pytest.mark.asyncio(loop_scope="session")
 async def test_priority_via_scheduling(
-    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any]
+    hatchet: Hatchet, dummy_runs: None, on_demand_worker: Popen[Any], test_run_id: str
 ) -> None:
-    test_run_id = str(uuid4())
     sleep_time = 3
     n = 30
     choices: list[Priority] = ["low", "medium", "high", "default"]
@@ -195,15 +191,13 @@ async def test_priority_via_scheduling(
             limit=1_000,
         )
 
-        if not runs.rows:
+        if not runs:
             continue
 
-        if any(
-            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
-        ):
+        if any(r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+        if all(r.status == V1TaskStatus.COMPLETED for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -213,7 +207,7 @@ async def test_priority_via_scheduling(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )
@@ -237,9 +231,8 @@ async def test_priority_via_scheduling(
 
 @pytest_asyncio.fixture(loop_scope="session", scope="function")
 async def crons(
-    hatchet: Hatchet, dummy_runs: None
+    hatchet: Hatchet, dummy_runs: None, test_run_id: str
 ) -> AsyncGenerator[tuple[str, str, int], None]:
-    test_run_id = str(uuid4())
     choices: list[Priority] = ["low", "medium", "high"]
     n = 30
 
@@ -306,15 +299,13 @@ async def test_priority_via_cron(
             limit=1_000,
         )
 
-        if not runs.rows:
+        if not runs:
             continue
 
-        if any(
-            r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs.rows
-        ):
+        if any(r.status in [V1TaskStatus.FAILED, V1TaskStatus.CANCELLED] for r in runs):
             raise ValueError("One or more runs failed or were cancelled")
 
-        if all(r.status == V1TaskStatus.COMPLETED for r in runs.rows):
+        if all(r.status == V1TaskStatus.COMPLETED for r in runs):
             break
 
     runs_ids_started_ats: list[RunPriorityStartedAt] = sorted(
@@ -324,7 +315,7 @@ async def test_priority_via_cron(
                 started_at=r.started_at or datetime.min,
                 finished_at=r.finished_at or datetime.min,
             )
-            for r in runs.rows
+            for r in runs
         ],
         key=lambda x: x.started_at,
     )

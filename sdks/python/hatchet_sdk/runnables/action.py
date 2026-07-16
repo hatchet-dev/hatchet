@@ -1,14 +1,16 @@
 import json
 from dataclasses import field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
+
+if TYPE_CHECKING:
+    from hatchet_sdk.config import ClientConfig
 
 ActionKey = str
 
@@ -35,7 +37,7 @@ class ActionPayload(BaseModel):
         mode="before",
     )
     @classmethod
-    def validate_fields(cls, v: Any) -> Any:
+    def validate_fields(cls, v: Any) -> Any:  # noqa: ANN401
         return v or {}
 
     @model_validator(mode="after")

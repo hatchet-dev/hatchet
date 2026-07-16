@@ -1,18 +1,21 @@
 import asyncio
 import logging
-from multiprocessing import Queue
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from hatchet_sdk.client import Client
+from hatchet_sdk.clients.events import EventClient
 from hatchet_sdk.config import ClientConfig
 from hatchet_sdk.logger import logger
 from hatchet_sdk.runnables.action import Action
 from hatchet_sdk.runnables.task import Task
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.typing import STOP_LOOP, STOP_LOOP_TYPE
-from hatchet_sdk.worker.action_listener_process import ActionEvent
 from hatchet_sdk.worker.runner.runner import Runner
 from hatchet_sdk.worker.runner.utils.capture_logs import AsyncLogSender, capture_logs
+
+if TYPE_CHECKING:
+    from multiprocessing import Queue
+
+    from hatchet_sdk.worker.action_listener_process import ActionEvent
 
 T = TypeVar("T")
 
@@ -29,9 +32,8 @@ class WorkerActionRunLoopManager:
         event_queue: "Queue[ActionEvent | STOP_LOOP_TYPE]",
         loop: asyncio.AbstractEventLoop,
         handle_kill: bool,
-        debug: bool,
         labels: list[WorkerLabel],
-        lifespan_context: Any | None,
+        lifespan_context: Any | None,  # noqa: ANN401
         engine_version: str | None = None,
     ) -> None:
         self.name = name
@@ -43,20 +45,20 @@ class WorkerActionRunLoopManager:
         self.event_queue = event_queue
         self.loop = loop
         self.handle_kill = handle_kill
-        self.debug = debug
         self.labels = labels
         self.lifespan_context = lifespan_context
         self.engine_version = engine_version
+        self.config = config
 
-        if self.debug:
+        if self.config.debug:
             logger.setLevel(logging.DEBUG)
 
         self.killing = False
         self.runner: Runner | None = None
 
-        self.client = Client(config=self.config, debug=self.debug)
+        self._event_client = EventClient(config)
         self.start_loop_manager_task: asyncio.Task[None] | None = None
-        self.log_sender = AsyncLogSender(self.client.event)
+        self.log_sender = AsyncLogSender(self._event_client)
 
         self.log_sender.start()
         self.start()
@@ -64,12 +66,12 @@ class WorkerActionRunLoopManager:
     def start(self) -> None:
         self.start_loop_manager_task = self.loop.create_task(self.aio_start())
 
-    async def aio_start(self, retry_count: int = 1) -> None:
-        if self.client.config.disable_log_capture:
+    async def aio_start(self) -> None:
+        if self.config.disable_log_capture:
             await self._async_start()
         else:
             await capture_logs(
-                self.client.log_interceptor,
+                self.config.logger,
                 self.log_sender,
                 self._async_start,
             )()

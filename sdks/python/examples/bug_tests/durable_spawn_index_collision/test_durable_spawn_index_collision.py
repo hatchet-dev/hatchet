@@ -18,7 +18,7 @@ async def test_spawn_index_collision_fails_loudly(hatchet: Hatchet) -> None:
 
     runs = await hatchet.runs.aio_list(parent_task_external_id=ref.workflow_run_id)
 
-    assert len(runs.rows) == 2, "the colliding spawn must not create a third child"
+    assert len(runs) == 2, "the colliding spawn must not create a third child"
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -34,5 +34,5 @@ async def test_spawn_index_self_dedupe_returns_cached_result(hatchet: Hatchet) -
 
     runs = await hatchet.runs.aio_list(parent_task_external_id=ref.workflow_run_id)
 
-    assert len(runs.rows) == 2, "the deduped spawn must not create a third child"
-    assert all(run.status == V1TaskStatus.COMPLETED for run in runs.rows)
+    assert len(runs) == 2, "the deduped spawn must not create a third child"
+    assert all(run.status == V1TaskStatus.COMPLETED for run in runs)
