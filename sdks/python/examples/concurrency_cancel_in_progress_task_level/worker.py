@@ -36,7 +36,7 @@ concurrency_cancel_in_progress_task_level_workflow = hatchet.workflow(
     ],
 )
 async def task(input: WorkflowInput, ctx: Context) -> None:
-    for _ in range(100):
+    for _ in range(50):
         await asyncio.sleep(0.10)
 
 
