@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,9 +17,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// inventoryTopology controls how actions attach to workers. This is the main
-// axis that changes fan-out in the current action-centric slot inventory:
-// each worker's slot objects are appended into every action that worker owns.
+// inventoryTopology controls how actions attach to workers. It captures the
+// action-to-worker index shapes the scheduler must handle.
 type inventoryTopology string
 
 const (
@@ -42,6 +42,7 @@ type inventoryShape struct {
 	Workers          int
 	Actions          int
 	SlotsPerWorker   int
+	SlotTypes        int
 	Topology         inventoryTopology
 	ActionsPerWorker int // sparse only
 	Partitions       int // partitioned only
@@ -69,7 +70,7 @@ func baselineShapes() []inventoryShape {
 			SlotsPerWorker: 4,
 			Topology:       topologyDense,
 		},
-		// High action fan-out: many shared actions, rebuild rewrites large action inventories.
+		// High action fan-out: many shared actions map to the same worker pools.
 		{
 			Name:           "dense_high_action_fanout",
 			Workers:        50,
@@ -77,8 +78,7 @@ func baselineShapes() []inventoryShape {
 			SlotsPerWorker: 20,
 			Topology:       topologyDense,
 		},
-		// High slot capacity: fewer actions, large per-worker pools → expensive
-		// activeCount scans across duplicated action slices.
+		// High slot capacity: fewer actions with large per-worker pools.
 		{
 			Name:           "dense_high_slot_capacity",
 			Workers:        40,
@@ -103,6 +103,20 @@ func baselineShapes() []inventoryShape {
 			Partitions:     20,
 		},
 	}
+}
+
+func shapeSlotTypes(shape inventoryShape) []string {
+	count := shape.SlotTypes
+	if count <= 0 {
+		count = 1
+	}
+
+	slotTypes := make([]string, count)
+	slotTypes[0] = repo.SlotTypeDefault
+	for index := 1; index < count; index++ {
+		slotTypes[index] = fmt.Sprintf("slot-type-%02d", index)
+	}
+	return slotTypes
 }
 
 func buildActionRows(shape inventoryShape, workerIds []uuid.UUID, actionIds []string) []*sqlcv1.ListActionsForWorkersRow {
@@ -185,6 +199,7 @@ func newInventoryFixture(shape inventoryShape) *inventoryFixture {
 
 	actionRows := buildActionRows(shape, workerIds, actionIds)
 	slotsPerWorker := int32(shape.SlotsPerWorker)
+	slotTypes := shapeSlotTypes(shape)
 
 	ar := &mockAssignmentRepo{
 		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, ids []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
@@ -197,6 +212,31 @@ func newInventoryFixture(shape inventoryShape) *inventoryFixture {
 					ID:             wid,
 					AvailableSlots: slotsPerWorker,
 				})
+			}
+			return rows, nil
+		},
+		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			rows := make([]*sqlcv1.ListWorkerSlotConfigsRow, 0, len(workerIds)*len(slotTypes))
+			for _, workerId := range workerIds {
+				for _, slotType := range slotTypes {
+					rows = append(rows, &sqlcv1.ListWorkerSlotConfigsRow{
+						WorkerID: workerId,
+						SlotType: slotType,
+					})
+				}
+			}
+			return rows, nil
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			rows := make([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, 0, len(params.Workerids)*len(params.Slottypes))
+			for _, workerId := range params.Workerids {
+				for _, slotType := range params.Slottypes {
+					rows = append(rows, &sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{
+						ID:             workerId,
+						SlotType:       slotType,
+						AvailableSlots: slotsPerWorker,
+					})
+				}
 			}
 			return rows, nil
 		},
@@ -217,15 +257,11 @@ func newInventoryFixture(shape inventoryShape) *inventoryFixture {
 }
 
 func (f *inventoryFixture) measureInventory() {
-	unique := make(map[*slot]struct{})
 	refs := 0
-	for _, a := range f.scheduler.actions {
-		refs += len(a.slots)
-		for _, sl := range a.slots {
-			unique[sl] = struct{}{}
-		}
+	for _, pool := range f.scheduler.pools {
+		refs += len(pool.slots)
 	}
-	f.uniqueSlots = len(unique)
+	f.uniqueSlots = refs
 	f.actionSlotRefs = refs
 	if f.uniqueSlots > 0 {
 		f.fanout = float64(f.actionSlotRefs) / float64(f.uniqueSlots)
@@ -233,15 +269,16 @@ func (f *inventoryFixture) measureInventory() {
 }
 
 func (f *inventoryFixture) scanActiveCounts() (total int) {
+	now := time.Now()
 	for _, a := range f.scheduler.actions {
-		total += a.activeCount()
+		total += a.activeCountFromPools(f.scheduler.poolsByWorker, now)
 	}
 	return total
 }
 
 func (f *inventoryFixture) firstAssignableAction() string {
 	for _, aid := range f.actionIds {
-		if a := f.scheduler.actions[aid]; a != nil && len(a.slots) > 0 {
+		if a := f.scheduler.actions[aid]; a != nil && len(a.workerIds) > 0 {
 			return aid
 		}
 	}
@@ -256,15 +293,44 @@ func reportShapeMetrics(b *testing.B, f *inventoryFixture) {
 	b.ReportMetric(float64(f.shape.Workers), "workers")
 	b.ReportMetric(float64(f.shape.Actions), "actions")
 	b.ReportMetric(float64(f.shape.SlotsPerWorker), "slots_per_worker")
+	b.ReportMetric(float64(len(shapeSlotTypes(f.shape))), "slot_types")
 	b.ReportMetric(float64(len(f.actionRows)), "action_rows")
 	b.ReportMetric(float64(f.uniqueSlots), "unique_slots")
 	b.ReportMetric(float64(f.actionSlotRefs), "action_slot_refs")
 	b.ReportMetric(f.fanout, "fanout")
 }
 
-// TestScheduler_InventoryShape_DenseFanout locks in the current action-centric
-// duplication: under dense topology, each unique slot is referenced once per action.
-func TestScheduler_InventoryShape_DenseFanout(t *testing.T) {
+func BenchmarkScheduler_InventoryShape_SlotTypeCardinality(b *testing.B) {
+	for _, slotTypeCount := range []int{1, 4, 16} {
+		shape := inventoryShape{
+			Name:           fmt.Sprintf("slot_types_%02d", slotTypeCount),
+			Workers:        100,
+			Actions:        500,
+			SlotsPerWorker: 20,
+			SlotTypes:      slotTypeCount,
+			Topology:       topologyDense,
+		}
+
+		b.Run(shape.Name, func(b *testing.B) {
+			f := newInventoryFixture(shape)
+			if err := f.scheduler.replenish(context.Background(), true); err != nil {
+				b.Fatal(err)
+			}
+			f.measureInventory()
+
+			b.ResetTimer()
+			for iteration := 0; iteration < b.N; iteration++ {
+				if err := f.scheduler.replenish(context.Background(), true); err != nil {
+					b.Fatal(err)
+				}
+			}
+			b.StopTimer()
+			reportShapeMetrics(b, f)
+		})
+	}
+}
+
+func TestScheduler_InventoryShape_DenseFanoutStaysOne(t *testing.T) {
 	f := newInventoryFixture(inventoryShape{
 		Name:           "small_dense",
 		Workers:        10,
@@ -276,8 +342,8 @@ func TestScheduler_InventoryShape_DenseFanout(t *testing.T) {
 	f.measureInventory()
 
 	require.Equal(t, f.shape.Workers*f.shape.SlotsPerWorker, f.uniqueSlots)
-	require.Equal(t, f.uniqueSlots*f.shape.Actions, f.actionSlotRefs)
-	require.InDelta(t, float64(f.shape.Actions), f.fanout, 0.01)
+	require.Equal(t, f.uniqueSlots, f.actionSlotRefs)
+	require.InDelta(t, 1, f.fanout, 0.01)
 }
 
 func BenchmarkScheduler_InventoryShape_ReplenishMust(b *testing.B) {

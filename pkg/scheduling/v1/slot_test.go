@@ -159,25 +159,20 @@ func TestSelectSlotsForWorker(t *testing.T) {
 	workerId := uuid.New()
 	worker := &worker{ListActiveWorkersResult: &v1.ListActiveWorkersResult{ID: workerId}}
 
-	slotsByType := map[string]map[uuid.UUID][]*slot{
-		"cpu": {
-			workerId: {
-				newSlot(worker, newSlotMeta([]string{}, "cpu")),
-				newSlot(worker, newSlotMeta([]string{}, "cpu")),
-				newSlot(worker, newSlotMeta([]string{}, "cpu")),
-			},
-		},
-		"mem": {
-			workerId: {
-				newSlot(worker, newSlotMeta([]string{}, "mem")),
-			},
-		},
-	}
+	cpuPool := &slotPool{worker: worker, slotType: "cpu"}
+	cpuPool.resetSlots([]*slot{
+		newSlot(worker, newSlotMeta(nil, "cpu")),
+		newSlot(worker, newSlotMeta(nil, "cpu")),
+		newSlot(worker, newSlotMeta(nil, "cpu")),
+	})
+	memPool := &slotPool{worker: worker, slotType: "mem"}
+	memPool.resetSlots([]*slot{newSlot(worker, newSlotMeta(nil, "mem"))})
+	poolsByType := map[string]*slotPool{"cpu": cpuPool, "mem": memPool}
 
-	selected, ok := selectSlotsForWorker(slotsByType, workerId, map[string]int32{"cpu": 2, "mem": 1})
+	selected, ok := selectSlotsFromPools(poolsByType, map[string]int32{"cpu": 2, "mem": 1})
 	assert.True(t, ok)
 	assert.Len(t, selected, 3)
 
-	_, ok = selectSlotsForWorker(slotsByType, workerId, map[string]int32{"cpu": 4})
+	_, ok = selectSlotsFromPools(poolsByType, map[string]int32{"cpu": 4})
 	assert.False(t, ok)
 }

@@ -26,36 +26,36 @@ func defaultSlots(w *worker, n int) []*slot {
 }
 
 func TestSlotCost_MixedHeavyAndLightShareDefaultPool(t *testing.T) {
+	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{})
 	workerId := uuid.New()
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	a, err := actionWithSlots("A", defaultSlots(w, 6)...)
-	require.NoError(t, err)
+	a := seedActionPools(t, s, "A", defaultSlots(w, 6)...)
 
-	heavy := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
+	heavy := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
 	require.NotNil(t, heavy)
 	require.Len(t, heavy.slots, 5)
 
-	light := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
+	light := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
 	require.NotNil(t, light)
 	require.Len(t, light.slots, 1)
 
-	none := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
+	none := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 1}, nil, nil)
 	require.Nil(t, none)
 }
 
 func TestSlotCost_ReservationMustFitOnOneWorker(t *testing.T) {
+	s := newTestScheduler(t, uuid.New(), &mockAssignmentRepo{})
 	w1 := &worker{ListActiveWorkersResult: testWorker(uuid.New())}
 	w2 := &worker{ListActiveWorkersResult: testWorker(uuid.New())}
 
 	all := append(defaultSlots(w1, 4), defaultSlots(w2, 4)...)
-	a, err := actionWithSlots("A", all...)
-	require.NoError(t, err)
+	a := seedActionPools(t, s, "A", all...)
 
-	none := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
+	none := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 5}, nil, nil)
 	require.Nil(t, none)
 
-	fits := findAssignableSlots(a.slots, a, map[string]int32{repo.SlotTypeDefault: 4}, nil, nil)
+	fits := s.findAssignableWorkerPools(a.workerIds, map[string]int32{repo.SlotTypeDefault: 4}, nil, nil)
 	require.NotNil(t, fits)
 	require.Len(t, fits.slots, 4)
 }
@@ -70,9 +70,7 @@ func TestSlotCost_OverCapacityWaitsThenSchedulingTimesOut(t *testing.T) {
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	a, err := actionWithSlots("A", defaultSlots(w, 4)...)
-	require.NoError(t, err)
-	s.actions["A"] = a
+	seedActionPools(t, s, "A", defaultSlots(w, 4)...)
 
 	waiting := testQI(tenantId, "A", 1)
 	waiting.ScheduleTimeoutAt = ts(time.Now().UTC().Add(5 * time.Minute))
@@ -123,9 +121,7 @@ func TestSlotCost_ExplicitDefaultCostBlocksProportionally(t *testing.T) {
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 
-	a, err := actionWithSlots("A", defaultSlots(w, 2)...)
-	require.NoError(t, err)
-	s.actions["A"] = a
+	seedActionPools(t, s, "A", defaultSlots(w, 2)...)
 
 	qi1 := testQI(tenantId, "A", 1)
 	qi2 := testQI(tenantId, "A", 2)
