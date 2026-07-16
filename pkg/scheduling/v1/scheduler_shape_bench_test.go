@@ -23,11 +23,10 @@ type inventoryTopology string
 
 const (
 	// topologyDense: every worker registers every action.
-	// Unique slots = W*S; action-slot refs ≈ W*S*A.
 	topologyDense inventoryTopology = "dense"
 
 	// topologySparse: each worker registers ActionsPerWorker actions, chosen
-	// round-robin from the action pool. Fan-out ≈ ActionsPerWorker.
+	// round-robin from the action pool.
 	topologySparse inventoryTopology = "sparse"
 
 	// topologyPartitioned: workers and actions split into Partitions disjoint
@@ -49,16 +48,14 @@ type inventoryShape struct {
 }
 
 type inventoryFixture struct {
-	shape          inventoryShape
-	tenantId       uuid.UUID
-	workerIds      []uuid.UUID
-	activeWorkers  []*repo.ListActiveWorkersResult
-	actionIds      []string
-	actionRows     []*sqlcv1.ListActionsForWorkersRow
-	scheduler      *Scheduler
-	uniqueSlots    int
-	actionSlotRefs int
-	fanout         float64
+	shape         inventoryShape
+	tenantId      uuid.UUID
+	workerIds     []uuid.UUID
+	activeWorkers []*repo.ListActiveWorkersResult
+	actionIds     []string
+	actionRows    []*sqlcv1.ListActionsForWorkersRow
+	scheduler     *Scheduler
+	uniqueSlots   int
 }
 
 func baselineShapes() []inventoryShape {
@@ -257,15 +254,11 @@ func newInventoryFixture(shape inventoryShape) *inventoryFixture {
 }
 
 func (f *inventoryFixture) measureInventory() {
-	refs := 0
+	slots := 0
 	for _, pool := range f.scheduler.pools {
-		refs += len(pool.slots)
+		slots += len(pool.slots)
 	}
-	f.uniqueSlots = refs
-	f.actionSlotRefs = refs
-	if f.uniqueSlots > 0 {
-		f.fanout = float64(f.actionSlotRefs) / float64(f.uniqueSlots)
-	}
+	f.uniqueSlots = slots
 }
 
 func (f *inventoryFixture) scanActiveCounts() (total int) {
@@ -296,8 +289,6 @@ func reportShapeMetrics(b *testing.B, f *inventoryFixture) {
 	b.ReportMetric(float64(len(shapeSlotTypes(f.shape))), "slot_types")
 	b.ReportMetric(float64(len(f.actionRows)), "action_rows")
 	b.ReportMetric(float64(f.uniqueSlots), "unique_slots")
-	b.ReportMetric(float64(f.actionSlotRefs), "action_slot_refs")
-	b.ReportMetric(f.fanout, "fanout")
 }
 
 func BenchmarkScheduler_InventoryShape_SlotTypeCardinality(b *testing.B) {
@@ -330,7 +321,7 @@ func BenchmarkScheduler_InventoryShape_SlotTypeCardinality(b *testing.B) {
 	}
 }
 
-func TestScheduler_InventoryShape_DenseFanoutStaysOne(t *testing.T) {
+func TestScheduler_InventoryShape_DenseUniqueSlots(t *testing.T) {
 	f := newInventoryFixture(inventoryShape{
 		Name:           "small_dense",
 		Workers:        10,
@@ -342,8 +333,6 @@ func TestScheduler_InventoryShape_DenseFanoutStaysOne(t *testing.T) {
 	f.measureInventory()
 
 	require.Equal(t, f.shape.Workers*f.shape.SlotsPerWorker, f.uniqueSlots)
-	require.Equal(t, f.uniqueSlots, f.actionSlotRefs)
-	require.InDelta(t, 1, f.fanout, 0.01)
 }
 
 func BenchmarkScheduler_InventoryShape_ReplenishMust(b *testing.B) {
