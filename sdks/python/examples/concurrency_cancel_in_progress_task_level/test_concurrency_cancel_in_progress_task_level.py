@@ -39,7 +39,9 @@ async def test_run(hatchet: Hatchet) -> None:
 
     runs = sorted(
         (
-            await hatchet.runs.aio_list(additional_metadata={"test_run_id": test_run_id})
+            await hatchet.runs.aio_list(
+                additional_metadata={"test_run_id": test_run_id}
+            )
         ).rows,
         key=lambda r: int((r.additional_metadata or {}).get("i", "0")),
     )

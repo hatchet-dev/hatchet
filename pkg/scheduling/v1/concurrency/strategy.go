@@ -147,7 +147,13 @@ func NewNoOpFlusher(
 				l.Error().Err(err).Msgf("failed to process messages for topic %s", topic)
 			}
 
-			time.Sleep(5 * time.Second)
+			// context-aware sleep so this goroutine exits promptly on shutdown rather than
+			// lingering in a fixed sleep (which otherwise trips goleak and delays teardown).
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(5 * time.Second):
+			}
 		}
 	}()
 }
