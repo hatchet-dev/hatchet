@@ -226,8 +226,8 @@ CREATE TABLE v1_tasks_olap (
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
-
 CREATE INDEX v1_tasks_olap_worker_id_idx ON v1_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
+CREATE INDEX ix_v1_tasks_olap_idempotency_key ON v1_tasks_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
 
 -- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
 -- supports containment, which is all the list/count queries use.
