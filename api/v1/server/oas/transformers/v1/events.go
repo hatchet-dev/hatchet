@@ -77,7 +77,7 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 		},
 		Payload:               &payload,
 		SeenAt:                &event.EventSeenAt.Time,
-		Scope:                 &event.EventScope,
+		Scope:                 event.EventScope,
 		TriggeredRuns:         &triggeredRuns,
 		TriggeringWebhookName: event.TriggeringWebhookName,
 	}

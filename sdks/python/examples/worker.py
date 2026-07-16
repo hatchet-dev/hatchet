@@ -104,6 +104,7 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
+from examples.idempotency.worker import idempotent_task, idempotent_task_short_window
 from examples.bug_tests.durable_spawn_index_collision.worker import (
     durable_spawn_index_collision,
     spawn_index_child_a,
@@ -207,6 +208,8 @@ def main() -> None:
             spawn_index_child_b,
             durable_child_key_dedup_replay,
             durable_spawn_many_dags,
+            idempotent_task,
+            idempotent_task_short_window,
             error_raising_durable_parent,
             error_raising_task,
         ],

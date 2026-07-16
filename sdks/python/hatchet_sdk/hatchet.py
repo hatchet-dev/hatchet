@@ -41,6 +41,7 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
+from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
@@ -279,6 +280,7 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -300,6 +302,7 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -320,6 +323,7 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -350,6 +354,8 @@ class Hatchet:
 
         :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this workflow by default.
 
+        :param idempotency: An optional idempotency configuration for the workflow, controlling how Hatchet should determine if two runs of this workflow are "the same" for the purposes of deduplication and idempotent execution.
+
         :returns: The created `Workflow` object, which can be used to declare tasks, run the workflow, and so on.
         """
 
@@ -370,6 +376,7 @@ class Hatchet:
                 default_priority=default_priority,
                 default_filters=default_filters or [],
                 default_additional_metadata=default_additional_metadata or {},
+                idempotency=idempotency,
             ),
             self,
         )
@@ -402,6 +409,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -435,6 +443,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -467,6 +476,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> (
         Callable[
             [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
@@ -478,49 +488,53 @@ class Hatchet:
         ]
     ):
         """
-        A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
+                A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
 
-        :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
+                :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
-        :param description: An optional description for the task.
+                :param description: An optional description for the task.
 
-        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+                :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
 
-        :param on_events: A list of event triggers for the task - events which cause the task to be run.
+                :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
-        :param on_crons: A list of cron triggers for the task.
+                :param on_crons: A list of cron triggers for the task.
 
-        :param cron_input: An optional input to provide to runs triggered by the task's `on_crons` schedules. Should be an instance of the task's input model.
+                :param cron_input: An optional input to provide to runs triggered by the task's `on_crons` schedules. Should be an instance of the task's input model.
 
-        :param version: A version for the task.
+                :param version: A version for the task.
 
-        :param sticky: A sticky strategy for the task.
+                :param sticky: A sticky strategy for the task.
 
-        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
+                :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
-        :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+                :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
-        :param schedule_timeout: The maximum time allowed for scheduling the task.
+                :param schedule_timeout: The maximum time allowed for scheduling the task.
 
-        :param execution_timeout: The maximum time allowed for executing the task.
+                :param execution_timeout: The maximum time allowed for executing the task.
 
-        :param retries: The number of times to retry the task before failing.
+                :param retries: The number of times to retry the task before failing.
 
-        :param rate_limits: A list of rate limit configurations for the task.
+                :param rate_limits: A list of rate limit configurations for the task.
 
-        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
+                :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
 
-        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
+                :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+                :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-        :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
+                :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
-        :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+                :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
-        :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
+        <<<<<<< HEAD
+                :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
+        =======
+                :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
+        >>>>>>> main
 
-        :returns: A decorator which creates a `Standalone` task object.
+                :returns: A decorator which creates a `Standalone` task object.
         """
 
         _warn_if_int_priority(default_priority)
@@ -545,6 +559,7 @@ class Hatchet:
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
+                    idempotency=idempotency,
                 ),
                 self,
             )
@@ -609,6 +624,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -642,6 +658,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> Callable[
         [
             Callable[
@@ -678,6 +695,7 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
+        idempotency: TTLBasedIdempotencyConfig | None = None,
     ) -> (
         Callable[
             [
@@ -739,6 +757,8 @@ class Hatchet:
 
         :param eviction_policy: An optional eviction policy controlling when idle durable tasks are evicted from workers.
 
+        :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
+
         :returns: A decorator which creates a `Standalone` task object.
         """
 
@@ -761,6 +781,7 @@ class Hatchet:
                     default_priority=default_priority,
                     default_filters=default_filters or [],
                     default_additional_metadata=default_additional_metadata or {},
+                    idempotency=idempotency,
                 ),
                 self,
             )
