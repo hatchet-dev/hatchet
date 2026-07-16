@@ -11,11 +11,11 @@ import (
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
 
-func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, error) {
-	localTasks, tasks, dags, err := s.pool.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, []v1.IdempotencyCollision, error) {
+	localTasks, tasks, dags, idempotencyKeyCollisions, err := s.pool.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	go func() {
@@ -27,7 +27,7 @@ func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.U
 		}
 	}()
 
-	return localTasks, err
+	return localTasks, idempotencyKeyCollisions, err
 }
 
 func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenantId uuid.UUID, opts []v1.EventTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*schedulingv1.AssignedItemWithTask, error) {

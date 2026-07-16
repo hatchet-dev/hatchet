@@ -9,7 +9,8 @@ export async function retrier<T>(
   fn: () => Promise<T>,
   logger: Logger,
   retries: number = DEFAULT_RETRY_COUNT,
-  interval: number = DEFAULT_RETRY_INTERVAL
+  interval: number = DEFAULT_RETRY_INTERVAL,
+  shouldRetry: (e: unknown) => boolean = () => true
 ) {
   let lastError: Error | undefined;
 
@@ -17,6 +18,9 @@ export async function retrier<T>(
     try {
       return await fn();
     } catch (e: unknown) {
+      if (!shouldRetry(e)) {
+        throw e;
+      }
       lastError = e instanceof Error ? e : new Error(String(e));
       logger.error(`Error: ${lastError.message}`);
 
