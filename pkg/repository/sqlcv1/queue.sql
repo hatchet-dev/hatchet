@@ -688,7 +688,7 @@ WHERE (task_id, task_inserted_at) IN (
     FROM locked_qis
 );
 
--- name: ListBatchedQueueItemsForBatch :many
+-- name: ListBatchedQueueItemsForStep :many
 SELECT
     id,
     tenant_id,
@@ -714,7 +714,6 @@ FROM
 WHERE
     tenant_id = @tenantId::uuid
     AND step_id = @stepId::uuid
-    AND batch_key = @batchKey::text
 ORDER BY
     priority DESC,
     id ASC

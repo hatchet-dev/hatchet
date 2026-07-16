@@ -69,7 +69,7 @@ func (f *fakeBatchQueueRepo) ListBatchResources(context.Context) ([]*sqlcv1.List
 	return f.resources, nil
 }
 
-func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, string, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	return nil, nil
 }
 

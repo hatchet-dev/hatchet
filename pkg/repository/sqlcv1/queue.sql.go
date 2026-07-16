@@ -514,7 +514,7 @@ func (q *Queries) ListActionsForWorkersLegacyFallback(ctx context.Context, db DB
 	return items, nil
 }
 
-const listBatchedQueueItemsForBatch = `-- name: ListBatchedQueueItemsForBatch :many
+const listBatchedQueueItemsForStep = `-- name: ListBatchedQueueItemsForStep :many
 SELECT
     id,
     tenant_id,
@@ -540,28 +540,21 @@ FROM
 WHERE
     tenant_id = $1::uuid
     AND step_id = $2::uuid
-    AND batch_key = $3::text
 ORDER BY
     priority DESC,
     id ASC
 LIMIT
-    COALESCE($4::integer, 1000)
+    COALESCE($3::integer, 1000)
 `
 
-type ListBatchedQueueItemsForBatchParams struct {
+type ListBatchedQueueItemsForStepParams struct {
 	Tenantid uuid.UUID   `json:"tenantid"`
 	Stepid   uuid.UUID   `json:"stepid"`
-	Batchkey string      `json:"batchkey"`
 	Limit    pgtype.Int4 `json:"limit"`
 }
 
-func (q *Queries) ListBatchedQueueItemsForBatch(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForBatchParams) ([]*V1BatchedQueueItem, error) {
-	rows, err := db.Query(ctx, listBatchedQueueItemsForBatch,
-		arg.Tenantid,
-		arg.Stepid,
-		arg.Batchkey,
-		arg.Limit,
-	)
+func (q *Queries) ListBatchedQueueItemsForStep(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForStepParams) ([]*V1BatchedQueueItem, error) {
+	rows, err := db.Query(ctx, listBatchedQueueItemsForStep, arg.Tenantid, arg.Stepid, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

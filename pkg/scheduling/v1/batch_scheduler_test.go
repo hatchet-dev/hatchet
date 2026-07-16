@@ -41,7 +41,7 @@ func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListD
 	return nil, nil
 }
 
-func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, batchKey string, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -396,7 +396,9 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 
 	queueItems := []*sqlcv1.V1BatchedQueueItem{item1, item2}
 
-	remaining, err := scheduler.assignAndDispatch(context.Background(), queueItems, v1repo.FlushReasonBatchSizeReached)
+	group := &batchGroup{batchKey: "group", l: zerolog.New(io.Discard)}
+
+	remaining, err := scheduler.assignAndDispatch(context.Background(), group, queueItems, v1repo.FlushReasonBatchSizeReached)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 
@@ -517,7 +519,9 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		}, nil, nil
 	}
 
-	remaining, err := scheduler.assignAndDispatch(context.Background(), items, v1repo.FlushReasonBatchSizeReached)
+	group := &batchGroup{batchKey: "single-slot", l: zerolog.New(io.Discard)}
+
+	remaining, err := scheduler.assignAndDispatch(context.Background(), group, items, v1repo.FlushReasonBatchSizeReached)
 	require.NoError(t, err)
 	require.Empty(t, remaining)
 
@@ -611,4 +615,84 @@ func TestBatchSchedulerScheduleTimeout(t *testing.T) {
 
 	// Verify that the timed out item was deleted
 	require.True(t, len(repo.moveCalls) == 0, "no items should be moved for schedule timeout")
+}
+
+// TestBatchSchedulerHandlesMultipleBatchKeysForStep verifies that a single BatchScheduler for a
+// step discovers and independently buffers/flushes multiple batch_key groups from one shared
+// poll, rather than requiring a separate scheduler per (step_id, batch_key) pair.
+func TestBatchSchedulerHandlesMultipleBatchKeysForStep(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-000000000006")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-000000000060")
+
+	repo := &fakeBatchRepo{
+		listResponses: [][]*sqlcv1.V1BatchedQueueItem{
+			{
+				{ID: 1, TenantID: tenantId, Queue: "default", TaskID: 301, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+				{ID: 2, TenantID: tenantId, Queue: "default", TaskID: 302, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+				{ID: 3, TenantID: tenantId, Queue: "default", TaskID: 303, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "b"},
+				{ID: 4, TenantID: tenantId, Queue: "default", TaskID: 304, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "b"},
+			},
+			{}, // empty afterwards so already-flushed items aren't rebuffered
+		},
+	}
+
+	queueFactory := &fakeQueueFactory{repo: &fakeQueueRepository{}}
+	workerID := uuid.MustParse("11111111-2222-3333-4444-000000000abc")
+
+	resource := &sqlcv1.ListDistinctBatchResourcesRow{
+		StepID:       stepId,
+		BatchKey:     "a", // representative row only; the scheduler covers every batch key for the step
+		BatchMaxSize: 2,
+	}
+
+	var emitted []*QueueResults
+	var emittedMu sync.Mutex
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(repo),
+		tenantId,
+		resource,
+		queueFactory,
+		&Scheduler{},
+		func(res *QueueResults) {
+			emittedMu.Lock()
+			defer emittedMu.Unlock()
+			emitted = append(emitted, res)
+		},
+	)
+	require.NotNil(t, scheduler)
+
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+		assignments := make([]*assignedQueueItem, len(queueItems))
+		for i, qi := range queueItems {
+			assignments[i] = &assignedQueueItem{QueueItem: qi, WorkerId: workerID}
+		}
+		return assignments, nil, nil
+	}
+
+	scheduler.Start(context.Background())
+	t.Cleanup(func() {
+		_ = scheduler.Cleanup(context.Background())
+	})
+
+	require.Eventually(t, func() bool {
+		repo.mu.Lock()
+		defer repo.mu.Unlock()
+		return len(repo.reserveCalls) >= 2
+	}, 2*time.Second, 10*time.Millisecond, "expected both batch key groups to flush")
+
+	require.NoError(t, scheduler.Cleanup(context.Background()))
+
+	batchKeysSeen := map[string]bool{}
+	for _, call := range repo.reserveCalls {
+		batchKeysSeen[call.BatchKey] = true
+		require.Equal(t, stepId, call.StepID)
+	}
+	require.True(t, batchKeysSeen["a"], "expected batch key 'a' to be flushed")
+	require.True(t, batchKeysSeen["b"], "expected batch key 'b' to be flushed")
+
+	require.Len(t, repo.commitCalls, 2)
+	for _, calls := range repo.commitCalls {
+		require.Len(t, calls, 2)
+	}
 }

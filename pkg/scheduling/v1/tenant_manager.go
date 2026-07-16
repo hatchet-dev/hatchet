@@ -2,7 +2,6 @@ package v1
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -61,7 +60,7 @@ type tenantManager struct {
 
 	resultsCh chan *QueueResults
 
-	batchSchedulers   map[string]*BatchScheduler
+	batchSchedulers   map[uuid.UUID]*BatchScheduler
 	batchSchedulersMu sync.Mutex
 
 	cleanup func()
@@ -93,7 +92,7 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 		parentIdsToStrategyIds:        parentIdsToStrategyIds,
 		concurrencyAdvisoryLock:       timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
 		concurrencyParentAdvisoryLock: timeout_lock.NewKeyedTimeoutLock[int64](cf.schedulerAdvisoryLockTimeout),
-		batchSchedulers:               make(map[string]*BatchScheduler),
+		batchSchedulers:               make(map[uuid.UUID]*BatchScheduler),
 		batchesCh:                     batchesCh,
 	}
 
@@ -131,16 +130,16 @@ func (t *tenantManager) Cleanup() error {
 
 	t.batchSchedulersMu.Lock()
 
-	for key, scheduler := range t.batchSchedulers {
+	for stepId, scheduler := range t.batchSchedulers {
 		if err := scheduler.Cleanup(cleanupCtx); err != nil {
 			t.cf.l.Error().
 				Err(err).
 				Str("tenant_id", t.tenantId.String()).
-				Str("batch_resource", key).
+				Str("step_id", stepId.String()).
 				Msg("failed to cleanup batch scheduler during tenant cleanup")
 		}
 
-		delete(t.batchSchedulers, key)
+		delete(t.batchSchedulers, stepId)
 	}
 
 	t.batchSchedulersMu.Unlock()
@@ -324,22 +323,27 @@ func (t *tenantManager) addConcurrencyStrategy(strategy *sqlcv1.V1StepConcurrenc
 	t.concurrencyStrategies = append(t.concurrencyStrategies, c)
 }
 
+// setBatchSchedulers reconciles the set of running BatchSchedulers against the steps that
+// currently have pending batched queue items. One BatchScheduler runs per step_id -- matching
+// the granularity of the underlying BATCH lease -- and internally manages every batch_key for
+// that step, so only one representative row per step is needed here to seed its config.
 func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv1.ListDistinctBatchResourcesRow) {
-	desired := make(map[string]*sqlcv1.ListDistinctBatchResourcesRow, len(batches))
+	desired := make(map[uuid.UUID]*sqlcv1.ListDistinctBatchResourcesRow, len(batches))
 
 	for _, row := range batches {
 		if row == nil || row.BatchKey == "" {
 			continue
 		}
 
-		key := batchResourceKey(row.StepID, row.BatchKey)
-		desired[key] = row
+		if _, ok := desired[row.StepID]; !ok {
+			desired[row.StepID] = row
+		}
 	}
 
 	t.batchSchedulersMu.Lock()
 	defer t.batchSchedulersMu.Unlock()
 
-	for key, scheduler := range t.batchSchedulers {
+	for stepId, scheduler := range t.batchSchedulers {
 		// If the scheduler self-stopped due to idleness, remove it so it can be recreated
 		// if/when new batched queue items appear.
 		if scheduler != nil && scheduler.ctx != nil && scheduler.ctx.Err() != nil {
@@ -347,15 +351,15 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 				t.cf.l.Error().
 					Err(err).
 					Str("tenant_id", t.tenantId.String()).
-					Str("batch_resource", key).
+					Str("step_id", stepId.String()).
 					Msg("failed to cleanup stopped batch scheduler")
 			}
 
-			delete(t.batchSchedulers, key)
+			delete(t.batchSchedulers, stepId)
 			continue
 		}
 
-		if _, ok := desired[key]; ok {
+		if _, ok := desired[stepId]; ok {
 			continue
 		}
 
@@ -363,15 +367,15 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 			t.cf.l.Error().
 				Err(err).
 				Str("tenant_id", t.tenantId.String()).
-				Str("batch_resource", key).
+				Str("step_id", stepId.String()).
 				Msg("failed to cleanup batch scheduler")
 		}
 
-		delete(t.batchSchedulers, key)
+		delete(t.batchSchedulers, stepId)
 	}
 
-	for key, row := range desired {
-		if _, ok := t.batchSchedulers[key]; ok {
+	for stepId, row := range desired {
+		if _, ok := t.batchSchedulers[stepId]; ok {
 			continue
 		}
 
@@ -402,12 +406,8 @@ func (t *tenantManager) setBatchSchedulers(ctx context.Context, batches []*sqlcv
 
 		sched.Start(ctx)
 
-		t.batchSchedulers[key] = sched
+		t.batchSchedulers[stepId] = sched
 	}
-}
-
-func batchResourceKey(stepID uuid.UUID, batchKey string) string {
-	return fmt.Sprintf("%s:%s", stepID.String(), batchKey)
 }
 
 func (t *tenantManager) replenish(ctx context.Context) {
