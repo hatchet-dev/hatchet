@@ -363,6 +363,9 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         )
 
     def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str | None:
+        if self._config.input_validator is None:
+            return None
+
         return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
             context=HATCHET_PYDANTIC_SENTINEL,

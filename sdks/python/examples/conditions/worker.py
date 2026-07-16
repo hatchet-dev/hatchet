@@ -135,7 +135,7 @@ def wait_for_event(input: None, ctx: Context) -> StepOutput:
         ),
     ],
 )
-def wait_for_or_groups(input: EmptyModel, ctx: Context) -> StepOutput:
+def wait_for_or_groups(input: None, ctx: Context) -> StepOutput:
     return StepOutput(random_number=random.randint(1, 100))
 
 
