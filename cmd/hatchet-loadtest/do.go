@@ -8,7 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/vicanso/go-charts/v2"
+
+	v1 "github.com/hatchet-dev/hatchet/pkg/v1" //nolint:staticcheck // SA1019: used only for REST timing queries in --externalWorker mode
 )
 
 type LatencySnapshot struct {
@@ -74,6 +77,61 @@ type avgResult struct {
 	latencyResult LatencyResult
 }
 
+// expectedWorkflowNames returns the (namespaced) workflow names an external
+// worker is expected to have registered, matching the exact naming scheme
+// run.go itself would use for the same config (see run.go's EventFanout
+// loop: "load-test-0", "load-test-1", ...).
+func expectedWorkflowNames(config LoadTestConfig) []string {
+	fanout := config.EventFanout
+	if fanout <= 0 {
+		fanout = 1
+	}
+
+	names := make([]string, 0, fanout)
+	for i := 0; i < fanout; i++ {
+		names = append(names, applyNamespace(fmt.Sprintf("load-test-%d", i), config.Namespace))
+	}
+	return names
+}
+
+// phaseAccumulator computes a simple running mean per phase from a stream of
+// PhaseSample values - the externalWorker equivalent of the avgResult
+// goroutines above, just fed from the engine's REST timing data instead of
+// an in-process step handler.
+type phaseAccumulator struct {
+	queued     avgResult
+	scheduling avgResult
+	execution  avgResult
+}
+
+func accumulatePhases(samples <-chan PhaseSample) <-chan phaseAccumulator {
+	out := make(chan phaseAccumulator, 1)
+
+	go func() {
+		var qCount, sCount, eCount int64
+		var qAvg, sAvg, eAvg time.Duration
+
+		for s := range samples {
+			qCount++
+			qAvg += (s.Queued - qAvg) / time.Duration(qCount)
+
+			sCount++
+			sAvg += (s.Scheduling - sAvg) / time.Duration(sCount)
+
+			eCount++
+			eAvg += (s.Execution - eAvg) / time.Duration(eCount)
+		}
+
+		out <- phaseAccumulator{
+			queued:     avgResult{count: qCount, avg: qAvg},
+			scheduling: avgResult{count: sCount, avg: sAvg},
+			execution:  avgResult{count: eCount, avg: eAvg},
+		}
+	}()
+
+	return out
+}
+
 func do(config LoadTestConfig) error {
 	l.Info().Msgf("testing with duration=%s, eventsPerSecond=%d, delay=%s, wait=%s, concurrency=%d, averageDurationThreshold=%s", config.Duration, config.Events, config.Delay, config.Wait, config.Concurrency, config.AverageDurationThreshold)
 
@@ -117,12 +175,46 @@ func do(config LoadTestConfig) error {
 
 	registered := make(chan error, 1)
 
-	go func() {
-		count, uniques := run(ctx, config, durations, registered)
+	// Only populated when config.ExternalWorker is set - see below.
+	var timingClient v1.HatchetClient //nolint:staticcheck // SA1019
+	resolvedWorkflowIDs := make(chan []uuid.UUID, 1)
+
+	if config.ExternalWorker {
 		close(durations)
-		ch <- count
-		ch <- uniques
-	}()
+		ch <- 0
+		ch <- 0
+
+		go func() {
+			hc, err := v1.NewHatchetClient(v1.Config{Namespace: config.Namespace, Logger: &l}) //nolint:staticcheck // SA1019
+			if err != nil {
+				registered <- fmt.Errorf("externalWorker: error creating hatchet client: %w", err)
+				return
+			}
+			timingClient = hc
+
+			names := expectedWorkflowNames(config)
+
+			l.Info().Msgf("externalWorker: resolving workflow(s) %v (make sure a separately-running SDK worker, e.g. cmd/hatchet-loadtest/go, is already up and has registered them)...", names)
+
+			ids, err := ResolveWorkflowIDs(ctx, hc.V0().API(), uuid.MustParse(hc.V0().TenantId()), names, registrationTimeout)
+			if err != nil {
+				registered <- fmt.Errorf("externalWorker: %w", err)
+				return
+			}
+
+			l.Info().Msgf("externalWorker: resolved workflow(s) %v to ids %v", names, ids)
+
+			resolvedWorkflowIDs <- ids
+			registered <- nil
+		}()
+	} else {
+		go func() {
+			count, uniques := run(ctx, config, durations, registered)
+			close(durations)
+			ch <- count
+			ch <- uniques
+		}()
+	}
 
 	if err := waitForRegistration(registered, registrationTimeout); err != nil {
 		return fmt.Errorf("❌ workflow registration failed within %s — engine must accept PutWorkflow on the current (pre-migration) schema: %w", registrationTimeout, err)
@@ -153,6 +245,30 @@ func do(config LoadTestConfig) error {
 		scheduledResult <- avgResult{count: count, avg: avg, latencyResult: LatencyResult{snapshots: snapshots}}
 	}()
 
+	// externalWorker mode: start sweeping the engine's own timing data for
+	// the resolved workflow(s), in parallel with emission below.
+	var phaseSamples chan PhaseSample
+	var phaseResultCh <-chan phaseAccumulator
+	var cancelTiming context.CancelFunc
+
+	if config.ExternalWorker {
+		workflowIDs := <-resolvedWorkflowIDs
+
+		var timingCtx context.Context
+		timingCtx, cancelTiming = context.WithCancel(ctx)
+		defer cancelTiming() // safe to call more than once; guards every return path below
+
+		collector := NewTimingCollector(timingClient, workflowIDs, 2*time.Second)
+
+		phaseSamples = make(chan PhaseSample, 256)
+		phaseResultCh = accumulatePhases(phaseSamples)
+
+		go func() {
+			collector.Run(timingCtx, phaseSamples)
+			close(phaseSamples)
+		}()
+	}
+
 	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
 	close(scheduled)
 
@@ -162,27 +278,58 @@ func do(config LoadTestConfig) error {
 	finalDurationResult := <-durationsResult
 	finalScheduledResult := <-scheduledResult
 
-	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
-
-	// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
-	// so `emitted` here is effectively "pushed".
-	log.Printf(
-		"ℹ️ pushed %d, executed %d, uniques %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
-		emitted,
-		executed,
-		uniques,
-		config.Events,
-		config.EventFanout,
-		config.DagSteps,
-		expected,
-	)
-
-	if executed == 0 {
-		return fmt.Errorf("❌ no events executed")
+	var phases phaseAccumulator
+	if config.ExternalWorker {
+		cancelTiming()
+		phases = <-phaseResultCh
 	}
 
-	log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
-	log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
+	expected := int64(config.EventFanout) * emitted * int64(config.DagSteps)
+
+	if config.ExternalWorker {
+		log.Printf(
+			"ℹ️ pushed %d, using %d events/s (externalWorker: engine-observed samples — queued n=%d, scheduling n=%d, execution n=%d)",
+			emitted, config.Events, phases.queued.count, phases.scheduling.count, phases.execution.count,
+		)
+
+		if phases.execution.count == 0 {
+			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(config))
+		}
+
+		if expected != phases.execution.count {
+			log.Printf("⚠️ warning: pushed and executed-timing-sample counts do not match: expected=%d got=%d", expected, phases.execution.count)
+		}
+	} else {
+		// NOTE: `emit()` returns successfully pushed events (not merely generated IDs),
+		// so `emitted` here is effectively "pushed".
+		log.Printf(
+			"ℹ️ pushed %d, executed %d, uniques %d, using %d events/s (fanout=%d dagSteps=%d expected=%d)",
+			emitted,
+			executed,
+			uniques,
+			config.Events,
+			config.EventFanout,
+			config.DagSteps,
+			expected,
+		)
+
+		if executed == 0 {
+			return fmt.Errorf("❌ no events executed")
+		}
+	}
+
+	if config.ExternalWorker {
+		// engine-observed timing replaces the client-side duration/scheduling
+		// averages above (which are meaningless here - durations was closed
+		// with zero samples and there's no in-process step handler), rather
+		// than reporting alongside them.
+		log.Printf("ℹ️ final average queued time per event: %s", phases.queued.avg)
+		log.Printf("ℹ️ final average scheduling time per event: %s", phases.scheduling.avg)
+		log.Printf("ℹ️ final average duration per executed event: %s", phases.execution.avg)
+	} else {
+		log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
+		log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
+	}
 	if ShouldSendSlack() {
 		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
 		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2")
@@ -214,13 +361,6 @@ func do(config LoadTestConfig) error {
 		}
 		log.Printf("ℹ️ exported scheduling/duration snapshot data")
 	}
-	if expected != executed {
-		log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
-	}
-
-	if expected != uniques {
-		return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps)
-	}
 
 	// Add a small tolerance (1% or 1ms, whichever is smaller)
 	tolerance := config.AverageDurationThreshold / 100 // 1% tolerance
@@ -229,8 +369,22 @@ func do(config LoadTestConfig) error {
 	}
 	thresholdWithTolerance := config.AverageDurationThreshold + tolerance
 
-	if finalDurationResult.avg > thresholdWithTolerance {
-		return fmt.Errorf("❌ average duration per executed event is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", finalDurationResult.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+	if config.ExternalWorker {
+		if phases.execution.avg > thresholdWithTolerance {
+			return fmt.Errorf("❌ average execution time is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", phases.execution.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+		}
+	} else {
+		if expected != executed {
+			log.Printf("⚠️ warning: pushed and executed counts do not match: expected=%d got=%d", expected, executed)
+		}
+
+		if expected != uniques {
+			return fmt.Errorf("❌ pushed and unique executed counts do not match: expected=%d got=%d (fanout=%d pushed=%d dagSteps=%d)", expected, uniques, config.EventFanout, emitted, config.DagSteps)
+		}
+
+		if finalDurationResult.avg > thresholdWithTolerance {
+			return fmt.Errorf("❌ average duration per executed event is greater than the threshold (with tolerance): %s > %s (threshold: %s, tolerance: %s)", finalDurationResult.avg, thresholdWithTolerance, config.AverageDurationThreshold, tolerance)
+		}
 	}
 
 	log.Printf("✅ success")
