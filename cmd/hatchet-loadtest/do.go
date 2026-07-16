@@ -110,22 +110,28 @@ func accumulatePhases(samples <-chan PhaseSample) <-chan phaseAccumulator {
 	go func() {
 		var qCount, sCount, eCount int64
 		var qAvg, sAvg, eAvg time.Duration
+		var qSnaps, sSnaps, eSnaps []LatencySnapshot
 
 		for s := range samples {
+			now := time.Now()
+
 			qCount++
 			qAvg += (s.Queued - qAvg) / time.Duration(qCount)
+			qSnaps = append(qSnaps, LatencySnapshot{t: now, latency: s.Queued})
 
 			sCount++
 			sAvg += (s.Scheduling - sAvg) / time.Duration(sCount)
+			sSnaps = append(sSnaps, LatencySnapshot{t: now, latency: s.Scheduling})
 
 			eCount++
 			eAvg += (s.Execution - eAvg) / time.Duration(eCount)
+			eSnaps = append(eSnaps, LatencySnapshot{t: now, latency: s.Execution})
 		}
 
 		out <- phaseAccumulator{
-			queued:     avgResult{count: qCount, avg: qAvg},
-			scheduling: avgResult{count: sCount, avg: sAvg},
-			execution:  avgResult{count: eCount, avg: eAvg},
+			queued:     avgResult{count: qCount, avg: qAvg, latencyResult: LatencyResult{snapshots: qSnaps}},
+			scheduling: avgResult{count: sCount, avg: sAvg, latencyResult: LatencyResult{snapshots: sSnaps}},
+			execution:  avgResult{count: eCount, avg: eAvg, latencyResult: LatencyResult{snapshots: eSnaps}},
 		}
 	}()
 
@@ -330,18 +336,27 @@ func do(config LoadTestConfig) error {
 		log.Printf("ℹ️ final average duration per executed event: %s", finalDurationResult.avg)
 		log.Printf("ℹ️ final average scheduling time per event: %s", finalScheduledResult.avg)
 	}
+	// In externalWorker mode, finalDurationResult/finalScheduledResult have no
+	// snapshots (durations was closed with zero samples up front, and there's
+	// no in-process step handler to feed scheduled) - use the engine-observed
+	// phase results instead, same as the "final average" log lines above.
+	durationForReport, schedulingForReport := finalDurationResult, finalScheduledResult
+	if config.ExternalWorker {
+		durationForReport, schedulingForReport = phases.execution, phases.scheduling
+	}
+
 	if ShouldSendSlack() {
 		log.Printf("ℹ️ sending scheduling/duration plots to Slack")
 		slackSender := NewSlackSender("hatchet-staging-loadtest-us-west-2")
-		durationBytes, err := finalDurationResult.latencyResult.PlotBytes("duration")
+		durationBytes, err := durationForReport.latencyResult.PlotBytes("duration")
 		if err != nil {
 			log.Printf("❌ failed to generate duration plot: %v ", err)
 		}
-		schedulingBytes, err := finalScheduledResult.latencyResult.PlotBytes("scheduling")
+		schedulingBytes, err := schedulingForReport.latencyResult.PlotBytes("scheduling")
 		if err != nil {
 			log.Printf("❌ failed to generate scheduling plot: %v ", err)
 		}
-		err = slackSender.Send(durationBytes, schedulingBytes, finalDurationResult.avg, finalScheduledResult.avg)
+		err = slackSender.Send(durationBytes, schedulingBytes, durationForReport.avg, schedulingForReport.avg)
 		if err != nil {
 			log.Printf("❌ failed to send duration plots to slack: %v ", err)
 		}
@@ -351,11 +366,11 @@ func do(config LoadTestConfig) error {
 	}
 	if config.PlotDir != "" {
 		log.Printf("ℹ️ exporting scheduling/duration snapshot data")
-		err := finalScheduledResult.latencyResult.GeneratePlot(config.PlotDir, "scheduling")
+		err := schedulingForReport.latencyResult.GeneratePlot(config.PlotDir, "scheduling")
 		if err != nil {
 			return err
 		}
-		err = finalDurationResult.latencyResult.GeneratePlot(config.PlotDir, "duration")
+		err = durationForReport.latencyResult.GeneratePlot(config.PlotDir, "duration")
 		if err != nil {
 			return err
 		}
