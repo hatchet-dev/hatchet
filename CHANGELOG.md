@@ -3,6 +3,7 @@
 ### Highlights
 
 - Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+- The run trace view now labels rows with workflow, task, and event names instead of internal span names such as `hatchet.engine.workflow_run`, and marks each retry attempt with its number.
 
 ## [0.94.10] - 2026-07-14
 
