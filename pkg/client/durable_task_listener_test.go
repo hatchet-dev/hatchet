@@ -119,6 +119,18 @@ func (h *testHarness) getCallCount() int {
 	return h.callCount
 }
 
+func awaitRequest(t *testing.T, stream *mockDurableTaskStream) *v1.DurableTaskRequest {
+	t.Helper()
+
+	select {
+	case req := <-stream.sendCh:
+		return req
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for durable task request")
+		return nil
+	}
+}
+
 // --- Reconnection on stream EOF ---
 
 func TestOpensNewStreamAfterEOF(t *testing.T) {
@@ -273,6 +285,55 @@ func TestPendingCallbacksSurviveDisconnect(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, h.listener.PendingCallbackCount())
+}
+
+func TestPendingCallbackRecoveredFromWorkerStatusAfterReconnect(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	h := newTestHarness()
+	first := h.addHangingStream(ctx)
+	second := h.addHangingStream(ctx)
+	key := PendingCallbackKey{TaskID: "task1", SignalKey: 2, BranchID: 3, NodeID: 4}
+	callbackCh := h.listener.AddPendingCallback(key)
+
+	h.listener.Start(ctx)
+	defer h.listener.Stop()
+
+	require.NotNil(t, awaitRequest(t, first).GetRegisterWorker())
+	close(first.recvCh)
+
+	require.NotNil(t, awaitRequest(t, second).GetRegisterWorker())
+	statusReq := awaitRequest(t, second).GetWorkerStatus()
+	require.NotNil(t, statusReq)
+	require.Len(t, statusReq.GetWaitingEntries(), 1)
+	waiting := statusReq.GetWaitingEntries()[0]
+	assert.Equal(t, key.TaskID, waiting.GetDurableTaskExternalId())
+	assert.Equal(t, int32(key.SignalKey), waiting.GetInvocationCount())
+	assert.Equal(t, key.BranchID, waiting.GetBranchId())
+	assert.Equal(t, key.NodeID, waiting.GetNodeId())
+
+	second.recvCh <- &v1.DurableTaskResponse{
+		Message: &v1.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{
+				Ref: &v1.DurableEventLogEntryRef{
+					DurableTaskExternalId: waiting.GetDurableTaskExternalId(),
+					InvocationCount:       waiting.GetInvocationCount(),
+					BranchId:              waiting.GetBranchId(),
+					NodeId:                waiting.GetNodeId(),
+				},
+				Payload: []byte("recovered"),
+			},
+		},
+	}
+
+	select {
+	case result := <-callbackCh:
+		require.NoError(t, result.Err)
+		assert.Equal(t, []byte("recovered"), result.Resp.GetEntryCompleted().GetPayload())
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for completion recovered after reconnect")
+	}
 }
 
 // --- Pending eviction acks cleared on disconnect ---
