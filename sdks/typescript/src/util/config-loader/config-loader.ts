@@ -125,12 +125,21 @@ export class ConfigLoader {
       this.parseIntEnv('HATCHET_CLIENT_GRPC_MAX_SEND_MESSAGE_LENGTH') ??
       4 * 1024 * 1024;
 
-    const retrierConfig = override?.retrier ??
-      yaml?.retrier ?? {
-        maxAttempts: this.parseIntEnv('HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS'),
-        initialInterval: this.parseFloatEnv('HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL'),
-        maxJitter: this.parseIntEnv('HATCHET_CLIENT_RETRIER_MAX_JITTER'),
-      };
+    const retrierConfig = {
+      maxAttempts:
+        override?.retrier?.maxAttempts ??
+        yaml?.retrier?.maxAttempts ??
+        this.parseIntEnv('HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS'),
+      initialInterval:
+        override?.retrier?.initialInterval ??
+        yaml?.retrier?.initialInterval ??
+        this.parseFloatEnv('HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL'),
+      maxJitter:
+        override?.retrier?.maxJitter ??
+        yaml?.retrier?.maxJitter ??
+        this.parseIntEnv('HATCHET_CLIENT_RETRIER_MAX_JITTER'),
+    };
+    const hasRetrier = Object.values(retrierConfig).some((v) => v !== undefined);
 
     return {
       token: override?.token ?? yaml?.token ?? this.env('HATCHET_CLIENT_TOKEN'),
@@ -152,7 +161,7 @@ export class ConfigLoader {
         override?.cancellation_grace_period ?? yaml?.cancellation_grace_period,
       cancellation_warning_threshold:
         override?.cancellation_warning_threshold ?? yaml?.cancellation_warning_threshold,
-      retrier: retrierConfig,
+      ...(hasRetrier ? { retrier: retrierConfig } : {}),
     };
   }
 

@@ -13,7 +13,7 @@ export interface RetrierConfig {
 }
 
 export async function retrier<T>(fn: () => Promise<T>, logger: Logger, config?: RetrierConfig) {
-  const retries = config?.maxAttempts ?? DEFAULT_RETRY_COUNT;
+  const retries = Math.max(1, config?.maxAttempts ?? DEFAULT_RETRY_COUNT);
   const interval = config?.initialInterval ?? DEFAULT_RETRY_INTERVAL;
   const maxJitter = config?.maxJitter ?? DEFAULT_MAX_JITTER;
   const shouldRetry = config?.shouldRetry ?? (() => true);
@@ -30,11 +30,11 @@ export async function retrier<T>(fn: () => Promise<T>, logger: Logger, config?: 
       lastError = e instanceof Error ? e : new Error(String(e));
       logger.error(`Error: ${lastError.message}`);
 
-      const exponentialDelay = interval * 2 ** i * 1000;
-      const jitter = Math.random() * maxJitter;
-      const totalDelay = exponentialDelay + jitter;
-
-      await sleep(totalDelay);
+      if (i < retries - 1) {
+        const exponentialDelay = interval * 2 ** i * 1000;
+        const jitter = Math.random() * maxJitter;
+        await sleep(exponentialDelay + jitter);
+      }
     }
   }
 
