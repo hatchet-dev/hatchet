@@ -3,6 +3,7 @@ import { usePagination } from '@/hooks/use-pagination';
 import { useCurrentTenantId } from '@/hooks/use-tenant';
 import {
   queries,
+  V1AdditionalMetadataOperator,
   V1RunningFilter,
   V1TaskSummary,
   V1TaskStatus,
@@ -19,6 +20,7 @@ type UseRunsProps = {
   statuses?: V1TaskStatus[];
   runningFilter?: V1RunningFilter;
   additionalMetadata?: string[];
+  additionalMetadataOperator?: V1AdditionalMetadataOperator;
   workerId: string | undefined;
   workflowIds?: string[];
   parentTaskExternalId: string | undefined;
@@ -35,6 +37,7 @@ export const useRuns = ({
   statuses,
   runningFilter,
   additionalMetadata,
+  additionalMetadataOperator,
   workerId,
   workflowIds,
   parentTaskExternalId,
@@ -46,6 +49,19 @@ export const useRuns = ({
   const { refetchInterval } = useRefetchInterval();
   const { offset, pagination, setPageSize, setPagination } = usePagination({
     key: 'runs-table-' + key,
+    resetPageOnChange: [
+      createdAfter,
+      finishedBefore,
+      statuses,
+      runningFilter,
+      additionalMetadata,
+      additionalMetadataOperator,
+      workerId,
+      workflowIds,
+      parentTaskExternalId,
+      triggeringEventExternalId,
+      onlyTasks,
+    ],
   });
 
   const [initialRenderTime] = useState(
@@ -71,6 +87,7 @@ export const useRuns = ({
       since,
       until: finishedBefore,
       additional_metadata: additionalMetadata,
+      additional_metadata_operator: additionalMetadataOperator,
       worker_id: workerId,
       only_tasks: onlyTasks,
       triggering_event_external_id: triggeringEventExternalId,

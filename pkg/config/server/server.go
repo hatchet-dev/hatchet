@@ -259,6 +259,12 @@ type ConfigFileRuntime struct {
 	APIRateLimit       int           `mapstructure:"apiRateLimit" json:"apiRateLimit,omitempty" default:"10"`
 	APIRateLimitWindow time.Duration `mapstructure:"apiRateLimitWindow" json:"apiRateLimitWindow,omitempty" default:"300s"`
 
+	// WebhookRateLimit is the rate limit for webhook endpoints per second, per webhook
+	WebhookRateLimit float64 `mapstructure:"webhookRateLimit" json:"webhookRateLimit,omitempty" default:"50"`
+
+	// WebhookRateLimitBurst is the burst size for webhook rate limiting
+	WebhookRateLimitBurst int `mapstructure:"webhookRateLimitBurst" json:"webhookRateLimitBurst,omitempty" default:"100"`
+
 	// DisableTenantPubs controls whether tenant pubsub is disabled
 	DisableTenantPubs bool `mapstructure:"disableTenantPubs" json:"disableTenantPubs,omitempty"`
 
@@ -315,6 +321,9 @@ type ConfigFileRuntime struct {
 	SchedulerCheckActiveMaxInterval time.Duration `mapstructure:"schedulerCheckActiveMaxInterval" json:"schedulerCheckActiveMaxInterval,omitempty" default:"60s"`
 
 	SchedulerAdvisoryLockTimeout time.Duration `mapstructure:"schedulerAdvisoryLockTimeout" json:"schedulerAdvisoryLockTimeout,omitempty" default:"5s"`
+
+	// ConcurrencyInMemoryIndexEnabled controls whether the in-memory index + outbox approach is used for concurrency strategies
+	ConcurrencyInMemoryIndexEnabled bool `mapstructure:"concurrencyInMemoryIndexEnabled" json:"concurrencyInMemoryIndexEnabled,omitempty" default:"false"`
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`
@@ -746,6 +755,8 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.grpcWorkerMaxLockAcquisitionTime", "SERVER_GRPC_WORKER_MAX_LOCK_ACQUISITION_TIME")
 	_ = v.BindEnv("runtime.grpcStaticStreamWindowSize", "SERVER_GRPC_STATIC_STREAM_WINDOW_SIZE")
 	_ = v.BindEnv("runtime.grpcRateLimit", "SERVER_GRPC_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimit", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT")
+	_ = v.BindEnv("runtime.webhookRateLimitBurst", "SERVER_INCOMING_WEBHOOK_RATE_LIMIT_BURST")
 	_ = v.BindEnv("runtime.grpcShutdownTimeout", "SERVER_GRPC_SHUTDOWN_TIMEOUT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyRateLimit", "SCHEDULER_CONCURRENCY_RATE_LIMIT")
 	_ = v.BindEnv("runtime.schedulerConcurrencyPollingMinInterval", "SCHEDULER_CONCURRENCY_POLLING_MIN_INTERVAL")
@@ -753,6 +764,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("runtime.schedulerCheckActiveMinInterval", "SCHEDULER_CHECK_ACTIVE_MIN_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerCheckActiveMaxInterval", "SCHEDULER_CHECK_ACTIVE_MAX_INTERVAL")
 	_ = v.BindEnv("runtime.schedulerAdvisoryLockTimeout", "SCHEDULER_ADVISORY_LOCK_TIMEOUT")
+	_ = v.BindEnv("runtime.concurrencyInMemoryIndexEnabled", "SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED")
 	_ = v.BindEnv("servicesString", "SERVER_SERVICES")
 	_ = v.BindEnv("pausedControllers", "SERVER_PAUSED_CONTROLLERS")
 	_ = v.BindEnv("enableDataRetention", "SERVER_ENABLE_DATA_RETENTION")
@@ -778,6 +790,8 @@ func BindAllEnv(v *viper.Viper) {
 
 	// limit options
 	_ = v.BindEnv("runtime.limits.defaultTenantRetentionPeriod", "SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD")
+	_ = v.BindEnv("runtime.limits.corePartitionRetention", "SERVER_LIMITS_CORE_PARTITION_RETENTION")
+	_ = v.BindEnv("runtime.limits.olapPartitionRetention", "SERVER_LIMITS_OLAP_PARTITION_RETENTION")
 
 	_ = v.BindEnv("runtime.limits.defaultTaskRunLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_LIMIT")
 	_ = v.BindEnv("runtime.limits.defaultTaskRunAlarmLimit", "SERVER_LIMITS_DEFAULT_TASK_RUN_ALARM_LIMIT")

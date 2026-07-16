@@ -1,3 +1,34 @@
+## [Unreleased]
+
+### Highlights
+
+- Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+
+## [0.94.10] - 2026-07-14
+
+Hatchet v0.94.10 headlines two DevEx improvements: development images that run without authentication, and use-case templates for the `hatchet quickstart` command. The release also adds independent OLAP and core data retention settings to the engine, tenant tagging and consolidated settings pages in Hatchet Cloud, automatic stream listener reconnection in the Go SDK, and RSS feeds for newly published changelog and cookbooks entries.
+
+### Highlights
+
+- Introduces a set of development images that allow Hatchet to be run without authentication, removing the need to manage API tokens in development and testing environments. See [Running without authentication](#running-without-authentication).
+- Hatchet Cloud now supports tagging tenants and organization user groups, automatically adding group members to tenants with matching tags. Additionally, the tenant and organization-scoped settings pages have been consolidated into a single `Settings` section.
+- OLAP and core data retention can be configured independently on the Hatchet engine via `SERVER_LIMITS_OLAP_PARTITION_RETENTION` and `SERVER_LIMITS_CORE_PARTITION_RETENTION`, falling back to `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` when unset.
+- Exposes additional Prometheus [Tenant Metrics](https://docs.hatchet.run/self-hosting/prometheus-metrics#tenant-metrics) for tracking slot utilization per worker pool, grouped by labels: `hatchet_tenant_worker_label_slots` (total), `hatchet_tenant_used_worker_label_slots` (in-use), and `hatchet_tenant_available_worker_label_slots` (free).
+- The Go SDK's streaming listeners now reconnect automatically with jittered backoff: `Workflow.Result()` no longer hangs if its listener dies, and transient network failures no longer kill workers.
+- The Hatchet documentation website now supports RSS feeds for new cookbooks and releases. These can be accessed at [`https://docs.hatchet.run/cookbooks/feed.xml`](https://docs.hatchet.run/cookbooks/feed.xml) and `/reference/changelog/<component>/feed.xml` (e.g. [platform](https://docs.hatchet.run/reference/changelog/platform/feed.xml)), or via autodiscovery by adding a page URL directly to your RSS reader.
+- Fixed timeouts in the `UserSession` cleanup job (introduced in v0.90.13) by indexing the relevant columns; the migration is applied automatically on upgrade.
+- `hatchet quickstart` supports use-case templates via a new `--use-case` flag, starting with `scheduled`: a Go template whose workflow runs on a cron schedule and can also be run on demand. See the [quickstart CLI docs](https://docs.hatchet.run/cli/quickstarts).
+
+### Upgrade Notes
+
+#### Running without authentication
+
+The Hatchet development images can be pulled directly as `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev`, and `hatchet-dashboard-dev`, or spun up via the Hatchet CLI with `hatchet server start --disable-auth`, which runs `hatchet-lite-dev` in place of `hatchet-lite`.
+
+This approach embeds a single global worker API key in the Hatchet binaries themselves, so it should only be used in development and testing environments.
+
+See the docs for [running without authentication via the CLI](https://docs.hatchet.run/reference/cli/running-hatchet-locally#running-without-authentication) and [via Docker Compose](https://docs.hatchet.run/self-hosting/docker-compose#running-without-authentication).
+
 ## [0.90.13] - 2026-06-29
 
 Hatchet v0.90.13 is a stability-focused release. It keeps long-running deployments healthy by bounding session-table growth, reduces scheduling latency under load, fixes a duration-parsing bug that could silently shorten your timeouts, and ships a batch of dashboard fixes.

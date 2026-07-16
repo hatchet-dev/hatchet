@@ -36,6 +36,39 @@ import (
 // TODO: make this dynamic for the instance
 const NUM_PARTITIONS = 4
 
+type AdditionalMetadataOperator string
+
+const (
+	AdditionalMetadataOperatorOr  AdditionalMetadataOperator = "OR"
+	AdditionalMetadataOperatorAnd AdditionalMetadataOperator = "AND"
+)
+
+func buildAdditionalMetadataContains(metadata map[string]interface{}, operator AdditionalMetadataOperator) (containsAny [][]byte, containsAll []byte, err error) {
+	if operator == AdditionalMetadataOperatorAnd {
+		containsAll, err = json.Marshal(metadata)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return nil, containsAll, nil
+	}
+
+	containsAny = make([][]byte, 0, len(metadata))
+
+	for key, value := range metadata {
+		pairFilter, marshalErr := json.Marshal(map[string]interface{}{key: value})
+
+		if marshalErr != nil {
+			return nil, nil, marshalErr
+		}
+
+		containsAny = append(containsAny, pairFilter)
+	}
+
+	return containsAny, nil, nil
+}
+
 type ListTaskRunOpts struct {
 	CreatedAfter time.Time
 
@@ -50,6 +83,13 @@ type ListTaskRunOpts struct {
 	FinishedBefore *time.Time
 
 	AdditionalMetadata map[string]interface{}
+
+	// UseGinIndex switches AdditionalMetadata filtering to jsonb containment,
+	// which is backed by the GIN indexes on the OLAP tables. See
+	// AdditionalMetadataOperator for how multiple pairs are combined.
+	UseGinIndex bool
+
+	AdditionalMetadataOperator AdditionalMetadataOperator
 
 	TriggeringEventExternalId *uuid.UUID
 
@@ -72,6 +112,13 @@ type ListWorkflowRunOpts struct {
 	FinishedBefore *time.Time
 
 	AdditionalMetadata map[string]interface{}
+
+	// UseGinIndex switches AdditionalMetadata filtering to jsonb containment,
+	// which is backed by the GIN indexes on the OLAP tables. See
+	// AdditionalMetadataOperator for how multiple pairs are combined.
+	UseGinIndex bool
+
+	AdditionalMetadataOperator AdditionalMetadataOperator
 
 	Limit int64
 
@@ -866,34 +913,40 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	for key, value := range opts.AdditionalMetadata {
-		params.Keys = append(params.Keys, key)
-		params.Values = append(params.Values, value.(string))
-		countParams.Keys = append(countParams.Keys, key)
-		countParams.Values = append(countParams.Values, value.(string))
+	if opts.UseGinIndex && len(opts.AdditionalMetadata) > 0 {
+		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+		if marshalErr != nil {
+			return nil, 0, marshalErr
+		}
+
+		params.AdditionalMetadataContainsAny = containsAny
+		params.AdditionalMetadataContainsAll = containsAll
+		countParams.AdditionalMetadataContainsAny = containsAny
+		countParams.AdditionalMetadataContainsAll = containsAll
+	} else {
+		for key, value := range opts.AdditionalMetadata {
+			params.Keys = append(params.Keys, key)
+			params.Values = append(params.Values, value.(string))
+			countParams.Keys = append(countParams.Keys, key)
+			countParams.Values = append(countParams.Values, value.(string))
+		}
 	}
 
 	var (
-		rows     []*sqlcv1.ListTasksOlapRow
-		count    int64
-		countErr error
+		rows  []*sqlcv1.ListTasksOlapRow
+		count int64
 	)
 
-	// A pgx.Tx must not be used concurrently, so we run the count query against the pool.
-	g, gctx := errgroup.WithContext(ctx)
+	rows, err = r.queries.ListTasksOlap(ctx, tx, params)
 
-	g.Go(func() error {
-		var err error
-		rows, err = r.queries.ListTasksOlap(gctx, tx, params)
-		return err
-	})
+	if err != nil {
+		return nil, 0, err
+	}
 
-	g.Go(func() error {
-		count, countErr = r.queries.CountTasks(gctx, r.readPool, countParams)
-		return nil
-	})
+	count, err = r.queries.CountTasks(ctx, tx, countParams)
 
-	if err := g.Wait(); err != nil {
+	if err != nil {
 		return nil, 0, err
 	}
 
@@ -964,10 +1017,6 @@ func (r *OLAPRepositoryImpl) ListTasks(ctx context.Context, tenantId uuid.UUID, 
 			output,
 			int64(0),
 		})
-	}
-
-	if countErr != nil {
-		count = int64(len(tasksWithData))
 	}
 
 	if err := commit(ctx); err != nil {
@@ -1185,8 +1234,10 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 	}
 
 	countParams := sqlcv1.CountWorkflowRunsParams{
-		Tenantid: tenantId,
-		Since:    sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		Tenantid:                  tenantId,
+		Since:                     sqlchelpers.TimestamptzFromTime(opts.CreatedAfter),
+		ParentTaskExternalId:      opts.ParentTaskExternalId,
+		TriggeringEventExternalId: opts.TriggeringEventExternalId,
 	}
 
 	statuses := make([]string, 0)
@@ -1226,27 +1277,37 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 		countParams.Until = sqlchelpers.TimestamptzFromTime(*until)
 	}
 
-	for key, value := range opts.AdditionalMetadata {
-		params.Keys = append(params.Keys, key)
-		params.Values = append(params.Values, value.(string))
-		countParams.Keys = append(countParams.Keys, key)
-		countParams.Values = append(countParams.Values, value.(string))
+	if opts.UseGinIndex && len(opts.AdditionalMetadata) > 0 {
+		containsAny, containsAll, marshalErr := buildAdditionalMetadataContains(opts.AdditionalMetadata, opts.AdditionalMetadataOperator)
+
+		if marshalErr != nil {
+			return nil, 0, marshalErr
+		}
+
+		params.AdditionalMetadataContainsAny = containsAny
+		params.AdditionalMetadataContainsAll = containsAll
+		countParams.AdditionalMetadataContainsAny = containsAny
+		countParams.AdditionalMetadataContainsAll = containsAll
+	} else {
+		for key, value := range opts.AdditionalMetadata {
+			params.Keys = append(params.Keys, key)
+			params.Values = append(params.Values, value.(string))
+			countParams.Keys = append(countParams.Keys, key)
+			countParams.Values = append(countParams.Values, value.(string))
+		}
 	}
 
 	var (
 		workflowRunIds []*sqlcv1.FetchWorkflowRunIdsRow
 		count          int64
-		countErr       error
 	)
 
-	// A pgx.Tx must not be used concurrently; run count on the pool in the background while we do tx work.
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		count, countErr = r.queries.CountWorkflowRuns(gctx, r.readPool, countParams)
-		return nil
-	})
-
 	workflowRunIds, err = r.queries.FetchWorkflowRunIds(ctx, tx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count, err = r.queries.CountWorkflowRuns(ctx, tx, countParams)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1325,16 +1386,6 @@ func (r *OLAPRepositoryImpl) ListWorkflowRuns(ctx context.Context, tenantId uuid
 
 	if err := commit(ctx); err != nil {
 		return nil, 0, err
-	}
-
-	// Join the count goroutine before returning.
-	if err := g.Wait(); err != nil {
-		return nil, 0, err
-	}
-
-	if countErr != nil {
-		r.l.Error().Ctx(ctx).Msgf("error counting workflow runs: %v", countErr)
-		count = int64(len(workflowRunIds))
 	}
 
 	externalIdToPayload := make(map[uuid.UUID][]byte)

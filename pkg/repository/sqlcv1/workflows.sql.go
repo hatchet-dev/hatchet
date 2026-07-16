@@ -263,7 +263,7 @@ VALUES (
     $5::text,
     $6::uuid,
     $7::integer
-) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 `
 
 type CreateStepConcurrencyParams struct {
@@ -294,6 +294,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		&i.WorkflowVersionID,
 		&i.StepID,
 		&i.IsActive,
+		&i.LastActiveAt,
 		&i.Strategy,
 		&i.Expression,
 		&i.TenantID,
@@ -464,7 +465,8 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING
+ON CONFLICT (tenant_id, step_id, slot_type) DO UPDATE
+    SET units = EXCLUDED.units, updated_at = CURRENT_TIMESTAMP
 `
 
 type CreateStepSlotRequestsParams struct {
@@ -474,7 +476,9 @@ type CreateStepSlotRequestsParams struct {
 	Units     []int32   `json:"units"`
 }
 
-// NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
+// The trigger v1_step_slot_request_insert_trigger writes a {default: 1} (or {durable: 1}) row on
+// Step insert, so DO UPDATE overwrites it with the requested units instead of leaving the default.
+// The conflict handling is only here because of that trigger.
 func (q *Queries) CreateStepSlotRequests(ctx context.Context, db DBTX, arg CreateStepSlotRequestsParams) error {
 	_, err := db.Exec(ctx, createStepSlotRequests,
 		arg.Tenantid,
@@ -648,7 +652,7 @@ WITH inserted_wcs AS (
           wv."id" = $2::uuid
           AND j."kind" = 'DEFAULT'
     ) s, inserted_wcs wcs
-    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 )
 SELECT
     wcs.id,

@@ -301,6 +301,11 @@ export enum V1RunningFilter {
   ON_WORKER = "ON_WORKER",
 }
 
+export enum V1AdditionalMetadataOperator {
+  OR = "OR",
+  AND = "AND",
+}
+
 export enum V1LogLineOrderByDirection {
   ASC = "ASC",
   DESC = "DESC",
@@ -1305,6 +1310,16 @@ export interface APIMeta {
    * @example false
    */
   prometheusServerEnabled?: boolean;
+  /**
+   * whether or not authentication is disabled (authdisabled build) on this instance
+   * @example false
+   */
+  authDisabled?: boolean;
+  /**
+   * the embedded worker API token, only set on authdisabled builds
+   * @example "eyJhbGciOiJFUzI1NiIs..."
+   */
+  authDisabledToken?: string;
 }
 
 export interface APIMetaIntegration {
@@ -2533,6 +2548,8 @@ export interface TaskStatusStat {
   concurrency?: ConcurrencyStat[];
   /** @format date-time */
   oldest?: string;
+  /** @format date-time */
+  oldestExcludingRetries?: string;
 }
 
 export interface TaskStat {

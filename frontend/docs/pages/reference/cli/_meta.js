@@ -10,6 +10,7 @@ export default {
     type: "separator",
   },
   "running-hatchet-locally": "Running Hatchet Locally",
+  quickstarts: "Generating Quickstart Projects",
   "running-workers-locally": "Running Workers Locally",
   "triggering-workflows": "Triggering Workflows",
   "--tui": {

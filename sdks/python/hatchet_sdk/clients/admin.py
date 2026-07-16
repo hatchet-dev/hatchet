@@ -466,9 +466,30 @@ class AdminClient:
             admin_client=self,
         )
 
-    def chunk(self, xs: list[T], n: int) -> Generator[list[T], None, None]:
-        for i in range(0, len(xs), n):
-            yield xs[i : i + n]
+    def chunk_workflow_runs(
+        self, xs: list[trigger_protos.TriggerWorkflowRequest]
+    ) -> Generator[list[trigger_protos.TriggerWorkflowRequest], None, None]:
+        chunk: list[trigger_protos.TriggerWorkflowRequest] = []
+        curr_size = 0
+
+        for x in xs:
+            size = x.ByteSize()
+            would_exceed_limit = (
+                curr_size + size
+            ) > self.config.grpc_max_send_message_length or len(
+                chunk
+            ) >= MAX_BULK_WORKFLOW_RUN_BATCH_SIZE
+
+            if chunk and would_exceed_limit:
+                yield chunk
+                chunk = []
+                curr_size = 0
+
+            chunk.append(x)
+            curr_size += size
+
+        if chunk:
+            yield chunk
 
     def run_workflows(
         self,
@@ -487,7 +508,7 @@ class AdminClient:
 
         refs: list[WorkflowRunRef] = []
 
-        for chunk in self.chunk(bulk_workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE):
+        for chunk in self.chunk_workflow_runs(bulk_workflows):
             bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
                 workflows=chunk
             )
@@ -519,23 +540,22 @@ class AdminClient:
         workflows: list[WorkflowRunTriggerConfig],
     ) -> list[WorkflowRunRef]:
         client = self._get_or_create_v0_client()
-        chunks = self.chunk(workflows, MAX_BULK_WORKFLOW_RUN_BATCH_SIZE)
         refs: list[WorkflowRunRef] = []
         bulk_trigger_workflow = tenacity_retry(
             client.BulkTriggerWorkflow, self.config.tenacity
         )
 
-        for chunk in chunks:
-            async with spawn_index_lock:
-                bulk_workflows = [
-                    self._create_workflow_run_request(
-                        workflow.workflow_name, workflow.input, workflow.options
-                    )
-                    for workflow in chunk
-                ]
+        async with spawn_index_lock:
+            bulk_workflows = [
+                self._create_workflow_run_request(
+                    workflow.workflow_name, workflow.input, workflow.options
+                )
+                for workflow in workflows
+            ]
 
+        for chunk in self.chunk_workflow_runs(bulk_workflows):
             bulk_request = v0_workflow_protos.BulkTriggerWorkflowRequest(
-                workflows=bulk_workflows
+                workflows=chunk
             )
 
             resp = cast(

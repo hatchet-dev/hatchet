@@ -14,9 +14,6 @@ import {
   RiFileTextLine,
   RiOrganizationChart,
   RiSettings3Line,
-  RiKey2Line,
-  RiBillLine,
-  RiPlugLine,
 } from 'react-icons/ri';
 
 export function sideNavItems(opts: {
@@ -254,77 +251,42 @@ export function sideNavItems(opts: {
       itemsClassName: 'space-y-1',
       items: [
         {
-          key: 'settings-overview',
-          name: 'General',
+          key: 'settings',
+          name: 'Settings',
           to: appRoutes.tenantSettingsOverviewRoute.to,
+          prefix: appRoutes.tenantSettingsLayoutRoute.to,
+          displayAsActiveWhenThisRouteIsMatched:
+            appRoutes.tenantSettingsLayoutRoute.to,
+          activeFuzzy: true,
+          // Also highlight while on organization settings pages; no params so
+          // it matches any organization
+          additionalActiveMatches: [
+            {
+              to: appRoutes.organizationSettingsLayoutRoute.to,
+              fuzzy: true,
+            },
+          ],
           icon: ({ collapsed }: { collapsed: boolean }) => (
             <RiSettings3Line
               className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
             />
           ),
         },
-        {
-          key: 'organization',
-          name: opts.isCloudEnabled ? 'Organization' : 'Tenants',
-          to:
-            opts.isCloudEnabled && opts.orgId
-              ? appRoutes.organizationsRoute.to
-              : appRoutes.tenantsRoute.to,
-          ...(opts.isCloudEnabled && opts.orgId
-            ? { params: { organization: opts.orgId } }
-            : { params: {} }),
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiOrganizationChart
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        {
-          key: 'settings-api-tokens',
-          name: 'API Tokens',
-          to: appRoutes.tenantSettingsApiTokensRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiKey2Line
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
-        ...(opts.canBill && opts.orgId
+        ...(!opts.isCloudEnabled
           ? [
               {
-                key: 'settings-billing',
-                name: 'Billing & Usage',
-                to: appRoutes.organizationBillingRoute.to,
-                params: { organization: opts.orgId },
+                key: 'tenants',
+                name: 'Tenants',
+                to: appRoutes.tenantsRoute.to,
+                params: {},
                 icon: ({ collapsed }: { collapsed: boolean }) => (
-                  <RiBillLine
+                  <RiOrganizationChart
                     className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
                   />
                 ),
               },
             ]
-          : [
-              {
-                key: 'settings-resource-limits',
-                name: 'Resource Limits',
-                to: appRoutes.tenantSettingsResourceLimitsRoute.to,
-                icon: ({ collapsed }: { collapsed: boolean }) => (
-                  <RiEqualizer3Line
-                    className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-                  />
-                ),
-              },
-            ]),
-        {
-          key: 'settings-integrations',
-          name: 'Integrations',
-          to: appRoutes.tenantSettingsIntegrationsRoute.to,
-          icon: ({ collapsed }: { collapsed: boolean }) => (
-            <RiPlugLine
-              className={collapsed ? 'size-5' : 'mr-2 size-4 shrink-0'}
-            />
-          ),
-        },
+          : []),
       ],
     },
   ];

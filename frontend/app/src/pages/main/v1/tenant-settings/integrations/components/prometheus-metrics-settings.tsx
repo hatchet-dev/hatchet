@@ -1,5 +1,4 @@
-import { UpgradeRequired } from '@/components/v1/cloud/upgrade-required';
-import { Button } from '@/components/v1/ui/button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Separator } from '@/components/v1/ui/separator';
@@ -11,7 +10,7 @@ import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { appRoutes } from '@/router';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 
 const CONFIG_DOCS_URL =
   'https://docs.hatchet.run/self-hosting/configuration-options';
@@ -142,9 +141,11 @@ function MetricsPreview({ tenantId }: { tenantId: string }) {
       {preview.isLoading ? (
         <Spinner />
       ) : preview.isError || !preview.data ? (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No metrics available yet. Once your workers report metrics, they will
-          appear here.
+        <div className="py-8">
+          <EmptyState
+            title="No metrics yet"
+            description="Once your workers start reporting metrics, a live preview will appear here."
+          />
         </div>
       ) : (
         <CodeHighlighter
@@ -228,22 +229,29 @@ SERVER_PROMETHEUS_SERVER_TENANT_SCOPED=true`}
 }
 
 function MetricsUpgrade({ organizationId }: { organizationId: string }) {
+  const navigate = useNavigate();
+
   return (
-    <UpgradeRequired
-      icon={<ChartBarIcon className="h-8 w-8 text-primary" />}
-      title="Unlock Prometheus metrics"
-      description="Prometheus metrics let you federate this tenant's metrics into your own dashboards and alerting. Upgrade your plan to enable this feature."
-      action={
-        <Link
-          to={appRoutes.organizationBillingRoute.to}
-          params={{ organization: organizationId }}
-          className="w-full"
-        >
-          <Button className="min-w-40 px-8 py-6 text-base" size="lg">
-            View plans
-          </Button>
-        </Link>
-      }
-    />
+    <div className="py-12">
+      <EmptyState
+        graphic={
+          <div className="rounded-full bg-primary/10 p-3">
+            <ChartBarIcon className="h-8 w-8 text-primary" />
+          </div>
+        }
+        title="Unlock Prometheus Metrics"
+        description="Prometheus metrics let you federate this tenant's metrics into your own dashboards and alerting. Upgrade your plan to enable this feature."
+        buttons={[
+          {
+            label: 'View plans',
+            onClick: () =>
+              navigate({
+                to: appRoutes.organizationBillingRoute.to,
+                params: { organization: organizationId },
+              }),
+          },
+        ]}
+      />
+    </div>
   );
 }

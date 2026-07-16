@@ -277,7 +277,7 @@ export class InternalWorker {
           backoffMaxSeconds:
             onFailure.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           isDurable: false,
-          slotRequests: { default: 1 },
+          slotRequests: mapSlotRequestsPb(onFailure, false),
         };
       }
 
@@ -402,8 +402,7 @@ export class InternalWorker {
           backoffMaxSeconds: task.backoff?.maxSeconds || workflow.taskDefaults?.backoff?.maxSeconds,
           conditions: taskConditionsToPb(task, this.client.config.namespace),
           isDurable: durableTaskSet.has(task),
-          slotRequests:
-            task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
+          slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency
@@ -1075,6 +1074,30 @@ function getLeaves(tasks: LeafableTask[]): LeafableTask[] {
 
 function isLeafTask(task: LeafableTask, allTasks: LeafableTask[]): boolean {
   return !allTasks.some((t) => t.parents?.some((p) => p.name === task.name));
+}
+
+/** Durable tasks stay on the durable pool; slotCost applies only to the default pool. */
+export function mapSlotRequestsPb(
+  task: { slotRequests?: Record<string, number>; slotCost?: number },
+  isDurable: boolean
+): Record<string, number> {
+  if (task.slotRequests) {
+    return task.slotRequests;
+  }
+
+  if (isDurable) {
+    return { durable: 1 };
+  }
+
+  if (task.slotCost !== undefined) {
+    if (!Number.isInteger(task.slotCost) || task.slotCost <= 0) {
+      throw new Error(`slotCost must be a positive integer, got: ${task.slotCost}`);
+    }
+
+    return { default: task.slotCost };
+  }
+
+  return { default: 1 };
 }
 
 export function mapRateLimitPb(
