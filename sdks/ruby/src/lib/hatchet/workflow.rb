@@ -214,9 +214,7 @@ module Hatchet
       args[:default_priority] = @default_priority if @default_priority
       args[:default_filters] = filter_protos unless filter_protos.empty?
 
-      if @idempotency
-        args[:idempotency] = @idempotency.to_proto
-      end
+      args[:idempotency] = @idempotency.to_proto if @idempotency
 
       ::V1::CreateWorkflowVersionRequest.new(**args)
     end
