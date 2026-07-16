@@ -13,16 +13,14 @@ class CronInput(BaseModel):
 # You can pass a `cron_input` to a workflow so that runs triggered by its
 # `on_crons` schedules receive a predefined input.
 
-cron_input_workflow = hatchet.workflow(
+
+@hatchet.task(
     name="CronInputWorkflow",
     input_validator=CronInput,
     on_crons=["* * * * *"],
     cron_input=CronInput(name="Hatchet"),
 )
-
-
-@cron_input_workflow.task()
-def greet(input: CronInput, ctx: Context) -> dict[str, str]:
+def cron_input_example_send_greeting(input: CronInput, ctx: Context) -> dict[str, str]:
     return {"message": f"Hello, {input.name}!"}
 
 
@@ -31,7 +29,8 @@ def greet(input: CronInput, ctx: Context) -> dict[str, str]:
 
 def main() -> None:
     worker = hatchet.worker(
-        "cron-input-worker", slots=1, workflows=[cron_input_workflow]
+        "cron-input-worker",
+        workflows=[cron_input_example_send_greeting],
     )
     worker.start()
 

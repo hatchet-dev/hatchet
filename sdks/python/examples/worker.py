@@ -20,7 +20,7 @@ from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
 from examples.conditions.worker import task_condition_workflow
-from examples.cron.cron_input import cron_input_workflow
+from examples.cron.cron_input import cron_input_example_send_greeting
 from examples.dag.worker import dag_workflow
 from examples.dataclasses.worker import say_hello
 from examples.dedupe.worker import dedupe_child_wf, dedupe_parent_wf
@@ -138,7 +138,7 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
-            cron_input_workflow,
+            cron_input_example_send_greeting,
             cancellation_workflow,
             sync_fanout_parent,
             sync_fanout_child,

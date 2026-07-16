@@ -1,18 +1,17 @@
 import pytest
 
-from examples.cron.cron_input import CronInput, cron_input_workflow
-from hatchet_sdk import Hatchet
+from examples.cron.cron_input import CronInput, cron_input_example_send_greeting
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
+async def test_cron_input_workflow_running_options() -> None:
     input = CronInput(name="Hatchet")
 
-    result = cron_input_workflow.run(input)
-    aio_result = await cron_input_workflow.aio_run(input)
+    result = cron_input_example_send_greeting.run(input)
+    aio_result = await cron_input_example_send_greeting.aio_run(input)
 
     for r in (result, aio_result):
-        assert r["greet"] == {"message": "Hello, Hatchet!"}
+        assert r == {"message": "Hello, Hatchet!"}
 
-    proto = cron_input_workflow.to_proto()
+    proto = cron_input_example_send_greeting.to_proto()
     assert proto.HasField("cron_input")
