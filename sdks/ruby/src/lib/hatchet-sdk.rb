@@ -27,6 +27,7 @@ module Hatchet
   require_relative "hatchet/engine_version"
   require_relative "hatchet/eviction_policy"
   require_relative "hatchet/concurrency"
+  require_relative "hatchet/idempotency"
   require_relative "hatchet/conditions"
   require_relative "hatchet/condition_converter"
   require_relative "hatchet/rate_limit"

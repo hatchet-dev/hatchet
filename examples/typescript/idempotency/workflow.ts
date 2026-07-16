@@ -10,6 +10,7 @@ export type IdempotencyInput = {
 export const idempotentTask = hatchet.task<IdempotencyInput, { result: string }>({
   name: 'ts-e2e-idempotent-task',
   idempotency: {
+    strategy: 'ttl',
     expression: 'input.id',
     ttlMs: 60_000,
   },
@@ -22,6 +23,7 @@ export const idempotentTask = hatchet.task<IdempotencyInput, { result: string }>
 export const idempotentTaskShortWindow = hatchet.task<IdempotencyInput, { result: string }>({
   name: 'ts-e2e-idempotent-task-short-window',
   idempotency: {
+    strategy: 'ttl',
     expression: 'input.id',
     ttlMs: 2_000,
   },
