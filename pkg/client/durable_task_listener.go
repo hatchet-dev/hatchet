@@ -70,8 +70,9 @@ type bufferedCompletion struct {
 }
 
 type durableTaskStreamResult struct {
-	err      error
-	terminal bool
+	err       error
+	connected bool
+	terminal  bool
 }
 
 // NonDeterminismError is returned by the engine when a durable task replay detects
@@ -403,12 +404,16 @@ func (l *DurableTaskListener) receiveLoop(ctx context.Context, done chan struct{
 			return
 		}
 
-		resetErr := errors.New("connection reset: stream ended")
+		if result.connected {
+			resetErr := errors.New("connection reset: stream ended")
+			if result.err != nil {
+				resetErr = fmt.Errorf("connection reset: %w", result.err)
+			}
+			l.failPendingAcks(resetErr)
+		}
 		if result.err != nil {
-			resetErr = fmt.Errorf("connection reset: %w", result.err)
 			l.l.Warn().Err(result.err).Msg("DurableTaskListener: stream ended, reconnecting")
 		}
-		l.failPendingAcks(resetErr)
 
 		if sleepErr := retry.Sleep(ctx, l.reconnectInterval); sleepErr != nil {
 			return
@@ -444,8 +449,9 @@ func (l *DurableTaskListener) handleStream(ctx context.Context) durableTaskStrea
 	}); err != nil {
 		cancelStream()
 		return durableTaskStreamResult{
-			err:      fmt.Errorf("failed to register worker on durable task stream: %w", err),
-			terminal: ctx.Err() != nil,
+			err:       fmt.Errorf("failed to register worker on durable task stream: %w", err),
+			connected: true,
+			terminal:  ctx.Err() != nil,
 		}
 	}
 
@@ -466,20 +472,22 @@ func (l *DurableTaskListener) handleStream(ctx context.Context) durableTaskStrea
 			select {
 			case sendErr := <-sendFailed:
 				return durableTaskStreamResult{
-					err:      sendErr,
-					terminal: ctx.Err() != nil,
+					err:       sendErr,
+					connected: true,
+					terminal:  ctx.Err() != nil,
 				}
 			default:
 			}
 			if ctx.Err() != nil {
-				return durableTaskStreamResult{err: ctx.Err(), terminal: true}
+				return durableTaskStreamResult{err: ctx.Err(), connected: true, terminal: true}
 			}
 			if errors.Is(err, io.EOF) {
-				return durableTaskStreamResult{}
+				return durableTaskStreamResult{connected: true}
 			}
 			return durableTaskStreamResult{
-				err:      err,
-				terminal: isGRPCCancelled(err),
+				err:       err,
+				connected: true,
+				terminal:  isGRPCCancelled(err),
 			}
 		}
 

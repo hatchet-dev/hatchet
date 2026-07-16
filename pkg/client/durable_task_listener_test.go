@@ -259,6 +259,72 @@ func TestFailPendingAcksClearsEventAcks(t *testing.T) {
 	assert.Equal(t, 0, h.listener.PendingEventAckCount())
 }
 
+func TestConnectFailurePreservesPendingAcksAndQueuedRequests(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	l := zerolog.Nop()
+	stream := newMockStream(ctx)
+	firstDialFailed := make(chan struct{})
+	attempts := 0
+	listener := NewDurableTaskListener(
+		"test-worker",
+		func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+			attempts++
+			if attempts == 1 {
+				close(firstDialFailed)
+				return nil, status.Error(codes.Unavailable, "down")
+			}
+			return stream, nil
+		},
+		&l,
+		WithReconnectInterval(100*time.Millisecond),
+	)
+
+	key := PendingAckKey{TaskID: "task1", SignalKey: 1}
+	ackCh := listener.AddPendingEventAck(key)
+	listener.SendRequest(&v1.DurableTaskRequest{
+		Message: &v1.DurableTaskRequest_TriggerRuns{
+			TriggerRuns: &v1.DurableTaskTriggerRunsRequest{
+				DurableTaskExternalId: key.TaskID,
+				InvocationCount:       int32(key.SignalKey),
+			},
+		},
+	})
+
+	listener.Start(ctx)
+	defer listener.Stop()
+	<-firstDialFailed
+
+	select {
+	case result := <-ackCh:
+		t.Fatalf("pending ack failed before its request was sent: %v", result.Err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	require.NotNil(t, awaitRequest(t, stream).GetRegisterWorker())
+	sent := awaitRequest(t, stream).GetTriggerRuns()
+	require.NotNil(t, sent)
+	assert.Equal(t, key.TaskID, sent.GetDurableTaskExternalId())
+	assert.Equal(t, int32(key.SignalKey), sent.GetInvocationCount())
+
+	stream.recvCh <- &v1.DurableTaskResponse{
+		Message: &v1.DurableTaskResponse_TriggerRunsAck{
+			TriggerRunsAck: &v1.DurableTaskEventTriggerRunsAckResponse{
+				DurableTaskExternalId: key.TaskID,
+				InvocationCount:       int32(key.SignalKey),
+			},
+		},
+	}
+
+	select {
+	case result := <-ackCh:
+		require.NoError(t, result.Err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ack after reconnect")
+	}
+}
+
 // --- Pending callbacks survive disconnect ---
 
 func TestPendingCallbacksSurviveDisconnect(t *testing.T) {
