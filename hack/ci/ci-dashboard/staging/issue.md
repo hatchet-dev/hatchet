@@ -1,51 +1,51 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-15T07:09:20Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-16T07:09:24Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 82% (2087/2549) · main: 68% (76/112)
+**Gating-CI pass rate** — PR: 82% (2123/2583) · main: 68% (84/123)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+  x-axis [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [78, 85, 76, 95, 85, 81, 84, 86, 76, 83, 96, 97, 78, 82, 83]
-  line "main" [67, 53, 67, 67, 67, 100, 67, 60, 36, 100, 100, 100, 67, 89, 89]
+  line "CI" [84, 76, 95, 85, 81, 84, 86, 76, 83, 96, 97, 78, 81, 84, 95]
+  line "main" [53, 67, 67, 67, 100, 67, 60, 36, 100, 100, 100, 67, 89, 71, 71]
 ```
 
-_X-axis = day of month (Jul 01 → Jul 15). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jul 02 → Jul 16). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `unit` | test | 12 | 0 | 54 | 22% | flaky | main + PR | **flaky test** — scheduler latency assertion exceeds 2.1s threshold intermittently on CI (observed 2.19s) |
-| 2 | `old-engine-new-sdk` | ruby | 10 | 0 | 19 | 53% | flaky | PR | **infra/CI** — Ruby bundle install fails in frozen mode when gemspecs change without Gemfile.lock update on PR branches |
-| 3 | `integration` | test | 7 | 0 | 54 | 13% | flaky | PR | **data/env** — integration test setup uses invalid SERVER_AUTH_COOKIE_SECRETS key size (9 bytes) |
-| 4 | `generate` | test | 6 | 0 | 54 | 11% | flaky | PR | **infra/CI** — generate job Check for diff fails: openapi.gen.go drift from idempotency_keys changes |
-| 5 | `e2e-pgmq` | test | 6 | 0 | 54 | 11% | flaky | PR | **infra/CI** — e2e-pgmq job times out waiting for Hatchet engine/API readiness |
-| 6 | `rampup` | test | 6 | 0 | 54 | 11% | flaky | PR | **product bug** — rampup tests fail to compile: workflow_runs transformer references unknown IdempotencyKey field |
-| 7 | `e2e` | test | 6 | 0 | 54 | 11% | flaky | PR | **infra/CI** — e2e job times out waiting for Hatchet engine/API readiness |
-| 8 | `cypress` | frontend / app | 5 | 0 | 34 | 15% | flaky | PR | **infra/CI** — Cypress cannot connect to local engine on 127.0.0.1:8733 during startup wait |
-| 9 | `load` | test | 5 | 0 | 54 | 9% | flaky | PR | **product bug** — load tests fail to compile: workflow_runs transformer references unknown IdempotencyKey field |
-| 10 | `lite-amd` | build | 4 | 0 | 49 | 8% | flaky | PR | **infra/CI** — lite-amd Docker build fails on Alpine apk mirror TLS errors and missing local image |
+| 1 | `unit` | test | 7 | 0 | 39 | 18% | flaky | main + PR | **flaky test** — Scheduler unit test latency threshold flake (2.107s vs 2.1s max on replenish timeouts) |
+| 2 | `build` | frontend / app | 4 | 0 | 19 | 21% | flaky | PR | **product bug** — Frontend org-invites TypeScript errors (Organization union mismatch in new-organization-saver-form) |
+| 3 | `authdisabled` | build | 4 | 0 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during dashboard (authdisabled) image build |
+| 4 | `frontend` | build | 4 | 0 | 29 | 14% | flaky | PR | **product bug** — Frontend org-invites TypeScript errors (Organization union mismatch in new-organization-saver-form) |
+| 5 | `lite-amd` | build | 4 | 0 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors (org-invites API/type drift), not Alpine apk |
+| 6 | `dashboard-amd` | build | 4 | 0 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during dashboard-amd image build |
+| 7 | `lite-arm` | build | 4 | 0 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during lite-arm image build |
+| 8 | `dashboard-arm` | build | 4 | 0 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during dashboard-arm image build |
+| 9 | `integration` | test | 3 | 0 | 39 | 8% | flaky | PR | **product bug** — Scheduling integration test hits NOT NULL violation on v1_task.is_dag_orchestrator column |
+| 10 | `generate` | test | 3 | 0 | 39 | 8% | flaky | PR | **infra/CI** — generate job Check for diff fails (committed generated/prettier output drift) |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `(unparsed)` | `old-engine-new-sdk` | 9 | 19 | 47% | flaky | PR | **infra/CI** — Ruby bundle install fails in frozen mode when gemspecs change without Gemfile.lock update on PR branches |
-| 2 | `(unparsed)` | `test` | 9 | 19 | 47% | flaky | PR | **infra/CI** — Ruby examples bundle install fails in frozen mode after gemspec changes without lockfile update |
-| 3 | `TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts` | `unit` | 7 | 54 | 13% | flaky | main + PR | **flaky test** — scheduler latency assertion exceeds 2.1s threshold intermittently on CI (observed 2.19s) |
-| 4 | `(unparsed)` | `lint` | 6 | 40 | 15% | flaky | PR | **infra/CI** — TypeScript lint fails on prettier formatting drift in generated SDK types |
-| 5 | `(unparsed)` | `generate` | 6 | 54 | 11% | flaky | PR | **infra/CI** — generate job Check for diff fails: openapi.gen.go drift from idempotency_keys changes |
-| 6 | `(unparsed)` | `cypress` | 5 | 34 | 15% | flaky | PR | **infra/CI** — Cypress cannot connect to local engine on 127.0.0.1:8733 during startup wait |
-| 7 | `(unparsed)` | `e2e` | 5 | 54 | 9% | flaky | PR | **infra/CI** — e2e job times out waiting for Hatchet engine/API readiness |
-| 8 | `(unparsed)` | `rampup` | 5 | 54 | 9% | flaky | PR | **product bug** — rampup tests fail to compile: workflow_runs transformer references unknown IdempotencyKey field |
-| 9 | `(unparsed)` | `load` | 5 | 54 | 9% | flaky | PR | **product bug** — load tests fail to compile: workflow_runs transformer references unknown IdempotencyKey field |
-| 10 | `(unparsed)` | `e2e-pgmq` | 5 | 54 | 9% | flaky | PR | **infra/CI** — e2e-pgmq job times out waiting for Hatchet engine/API readiness |
+| 1 | `TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts` | `unit` | 6 | 39 | 15% | flaky | main + PR | **flaky test** — Scheduler unit test latency threshold flake (2.107s vs 2.1s max on replenish timeouts) |
+| 2 | `(unparsed)` | `test` | 4 | 8 | 50% | flaky | PR | **infra/CI** — Ruby examples bundle install fails in frozen mode (Gemfile.lock out of sync) |
+| 3 | `(unparsed)` | `build` | 4 | 19 | 21% | flaky | PR | **product bug** — Frontend org-invites TypeScript errors (Organization union mismatch in new-organization-saver-form) |
+| 4 | `(unparsed)` | `authdisabled` | 4 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during dashboard (authdisabled) image build |
+| 5 | `(unparsed)` | `dashboard-arm` | 4 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during dashboard-arm image build |
+| 6 | `(unparsed)` | `frontend` | 4 | 29 | 14% | flaky | PR | **product bug** — Frontend org-invites TypeScript errors (Organization union mismatch in new-organization-saver-form) |
+| 7 | `(unparsed)` | `lite-amd` | 4 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors (org-invites API/type drift), not Alpine apk |
+| 8 | `(unparsed)` | `dashboard-amd` | 4 | 29 | 14% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during dashboard-amd image build |
+| 9 | `(unparsed)` | `lint` | 3 | 23 | 13% | flaky | PR | **infra/CI** — TypeScript SDK lint fails prettier/prettier on durable task event union formatting |
+| 10 | `(unparsed)` | `lite-arm` | 3 | 29 | 10% | flaky | PR | **product bug** — Docker build fails on frontend TS compile errors during lite-arm image build |
 
 ## Recent CI-health wins (`ci-health`)
 
