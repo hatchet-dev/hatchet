@@ -1,7 +1,7 @@
 import { formatDuration, formatTimestamp } from '../utils/format-utils';
 import {
   getSpanColor,
-  getSpanDisplayLabel,
+  getSpanIdentityLabel,
   effectiveStatusLabel,
   isEngineSpan,
   isQueuedEngineSpan,
@@ -64,7 +64,7 @@ export function SpanTooltip({
     ? Math.max(0, now - startMs)
     : span.durationNs / 1_000_000;
 
-  const displayName = getSpanDisplayLabel(span);
+  const identityLabel = getSpanIdentityLabel(span);
   const started = formatTimestamp(span.createdAt, { ms: true });
   const q = span.queuedPhase;
 
@@ -75,11 +75,7 @@ export function SpanTooltip({
   }
 
   return (
-    <TooltipShell
-      title={displayName}
-      subtitle={displayName !== span.spanName ? span.spanName : undefined}
-      style={style}
-    >
+    <TooltipShell title={span.spanName} subtitle={identityLabel} style={style}>
       {q ? (
         <>
           <span className="text-muted-foreground">Queue Time</span>

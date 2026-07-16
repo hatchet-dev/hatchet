@@ -1,6 +1,6 @@
 import {
   getSpanAttributeLabel,
-  getSpanDisplayLabel,
+  getSpanIdentityParts,
   isEngineSpan,
 } from '../utils/span-tree-utils';
 import {
@@ -238,12 +238,12 @@ export const TimelineLabels = memo(function TimelineLabels({
         }
 
         const isSelected = selectedSpan?.spanId === row.span.spanId;
-        const displayName = getSpanDisplayLabel(row.span);
-        // On step-run rows the badge would repeat the primary label, so show it
-        // only when it differs.
-        const attributeLabel = getSpanAttributeLabel(row.span);
-        const showAttributeLabel =
-          !!attributeLabel && attributeLabel !== displayName;
+        const displayName = row.span.spanName;
+        const identity = getSpanIdentityParts(row.span);
+        const contextLabel = identity
+          ? undefined
+          : getSpanAttributeLabel(row.span);
+        const showContextLabel = !!contextLabel && contextLabel !== displayName;
 
         return (
           <LabelRow
@@ -292,15 +292,36 @@ export const TimelineLabels = memo(function TimelineLabels({
                 <TooltipContent>{displayName}</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            {showAttributeLabel && (
+            {identity && (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="ml-1.5 flex min-w-0 items-center gap-1 rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground">
+                      <span className="truncate">{identity.label}</span>
+                      {identity.discriminator && (
+                        <span className="shrink-0">
+                          {identity.discriminator}
+                        </span>
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {identity.discriminator
+                      ? `${identity.label} ${identity.discriminator}`
+                      : identity.label}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {showContextLabel && (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="ml-1.5 truncate rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
-                      {attributeLabel}
+                      {contextLabel}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent>{attributeLabel}</TooltipContent>
+                  <TooltipContent>{contextLabel}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}

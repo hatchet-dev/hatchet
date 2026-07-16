@@ -1,7 +1,7 @@
 import {
   getSpanAttributeLabel,
-  getSpanDisplayLabel,
-  getSpanGroupLabel,
+  getSpanIdentityLabel,
+  getSpanIdentityParts,
   isSpanError,
 } from './span-tree-utils';
 import type { OtelSpanTree } from '@/components/v1/agent-prism/span-tree-type';
@@ -25,51 +25,48 @@ function node(
   };
 }
 
-describe('getSpanDisplayLabel', () => {
-  test('workflow-run spans that share a display name stay distinguishable by run id', () => {
-    const shared = 'repro-child-1784075658981';
-    const a = node('hatchet.engine.workflow_run', {
-      'hatchet.workflow_name': shared,
+describe('getSpanIdentityParts', () => {
+  test('a workflow-run span gets the workflow name with a short run id discriminator', () => {
+    const span = node('hatchet.engine.workflow_run', {
+      'hatchet.workflow_name': 'repro-child-1784075658981',
       'hatchet.workflow_run_id': '11111111-aaaa-bbbb-cccc-222222222222',
     });
-    const b = node('hatchet.engine.workflow_run', {
-      'hatchet.workflow_name': shared,
-      'hatchet.workflow_run_id': '33333333-dddd-eeee-ffff-444444444444',
-    });
 
-    assert.notStrictEqual(getSpanDisplayLabel(a), getSpanDisplayLabel(b));
-    assert.strictEqual(getSpanDisplayLabel(a), `${shared} (11111111)`);
-    assert.strictEqual(getSpanDisplayLabel(b), `${shared} (33333333)`);
+    assert.deepStrictEqual(getSpanIdentityParts(span), {
+      label: 'repro-child-1784075658981',
+      discriminator: '(11111111)',
+    });
   });
 
-  test('a retried step-run row shows the task name with the retry number', () => {
+  test('a retried step-run span gets a retry discriminator, the base attempt none', () => {
     const base = node('hatchet.engine.start_step_run', {
       'hatchet.task_name': 'retry-repro',
       'hatchet.retry_count': '0',
-    });
-    const retry1 = node('hatchet.engine.start_step_run', {
-      'hatchet.task_name': 'retry-repro',
-      'hatchet.retry_count': '1',
     });
     const retry2 = node('hatchet.engine.start_step_run', {
       'hatchet.task_name': 'retry-repro',
       'hatchet.retry_count': '2',
     });
 
-    assert.strictEqual(getSpanDisplayLabel(base), 'retry-repro');
-    assert.strictEqual(getSpanDisplayLabel(retry1), 'retry-repro (retry 1)');
-    assert.strictEqual(getSpanDisplayLabel(retry2), 'retry-repro (retry 2)');
+    assert.deepStrictEqual(getSpanIdentityParts(base), {
+      label: 'retry-repro',
+      discriminator: undefined,
+    });
+    assert.deepStrictEqual(getSpanIdentityParts(retry2), {
+      label: 'retry-repro',
+      discriminator: '(retry 2)',
+    });
   });
 
-  test('step-run span without a task name falls back to the step name', () => {
+  test('a step-run span without a task name falls back to the step name', () => {
     const span = node('hatchet.start_step_run', {
       'hatchet.step_name': 'send-email',
     });
 
-    assert.strictEqual(getSpanDisplayLabel(span), 'send-email');
+    assert.strictEqual(getSpanIdentityParts(span)?.label, 'send-email');
   });
 
-  test('engine event rows show the event key with a short event id', () => {
+  test('engine event spans get the event key with a short event id discriminator', () => {
     const received = node('hatchet.engine.event', {
       'hatchet.event_key': 'user:created',
       'hatchet.event_id': 'aaaaaaaa-1111-2222-3333-444444444444',
@@ -79,52 +76,48 @@ describe('getSpanDisplayLabel', () => {
       'hatchet.event_id': '11111111-aaaa-bbbb-cccc-222222222222',
     });
 
-    assert.strictEqual(
-      getSpanDisplayLabel(received),
-      'user:created (aaaaaaaa)',
-    );
-    assert.strictEqual(getSpanDisplayLabel(emitted), 'order:placed (11111111)');
+    assert.deepStrictEqual(getSpanIdentityParts(received), {
+      label: 'user:created',
+      discriminator: '(aaaaaaaa)',
+    });
+    assert.deepStrictEqual(getSpanIdentityParts(emitted), {
+      label: 'order:placed',
+      discriminator: '(11111111)',
+    });
   });
 
-  test('application/custom spans keep their own span name', () => {
+  test('application/custom spans have no identity, even with task context attributes', () => {
     const span = node('inventory.check-availability', {
-      'my.custom.attr': 'value',
+      'hatchet.task_name': 'process-message',
+      'hatchet.step_name': 'process-message',
     });
 
-    assert.strictEqual(
-      getSpanDisplayLabel(span),
-      'inventory.check-availability',
-    );
+    assert.strictEqual(getSpanIdentityParts(span), undefined);
   });
 });
 
-describe('getSpanGroupLabel', () => {
-  test('workflow-run groups read as "workflow runs"', () => {
-    assert.strictEqual(
-      getSpanGroupLabel('hatchet.engine.workflow_run'),
-      'workflow runs',
-    );
-  });
+describe('getSpanIdentityLabel', () => {
+  test('joins the label and discriminator for tooltip text', () => {
+    const withDiscriminator = node('hatchet.engine.workflow_run', {
+      'hatchet.workflow_name': 'repro-parent',
+      'hatchet.workflow_run_id': '11111111-aaaa-bbbb-cccc-222222222222',
+    });
+    const withoutDiscriminator = node('hatchet.engine.start_step_run', {
+      'hatchet.task_name': 'retry-repro',
+      'hatchet.retry_count': '0',
+    });
 
-  test('step-run groups read as "tasks", engine and sdk alike', () => {
     assert.strictEqual(
-      getSpanGroupLabel('hatchet.engine.start_step_run'),
-      'tasks',
+      getSpanIdentityLabel(withDiscriminator),
+      'repro-parent (11111111)',
     );
-    assert.strictEqual(getSpanGroupLabel('hatchet.start_step_run'), 'tasks');
-  });
-
-  test('emitted-event groups read as "emitted events"', () => {
     assert.strictEqual(
-      getSpanGroupLabel('hatchet.engine.event_emitted'),
-      'emitted events',
+      getSpanIdentityLabel(withoutDiscriminator),
+      'retry-repro',
     );
-  });
-
-  test('unknown span names keep their own name', () => {
     assert.strictEqual(
-      getSpanGroupLabel('inventory.check-availability'),
-      'inventory.check-availability',
+      getSpanIdentityLabel(node('inventory.check-availability')),
+      undefined,
     );
   });
 });

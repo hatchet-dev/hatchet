@@ -76,22 +76,35 @@ export function getSpanAttributeLabel(span: OtelSpanTree): string | undefined {
   );
 }
 
+export type SpanIdentity = {
+  label: string;
+  /**
+   * Distinguishes same-named sibling rows and stays visible when the label
+   * truncates.
+   */
+  discriminator?: string;
+};
+
 /**
- * A workflow-run label gets a short run id appended because run display names are
- * not unique across concurrent runs. A retried task renders one row per attempt
- * with the same task name, so the retry number is appended to tell them apart.
- * An event row shows its event key, with a short event id appended because a
- * single task can emit the same event key more than once.
- * The raw span name stays visible in the detail panel and the tooltip subtitle.
+ * The Hatchet identity behind a span, shown as a badge next to the span name.
+ * Returns undefined for spans with no Hatchet identity, such as application
+ * spans.
  */
-export function getSpanDisplayLabel(span: OtelSpanTree): string {
+export function getSpanIdentityParts(
+  span: OtelSpanTree,
+): SpanIdentity | undefined {
   if (isStartStepRunSpan(span)) {
     const name =
       span.spanAttributes?.[ATTR.TASK_NAME] ??
-      span.spanAttributes?.[ATTR.STEP_NAME] ??
-      span.spanName;
-    const retryCount = Number(span.spanAttributes?.[ATTR.RETRY_COUNT]);
-    return retryCount > 0 ? `${name} (retry ${retryCount})` : name;
+      span.spanAttributes?.[ATTR.STEP_NAME];
+    if (name) {
+      const retryCount = Number(span.spanAttributes?.[ATTR.RETRY_COUNT]);
+      return {
+        label: name,
+        discriminator: retryCount > 0 ? `(retry ${retryCount})` : undefined,
+      };
+    }
+    return undefined;
   }
 
   if (span.spanName === SPAN.ENGINE_WORKFLOW_RUN) {
@@ -99,8 +112,12 @@ export function getSpanDisplayLabel(span: OtelSpanTree): string {
     if (workflowName) {
       const shortId =
         span.spanAttributes?.[ATTR.WORKFLOW_RUN_ID]?.split('-')[0];
-      return shortId ? `${workflowName} (${shortId})` : workflowName;
+      return {
+        label: workflowName,
+        discriminator: shortId ? `(${shortId})` : undefined,
+      };
     }
+    return undefined;
   }
 
   if (
@@ -110,29 +127,25 @@ export function getSpanDisplayLabel(span: OtelSpanTree): string {
     const eventKey = span.spanAttributes?.[ATTR.EVENT_KEY];
     if (eventKey) {
       const shortId = span.spanAttributes?.[ATTR.EVENT_ID]?.split('-')[0];
-      return shortId ? `${eventKey} (${shortId})` : eventKey;
+      return {
+        label: eventKey,
+        discriminator: shortId ? `(${shortId})` : undefined,
+      };
     }
+    return undefined;
   }
 
-  return span.spanName;
+  return undefined;
 }
 
-/**
- * Groups stay keyed by the raw span name, so this changes only the header text,
- * not how spans are grouped.
- */
-export function getSpanGroupLabel(spanName: string): string {
-  switch (spanName) {
-    case SPAN.ENGINE_WORKFLOW_RUN:
-      return 'workflow runs';
-    case SPAN.ENGINE_START_STEP_RUN:
-    case SPAN.START_STEP_RUN:
-      return 'tasks';
-    case SPAN.ENGINE_EVENT_EMITTED:
-      return 'emitted events';
-    default:
-      return spanName;
+export function getSpanIdentityLabel(span: OtelSpanTree): string | undefined {
+  const identity = getSpanIdentityParts(span);
+  if (!identity) {
+    return undefined;
   }
+  return identity.discriminator
+    ? `${identity.label} ${identity.discriminator}`
+    : identity.label;
 }
 
 export function getStableKey(span: OtelSpanTree): string {
