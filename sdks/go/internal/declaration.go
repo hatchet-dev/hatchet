@@ -318,6 +318,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           opts.WorkerLabels,
 			Concurrency:            opts.Concurrency,
+			SlotCost:               opts.SlotCost,
 		},
 	}
 

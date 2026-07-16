@@ -176,6 +176,17 @@ export type CreateBaseTaskOpts<
    */
   concurrency?: Concurrency | Concurrency[];
 
+  /**
+   * (optional) the number of default worker slots this task consumes.
+   *
+   * A worker has a fixed number of slots (default 100), and a normal task consumes one. Set slotCost
+   * higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single
+   * worker must have that many free slots to run it. Not available on durable tasks.
+   *
+   * default: 1
+   */
+  slotCost?: number;
+
   /** @internal */
   slotRequests?: Record<string, number>;
 };
@@ -256,7 +267,7 @@ export type CreateWorkflowDurableTaskOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
   C extends DurableTaskFn<I, O> = DurableTaskFn<I, O>,
-> = CreateWorkflowTaskOpts<I, O, C> & {
+> = Omit<CreateWorkflowTaskOpts<I, O, C>, 'slotCost'> & {
   /**
    * Eviction policy for the durable task. Controls TTL-based eviction and capacity-based eviction.
    * Defaults to the built-in eviction policy when omitted or `undefined`.
