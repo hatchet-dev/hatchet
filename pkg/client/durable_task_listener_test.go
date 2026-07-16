@@ -295,15 +295,18 @@ func TestPendingCallbackRecoveredFromWorkerStatusAfterReconnect(t *testing.T) {
 	first := h.addHangingStream(ctx)
 	second := h.addHangingStream(ctx)
 	key := PendingCallbackKey{TaskID: "task1", SignalKey: 2, BranchID: 3, NodeID: 4}
+	// Pending callbacks must survive stream generation so waits can be reconciled after reconnect.
 	callbackCh := h.listener.AddPendingCallback(key)
 
 	h.listener.Start(ctx)
 	defer h.listener.Stop()
 
 	require.NotNil(t, awaitRequest(t, first).GetRegisterWorker())
+	// EOF drops the old stream's direct-delivery mapping; the wait must not be lost with it.
 	close(first.recvCh)
 
 	require.NotNil(t, awaitRequest(t, second).GetRegisterWorker())
+	// Replacement stream reports the exact wait key so the engine can replay a persisted completion.
 	statusReq := awaitRequest(t, second).GetWorkerStatus()
 	require.NotNil(t, statusReq)
 	require.Len(t, statusReq.GetWaitingEntries(), 1)
@@ -313,6 +316,7 @@ func TestPendingCallbackRecoveredFromWorkerStatusAfterReconnect(t *testing.T) {
 	assert.Equal(t, key.BranchID, waiting.GetBranchId())
 	assert.Equal(t, key.NodeID, waiting.GetNodeId())
 
+	// Injected EntryCompleted models the engine recovery path after WorkerStatus reconciliation.
 	second.recvCh <- &v1.DurableTaskResponse{
 		Message: &v1.DurableTaskResponse_EntryCompleted{
 			EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{
