@@ -26,8 +26,6 @@ import {
   DurableTaskFn,
   WorkerLabelComparator,
   IdempotencyConfig,
-  TTLBasedIdempotencyConfig,
-  BaseIdempotencyConfig,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
