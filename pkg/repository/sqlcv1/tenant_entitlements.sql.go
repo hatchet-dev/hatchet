@@ -29,7 +29,7 @@ func (q *Queries) AnyTenantHasAuditLogs(ctx context.Context, db DBTX, tenantids 
 }
 
 const getTenantEntitlement = `-- name: GetTenantEntitlement :one
-SELECT tenant_id, audit_logs, prometheus_metrics, created_at, updated_at
+SELECT tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, created_at, updated_at
 FROM tenant_entitlement
 WHERE tenant_id = $1::uuid
 `
@@ -41,6 +41,7 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 		&i.TenantID,
 		&i.AuditLogs,
 		&i.PrometheusMetrics,
+		&i.StrictAdditionalMetadataFilters,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -48,29 +49,37 @@ func (q *Queries) GetTenantEntitlement(ctx context.Context, db DBTX, tenantid uu
 }
 
 const upsertTenantEntitlement = `-- name: UpsertTenantEntitlement :one
-INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics)
-VALUES ($1::uuid, $2::boolean, $3::boolean)
+INSERT INTO tenant_entitlement (tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters)
+VALUES ($1::uuid, $2::boolean, $3::boolean, $4::boolean)
 ON CONFLICT (tenant_id) DO UPDATE
 SET
     audit_logs = EXCLUDED.audit_logs,
     prometheus_metrics = EXCLUDED.prometheus_metrics,
+    strict_additional_metadata_filters = EXCLUDED.strict_additional_metadata_filters,
     updated_at = NOW()
-RETURNING tenant_id, audit_logs, prometheus_metrics, created_at, updated_at
+RETURNING tenant_id, audit_logs, prometheus_metrics, strict_additional_metadata_filters, created_at, updated_at
 `
 
 type UpsertTenantEntitlementParams struct {
-	Tenantid          uuid.UUID `json:"tenantid"`
-	Auditlogs         bool      `json:"auditlogs"`
-	Prometheusmetrics bool      `json:"prometheusmetrics"`
+	Tenantid                        uuid.UUID `json:"tenantid"`
+	Auditlogs                       bool      `json:"auditlogs"`
+	Prometheusmetrics               bool      `json:"prometheusmetrics"`
+	Strictadditionalmetadatafilters bool      `json:"strictadditionalmetadatafilters"`
 }
 
 func (q *Queries) UpsertTenantEntitlement(ctx context.Context, db DBTX, arg UpsertTenantEntitlementParams) (*TenantEntitlement, error) {
-	row := db.QueryRow(ctx, upsertTenantEntitlement, arg.Tenantid, arg.Auditlogs, arg.Prometheusmetrics)
+	row := db.QueryRow(ctx, upsertTenantEntitlement,
+		arg.Tenantid,
+		arg.Auditlogs,
+		arg.Prometheusmetrics,
+		arg.Strictadditionalmetadatafilters,
+	)
 	var i TenantEntitlement
 	err := row.Scan(
 		&i.TenantID,
 		&i.AuditLogs,
 		&i.PrometheusMetrics,
+		&i.StrictAdditionalMetadataFilters,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

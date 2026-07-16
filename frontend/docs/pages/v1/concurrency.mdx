@@ -23,6 +23,13 @@ You should primarily use concurrency control when you need to ensure fair access
 
 Concurrency control also lets you limit the number of runs for a workflow globally, if you use a static CEL expression, such as `'global'`. This and [rate limiting](./rate-limits.mdx) are the recommended mechanisms for setting per-workflow throughput limits.
 
+<Callout type="info">
+  Concurrency limits how many runs happen at once. To instead control how much
+  of a worker's capacity a single run consumes, so a heavy task takes up more
+  slots than a light one, see [Task Slot
+  Cost](./advanced-assignment/slot-cost.mdx).
+</Callout>
+
 ## Available Strategies:
 
 - [**Group Round Robin**](#group-round-robin) queues incoming task and workflow runs and only dispatches them to workers and triggers them once an available slot is open.

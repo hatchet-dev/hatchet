@@ -65,6 +65,10 @@ type WorkflowTask[I, O any] struct {
 	Parents []NamedTask
 
 	DefaultPriority *int32
+
+	// (optional) SlotCost is the number of default worker slots this task consumes. Defaults to one.
+	// Durable tasks ignore it.
+	SlotCost *int32
 }
 
 type WorkflowOnFailureTask[I, O any] struct {
