@@ -362,6 +362,8 @@ V1TaskStatus:
   $ref: "./v1/task.yaml#/V1TaskStatus"
 V1RunningFilter:
   $ref: "./v1/task.yaml#/V1RunningFilter"
+V1AdditionalMetadataOperator:
+  $ref: "./v1/task.yaml#/V1AdditionalMetadataOperator"
 V1RunningDetailCount:
   $ref: "./v1/task.yaml#/V1RunningDetailCount"
 V1TaskRunMetrics:
