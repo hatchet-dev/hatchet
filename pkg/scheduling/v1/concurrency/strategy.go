@@ -105,7 +105,7 @@ func NewConcurrencyStrategy(
 		strategy:  strategy,
 		repo:      repo,
 		l:         l,
-		compare:   priorityCompare,
+		compare:   comparatorForStrategy(strategy.Strategy),
 		outbox:    outbox,
 		topic:     getTopic(strategy),
 		built:     make(chan struct{}),
@@ -494,11 +494,22 @@ func (c *ConcurrencyStrategy) processWALMessages(ctx context.Context, tx pgx.Tx,
 // Timed-out queued slots are handled by the shared pipeline and are not passed here.
 type decideFn func(sq *subQueue) (toFill, toCancel []slot)
 
+// comparatorForStrategy selects the slot ordering for a strategy kind. GROUP_ROUND_ROBIN and
+// CANCEL_NEWEST keep the oldest among equal-priority slots (priorityCompare); CANCEL_IN_PROGRESS
+// keeps the newest (cancelInProgressCompare), so a newer arrival preempts an older run. "Smaller"
+// under the chosen comparator always means "should run".
+func comparatorForStrategy(kind sqlcv1.V1ConcurrencyStrategy) func(a, b slot) int {
+	if kind == sqlcv1.V1ConcurrencyStrategyCANCELINPROGRESS {
+		return cancelInProgressCompare
+	}
+	return priorityCompare
+}
+
 // decide selects the per-sub-queue decision function for this strategy's kind. All three fill free
-// capacity from the queued backlog in priorityCompare order; they differ in what happens to the
-// slots that don't fit: GROUP_ROUND_ROBIN leaves them queued, CANCEL_NEWEST cancels them (reject the
+// capacity from the queued backlog in comparator order; they differ in what happens to the slots
+// that don't fit: GROUP_ROUND_ROBIN leaves them queued, CANCEL_NEWEST cancels them (reject the
 // newest arrivals, never touch running work), and CANCEL_IN_PROGRESS cancels them too but may also
-// preempt a running slot when a higher-priority slot is waiting.
+// preempt a running slot when a higher-priority-or-newer slot is waiting.
 func (c *ConcurrencyStrategy) decide() decideFn {
 	switch c.strategy.Strategy {
 	case sqlcv1.V1ConcurrencyStrategyGROUPROUNDROBIN:
