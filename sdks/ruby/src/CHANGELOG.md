@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-03
+
+### Added
+
+- Adds support for defining **idempotency keys** on workflows and standalone tasks via an `idempotency` option, which ensures that they're only run once in a provided time window, based on a CEL expression. Triggers that collide with an existing run raise an `IdempotencyCollisionError` containing the existing run's ID.
+
 ## [0.3.1] - 2026-06-12
 
 ### Fixed

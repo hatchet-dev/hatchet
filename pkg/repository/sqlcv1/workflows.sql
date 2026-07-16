@@ -121,7 +121,9 @@ INSERT INTO "WorkflowVersion" (
     "kind",
     "defaultPriority",
     "createWorkflowVersionOpts",
-    "inputJsonSchema"
+    "inputJsonSchema",
+    "idempotencyKeyExpression",
+    "idempotencyKeyTtlMs"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -136,7 +138,9 @@ INSERT INTO "WorkflowVersion" (
     coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
     sqlc.narg('defaultPriority') :: integer,
     sqlc.narg('createWorkflowVersionOpts')::jsonb,
-    sqlc.narg('inputJsonSchema')::jsonb
+    sqlc.narg('inputJsonSchema')::jsonb,
+    sqlc.narg('idempotencyKeyExpression')::text,
+    sqlc.narg('idempotencyKeyTtlMs')::bigint
 ) RETURNING *;
 
 -- name: CreateJob :one

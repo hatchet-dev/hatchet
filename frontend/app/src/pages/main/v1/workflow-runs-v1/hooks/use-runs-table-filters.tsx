@@ -9,6 +9,7 @@ import {
   isCustomTimeRangeKey,
   timeWindowKey,
   runningFilterKey,
+  idempotencyKeyKey,
 } from '../components/v1/task-runs-columns';
 import { useZodColumnFilters } from '@/hooks/use-zod-column-filters';
 import {
@@ -54,6 +55,7 @@ type APIFilters = {
   additionalMetadataOperator: V1AdditionalMetadataOperator;
   flattenDAGs: boolean;
   runningFilter?: V1RunningFilter;
+  idempotencyKeys?: string[];
 };
 
 export type FilterActions = {
@@ -65,6 +67,7 @@ export type FilterActions = {
   updateCurrentTimeWindow: () => void;
   setStatuses: (statuses: V1TaskStatus[]) => void;
   setAdditionalMetadata: (metadata: AdditionalMetadataProp) => void;
+  setIdempotencyKey: (idempotencyKey: string) => void;
   setAdditionalMetadataOperator: (
     operator: V1AdditionalMetadataOperator,
   ) => void;
@@ -95,6 +98,7 @@ const createApiFilterSchema = (initialValues?: { workflowIds?: string[] }) =>
       .default(V1AdditionalMetadataOperator.AND),
     f: z.boolean().default(false), // flatten dags
     rf: z.nativeEnum(V1RunningFilter).optional(), // running sub-filter (undefined = ALL)
+    i: z.array(z.string()).optional(), // idempotency keys
   });
 
 export const useRunsTableFilters = (
@@ -123,6 +127,7 @@ export const useRunsTableFilters = (
     mo: additionalMetadataOperatorKey,
     f: flattenDAGsKey,
     rf: runningFilterKey,
+    i: idempotencyKeyKey,
   });
 
   const {
@@ -143,6 +148,7 @@ export const useRunsTableFilters = (
     mo: selectedAdditionalMetadataOperator,
     f: selectedFlattenDAGs,
     rf: selectedRunningFilter,
+    i: selectedIdempotencyKeys,
   } = zodState;
 
   const createdAfter = useMemo(() => {
@@ -232,6 +238,24 @@ export const useRunsTableFilters = (
     [setColumnFilters, columnFilters, selectedAdditionalMetadata],
   );
 
+  const setIdempotencyKey = useCallback(
+    (idempotencyKey: string) => {
+      const existing = selectedIdempotencyKeys || [];
+      const newKeys = existing.includes(idempotencyKey)
+        ? existing.filter((k: string) => k !== idempotencyKey)
+        : [...existing, idempotencyKey];
+
+      const newColumnFilters = columnFilters
+        .filter((f) => f.id !== idempotencyKeyKey)
+        .concat(
+          newKeys.length > 0 ? [{ id: idempotencyKeyKey, value: newKeys }] : [],
+        );
+
+      setColumnFilters(newColumnFilters);
+    },
+    [setColumnFilters, columnFilters, selectedIdempotencyKeys],
+  );
+
   const setAdditionalMetadataOperator = useCallback(
     (operator: V1AdditionalMetadataOperator) => {
       const newColumnFilters = columnFilters
@@ -253,6 +277,7 @@ export const useRunsTableFilters = (
       additionalMetadataOperator: selectedAdditionalMetadataOperator,
       flattenDAGs: selectedFlattenDAGs || false,
       runningFilter: selectedRunningFilter,
+      idempotencyKeys: selectedIdempotencyKeys,
     }),
     [
       createdAfter,
@@ -263,6 +288,7 @@ export const useRunsTableFilters = (
       selectedAdditionalMetadataOperator,
       selectedFlattenDAGs,
       selectedRunningFilter,
+      selectedIdempotencyKeys,
     ],
   );
 
@@ -276,6 +302,7 @@ export const useRunsTableFilters = (
     updateCurrentTimeWindow,
     setStatuses,
     setAdditionalMetadata,
+    setIdempotencyKey,
     setAdditionalMetadataOperator,
     setColumnFilters,
     resetFilters,

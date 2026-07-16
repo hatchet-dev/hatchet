@@ -18,6 +18,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
 )
+from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -105,6 +106,7 @@ class WorkflowConfig(BaseModel):
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None
+    idempotency: TTLBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)
