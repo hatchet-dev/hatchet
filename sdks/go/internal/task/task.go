@@ -56,6 +56,10 @@ type TaskShared struct {
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
+	// SlotCost is the number of default worker slots a non-durable task consumes. Defaults to one.
+	// Durable tasks ignore it.
+	SlotCost *int32
+
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
 	Fn interface{}
@@ -249,7 +253,11 @@ func (t *TaskDeclaration[I]) Dump(workflowName string, taskDefaults *create.Task
 	base.Action = getActionID(workflowName, t.Name)
 	base.IsDurable = false
 	if base.SlotRequests == nil {
-		base.SlotRequests = map[string]int32{slotTypeDefault: 1}
+		units := int32(1)
+		if t.SlotCost != nil {
+			units = *t.SlotCost
+		}
+		base.SlotRequests = map[string]int32{slotTypeDefault: units}
 	}
 	base.Parents = make([]string, len(t.Parents))
 	copy(base.Parents, t.Parents)

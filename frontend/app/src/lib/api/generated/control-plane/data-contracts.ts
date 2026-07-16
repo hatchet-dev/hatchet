@@ -64,6 +64,11 @@ export enum OrganizationAvailableShardClass {
   DEDICATED = "DEDICATED",
 }
 
+export enum OrganizationInviteTenantRole {
+  ADMIN = "ADMIN",
+  MEMBER = "MEMBER",
+}
+
 export enum OrganizationInviteStatus {
   PENDING = "PENDING",
   ACCEPTED = "ACCEPTED",
@@ -232,6 +237,11 @@ export interface RemoveOrganizationMembersRequest {
   emails: string[];
 }
 
+export interface UpdateOrganizationMemberRequest {
+  /** The new role for the member in the organization */
+  role: OrganizationMemberRoleType;
+}
+
 export interface OrganizationTenant {
   /**
    * ID of the tenant
@@ -349,10 +359,38 @@ export interface OrganizationInvite {
   status: OrganizationInviteStatus;
   /** The role of the invitee */
   role: OrganizationMemberRoleType;
+  /**
+   * Tenants the invitee will join on accept, as manually-added members.
+   * Omitted/empty when the invite carries no tenant grants. Tenants deleted
+   * or archived since the invite was created are excluded.
+   */
+  tenants?: OrganizationInviteTenant[];
 }
 
 export interface OrganizationInviteList {
   rows: OrganizationInvite[];
+}
+
+export interface OrganizationInviteTenant {
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The tenant role the invitee is granted */
+  tenantRole: OrganizationInviteTenantRole;
+  /** The name of the tenant */
+  tenantName: string;
+}
+
+export interface CreateOrganizationInviteTenant {
+  /**
+   * The ID of the tenant
+   * @format uuid
+   */
+  tenantId: string;
+  /** The tenant role the invitee is granted. Defaults to MEMBER. */
+  tenantRole?: OrganizationInviteTenantRole;
 }
 
 export interface CreateOrganizationInviteRequest {
@@ -363,6 +401,21 @@ export interface CreateOrganizationInviteRequest {
   inviteeEmail: string;
   /** The role of the invitee */
   role: OrganizationMemberRoleType;
+  /**
+   * Tenants the invitee is added to when the invite is accepted, as
+   * manually-added members, each with its own role. Each tenant must belong
+   * to the organization. Not allowed for OWNER invites (owners get access
+   * to all tenants).
+   * @maxItems 100
+   */
+  tenants?: CreateOrganizationInviteTenant[];
+  /**
+   * User groups (must belong to the organization) the invitee is added to
+   * when the invite is accepted. Group tag-sync then grants the matching
+   * tenant access. Not allowed for OWNER invites.
+   * @maxItems 100
+   */
+  userGroupIds?: string[];
 }
 
 export interface AcceptOrganizationInviteRequest {

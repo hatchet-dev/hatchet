@@ -328,15 +328,24 @@ func (q *Queries) GetActiveWorkerById(ctx context.Context, db DBTX, arg GetActiv
 }
 
 const getWorkerActionsByWorkerActionHash = `-- name: GetWorkerActionsByWorkerActionHash :many
-SELECT DISTINCT
-    w."actionHash" AS action_hash,
+SELECT
+    rep.action_hash,
     a."actionId" AS action_id
-FROM "Worker" w
-JOIN "_ActionToWorker" aw ON w.id = aw."B"
-JOIN "Action" a ON aw."A" = a.id
-WHERE
-    w."tenantId" = $1::UUID
-    AND w."actionHash" = ANY($2::BYTEA[])
+FROM (
+    SELECT
+        h.hash::BYTEA AS action_hash,
+        (
+            SELECT w.id
+            FROM "Worker" w
+            WHERE
+                w."tenantId" = $1::UUID
+                AND w."actionHash" = h.hash
+            LIMIT 1
+        ) AS worker_id
+    FROM unnest($2::BYTEA[]) AS h(hash)
+) rep
+JOIN "_ActionToWorker" aw ON aw."B" = rep.worker_id
+JOIN "Action" a ON a.id = aw."A"
 `
 
 type GetWorkerActionsByWorkerActionHashParams struct {
@@ -349,6 +358,10 @@ type GetWorkerActionsByWorkerActionHashRow struct {
 	ActionID   string `json:"action_id"`
 }
 
+// NOTE: workers with the same action hash have identical action sets by construction,
+// so we only look up the actions for a single representative worker per hash. Joining
+// through every worker with a matching hash degrades badly when inactive workers
+// accumulate, since each hash can match tens of thousands of historical workers.
 func (q *Queries) GetWorkerActionsByWorkerActionHash(ctx context.Context, db DBTX, arg GetWorkerActionsByWorkerActionHashParams) ([]*GetWorkerActionsByWorkerActionHashRow, error) {
 	rows, err := db.Query(ctx, getWorkerActionsByWorkerActionHash, arg.Tenantid, arg.Actionhashes)
 	if err != nil {
@@ -1014,7 +1027,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key
+    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key
 FROM
     v1_task_runtime runtime
 JOIN
@@ -1081,6 +1094,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
+	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
 }
 
 func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db DBTX, arg ListSemaphoreSlotsWithStateForWorkerParams) ([]*ListSemaphoreSlotsWithStateForWorkerRow, error) {
@@ -1141,6 +1155,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.IdempotencyKey,
 		); err != nil {
 			return nil, err
 		}

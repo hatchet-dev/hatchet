@@ -783,9 +783,61 @@ func TestScheduler_GetSnapshotInput_BestEffortTryLock(t *testing.T) {
 	s.actionsMu.Lock()
 	defer s.actionsMu.Unlock()
 
-	in, ok := s.getSnapshotInput(false)
+	in, ok := s.getSnapshotInput(context.Background(), false)
 	require.False(t, ok)
 	require.Nil(t, in)
+}
+
+func TestScheduler_GetSnapshotInput_DerivesUsedSlotsFromCapacity(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{WorkerId: workerId, ActionId: pgtype.Text{String: "A", Valid: true}},
+			}, nil
+		},
+		listWorkerSlotConfigsFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListWorkerSlotConfigsRow, error) {
+			return []*sqlcv1.ListWorkerSlotConfigsRow{
+				{WorkerID: workerId, SlotType: repo.SlotTypeDefault, MaxUnits: 5},
+				{WorkerID: workerId, SlotType: repo.SlotTypeDurable, MaxUnits: 10},
+			}, nil
+		},
+		listAvailableSlotsForWorkersAndTypesFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersAndTypesParams) ([]*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow, error) {
+			// 3 of the 5 default slots are consumed by running tasks, so only 2 free
+			// default slots make it into the in-memory pool; durable slots are idle
+			return []*sqlcv1.ListAvailableSlotsForWorkersAndTypesRow{
+				{ID: workerId, SlotType: repo.SlotTypeDefault, AvailableSlots: 2},
+				{ID: workerId, SlotType: repo.SlotTypeDurable, AvailableSlots: 10},
+			}, nil
+		},
+	})
+
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 5, repo.SlotTypeDurable: 10},
+	}})
+
+	require.NoError(t, s.replenish(context.Background(), true))
+
+	in, ok := s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.NotNil(t, in)
+	require.Len(t, in.Workers, 1)
+	require.Equal(t, workerId, in.Workers[workerId].WorkerId)
+	require.Equal(t, 15, in.Workers[workerId].MaxRuns)
+
+	util := in.WorkerSlotUtilization[workerId]
+	require.NotNil(t, util)
+	require.Equal(t, 3, util.UtilizedSlots)
+	require.Equal(t, 12, util.NonUtilizedSlots)
+
+	byType := in.WorkerSlotUtilizationByType[workerId]
+	require.NotNil(t, byType)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 3, NonUtilizedSlots: 2}, byType[repo.SlotTypeDefault])
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 0, NonUtilizedSlots: 10}, byType[repo.SlotTypeDurable])
 }
 
 func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
@@ -793,7 +845,11 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	workerId := uuid.New()
 	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
 
-	s.setWorkers([]*repo.ListActiveWorkersResult{{ID: workerId, Name: "w1", Labels: nil}})
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 3},
+	}})
 
 	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
 	sharedSlot := newSlot(w, newSlotMeta([]string{"A", "B"}, repo.SlotTypeDefault))
@@ -807,11 +863,83 @@ func TestScheduler_GetSnapshotInput_DedupSlotsAcrossActions(t *testing.T) {
 	require.NoError(t, err)
 	s.actions["B"] = actB
 
-	in, ok := s.getSnapshotInput(true)
+	in, ok := s.getSnapshotInput(context.Background(), true)
 	require.True(t, ok)
 	require.NotNil(t, in)
 	require.Len(t, in.Workers, 1)
 	require.Equal(t, workerId, in.Workers[workerId].WorkerId)
+
+	// the free slot must be counted once across both actions, so 3 total - 1 free = 2 used
+	util := in.WorkerSlotUtilization[workerId]
+	require.NotNil(t, util)
+	require.Equal(t, 2, util.UtilizedSlots)
+	require.Equal(t, 1, util.NonUtilizedSlots)
+}
+
+func TestScheduler_GetSnapshotInput_WarmupAndSaturation(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	s.setWorkers([]*repo.ListActiveWorkersResult{{
+		ID:               workerId,
+		Name:             "w1",
+		TotalSlotsByType: map[string]int{repo.SlotTypeDefault: 3},
+	}})
+
+	// before any slots have entered the pool (i.e. before the first replenish), the worker
+	// must report zero slots rather than full utilization
+	in, ok := s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 0, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
+
+	// slots appear in the pool: the slot type warms up and utilization is derived from capacity
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	freeSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	actA, err := actionWithSlots("A", freeSlot)
+	require.NoError(t, err)
+	s.actions["A"] = actA
+
+	in, ok = s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 2, NonUtilizedSlots: 1}, in.WorkerSlotUtilization[workerId])
+
+	// the pool empties out (all slots assigned and flushed): the warmed type now reports
+	// full utilization instead of a transient zero
+	delete(s.actions, "A")
+
+	in, ok = s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.Equal(t, &SlotUtilization{UtilizedSlots: 3, NonUtilizedSlots: 0}, in.WorkerSlotUtilization[workerId])
+
+	// removing the worker prunes its warm state
+	s.setWorkers([]*repo.ListActiveWorkersResult{})
+
+	in, ok = s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
+	require.NotContains(t, in.WorkerSlotUtilization, workerId)
+	require.Empty(t, s.warmedSlotTypes)
+}
+
+func TestScheduler_GetSnapshotInput_FallsBackToWalkedCountsWithoutCapacity(t *testing.T) {
+	tenantId := uuid.New()
+	workerId := uuid.New()
+	s := newTestScheduler(t, tenantId, &mockAssignmentRepo{})
+
+	// no TotalSlots on the worker record
+	s.setWorkers([]*repo.ListActiveWorkersResult{{ID: workerId, Name: "w1", Labels: nil}})
+
+	w := &worker{ListActiveWorkersResult: testWorker(workerId)}
+	usedSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+	require.True(t, usedSlot.use(nil, nil))
+	unusedSlot := newSlot(w, newSlotMeta([]string{"A"}, repo.SlotTypeDefault))
+
+	actA, err := actionWithSlots("A", usedSlot, unusedSlot)
+	require.NoError(t, err)
+	s.actions["A"] = actA
+
+	in, ok := s.getSnapshotInput(context.Background(), true)
+	require.True(t, ok)
 
 	util := in.WorkerSlotUtilization[workerId]
 	require.NotNil(t, util)
@@ -1244,6 +1372,197 @@ func TestScheduler_Replenish_CleansExpiredSlotsWhenNoNewSlotsLoaded(t *testing.T
 	require.NotNil(t, a)
 	require.Len(t, a.slots, 1)
 	require.Same(t, used, a.slots[0])
+}
+
+func TestScheduler_Replenish_ClosureVisitsWorkersOfNewlyAddedActions(t *testing.T) {
+	tenantId := uuid.New()
+
+	// Chain topology: w1 registers {A, B}, w2 registers {B, C}, w3 registers {C, D}.
+	// Only A independently triggers a replenish (it is a new action). D is reachable
+	// only transitively: A -> w1 -> B -> w2 -> C -> w3 -> D. The closure must include
+	// D so its expired slots get cleaned up.
+	w1Id := uuid.New()
+	w2Id := uuid.New()
+	w3Id := uuid.New()
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return []*sqlcv1.ListActionsForWorkersRow{
+				{WorkerId: w1Id, ActionId: pgtype.Text{String: "A", Valid: true}},
+				{WorkerId: w1Id, ActionId: pgtype.Text{String: "B", Valid: true}},
+				{WorkerId: w2Id, ActionId: pgtype.Text{String: "B", Valid: true}},
+				{WorkerId: w2Id, ActionId: pgtype.Text{String: "C", Valid: true}},
+				{WorkerId: w3Id, ActionId: pgtype.Text{String: "C", Valid: true}},
+				{WorkerId: w3Id, ActionId: pgtype.Text{String: "D", Valid: true}},
+			}, nil
+		},
+		// no new slots available, so replenish only performs expired-slot cleanup
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			return []*sqlcv1.ListAvailableSlotsForWorkersRow{}, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers([]*repo.ListActiveWorkersResult{testWorker(w1Id), testWorker(w2Id), testWorker(w3Id)})
+
+	w1 := &worker{ListActiveWorkersResult: testWorker(w1Id)}
+	w2 := &worker{ListActiveWorkersResult: testWorker(w2Id)}
+	w3 := &worker{ListActiveWorkersResult: testWorker(w3Id)}
+
+	// seedAction creates an action with enough active slots that FUNCTION 1 does not
+	// independently mark it for replenish (activeCount > lastReplenishedSlotCount/2
+	// and worker count unchanged).
+	seedAction := func(actionId string, workerCount int, w *worker, extraSlots ...*slot) *action {
+		slots := []*slot{
+			newSlot(w, newSlotMeta([]string{actionId}, repo.SlotTypeDefault)),
+			newSlot(w, newSlotMeta([]string{actionId}, repo.SlotTypeDefault)),
+		}
+		slots = append(slots, extraSlots...)
+
+		a, err := actionWithSlots(actionId, slots...)
+		require.NoError(t, err)
+
+		a.lastReplenishedSlotCount = 2
+		a.lastReplenishedWorkerCount = workerCount
+		s.actions[actionId] = a
+
+		return a
+	}
+
+	seedAction("B", 2, w1)
+	seedAction("C", 2, w2)
+
+	expired := newSlot(w3, newSlotMeta([]string{"D"}, repo.SlotTypeDefault))
+	past := time.Now().Add(-1 * time.Second)
+	expired.mu.Lock()
+	expired.expiresAt = &past
+	expired.mu.Unlock()
+
+	actD := seedAction("D", 1, w3, expired)
+
+	require.NoError(t, s.replenish(context.Background(), false))
+
+	// D was only reachable through the worklist closure; its expired slot must be gone.
+	require.Len(t, actD.slots, 2)
+	for _, sl := range actD.slots {
+		require.NotSame(t, expired, sl)
+	}
+}
+
+func TestScheduler_Replenish_DenseSharedActions(t *testing.T) {
+	tenantId := uuid.New()
+
+	const (
+		numWorkers = 50
+		numActions = 200
+	)
+
+	workerIds := make([]uuid.UUID, numWorkers)
+	activeWorkers := make([]*repo.ListActiveWorkersResult, numWorkers)
+	for i := range workerIds {
+		workerIds[i] = uuid.New()
+		activeWorkers[i] = testWorker(workerIds[i])
+	}
+
+	actionIds := make([]string, numActions)
+	for i := range actionIds {
+		actionIds[i] = fmt.Sprintf("action-%03d", i)
+	}
+
+	ar := &mockAssignmentRepo{
+		// every worker registers every action
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, ids []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			rows := make([]*sqlcv1.ListActionsForWorkersRow, 0, numWorkers*numActions)
+			for _, wid := range workerIds {
+				for _, aid := range actionIds {
+					rows = append(rows, &sqlcv1.ListActionsForWorkersRow{
+						WorkerId: wid,
+						ActionId: pgtype.Text{String: aid, Valid: true},
+					})
+				}
+			}
+			return rows, nil
+		},
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			rows := make([]*sqlcv1.ListAvailableSlotsForWorkersRow, 0, len(params.Workerids))
+			for _, wid := range params.Workerids {
+				rows = append(rows, &sqlcv1.ListAvailableSlotsForWorkersRow{ID: wid, AvailableSlots: 1})
+			}
+			return rows, nil
+		},
+	}
+
+	s := newTestScheduler(t, tenantId, ar)
+	s.setWorkers(activeWorkers)
+
+	require.NoError(t, s.replenish(context.Background(), true))
+
+	require.Len(t, s.actions, numActions)
+
+	for _, aid := range actionIds {
+		a := s.actions[aid]
+		require.NotNil(t, a, "action %s missing after replenish", aid)
+		require.Len(t, a.slots, numWorkers, "action %s should have one slot per worker", aid)
+		require.Equal(t, numWorkers, a.lastReplenishedSlotCount)
+		require.Equal(t, numWorkers, a.lastReplenishedWorkerCount)
+	}
+}
+
+func BenchmarkScheduler_Replenish_DenseSharedActions(b *testing.B) {
+	tenantId := uuid.New()
+
+	const (
+		numWorkers = 100
+		numActions = 500
+	)
+
+	workerIds := make([]uuid.UUID, numWorkers)
+	activeWorkers := make([]*repo.ListActiveWorkersResult, numWorkers)
+	for i := range workerIds {
+		workerIds[i] = uuid.New()
+		activeWorkers[i] = testWorker(workerIds[i])
+	}
+
+	actionIds := make([]string, numActions)
+	for i := range actionIds {
+		actionIds[i] = fmt.Sprintf("action-%04d", i)
+	}
+
+	actionRows := make([]*sqlcv1.ListActionsForWorkersRow, 0, numWorkers*numActions)
+	for _, wid := range workerIds {
+		for _, aid := range actionIds {
+			actionRows = append(actionRows, &sqlcv1.ListActionsForWorkersRow{
+				WorkerId: wid,
+				ActionId: pgtype.Text{String: aid, Valid: true},
+			})
+		}
+	}
+
+	ar := &mockAssignmentRepo{
+		listActionsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, ids []uuid.UUID) ([]*sqlcv1.ListActionsForWorkersRow, error) {
+			return actionRows, nil
+		},
+		listAvailableSlotsForWorkersFn: func(ctx context.Context, tenantId uuid.UUID, params sqlcv1.ListAvailableSlotsForWorkersParams) ([]*sqlcv1.ListAvailableSlotsForWorkersRow, error) {
+			rows := make([]*sqlcv1.ListAvailableSlotsForWorkersRow, 0, len(params.Workerids))
+			for _, wid := range params.Workerids {
+				rows = append(rows, &sqlcv1.ListAvailableSlotsForWorkersRow{ID: wid, AvailableSlots: 1})
+			}
+			return rows, nil
+		},
+	}
+
+	l := zerolog.Nop()
+	sr := &mockSchedulerRepo{assignment: ar}
+	cf := &sharedConfig{repo: sr, l: &l}
+	s := newScheduler(cf, tenantId, nil, &Extensions{})
+	s.setWorkers(activeWorkers)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := s.replenish(context.Background(), true); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func TestScheduler_Replenish_UpdatesAllWorkerActionsForLockSafety(t *testing.T) {

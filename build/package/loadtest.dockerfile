@@ -18,7 +18,7 @@ COPY /cmd/hatchet-loadtest ./cli
 # --------------------
 FROM base AS build-go
 
-RUN go build -a -o ./bin/hatchet-load-test ./cli
+RUN go build -ldflags="-w -s" -a -o ./bin/hatchet-load-test ./cli
 
 # Deployment environment
 # ----------------------

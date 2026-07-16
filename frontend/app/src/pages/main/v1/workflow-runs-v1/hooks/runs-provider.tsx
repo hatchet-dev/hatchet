@@ -25,6 +25,10 @@ const ALWAYS_HIDDEN_RUN_COLUMNS: VisibilityState = {
   runningFilter: false,
 };
 
+const DEFAULT_HIDDEN_RUN_COLUMNS: VisibilityState = {
+  idempotencyKey: false,
+};
+
 type DisplayProps = {
   hideMetrics?: boolean;
   hideCounts?: boolean;
@@ -114,6 +118,7 @@ export const RunsProvider = ({
 
   const initialVisibility: VisibilityState = useMemo(
     () => ({
+      ...DEFAULT_HIDDEN_RUN_COLUMNS,
       ...initColumnVisibility,
       ...ALWAYS_HIDDEN_RUN_COLUMNS,
     }),
@@ -131,7 +136,11 @@ export const RunsProvider = ({
   const columnVisibility: VisibilityState = useMemo(
     () =>
       persistColumnVisibilityKey
-        ? { ...persistedVisibility, ...ALWAYS_HIDDEN_RUN_COLUMNS }
+        ? {
+            ...DEFAULT_HIDDEN_RUN_COLUMNS,
+            ...persistedVisibility,
+            ...ALWAYS_HIDDEN_RUN_COLUMNS,
+          }
         : transientVisibility,
     [persistColumnVisibilityKey, persistedVisibility, transientVisibility],
   );
@@ -202,6 +211,8 @@ export const RunsProvider = ({
     statuses: filters.apiFilters.statuses,
     runningFilter: filters.apiFilters.runningFilter,
     additionalMetadata: filters.apiFilters.additionalMetadata,
+    idempotencyKeys: filters.apiFilters.idempotencyKeys,
+    additionalMetadataOperator: filters.apiFilters.additionalMetadataOperator,
     workerId,
     workflowIds:
       filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
@@ -232,7 +243,8 @@ export const RunsProvider = ({
     isStatusCountsRefetching,
     isQueueMetricsLoading,
   } = useMetrics({
-    workflow,
+    workflowIds:
+      filters.apiFilters.workflowIds || (workflow ? [workflow] : undefined),
     parentTaskExternalId,
     createdAfter: filters.apiFilters.since,
     createdBefore: filters.apiFilters.until,

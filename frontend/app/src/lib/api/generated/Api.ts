@@ -91,6 +91,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1AdditionalMetadataOperator,
   V1BranchDurableTaskRequest,
   V1BranchDurableTaskResponse,
   V1CELDebugRequest,
@@ -498,6 +499,8 @@ export class Api<
       until?: string;
       /** Additional metadata k-v pairs to filter by */
       additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
       /**
@@ -527,6 +530,8 @@ export class Api<
       include_payloads?: boolean;
       /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
       running_filter?: V1RunningFilter;
+      /** The idempotency key(s) to filter for */
+      idempotency_keys?: string[];
     },
     params: RequestParams = {},
   ) =>

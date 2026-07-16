@@ -144,4 +144,6 @@ To set the slot count, pass the `slots` option when declaring the worker:
 
 The default slot count for workers in Hatchet is 100. In many cases, leaving the default as-is will be perfectly fine, especially when first getting set up with Hatchet.
 
+By default each running task consumes one slot. A task can be configured to consume more than one, so a task that needs more memory or CPU takes up more of a worker's capacity. See [Task Slot Cost](./advanced-assignment/slot-cost.mdx).
+
 <Keywords keywords="worker, slots, registration, concurrency, horizontal scaling, autoscaling" />

@@ -65,6 +65,7 @@ class ActionListener:
         self.run_heartbeat = True
         self.stop_signal = False
         self.missed_heartbeats = 0
+        self.interrupt: ThreadSafeEvent | None = None
 
     def is_healthy(self) -> bool:
         return self.last_heartbeat_succeeded
@@ -295,6 +296,12 @@ class ActionListener:
             "grpc.aio.UnaryStreamCall[WorkerListenRequest, AssignedAction]", listener
         )
 
+    def stop_stream(self) -> None:
+        """Stop reading from the action stream, without touching the heartbeat."""
+        self.stop_signal = True
+        if self.interrupt is not None:
+            self.interrupt.set()
+
     def cleanup(self) -> None:
         self.run_heartbeat = False
         if self.heartbeat_task is not None:
@@ -304,9 +311,6 @@ class ActionListener:
             self.unregister()
         except Exception:
             logger.exception("failed to unregister")
-
-        if self.interrupt:  # type: ignore[truthy-bool]
-            self.interrupt.set()
 
     def unregister(self) -> WorkerUnsubscribeRequest:
         self.run_heartbeat = False

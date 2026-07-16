@@ -127,11 +127,10 @@ def wait_for_event(input: None, ctx: Context) -> StepOutput:
     parents=[start],
     wait_for=[
         or_(
-            ParentCondition(parent=start, expression="output.random_number > 50"),
-            SleepCondition(duration=timedelta(seconds=30)),
+            SleepCondition(duration=timedelta(seconds=30), readable_data_key="first"),
         ),
         or_(
-            ParentCondition(parent=start, expression="output.random_number > 50"),
+            SleepCondition(duration=timedelta(seconds=30), readable_data_key="second"),
             UserEventCondition(event_key="payment:processed"),
         ),
     ],

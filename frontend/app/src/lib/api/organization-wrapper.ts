@@ -1,7 +1,12 @@
 import useControlPlane from '@/hooks/use-control-plane';
 import { cloudApi, controlPlaneApi } from '@/lib/api/api';
 import type { CreateNewTenantForOrganizationRequest as CloudCreateNewTenantForOrganizationRequest } from '@/lib/api/generated/cloud/data-contracts';
-import type { CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest } from '@/lib/api/generated/control-plane/data-contracts';
+import type {
+  CreateNewTenantForOrganizationRequest as ControlPlaneCreateNewTenantForOrganizationRequest,
+  CreateOrganizationInviteRequest as ControlPlaneCreateOrganizationInviteRequest,
+  OrganizationMemberRoleType as ControlPlaneOrganizationMemberRoleType,
+  UpdateOrganizationMemberRequest as ControlPlaneUpdateOrganizationMemberRequest,
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useMemo } from 'react';
 
 type OrganizationCreateRequest = Parameters<
@@ -17,6 +22,13 @@ type OrganizationCreateTenantRequest =
 type OrganizationMemberDeleteRequest = Parameters<
   typeof cloudApi.organizationMemberDelete
 >[1];
+// Control-plane-only: the legacy cloud management API is deprecated and does
+// not support member role changes. The role is typed as the shared string
+// values so callers holding the cloud client's (nominally distinct) role enum
+// compile against it.
+type OrganizationMemberUpdateRequest = {
+  role: `${ControlPlaneOrganizationMemberRoleType}`;
+};
 type ManagementTokenCreateRequest = Parameters<
   typeof cloudApi.managementTokenCreate
 >[1];
@@ -26,9 +38,13 @@ type OrganizationInviteAcceptRequest = Parameters<
 type OrganizationInviteRejectRequest = Parameters<
   typeof cloudApi.organizationInviteReject
 >[0];
-type OrganizationInviteCreateRequest = Parameters<
+// The cloud request plus the control-plane-only grant fields.
+// `tenants`/`userGroupIds` must only be sent when the control plane is
+// enabled.
+export type OrganizationInviteCreateRequest = Parameters<
   typeof cloudApi.organizationInviteCreate
->[1];
+>[1] &
+  Pick<ControlPlaneCreateOrganizationInviteRequest, 'tenants' | 'userGroupIds'>;
 type OrganizationTenantMembersAddRequest = Parameters<
   typeof cloudApi.organizationTenantMembersAdd
 >[2];
@@ -209,6 +225,22 @@ export function useOrganizationApi() {
                   data,
                 )
               : cloudApi.organizationMemberDelete(organizationMember, data))
+          ).data,
+      }),
+
+      // Control-plane-only: the legacy cloud management API is deprecated and
+      // does not support member role changes.
+      organizationMemberUpdateMutation: (organizationMember: string) => ({
+        mutationKey: [
+          'organization-member:update',
+          organizationMember,
+        ] as const,
+        mutationFn: async (data: OrganizationMemberUpdateRequest) =>
+          (
+            await controlPlaneApi.organizationMemberUpdate(
+              organizationMember,
+              data as ControlPlaneUpdateOrganizationMemberRequest,
+            )
           ).data,
       }),
 

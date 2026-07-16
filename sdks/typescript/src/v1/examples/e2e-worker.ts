@@ -47,6 +47,7 @@ import { durableSleep } from './durable_sleep/workflow';
 import { createLoggingWorkflow } from './logger/workflow';
 import { nonRetryableWorkflow } from './non_retryable/workflow';
 import { failureWorkflow } from './on_failure/workflow';
+import { idempotentTask, idempotentTaskShortWindow } from './idempotency/workflow';
 import { lower } from './on_event/workflow';
 import { returnExceptionsTask } from './return_exceptions/workflow';
 import { runDetailTestWorkflow } from './run_details/workflow';
@@ -112,6 +113,8 @@ const workflows = [
   createLoggingWorkflow(hatchet),
   nonRetryableWorkflow,
   failureWorkflow,
+  idempotentTask,
+  idempotentTaskShortWindow,
   lower,
   returnExceptionsTask,
   runDetailTestWorkflow,

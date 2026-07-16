@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -18,6 +19,7 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import { useApiError } from '@/lib/hooks';
 import {
   KeyIcon,
   ExclamationTriangleIcon,
@@ -56,6 +58,8 @@ export function CreateTokenModal({
   const DURATION_NEVER = 'never';
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const { handleCreateToken, createTokenLoading } = useOrganizations();
 
   const {
@@ -87,6 +91,7 @@ export function CreateTokenModal({
 
   const handleTokenCreate = useCallback(
     (data: z.infer<typeof schema>) => {
+      setFormErrors([]);
       const duration: ManagementTokenDuration | undefined =
         data.duration === DURATION_NEVER ? undefined : data.duration;
       handleCreateToken(
@@ -98,9 +103,11 @@ export function CreateTokenModal({
           onSuccess();
         },
         tags.length > 0 ? tags : undefined,
+        (error) =>
+          handleApiError(error as Parameters<typeof handleApiError>[0]),
       );
     },
-    [organizationId, handleCreateToken, onSuccess, tags],
+    [organizationId, handleCreateToken, onSuccess, tags, handleApiError],
   );
 
   // Reset form when modal closes
@@ -167,6 +174,7 @@ export function CreateTokenModal({
             onSubmit={handleSubmit(handleTokenCreate)}
             className="space-y-4"
           >
+            <InlineError errors={formErrors} />
             <div className="space-y-2">
               <Label htmlFor="name">Token Name</Label>
               <Input

@@ -375,6 +375,7 @@ CREATE TABLE v1_task (
     desired_worker_label JSONB,
     triggering_event_external_id UUID,
     triggering_event_key TEXT,
+    idempotency_key TEXT,
     CONSTRAINT v1_task_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -777,6 +778,7 @@ CREATE TABLE v1_dag (
     workflow_version_id UUID NOT NULL,
     parent_task_external_id UUID,
     desired_worker_labels JSONB,
+    idempotency_key TEXT,
     CONSTRAINT v1_dag_pkey PRIMARY KEY (id, inserted_at)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -2465,6 +2467,10 @@ CREATE TABLE tenant_entitlement (
     audit_logs BOOLEAN NOT NULL DEFAULT FALSE,
 
     prometheus_metrics BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Opts the tenant into AND-semantics additional_metadata filters backed by
+    -- the GIN indexes on the OLAP runs/tasks tables (jsonb @> containment).
+    strict_additional_metadata_filters BOOLEAN NOT NULL DEFAULT FALSE,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

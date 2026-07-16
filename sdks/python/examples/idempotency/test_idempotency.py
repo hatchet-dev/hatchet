@@ -1,0 +1,196 @@
+import pytest
+
+from examples.idempotency.worker import (
+    idempotent_task,
+    idempotent_task_short_window,
+    IdempotencyInput,
+    EVENT_KEY,
+)
+
+from hatchet_sdk import (
+    Hatchet,
+    IdempotencyCollisionError,
+    RunStatus,
+    BulkTriggerIdempotencyCollisionError,
+)
+from hatchet_sdk.clients.rest.models.v1_task_summary_list import V1TaskSummaryList
+from uuid import uuid4
+from datetime import timedelta, datetime, timezone
+import asyncio
+from typing import cast
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    ref1 = await idempotent_task.aio_run(
+        input=IdempotencyInput(id=test_run_id),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info:
+        await idempotent_task.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
+
+    runs: V1TaskSummaryList | None = None
+
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) == 0:
+            await asyncio.sleep(1)
+            continue
+
+        break
+
+    assert runs is not None
+    assert len(runs.rows) == 1
+    assert runs.rows[0].metadata.id == ref1.workflow_run_id
+
+    result = await ref1.aio_result()
+    assert "hello" in result["result"].lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_keys_prevent_duplicate_runs_bulk_trigger(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+
+    with pytest.raises(BulkTriggerIdempotencyCollisionError) as exc_info:
+        await idempotent_task.aio_run_many(
+            [
+                idempotent_task.create_bulk_run_item(
+                    input=IdempotencyInput(id=test_run_id),
+                    additional_metadata={"test_run_id": test_run_id},
+                )
+                for _ in range(2)
+            ],
+            wait_for_result=False,
+        )
+
+    successes = exc_info.value.successful_workflow_run_external_ids
+    collisions = exc_info.value.collisions
+
+    assert len(successes) == 1
+    assert len(collisions) == 1
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger_short_window(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    for i in range(4):
+        if i == 1:
+            with pytest.raises(IdempotencyCollisionError) as exc_info:
+                await idempotent_task_short_window.aio_run(
+                    input=IdempotencyInput(id=test_run_id),
+                    wait_for_result=False,
+                    additional_metadata={"test_run_id": test_run_id},
+                )
+
+            assert exc_info.value.existing_run_external_id is not None
+        else:
+            await idempotent_task_short_window.aio_run(
+                input=IdempotencyInput(id=test_run_id),
+                wait_for_result=False,
+                additional_metadata={"test_run_id": test_run_id},
+            )
+
+        ## dynamic sleep, first task should run, second should not, third should, fourth should
+        if i != 3:
+            await asyncio.sleep(i + 1.5)
+
+    runs: V1TaskSummaryList | None = None
+
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) < 3:
+            await asyncio.sleep(1)
+            continue
+
+        break
+    else:
+        pytest.fail("Expected to find at least one run, but found none.")
+
+    assert runs.rows
+    assert len(runs.rows) == 3
+
+    for id in [r.metadata.id for r in runs.rows]:
+        ref = hatchet.runs.get_run_ref(id)
+        res = await ref.aio_result()
+
+        assert "hello" in str(res).lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    e1 = await hatchet.event.aio_push(
+        event_key=EVENT_KEY,
+        payload={"id": test_run_id},
+        additional_metadata={"test_run_id": test_run_id},
+    )
+    e2 = await hatchet.event.aio_push(
+        event_key=EVENT_KEY,
+        payload={"id": test_run_id},
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    runs: V1TaskSummaryList | None = None
+
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) == 0:
+            await asyncio.sleep(1)
+            continue
+
+        break
+
+    assert runs is not None
+    assert len(runs.rows) == 1
+
+    details = await hatchet.event.aio_list(
+        event_ids=[e1.event_id, e2.event_id],
+    )
+
+    assert details.rows
+    assert len(details.rows) == 2
+
+    all_triggered_runs = [
+        *(details.rows[0].triggered_runs or []),
+        *(details.rows[1].triggered_runs or []),
+    ]
+
+    assert len(all_triggered_runs) == 1
+
+    for _ in range(15):
+        run_details = await hatchet.runs.aio_get_details(
+            all_triggered_runs[0].workflow_run_id
+        )
+
+        if run_details.status in [RunStatus.QUEUED, RunStatus.RUNNING]:
+            await asyncio.sleep(1)
+            continue
+
+        assert run_details.status == RunStatus.COMPLETED
