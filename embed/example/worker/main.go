@@ -32,13 +32,9 @@ func run() error {
 	name := env("WORKER_NAME")
 	databaseURL := env("DATABASE_URL")
 
-	embedOpts := []hatchet.EmbeddedOption{hatchet.WithoutEmbeddedAPI()}
-	if port := os.Getenv("GRPC_PORT"); port != "" {
-		p, err := strconv.Atoi(port)
-		if err != nil {
-			return err
-		}
-		embedOpts = append(embedOpts, hatchet.WithEmbeddedGRPCPort(p))
+	embedOpts, err := portOpts()
+	if err != nil {
+		return err
 	}
 
 	client, err := hatchet.NewClient(hatchet.WithEmbeddedPostgres(databaseURL, embedOpts...))
@@ -75,4 +71,23 @@ func env(key string) string {
 		log.Fatalf("%s is not set", key)
 	}
 	return v
+}
+
+func portOpts() ([]hatchet.EmbeddedOption, error) {
+	var opts []hatchet.EmbeddedOption
+	if v := os.Getenv("GRPC_PORT"); v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, hatchet.WithEmbeddedGRPCPort(p))
+	}
+	if v := os.Getenv("API_PORT"); v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, hatchet.WithEmbeddedAPIPort(p))
+	}
+	return opts, nil
 }

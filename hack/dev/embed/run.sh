@@ -24,9 +24,9 @@ echo "building worker + trigger..."
 (cd embed/example && go build -o "$BIN/trigger" ./trigger)
 
 for idx in $(seq 0 $((WORKERS - 1))); do
-  grpc=$((7070 + idx))
-  echo "starting worker $idx (embedded engine, grpc=$grpc)"
-  WORKER_NAME="worker-$idx" GRPC_PORT="$grpc" "$BIN/worker" &
+  grpc=$((7070 + idx)) api=$((8080 + idx))
+  echo "starting worker $idx (embedded engine+api, grpc=$grpc api=$api)"
+  WORKER_NAME="worker-$idx" GRPC_PORT="$grpc" API_PORT="$api" "$BIN/worker" &
   pids+=($!)
   sleep 3
 done
@@ -34,11 +34,11 @@ done
 echo "waiting for the fleet to settle..."
 sleep 6
 
-RUNS="$RUNS" GRPC_PORT="7069" "$BIN/trigger"
+RUNS="$RUNS" GRPC_PORT="7069" API_PORT="8079" "$BIN/trigger"
 
 echo
 echo "every process embeds its own engine; Postgres is the only shared coordination layer."
 echo "re-trigger anytime with:"
-echo "  RUNS=50 GRPC_PORT=7069 go run -C embed/example ./trigger"
+echo "  RUNS=50 GRPC_PORT=7069 API_PORT=8079 go run -C embed/example ./trigger"
 echo "Ctrl+C to stop."
 wait
