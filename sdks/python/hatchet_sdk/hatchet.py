@@ -269,6 +269,7 @@ class Hatchet:
         input_validator: None = None,
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -289,6 +290,7 @@ class Hatchet:
         input_validator: type[TWorkflowInput],
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -308,6 +310,7 @@ class Hatchet:
         input_validator: type[TWorkflowInput] | None = None,
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -330,6 +333,8 @@ class Hatchet:
         :param on_events: A list of event triggers for the workflow - events which cause the workflow to be run.
 
         :param on_crons: A list of cron triggers for the workflow.
+
+        :param cron_input: An optional input to provide to runs triggered by the workflow's `on_crons` schedules. Should be an instance of the workflow's input model.
 
         :param version: A version for the workflow
 
@@ -357,6 +362,7 @@ class Hatchet:
                 description=description,
                 on_events=on_events or [],
                 on_crons=on_crons or [],
+                cron_input=cron_input,
                 sticky=sticky,
                 concurrency=concurrency,
                 input_validator=TypeAdapter(normalize_validator(input_validator)),
@@ -377,6 +383,7 @@ class Hatchet:
         input_validator: None = None,
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -409,6 +416,7 @@ class Hatchet:
         input_validator: type[TWorkflowInput],
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -440,6 +448,7 @@ class Hatchet:
         input_validator: type[TWorkflowInput] | None = None,
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -480,6 +489,8 @@ class Hatchet:
         :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
         :param on_crons: A list of cron triggers for the task.
+
+        :param cron_input: An optional input to provide to runs triggered by the task's `on_crons` schedules. Should be an instance of the task's input model.
 
         :param version: A version for the task.
 
@@ -528,6 +539,7 @@ class Hatchet:
                     description=description,
                     on_events=on_events or [],
                     on_crons=on_crons or [],
+                    cron_input=cron_input,
                     sticky=sticky,
                     default_priority=default_priority,
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
@@ -578,6 +590,7 @@ class Hatchet:
         input_validator: None = None,
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -610,6 +623,7 @@ class Hatchet:
         input_validator: type[TWorkflowInput],
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -645,6 +659,7 @@ class Hatchet:
         input_validator: type[TWorkflowInput] | None = None,
         on_events: list[str] | None = None,
         on_crons: list[str] | None = None,
+        cron_input: TWorkflowInput | None = None,
         version: str | None = None,
         sticky: StickyStrategy | None = None,
         default_priority: int | Priority = Priority.LOW,
@@ -694,6 +709,8 @@ class Hatchet:
 
         :param on_crons: A list of cron triggers for the task.
 
+        :param cron_input: An optional input to provide to runs triggered by the task's `on_crons` schedules. Should be an instance of the task's input model.
+
         :param version: A version for the task.
 
         :param sticky: A sticky strategy for the task.
@@ -738,6 +755,7 @@ class Hatchet:
                     description=description,
                     on_events=on_events or [],
                     on_crons=on_crons or [],
+                    cron_input=cron_input,
                     sticky=sticky,
                     input_validator=TypeAdapter(normalize_validator(input_validator)),
                     default_priority=default_priority,
