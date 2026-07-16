@@ -5,6 +5,18 @@ All notable changes to Hatchet's Python SDK will be documented in this changelog
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.1] - 2026-07-15
+
+### Added
+
+- Adds a `cron_input` option to `workflow`, `task`, and `durable_task` declarations, allowing an input to be supplied to runs triggered by a workflow's `on_crons` schedules. The value is typed against the workflow's input model and serialized onto the workflow version.
+
+## [1.34.0] - 2026-07-09
+
+### Added
+
+- Added `slot_cost` to the `hatchet.task` and `workflow.task` decorators, so a task that needs more memory or CPU can consume more than one worker slot and a worker runs fewer of them at once. On older engines it has no effect. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+
 ## [1.33.18] - 2026-07-08
 
 ### Fixed

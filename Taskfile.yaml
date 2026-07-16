@@ -236,6 +236,9 @@ tasks:
   generate-sqlc:
     cmds:
       - go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0 generate --file pkg/repository/sqlcv1/sqlc.yaml
+  generate-hatchet-oss-model:
+    desc: Generate a standalone HTML view of the hatchet-oss database model
+    cmd: python3 hack/db/generate-oss-db-model.py {{.CLI_ARGS}}
   update-go-quickstart-deps:
     desc: Update Go quickstart template Hatchet SDK to latest (or VERSION=vX.Y.Z)
     cmds:

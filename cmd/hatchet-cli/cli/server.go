@@ -89,7 +89,13 @@ func runServerStart(cmd *cobra.Command) {
 		cli.Logger.Fatalf("%v", err)
 	}
 
-	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, ""))
+	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, disableAuth, ""))
+
+	if disableAuth && result.Token != "" {
+		fmt.Println()
+		fmt.Println(styles.Muted.Render("Worker API token (set HATCHET_CLIENT_TOKEN to this value):"))
+		fmt.Println(result.Token)
+	}
 }
 
 var stopCmd = &cobra.Command{
@@ -182,7 +188,7 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 }
 
 // serverStartedView renders the server started message
-func serverStartedView(profileName string, dashboardPort, grpcPort int, additionalMessage string) string {
+func serverStartedView(profileName string, dashboardPort, grpcPort int, disableAuth bool, additionalMessage string) string {
 	var lines []string
 
 	lines = append(lines, styles.SuccessMessage("Hatchet server started successfully!"))
@@ -193,7 +199,11 @@ func serverStartedView(profileName string, dashboardPort, grpcPort int, addition
 	lines = append(lines, styles.KeyValue("gRPC Port", fmt.Sprintf("%d", grpcPort)))
 	lines = append(lines, "")
 	lines = append(lines, styles.Success.Render(fmt.Sprintf("Visit the dashboard at http://localhost:%d to get started!", dashboardPort)))
-	lines = append(lines, styles.Muted.Render("Admin credentials: email 'admin@example.com', password 'Admin123!!'"))
+	if disableAuth {
+		lines = append(lines, styles.Muted.Render("Authentication is disabled — no credentials required."))
+	} else {
+		lines = append(lines, styles.Muted.Render("Admin credentials: email 'admin@example.com', password 'Admin123!!'"))
+	}
 
 	if additionalMessage != "" {
 		lines = append(lines, "")

@@ -465,7 +465,8 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING
+ON CONFLICT (tenant_id, step_id, slot_type) DO UPDATE
+    SET units = EXCLUDED.units, updated_at = CURRENT_TIMESTAMP
 `
 
 type CreateStepSlotRequestsParams struct {
@@ -475,7 +476,9 @@ type CreateStepSlotRequestsParams struct {
 	Units     []int32   `json:"units"`
 }
 
-// NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
+// The trigger v1_step_slot_request_insert_trigger writes a {default: 1} (or {durable: 1}) row on
+// Step insert, so DO UPDATE overwrites it with the requested units instead of leaving the default.
+// The conflict handling is only here because of that trigger.
 func (q *Queries) CreateStepSlotRequests(ctx context.Context, db DBTX, arg CreateStepSlotRequestsParams) error {
 	_, err := db.Exec(ctx, createStepSlotRequests,
 		arg.Tenantid,

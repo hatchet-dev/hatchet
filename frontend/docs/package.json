@@ -38,7 +38,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "estree-util-value-to-estree": "^3.4.0",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.2.0",
     "loops": "^5.0.1",
     "lucide-react": "^1.7.0",
     "minisearch": "^7.2.0",
@@ -82,11 +82,16 @@
       "tar": "^7.5.8",
       "lodash": "^4.18.0",
       "lodash-es": "^4.18.0",
-      "swagger-ui-react>js-yaml": "4.1.1",
+      "swagger-ui-react>js-yaml": "^4.2.0",
       "axios": "^1.15.2",
       "uuid": "^13.0.1",
       "@xmldom/xmldom": "^0.8.13",
-      "follow-redirects": "^1.16.0"
+      "follow-redirects": "^1.16.0",
+      "dompurify": "^3.4.11",
+      "@opentelemetry/core": "^2.8.0",
+      "protobufjs": "^7.6.3",
+      "form-data": "^4.0.6",
+      "postcss": "^8.5.10"
     }
   }
 }

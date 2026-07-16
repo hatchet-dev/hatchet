@@ -1,6 +1,6 @@
 {
   "name": "@hatchet-dev/typescript-sdk",
-  "version": "1.24.3",
+  "version": "1.25.0",
   "description": "Background task orchestration & visibility for developers",
   "types": "dist/index.d.ts",
   "files": [
@@ -62,6 +62,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.14",
     "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.10",
     "dotenv-cli": "^7.4.4",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
@@ -161,14 +162,20 @@
   "pnpm": {
     "overrides": {
       "diff": "8.0.3",
-      "tar": "^7.5.8",
-      "js-yaml": "^4.1.1",
+      "tar": "^7.5.16",
+      "js-yaml": "^4.2.0",
       "minimatch": ">=9.0.7",
       "markdown-it": ">=14.1.1",
       "axios": "^1.15.2",
       "follow-redirects": "^1.16.0",
       "protobufjs": "^7.5.5",
-      "@anthropic-ai/sdk": "^0.91.1"
+      "@anthropic-ai/sdk": "^0.91.1",
+      "hono": "^4.12.25",
+      "@babel/core": "^7.29.6",
+      "ip-address": "^10.1.1",
+      "postcss": "^8.5.10",
+      "picomatch@2": "^2.3.2",
+      "picomatch@4": "^4.0.4"
     }
   }
 }
