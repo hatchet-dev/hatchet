@@ -5,6 +5,12 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.1] - 2026-07-16
+
+### Added
+
+- Added a `retrier` config option to `ClientConfig` (and corresponding `HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS`, `HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL`, `HATCHET_CLIENT_RETRIER_MAX_JITTER` env vars) to control retry behavior for user-facing gRPC calls — event pushes and workflow triggers. Internal engine communications (action events, stream events, workflow registration) are unaffected and continue using hardcoded defaults.
+
 ## [1.26.0] - 2026-07-16
 
 ### Added
