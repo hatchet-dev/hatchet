@@ -18,6 +18,7 @@ type Config struct {
 	apiPort          *int
 	grpcPort         *int
 	runMigrations    *bool
+	startAPI         *bool
 }
 
 type Option func(*Config)
@@ -25,6 +26,7 @@ type Option func(*Config)
 func defaultConfig() *Config {
 	return &Config{
 		runMigrations: new(true),
+		startAPI:      new(true),
 		apiPort:       new(8080),
 		grpcPort:      new(7070),
 		logLevel:      new("warn"),
@@ -49,6 +51,10 @@ func WithRabbitMQ(url string) Option {
 
 func WithoutMigrations() Option {
 	return func(c *Config) { c.runMigrations = new(false) }
+}
+
+func WithoutAPI() Option {
+	return func(c *Config) { c.startAPI = new(false) }
 }
 
 func WithAPIPort(port int) Option {

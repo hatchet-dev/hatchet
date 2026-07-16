@@ -7,8 +7,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/hatchet-dev/hatchet/embed"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+
+	_ "github.com/hatchet-dev/hatchet/embed"
 )
 
 type GreetInput struct {
@@ -30,16 +31,14 @@ func run() error {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		panic("DATABASE_URL is not set")
+		return fmt.Errorf("DATABASE_URL is not set")
 	}
 
-	inst, err := embed.Start(ctx, embed.WithPostgres(databaseURL))
+	client, err := hatchet.NewClient(hatchet.WithEmbeddedPostgres(databaseURL))
 	if err != nil {
 		return err
 	}
-	defer func() { _ = inst.Shutdown(context.Background()) }()
-
-	client := inst.Client()
+	defer func() { _ = client.Close(context.Background()) }()
 
 	task := client.NewStandaloneTask("greet", func(ctx hatchet.Context, input GreetInput) (GreetOutput, error) {
 		return GreetOutput{Greeting: "Hello, " + input.Name + "!"}, nil

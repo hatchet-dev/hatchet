@@ -1,14 +1,17 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+
+	_ "github.com/hatchet-dev/hatchet/embed"
 )
 
 type GreetInput struct {
@@ -20,20 +23,29 @@ type GreetOutput struct {
 }
 
 func main() {
-	name := env("WORKER_NAME")
-
-	info := readEngine(env("ENGINE_FILE"))
-
-	_ = os.Setenv("HATCHET_CLIENT_TOKEN", info["token"])
-	_ = os.Setenv("HATCHET_CLIENT_HOST_PORT", info["grpcAddress"])
-	_ = os.Setenv("HATCHET_CLIENT_SERVER_URL", info["apiURL"])
-	_ = os.Setenv("HATCHET_CLIENT_TENANT_ID", info["tenantID"])
-	_ = os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
-
-	client, err := hatchet.NewClient()
-	if err != nil {
-		log.Fatalf("%s: could not create client: %v", name, err)
+	if err := run(); err != nil {
+		log.Fatal(err)
 	}
+}
+
+func run() error {
+	name := env("WORKER_NAME")
+	databaseURL := env("DATABASE_URL")
+
+	embedOpts := []hatchet.EmbeddedOption{hatchet.WithoutEmbeddedAPI()}
+	if port := os.Getenv("GRPC_PORT"); port != "" {
+		p, err := strconv.Atoi(port)
+		if err != nil {
+			return err
+		}
+		embedOpts = append(embedOpts, hatchet.WithEmbeddedGRPCPort(p))
+	}
+
+	client, err := hatchet.NewClient(hatchet.WithEmbeddedPostgres(databaseURL, embedOpts...))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close(context.Background()) }()
 
 	task := client.NewStandaloneTask("greet", func(ctx hatchet.Context, input GreetInput) (GreetOutput, error) {
 		time.Sleep(300 * time.Millisecond)
@@ -42,18 +54,19 @@ func main() {
 
 	worker, err := client.NewWorker(name, hatchet.WithWorkflows(task), hatchet.WithSlots(1))
 	if err != nil {
-		log.Fatalf("%s: could not create worker: %v", name, err)
+		return err
 	}
 
 	cleanup, err := worker.Start()
 	if err != nil {
-		log.Fatalf("%s: could not start worker: %v", name, err)
+		return err
 	}
 	defer func() { _ = cleanup() }()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
+	return nil
 }
 
 func env(key string) string {
@@ -62,16 +75,4 @@ func env(key string) string {
 		log.Fatalf("%s is not set", key)
 	}
 	return v
-}
-
-func readEngine(path string) map[string]string {
-	b, err := os.ReadFile(path) //nolint:gosec
-	if err != nil {
-		log.Fatalf("could not read engine file: %v", err)
-	}
-	var info map[string]string
-	if err := json.Unmarshal(b, &info); err != nil {
-		log.Fatalf("could not parse engine file %s: %v", path, err)
-	}
-	return info
 }

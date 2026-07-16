@@ -3300,7 +3300,7 @@ func (r *OLAPRepositoryImpl) AnalyzeOLAPTables(ctx context.Context) error {
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-olap-tables"))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("analyze-olap-tables"))
 
 	if err != nil {
 		return fmt.Errorf("error acquiring advisory lock: %v", err)

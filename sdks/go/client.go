@@ -28,6 +28,10 @@ import (
 type Client struct {
 	legacyClient v0Client.Client
 
+	// embeddedShutdown tears down an in-process engine started via WithEmbeddedPostgres.
+	// nil when the client connects to an external engine.
+	embeddedShutdown func(context.Context) error
+
 	// Feature clients (lazy loaded)
 	metrics    *features.MetricsClient
 	rateLimits *features.RateLimitsClient
@@ -45,14 +49,48 @@ type Client struct {
 // NewClient creates a new Hatchet client.
 // Configuration options can be provided to customize the client behavior.
 func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
+	probe := &v0Client.ClientOpts{} //nolint:staticcheck // SA1019
+	for _, o := range opts {
+		o(probe)
+	}
+
+	var shutdown func(context.Context) error
+	if probe.Embedded != nil {
+		cfg, ok := probe.Embedded.(*EmbeddedConfig)
+		if !ok {
+			return nil, fmt.Errorf("unexpected embedded config type %T", probe.Embedded)
+		}
+		if embeddedBackend == nil {
+			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
+		}
+		sd, err := embeddedBackend(context.Background(), *cfg)
+		if err != nil {
+			return nil, err
+		}
+		shutdown = sd
+	}
+
 	legacyClient, err := v0Client.New(opts...)
 	if err != nil {
+		if shutdown != nil {
+			_ = shutdown(context.Background())
+		}
 		return nil, err
 	}
 
 	return &Client{
-		legacyClient: legacyClient,
+		legacyClient:     legacyClient,
+		embeddedShutdown: shutdown,
 	}, nil
+}
+
+// Close releases client resources. When the client was created with WithEmbeddedPostgres,
+// it also shuts down the in-process engine, bounded by ctx.
+func (c *Client) Close(ctx context.Context) error {
+	if c.embeddedShutdown != nil {
+		return c.embeddedShutdown(ctx)
+	}
+	return nil
 }
 
 // Worker represents a worker that can execute workflows.

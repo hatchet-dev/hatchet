@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -63,7 +64,7 @@ func (i *Instance) Shutdown(ctx context.Context) error {
 	}
 }
 
-func Start(ctx context.Context, opts ...Option) (*Instance, error) {
+func start(ctx context.Context, opts ...Option) (*Instance, error) {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(cfg)
@@ -189,21 +190,36 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 	interruptCh := make(chan interface{})
 	engineCtx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
-	wg.Add(2)
 
-	go func() {
-		defer wg.Done()
-		if startErr := api.Start(cf, interruptCh, *cfg.version, override); startErr != nil {
-			fmt.Fprintf(os.Stderr, "embed: api exited: %v\n", startErr)
-		}
-	}()
+	startServerAPI := cfg.startAPI == nil || *cfg.startAPI
 
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		if runErr := engine.Run(engineCtx, cf, *cfg.version, override); runErr != nil {
 			fmt.Fprintf(os.Stderr, "embed: engine exited: %v\n", runErr)
 		}
 	}()
+
+	if startServerAPI {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if startErr := api.Start(cf, interruptCh, *cfg.version, override); startErr != nil {
+				fmt.Fprintf(os.Stderr, "embed: api exited: %v\n", startErr)
+			}
+		}()
+	}
+
+	waitTargets := []string{grpcBroadcast}
+	if startServerAPI {
+		waitTargets = append(waitTargets, fmt.Sprintf("127.0.0.1:%d", *cfg.apiPort))
+	}
+	if waitErr := waitForListeners(ctx, waitTargets, 30*time.Second); waitErr != nil {
+		cancel()
+		close(interruptCh)
+		return nil, waitErr
+	}
 
 	_ = os.Setenv("HATCHET_CLIENT_TOKEN", tok.Token)
 	_ = os.Setenv("HATCHET_CLIENT_HOST_PORT", grpcBroadcast)
@@ -213,29 +229,46 @@ func Start(ctx context.Context, opts ...Option) (*Instance, error) {
 		_ = os.Setenv("HATCHET_CLIENT_LOG_LEVEL", *cfg.logLevel)
 	}
 
-	client, err := hatchet.NewClient()
-	if err != nil {
-		cancel()
-		close(interruptCh)
-		return nil, fmt.Errorf("could not build embedded client: %w", err)
-	}
-
 	fleetStatus := "starting a new fleet"
 	if fleetSize > 0 {
 		fleetStatus = fmt.Sprintf("joining a fleet of %d engine(s)", fleetSize)
 	}
-	fmt.Fprintf(os.Stderr, "embed engine ready: api=%s grpc=%s | %s\n", apiURL, grpcBroadcast, fleetStatus)
+	apiStatus := "off"
+	if startServerAPI {
+		apiStatus = apiURL
+	}
+	fmt.Fprintf(os.Stderr, "embed engine ready: grpc=%s api=%s | %s\n", grpcBroadcast, apiStatus, fleetStatus)
+
+	instanceAPIURL := ""
+	if startServerAPI {
+		instanceAPIURL = apiURL
+	}
 
 	return &Instance{
-		client:      client,
 		token:       tok.Token,
 		tenantID:    tenantID,
-		apiURL:      apiURL,
+		apiURL:      instanceAPIURL,
 		grpcAddress: grpcBroadcast,
 		interruptCh: interruptCh,
 		cancel:      cancel,
 		wg:          wg,
 	}, nil
+}
+
+func Start(ctx context.Context, opts ...Option) (*Instance, error) {
+	inst, err := start(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := hatchet.NewClient()
+	if err != nil {
+		_ = inst.Shutdown(context.Background())
+		return nil, fmt.Errorf("could not build embedded client: %w", err)
+	}
+	inst.client = client
+
+	return inst, nil
 }
 
 func randomHex(n int) (string, error) {
@@ -244,4 +277,26 @@ func randomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func waitForListeners(ctx context.Context, addresses []string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for _, addr := range addresses {
+		for {
+			conn, err := net.DialTimeout("tcp", addr, time.Second)
+			if err == nil {
+				_ = conn.Close()
+				break
+			}
+			if time.Now().After(deadline) {
+				return fmt.Errorf("embed: %s did not start listening within %s: %w", addr, timeout, err)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}
+	return nil
 }

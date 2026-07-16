@@ -5,11 +5,10 @@ cd "$(git rev-parse --show-toplevel)"
 
 DATABASE_URL="${DATABASE_URL:-postgres://hatchet:hatchet@127.0.0.1:5431/hatchet?sslmode=disable}"
 RUNS="${RUNS:-30}"
+WORKERS="${WORKERS:-3}"
 export DATABASE_URL
 
 BIN="$(mktemp -d)"
-RUNDIR="/tmp/hatchet-embed-fleet"
-rm -rf "$RUNDIR"; mkdir -p "$RUNDIR"
 pids=()
 
 cleanup() {
@@ -20,57 +19,26 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "building engine + worker + trigger..."
-(cd embed/example && go build -o "$BIN/engine" ./engine)
+echo "building worker + trigger..."
 (cd embed/example && go build -o "$BIN/worker" ./worker)
 (cd embed/example && go build -o "$BIN/trigger" ./trigger)
 
-start_engine() {
-  local idx="$1" migrate="$2"
-  local api=$((8090 + idx)) grpc=$((7070 + idx))
-  local out="$RUNDIR/engine-$idx.json"
-  rm -f "$out"
-  echo "starting engine $idx (api=$api grpc=$grpc migrate=$migrate)"
-  API_PORT="$api" GRPC_PORT="$grpc" OUTPUT_FILE="$out" RUN_MIGRATIONS="$migrate" \
-    "$BIN/engine" &
+for idx in $(seq 0 $((WORKERS - 1))); do
+  grpc=$((7070 + idx))
+  echo "starting worker $idx (embedded engine, grpc=$grpc)"
+  WORKER_NAME="worker-$idx" GRPC_PORT="$grpc" "$BIN/worker" &
   pids+=($!)
-  for _ in $(seq 1 60); do [[ -s "$out" ]] && return 0; sleep 1; done
-  echo "engine $idx did not come up"; exit 1
-}
+  sleep 3
+done
 
-start_worker() {
-  local idx="$1"
-  echo "starting worker $idx -> engine $idx"
-  WORKER_NAME="worker-$idx" ENGINE_FILE="$RUNDIR/engine-$idx.json" "$BIN/worker" &
-  pids+=($!)
-}
-
-start_engine 0 true
-sleep 5
-start_engine 1 false
-sleep 5
-start_engine 2 false
-
-start_worker 0
-start_worker 1
-start_worker 2
-
-echo "waiting for workers to register..."
+echo "waiting for the fleet to settle..."
 sleep 6
 
-RUNS="$RUNS" ENGINE_FILE="$RUNDIR/engine-0.json" "$BIN/trigger"
-
-TENANT=$(python3 -c "import json;print(json.load(open('$RUNDIR/engine-0.json'))['tenantID'])")
-TOKEN=$(python3 -c "import json;print(json.load(open('$RUNDIR/engine-0.json'))['token'])")
-API=$(python3 -c "import json;print(json.load(open('$RUNDIR/engine-0.json'))['apiURL'])")
-echo
-echo "REST API is live on each engine (no frontend). Recent runs from engine 0:"
-curl -s -H "Authorization: Bearer $TOKEN" "$API/api/v1/stable/tenants/$TENANT/workflow-runs?only_tasks=true&limit=5&since=2020-01-01T00:00:00Z" \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  API returned {len(d.get(\"rows\",[]))} run(s) on page 1 of {d.get(\"pagination\",{}).get(\"num_pages\",\"?\")}')" 2>/dev/null \
-  || echo "  (API responded)"
+RUNS="$RUNS" GRPC_PORT="7069" "$BIN/trigger"
 
 echo
-echo "cluster still running. re-trigger anytime with:"
-echo "  RUNS=50 ENGINE_FILE=$RUNDIR/engine-0.json go run -C embed/example ./trigger"
+echo "every process embeds its own engine; Postgres is the only shared coordination layer."
+echo "re-trigger anytime with:"
+echo "  RUNS=50 GRPC_PORT=7069 go run -C embed/example ./trigger"
 echo "Ctrl+C to stop."
 wait

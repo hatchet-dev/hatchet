@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+
+	_ "github.com/hatchet-dev/hatchet/embed"
 )
 
 type GreetInput struct {
@@ -23,21 +24,31 @@ type GreetOutput struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	ctx := context.Background()
 
-	info := readEngine(env("ENGINE_FILE"))
+	databaseURL := env("DATABASE_URL")
 	runs := atoiDefault(os.Getenv("RUNS"), 30)
 
-	_ = os.Setenv("HATCHET_CLIENT_TOKEN", info["token"])
-	_ = os.Setenv("HATCHET_CLIENT_HOST_PORT", info["grpcAddress"])
-	_ = os.Setenv("HATCHET_CLIENT_SERVER_URL", info["apiURL"])
-	_ = os.Setenv("HATCHET_CLIENT_TENANT_ID", info["tenantID"])
-	_ = os.Setenv("HATCHET_CLIENT_TLS_STRATEGY", "none")
-
-	client, err := hatchet.NewClient()
-	if err != nil {
-		log.Fatalf("could not create client: %v", err)
+	embedOpts := []hatchet.EmbeddedOption{hatchet.WithoutEmbeddedAPI()}
+	if port := os.Getenv("GRPC_PORT"); port != "" {
+		p, err := strconv.Atoi(port)
+		if err != nil {
+			return err
+		}
+		embedOpts = append(embedOpts, hatchet.WithEmbeddedGRPCPort(p))
 	}
+
+	client, err := hatchet.NewClient(hatchet.WithEmbeddedPostgres(databaseURL, embedOpts...))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = client.Close(context.Background()) }()
 
 	log.Printf("triggering %d runs of \"greet\"", runs) // nolint:gosec
 
@@ -45,7 +56,7 @@ func main() {
 	for i := 0; i < runs; i++ {
 		ref, err := triggerWithRetry(ctx, client, i)
 		if err != nil {
-			log.Fatalf("trigger %d failed: %v", i, err)
+			return fmt.Errorf("trigger %d failed: %w", i, err)
 		}
 		refs = append(refs, ref)
 	}
@@ -73,7 +84,7 @@ func main() {
 	wg.Wait()
 
 	fmt.Println()
-	fmt.Printf("distribution of %d runs across workers (each on a different engine):\n", runs)
+	fmt.Printf("distribution of %d runs across workers:\n", runs)
 	names := make([]string, 0, len(counts))
 	total := 0
 	for w, c := range counts {
@@ -85,6 +96,7 @@ func main() {
 		fmt.Printf("  %-12s %d\n", w, counts[w])
 	}
 	fmt.Printf("  %-12s %d/%d completed across %d workers\n", "total:", total, runs, len(counts))
+	return nil
 }
 
 func triggerWithRetry(ctx context.Context, client *hatchet.Client, i int) (*hatchet.WorkflowRunRef, error) {
@@ -117,16 +129,4 @@ func atoiDefault(s string, def int) int {
 		return def
 	}
 	return n
-}
-
-func readEngine(path string) map[string]string {
-	b, err := os.ReadFile(path) //nolint:gosec
-	if err != nil {
-		log.Fatalf("could not read engine file: %v", err)
-	}
-	var info map[string]string
-	if err := json.Unmarshal(b, &info); err != nil {
-		log.Fatalf("could not parse engine file %s: %v", path, err)
-	}
-	return info
 }
