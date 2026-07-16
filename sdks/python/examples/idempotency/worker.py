@@ -1,4 +1,4 @@
-from hatchet_sdk import Context, Hatchet, IdempotencyConfig
+from hatchet_sdk import Context, Hatchet, TTLBasedIdempotencyConfig
 from datetime import timedelta
 from pydantic import BaseModel
 
@@ -14,7 +14,9 @@ class IdempotencyInput(BaseModel):
 
 
 @hatchet.task(
-    idempotency=IdempotencyConfig(key_expression="input.id", ttl=timedelta(minutes=1)),
+    idempotency=TTLBasedIdempotencyConfig(
+        key_expression="input.id", ttl=timedelta(minutes=1)
+    ),
     input_validator=IdempotencyInput,
     on_events=[EVENT_KEY],
 )
@@ -26,7 +28,9 @@ async def idempotent_task(input: IdempotencyInput, ctx: Context) -> dict[str, st
 
 
 @hatchet.task(
-    idempotency=IdempotencyConfig(key_expression="input.id", ttl=timedelta(seconds=2)),
+    idempotency=TTLBasedIdempotencyConfig(
+        key_expression="input.id", ttl=timedelta(seconds=2)
+    ),
     input_validator=IdempotencyInput,
     on_events=[EVENT_KEY],
 )

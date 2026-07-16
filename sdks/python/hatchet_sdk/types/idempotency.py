@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from datetime import timedelta
 
 from pydantic import BaseModel
@@ -7,8 +8,14 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import (
 )
 
 
-class IdempotencyConfig(BaseModel):
+class BaseIdemotencyConfig(BaseModel, ABC):
     key_expression: str
+
+    @abstractmethod
+    def to_proto(self) -> IdempotencyConfigProto: ...
+
+
+class TTLBasedIdempotencyConfig(BaseIdemotencyConfig):
     ttl: timedelta
 
     def to_proto(self) -> IdempotencyConfigProto:

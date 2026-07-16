@@ -169,7 +169,7 @@ from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
 )
-from hatchet_sdk.types.idempotency import IdempotencyConfig
+from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
     WorkerLabel,
@@ -241,7 +241,6 @@ __all__ = [
     "GithubRepo",
     "Hatchet",
     "IdempotencyCollisionError",
-    "IdempotencyConfig",
     "Job",
     "JobRun",
     "JobRunStatus",
@@ -283,6 +282,7 @@ __all__ = [
     "StepRunEventType",
     "StepRunStatus",
     "StickyStrategy",
+    "TTLBasedIdempotencyConfig",
     "Task",
     "TaskDefaults",
     "TaskRunError",

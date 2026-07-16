@@ -5,6 +5,7 @@ from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
+    Generic,
     ParamSpec,
     TypeAlias,
     TypeGuard,
@@ -18,7 +19,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
 )
-from hatchet_sdk.types.idempotency import IdempotencyConfig
+from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -89,7 +90,7 @@ class TaskIOValidator:
         self.step_output = step_output
 
 
-class WorkflowConfig(BaseModel):
+class WorkflowConfig(BaseModel, Generic[TWorkflowInput]):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     name: str
@@ -101,12 +102,12 @@ class WorkflowConfig(BaseModel):
     # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
     # type is generic per-workflow; it is serialized via `input_validator` in
     # `BaseWorkflow.to_proto`.
-    cron_input: Any = None
+    cron_input: TWorkflowInput | None = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None
-    idempotency: IdempotencyConfig | None = None
+    idempotency: TTLBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)

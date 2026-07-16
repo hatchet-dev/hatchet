@@ -148,7 +148,9 @@ class TypedTriggerWorkflowRunConfig(BaseModel, Generic[TWorkflowInput]):
 
 
 class BaseWorkflow(Generic[TWorkflowInput]):
-    def __init__(self, config: WorkflowConfig, client: "Hatchet") -> None:
+    def __init__(
+        self, config: WorkflowConfig[TWorkflowInput], client: "Hatchet"
+    ) -> None:
         self._config = config
         self._default_tasks: list[Task[TWorkflowInput, Any]] = []
         self._durable_tasks: list[Task[TWorkflowInput, Any]] = []
@@ -157,7 +159,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         self._client = client
 
     @property
-    def config(self) -> WorkflowConfig:
+    def config(self) -> WorkflowConfig[TWorkflowInput]:
         warn(
             "The config property is internal and should not be used directly. It will be removed in v2.0.0.",
             DeprecationWarning,
@@ -253,7 +255,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self._config.on_crons,
             tasks=tasks,
-            cron_input=self._serialize_input(self._config.cron_input, target="string"),
+            cron_input=self._serialize_input(self._config.cron_input, target="bytes"),
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(
                 self._config.sticky, StickyStrategyProto
