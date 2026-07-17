@@ -215,7 +215,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	}
 
 	// create a new lru cache for tenant ids
-	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
+	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) //nolint:errcheck // this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
 	poolCh, err := subChannelPool.Acquire(ctx)

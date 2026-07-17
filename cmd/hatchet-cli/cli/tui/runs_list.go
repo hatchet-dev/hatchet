@@ -922,7 +922,12 @@ func (v *RunsListView) renderDebugView() string {
 		}
 	}
 
-	return RenderDebugView(v.debugLogger, v.Width, v.Height, "")
+	extraInfo := ""
+	if len(activeStatuses) > 0 {
+		extraInfo = "Status filters: " + strings.Join(activeStatuses, ", ")
+	}
+
+	return RenderDebugView(v.debugLogger, v.Width, v.Height, extraInfo)
 }
 
 // filtersClosedMsg is sent when the filter modal is closed

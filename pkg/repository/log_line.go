@@ -253,7 +253,7 @@ func (r *logLineRepositoryImpl) PutLog(ctx context.Context, tenantId uuid.UUID, 
 				TaskID:         opts.TaskId,
 				TaskInsertedAt: opts.TaskInsertedAt,
 				Message:        opts.Message,
-				RetryCount:     int32(opts.RetryCount),
+				RetryCount:     int32(opts.RetryCount), // #nosec G115 -- retry count is engine-bounded, never near int32 range
 				Level:          level,
 				Metadata:       opts.Metadata,
 				WorkflowID:     &opts.WorkflowId,

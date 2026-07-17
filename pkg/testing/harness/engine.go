@@ -586,8 +586,8 @@ func WaitEngineReady(ctx context.Context, timeout time.Duration) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil)
-			resp, err := http.DefaultClient.Do(req) //nolint:gosec
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil) // #nosec G704 -- host is hardcoded to localhost, only the port varies
+			resp, err := http.DefaultClient.Do(req)                              //nolint:gosec
 			if err != nil {
 				continue
 			}

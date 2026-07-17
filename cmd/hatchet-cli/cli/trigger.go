@@ -551,7 +551,7 @@ func editJSONInEditor(initialContent string) (string, error) {
 	}
 
 	// Open editor
-	cmd := exec.Command(editor, tmpPath)
+	cmd := exec.Command(editor, tmpPath) // #nosec G702 -- standard $EDITOR pattern (like git commit); editor and temp file are both local/user-controlled
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -20,7 +20,7 @@ type cloudkmsEncryptionService struct {
 
 // NewCloudKMSEncryption creates a GCP CloudKMS-backed encryption service.
 func NewCloudKMSEncryption(keyUri string, credentialsJSON, privateEc256, publicEc256 []byte) (*cloudkmsEncryptionService, error) {
-	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
+	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON))
 
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func NewCloudKMSEncryption(keyUri string, credentialsJSON, privateEc256, publicE
 }
 
 func GenerateJWTKeysetsFromCloudKMS(keyUri string, credentialsJSON []byte) (privateEc256 []byte, publicEc256 []byte, publicHandle []byte, err error) {
-	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithCredentialsJSON(credentialsJSON))
+	client, err := gcpkms.NewClientWithOptions(context.Background(), keyUri, option.WithAuthCredentialsJSON(option.ServiceAccount, credentialsJSON))
 
 	if err != nil {
 		return

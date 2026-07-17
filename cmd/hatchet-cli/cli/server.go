@@ -153,7 +153,9 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 	var actualDashboardPort, actualGrpcPort int
 
 	// Build options for RunHatchetLite
-	allOpts := append(opts,
+	allOpts := make([]docker.HatchetLiteOpt, len(opts), len(opts)+2)
+	copy(allOpts, opts)
+	allOpts = append(allOpts,
 		docker.WithCreateTokenCallback(func(tok string) {
 			token = tok
 		}),

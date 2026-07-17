@@ -203,10 +203,8 @@ type hatchetContext struct {
 	c        client.Client
 	l        *zerolog.Logger
 
-	i          int
-	indexMu    sync.Mutex
-	listener   *client.WorkflowRunsListener
-	listenerMu sync.Mutex
+	i       int
+	indexMu sync.Mutex
 
 	streamEventIndex   int64
 	streamEventIndexMu sync.Mutex
@@ -1049,9 +1047,6 @@ type durableHatchetContext struct {
 
 	waitKeyCounterMu sync.Mutex
 	waitKeyCounter   int
-
-	durableEventListener *client.DurableEventsListener
-	durableListenerMu    sync.Mutex
 
 	invocationCount int32
 	memoMu          sync.Mutex

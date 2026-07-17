@@ -381,9 +381,9 @@ func (t *V1WorkflowRunsService) V1WorkflowRunList(ctx echo.Context, request gen.
 
 	if request.Params.OnlyTasks {
 		return t.OnlyTasks(spanContext, request, tenantId, useGinIndex)
-	} else {
-		return t.WithDags(spanContext, request, tenantId, useGinIndex)
 	}
+
+	return t.WithDags(spanContext, request, tenantId, useGinIndex)
 }
 
 // additionalMetadataOperator maps the optional additional_metadata_operator query
