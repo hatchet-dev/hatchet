@@ -106,8 +106,23 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		cfg.publicJWTKeyset = &publicJWT
 	}
 
-	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", *cfg.grpcPort)
-	apiURL := fmt.Sprintf("http://localhost:%d", *cfg.apiPort)
+	startServerAPI := cfg.startAPI == nil || *cfg.startAPI
+
+	grpcPort, err := resolvePort(cfg.grpcPort)
+	if err != nil {
+		return nil, fmt.Errorf("could not allocate a gRPC port: %w", err)
+	}
+
+	apiPort := 0
+	if startServerAPI {
+		apiPort, err = resolvePort(cfg.apiPort)
+		if err != nil {
+			return nil, fmt.Errorf("could not allocate an API port: %w", err)
+		}
+	}
+
+	grpcBroadcast := fmt.Sprintf("127.0.0.1:%d", grpcPort)
+	apiURL := fmt.Sprintf("http://localhost:%d", apiPort)
 
 	hashKey, err := randomHex(32)
 	if err != nil {
@@ -123,9 +138,9 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 		scf.Auth.Cookie.Insecure = true
 		scf.Auth.Cookie.Secrets = hashKey + " " + blockKey
 
-		scf.Runtime.Port = *cfg.apiPort
+		scf.Runtime.Port = apiPort
 		scf.Runtime.ServerURL = apiURL
-		scf.Runtime.GRPCPort = *cfg.grpcPort
+		scf.Runtime.GRPCPort = grpcPort
 		scf.Runtime.GRPCBindAddress = "127.0.0.1"
 		scf.Runtime.GRPCBroadcastAddress = grpcBroadcast
 		scf.Runtime.GRPCInsecure = true
@@ -191,8 +206,6 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 	engineCtx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 
-	startServerAPI := cfg.startAPI == nil || *cfg.startAPI
-
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -213,7 +226,7 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 
 	waitTargets := []string{grpcBroadcast}
 	if startServerAPI {
-		waitTargets = append(waitTargets, fmt.Sprintf("127.0.0.1:%d", *cfg.apiPort))
+		waitTargets = append(waitTargets, fmt.Sprintf("127.0.0.1:%d", apiPort))
 	}
 	if waitErr := waitForListeners(ctx, waitTargets, 30*time.Second); waitErr != nil {
 		cancel()
@@ -277,6 +290,22 @@ func randomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func resolvePort(explicit *int) (int, error) {
+	if explicit != nil {
+		return *explicit, nil
+	}
+	return freePort()
+}
+
+func freePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = l.Close() }()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 func waitForListeners(ctx context.Context, addresses []string, timeout time.Duration) error {

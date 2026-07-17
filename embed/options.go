@@ -27,8 +27,6 @@ func defaultConfig() *Config {
 	return &Config{
 		runMigrations: new(true),
 		startAPI:      new(true),
-		apiPort:       new(8080),
-		grpcPort:      new(7070),
 		logLevel:      new("warn"),
 	}
 }
@@ -81,8 +79,8 @@ func (c *Config) validate() error {
 		return fmt.Errorf("a Postgres connection string is required: use WithPostgres(url)")
 	}
 
-	if c.apiPort == c.grpcPort {
-		return fmt.Errorf("api port and grpc port must differ (both %d)", c.apiPort)
+	if c.apiPort != nil && c.grpcPort != nil && *c.apiPort == *c.grpcPort {
+		return fmt.Errorf("api port and grpc port must differ (both %d)", *c.apiPort)
 	}
 
 	if c.rabbitMQURL != nil && *c.rabbitMQURL == "" {
