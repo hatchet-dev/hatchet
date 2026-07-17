@@ -15,8 +15,6 @@ import (
 var (
 	HomeDir             string
 	CLIConfig           *cli.CLIConfig
-	CLIConfigViper      *viper.Viper
-	CLIConfigFilePath   string
 	ProfilesViperConfig *viper.Viper
 	Logger              *log.Logger
 	viperMutex          sync.RWMutex // Protects ProfilesViperConfig from concurrent access
@@ -40,7 +38,6 @@ func init() {
 
 	// Load CLI config file
 	cliConfigFilePath := filepath.Join(hatchetDir, "config.yaml")
-	CLIConfigFilePath = cliConfigFilePath
 
 	var cliConfigFileBytes []byte
 
@@ -66,8 +63,6 @@ func init() {
 	}
 
 	CLIConfig = cliConfig
-	CLIConfigViper.SetConfigFile(cliConfigFilePath)
-	CLIConfigViper.SetConfigType("yaml")
 
 	var logFormatter = log.TextFormatter
 
@@ -118,7 +113,7 @@ func loadCLIConfigFile(files ...[]byte) (*cli.CLIConfig, error) {
 
 	var err error
 
-	CLIConfigViper, err = loaderutils.LoadConfigFromViper(f, configFile, files...)
+	_, err = loaderutils.LoadConfigFromViper(f, configFile, files...)
 	return configFile, err
 }
 

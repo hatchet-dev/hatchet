@@ -15,22 +15,14 @@ type CLIConfig struct {
 	// Logger is the logging configuration for the CLI
 	Logger CLIConfigLogger `mapstructure:"logger" json:"logger,omitempty"`
 
-	// Telemetry is the anonymous usage telemetry configuration for the CLI
 	Telemetry CLIConfigTelemetry `mapstructure:"telemetry" json:"telemetry,omitempty"`
 }
 
-// CLIConfigTelemetry configures the anonymous usage telemetry the CLI sends. No
-// personal data is collected: only the CLI version, OS and architecture, keyed
-// to a randomly generated install ID.
 type CLIConfigTelemetry struct {
-	// Enabled controls whether anonymous usage telemetry is sent. Defaults to true.
 	Enabled *bool `mapstructure:"enabled" json:"enabled,omitempty" default:"true"`
 
-	// AnonymousID is a randomly generated identifier for this install. It is not
-	// derived from any machine, user or network identity. Generated on first run.
 	AnonymousID string `mapstructure:"anonymousId" json:"anonymousId,omitempty"`
 
-	// Endpoint is the telemetry endpoint. Defaults to the Hatchet security endpoint.
 	Endpoint string `mapstructure:"endpoint" json:"endpoint,omitempty" default:"https://security.hatchet.run"`
 }
 
