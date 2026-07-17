@@ -894,25 +894,9 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			if row.ChildTaskExternalID == nil {
 				continue
 			}
-			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
-				TenantID:                row.TenantID,
-				ExternalID:              row.ExternalID,
-				ChildTaskExternalID:     row.ChildTaskExternalID,
-				ResultPayloadExternalID: row.ResultPayloadExternalID,
-				InsertedAt:              row.InsertedAt,
-				ID:                      row.ID,
-				DurableTaskID:           row.DurableTaskID,
-				DurableTaskInsertedAt:   row.DurableTaskInsertedAt,
-				Kind:                    row.Kind,
-				NodeID:                  row.NodeID,
-				BranchID:                row.BranchID,
-				IdempotencyKey:          row.IdempotencyKey,
-				IsSatisfied:             row.IsSatisfied,
-				SatisfiedAt:             row.SatisfiedAt,
-				UserMessage:             row.UserMessage,
-				WaitData:                row.WaitData,
-				InvocationCount:         row.InvocationCount,
-			}
+
+			r := sqlcv1.BulkGetDurableEventLogEntriesRow(*row)
+			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &r
 		}
 
 		for _, o := range skipOpts {

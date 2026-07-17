@@ -27,6 +27,23 @@ func isDagCancelledErr(err error) bool {
 	return errors.As(err, &e)
 }
 
+// dagChildFailedError signals that the DAG reached a terminal outcome because a child task failed.
+// It is distinct from operational errors (failing to build the DAG, trigger a step, etc.): a child
+// failure is deterministic under replay, so retrying the orchestrator can never change the outcome.
+type dagChildFailedError struct {
+	taskActionId string
+	errorMessage string
+}
+
+func (e *dagChildFailedError) Error() string {
+	return fmt.Sprintf("child task %q failed: %s", e.taskActionId, e.errorMessage)
+}
+
+func isDagChildFailedErr(err error) bool {
+	var e *dagChildFailedError
+	return errors.As(err, &e)
+}
+
 type dag struct {
 	requestCh   chan<- *v1contracts.DurableTaskRequest
 	matchRepo   repository.MatchRepository
@@ -138,7 +155,7 @@ func dagDurableTask(
 
 	for _, t := range d.tasks {
 		if t.isFailed {
-			return fmt.Errorf("child task %q failed: %s", t.actionId, t.errorMessage)
+			return &dagChildFailedError{taskActionId: t.actionId, errorMessage: t.errorMessage}
 		}
 	}
 

@@ -195,19 +195,19 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	externalId, err := uuid.Parse(action.TaskRunExternalId)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err))
+		return d.fail(action, fmt.Errorf("could not parse task run external id %q: %w", action.TaskRunExternalId, err), false)
 	}
 
 	tasks, err := d.buildDAG(d.ctx, action)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not build dag: %w", err))
+		return d.fail(action, fmt.Errorf("could not build dag: %w", err), false)
 	}
 
 	requestCh, responseCh, err := d.RegisterDurableTask(d.ctx, externalId)
 
 	if err != nil {
-		return d.fail(action, fmt.Errorf("could not register durable task: %w", err))
+		return d.fail(action, fmt.Errorf("could not register durable task: %w", err), false)
 	}
 
 	defer close(requestCh)
@@ -222,10 +222,10 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 
 	select {
 	case <-d.ctx.Done():
-		return d.fail(action, fmt.Errorf("operator shutting down waiting for register worker ack: %w", d.ctx.Err()))
+		return d.fail(action, fmt.Errorf("operator shutting down waiting for register worker ack: %w", d.ctx.Err()), false)
 	case _, ok := <-responseCh:
 		if !ok {
-			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"))
+			return d.fail(action, fmt.Errorf("response channel closed waiting for register worker ack"), false)
 		}
 	}
 
@@ -275,7 +275,9 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		if isDagCancelledErr(dagErr) {
 			return d.cancelDAG(action, dagErr.Error())
 		}
-		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr))
+		// A child task failing is a terminal DAG outcome that replay reproduces deterministically,
+		// so it must not be retried; anything else (operational errors) remains retriable.
+		return d.fail(action, fmt.Errorf("dag failed: %w", dagErr), isDagChildFailedErr(dagErr))
 	}
 
 	output := make(map[string]json.RawMessage, len(tasks))
@@ -300,8 +302,8 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	return nil
 }
 
-func (d *DAGOperator) fail(action *contracts.AssignedAction, err error) error {
-	if reportErr := d.SendFailed(action, err.Error(), false); reportErr != nil {
+func (d *DAGOperator) fail(action *contracts.AssignedAction, err error, shouldNotRetry bool) error {
+	if reportErr := d.SendFailed(action, err.Error(), shouldNotRetry); reportErr != nil {
 		d.Logger().Error().Err(reportErr).
 			Str("task_run_external_id", action.TaskRunExternalId).
 			Msg("could not report task failure")
