@@ -605,6 +605,7 @@ async def test_multi_scope_bug(hatchet: Hatchet, test_run_id: str) -> None:
                 runs = await hatchet.runs.aio_list(
                     triggering_event_external_id=event.event_id,
                     additional_metadata={"test_run_id": test_run_id},
+                    workflow_ids=[event_workflow.id],
                 )
 
                 assert len(runs.rows) == 1

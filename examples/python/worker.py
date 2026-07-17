@@ -12,7 +12,13 @@ from examples.cancellation.worker import cancellation_workflow
 from examples.concurrency_cancel_in_progress.worker import (
     concurrency_cancel_in_progress_workflow,
 )
+from examples.concurrency_cancel_in_progress_task_level.worker import (
+    concurrency_cancel_in_progress_task_level_workflow,
+)
 from examples.concurrency_cancel_newest.worker import concurrency_cancel_newest_workflow
+from examples.concurrency_cancel_newest_task_level.worker import (
+    concurrency_cancel_newest_task_level_workflow,
+)
 from examples.concurrency_limit.worker import concurrency_limit_workflow
 from examples.concurrency_limit_rr.worker import concurrency_limit_rr_workflow
 from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_workflow
@@ -104,6 +110,7 @@ from examples.bug_tests.durable_child_key_duplicate_child.worker import (
     durable_parent_child_key_bug,
     child_child_key_bug,
 )
+from examples.idempotency.worker import idempotent_task, idempotent_task_short_window
 from examples.bug_tests.durable_spawn_index_collision.worker import (
     durable_spawn_index_collision,
     spawn_index_child_a,
@@ -146,6 +153,8 @@ def main() -> None:
             concurrency_workflow_level_workflow,
             concurrency_cancel_newest_workflow,
             concurrency_cancel_in_progress_workflow,
+            concurrency_cancel_newest_task_level_workflow,
+            concurrency_cancel_in_progress_task_level_workflow,
             di_workflow,
             payload_initial_cancel_bug_workflow,
             run_detail_test_workflow,
@@ -207,6 +216,8 @@ def main() -> None:
             spawn_index_child_b,
             durable_child_key_dedup_replay,
             durable_spawn_many_dags,
+            idempotent_task,
+            idempotent_task_short_window,
             error_raising_durable_parent,
             error_raising_task,
         ],

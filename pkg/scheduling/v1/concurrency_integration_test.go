@@ -245,9 +245,10 @@ func TestConcurrency_CancelInProgress(t *testing.T) {
 }
 
 // TestConcurrency_CancelInProgress_InMemory exercises the new outbox-backed in-memory index for
-// CANCEL_IN_PROGRESS: it keeps the best maxRuns slots under the comparator (priority, then
-// inserted_at, then taskId) running and cancels the rest with CONCURRENCY_LIMIT. With equal-priority
-// tasks this comes down to maxRuns running and the remainder cancelled.
+// CANCEL_IN_PROGRESS: it keeps the newest maxRuns slots (highest priority, then latest) running and
+// cancels the older ones with CONCURRENCY_LIMIT. With equal-priority tasks this comes down to the
+// newest maxRuns running and the older remainder cancelled. (Recency direction is pinned by the unit
+// tests in cancel_in_progress_test.go; this asserts the end-to-end counts.)
 func TestConcurrency_CancelInProgress_InMemory(t *testing.T) {
 	runWithDatabase(t, func(conf *database.Layer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

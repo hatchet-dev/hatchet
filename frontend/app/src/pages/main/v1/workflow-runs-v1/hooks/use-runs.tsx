@@ -20,6 +20,7 @@ type UseRunsProps = {
   statuses?: V1TaskStatus[];
   runningFilter?: V1RunningFilter;
   additionalMetadata?: string[];
+  idempotencyKeys?: string[];
   additionalMetadataOperator?: V1AdditionalMetadataOperator;
   workerId: string | undefined;
   workflowIds?: string[];
@@ -37,6 +38,7 @@ export const useRuns = ({
   statuses,
   runningFilter,
   additionalMetadata,
+  idempotencyKeys,
   additionalMetadataOperator,
   workerId,
   workflowIds,
@@ -55,6 +57,7 @@ export const useRuns = ({
       statuses,
       runningFilter,
       additionalMetadata,
+      idempotencyKeys,
       additionalMetadataOperator,
       workerId,
       workflowIds,
@@ -87,6 +90,7 @@ export const useRuns = ({
       since,
       until: finishedBefore,
       additional_metadata: additionalMetadata,
+      idempotency_keys: idempotencyKeys,
       additional_metadata_operator: additionalMetadataOperator,
       worker_id: workerId,
       only_tasks: onlyTasks,
