@@ -3,6 +3,8 @@
 api-contracts/** linguist-detectable=false
 .github/** linguist-detectable=false
 sdks/** linguist-detectable=false
+frontend/docs/** linguist-detectable=false
+frontend/app/** linguist-detectable=false
 
 # -------- generated ---------
 
