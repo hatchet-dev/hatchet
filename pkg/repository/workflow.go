@@ -435,11 +435,23 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 	isUsingDagOperator := r.dagOperatorEnabled && len(opts.Tasks) > 1
 
 	if isUsingDagOperator {
+		var retentionPeriod *string
+
+		if rp := r.limitConfig.CorePartitionRetentionOrDefault(); rp != "" {
+			retentionPeriod = &rp
+		}
+
+		// big number of retries to make it very unlikely we exhaust them
+		numRetries := 10_000
+
 		opts.Tasks = append(opts.Tasks, CreateStepOpts{
 			ReadableId:        opts.Name,
 			Action:            strings.ToLower(fmt.Sprintf("%s_orchestrator", opts.Name)),
 			IsDurable:         true,
 			IsDagOrchestrator: true,
+			Timeout:           retentionPeriod,
+			ScheduleTimeout:   retentionPeriod,
+			Retries:           &numRetries,
 		})
 	}
 

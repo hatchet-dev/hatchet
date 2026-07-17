@@ -34,6 +34,7 @@ type sharedRepository struct {
 	queries *sqlcv1.Queries
 
 	dagOperatorEnabled bool
+	limitConfig        limits.LimitConfigFile
 
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
@@ -104,6 +105,7 @@ func newSharedRepository(
 		l:                           l,
 		queries:                     queries,
 		dagOperatorEnabled:          dagOperatorEnabled,
+		limitConfig:                 c,
 		queueCache:                  queueCache,
 		stepExpressionCache:         stepExpressionCache,
 		concurrencyStrategyCache:    concurrencyStrategyCache,
