@@ -135,7 +135,7 @@ w.RegisterWorkflow(
 
 ### Tuning Buffer Settings
 
-Hatchet batches message-queue writes to cut down on round-trips to the broker and database. Both the publish (outgoing) buffer and the subscribe (incoming) buffer are governed by the same three settings, applied per `(tenant, message)` buffer:
+Hatchet batches message-queue writes to cut down on round-trips to the broker and database. These settings are the defaults for the publish (outgoing) and subscribe (incoming) buffers, which batch messages per `(queue, tenant, message)`:
 
 ```sh
 # Max messages a buffer accumulates before flushing early (default: 10)
@@ -149,6 +149,12 @@ SERVER_DEFAULT_BUFFER_CONCURRENCY=10
 ```
 
 Larger buffer sizes and longer flush intervals batch more work per write, which lowers broker and database load at the cost of a small increase in latency. Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
+
+<Callout type="info">
+  These are defaults. Some internal subscribers pin their own values: the shared
+  tenant reader fixes its flush interval and concurrency, so only
+  `SERVER_DEFAULT_BUFFER_SIZE` affects it.
+</Callout>
 
 ## Slow Time to Start
 
