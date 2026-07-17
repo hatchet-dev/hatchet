@@ -20,6 +20,7 @@ from hatchet_sdk.contracts.v1.workflows_pb2 import DefaultFilter as DefaultFilte
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
 )
+from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.types.sticky import StickyStrategy
 from hatchet_sdk.utils.timedelta_to_expression import Duration
@@ -98,10 +99,16 @@ class WorkflowConfig(BaseModel):
     version: str | None = None
     on_events: list[str] = Field(default_factory=list)
     on_crons: list[str] = Field(default_factory=list)
+    # An instance of the workflow's input model, passed to runs triggered by the
+    # workflow's `on_crons` schedules. Typed as `Any` because the concrete input
+    # type is generic per-workflow; it is serialized via `input_validator` in
+    # `BaseWorkflow.to_proto`.
+    cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None
+    idempotency: TTLBasedIdempotencyConfig | None = None
 
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)

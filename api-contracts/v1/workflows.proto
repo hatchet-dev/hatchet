@@ -111,8 +111,24 @@ message CreateWorkflowVersionRequest {
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
     repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
     optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
+
+    optional IdempotencyConfig idempotency = 15; // (optional) idempotency configuration for the workflow
 }
 
+message IdempotencyConfig {
+    string expression = 1; // a CEL expression for determining the idempotency key for workflow runs
+    int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds
+}
+
+message IdempotencyCollisionError {
+    string existing_run_external_id = 1; // the external ID of the existing workflow run that caused the collision
+    string colliding_run_external_id = 2; // the external ID of the workflow run that caused the collision
+}
+
+message BulkTriggerIdempotencyCollisionError {
+    repeated string successful_workflow_run_external_ids = 1; // the external IDs of the successfully triggered workflow runs
+    repeated IdempotencyCollisionError collisions = 2; // the idempotency collision errors
+}
 
 message DefaultFilter {
     string expression = 1; // (required) the CEL expression for the filter

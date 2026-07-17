@@ -66,6 +66,16 @@ class APIMeta(BaseModel):
         description="whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance",
         alias="prometheusServerEnabled",
     )
+    auth_disabled: Optional[StrictBool] = Field(
+        default=None,
+        description="whether or not authentication is disabled (authdisabled build) on this instance",
+        alias="authDisabled",
+    )
+    auth_disabled_token: Optional[StrictStr] = Field(
+        default=None,
+        description="the embedded worker API token, only set on authdisabled builds",
+        alias="authDisabledToken",
+    )
     __properties: ClassVar[List[str]] = [
         "auth",
         "pylonAppId",
@@ -76,6 +86,8 @@ class APIMeta(BaseModel):
         "allowChangePassword",
         "observabilityEnabled",
         "prometheusServerEnabled",
+        "authDisabled",
+        "authDisabledToken",
     ]
 
     model_config = ConfigDict(

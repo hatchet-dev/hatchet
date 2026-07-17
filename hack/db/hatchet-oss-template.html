@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hatchet-oss · Orbit database explorer</title>
+<style>
+:root {
+  color-scheme:dark;
+  --bg:#09101d;--grid:#20304a;--panel:#10192a;--panel2:#162238;--panel3:#1b2941;
+  --header:#0c1424;--toolbar:#0d1728;--line:#293852;--line2:#3b4e6d;
+  --text:#edf2f9;--muted:#95a7bf;--faint:#667892;--accent:#6ee7b7;
+  --out:#60a5fa;--in:#c084fc;--self:#fbbf24;--pk:#fbbf24;--fk:#60a5fa;
+  --card:#111c30;--card-title:#192741;--shadow:#0008;--hover:#1c2b45;
+  --edge-arrow:#7890b2;--notice:#2b2410;--notice-line:#5d4c18;
+}
+body[data-theme="light"] {
+  color-scheme:light;
+  --bg:#f5f7fb;--grid:#d9e1ec;--panel:#fff;--panel2:#eef3f8;--panel3:#e6edf6;
+  --header:#fff;--toolbar:#f7f9fc;--line:#d5deea;--line2:#b9c7d8;
+  --text:#172033;--muted:#52647c;--faint:#71839a;--accent:#087f5b;
+  --out:#1769aa;--in:#7c3dad;--self:#9a6700;--pk:#8f5b00;--fk:#1769aa;
+  --card:#fff;--card-title:#edf3f9;--shadow:#28405c2e;--hover:#edf3f9;
+  --edge-arrow:#58708f;--notice:#fff7d6;--notice-line:#d2a72c;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--bg);color:var(--text);font:13px Inter,ui-sans-serif,system-ui,sans-serif;display:flex;flex-direction:column}
+button,input,select{color:inherit;font:inherit}button{cursor:pointer}
+.topbar{height:56px;flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--header);border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:16px;white-space:nowrap}.subtitle,.stats{color:var(--muted)}.stats{margin-left:auto;white-space:nowrap}
+.theme-toggle{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line2);border-radius:7px;background:var(--panel2)}
+.theme-toggle:hover{border-color:var(--accent)}
+.shell{flex:1 1 0;min-height:0;overflow:hidden;display:grid;grid-template-columns:250px minmax(0,1fr) 390px;grid-template-rows:minmax(0,1fr)}
+.sidebar,.details{min-width:0;min-height:0;overflow:hidden;background:var(--panel);display:flex;flex-direction:column}
+.sidebar{border-right:1px solid var(--line)}.details{border-left:1px solid var(--line)}
+.searchbox{padding:10px;border-bottom:1px solid var(--line)}
+.searchbox input{width:100%;padding:8px 10px;background:var(--toolbar);border:1px solid var(--line2);border-radius:7px;outline:none}
+.searchbox input:focus{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 20%,transparent)}
+.starters{padding:10px;border-bottom:1px solid var(--line)}
+.eyebrow{color:var(--faint);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.starter-buttons{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.starter-buttons button{max-width:100%;padding:4px 8px;border:1px solid var(--line2);border-radius:12px;background:var(--panel2);color:var(--muted);white-space:normal;overflow-wrap:anywhere;text-align:left}
+.starter-buttons button:hover{border-color:var(--accent);color:var(--text)}
+.table-list{flex:1 1 auto;overflow:auto;padding:6px}
+.table-row{width:100%;display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:start;gap:7px;padding:6px 7px;border:0;border-radius:6px;background:transparent;color:var(--muted);text-align:left}
+.table-row:hover,.table-row.active{background:var(--panel3);color:var(--text)}.table-row.active{box-shadow:inset 2px 0 var(--accent)}
+.dot{width:7px;height:7px;margin-top:5px;border-radius:50%;background:var(--out)}.table-row .name{min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.count,.pill{display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:1px 6px;border-radius:10px;background:var(--panel3);color:var(--muted);font-size:10px;white-space:nowrap}
+.workspace{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.toolbar{min-height:43px;flex:0 0 auto;display:flex;align-items:center;gap:9px;padding:6px 10px;background:var(--toolbar);border-bottom:1px solid var(--line);color:var(--muted)}
+.toolbar label{display:flex;align-items:center;gap:5px;white-space:nowrap}.toolbar select,.toolbar button{border:1px solid var(--line2);border-radius:6px;background:var(--panel2);padding:5px 8px}
+.toolbar button:hover{border-color:var(--accent)}.toolbar .icon-button{width:29px;padding:5px 0}.toolbar-spacer{flex:1}
+.focus-history{display:flex;align-items:center;gap:5px;min-width:0}.focus-history button:disabled{cursor:not-allowed;opacity:.42}
+.focus-history-name{max-width:240px;overflow-wrap:anywhere;color:var(--text);font-weight:700;line-height:1.25}
+#graphStatus{color:var(--self);font-size:11px;white-space:nowrap}#zoomReadout{min-width:39px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+#viewport{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;cursor:grab;background-color:var(--bg);background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:25px 25px}
+#viewport.dragging{cursor:grabbing}#world{position:absolute;transform-origin:0 0}#edges{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.edge{fill:none;stroke-width:1.8;opacity:.58;marker-end:url(#arrow)}.edge.out{stroke:var(--out)}.edge.in{stroke:var(--in)}
+.edge.secondary{opacity:.32;stroke-width:1.4}.edge.self{stroke:var(--self);opacity:.9;stroke-width:2.2}.edge.hot{stroke:var(--accent);opacity:1;stroke-width:2.8}.edge.dim{opacity:.07}
+body[data-theme="light"] .edge{opacity:.7}body[data-theme="light"] .edge.secondary{opacity:.42}.arrow-path{fill:var(--edge-arrow)}
+.node{position:absolute;min-height:62px;overflow:visible;border:1px solid var(--line2);border-left-width:3px;border-radius:9px;background:var(--card);box-shadow:0 6px 18px var(--shadow);cursor:pointer}
+.node:hover{border-color:var(--accent);box-shadow:0 8px 23px var(--shadow)}.node.dim{opacity:.25}.node.root{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 10px 30px var(--shadow);cursor:default}
+.node-title{display:flex;align-items:flex-start;gap:6px;padding:8px 10px;border-radius:7px 7px 0 0;font-weight:750;background:var(--card-title)}
+.node-title .full-name{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;word-break:normal;line-height:1.28}.node-title .pill{flex:0 0 auto;margin-top:1px}
+.node-meta{padding:6px 10px 8px;color:var(--muted);font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+.direction{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.direction.out{color:var(--out)}.direction.in{color:var(--in)}.direction.self{color:var(--self)}
+.column{display:grid;grid-template-columns:27px minmax(0,1fr) minmax(55px,auto);gap:5px;padding:3px 10px;border-top:1px solid var(--line);font-size:10.5px}
+.column .column-name{min-width:0;overflow-wrap:anywhere}.column .column-type{max-width:125px;color:var(--muted);overflow-wrap:anywhere;text-align:right}
+.node-more{padding:5px 10px 7px;color:var(--faint);font-size:10px;border-top:1px solid var(--line)}
+.legend{position:absolute;left:12px;bottom:12px;z-index:4;max-width:430px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--panel) 94%,transparent);color:var(--muted);box-shadow:0 4px 15px var(--shadow);font-size:11px;line-height:1.45}
+.legend-row{display:flex;flex-wrap:wrap;gap:10px}.legend-line{display:inline-block;width:18px;height:2px;vertical-align:middle;margin-right:4px}.legend-note{margin-top:4px;color:var(--faint)}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);text-align:center;padding:30px}
+.empty strong{color:var(--text);font-size:16px}.empty .starter-buttons{max-width:560px;justify-content:center}
+.details-scroll{flex:1 1 auto;overflow:auto}.details-header{position:sticky;top:0;z-index:3;padding:14px;background:color-mix(in srgb,var(--panel) 96%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.details-header h2{margin:4px 0 8px;font-size:20px;line-height:1.25;overflow-wrap:anywhere}
+.badge{display:inline-block;margin:2px 4px 2px 0;padding:2px 7px;border-radius:10px;background:var(--panel3);color:var(--muted);font-size:10px}
+.details-section{padding:12px 14px;border-bottom:1px solid var(--line)}.details-section h3{display:flex;align-items:center;gap:6px;margin:0 0 9px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.details-section h3.out{color:var(--out)}.details-section h3.in{color:var(--in)}
+.columns-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px}.columns-table th,.columns-table td{padding:5px;border-top:1px solid var(--line);text-align:left;vertical-align:top}
+.columns-table th{border-top:0;color:var(--faint);font-size:9px;letter-spacing:.05em;text-transform:uppercase}.columns-table th:nth-child(1){width:39%}.columns-table th:nth-child(2){width:38%}.columns-table th:nth-child(3){width:23%}
+.columns-table td{overflow-wrap:anywhere}.columns-table .type{color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+.flags{white-space:normal}.key-pk{color:var(--pk);font-weight:800}.key-fk{color:var(--fk);font-weight:800}.nullable{color:var(--faint)}
+.relationship{margin-bottom:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}.relationship button{width:100%;display:flex;align-items:flex-start;gap:6px;padding:8px 9px;border:0;background:transparent;text-align:left;font-weight:750}
+.relationship button:hover{background:var(--hover);color:var(--accent)}.relationship button span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}.relationship .cardinality{flex:0 0 auto;color:var(--muted);font-size:9px;font-weight:500}
+.join-map{padding:0 9px 8px;color:var(--muted);font:10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}
+.self-box{padding:8px 9px;border:1px solid var(--notice-line);border-radius:8px;background:var(--notice);color:var(--self);overflow-wrap:anywhere}.no-rel{color:var(--muted);font-size:11px}
+@media(max-width:1250px){.shell{grid-template-columns:220px minmax(0,1fr) 340px}.subtitle,.stats{display:none}}
+@media(max-width:1100px){.toolbar{flex-wrap:wrap}.focus-history{flex:1 0 100%;order:-1}.toolbar label span,#graphStatus{display:none}}
+@media(max-width:920px){.shell{grid-template-columns:200px minmax(0,1fr)}.details{position:absolute;z-index:20;top:56px;right:0;bottom:0;width:350px;box-shadow:-10px 0 25px var(--shadow)}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <h1>hatchet-oss · Orbit explorer</h1>
+  <span class="subtitle">Focus one table, then follow its neighborhood</span>
+  <span class="stats" id="stats"></span>
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle color theme"><span id="themeIcon">☾</span><span id="themeLabel">Dark</span></button>
+</header>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="searchbox"><input id="tableSearch" type="search" placeholder="Find table or column…" aria-label="Find table or column"></div>
+    <div class="starters">
+      <div class="eyebrow">Explore representative tables</div>
+      <div class="starter-buttons" id="starterButtons"></div>
+    </div>
+    <div class="table-list" id="tableList"></div>
+  </aside>
+  <main class="workspace">
+    <div class="toolbar">
+      <div class="focus-history">
+        <button id="historyPrevious" disabled>← Previous</button>
+        <button id="historyNext" disabled>Next →</button>
+        <span class="focus-history-name" id="focusName">Select a table to begin</span>
+      </div>
+      <span class="toolbar-spacer"></span>
+      <span id="graphStatus"></span>
+      <label><span>Depth</span><select id="depth"><option value="1">1 hop</option><option value="2" selected>2 hops</option><option value="3">3 hops</option></select></label>
+      <button class="icon-button" id="zoomOut" aria-label="Zoom out">−</button>
+      <span id="zoomReadout">100%</span>
+      <button class="icon-button" id="zoomIn" aria-label="Zoom in">+</button>
+      <button id="focusButton">Focus</button>
+      <button id="fitButton">Fit all</button>
+    </div>
+    <div id="viewport" aria-label="Focused entity relationship orbit">
+      <div id="world">
+        <svg id="edges"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="arrow-path" d="M 0 0 L 10 5 L 0 10 z"></path></marker></defs></svg>
+      </div>
+      <div class="legend">
+        <div class="legend-row">
+          <span><i class="legend-line" style="background:var(--out)"></i><strong>References</strong> — focused FK points to table</span>
+          <span><i class="legend-line" style="background:var(--in)"></i><strong>Referenced by</strong> — FK points here</span>
+          <span><i class="legend-line" style="background:var(--self)"></i><strong>Self-reference</strong></span>
+        </div>
+        <div class="legend-note">Cards farther from the center are additional hops. Click any card or relationship to refocus.</div>
+      </div>
+    </div>
+  </main>
+  <aside class="details" aria-label="Focused table details"><div class="details-scroll" id="details"><div class="empty" style="position:relative;min-height:300px">Select a table to inspect it.</div></div></aside>
+</div>
+<script>const hatchetOssModel=__HATCHET_OSS_MODEL__;</script>
+<script>
+'use strict';
+const model=hatchetOssModel;
+const tables=model.tables;
+const rels=model.relationships;
+const byName=new Map(tables.map(table=>[table.name,table]));
+const links=new Map(tables.map(table=>[table.name,[]]));
+for(const rel of rels){
+  links.get(rel.source)?.push({other:rel.target,dir:'out',rel});
+  if(rel.source!==rel.target)links.get(rel.target)?.push({other:rel.source,dir:'in',rel});
+}
+const degree=name=>(links.get(name)||[]).length;
+const STARTERS=[
+  ['WorkflowRun','balanced neighborhood'],
+  ['Tenant','18-link hub'],
+  ['Event','self-reference'],
+  ['v1_incoming_webhook_validation_failures_olap','long name'],
+  ['StepRun','30 columns']
+];
+const COLORS=['#3b82f6','#8b5cf6','#10b981','#f97316','#ec4899','#06b6d4','#d99a00'];
+const state={focus:null,history:[],historyIndex:-1,scale:1,x:0,y:0,positions:new Map()};
+const viewport=document.getElementById('viewport');
+const world=document.getElementById('world');
+const svg=document.getElementById('edges');
+const details=document.getElementById('details');
+const search=document.getElementById('tableSearch');
+const depth=document.getElementById('depth');
+
+function esc(value){return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function colorFor(name){return COLORS[Math.abs([...name].reduce((sum,char)=>sum+char.charCodeAt(0),0))%COLORS.length]}
+function domainOf(table){
+  const name=table.name;
+  if(table.source==='v1-olap.sql')return'v1 OLAP';
+  if(name.startsWith('v1_'))return'v1 task engine';
+  if(/^(WorkflowRun|JobRun|StepRun|GetGroupKeyRun|JobRunLookupData|_StepRunOrder)/.test(name))return'Runs (v0)';
+  if(/^(Workflow|Job$|Step|_StepOrder|_WorkflowToWorkflowTag)/.test(name))return'Workflow definitions';
+  if(/Partition$/.test(name)||/^(Worker|Action|Service|Dispatcher|Ticker|WebhookWorker|_ActionToWorker|_ServiceToWorker|Lease)/.test(name))return'Workers & dispatch';
+  if(/Queue|RateLimit/.test(name))return'Queues & rate limits';
+  if(/^(Event|StreamEvent|LogLine|SNSIntegration|SlackAppWebhook)/.test(name))return'Events & integrations';
+  if(/^(Tenant|User|APIToken)/.test(name)||name==='tenant_entitlement'||name==='SecurityCheckIdent')return'Tenant & auth';
+  return'Other';
+}
+function renderStarters(container){
+  container.replaceChildren();
+  for(const[name,label]of STARTERS){
+    if(!byName.has(name))continue;
+    const button=document.createElement('button');
+    button.textContent=name;button.title=label;button.addEventListener('click',()=>focusTable(name,true));container.append(button);
+  }
+}
+function renderTableList(){
+  const list=document.getElementById('tableList');list.replaceChildren();
+  const query=search.value.trim().toLowerCase();
+  const visible=tables.filter(table=>!query||table.name.toLowerCase().includes(query)||table.columns.some(column=>column.name.toLowerCase().includes(query)||column.type.toLowerCase().includes(query))).sort((a,b)=>degree(b.name)-degree(a.name)||a.name.localeCompare(b.name));
+  for(const table of visible){
+    const button=document.createElement('button');button.className='table-row'+(state.focus===table.name?' active':'');
+    button.innerHTML=`<span class="dot" style="background:${colorFor(table.name)}"></span><span class="name">${esc(table.name)}</span><span class="count">${degree(table.name)}</span>`;
+    button.addEventListener('click',()=>focusTable(table.name,true));list.append(button);
+  }
+  if(!visible.length)list.innerHTML='<div class="empty" style="position:relative;min-height:180px">No matching tables or columns.</div>';
+}
+function updateHistoryControls(){
+  document.getElementById('historyPrevious').disabled=state.historyIndex<=0;
+  document.getElementById('historyNext').disabled=state.historyIndex<0||state.historyIndex>=state.history.length-1;
+  document.getElementById('focusName').textContent=state.focus||'Select a table to begin';
+}
+function focusTable(name,push=true){
+  if(!byName.has(name))return;
+  if(push){
+    const current=state.history[state.historyIndex];
+    if(current!==name){
+      state.history=state.history.slice(0,state.historyIndex+1);
+      state.history.push(name);
+      state.historyIndex=state.history.length-1;
+    }
+  }
+  state.focus=name;updateHistoryControls();renderTableList();renderDetails();renderOrbit();
+}
+function moveHistory(delta){
+  const next=state.historyIndex+delta;
+  if(next<0||next>=state.history.length)return;
+  state.historyIndex=next;focusTable(state.history[next],false);
+}
+function keyLabel(column){
+  if(column.primaryKey&&column.foreignKey)return'<span class="key-pk">PK</span>/<span class="key-fk">FK</span>';
+  if(column.primaryKey)return'<span class="key-pk">PK</span>';
+  if(column.foreignKey)return'<span class="key-fk">FK</span>';
+  return'';
+}
+function neighborhood(root,maxDepth){
+  const levels=new Map([[root,0]]);
+  const direction=new Map([[root,'root']]);
+  let frontier=[root];
+  for(let level=1;level<=maxDepth;level++){
+    const next=[];
+    for(const current of frontier){
+      const ordered=[...(links.get(current)||[])].sort((a,b)=>degree(b.other)-degree(a.other)||a.other.localeCompare(b.other));
+      for(const link of ordered){
+        if(levels.has(link.other))continue;
+        levels.set(link.other,level);direction.set(link.other,current===root?link.dir:direction.get(current));next.push(link.other);
+      }
+    }
+    frontier=next;
+  }
+  return{levels,direction};
+}
+function estimateNode(name,root=false){
+  if(root){
+    const table=byName.get(name),shown=Math.min(table.columns.length,9);
+    return{w:340,h:49+shown*18+(table.columns.length>shown?23:0)};
+  }
+  const width=Math.max(220,Math.min(350,220+Math.max(0,name.length-22)*5.2));
+  const titleChars=Math.max(15,Math.floor((width-72)/7));
+  return{w:width,h:50+Math.max(1,Math.ceil(name.length/titleChars))*16};
+}
+function placeSemicircle(names,level,radius,start,end,center,dir,positions){
+  names.forEach((name,index)=>{
+    const size=estimateNode(name),fraction=names.length===1?.5:(index+.5)/names.length,angle=start+(end-start)*fraction;
+    positions.set(name,{x:center+Math.cos(angle)*radius-size.w/2,y:center+Math.sin(angle)*radius-size.h/2,w:size.w,h:size.h,level,dir});
+  });
+}
+function resolveCollisions(positions,rootName){
+  const items=[...positions.entries()];
+  for(let iteration=0;iteration<36;iteration++){
+    let moved=false;
+    for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
+      const[nameA,a]=items[i],[nameB,b]=items[j];
+      if(nameA===rootName||nameB===rootName)continue;
+      const gap=20,overlapX=Math.min(a.x+a.w+gap,b.x+b.w+gap)-Math.max(a.x,b.x),overlapY=Math.min(a.y+a.h+gap,b.y+b.h+gap)-Math.max(a.y,b.y);
+      if(overlapX<=0||overlapY<=0)continue;
+      moved=true;
+      if(overlapY<overlapX){
+        const delta=overlapY/2+1;
+        if(a.y+a.h/2<=b.y+b.h/2){a.y-=delta;b.y+=delta}else{a.y+=delta;b.y-=delta}
+      }else{
+        const delta=overlapX/2+1;
+        if(a.x+a.w/2<=b.x+b.w/2){a.x-=delta;b.x+=delta}else{a.x+=delta;b.x-=delta}
+      }
+    }
+    if(!moved)break;
+  }
+}
+function renderOrbit(){
+  world.querySelectorAll('.node').forEach(node=>node.remove());svg.querySelectorAll('.edge').forEach(edge=>edge.remove());viewport.querySelector('.empty')?.remove();
+  if(!state.focus){
+    const empty=document.createElement('div');empty.className='empty';
+    empty.innerHTML='<strong>Select a table to center Orbit</strong><span>Try a stable example that exposes a different relationship shape.</span><div class="starter-buttons"></div>';
+    viewport.append(empty);renderStarters(empty.querySelector('.starter-buttons'));state.positions=new Map();document.getElementById('graphStatus').textContent='';return;
+  }
+  const{levels,direction}=neighborhood(state.focus,Number(depth.value));
+  const rings=[];
+  for(const[name,level]of levels)(rings[level]||=[]).push(name);
+  const radii=[0];
+  for(let level=1;level<rings.length;level++){
+    const outgoing=rings[level].filter(name=>direction.get(name)==='out'),incoming=rings[level].filter(name=>direction.get(name)!=='out'),largest=Math.max(outgoing.length,incoming.length);
+    radii[level]=Math.max(radii[level-1]+390,(largest*105)/Math.PI+260);
+  }
+  const extent=(radii.at(-1)||390)+360;
+  world.style.width=`${extent*2}px`;world.style.height=`${extent*2}px`;
+  const positions=new Map(),rootSize=estimateNode(state.focus,true);
+  positions.set(state.focus,{x:extent-rootSize.w/2,y:extent-rootSize.h/2,w:rootSize.w,h:rootSize.h,level:0,dir:'root'});
+  for(let level=1;level<rings.length;level++){
+    const outgoing=rings[level].filter(name=>direction.get(name)==='out').sort((a,b)=>a.localeCompare(b)),incoming=rings[level].filter(name=>direction.get(name)!=='out').sort((a,b)=>a.localeCompare(b));
+    placeSemicircle(outgoing,level,radii[level],Math.PI/2,Math.PI*1.5,extent,'out',positions);
+    placeSemicircle(incoming,level,radii[level],-Math.PI/2,Math.PI/2,extent,'in',positions);
+  }
+  resolveCollisions(positions,state.focus);state.positions=positions;svg.setAttribute('width',extent*2);svg.setAttribute('height',extent*2);drawEdges(positions,direction);
+  for(const[name,pos]of positions)drawNode(name,pos);
+  document.getElementById('graphStatus').textContent='';
+  requestAnimationFrame(()=>fitOrbit(true));
+}
+function drawNode(name,pos){
+  const table=byName.get(name),selfCount=rels.filter(rel=>rel.source===name&&rel.target===name).length,node=document.createElement('article');
+  node.className='node'+(name===state.focus?' root':'');node.dataset.name=name;
+  node.style.cssText=`left:${pos.x}px;top:${pos.y}px;width:${pos.w}px;border-left-color:${name===state.focus?'var(--accent)':pos.dir==='out'?'var(--out)':'var(--in)'}`;
+  const dirLabel=name===state.focus?'focused table':pos.dir==='out'?'references':'referenced by';
+  node.innerHTML=`<div class="node-title"><span class="full-name">${esc(name)}</span>${selfCount?'<span class="direction self">↻ self</span>':''}<span class="pill">${degree(name)}</span></div>`+(name===state.focus?rootColumns(table):`<div class="node-meta"><span class="direction ${pos.dir}">${dirLabel}</span> · depth ${pos.level} · ${table.columns.length} columns · ${degree(name)} links</div>`);
+  if(name!==state.focus)node.addEventListener('click',()=>focusTable(name,true));
+  node.addEventListener('mouseenter',()=>highlight(name));node.addEventListener('mouseleave',()=>highlight(null));world.append(node);pos.h=node.offsetHeight||pos.h;
+}
+function rootColumns(table){
+  const shown=table.columns.slice(0,9);
+  return shown.map(column=>`<div class="column"><span>${keyLabel(column)}</span><span class="column-name">${esc(column.name)}</span><span class="column-type">${esc(column.type)}</span></div>`).join('')+(table.columns.length>shown.length?`<div class="node-more">+ ${table.columns.length-shown.length} more columns in details pane</div>`:'');
+}
+function edgePoint(from,to){
+  const cx=from.x+from.w/2,cy=from.y+from.h/2,tx=to.x+to.w/2,ty=to.y+to.h/2,dx=tx-cx,dy=ty-cy,scale=Math.max(Math.abs(dx)/(from.w/2),Math.abs(dy)/(from.h/2))||1;
+  return[cx+dx/scale,cy+dy/scale];
+}
+function drawEdges(positions,direction){
+  for(const rel of rels){
+    const source=positions.get(rel.source),target=positions.get(rel.target);
+    if(!source||!target)continue;
+    const edge=document.createElementNS('http://www.w3.org/2000/svg','path');
+    let path,cls;
+    if(rel.source===rel.target){
+      const x=source.x+source.w-35,y=source.y+3;
+      path=`M ${x} ${y} C ${x+85} ${y-75},${x+90} ${y+80},${x+8} ${y+55}`;cls='edge self';
+    }else{
+      const[x1,y1]=edgePoint(source,target),[x2,y2]=edgePoint(target,source),direct=rel.source===state.focus||rel.target===state.focus;
+      const dir=rel.source===state.focus?'out':rel.target===state.focus?'in':direction.get(rel.source)||direction.get(rel.target)||'out';
+      path=`M ${x1} ${y1} Q ${(x1+x2)/2} ${(y1+y2)/2-18} ${x2} ${y2}`;cls=`edge ${dir}${direct?'':' secondary'}`;
+    }
+    edge.setAttribute('d',path);edge.setAttribute('class',cls);edge.dataset.source=rel.source;edge.dataset.target=rel.target;
+    const title=document.createElementNS('http://www.w3.org/2000/svg','title');title.textContent=`${rel.source}.${rel.columns.join(', ')} → ${rel.target}.${rel.targetColumns.join(', ')}`;edge.append(title);svg.append(edge);
+  }
+}
+function highlight(name){
+  const connected=new Set(name?[name]:[]);
+  for(const edge of svg.querySelectorAll('.edge')){
+    const hot=name&&(edge.dataset.source===name||edge.dataset.target===name);
+    edge.classList.toggle('hot',!!hot);edge.classList.toggle('dim',!!name&&!hot);
+    if(hot){connected.add(edge.dataset.source);connected.add(edge.dataset.target)}
+  }
+  world.querySelectorAll('.node').forEach(node=>node.classList.toggle('dim',!!name&&!connected.has(node.dataset.name)));
+}
+function renderDetails(){
+  details.replaceChildren();
+  if(!state.focus){details.innerHTML='<div class="empty" style="position:relative;min-height:300px">Select a table to inspect it.</div>';return}
+  const table=byName.get(state.focus),outgoing=rels.filter(rel=>rel.source===state.focus&&rel.target!==state.focus),incoming=rels.filter(rel=>rel.target===state.focus&&rel.source!==state.focus),self=rels.filter(rel=>rel.source===state.focus&&rel.target===state.focus);
+  const header=document.createElement('div');header.className='details-header';
+  header.innerHTML=`<div class="eyebrow">Focused table</div><h2>${esc(table.name)}</h2><span class="badge">${esc(table.source)}</span><span class="badge">${esc(domainOf(table))}</span><span class="badge">${table.columns.length} columns</span><span class="badge">${degree(table.name)} links</span>`;details.append(header);
+  if(self.length){
+    const section=document.createElement('section');section.className='details-section';
+    section.innerHTML=`<h3 style="color:var(--self)">↻ Self-reference</h3>${self.map(rel=>`<div class="self-box">${esc(rel.columns.join(', '))} → ${esc(rel.targetColumns.join(', '))}</div>`).join('')}`;details.append(section);
+  }
+  const columnSection=document.createElement('section');columnSection.className='details-section';
+  columnSection.innerHTML=`<h3>Columns <span class="pill">${table.columns.length}</span></h3><table class="columns-table"><thead><tr><th>Name</th><th>Type</th><th>Cues</th></tr></thead><tbody>${table.columns.map(column=>`<tr><td><strong>${esc(column.name)}</strong>${column.default!==null?`<div class="nullable">default: ${esc(column.default)}</div>`:''}</td><td class="type">${esc(column.type)}</td><td class="flags">${keyLabel(column)} ${column.nullable?'<span class="nullable">nullable</span>':'not null'}</td></tr>`).join('')}</tbody></table>`;details.append(columnSection);
+  details.append(relationshipSection('out',outgoing));details.append(relationshipSection('in',incoming));
+}
+function relationshipSection(dir,items){
+  const section=document.createElement('section');section.className='details-section';
+  const title=dir==='out'?'References — FK points to':'Referenced by — FK points here';
+  section.innerHTML=`<h3 class="${dir}">${title} <span class="pill">${items.length}</span></h3>`;
+  if(!items.length){section.insertAdjacentHTML('beforeend','<div class="no-rel">No explicit relationships in this direction.</div>');return section}
+  for(const rel of items){
+    const target=dir==='out'?rel.target:rel.source,cardinality=dir==='out'?'many → one':'one → many',card=document.createElement('article');
+    card.className='relationship';card.innerHTML=`<button><span>${esc(target)}</span><span class="cardinality">${cardinality}</span></button><div class="join-map">${esc(rel.source)}.${esc(rel.columns.join(', '))} → ${esc(rel.target)}.${esc(rel.targetColumns.join(', '))}</div>`;
+    card.querySelector('button').addEventListener('click',()=>focusTable(target,true));section.append(card);
+  }
+  return section;
+}
+function updateTransform(){world.style.transform=`translate(${state.x}px,${state.y}px) scale(${state.scale})`;document.getElementById('zoomReadout').textContent=`${Math.round(state.scale*100)}%`}
+function setZoom(next,anchorX=viewport.clientWidth/2,anchorY=viewport.clientHeight/2){
+  const old=state.scale;state.scale=Math.max(.1,Math.min(2,next));state.x=anchorX-(anchorX-state.x)*state.scale/old;state.y=anchorY-(anchorY-state.y)*state.scale/old;updateTransform();
+}
+function fitOrbit(focusOnly=false){
+  const positions=[...state.positions.values()].filter(pos=>!focusOnly||pos.level<=1);
+  if(!positions.length)return;
+  const minX=Math.min(...positions.map(pos=>pos.x))-55,minY=Math.min(...positions.map(pos=>pos.y))-90,maxX=Math.max(...positions.map(pos=>pos.x+pos.w))+55,maxY=Math.max(...positions.map(pos=>pos.y+pos.h))+55,minimum=focusOnly?.42:.1;
+  state.scale=Math.max(minimum,Math.min(1.05,Math.min(viewport.clientWidth/(maxX-minX),viewport.clientHeight/(maxY-minY))));
+  state.x=(viewport.clientWidth-(maxX-minX)*state.scale)/2-minX*state.scale;state.y=(viewport.clientHeight-(maxY-minY)*state.scale)/2-minY*state.scale;updateTransform();
+}
+function applyTheme(theme,persist=false){
+  document.body.dataset.theme=theme;document.getElementById('themeIcon').textContent=theme==='dark'?'☾':'☀';document.getElementById('themeLabel').textContent=theme==='dark'?'Dark':'Light';
+  if(persist)try{localStorage.setItem('hatchet-db-orbit-theme',theme)}catch(_){}
+}
+function initialTheme(){
+  try{const stored=localStorage.getItem('hatchet-db-orbit-theme');if(stored==='light'||stored==='dark')return stored}catch(_){}
+  return window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
+}
+let drag=null;
+viewport.addEventListener('pointerdown',event=>{
+  if(event.target.closest('.node,.empty,.legend'))return;
+  drag={x:event.clientX,y:event.clientY,ox:state.x,oy:state.y};viewport.setPointerCapture(event.pointerId);viewport.classList.add('dragging');
+});
+viewport.addEventListener('pointermove',event=>{if(!drag)return;state.x=drag.ox+event.clientX-drag.x;state.y=drag.oy+event.clientY-drag.y;updateTransform()});
+viewport.addEventListener('pointerup',()=>{drag=null;viewport.classList.remove('dragging')});
+viewport.addEventListener('wheel',event=>{event.preventDefault();const rect=viewport.getBoundingClientRect();setZoom(state.scale*(event.deltaY>0?.88:1.14),event.clientX-rect.left,event.clientY-rect.top)},{passive:false});
+search.addEventListener('input',renderTableList);
+depth.addEventListener('change',renderOrbit);
+document.getElementById('historyPrevious').addEventListener('click',()=>moveHistory(-1));
+document.getElementById('historyNext').addEventListener('click',()=>moveHistory(1));
+document.getElementById('zoomIn').addEventListener('click',()=>setZoom(state.scale*1.2));
+document.getElementById('zoomOut').addEventListener('click',()=>setZoom(state.scale/1.2));
+document.getElementById('focusButton').addEventListener('click',()=>fitOrbit(true));
+document.getElementById('fitButton').addEventListener('click',()=>fitOrbit(false));
+document.getElementById('themeToggle').addEventListener('click',()=>applyTheme(document.body.dataset.theme==='dark'?'light':'dark',true));
+window.addEventListener('resize',()=>state.focus&&fitOrbit(true));
+applyTheme(initialTheme());
+document.getElementById('stats').textContent=`${tables.length} tables · ${rels.length} foreign keys`;
+renderStarters(document.getElementById('starterButtons'));renderTableList();updateHistoryControls();renderDetails();renderOrbit();
+</script>
+</body>
+</html>

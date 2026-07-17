@@ -753,18 +753,12 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 	for _, msg := range msgs {
 		for _, payload := range msg.Payloads {
 			if payload.MaybeRunId != nil && payload.MaybeRunInsertedAt != nil {
-				var filterId uuid.UUID
-
-				if payload.FilterId != nil {
-					filterId = *payload.FilterId
-				}
-
 				bulkCreateTriggersParams = append(bulkCreateTriggersParams, v1.EventTriggersFromExternalId{
 					RunID:           *payload.MaybeRunId,
 					RunInsertedAt:   sqlchelpers.TimestamptzFromTime(*payload.MaybeRunInsertedAt),
 					EventExternalId: payload.EventExternalId,
 					EventSeenAt:     sqlchelpers.TimestamptzFromTime(payload.EventSeenAt),
-					FilterId:        filterId,
+					FilterId:        payload.FilterId,
 				})
 			}
 

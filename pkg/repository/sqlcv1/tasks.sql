@@ -1549,7 +1549,9 @@ SELECT
     run_external_id,
     event_id,
     event_seen_at,
-    filter_id
+    CASE WHEN filter_id = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
+        ELSE filter_id
+    END AS filter_id
 FROM
     input
 RETURNING

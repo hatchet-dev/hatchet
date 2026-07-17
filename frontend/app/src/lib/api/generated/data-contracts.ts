@@ -301,6 +301,11 @@ export enum V1RunningFilter {
   ON_WORKER = "ON_WORKER",
 }
 
+export enum V1AdditionalMetadataOperator {
+  OR = "OR",
+  AND = "AND",
+}
+
 export enum V1LogLineOrderByDirection {
   ASC = "ASC",
   DESC = "DESC",
@@ -470,6 +475,8 @@ export interface V1TaskSummary {
    * @format uuid
    */
   parentTaskExternalId?: string;
+  /** The idempotency key that was claimed by the task run */
+  idempotencyKey?: string;
 }
 
 export interface APIError {

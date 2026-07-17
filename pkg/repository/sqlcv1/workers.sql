@@ -332,15 +332,28 @@ WHERE
 ;
 
 -- name: GetWorkerActionsByWorkerActionHash :many
-SELECT DISTINCT
-    w."actionHash" AS action_hash,
+-- NOTE: workers with the same action hash have identical action sets by construction,
+-- so we only look up the actions for a single representative worker per hash. Joining
+-- through every worker with a matching hash degrades badly when inactive workers
+-- accumulate, since each hash can match tens of thousands of historical workers.
+SELECT
+    rep.action_hash,
     a."actionId" AS action_id
-FROM "Worker" w
-JOIN "_ActionToWorker" aw ON w.id = aw."B"
-JOIN "Action" a ON aw."A" = a.id
-WHERE
-    w."tenantId" = @tenantId::UUID
-    AND w."actionHash" = ANY(@actionHashes::BYTEA[])
+FROM (
+    SELECT
+        h.hash::BYTEA AS action_hash,
+        (
+            SELECT w.id
+            FROM "Worker" w
+            WHERE
+                w."tenantId" = @tenantId::UUID
+                AND w."actionHash" = h.hash
+            LIMIT 1
+        ) AS worker_id
+    FROM unnest(@actionHashes::BYTEA[]) AS h(hash)
+) rep
+JOIN "_ActionToWorker" aw ON aw."B" = rep.worker_id
+JOIN "Action" a ON a.id = aw."A"
 ;
 
 -- name: GetWorkerWorkflowsByWorkerId :many

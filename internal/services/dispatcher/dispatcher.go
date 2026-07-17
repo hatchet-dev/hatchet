@@ -459,6 +459,7 @@ func (d *DispatcherImpl) handleDurableCallbackCompleted(ctx context.Context, tas
 
 	for _, payload := range payloads {
 		err := d.serviceV1.DeliverDurableEventLogEntryCompletion(
+			task.TenantID,
 			payload.TaskExternalId,
 			payload.InvocationCount,
 			payload.BranchId,

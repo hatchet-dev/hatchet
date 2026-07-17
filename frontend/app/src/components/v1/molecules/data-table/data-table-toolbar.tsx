@@ -42,6 +42,13 @@ export interface FilterSearchConfig {
   onSearch: (term: string) => void;
 }
 
+// Optional AND/OR toggle for KeyValue filters, controlling whether rows must
+// match all pairs (AND) or any pair (OR).
+export interface FilterOperatorConfig {
+  value: 'AND' | 'OR';
+  onChange: (operator: 'AND' | 'OR') => void;
+}
+
 export type ToolbarFilters = {
   columnId: string;
   title: string;
@@ -49,6 +56,7 @@ export type ToolbarFilters = {
   options?: FilterOption[];
   timeRangeConfig?: TimeRangeConfig;
   searchConfig?: FilterSearchConfig;
+  operatorConfig?: FilterOperatorConfig;
 }[];
 
 type RefetchProps = {

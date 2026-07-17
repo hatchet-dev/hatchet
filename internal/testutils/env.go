@@ -41,7 +41,7 @@ func Prepare(t *testing.T) {
 	_ = os.Setenv("SERVER_PORT", "8080")
 	_ = os.Setenv("SERVER_URL", "http://localhost:8080")
 
-	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", "something something")
+	_ = os.Setenv("SERVER_AUTH_COOKIE_SECRETS", "sixteenbytesbyte sixteenbytesbyte")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_DOMAIN", "app.dev.hatchet-tools.com")
 	_ = os.Setenv("SERVER_AUTH_COOKIE_INSECURE", "false")
 	_ = os.Setenv("SERVER_AUTH_SET_EMAIL_VERIFIED", "true")

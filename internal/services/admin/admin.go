@@ -35,8 +35,9 @@ type AdminServiceImpl struct {
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
 
-	tw        *trigger.TriggerWriter
-	pubBuffer *msgqueue.MQPubBuffer
+	tw                  *trigger.TriggerWriter
+	pubBuffer           *msgqueue.MQPubBuffer
+	grpcTriggersEnabled bool
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -147,14 +148,15 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
-	var tw *trigger.TriggerWriter
-	var pubBuffer *msgqueue.MQPubBuffer
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 
+	slots := 0
 	if opts.grpcTriggersEnabled {
-		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
-
-		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
+		slots = opts.grpcTriggerSlots
 	}
+
+	pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
+	tw := trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, slots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler
 
@@ -163,15 +165,16 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repov1:          opts.repov1,
-		mqv1:            opts.mqv1,
-		v:               opts.v,
-		analytics:       opts.analytics,
-		localScheduler:  localScheduler,
-		localDispatcher: opts.localDispatcher,
-		l:               opts.l,
-		tw:              tw,
-		pubBuffer:       pubBuffer,
+		repov1:              opts.repov1,
+		mqv1:                opts.mqv1,
+		v:                   opts.v,
+		analytics:           opts.analytics,
+		localScheduler:      localScheduler,
+		localDispatcher:     opts.localDispatcher,
+		l:                   opts.l,
+		tw:                  tw,
+		pubBuffer:           pubBuffer,
+		grpcTriggersEnabled: opts.grpcTriggersEnabled,
 	}, nil
 }
 

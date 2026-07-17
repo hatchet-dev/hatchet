@@ -134,14 +134,19 @@ type createDAGOpts struct {
 
 	// (optional) overrides for desired worker labels, propagated to all downstream tasks
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
+
+	// (optional) the idempotency key that the dag claimed before being run
+	IdempotencyKey *string
 }
 
 type TriggerRepository interface {
 	TriggerFromEvents(ctx context.Context, tenantId uuid.UUID, opts []EventTriggerOpts) (*TriggerFromEventsResult, error)
 
-	TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error)
+	TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error)
 
 	PopulateExternalIdsForWorkflow(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
+
+	PopulateWorkflowIdempotencyPresence(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
 	PreflightVerifyWorkflowNameOpts(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error
 
@@ -312,7 +317,7 @@ func (r *sharedRepository) doTriggerFromEvents(
 		return nil, fmt.Errorf("failed to prepare trigger from events: %w", err)
 	}
 
-	tasks, dags, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, createCoreEventOpts)
+	tasks, dags, _, workflowCelFailures, err := r.triggerWorkflows(ctx, tx, tenantId, triggerOpts, createCoreEventOpts)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger workflows: %w", err)
@@ -324,7 +329,7 @@ func (r *sharedRepository) doTriggerFromEvents(
 		Tasks:                 tasks,
 		Dags:                  dags,
 		EventExternalIdToRuns: eventExternalIdToRuns,
-		CELEvaluationFailures: celEvaluationFailures,
+		CELEvaluationFailures: append(celEvaluationFailures, workflowCelFailures...),
 	}, nil
 }
 
@@ -372,36 +377,36 @@ func getEventExternalIdToRuns(opts []EventTriggerOpts, externalIdToEventIdAndFil
 	return eventExternalIdToRuns
 }
 
-func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+func (s *sharedRepository) triggerFromWorkflowNames(ctx context.Context, tx *OptimisticTx, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
 	triggerOpts, err := s.prepareTriggerFromWorkflowNames(ctx, tx.tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to prepare trigger from workflow names: %w", err)
 	}
 
 	return s.triggerWorkflows(ctx, tx, tenantId, triggerOpts, nil)
 }
 
-func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, error) {
+func (r *TriggerRepositoryImpl) TriggerFromWorkflowNames(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
 	tx, err := r.PrepareOptimisticTx(ctx)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to prepare tx: %w", err)
 	}
 
 	defer tx.Rollback()
 
-	tasks, dags, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
+	tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, err := r.triggerFromWorkflowNames(ctx, tx, tenantId, opts)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return tasks, dags, nil
+	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
 }
 
 type ErrNamesNotFound struct {
@@ -448,6 +453,48 @@ func (r *TriggerRepositoryImpl) PreflightVerifyWorkflowNameOpts(ctx context.Cont
 		return &ErrNamesNotFound{
 			Names: workflowNamesNotFound,
 		}
+	}
+
+	return nil
+}
+
+func (r *TriggerRepositoryImpl) PopulateWorkflowIdempotencyPresence(ctx context.Context, tenantId uuid.UUID, opts []*WorkflowNameTriggerOpts) error {
+	if len(opts) == 0 {
+		return nil
+	}
+
+	uniqueNames := make(map[string]struct{})
+	names := make([]string, 0, len(uniqueNames))
+
+	for _, opt := range opts {
+		if _, ok := uniqueNames[opt.WorkflowName]; !ok {
+			names = append(names, opt.WorkflowName)
+		}
+
+		uniqueNames[opt.WorkflowName] = struct{}{}
+	}
+
+	rows, err := r.listWorkflowsByNames(ctx, r.pool, tenantId, names)
+
+	if err != nil {
+		return fmt.Errorf("failed to list workflows by names: %w", err)
+	}
+
+	nameToRow := make(map[string]*sqlcv1.ListWorkflowsByNamesRow, len(rows))
+
+	for _, row := range rows {
+		nameToRow[row.WorkflowName] = row
+	}
+
+	for _, opt := range opts {
+		row, ok := nameToRow[opt.WorkflowName]
+
+		if !ok {
+			r.l.Error().Str("workflowName", opt.WorkflowName).Msg("workflow name not found when populating idempotency presence")
+			continue
+		}
+
+		opt.HasIdempotencyKey = row.IdempotencyKeyExpression.Valid && row.IdempotencyKeyTtlMs.Valid
 	}
 
 	return nil
@@ -588,6 +635,7 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
+	idempotency               *IdempotencyConfig
 }
 
 type createCoreUserEventOpts struct {
@@ -596,21 +644,137 @@ type createCoreUserEventOpts struct {
 	params                         sqlcv1.BulkCreateEventsParams
 }
 
+const internalIdempotencyKeyPrefix = "hatchet_internal_"
+
+func (r *sharedRepository) evalIdempotencyKey(tuple triggerTuple) (string, error) {
+	inputData := make(map[string]any)
+	if len(tuple.input) > 0 {
+		if err := json.Unmarshal(tuple.input, &inputData); err != nil {
+			return "", fmt.Errorf("failed to unmarshal input for idempotency key evaluation: %w", err)
+		}
+	}
+
+	additionalMetadata := make(map[string]any)
+	if len(tuple.additionalMetadata) > 0 {
+		if err := json.Unmarshal(tuple.additionalMetadata, &additionalMetadata); err != nil {
+			return "", fmt.Errorf("failed to unmarshal additional metadata for idempotency key evaluation: %w", err)
+		}
+	}
+
+	key, err := r.celParser.ParseAndEvalWorkflowString(
+		tuple.idempotency.Expression,
+		cel.NewInput(
+			cel.WithInput(inputData),
+			cel.WithAdditionalMetadata(additionalMetadata),
+		),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to evaluate idempotency key expression %q: %w", tuple.idempotency.Expression, err)
+	}
+
+	if strings.HasPrefix(key, internalIdempotencyKeyPrefix) {
+		return "", fmt.Errorf("idempotency key %q uses reserved prefix %q", key, internalIdempotencyKeyPrefix)
+	}
+
+	return key, nil
+}
+
 func (r *sharedRepository) triggerWorkflows(
 	ctx context.Context,
 	existingTx *OptimisticTx,
 	tenantId uuid.UUID,
-	tuples []triggerTuple,
+	triggerCandidateTuples []triggerTuple,
 	coreEvents *createCoreUserEventOpts,
-) ([]*V1TaskWithPayload, []*DAGWithData, error) {
-	for i := range tuples {
-		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
+) ([]*V1TaskWithPayload, []*DAGWithData, []IdempotencyCollision, []CELEvaluationFailure, error) {
+	var preflightTx sqlcv1.DBTX = r.pool
+
+	if existingTx != nil {
+		preflightTx = existingTx.tx
+	}
+
+	tuples := make([]triggerTuple, 0, len(triggerCandidateTuples))
+
+	keys := make([]string, 0, len(triggerCandidateTuples))
+	expiresAts := make([]pgtype.Timestamptz, 0, len(triggerCandidateTuples))
+	claimedByExternalIds := make([]uuid.UUID, 0, len(triggerCandidateTuples))
+	externalIdToTuple := make(map[uuid.UUID]triggerTuple)
+	externalIdToIdempotencyKey := make(map[uuid.UUID]string)
+
+	var celEvaluationFailures []CELEvaluationFailure
+
+	for _, tuple := range triggerCandidateTuples {
+		if tuple.idempotency == nil {
+			tuples = append(tuples, tuple)
+		} else {
+			externalIdToTuple[tuple.externalId] = tuple
+			key, err := r.evalIdempotencyKey(tuple)
+			if err != nil {
+				r.l.Error().Ctx(ctx).Err(err).Msg("failed to evaluate idempotency key, skipping tuple")
+				celEvaluationFailures = append(celEvaluationFailures, CELEvaluationFailure{
+					Source:       sqlcv1.V1CelEvaluationFailureSourceIDEMPOTENCYKEY,
+					ErrorMessage: err.Error(),
+				})
+				continue
+			}
+
+			keys = append(keys, key)
+			expiresAts = append(expiresAts, pgtype.Timestamptz{
+				Time:  time.Now().Add(time.Duration(tuple.idempotency.TTLMs) * time.Millisecond),
+				Valid: true,
+			})
+			claimedByExternalIds = append(claimedByExternalIds, tuple.externalId)
+			externalIdToIdempotencyKey[tuple.externalId] = key
+		}
+	}
+
+	var idempotencyKeyCollisions []IdempotencyCollision
+
+	if len(keys) > 0 {
+		claims, err := r.queries.ClaimIdempotencyKeys(ctx, preflightTx, sqlcv1.ClaimIdempotencyKeysParams{
+			Keys:                 keys,
+			Expiresats:           expiresAts,
+			Claimedbyexternalids: claimedByExternalIds,
+			Tenantid:             tenantId,
+		})
+
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
+		}
+
+		idempotencyKeyToLockHolder := make(map[string]uuid.UUID, len(claims))
+		for _, claim := range claims {
+			if claim.ClaimedByExternalID != nil {
+				idempotencyKeyToLockHolder[claim.Key] = *claim.ClaimedByExternalID
+			}
+		}
+
+		for i, key := range keys {
+			requestedId := claimedByExternalIds[i]
+			lockHolderExternalId, ok := idempotencyKeyToLockHolder[key]
+			if !ok {
+				continue
+			}
+
+			if lockHolderExternalId == requestedId {
+				tuple, ok := externalIdToTuple[requestedId]
+				if !ok {
+					continue
+				}
+				tuples = append(tuples, tuple)
+			} else {
+				idempotencyKeyCollisions = append(idempotencyKeyCollisions, IdempotencyCollision{
+					RequestedExternalId: requestedId,
+					ExistingExternalId:  lockHolderExternalId,
+				})
+			}
+		}
 	}
 
 	// get unique workflow version ids
 	uniqueWorkflowVersionIds := make(map[uuid.UUID]struct{})
 
-	for _, tuple := range tuples {
+	for i, tuple := range tuples {
+		tuples[i].additionalMetadata = ensureTraceparent(tuples[i].additionalMetadata, tuples[i].externalId)
 		uniqueWorkflowVersionIds[tuple.workflowVersionId] = struct{}{}
 	}
 
@@ -621,16 +785,10 @@ func (r *sharedRepository) triggerWorkflows(
 		workflowVersionIds = append(workflowVersionIds, id)
 	}
 
-	var preflightTx sqlcv1.DBTX = r.pool
-
-	if existingTx != nil {
-		preflightTx = existingTx.tx
-	}
-
 	workflowVersionToSteps, err := r.listStepsByWorkflowVersionIds(ctx, preflightTx, tenantId, workflowVersionIds)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to get workflow versions for engine: %w", err)
 	}
 
 	// group steps by workflow version ids
@@ -665,7 +823,7 @@ func (r *sharedRepository) triggerWorkflows(
 	preTask, postTask := r.m.Meter(ctx, preflightTx, sqlcv1.LimitResourceTASKRUN, tenantId, int32(countTasks)) // nolint: gosec
 
 	if err := preTask(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
@@ -677,7 +835,7 @@ func (r *sharedRepository) triggerWorkflows(
 		})
 
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to list step match conditions: %w", err)
 		}
 
 		for _, match := range additionalMatches {
@@ -758,7 +916,7 @@ func (r *sharedRepository) triggerWorkflows(
 		tx, commit, rollback, err = sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 
 		defer rollback()
@@ -771,7 +929,7 @@ func (r *sharedRepository) triggerWorkflows(
 	tuplesToSkip, err := r.registerChildWorkflows(ctx, tx, tenantId, tuples, stepsToExternalIds, workflowVersionToSteps)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to register child workflows: %w", err)
 	}
 
 	for i, tuple := range tuples {
@@ -917,7 +1075,7 @@ func (r *sharedRepository) triggerWorkflows(
 							)
 
 							if err != nil {
-								return nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
+								return nil, nil, nil, nil, fmt.Errorf("failed to create sleep condition: %w", err)
 							}
 
 							groupConditions = append(groupConditions, *c)
@@ -1033,6 +1191,12 @@ func (r *sharedRepository) triggerWorkflows(
 						DesiredWorkerLabels:       labels,
 						TriggeringEventExternalId: tuple.triggeringEventExternalId,
 						TriggeringEventKey:        tuple.triggeringEventKey,
+					}
+
+					idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]
+
+					if ok {
+						opt.IdempotencyKey = &idempotencyKey
 					}
 
 					if isDag {
@@ -1155,7 +1319,7 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		if isDag {
-			dagOpts = append(dagOpts, createDAGOpts{
+			dagOpt := createDAGOpts{
 				ExternalId:           tuple.externalId,
 				Input:                tuple.input,
 				TaskIds:              dagToTaskIds[tuple.externalId],
@@ -1166,7 +1330,13 @@ func (r *sharedRepository) triggerWorkflows(
 				AdditionalMetadata:   tuple.additionalMetadata,
 				ParentTaskExternalID: tuple.parentExternalId,
 				DesiredWorkerLabels:  tuple.desiredWorkerLabels,
-			})
+			}
+
+			if idempotencyKey, ok := externalIdToIdempotencyKey[tuple.externalId]; ok {
+				dagOpt.IdempotencyKey = &idempotencyKey
+			}
+
+			dagOpts = append(dagOpts, dagOpt)
 		}
 	}
 
@@ -1174,7 +1344,7 @@ func (r *sharedRepository) triggerWorkflows(
 	dags, err := r.createDAGs(ctx, tx, tenantId, dagOpts)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create DAGs: %w", err)
 	}
 
 	// populate taskOpts with inserted DAG data
@@ -1199,7 +1369,7 @@ func (r *sharedRepository) triggerWorkflows(
 	tasks, err := r.createTasks(ctx, tx, tenantId, createTaskOpts)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create tasks: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create tasks: %w", err)
 	}
 
 	for _, dag := range dags {
@@ -1216,7 +1386,7 @@ func (r *sharedRepository) triggerWorkflows(
 	err = r.createEventMatches(ctx, tx, tenantId, createMatchOpts)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create event matches: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create event matches: %w", err)
 	}
 
 	storePayloadOpts := make([]StorePayloadOpts, 0, len(tasks))
@@ -1249,7 +1419,7 @@ func (r *sharedRepository) triggerWorkflows(
 		createdEvents, err := r.queries.BulkCreateEvents(ctx, tx, coreEvents.params)
 
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create core events: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to create core events: %w", err)
 		}
 
 		for _, createdEvent := range createdEvents {
@@ -1325,7 +1495,7 @@ func (r *sharedRepository) triggerWorkflows(
 		})
 
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create event to runs: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to create event to runs: %w", err)
 		}
 
 		for _, e := range createdEvents {
@@ -1349,13 +1519,13 @@ func (r *sharedRepository) triggerWorkflows(
 	err = r.payloadStore.Store(ctx, tx, storePayloadOpts...)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to store payloads: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
 	}
 
 	// commit if we started the transaction
 	if existingTx == nil {
 		if err := commit(ctx); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, nil, err
 		}
 
 		postTask()
@@ -1364,7 +1534,7 @@ func (r *sharedRepository) triggerWorkflows(
 		existingTx.AddPostCommit(postTask)
 	}
 
-	return tasks, dags, nil
+	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
 }
 
 type DAGWithData struct {
@@ -1406,6 +1576,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	parentTaskExternalIds := make([]uuid.UUID, 0, len(opts))
 	dagIdToOpt := make(map[uuid.UUID]createDAGOpts, 0)
 	desiredWorkerLabels := make([][]byte, 0, len(opts))
+	idempotencyKeys := make([]string, 0, len(opts))
 
 	unix := time.Now().UnixMilli()
 
@@ -1420,6 +1591,12 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			parentTaskExternalIds = append(parentTaskExternalIds, uuid.UUID{})
 		} else {
 			parentTaskExternalIds = append(parentTaskExternalIds, *opt.ParentTaskExternalID)
+		}
+
+		if opt.IdempotencyKey == nil {
+			idempotencyKeys = append(idempotencyKeys, "")
+		} else {
+			idempotencyKeys = append(idempotencyKeys, *opt.IdempotencyKey)
 		}
 
 		var desiredWorkerLabelsBytes []byte
@@ -1445,6 +1622,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		Workflowversionids:    workflowVersionIds,
 		Parenttaskexternalids: parentTaskExternalIds,
 		Desiredworkerlabels:   desiredWorkerLabels,
+		Idempotencykeys:       idempotencyKeys,
 	})
 
 	if err != nil {
@@ -2239,6 +2417,15 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 				additionalMetadata := triggerConverter.ToMetadata(opt.AdditionalMetadata)
 				externalId := uuid.New()
 
+				var idempotency *IdempotencyConfig
+
+				if workflow.IdempotencyKeyExpression.Valid && workflow.IdempotencyKeyTtlMs.Valid {
+					idempotency = &IdempotencyConfig{
+						Expression: workflow.IdempotencyKeyExpression.String,
+						TTLMs:      workflow.IdempotencyKeyTtlMs.Int64,
+					}
+				}
+
 				triggerOpts = append(triggerOpts, triggerTuple{
 					workflowVersionId:         workflow.WorkflowVersionId,
 					workflowId:                workflow.WorkflowId,
@@ -2250,6 +2437,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					filterPayload:             decision.FilterPayload,
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
+					idempotency:               idempotency,
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
@@ -2284,13 +2472,8 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
-	idempotencyKeyToExternalIds := make(map[IdempotencyKey]uuid.UUID)
 
 	for _, opt := range opts {
-		if opt.IdempotencyKey != nil {
-			idempotencyKeyToExternalIds[*opt.IdempotencyKey] = opt.ExternalId
-		}
-
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
 
 		if _, ok := uniqueNames[opt.WorkflowName]; ok {
@@ -2299,21 +2482,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 
 		uniqueNames[opt.WorkflowName] = struct{}{}
 		workflowNames = append(workflowNames, opt.WorkflowName)
-	}
-
-	keyClaimantPairs := make([]KeyClaimantPair, 0, len(idempotencyKeyToExternalIds))
-
-	for idempotencyKey, runExternalId := range idempotencyKeyToExternalIds {
-		keyClaimantPairs = append(keyClaimantPairs, KeyClaimantPair{
-			IdempotencyKey:      idempotencyKey,
-			ClaimedByExternalId: runExternalId,
-		})
-	}
-
-	keyClaimantPairToWasClaimed, err := claimIdempotencyKeys(ctx, r.queries, tx, tenantId, keyClaimantPairs)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to claim idempotency keys: %w", err)
 	}
 
 	workflowVersionsByNames, err := r.listWorkflowsByNames(ctx, tx, tenantId, workflowNames)
@@ -2333,17 +2501,11 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 		}
 
 		for _, opt := range opts {
-			if opt.IdempotencyKey != nil {
-				keyClaimantPair := KeyClaimantPair{
-					IdempotencyKey:      *opt.IdempotencyKey,
-					ClaimedByExternalId: opt.ExternalId,
-				}
-
-				wasSuccessfullyClaimed := keyClaimantPairToWasClaimed[keyClaimantPair]
-
-				// if we did not successfully claim the idempotency key, we should not trigger the workflow
-				if !wasSuccessfullyClaimed {
-					continue
+			var idempotency *IdempotencyConfig
+			if workflowVersion.IdempotencyKeyExpression.Valid && workflowVersion.IdempotencyKeyTtlMs.Valid {
+				idempotency = &IdempotencyConfig{
+					Expression: workflowVersion.IdempotencyKeyExpression.String,
+					TTLMs:      workflowVersion.IdempotencyKeyTtlMs.Int64,
 				}
 			}
 
@@ -2362,6 +2524,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				idempotency:          idempotency,
 			})
 		}
 	}
