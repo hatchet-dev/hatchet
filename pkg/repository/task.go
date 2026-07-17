@@ -2341,8 +2341,6 @@ func (r *sharedRepository) insertTasks(
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
 
-		// inputs are stored in the payload store, so write an empty json object to the
-		// inputs column on the tasks table
 		params.Inputs = append(params.Inputs, []byte("{}"))
 
 		stepIdsToParams[task.StepId] = params
@@ -2994,9 +2992,6 @@ func (r *sharedRepository) createTaskEvents(
 		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
 		// because it'll try to unmarshal the `nil` value.
 		externalIdToData[externalId] = eventDatas[i]
-
-		// event data is stored in the payload store, so paramDatas is left nil for the
-		// data column on the task events table
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{

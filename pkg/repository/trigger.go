@@ -1646,9 +1646,6 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			input = []byte("{}")
 		}
 
-		// dag data is stored in the payload store, so the input is passed back to the
-		// caller without being written to the dag data table
-
 		additionalMeta := opt.AdditionalMetadata
 
 		if len(additionalMeta) == 0 {

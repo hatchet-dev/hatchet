@@ -1954,8 +1954,6 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		output := event.Output
 
 		if _, ok := r.eventCache.Get(key); !ok {
-			// the output is stored in the payload store, so it is blanked out on the
-			// event row itself
 			if event.Output != nil {
 				event.Output = []byte("{}")
 			}
@@ -2316,8 +2314,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			payload = task.Input
 		}
 
-		// the payload is stored in the payload store, so an empty json object is written
-		// to the task row
 		payloadToWriteToTask := []byte("{}")
 
 		params.Tenantids = append(params.Tenantids, task.TenantID)
@@ -2450,8 +2446,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		// the input is stored in the payload store, so an empty json object is written
-		// to the dag row
 		input := []byte("{}")
 
 		params.Tenantids = append(params.Tenantids, dag.TenantID)
@@ -2664,8 +2658,6 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
 	}
 
-	// payloads are stored in the payload store, so empty json objects are written to
-	// the event rows
 	payloads := make([][]byte, len(eventsToInsert.Payloads))
 
 	for i := range eventsToInsert.Payloads {

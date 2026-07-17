@@ -3,10 +3,9 @@ import { Callout } from "nextra/components";
 ## Engine Migration Guide
 
 <Callout type="warning">
-  This guide covered upgrading from the legacy **v0 engine** to **v1**. The v0
-  engine has since been removed — all tenants now run on v1 — so this page is
-  kept for historical reference only and is no longer relevant to current
-  deployments.
+  This guide covers migrating from Hatchet **v0** to **v1**. v0 has since been
+  removed — everything now runs on v1 — so this page is kept for historical
+  reference only and is no longer relevant.
 </Callout>
 
 Please read this document in its entirety before upgrading to a v1 engine.
@@ -25,9 +24,13 @@ If you navigate to the Tenant Settings page and click the "Downgrade to v0" butt
 
 After upgrading, you will be able to view your old workflows by clicking on your account icon (in the top right) and selecting **View Legacy V0 Data**.
 
-### Default engine for new tenants
+### Setting v1 as the default engine
 
-New tenants are created on the v1 engine by default, including on self-hosted instances — no additional configuration is required. To move an existing tenant, use the "Upgrade to v1" toggle described in [How to upgrade](#how-to-upgrade).
+For self-hosted instances, you can set v1 to be the default engine for all new tenants by setting the following environment variable:
+
+```
+SERVER_DEFAULT_ENGINE_VERSION=V1
+```
 
 ### Workflow Run Migration
 
