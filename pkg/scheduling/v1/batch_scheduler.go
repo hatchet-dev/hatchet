@@ -23,12 +23,48 @@ const defaultBatchIdleTTL = 30 * time.Second
 // batchGroup buffers queue items in-memory for a single batch_key within a step, flushing
 // them once batch requirements are satisfied. Batch config (size/interval/max runs) lives on
 // the owning BatchScheduler, since it's defined per-step rather than per-batch_key.
+
 type batchGroup struct {
-	l             zerolog.Logger
+	l             *zerolog.Logger
 	lastActiveAt  time.Time
 	flushDeadline *time.Time
+	flushInterval *time.Duration
 	batchKey      string
 	buffer        []*sqlcv1.V1BatchedQueueItem
+}
+
+func (g *batchGroup) getBufferedIds() []int64 {
+	ids := make([]int64, 0)
+	for _, item := range g.buffer {
+		if item != nil {
+			ids = append(ids, item.ID)
+		}
+	}
+	return ids
+}
+
+func (g *batchGroup) popTimedOut() []*sqlcv1.V1BatchedQueueItem {
+	timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
+	remainingItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
+	for _, item := range g.buffer {
+		if item == nil {
+			continue
+		}
+
+		if item.ScheduleTimeoutAt.Valid && item.ScheduleTimeoutAt.Time.Before(time.Now()) {
+			timedOutItems = append(timedOutItems, item)
+		} else {
+			remainingItems = append(remainingItems, item)
+		}
+	}
+	g.buffer = remainingItems
+	return timedOutItems
+}
+
+func (g *batchGroup) resetFlushDeadline() {
+	if g.flushInterval != nil {
+		g.flushDeadline = new(time.Now().Add(*g.flushInterval))
+	}
 }
 
 type BatchScheduler struct {
@@ -49,7 +85,7 @@ type BatchScheduler struct {
 	groups map[string]*batchGroup // keyed by batch_key
 
 	batchSize     int
-	flushInterval time.Duration
+	flushInterval *time.Duration
 	idleTTL       time.Duration
 	lastActiveAt  time.Time
 
@@ -66,11 +102,7 @@ func (b *BatchScheduler) reconcileBuffers() {
 
 	ids := make([]int64, 0)
 	for _, group := range b.groups {
-		for _, item := range group.buffer {
-			if item != nil {
-				ids = append(ids, item.ID)
-			}
-		}
+		ids = append(ids, group.getBufferedIds()...)
 	}
 
 	if len(ids) == 0 {
@@ -140,9 +172,9 @@ func newBatchScheduler(
 		batchSize = 1
 	}
 
-	var flushInterval time.Duration
+	var flushInterval *time.Duration
 	if resource.BatchMaxInterval.Valid {
-		flushInterval = time.Duration(resource.BatchMaxInterval.Int32) * time.Millisecond
+		flushInterval = new(time.Duration(resource.BatchMaxInterval.Int32) * time.Millisecond)
 	}
 
 	var maxRuns int32
@@ -241,20 +273,26 @@ func (b *BatchScheduler) shouldMemoryLimitFlush(group *batchGroup) (bool, int) {
 }
 
 func (b *BatchScheduler) tick() error {
-	if err := b.fetchNewItems(); err != nil {
+	// new items are added to buffer--items that are timed-out before they arrive are
+	// handled by `handleScheduleTimeouts`
+	timedOutItems, err := b.fetchNewItems()
+	if err != nil {
 		return err
 	}
 
-	// Reconcile in-memory buffers with DB to drop cancelled/deleted items that were buffered,
-	// in one call across every group.
+	// The buffers now have all fresh new items, but may potentially have stale/cancelled items
+	// drop those
 	b.reconcileBuffers()
 
+	// Remove timed out items that are already in buffer
+	for _, group := range b.groups {
+		timedOutItems = append(timedOutItems, group.popTimedOut()...)
+	}
+	// Send timeout messages for all timed-out tasks
+	if err := b.handleScheduleTimeouts(timedOutItems); err != nil {
+		return err
+	}
 	for key, group := range b.groups {
-		// Check for timed out items in the buffer
-		if err := b.checkBufferForTimeouts(group); err != nil {
-			return err
-		}
-
 		// automatically flush when payloads go over 4mb limit
 		for {
 			flush, count := b.shouldMemoryLimitFlush(group)
@@ -288,9 +326,9 @@ func (b *BatchScheduler) tick() error {
 	return nil
 }
 
-func (b *BatchScheduler) fetchNewItems() error {
+func (b *BatchScheduler) fetchNewItems() ([]*sqlcv1.V1BatchedQueueItem, error) {
 	if b.ctx.Err() != nil {
-		return b.ctx.Err()
+		return nil, b.ctx.Err()
 	}
 
 	limit := pgtype.Int4{
@@ -300,11 +338,11 @@ func (b *BatchScheduler) fetchNewItems() error {
 
 	items, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, limit.Int32)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(items) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	b.touch()
@@ -318,23 +356,20 @@ func (b *BatchScheduler) fetchNewItems() error {
 		}
 		itemsByGroup[item.BatchKey] = append(itemsByGroup[item.BatchKey], item)
 	}
-
+	timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
 	for batchKey, groupItems := range itemsByGroup {
 		group, ok := b.groups[batchKey]
 		if !ok {
 			group = &batchGroup{
-				batchKey:     batchKey,
-				lastActiveAt: now,
-				l: b.l.With().
+				batchKey:      batchKey,
+				lastActiveAt:  now,
+				flushInterval: b.flushInterval,
+				l: new(b.l.With().
 					Str("batch_key", batchKey).
-					Logger(),
+					Logger()),
 			}
+			group.resetFlushDeadline()
 			b.groups[batchKey] = group
-		}
-
-		if b.flushInterval > 0 && len(group.buffer) == 0 && group.flushDeadline == nil {
-			deadline := time.Now().Add(b.flushInterval)
-			group.flushDeadline = &deadline
 		}
 
 		// ListBatchedQueueItems has no cursor: it keeps returning the same still-pending rows on
@@ -348,8 +383,6 @@ func (b *BatchScheduler) fetchNewItems() error {
 		}
 
 		newItems := make([]*sqlcv1.V1BatchedQueueItem, 0, len(groupItems))
-		timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
-
 		for _, item := range groupItems {
 			if item == nil {
 				continue
@@ -364,26 +397,15 @@ func (b *BatchScheduler) fetchNewItems() error {
 				timedOutItems = append(timedOutItems, item)
 				continue
 			}
-
-			group.buffer = append(group.buffer, item)
-
 			newItems = append(newItems, item)
 		}
-
-		// Handle timed out items
-		if len(timedOutItems) > 0 {
-			if err := b.handleScheduleTimeouts(timedOutItems); err != nil {
-				group.l.Error().Err(err).Msg("failed to handle schedule timeouts")
-			}
-		}
-
+		group.buffer = append(group.buffer, newItems...)
 		b.emitWaitingEvents(group, newItems)
 		if len(newItems) > 0 {
 			group.lastActiveAt = now
 		}
 	}
-
-	return nil
+	return timedOutItems, nil
 }
 
 // groupIsIdle reports whether a batch_key group looks safe to evict from memory. It relies on
@@ -486,12 +508,7 @@ func (b *BatchScheduler) flush(group *batchGroup, count int, reason v1repo.Batch
 		group.buffer = append(remaining, group.buffer...)
 	}
 
-	if b.flushInterval > 0 && len(group.buffer) > 0 {
-		deadline := time.Now().Add(b.flushInterval)
-		group.flushDeadline = &deadline
-	} else {
-		group.flushDeadline = nil
-	}
+	group.resetFlushDeadline()
 
 	group.lastActiveAt = time.Now().UTC()
 	b.touch()
@@ -505,14 +522,9 @@ func (b *BatchScheduler) emitWaitingEvents(group *batchGroup, newItems []*sqlcv1
 	}
 
 	batchMaxIntervalMs := int32(0)
-	if b.flushInterval > 0 {
-		batchMaxIntervalMs = int32(b.flushInterval / time.Millisecond)
-	}
-
-	var nextFlush *time.Time
-	if group.flushDeadline != nil {
-		copyDeadline := *group.flushDeadline
-		nextFlush = &copyDeadline
+	if b.flushInterval != nil && *b.flushInterval > 0 {
+		// #nosec G115
+		batchMaxIntervalMs = int32(*b.flushInterval / time.Millisecond)
 	}
 
 	pending := (int32)(len(group.buffer))
@@ -566,7 +578,7 @@ func (b *BatchScheduler) emitWaitingEvents(group *batchGroup, newItems []*sqlcv1
 				ConfiguredBatchMaxIntervalMs: batchMaxIntervalMs,
 				ConfiguredBatchGroupMaxRuns:  int32(b.maxRuns),
 				Pending:                      pending,
-				NextFlushAt:                  nextFlush,
+				NextFlushAt:                  group.flushDeadline,
 				BatchID:                      "",
 				StepID:                       queueItem.StepID.String(),
 				ActionID:                     queueItem.ActionID,
@@ -652,34 +664,6 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 		return items, fmt.Errorf("batch scheduler missing results emitter")
 	}
 
-	// Check for timed out items before attempting to assign (matching regular scheduler behavior)
-	nonTimedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0, len(items))
-	timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
-	now := time.Now().UTC()
-
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-
-		// Check if item has exceeded schedule timeout
-		if item.ScheduleTimeoutAt.Valid && item.ScheduleTimeoutAt.Time.Before(now) {
-			timedOutItems = append(timedOutItems, item)
-		} else {
-			nonTimedOutItems = append(nonTimedOutItems, item)
-		}
-	}
-
-	// Handle timed out items
-	if len(timedOutItems) > 0 {
-		if err := b.handleScheduleTimeouts(timedOutItems); err != nil {
-			group.l.Error().Err(err).Msg("failed to handle schedule timeouts during assignment")
-		}
-	}
-
-	// Use non-timed-out items for assignment
-	items = nonTimedOutItems
-
 	if len(items) == 0 {
 		return nil, nil
 	}
@@ -690,7 +674,6 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 		if item == nil {
 			continue
 		}
-
 		queueToItems[item.Queue] = append(queueToItems[item.Queue], item)
 	}
 
@@ -804,11 +787,7 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 
 			remaining = append(remaining, itemGroup...)
 			b.emitWaitingEvents(group, itemGroup)
-
-			if b.flushInterval > 0 && group.flushDeadline == nil {
-				deadline := time.Now().Add(b.flushInterval)
-				group.flushDeadline = &deadline
-			}
+			group.resetFlushDeadline()
 		}
 
 		if len(assigned) == 0 || len(failedQueueItems) > 0 {
@@ -852,8 +831,9 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 		triggeredAt := time.Now().UTC()
 
 		batchMaxIntervalMs := int32(0)
-		if b.flushInterval > 0 {
-			batchMaxIntervalMs = int32(b.flushInterval / time.Millisecond)
+		if b.flushInterval != nil && *b.flushInterval > 0 {
+			// #nosec G115
+			batchMaxIntervalMs = int32(*b.flushInterval / time.Millisecond)
 		}
 
 		for _, batched := range itemGroup {
@@ -959,42 +939,6 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 	}
 
 	return remaining, nil
-}
-
-func (b *BatchScheduler) checkBufferForTimeouts(group *batchGroup) error {
-	if len(group.buffer) == 0 {
-		return nil
-	}
-
-	timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
-	remainingItems := make([]*sqlcv1.V1BatchedQueueItem, 0, len(group.buffer))
-
-	now := time.Now().UTC()
-
-	for _, item := range group.buffer {
-		if item == nil {
-			continue
-		}
-
-		// Check if item has exceeded schedule timeout
-		if item.ScheduleTimeoutAt.Valid && item.ScheduleTimeoutAt.Time.Before(now) {
-			timedOutItems = append(timedOutItems, item)
-		} else {
-			remainingItems = append(remainingItems, item)
-		}
-	}
-
-	// Update the buffer to only contain non-timed-out items
-	group.buffer = remainingItems
-
-	// Handle timed out items
-	if len(timedOutItems) > 0 {
-		if err := b.handleScheduleTimeouts(timedOutItems); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (b *BatchScheduler) handleScheduleTimeouts(timedOutItems []*sqlcv1.V1BatchedQueueItem) error {

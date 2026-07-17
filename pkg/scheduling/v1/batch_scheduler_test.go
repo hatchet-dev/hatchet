@@ -407,7 +407,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 
 	queueItems := []*sqlcv1.V1BatchedQueueItem{item1, item2}
 
-	group := &batchGroup{batchKey: "group", l: zerolog.New(io.Discard)}
+	group := &batchGroup{batchKey: "group", l: new(zerolog.New(io.Discard))}
 
 	remaining, err := scheduler.assignAndDispatch(context.Background(), group, queueItems, v1repo.FlushReasonBatchSizeReached)
 	require.NoError(t, err)
@@ -530,7 +530,7 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 		}, nil, nil
 	}
 
-	group := &batchGroup{batchKey: "single-slot", l: zerolog.New(io.Discard)}
+	group := &batchGroup{batchKey: "single-slot", l: new(zerolog.New(io.Discard))}
 
 	remaining, err := scheduler.assignAndDispatch(context.Background(), group, items, v1repo.FlushReasonBatchSizeReached)
 	require.NoError(t, err)
@@ -741,7 +741,7 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 
 	scheduler.groups["a"] = &batchGroup{
 		batchKey: "a",
-		l:        zerolog.New(io.Discard),
+		l:        new(zerolog.New(io.Discard)),
 		buffer: []*sqlcv1.V1BatchedQueueItem{
 			{ID: 1, BatchKey: "a"},
 			{ID: 2, BatchKey: "a"},
@@ -749,7 +749,7 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 	}
 	scheduler.groups["b"] = &batchGroup{
 		batchKey: "b",
-		l:        zerolog.New(io.Discard),
+		l:        new(zerolog.New(io.Discard)),
 		buffer: []*sqlcv1.V1BatchedQueueItem{
 			{ID: 3, BatchKey: "b"},
 			{ID: 4, BatchKey: "b"},
@@ -764,4 +764,60 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 	require.Len(t, scheduler.groups["a"].buffer, 2, "group 'a' should be untouched")
 	require.Len(t, scheduler.groups["b"].buffer, 1, "stale item 3 should be dropped from group 'b'")
 	require.Equal(t, int64(4), scheduler.groups["b"].buffer[0].ID)
+}
+
+// TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems is a regression test for a bug
+// where assignAndDispatch ignored the items slice a caller passed in (a specific count-sized
+// slice off the front of the buffer) and re-read group.buffer directly instead -- so a single
+// flush with batchMaxSize=1 would dispatch every item currently sitting in the buffer as one
+// batch instead of exactly one, silently violating the configured batch size.
+func TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-000000000099")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-000000000099")
+
+	repo := &fakeBatchRepo{
+		listResponses: [][]*sqlcv1.V1BatchedQueueItem{
+			{
+				{ID: 1, TenantID: tenantId, Queue: "default", TaskID: 901, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: ""},
+				{ID: 2, TenantID: tenantId, Queue: "default", TaskID: 902, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: ""},
+			},
+		},
+	}
+
+	queueFactory := &fakeQueueFactory{repo: &fakeQueueRepository{}}
+	workerID := uuid.MustParse("00000000-0000-0000-0000-0000000000ab")
+
+	resource := &sqlcv1.ListDistinctBatchResourcesRow{
+		StepID:           stepId,
+		BatchKey:         "",
+		BatchMaxSize:     1,
+		BatchMaxInterval: pgtype.Int4{Int32: 100, Valid: true},
+	}
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(repo),
+		tenantId,
+		resource,
+		queueFactory,
+		&Scheduler{},
+		func(*QueueResults) {},
+	)
+	require.NotNil(t, scheduler)
+	scheduler.ctx = context.Background()
+
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+		assignments := make([]*assignedQueueItem, len(queueItems))
+		for i, qi := range queueItems {
+			assignments[i] = &assignedQueueItem{QueueItem: qi, WorkerId: workerID}
+		}
+		return assignments, nil, nil
+	}
+
+	// Both items land in the buffer from a single fetch (e.g. two tasks submitted at once), so
+	// the batch-size flush on the very first tick must still only take one of them.
+	require.NoError(t, scheduler.tick())
+
+	require.Len(t, repo.commitCalls, 1, "expected exactly one flush on the first tick")
+	require.Len(t, repo.commitCalls[0], 1, "expected the flush to contain exactly one item, matching batchMaxSize=1")
+	require.Len(t, scheduler.groups[""].buffer, 1, "the second item should remain buffered for the next tick")
 }
