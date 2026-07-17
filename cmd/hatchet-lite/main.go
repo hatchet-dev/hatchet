@@ -15,6 +15,7 @@ import (
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-staticfileserver/staticfileserver"
+	"github.com/hatchet-dev/hatchet/pkg/authmode"
 	"github.com/hatchet-dev/hatchet/pkg/cmdutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
@@ -118,13 +119,17 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 		return fmt.Errorf("error parsing API URL: %w", err)
 	}
 
-	disableSecurityCheck := func(scf *server.ServerConfigFile) {
-		scf.SecurityCheck.Enabled = false
+	// hatchet-lite runs the security check only for auth-disabled builds, so that
+	// auth-disabled usage is reported. Regular local lite instances stay quiet.
+	configureSecurityCheck := func(scf *server.ServerConfigFile) {
+		if !authmode.IsDisabled {
+			scf.SecurityCheck.Enabled = false
+		}
 	}
 
 	// api process
 	go func() {
-		api.Start(cf, interruptCh, version, disableSecurityCheck) // nolint:errcheck
+		api.Start(cf, interruptCh, version, configureSecurityCheck) // nolint:errcheck
 	}()
 
 	// static file server
@@ -147,7 +152,7 @@ func start(cf *loader.ConfigLoader, interruptCh <-chan interface{}, version stri
 	defer cancel()
 
 	go func() {
-		if err := engine.Run(ctx, cf, version, disableSecurityCheck); err != nil {
+		if err := engine.Run(ctx, cf, version, configureSecurityCheck); err != nil {
 			log.Printf("engine failure: %s", err.Error())
 			os.Exit(1)
 		}

@@ -577,6 +577,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:        version,
 			MQKind:         cf.MessageQueue.Kind,
 			OAuthProviders: oauthProviders,
+			AuthDisabled:   authmode.IsDisabled,
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())
