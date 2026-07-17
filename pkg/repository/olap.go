@@ -1954,7 +1954,9 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		output := event.Output
 
 		if _, ok := r.eventCache.Get(key); !ok {
-			if !r.payloadStore.OLAPDualWritesEnabled() && event.Output != nil {
+			// the output is stored in the payload store, so it is blanked out on the
+			// event row itself
+			if event.Output != nil {
 				event.Output = []byte("{}")
 			}
 
@@ -2314,11 +2316,9 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			payload = task.Input
 		}
 
-		// todo: remove this when we remove dual writes
-		payloadToWriteToTask := payload
-		if !r.payloadStore.OLAPDualWritesEnabled() {
-			payloadToWriteToTask = []byte("{}")
-		}
+		// the payload is stored in the payload store, so an empty json object is written
+		// to the task row
+		payloadToWriteToTask := []byte("{}")
 
 		params.Tenantids = append(params.Tenantids, task.TenantID)
 		params.Ids = append(params.Ids, task.ID)
@@ -2450,11 +2450,9 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		// todo: remove this when we remove dual writes
-		input := dag.Input
-		if !r.payloadStore.OLAPDualWritesEnabled() {
-			input = []byte("{}")
-		}
+		// the input is stored in the payload store, so an empty json object is written
+		// to the dag row
+		input := []byte("{}")
 
 		params.Tenantids = append(params.Tenantids, dag.TenantID)
 		params.Ids = append(params.Ids, dag.ID)
@@ -2666,16 +2664,15 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
 	}
 
-	// todo: remove this when we remove dual writes
-	if !r.payloadStore.OLAPDualWritesEnabled() {
-		payloads := make([][]byte, len(eventsToInsert.Payloads))
+	// payloads are stored in the payload store, so empty json objects are written to
+	// the event rows
+	payloads := make([][]byte, len(eventsToInsert.Payloads))
 
-		for i := range eventsToInsert.Payloads {
-			payloads[i] = []byte("{}")
-		}
-
-		eventsToInsert.Payloads = payloads
+	for i := range eventsToInsert.Payloads {
+		payloads[i] = []byte("{}")
 	}
+
+	eventsToInsert.Payloads = payloads
 
 	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, eventsToInsert)
 

@@ -418,14 +418,10 @@ For how to enable and use internal trace export with these settings, see [Intern
 
 ## Payload Store Configuration
 
-Controls how task payloads are stored and the migration ("dual writes") between the inline and external payload stores.
+Controls how task payloads are stored and offloaded to the external payload store.
 
 | Variable                                                        | Description                                               | Default Value |
 | --------------------------------------------------------------- | --------------------------------------------------------- | ------------- |
-| `SERVER_PAYLOAD_STORE_ENABLE_PAYLOAD_DUAL_WRITES`               | Dual-write task payloads to the external store            | `true`        |
-| `SERVER_PAYLOAD_STORE_ENABLE_TASK_EVENT_PAYLOAD_DUAL_WRITES`    | Dual-write task event payloads to the external store      | `true`        |
-| `SERVER_PAYLOAD_STORE_ENABLE_DAG_DATA_PAYLOAD_DUAL_WRITES`      | Dual-write DAG data payloads to the external store        | `true`        |
-| `SERVER_PAYLOAD_STORE_ENABLE_OLAP_PAYLOAD_DUAL_WRITES`          | Dual-write OLAP payloads to the external store            | `true`        |
 | `SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_PROCESS_INTERVAL`        | Interval between external-cutover offload passes          | `15s`         |
 | `SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_BATCH_SIZE`              | Rows processed per external-cutover pass                  | `1000`        |
 | `SERVER_PAYLOAD_STORE_EXTERNAL_CUTOVER_NUM_CONCURRENT_OFFLOADS` | Concurrent offloads during external cutover               | `10`          |
