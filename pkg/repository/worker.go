@@ -194,7 +194,11 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 		countParams.Statuses = opts.Statuses
 	}
 
-	if len(opts.LabelKeys) > 0 {
+	if len(opts.LabelKeys) > 0 || len(opts.LabelValues) > 0 {
+		if len(opts.LabelKeys) != len(opts.LabelValues) {
+			return nil, 0, fmt.Errorf("label filter keys/values must be paired: got %d keys and %d values", len(opts.LabelKeys), len(opts.LabelValues))
+		}
+
 		queryParams.LabelKeys = opts.LabelKeys
 		queryParams.LabelValues = opts.LabelValues
 		countParams.LabelKeys = opts.LabelKeys
