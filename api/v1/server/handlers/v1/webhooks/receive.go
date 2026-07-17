@@ -321,6 +321,16 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
+		if errors.Is(err, repository.ErrResourceExhausted) {
+			return gen.V1WebhookReceive429JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: "resource limit exceeded: task run or event limit reached for tenant",
+					},
+				},
+			}, nil
+		}
+
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
