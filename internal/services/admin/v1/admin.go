@@ -159,14 +159,8 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
-	var tw *trigger.TriggerWriter
-	var pubBuffer *msgqueue.MQPubBuffer
-
-	if opts.grpcTriggersEnabled {
-		pubBuffer = msgqueue.NewMQPubBuffer(opts.mq)
-
-		tw = trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
-	}
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler
 

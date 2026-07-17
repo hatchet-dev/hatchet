@@ -14,6 +14,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
+var ErrInviteAlreadyExists = errors.New("invite already exists for this email")
+
 type CreateTenantInviteOpts struct {
 	// (required) the invitee email
 	InviteeEmail string `validate:"required,email"`
@@ -152,6 +154,8 @@ func (r *tenantInviteRepository) CreateTenantInvite(ctx context.Context, tenantI
 
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
+	} else if err == nil {
+		return nil, ErrInviteAlreadyExists
 	}
 
 	invite, err := r.queries.CreateTenantInvite(

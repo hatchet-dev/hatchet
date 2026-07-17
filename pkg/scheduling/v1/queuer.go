@@ -241,6 +241,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		}
 
 		q.l.Debug().Ctx(ctx).Int("refilled_items", len(qis)).Msg("refilled queue")
+		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "queue.item_count", Value: len(qis)})
 
 		if len(qis) == 0 {
 			q.consecutiveEmptyPolls++

@@ -27,11 +27,11 @@ type WorkflowNameTriggerOpts struct {
 
 	ExternalId uuid.UUID
 
-	// (optional) The idempotency key to use for debouncing this task
-	IdempotencyKey *IdempotencyKey
-
 	// Whether to skip the creation of the child workflow
 	ShouldSkip bool
+
+	// Whether the workflow has an idempotency key expression configured.
+	HasIdempotencyKey bool
 
 	// ReplayOrphanedChildren controls what happens when the child-spawn dedupe resolves to a
 	// child whose log entry is only reachable on a branch orphaned by a replay reset. When set

@@ -89,10 +89,11 @@ type IngestTriggerRunsEntry struct {
 }
 
 type IngestTriggerRunsResult struct {
-	Entries         []*IngestTriggerRunsEntry
-	CreatedTasks    []*V1TaskWithPayload
-	CreatedDAGs     []*DAGWithData
-	InvocationCount int32
+	Entries               []*IngestTriggerRunsEntry
+	CreatedTasks          []*V1TaskWithPayload
+	CreatedDAGs           []*DAGWithData
+	InvocationCount       int32
+	CELEvaluationFailures []CELEvaluationFailure
 }
 
 type IngestWaitForResult struct {
@@ -1383,7 +1384,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 		}
 
 		if len(newTriggerOpts) > 0 {
-			createdTasks, createdDags, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
+			createdTasks, createdDags, _, celFailures, triggerErr := r.triggerFromWorkflowNames(ctx, optTx, tenantId, newTriggerOpts)
 
 			if triggerErr != nil {
 				return nil, fmt.Errorf("failed to trigger workflows: %w", triggerErr)
@@ -1391,6 +1392,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			triggerRunsResult.CreatedTasks = createdTasks
 			triggerRunsResult.CreatedDAGs = createdDags
+			triggerRunsResult.CELEvaluationFailures = celFailures
 
 			createMatchOpts := make([]CreateMatchOpts, 0, len(createdTasks)+len(createdDags))
 

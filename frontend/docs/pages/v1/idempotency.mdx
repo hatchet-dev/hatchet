@@ -1,0 +1,54 @@
+import { Callout, Card, Cards, Steps, Tabs } from "nextra/components";
+import UniversalTabs from "@/components/UniversalTabs";
+import { Snippet } from "@/components/code";
+import { snippets } from "@/lib/generated/snippets";
+
+# Idempotency
+
+If you need to prevent more than one run of a task from occurring within a given time window, for instance because of duplicate event sends from a webhook that can trigger duplicate runs in Hatchet, you can achieve this by adding **idempotency** configuration to your workflow or standalone task.
+
+## Define an Idempotency Key
+
+Configuring idempotency on a workflow or standalone task requires two parameters to be set: the **expression**, which will be used to create an idempotency key from the input and additional metadata of the run that's going to be triggered, and the **TTL**, which determines how long the key should live for.
+
+<Callout type="warning">
+  The idempotency key expression must evaluate to a string.
+</Callout>
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+    <Snippet src={snippets.python.idempotency.worker.idempotency} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.typescript.idempotency.workflow.idempotency} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.go.idempotency.worker.idempotency} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.ruby.idempotency.worker.idempotency} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+When idempotency is configured, only one run of a workflow will occur in the time window from when the first trigger comes in until the TTL expires. For instance, if you trigger a workflow at `00:00:00 UTC` (midnight) with a TTL of five minutes, and then the same workflow is triggered again with the same inputs and metadata at `00:02:00 UTC`, `00:04:00 UTC`, and `00:06:00 UTC`, only the first one (at midnight) and the final one (at `00:06:00 UTC`) will run, and then after the second run occurs, the lock on the key will be held until `00:11:00 UTC` (five minutes after the final run was triggered).
+
+## Handling Collisions
+
+When a collision occurs, the engine will reject the workflow run, and, if the run was triggered from an SDK, then the SDK will raise an exception indicating that there was an idempotency collision. This exception will contain the id of the workflow run that already existed that had claimed the key already, so you can retrieve its output if you like.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+    <Snippet src={snippets.python.idempotency.trigger.trigger} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.typescript.idempotency.run.trigger} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.go.idempotency.trigger.trigger} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.ruby.idempotency.trigger.trigger} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+In other cases, such as triggering by events, the idempotency collision will be swallowed, and no additional runs will be created, but the event will still be ingested correctly without an error being raised.

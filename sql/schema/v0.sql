@@ -1090,6 +1090,8 @@ CREATE TABLE
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
+        "idempotencyKeyExpression" TEXT,
+        "idempotencyKeyTtlMs" BIGINT,
         "isUsingDagOperator" BOOLEAN NOT NULL DEFAULT false,
         "dagShape" JSONB,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")

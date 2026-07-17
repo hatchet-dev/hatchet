@@ -129,6 +129,10 @@ class TenacityConfig(BaseSettings):
         default=False,
         description="Enable retries for HTTP 429 Too Many Requests responses. Default: off.",
     )
+    retry_not_found: bool = Field(
+        default=False,
+        description="Enable retries for NOT_FOUND gRPC responses. For resources that may not yet exist due to async creation. Default: off.",
+    )
     retry_transport_errors: bool = Field(
         default=False,
         description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",

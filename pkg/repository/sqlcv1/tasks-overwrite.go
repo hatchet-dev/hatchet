@@ -49,7 +49,8 @@ WITH input AS (
 		unnest($35::jsonb[]) AS desired_worker_label,
 		unnest($36::uuid[]) AS triggering_event_external_id,
 		unnest($37::text[]) AS triggering_event_key,
-		unnest($38::boolean[]) AS is_dag_orchestrator
+		unnest($38::text[]) AS idempotency_key,
+		unnest($39::boolean[]) AS is_dag_orchestrator
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -89,6 +90,7 @@ INSERT INTO v1_task (
 	desired_worker_label,
 	triggering_event_external_id,
 	triggering_event_key,
+	idempotency_key,
 	is_dag_orchestrator
 )
 SELECT
@@ -129,11 +131,12 @@ SELECT
 	i.desired_worker_label,
 	i.triggering_event_external_id,
 	i.triggering_event_key,
+	i.idempotency_key,
 	i.is_dag_orchestrator
 FROM
     input i
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, is_dag_orchestrator
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, is_dag_orchestrator
 `
 
 type CreateTasksParams struct {
@@ -178,6 +181,7 @@ type CreateTasksParams struct {
 	TriggeringEventExternalIds   []*uuid.UUID         `json:"triggeringEventExternalIds"`
 	TriggeringEventKeys          []pgtype.Text        `json:"triggeringEventKeys"`
 	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
+	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -232,6 +236,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.DesiredWorkerLabels,
 		arg.TriggeringEventExternalIds,
 		arg.TriggeringEventKeys,
+		arg.IdempotencyKeys,
 		arg.IsDagOrchestrators,
 	)
 	if err != nil {
@@ -283,6 +288,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.IdempotencyKey,
 			&i.IsDagOrchestrator,
 		); err != nil {
 			return nil, err

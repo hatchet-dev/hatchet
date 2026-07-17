@@ -64,6 +64,7 @@ jobs:
       matrix:
         python-version: ${{ github.event_name == 'pull_request' && fromJSON('["3.14"]') || fromJSON('["3.10", "3.11", "3.12", "3.13", "3.14"]') }}
         optimistic-scheduling: ["true", "false"]
+        concurrency-in-memory-index: ["true", "false"]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -105,6 +106,7 @@ jobs:
           export SERVER_DEFAULT_ENGINE_VERSION=V1
           export SERVER_MSGQUEUE_RABBITMQ_URL="amqp://user:password@localhost:5672/"
           export SERVER_OPTIMISTIC_SCHEDULING_ENABLED=${{ matrix.optimistic-scheduling }}
+          export SERVER_CONCURRENCY_IN_MEMORY_INDEX_ENABLED=${{ matrix.concurrency-in-memory-index }}
           export SERVER_OBSERVABILITY_ENABLED=true
 
           go run ./cmd/hatchet-admin quickstart
@@ -161,14 +163,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-engine-logs
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-cimi-${{ matrix.concurrency-in-memory-index }}-engine-logs
           path: engine.log
 
       - name: Upload API logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-api-logs
+          name: ${{ env.HATCHET_CLIENT_NAMESPACE }}-opt-${{ matrix.optimistic-scheduling }}-cimi-${{ matrix.concurrency-in-memory-index }}-api-logs
           path: api.log
 
   publish:

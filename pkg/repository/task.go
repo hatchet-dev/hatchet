@@ -100,6 +100,9 @@ type CreateTaskOpts struct {
 
 	// (optional) the key of the event that triggered the workflow run, if there was one
 	TriggeringEventKey *string
+
+	// (optional) the idempotency key that was claimed before triggering this task
+	IdempotencyKey *string
 }
 
 type ReplayTasksResult struct {
@@ -2305,6 +2308,7 @@ func (r *sharedRepository) insertTasks(
 				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
 				IsDagOrchestrators:           make([]bool, 0),
+				IdempotencyKeys:              make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2355,6 +2359,16 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		params.TriggeringEventKeys = append(params.TriggeringEventKeys, triggeringEventKey)
+
+		idempotencyKey := pgtype.Text{}
+		if task.IdempotencyKey != nil {
+			idempotencyKey = pgtype.Text{
+				String: *task.IdempotencyKey,
+				Valid:  true,
+			}
+		}
+
+		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
 
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
