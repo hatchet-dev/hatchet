@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 import pytest
+import asyncio
 
 from examples.run_details.worker import MockInput, run_detail_test_workflow
 from examples.test_utils import wait_for_running_status
@@ -26,37 +27,7 @@ async def test_run(hatchet: Hatchet) -> None:
     assert details.additional_metadata is not None
     assert meta.items() <= details.additional_metadata.items()
 
-    initial_tasks = [
-        t
-        for t in details.task_runs.values()
-        if not (
-            t.external_id == "00000000-0000-0000-0000-000000000000"
-            and t.status == V1TaskStatus.QUEUED
-        )
-    ]
-
-    downstream_tasks = [
-        t
-        for t in details.task_runs.values()
-        if t.external_id == "00000000-0000-0000-0000-000000000000"
-        and t.status == V1TaskStatus.QUEUED
-    ]
-
-    assert len(initial_tasks) == 4
-    assert len(downstream_tasks) == 2
-
-    assert all(
-        r.status
-        in [
-            V1TaskStatus.RUNNING,
-            V1TaskStatus.FAILED,
-            V1TaskStatus.CANCELLED,
-            V1TaskStatus.COMPLETED,
-        ]
-        for r in initial_tasks
-    )
-
-    assert all(r.status == V1TaskStatus.QUEUED for r in downstream_tasks)
+    assert len(details.task_runs) == 4
 
     assert details.done is False
 

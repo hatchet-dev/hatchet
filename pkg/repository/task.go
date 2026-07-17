@@ -4583,18 +4583,18 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		}
 	}
 
-	if isOperatorDAG {
-		for readableId := range orchestratorDagShape {
-			if _, ok := taskRunDetails[StepReadableId(readableId)]; !ok {
-				taskRunDetails[StepReadableId(readableId)] = TaskRunDetails{
-					OutputPayload: nil,
-					Status:        statusutils.V1RunStatusQueued,
-					Error:         nil,
-					ExternalId:    uuid.Nil,
-				}
-			}
-		}
-	}
+	// if isOperatorDAG {
+	// 	for readableId := range orchestratorDagShape {
+	// 		if _, ok := taskRunDetails[StepReadableId(readableId)]; !ok {
+	// 			taskRunDetails[StepReadableId(readableId)] = TaskRunDetails{
+	// 				OutputPayload: nil,
+	// 				Status:        statusutils.V1RunStatusQueued,
+	// 				Error:         nil,
+	// 				ExternalId:    uuid.Nil,
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return &WorkflowRunDetails{
 		InputPayload:        input,
