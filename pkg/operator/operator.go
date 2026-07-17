@@ -50,6 +50,7 @@ type DAGStepTriggerRequest struct {
 	ActionId             string
 	ChildIndex           int32
 	Input                string
+	AdditionalMetadata   []byte
 	DagParentTaskRunIds  []uuid.UUID
 	IsSkipped            bool
 	IsCancelled          bool

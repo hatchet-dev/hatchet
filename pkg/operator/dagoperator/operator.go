@@ -238,6 +238,11 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		workflowInput = string(payloadWrapper.Input)
 	}
 
+	var additionalMetadata []byte
+	if meta := action.GetAdditionalMetadata(); meta != "" {
+		additionalMetadata = []byte(meta)
+	}
+
 	triggerStep := func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error) {
 		return d.TriggerDAGStep(ctx, &operator.DAGStepTriggerRequest{
 			ParentTaskExternalId: externalId,
@@ -246,6 +251,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 			ActionId:             actionId,
 			ChildIndex:           childIndex,
 			Input:                workflowInput,
+			AdditionalMetadata:   additionalMetadata,
 			DagParentTaskRunIds:  parentTaskRunIds,
 			IsSkipped:            isSkipped,
 			IsCancelled:          isCancelled,

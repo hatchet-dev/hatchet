@@ -1285,7 +1285,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 			TargetActionId:       &req.ActionId,
 			UserMessage:          &stepLabel,
 			Data:                 []byte(req.Input),
-			AdditionalMetadata:   task.AdditionalMetadata,
+			AdditionalMetadata:   req.AdditionalMetadata,
 			ParentExternalId:     &task.ExternalID,
 			ParentTaskId:         &task.ID,
 			ParentTaskInsertedAt: &task.InsertedAt.Time,
