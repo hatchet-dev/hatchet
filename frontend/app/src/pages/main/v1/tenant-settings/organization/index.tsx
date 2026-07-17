@@ -74,6 +74,7 @@ import { CreateTokenModal } from '@/pages/organizations/$organization/components
 import { DeleteMemberModal } from '@/pages/organizations/$organization/components/delete-member-modal';
 import { DeleteTenantModal } from '@/pages/organizations/$organization/components/delete-tenant-modal';
 import { DeleteTokenModal } from '@/pages/organizations/$organization/components/delete-token-modal';
+import { EditMemberRoleModal } from '@/pages/organizations/$organization/components/edit-member-role-modal';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
 import { useUserUniverse } from '@/providers/user-universe';
 import { appRoutes } from '@/router';
@@ -266,6 +267,8 @@ export function CloudOrganizationSettings({
   const schemes = meta?.auth?.schemes || [];
   const canManageSso = isOrganizationOwner && schemes.includes('sso');
   const [memberToDelete, setMemberToDelete] =
+    useState<OrganizationMember | null>(null);
+  const [memberToEditRole, setMemberToEditRole] =
     useState<OrganizationMember | null>(null);
   const [tenantToEditTags, setTenantToEditTags] =
     useState<OrganizationTenantWithRegion | null>(null);
@@ -467,6 +470,10 @@ export function CloudOrganizationSettings({
       i.status === OrganizationInviteStatus.EXPIRED,
   );
 
+  const organizationOwnerCount = (organization?.members ?? []).filter(
+    (m) => m.role === 'OWNER',
+  ).length;
+
   const memberColumns = [
     {
       columnLabel: 'Email',
@@ -488,6 +495,11 @@ export function CloudOrganizationSettings({
                 organizationId={orgId}
                 currentUserEmail={currentUser?.email}
                 onDelete={setMemberToDelete}
+                // Role changes are control-plane-only; the legacy cloud
+                // management API is deprecated and has no update endpoint.
+                onChangeRole={
+                  isControlPlaneEnabled ? setMemberToEditRole : undefined
+                }
               />
             ),
           },
@@ -538,22 +550,26 @@ export function CloudOrganizationSettings({
       ? [
           {
             columnLabel: 'Actions',
-            cellRenderer: (row: OrganizationInviteWithTenants) =>
-              row.status === OrganizationInviteStatus.PENDING ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <EllipsisVerticalIcon className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setInviteToCancel(row)}>
-                      <TrashIcon className="mr-2 size-4" />
-                      Cancel Invitation
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : null,
+            // Both pending and expired invites are listed, and both can be
+            // removed (the delete works regardless of status) — an expired
+            // invite left in the list otherwise has no way to be cleared.
+            cellRenderer: (row: OrganizationInviteWithTenants) => (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <EllipsisVerticalIcon className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setInviteToCancel(row)}>
+                    <TrashIcon className="mr-2 size-4" />
+                    {row.status === OrganizationInviteStatus.PENDING
+                      ? 'Cancel Invitation'
+                      : 'Remove'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ),
           },
         ]
       : []),
@@ -1266,6 +1282,23 @@ export function CloudOrganizationSettings({
         />
       )}
 
+      {isOrganizationOwner && isControlPlaneEnabled && memberToEditRole && (
+        <EditMemberRoleModal
+          open={!!memberToEditRole}
+          onOpenChange={(open) => !open && setMemberToEditRole(null)}
+          member={memberToEditRole}
+          organizationName={organizationName}
+          isLastOwner={
+            memberToEditRole.role === 'OWNER' && organizationOwnerCount <= 1
+          }
+          onSuccess={() =>
+            queryClient.invalidateQueries({
+              queryKey: ['organization:get', orgId],
+            })
+          }
+        />
+      )}
+
       {isOrganizationOwner && (
         <CreateTokenModal
           open={showCreateTokenModal}
@@ -1684,11 +1717,13 @@ function MemberActions({
   organizationId,
   currentUserEmail,
   onDelete,
+  onChangeRole,
 }: {
   row: OrganizationMember;
   organizationId: string;
   currentUserEmail?: string;
   onDelete: (member: OrganizationMember) => void;
+  onChangeRole?: (member: OrganizationMember) => void;
 }) {
   const isSelf = currentUserEmail === row.email;
 
@@ -1711,6 +1746,12 @@ function MemberActions({
           <PlusIcon className="mr-2 size-4" />
           Add to tenant
         </DropdownMenuItem>
+        {onChangeRole && (
+          <DropdownMenuItem onClick={() => onChangeRole(row)}>
+            <PencilSquareIcon className="mr-2 size-4" />
+            Change role
+          </DropdownMenuItem>
+        )}
         {isSelf ? (
           <TooltipProvider>
             <Tooltip>

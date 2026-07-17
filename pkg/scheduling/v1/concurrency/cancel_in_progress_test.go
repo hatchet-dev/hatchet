@@ -89,6 +89,82 @@ func TestCancelInProgress_RanksByPriority(t *testing.T) {
 	}
 }
 
+// Among equal-priority slots, CANCEL_IN_PROGRESS keeps the NEWEST maxRuns and cancels the oldest
+// (matching the legacy runCancelInProgress ORDER BY sort_id DESC). This is the case that actually
+// exercises the recency tiebreak - if it were inverted we would keep the oldest instead.
+func TestCancelInProgress_KeepsNewestAmongEqualPriority(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{}
+	c := newCancelInProgressStrategy(repo, 2)
+
+	// same priority, same inserted_at; recency is distinguished by taskId (higher = newer).
+	msgs := []walMessage{
+		walInsert("a", 10, 5, now, future), // oldest
+		walInsert("a", 11, 5, now, future),
+		walInsert("a", 12, 5, now, future), // newest
+	}
+
+	if _, err := c.processWALMessages(context.Background(), nil, msgs); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	// newest two (12, 11) run; oldest (10) cancelled
+	filled := filledIDs(repo.lastFilled)
+	if len(filled) != 2 || !containsID(filled, 12) || !containsID(filled, 11) {
+		t.Fatalf("filled = %v, want {11,12} (newest maxRuns)", filled)
+	}
+	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	if len(cancelled) != 1 || !containsID(cancelled, 10) {
+		t.Fatalf("cancelled = %v, want [10] (oldest)", cancelled)
+	}
+}
+
+// At capacity with equal priorities, a newer arrival preempts the OLDEST running task (in-progress
+// cancellation) - the defining CANCEL_IN_PROGRESS behaviour. Distinct from the priority-driven
+// preemption above; this pins the recency direction for running slots.
+func TestCancelInProgress_NewerArrivalPreemptsOldestRunning(t *testing.T) {
+	now := time.Now().UTC()
+	future := now.Add(time.Hour)
+
+	repo := &mockConcurrencyRepo{
+		indexRows: []*sqlcv1.ListConcurrencySlotsForIndexingRow{
+			indexRow("a", 1, 5, 0, now, future, true), // running, oldest
+			indexRow("a", 2, 5, 0, now, future, true), // running
+		},
+	}
+	c := newCancelInProgressStrategy(repo, 2)
+
+	if err := c.buildIndex(context.Background()); err != nil {
+		t.Fatalf("buildIndex: %v", err)
+	}
+
+	// a newer equal-priority slot arrives at a full group
+	msgs := []walMessage{walInsert("a", 3, 5, now, future)}
+
+	if _, err := c.processWALMessages(context.Background(), nil, msgs); err != nil {
+		t.Fatalf("processWALMessages: %v", err)
+	}
+
+	// newcomer (3) promoted; oldest runner (1) preempted
+	if got := filledIDs(repo.lastFilled); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("filled = %v, want [3]", got)
+	}
+	cancelled := cancelledByReason(repo.lastCancelled, repository.CancelledReasonConcurrencyLimit)
+	if len(cancelled) != 1 || !containsID(cancelled, 1) {
+		t.Fatalf("cancelled = %v, want [1] (oldest running preempted)", cancelled)
+	}
+
+	sq := c.getOrCreateSubQueue("a")
+	if _, ok := sq.running.get(1); ok {
+		t.Fatalf("oldest task 1 should have been preempted")
+	}
+	if _, ok := sq.running.get(3); !ok {
+		t.Fatalf("newcomer 3 should be running")
+	}
+}
+
 // Queued slots past their scheduling timeout are cancelled as SCHEDULING_TIMED_OUT and excluded from
 // the run/cancel ranking, even if they would otherwise outrank the survivors.
 func TestCancelInProgress_TimedOutExcludedFromRanking(t *testing.T) {

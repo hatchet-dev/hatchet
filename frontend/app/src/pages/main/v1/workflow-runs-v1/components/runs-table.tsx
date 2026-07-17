@@ -158,6 +158,13 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
     [filters],
   );
 
+  const handleIdempotencyKeyClick = useCallback(
+    (idempotencyKey: string) => {
+      filters.setIdempotencyKey(idempotencyKey);
+    },
+    [filters],
+  );
+
   const tableColumns = useMemo(
     () =>
       columns(
@@ -166,6 +173,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
         handleAdditionalMetadataClick,
         handleTaskRunIdClick,
         handleAdditionalMetadataOpenChange,
+        handleIdempotencyKeyClick,
       ),
     [
       tenantId,
@@ -173,6 +181,7 @@ export function RunsTable({ leftLabel }: { leftLabel?: string }) {
       handleAdditionalMetadataClick,
       handleTaskRunIdClick,
       handleAdditionalMetadataOpenChange,
+      handleIdempotencyKeyClick,
     ],
   );
 

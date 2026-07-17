@@ -46,6 +46,9 @@ module Hatchet
     # @return [Task, nil] The on_success task
     attr_reader :on_success
 
+    # @return [Hatchet::TTLBasedIdempotencyConfig, nil] Idempotency configuration
+    attr_reader :idempotency
+
     # @return [String, nil] The workflow ID writer (set after registration)
     attr_writer :id
 
@@ -57,6 +60,7 @@ module Hatchet
     # @param task_defaults [Hash, nil] Default task settings
     # @param default_filters [Array<DefaultFilter>] Default filters
     # @param sticky [Symbol, nil] Sticky strategy
+    # @param idempotency [Hatchet::TTLBasedIdempotencyConfig, nil] Idempotency configuration
     # @param client [Hatchet::Client, nil] The client
     def initialize(
       name:,
@@ -67,6 +71,7 @@ module Hatchet
       task_defaults: nil,
       default_filters: [],
       sticky: nil,
+      idempotency: nil,
       client: nil
     )
       @name = name
@@ -78,6 +83,7 @@ module Hatchet
       @task_defaults = task_defaults
       @default_filters = default_filters
       @sticky = sticky
+      @idempotency = idempotency
       @client = client
       @on_failure = nil
       @on_success = nil
@@ -207,6 +213,8 @@ module Hatchet
       args[:sticky] = sticky_proto if sticky_proto
       args[:default_priority] = @default_priority if @default_priority
       args[:default_filters] = filter_protos unless filter_protos.empty?
+
+      args[:idempotency] = @idempotency.to_proto if @idempotency
 
       ::V1::CreateWorkflowVersionRequest.new(**args)
     end

@@ -905,8 +905,9 @@ func (ns NullTenantResourceLimitAlertType) Value() (driver.Value, error) {
 type V1CelEvaluationFailureSource string
 
 const (
-	V1CelEvaluationFailureSourceFILTER  V1CelEvaluationFailureSource = "FILTER"
-	V1CelEvaluationFailureSourceWEBHOOK V1CelEvaluationFailureSource = "WEBHOOK"
+	V1CelEvaluationFailureSourceFILTER         V1CelEvaluationFailureSource = "FILTER"
+	V1CelEvaluationFailureSourceWEBHOOK        V1CelEvaluationFailureSource = "WEBHOOK"
+	V1CelEvaluationFailureSourceIDEMPOTENCYKEY V1CelEvaluationFailureSource = "IDEMPOTENCY_KEY"
 )
 
 func (e *V1CelEvaluationFailureSource) Scan(src interface{}) error {
@@ -3169,6 +3170,7 @@ type V1Dag struct {
 	WorkflowVersionID    uuid.UUID          `json:"workflow_version_id"`
 	ParentTaskExternalID *uuid.UUID         `json:"parent_task_external_id"`
 	DesiredWorkerLabels  []byte             `json:"desired_worker_labels"`
+	IdempotencyKey       pgtype.Text        `json:"idempotency_key"`
 }
 
 type V1DagData struct {
@@ -3205,6 +3207,7 @@ type V1DagsOlap struct {
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	TotalTasks           int32                `json:"total_tasks"`
+	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 }
 
 type V1DurableEventLogBranchPoint struct {
@@ -3599,6 +3602,7 @@ type V1RunsOlap struct {
 	WorkflowVersionID    uuid.UUID            `json:"workflow_version_id"`
 	AdditionalMetadata   []byte               `json:"additional_metadata"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
+	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 }
 
 type V1StatusesOlap struct {
@@ -3689,6 +3693,7 @@ type V1Task struct {
 	DesiredWorkerLabel           []byte             `json:"desired_worker_label"`
 	TriggeringEventExternalID    *uuid.UUID         `json:"triggering_event_external_id"`
 	TriggeringEventKey           pgtype.Text        `json:"triggering_event_key"`
+	IdempotencyKey               pgtype.Text        `json:"idempotency_key"`
 }
 
 type V1TaskEvent struct {
@@ -3804,6 +3809,7 @@ type V1TasksOlap struct {
 	DagInsertedAt        pgtype.Timestamptz   `json:"dag_inserted_at"`
 	ParentTaskExternalID *uuid.UUID           `json:"parent_task_external_id"`
 	IsDurable            bool                 `json:"is_durable"`
+	IdempotencyKey       pgtype.Text          `json:"idempotency_key"`
 }
 
 type V1WorkerSlotConfig struct {
@@ -4067,4 +4073,6 @@ type WorkflowVersion struct {
 	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
+	IdempotencyKeyExpression  pgtype.Text        `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs       pgtype.Int8        `json:"idempotencyKeyTtlMs"`
 }
