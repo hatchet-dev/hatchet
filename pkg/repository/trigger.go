@@ -1668,10 +1668,11 @@ func (r *sharedRepository) triggerWorkflows(
 					WorkflowVersionID:    tuple.workflowVersionId,
 					ParentTaskExternalID: tuple.parentExternalId,
 				},
-				Input:              tuple.input,
-				AdditionalMetadata: tuple.additionalMetadata,
-				TotalTasks:         operatorDagTotalTasks[task.ExternalID],
-				IsOperatorRun:      true,
+				Input:                tuple.input,
+				AdditionalMetadata:   tuple.additionalMetadata,
+				ParentTaskExternalID: tuple.parentExternalId,
+				TotalTasks:           operatorDagTotalTasks[task.ExternalID],
+				IsOperatorRun:        true,
 			})
 		}
 	}
@@ -2796,7 +2797,9 @@ func (r *sharedRepository) NewTriggerTaskData(
 	}
 
 	if parentTask != nil {
-		parentExternalId := parentTask.ExternalID
+		// Use WorkflowRunID (not ExternalID) so child workflows are queryable by
+		// ref.workflow_run_id when the parent is a step within a DAG.
+		parentExternalId := parentTask.WorkflowRunID
 
 		t.ParentExternalId = &parentExternalId
 		t.ParentTaskId = &parentTask.ID
@@ -2810,6 +2813,7 @@ func (r *sharedRepository) NewTriggerTaskData(
 
 		t.AdditionalMetadata = injectParentIDs(
 			t.AdditionalMetadata,
+			parentTask.AdditionalMetadata,
 			parentTask.WorkflowRunID,
 			parentTask.ExternalID,
 		)
@@ -2861,11 +2865,28 @@ func (r *sharedRepository) lookupParentOutputsByWorkflowRunIds(ctx context.Conte
 	return result, nil
 }
 
-func injectParentIDs(additionalMetadata []byte, parentWorkflowRunID, parentStepRunID uuid.UUID) []byte {
+func injectParentIDs(additionalMetadata []byte, parentAdditionalMetadata []byte, parentWorkflowRunID, parentStepRunID uuid.UUID) []byte {
+	// Seed with the parent's custom metadata (skipping internal hatchet__ keys) so they
+	// flow down to child workflows automatically.
 	meta := make(map[string]interface{})
+	if len(parentAdditionalMetadata) > 0 {
+		parentMeta := make(map[string]interface{})
+		if err := json.Unmarshal(parentAdditionalMetadata, &parentMeta); err == nil {
+			for k, v := range parentMeta {
+				if !strings.HasPrefix(k, "hatchet__") {
+					meta[k] = v
+				}
+			}
+		}
+	}
+
+	// Child's own metadata takes precedence over inherited keys.
 	if len(additionalMetadata) > 0 {
-		if err := json.Unmarshal(additionalMetadata, &meta); err != nil {
-			meta = make(map[string]interface{})
+		childMeta := make(map[string]interface{})
+		if err := json.Unmarshal(additionalMetadata, &childMeta); err == nil {
+			for k, v := range childMeta {
+				meta[k] = v
+			}
 		}
 	}
 
