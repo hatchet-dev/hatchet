@@ -14,44 +14,12 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-func benchBatchedQueueItem(id int64, tenantId, stepId uuid.UUID, batchKey string) *sqlcv1.V1BatchedQueueItem {
-	now := pgtype.Timestamptz{Valid: true, Time: time.Now()}
-
-	return &sqlcv1.V1BatchedQueueItem{
-		ID:             id,
-		TenantID:       tenantId,
-		Queue:          "default",
-		TaskID:         id,
-		TaskInsertedAt: now,
-		ExternalID:     uuid.New(),
-		ActionID:       "some-reasonably-long-action-name",
-		StepID:         stepId,
-		WorkflowID:     uuid.New(),
-		WorkflowRunID:  uuid.New(),
-		BatchKey:       batchKey,
-		InsertedAt:     now,
-		PayloadSize:    512,
-	}
-}
-
-// BenchmarkBatchGroupBufferAppend measures the marginal memory cost of buffering one
-// V1BatchedQueueItem in a batchGroup. This is the actual driver of BatchScheduler memory usage:
-// there is currently no cap on how large group.buffer can grow, so if flushes stop succeeding
-// (e.g. no available workers) items accumulate here indefinitely instead of draining. -benchmem's
-// B/op is the number to project against an expected worst-case backlog size.
-//
-//	go test ./pkg/scheduling/v1/... -run '^$' -bench BenchmarkBatchGroupBufferAppend -benchmem
-func BenchmarkBatchGroupBufferAppend(b *testing.B) {
-	tenantId := uuid.New()
-	stepId := uuid.New()
-
-	group := &batchGroup{batchKey: "", l: new(zerolog.New(io.Discard))}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		group.buffer = append(group.buffer, benchBatchedQueueItem(int64(i), tenantId, stepId, ""))
+func benchBufferedItem(id int64) bufferedItem {
+	return bufferedItem{
+		ID:                id,
+		Queue:             "default",
+		ScheduleTimeoutAt: pgtype.Timestamp{Valid: true, Time: time.Now()},
+		PayloadSize:       512,
 	}
 }
 
@@ -67,8 +35,8 @@ func BenchmarkBatchGroupBufferAppend(b *testing.B) {
 //	go test ./pkg/scheduling/v1/... -run '^$' -bench BenchmarkBatchSchedulerWorstCaseMemory -benchtime=1x
 func BenchmarkBatchSchedulerWorstCaseMemory(b *testing.B) {
 	const (
-		numGroups           = 100  // e.g. 10 steps x 10 batch keys, one BatchScheduler per step
-		maxBufferedPerGroup = 2000 // items piled up in a single group while flush is stuck
+		numGroups           = 100    // e.g. 10 steps x 10 batch keys, one BatchScheduler per step
+		maxBufferedPerGroup = 200000 // items piled up in a single group while flush is stuck
 	)
 
 	tenantId := uuid.New()
@@ -100,7 +68,7 @@ func BenchmarkBatchSchedulerWorstCaseMemory(b *testing.B) {
 			group := &batchGroup{batchKey: batchKey, l: new(zerolog.New(io.Discard))}
 
 			for i := 0; i < maxBufferedPerGroup; i++ {
-				group.buffer = append(group.buffer, benchBatchedQueueItem(int64(g*maxBufferedPerGroup+i), tenantId, stepId, batchKey))
+				group.buffer = append(group.buffer, benchBufferedItem(int64(g*maxBufferedPerGroup+i)))
 			}
 
 			scheduler.groups[batchKey] = group

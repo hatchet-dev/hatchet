@@ -857,6 +857,33 @@ WHERE
     tenant_id = @tenantId::uuid
     AND id = ANY(@ids::bigint[]);
 
+-- name: GetBatchedQueueItemsByIds :many
+SELECT
+    id,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key,
+    inserted_at,
+    payload_size
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = @tenantId::uuid
+    AND id = ANY(@ids::bigint[]);
+
 -- name: MoveBatchedQueueItems :many
 WITH moved_items AS (
     DELETE FROM v1_batched_queue_item

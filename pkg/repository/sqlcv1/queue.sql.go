@@ -198,6 +198,79 @@ func (q *Queries) DeleteTasksFromQueue(ctx context.Context, db DBTX, arg DeleteT
 	return err
 }
 
+const getBatchedQueueItemsByIds = `-- name: GetBatchedQueueItemsByIds :many
+SELECT
+    id,
+    tenant_id,
+    queue,
+    task_id,
+    task_inserted_at,
+    external_id,
+    action_id,
+    step_id,
+    workflow_id,
+    workflow_run_id,
+    schedule_timeout_at,
+    step_timeout,
+    priority,
+    sticky,
+    desired_worker_id,
+    retry_count,
+    batch_key,
+    inserted_at,
+    payload_size
+FROM
+    v1_batched_queue_item
+WHERE
+    tenant_id = $1::uuid
+    AND id = ANY($2::bigint[])
+`
+
+type GetBatchedQueueItemsByIdsParams struct {
+	Tenantid uuid.UUID `json:"tenantid"`
+	Ids      []int64   `json:"ids"`
+}
+
+func (q *Queries) GetBatchedQueueItemsByIds(ctx context.Context, db DBTX, arg GetBatchedQueueItemsByIdsParams) ([]*V1BatchedQueueItem, error) {
+	rows, err := db.Query(ctx, getBatchedQueueItemsByIds, arg.Tenantid, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*V1BatchedQueueItem
+	for rows.Next() {
+		var i V1BatchedQueueItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.Queue,
+			&i.TaskID,
+			&i.TaskInsertedAt,
+			&i.ExternalID,
+			&i.ActionID,
+			&i.StepID,
+			&i.WorkflowID,
+			&i.WorkflowRunID,
+			&i.ScheduleTimeoutAt,
+			&i.StepTimeout,
+			&i.Priority,
+			&i.Sticky,
+			&i.DesiredWorkerID,
+			&i.RetryCount,
+			&i.BatchKey,
+			&i.InsertedAt,
+			&i.PayloadSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDesiredLabels = `-- name: GetDesiredLabels :many
 SELECT
     "key",

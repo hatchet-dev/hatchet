@@ -73,6 +73,10 @@ func (f *fakeBatchQueueRepo) ListBatchedQueueItems(context.Context, uuid.UUID, i
 	return nil, nil
 }
 
+func (f *fakeBatchQueueRepo) GetBatchedQueueItemsByIds(context.Context, []int64) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	return nil, nil
+}
+
 func (f *fakeBatchQueueRepo) DeleteBatchedQueueItems(context.Context, []int64) error {
 	return nil
 }

@@ -28,6 +28,7 @@ type fakeReserveCall struct {
 type fakeBatchRepo struct {
 	mu               sync.Mutex
 	listResponses    [][]*sqlcv1.V1BatchedQueueItem
+	itemsById        map[int64]*sqlcv1.V1BatchedQueueItem
 	moveCalls        [][]int64
 	commitCalls      [][]*v1repo.BatchAssignment
 	reserveCalls     []*fakeReserveCall
@@ -54,7 +55,34 @@ func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.U
 	resp := f.listResponses[0]
 	f.listResponses = f.listResponses[1:]
 
+	// Mirrors the real table: once a row has been listed, it "exists" for GetBatchedQueueItemsByIds
+	// (the hydration path) until explicitly deleted or marked missing.
+	if f.itemsById == nil {
+		f.itemsById = make(map[int64]*sqlcv1.V1BatchedQueueItem)
+	}
+	for _, item := range resp {
+		if item != nil {
+			f.itemsById[item.ID] = item
+		}
+	}
+
 	return resp, nil
+}
+
+func (f *fakeBatchRepo) GetBatchedQueueItemsByIds(ctx context.Context, ids []int64) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	items := make([]*sqlcv1.V1BatchedQueueItem, 0, len(ids))
+	for _, id := range ids {
+		if _, missing := f.missingIds[id]; missing {
+			continue
+		}
+		if item, ok := f.itemsById[id]; ok {
+			items = append(items, item)
+		}
+	}
+	return items, nil
 }
 
 func (f *fakeBatchRepo) DeleteBatchedQueueItems(ctx context.Context, ids []int64) error {
@@ -742,17 +770,17 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 	scheduler.groups["a"] = &batchGroup{
 		batchKey: "a",
 		l:        new(zerolog.New(io.Discard)),
-		buffer: []*sqlcv1.V1BatchedQueueItem{
-			{ID: 1, BatchKey: "a"},
-			{ID: 2, BatchKey: "a"},
+		buffer: []bufferedItem{
+			{ID: 1},
+			{ID: 2},
 		},
 	}
 	scheduler.groups["b"] = &batchGroup{
 		batchKey: "b",
 		l:        new(zerolog.New(io.Discard)),
-		buffer: []*sqlcv1.V1BatchedQueueItem{
-			{ID: 3, BatchKey: "b"},
-			{ID: 4, BatchKey: "b"},
+		buffer: []bufferedItem{
+			{ID: 3},
+			{ID: 4},
 		},
 	}
 
@@ -820,4 +848,94 @@ func TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems(t *testing.T) {
 	require.Len(t, repo.commitCalls, 1, "expected exactly one flush on the first tick")
 	require.Len(t, repo.commitCalls[0], 1, "expected the flush to contain exactly one item, matching batchMaxSize=1")
 	require.Len(t, scheduler.groups[""].buffer, 1, "the second item should remain buffered for the next tick")
+}
+
+// shouldMemoryLimitFlush must always return a positive flush count when it reports flush==true --
+// a non-positive count is silently dropped by flush() (count <= 0 no-ops), which would spin the
+// tick() retry loop forever instead of shrinking the buffer.
+func TestShouldMemoryLimitFlushReturnsPositiveCountWhenFirstItemAloneExceedsLimit(t *testing.T) {
+	b := &BatchScheduler{}
+	group := &batchGroup{
+		buffer: []bufferedItem{
+			{ID: 1, PayloadSize: maxBufferedPayloadBytes + 1},
+			{ID: 2, PayloadSize: 10},
+		},
+	}
+
+	flush, count := b.shouldMemoryLimitFlush(group)
+	require.True(t, flush)
+	require.Greater(t, count, 0, "a non-positive count would make flush() a no-op and spin forever")
+	require.Equal(t, 1, count)
+}
+
+func TestShouldMemoryLimitFlushExcludesOverflowingItem(t *testing.T) {
+	b := &BatchScheduler{}
+	group := &batchGroup{
+		buffer: []bufferedItem{
+			{ID: 1, PayloadSize: 10},
+			{ID: 2, PayloadSize: maxBufferedPayloadBytes},
+			{ID: 3, PayloadSize: 10},
+		},
+	}
+
+	flush, count := b.shouldMemoryLimitFlush(group)
+	require.True(t, flush)
+	require.Equal(t, 1, count, "should flush only the items strictly before the one that pushed the total over the limit")
+}
+
+// Regression test for the tick() hang: a single buffered item whose payload alone exceeds the
+// memory limit used to make shouldMemoryLimitFlush return a non-positive count, which flush()
+// silently ignored, causing tick()'s retry loop to spin without ever making progress.
+func TestBatchSchedulerFlushesOversizedSingleItemWithoutHanging(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-0000000000a1")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-0000000000a1")
+
+	repo := &fakeBatchRepo{
+		listResponses: [][]*sqlcv1.V1BatchedQueueItem{
+			{
+				{ID: 1, TenantID: tenantId, Queue: "default", TaskID: 1001, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, PayloadSize: maxBufferedPayloadBytes + 1},
+			},
+		},
+	}
+
+	queueFactory := &fakeQueueFactory{repo: &fakeQueueRepository{}}
+	workerID := uuid.MustParse("00000000-0000-0000-0000-0000000000ac")
+
+	resource := &sqlcv1.ListDistinctBatchResourcesRow{
+		StepID:       stepId,
+		BatchKey:     "",
+		BatchMaxSize: 10,
+	}
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(repo),
+		tenantId,
+		resource,
+		queueFactory,
+		&Scheduler{},
+		func(*QueueResults) {},
+	)
+	require.NotNil(t, scheduler)
+	scheduler.ctx = context.Background()
+
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+		assignments := make([]*assignedQueueItem, len(queueItems))
+		for i, qi := range queueItems {
+			assignments[i] = &assignedQueueItem{QueueItem: qi, WorkerId: workerID}
+		}
+		return assignments, nil, nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- scheduler.tick() }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("tick() did not return -- likely spinning on the oversized-item memory-limit flush")
+	}
+
+	require.Len(t, repo.commitCalls, 1, "the oversized item should still get flushed on its own")
+	require.Empty(t, scheduler.groups[""].buffer)
 }

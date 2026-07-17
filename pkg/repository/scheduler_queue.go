@@ -1019,6 +1019,20 @@ func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Conte
 	return res, nil
 }
 
+func (b *batchQueueRepository) GetBatchedQueueItemsByIds(ctx context.Context, ids []int64) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "get-batched-queue-items-by-ids")
+	defer span.End()
+
+	return b.queries.GetBatchedQueueItemsByIds(ctx, b.pool, sqlcv1.GetBatchedQueueItemsByIdsParams{
+		Tenantid: b.tenantId,
+		Ids:      ids,
+	})
+}
+
 func (b *batchQueueRepository) MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error) {
 	if len(ids) == 0 {
 		return nil, nil
