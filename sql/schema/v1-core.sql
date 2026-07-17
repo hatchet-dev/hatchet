@@ -2289,10 +2289,10 @@ CREATE TABLE v1_idempotency_key (
     inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (tenant_id, expires_at, key)
+    PRIMARY KEY (tenant_id, key)
 );
 
-CREATE UNIQUE INDEX v1_idempotency_key_unique_tenant_key ON v1_idempotency_key (tenant_id, key);
+CREATE INDEX v1_idempotency_key_expires_at_idx ON v1_idempotency_key (tenant_id, expires_at);
 
 -- v1_operation_interval_settings represents the interval settings for a specific tenant. "Operation" means
 -- any sort of tenant-specific polling-based operation on the engine, like timeouts, reassigns, etc.
