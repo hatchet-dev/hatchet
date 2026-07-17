@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
+	"github.com/hatchet-dev/hatchet/pkg/randomticker"
+
 	v1repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -54,25 +56,30 @@ type BatchScheduler struct {
 	l zerolog.Logger
 }
 
-func (b *BatchScheduler) reconcileBuffer(group *batchGroup) {
+// reconcileBuffers drops cancelled/deleted items out of every group's buffer, using a single
+// ListExistingBatchedQueueItemIds call across all groups rather than one call per group -- this
+// is the tenant-wide (well, step-wide) analog of what fetchNewItems already does for fetching.
+func (b *BatchScheduler) reconcileBuffers() {
 	if b.ctx == nil || b.ctx.Err() != nil {
 		return
 	}
 
-	if len(group.buffer) == 0 {
-		return
+	ids := make([]int64, 0)
+	for _, group := range b.groups {
+		for _, item := range group.buffer {
+			if item != nil {
+				ids = append(ids, item.ID)
+			}
+		}
 	}
 
-	ids := make([]int64, 0, len(group.buffer))
-	for _, item := range group.buffer {
-		if item != nil {
-			ids = append(ids, item.ID)
-		}
+	if len(ids) == 0 {
+		return
 	}
 
 	existing, err := b.repo.ListExistingBatchedQueueItemIds(b.ctx, ids)
 	if err != nil {
-		group.l.Debug().Err(err).Msg("failed to reconcile batch buffer")
+		b.l.Debug().Err(err).Msg("failed to reconcile batch buffers")
 		return
 	}
 
@@ -80,22 +87,28 @@ func (b *BatchScheduler) reconcileBuffer(group *batchGroup) {
 		return
 	}
 
-	newBuf := make([]*sqlcv1.V1BatchedQueueItem, 0, len(group.buffer))
-	dropped := 0
-	for _, item := range group.buffer {
-		if item == nil {
+	for _, group := range b.groups {
+		if len(group.buffer) == 0 {
 			continue
 		}
-		if _, ok := existing[item.ID]; ok {
-			newBuf = append(newBuf, item)
-		} else {
-			dropped++
-		}
-	}
 
-	if dropped > 0 {
-		group.l.Debug().Int("dropped", dropped).Msg("dropped stale/cancelled batched queue items from buffer")
-		group.buffer = newBuf
+		newBuf := make([]*sqlcv1.V1BatchedQueueItem, 0, len(group.buffer))
+		dropped := 0
+		for _, item := range group.buffer {
+			if item == nil {
+				continue
+			}
+			if _, ok := existing[item.ID]; ok {
+				newBuf = append(newBuf, item)
+			} else {
+				dropped++
+			}
+		}
+
+		if dropped > 0 {
+			group.l.Debug().Int("dropped", dropped).Msg("dropped stale/cancelled batched queue items from buffer")
+			group.buffer = newBuf
+		}
 	}
 }
 
@@ -196,7 +209,7 @@ func (b *BatchScheduler) run() {
 		b.batchSize = 1
 	}
 
-	ticker := time.NewTicker(defaultBatchPollInterval)
+	ticker := randomticker.NewRandomTicker(defaultBatchPollInterval, defaultBatchPollInterval*2)
 	defer ticker.Stop()
 
 	for {
@@ -232,10 +245,11 @@ func (b *BatchScheduler) tick() error {
 		return err
 	}
 
-	for key, group := range b.groups {
-		// Reconcile in-memory buffer with DB to drop cancelled/deleted items that were buffered.
-		b.reconcileBuffer(group)
+	// Reconcile in-memory buffers with DB to drop cancelled/deleted items that were buffered,
+	// in one call across every group.
+	b.reconcileBuffers()
 
+	for key, group := range b.groups {
 		// Check for timed out items in the buffer
 		if err := b.checkBufferForTimeouts(group); err != nil {
 			return err

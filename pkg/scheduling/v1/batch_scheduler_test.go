@@ -26,11 +26,13 @@ type fakeReserveCall struct {
 }
 
 type fakeBatchRepo struct {
-	mu            sync.Mutex
-	listResponses [][]*sqlcv1.V1BatchedQueueItem
-	moveCalls     [][]int64
-	commitCalls   [][]*v1repo.BatchAssignment
-	reserveCalls  []*fakeReserveCall
+	mu               sync.Mutex
+	listResponses    [][]*sqlcv1.V1BatchedQueueItem
+	moveCalls        [][]int64
+	commitCalls      [][]*v1repo.BatchAssignment
+	reserveCalls     []*fakeReserveCall
+	existingIdsCalls [][]int64
+	missingIds       map[int64]struct{}
 
 	// reserveFunc, if set, overrides whether ReserveAndCommitBatchRun grants the reservation.
 	// Defaults to always granting, matching the old default of a nil reservation hook.
@@ -81,8 +83,17 @@ func (f *fakeBatchRepo) MoveBatchedQueueItems(ctx context.Context, ids []int64) 
 }
 
 func (f *fakeBatchRepo) ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
+	f.mu.Lock()
+	idsCopy := append([]int64(nil), ids...)
+	f.existingIdsCalls = append(f.existingIdsCalls, idsCopy)
+	missing := f.missingIds
+	f.mu.Unlock()
+
 	existing := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
+		if _, ok := missing[id]; ok {
+			continue
+		}
 		existing[id] = struct{}{}
 	}
 	return existing, nil
@@ -695,4 +706,62 @@ func TestBatchSchedulerHandlesMultipleBatchKeysForStep(t *testing.T) {
 	for _, calls := range repo.commitCalls {
 		require.Len(t, calls, 2)
 	}
+}
+
+// TestBatchSchedulerReconcilesBuffersInSingleCall verifies that reconciling buffered items
+// against the DB happens with one ListExistingBatchedQueueItemIds call across every batch_key
+// group in a tick, not one call per group, and that a stale item is still correctly dropped from
+// whichever group it belongs to.
+func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-000000000007")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-000000000070")
+
+	repo := &fakeBatchRepo{
+		missingIds: map[int64]struct{}{
+			3: {}, // item 3 (in group "b") has since been cancelled/deleted
+		},
+	}
+
+	resource := &sqlcv1.ListDistinctBatchResourcesRow{
+		StepID:       stepId,
+		BatchKey:     "a",
+		BatchMaxSize: 100, // large enough that nothing flushes during this test
+	}
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(repo),
+		tenantId,
+		resource,
+		nil,
+		nil,
+		func(*QueueResults) {},
+	)
+	require.NotNil(t, scheduler)
+	scheduler.ctx = context.Background()
+
+	scheduler.groups["a"] = &batchGroup{
+		batchKey: "a",
+		l:        zerolog.New(io.Discard),
+		buffer: []*sqlcv1.V1BatchedQueueItem{
+			{ID: 1, BatchKey: "a"},
+			{ID: 2, BatchKey: "a"},
+		},
+	}
+	scheduler.groups["b"] = &batchGroup{
+		batchKey: "b",
+		l:        zerolog.New(io.Discard),
+		buffer: []*sqlcv1.V1BatchedQueueItem{
+			{ID: 3, BatchKey: "b"},
+			{ID: 4, BatchKey: "b"},
+		},
+	}
+
+	scheduler.reconcileBuffers()
+
+	require.Len(t, repo.existingIdsCalls, 1, "expected a single reconcile call across all groups")
+	require.ElementsMatch(t, []int64{1, 2, 3, 4}, repo.existingIdsCalls[0])
+
+	require.Len(t, scheduler.groups["a"].buffer, 2, "group 'a' should be untouched")
+	require.Len(t, scheduler.groups["b"].buffer, 1, "stale item 3 should be dropped from group 'b'")
+	require.Equal(t, int64(4), scheduler.groups["b"].buffer[0].ID)
 }
