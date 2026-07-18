@@ -18,9 +18,9 @@ type WasSuccessfullyClaimed bool
 type IdempotencyKey string
 
 type ClaimIdempotencyKeysOpt struct {
-	ExpiresAt           pgtype.Timestamptz `validate:"required"`
 	Key                 string             `validate:"required"`
 	ClaimedByExternalId uuid.UUID          `validate:"required"`
+	ExpiresAt           pgtype.Timestamptz `validate:"required"`
 }
 
 type IdempotencyRepository interface {

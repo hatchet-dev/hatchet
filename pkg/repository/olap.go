@@ -3171,8 +3171,8 @@ func (r *OLAPRepositoryImpl) PutPayloads(ctx context.Context, tx sqlcv1.DBTX, te
 }
 
 type ReadOLAPPayloadOpts struct {
-	InsertedAt pgtype.Timestamptz
 	ExternalId uuid.UUID
+	InsertedAt pgtype.Timestamptz
 }
 
 func (r *OLAPRepositoryImpl) ReadPayload(ctx context.Context, tenantId uuid.UUID, opt ReadOLAPPayloadOpts) ([]byte, error) {
