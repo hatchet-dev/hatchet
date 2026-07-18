@@ -5,6 +5,7 @@ import { WorkflowTags } from '../components/workflow-tags';
 import { TriggerWorkflowForm } from './components/trigger-workflow-form';
 import WorkflowGeneralSettings from './components/workflow-general-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { Loading } from '@/components/v1/ui/loading.tsx';
@@ -125,6 +126,12 @@ export default function ExpandedWorkflow() {
           </div>
           <WorkflowTags tags={workflow.tags || []} />
           <div className="flex flex-row gap-2">
+            {workflowVersionQuery.data && (
+              <CopyWorkflowConfigButton
+                workflowConfig={workflowVersionQuery.data.workflowConfig}
+                size="default"
+              />
+            )}
             <Button
               className="text-sm"
               onClick={() => setTriggerWorkflow(true)}

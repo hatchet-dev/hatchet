@@ -1,4 +1,3 @@
-import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-config';
 import { Badge } from '@/components/v1/ui/badge';
 import { Button } from '@/components/v1/ui/button';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
@@ -88,21 +87,11 @@ export default function WorkflowGeneralSettings({
 
   return (
     <div className="px-1">
-      <Section
-        title="Description"
-        className="mb-6"
-        titleRight={
-          <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
-        }
-      >
-        {workflow.description ? (
+      {workflow.description && (
+        <Section title="Description" className="mb-6">
           <MarkdownRenderer content={workflow.description} />
-        ) : (
-          <p className="text-sm italic text-muted-foreground">
-            No description provided.
-          </p>
-        )}
-      </Section>
+        </Section>
+      )}
 
       <div className="flex flex-wrap items-start gap-5">
         <div className="flex w-[340px] max-w-full shrink-0 flex-col gap-6">
