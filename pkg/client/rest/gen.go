@@ -2632,6 +2632,10 @@ type WorkflowVersion struct {
 	// DefaultPriority The default priority of the workflow.
 	DefaultPriority *int32 `json:"defaultPriority,omitempty"`
 
+	// Description The workflow description (may contain markdown).
+	Description *string                     `json:"description,omitempty"`
+	Idempotency *WorkflowVersionIdempotency `json:"idempotency,omitempty"`
+
 	// InputJsonSchema The JSON schema for the workflow input.
 	InputJsonSchema *map[string]interface{} `json:"inputJsonSchema,omitempty"`
 	Jobs            *[]Job                  `json:"jobs,omitempty"`
@@ -2640,15 +2644,27 @@ type WorkflowVersion struct {
 	ScheduleTimeout *string                 `json:"scheduleTimeout,omitempty"`
 
 	// Sticky The sticky strategy of the workflow.
-	Sticky        *string               `json:"sticky,omitempty"`
-	Triggers      *WorkflowTriggers     `json:"triggers,omitempty"`
-	V1Concurrency *[]ConcurrencySetting `json:"v1Concurrency,omitempty"`
+	Sticky *string `json:"sticky,omitempty"`
+
+	// Tasks The tasks in the workflow, including their DAG dependencies and per-task configuration.
+	Tasks         *[]WorkflowVersionTask `json:"tasks,omitempty"`
+	Triggers      *WorkflowTriggers      `json:"triggers,omitempty"`
+	V1Concurrency *[]ConcurrencySetting  `json:"v1Concurrency,omitempty"`
 
 	// Version The version of the workflow.
 	Version        string                  `json:"version"`
 	Workflow       *Workflow               `json:"workflow,omitempty"`
 	WorkflowConfig *map[string]interface{} `json:"workflowConfig,omitempty"`
 	WorkflowId     string                  `json:"workflowId"`
+}
+
+// WorkflowVersionIdempotency defines model for WorkflowVersionIdempotency.
+type WorkflowVersionIdempotency struct {
+	// Expression The CEL expression used to compute the idempotency key.
+	Expression string `json:"expression"`
+
+	// TtlMs The time-to-live of the idempotency key, in milliseconds.
+	TtlMs int64 `json:"ttlMs"`
 }
 
 // WorkflowVersionMeta defines model for WorkflowVersionMeta.
@@ -2660,6 +2676,80 @@ type WorkflowVersionMeta struct {
 	Version    string    `json:"version"`
 	Workflow   *Workflow `json:"workflow,omitempty"`
 	WorkflowId string    `json:"workflowId"`
+}
+
+// WorkflowVersionTask defines model for WorkflowVersionTask.
+type WorkflowVersionTask struct {
+	// Action The action id of the task.
+	Action              string                                   `json:"action"`
+	DesiredWorkerLabels *[]WorkflowVersionTaskDesiredWorkerLabel `json:"desiredWorkerLabels,omitempty"`
+
+	// IsDurable Whether the task is durable.
+	IsDurable *bool `json:"isDurable,omitempty"`
+
+	// Parents The readable ids of the tasks that this task depends on (its DAG parents).
+	Parents    []string                        `json:"parents"`
+	RateLimits *[]WorkflowVersionTaskRateLimit `json:"rateLimits,omitempty"`
+
+	// ReadableId The readable id of the task.
+	ReadableId string `json:"readableId"`
+
+	// Retries The number of retries for the task.
+	Retries int32 `json:"retries"`
+
+	// RetryBackoffFactor The retry backoff factor for the task.
+	RetryBackoffFactor *float64 `json:"retryBackoffFactor,omitempty"`
+
+	// RetryBackoffMaxSeconds The maximum retry backoff, in seconds.
+	RetryBackoffMaxSeconds *int32 `json:"retryBackoffMaxSeconds,omitempty"`
+
+	// ScheduleTimeout The scheduling timeout of the task.
+	ScheduleTimeout *string `json:"scheduleTimeout,omitempty"`
+
+	// Timeout The execution timeout of the task.
+	Timeout *string `json:"timeout,omitempty"`
+}
+
+// WorkflowVersionTaskDesiredWorkerLabel defines model for WorkflowVersionTaskDesiredWorkerLabel.
+type WorkflowVersionTaskDesiredWorkerLabel struct {
+	// Comparator The comparator used when matching the label.
+	Comparator *string `json:"comparator,omitempty"`
+
+	// IntValue The integer value of the label.
+	IntValue *int32 `json:"intValue,omitempty"`
+
+	// Key The worker label key.
+	Key string `json:"key"`
+
+	// Required Whether the label is required for scheduling.
+	Required *bool `json:"required,omitempty"`
+
+	// StrValue The string value of the label.
+	StrValue *string `json:"strValue,omitempty"`
+
+	// Weight The scheduling weight of the label.
+	Weight *int32 `json:"weight,omitempty"`
+}
+
+// WorkflowVersionTaskRateLimit defines model for WorkflowVersionTaskRateLimit.
+type WorkflowVersionTaskRateLimit struct {
+	// Duration The rate limit window duration.
+	Duration *string `json:"duration,omitempty"`
+
+	// Key The static rate limit key.
+	Key *string `json:"key,omitempty"`
+
+	// KeyExpression A CEL expression that computes the rate limit key.
+	KeyExpression *string `json:"keyExpression,omitempty"`
+
+	// LimitExpression A CEL expression that computes a dynamic limit value.
+	LimitExpression *string `json:"limitExpression,omitempty"`
+
+	// Units The static number of units to consume.
+	Units *int32 `json:"units,omitempty"`
+
+	// UnitsExpression A CEL expression that computes the number of units to consume.
+	UnitsExpression *string `json:"unitsExpression,omitempty"`
 }
 
 // WorkflowWorkersCount defines model for WorkflowWorkersCount.

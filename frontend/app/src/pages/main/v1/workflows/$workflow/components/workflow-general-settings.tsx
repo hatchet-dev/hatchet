@@ -3,10 +3,12 @@ import { CopyWorkflowConfigButton } from '@/components/v1/shared/copy-workflow-c
 import { Badge } from '@/components/v1/ui/badge';
 import { CodeHighlighter } from '@/components/v1/ui/code-highlighter';
 import { Label } from '@/components/v1/ui/label';
+import { MarkdownRenderer } from '@/components/v1/ui/markdown';
 import {
   ConcurrencyLimitStrategy,
   ConcurrencyScope,
   WorkflowVersion,
+  WorkflowVersionTask,
 } from '@/lib/api';
 import { formatCron } from '@/lib/cron';
 
@@ -49,23 +51,53 @@ export default function WorkflowGeneralSettings({
     (workflow.triggers?.events && workflow.triggers.events.length > 0) ||
     (workflow.triggers?.crons && workflow.triggers.crons.length > 0);
 
+  const hasTasks = !!workflow.tasks && workflow.tasks.length > 0;
+  const hasConcurrency =
+    !!workflow.v1Concurrency && workflow.v1Concurrency.length > 0;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        {workflow.description ? (
+          <MarkdownRenderer
+            content={workflow.description}
+            className="min-w-0 flex-1"
+          />
+        ) : (
+          <div />
+        )}
+        <div className="flex-shrink-0">
+          <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
+        </div>
+      </div>
+
       {hasTriggers && (
         <SettingsSection title="Triggers">
           <TriggerSettings workflow={workflow} />
         </SettingsSection>
       )}
 
-      <SettingsSection title="Concurrency">
-        <ConcurrencySettings workflow={workflow} />
-      </SettingsSection>
+      {hasTasks && (
+        <SettingsSection title="Tasks">
+          <TaskSettings tasks={workflow.tasks ?? []} />
+        </SettingsSection>
+      )}
 
-      <SettingsSection title="Other">
+      {hasConcurrency && (
+        <SettingsSection title="Concurrency">
+          <ConcurrencySettings workflow={workflow} />
+        </SettingsSection>
+      )}
+
+      {workflow.idempotency && (
+        <SettingsSection title="Idempotency">
+          <IdempotencySettings idempotency={workflow.idempotency} />
+        </SettingsSection>
+      )}
+
+      <SettingsSection title="Configuration">
         <ConfigurationSettings workflow={workflow} />
       </SettingsSection>
-
-      <CopyWorkflowConfigButton workflowConfig={workflow.workflowConfig} />
     </div>
   );
 }
@@ -96,11 +128,9 @@ function EmptyState({ message }: { message: string }) {
 function FieldGroup({
   label,
   children,
-  description,
 }: {
   label: string;
   children: React.ReactNode;
-  description?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -108,34 +138,9 @@ function FieldGroup({
         {label}
       </Label>
       {children}
-      {description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {description}
-        </p>
-      )}
     </div>
   );
 }
-
-// function ScheduleTimeoutSettings({ workflow }: { workflow: WorkflowVersion }) {
-//   if (!workflow.scheduleTimeout) {
-//     return (
-//       <div className="text-[0.8rem] text-gray-700 dark:text-gray-300">
-//         No schedule timeout set for this workflow.
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div className="flex flex-col gap-2">
-//       <Input
-//         disabled
-//         placeholder="Schedule Timeout"
-//         value={workflow.scheduleTimeout}
-//       />
-//     </div>
-//   );
-// }
 
 function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
   if (!workflow.triggers) {
@@ -145,7 +150,7 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {workflow.triggers.events && workflow.triggers.events.length > 0 && (
         <FieldGroup label="Events">
           <div className="flex flex-wrap gap-1">
@@ -164,14 +169,10 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
 
       {workflow.triggers.crons && workflow.triggers.crons.length > 0 && (
         <FieldGroup label="Cron Schedules">
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-2">
+          <div className="space-y-2">
             {workflow.triggers.crons.map((cronTrigger) => (
               <div key={cronTrigger.cron}>
-                <Badge
-                  key={cronTrigger.cron}
-                  variant="secondary"
-                  className="font-mono text-sm"
-                >
+                <Badge variant="secondary" className="font-mono text-sm">
                   {cronTrigger.cron}
                 </Badge>
                 {cronTrigger.cron && (
@@ -185,6 +186,112 @@ function TriggerSettings({ workflow }: { workflow: WorkflowVersion }) {
         </FieldGroup>
       )}
     </div>
+  );
+}
+
+function TaskSettings({ tasks }: { tasks: WorkflowVersionTask[] }) {
+  return (
+    <SimpleTable
+      data={tasks}
+      rowKey={(row) => row.readableId}
+      columns={[
+        {
+          columnLabel: 'Task',
+          cellRenderer: (row) => (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-medium">
+                {row.readableId}
+              </span>
+              {row.isDurable && (
+                <Badge variant="outline" className="text-xs">
+                  Durable
+                </Badge>
+              )}
+            </div>
+          ),
+        },
+        {
+          columnLabel: 'Action',
+          cellRenderer: (row) => (
+            <span className="whitespace-nowrap font-mono text-sm text-gray-600 dark:text-gray-400">
+              {row.action}
+            </span>
+          ),
+        },
+        {
+          columnLabel: 'Depends On',
+          cellRenderer: (row) =>
+            row.parents.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {row.parents.map((parent) => (
+                  <Badge
+                    key={parent}
+                    variant="secondary"
+                    className="font-mono text-xs"
+                  >
+                    {parent}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-gray-400">—</span>
+            ),
+        },
+        {
+          columnLabel: 'Retries',
+          cellRenderer: (row) => <span className="text-sm">{row.retries}</span>,
+        },
+        {
+          columnLabel: 'Timeout',
+          cellRenderer: (row) => (
+            <span className="whitespace-nowrap font-mono text-sm">
+              {row.timeout || '—'}
+            </span>
+          ),
+        },
+        {
+          columnLabel: 'Schedule Timeout',
+          cellRenderer: (row) => (
+            <span className="whitespace-nowrap font-mono text-sm">
+              {row.scheduleTimeout || '—'}
+            </span>
+          ),
+        },
+        {
+          columnLabel: 'Backoff',
+          cellRenderer: (row) =>
+            row.retryBackoffFactor ? (
+              <span className="whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                x{row.retryBackoffFactor}
+                {row.retryBackoffMaxSeconds
+                  ? ` up to ${row.retryBackoffMaxSeconds}s`
+                  : ''}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">—</span>
+            ),
+        },
+        {
+          columnLabel: 'Rate Limits',
+          cellRenderer: (row) =>
+            row.rateLimits && row.rateLimits.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {row.rateLimits.map((rl, i) => (
+                  <Badge
+                    key={`${rl.key ?? rl.keyExpression ?? i}`}
+                    variant="secondary"
+                    className="font-mono text-xs"
+                  >
+                    {rl.key ?? rl.keyExpression}
+                  </Badge>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-gray-400">—</span>
+            ),
+        },
+      ]}
+    />
   );
 }
 
@@ -238,10 +345,50 @@ function ConcurrencySettings({ workflow }: { workflow: WorkflowVersion }) {
   );
 }
 
-function ConfigurationSettings({ workflow }: { workflow: WorkflowVersion }) {
-  const hasConfig = workflow.sticky || workflow.defaultPriority;
+function IdempotencySettings({
+  idempotency,
+}: {
+  idempotency: NonNullable<WorkflowVersion['idempotency']>;
+}) {
+  return (
+    <div className="space-y-3">
+      <FieldGroup label="Expression">
+        <CodeHighlighter
+          language="text"
+          className="whitespace-pre-wrap break-words text-sm leading-relaxed"
+          code={idempotency.expression}
+          copy={false}
+          minWidth="20rem"
+        />
+      </FieldGroup>
+      <div className="flex items-center gap-2">
+        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          TTL:
+        </Label>
+        <Badge variant="secondary" className="font-mono text-sm">
+          {idempotency.ttlMs.toLocaleString()} ms
+        </Badge>
+      </div>
+    </div>
+  );
+}
 
-  if (!hasConfig) {
+function ConfigurationSettings({ workflow }: { workflow: WorkflowVersion }) {
+  const rows: { label: string; value: React.ReactNode }[] = [];
+
+  if (workflow.sticky) {
+    rows.push({ label: 'Sticky Strategy', value: workflow.sticky });
+  }
+
+  if (workflow.defaultPriority) {
+    rows.push({ label: 'Default Priority', value: workflow.defaultPriority });
+  }
+
+  if (workflow.scheduleTimeout) {
+    rows.push({ label: 'Schedule Timeout', value: workflow.scheduleTimeout });
+  }
+
+  if (rows.length === 0) {
     return (
       <EmptyState message="No additional configuration set for this workflow." />
     );
@@ -249,27 +396,16 @@ function ConfigurationSettings({ workflow }: { workflow: WorkflowVersion }) {
 
   return (
     <div className="space-y-2">
-      {workflow.sticky && (
-        <div className="flex items-center gap-2">
+      {rows.map((row) => (
+        <div key={row.label} className="flex items-center gap-2">
           <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Sticky Strategy:
+            {row.label}:
           </Label>
           <Badge variant="secondary" className="font-mono text-sm">
-            {workflow.sticky}
+            {row.value}
           </Badge>
         </div>
-      )}
-
-      {workflow.defaultPriority && (
-        <div className="flex items-center gap-2">
-          <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Default Priority:
-          </Label>
-          <Badge variant="secondary" className="font-mono text-sm">
-            {workflow.defaultPriority}
-          </Badge>
-        </div>
-      )}
+      ))}
     </div>
   );
 }

@@ -127,6 +127,16 @@ WorkflowVersion:
       type: array
       items:
         $ref: "#/ConcurrencySetting"
+    description:
+      type: string
+      description: The workflow description (may contain markdown).
+    idempotency:
+      $ref: "#/WorkflowVersionIdempotency"
+    tasks:
+      type: array
+      description: The tasks in the workflow, including their DAG dependencies and per-task configuration.
+      items:
+        $ref: "#/WorkflowVersionTask"
     inputJsonSchema:
       type: object
       description: The JSON schema for the workflow input.
@@ -135,6 +145,118 @@ WorkflowVersion:
     - version
     - order
     - workflowId
+
+WorkflowVersionIdempotency:
+  type: object
+  properties:
+    expression:
+      type: string
+      description: The CEL expression used to compute the idempotency key.
+    ttlMs:
+      type: integer
+      format: int64
+      description: The time-to-live of the idempotency key, in milliseconds.
+  required:
+    - expression
+    - ttlMs
+
+WorkflowVersionTask:
+  type: object
+  properties:
+    readableId:
+      type: string
+      description: The readable id of the task.
+    action:
+      type: string
+      description: The action id of the task.
+    parents:
+      type: array
+      description: The readable ids of the tasks that this task depends on (its DAG parents).
+      items:
+        type: string
+    timeout:
+      type: string
+      description: The execution timeout of the task.
+    scheduleTimeout:
+      type: string
+      description: The scheduling timeout of the task.
+    retries:
+      type: integer
+      format: int32
+      description: The number of retries for the task.
+    retryBackoffFactor:
+      type: number
+      format: double
+      description: The retry backoff factor for the task.
+    retryBackoffMaxSeconds:
+      type: integer
+      format: int32
+      description: The maximum retry backoff, in seconds.
+    isDurable:
+      type: boolean
+      description: Whether the task is durable.
+    rateLimits:
+      type: array
+      items:
+        $ref: "#/WorkflowVersionTaskRateLimit"
+    desiredWorkerLabels:
+      type: array
+      items:
+        $ref: "#/WorkflowVersionTaskDesiredWorkerLabel"
+  required:
+    - readableId
+    - action
+    - parents
+    - retries
+
+WorkflowVersionTaskRateLimit:
+  type: object
+  properties:
+    key:
+      type: string
+      description: The static rate limit key.
+    keyExpression:
+      type: string
+      description: A CEL expression that computes the rate limit key.
+    units:
+      type: integer
+      format: int32
+      description: The static number of units to consume.
+    unitsExpression:
+      type: string
+      description: A CEL expression that computes the number of units to consume.
+    limitExpression:
+      type: string
+      description: A CEL expression that computes a dynamic limit value.
+    duration:
+      type: string
+      description: The rate limit window duration.
+
+WorkflowVersionTaskDesiredWorkerLabel:
+  type: object
+  properties:
+    key:
+      type: string
+      description: The worker label key.
+    strValue:
+      type: string
+      description: The string value of the label.
+    intValue:
+      type: integer
+      format: int32
+      description: The integer value of the label.
+    required:
+      type: boolean
+      description: Whether the label is required for scheduling.
+    weight:
+      type: integer
+      format: int32
+      description: The scheduling weight of the label.
+    comparator:
+      type: string
+      description: The comparator used when matching the label.
+  required:
+    - key
 
 ConcurrencyScope:
   type: string

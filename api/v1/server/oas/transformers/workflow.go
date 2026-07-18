@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
+	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
@@ -63,10 +64,16 @@ func ToWorkflowVersion(
 ) *gen.WorkflowVersion {
 	wfConfig := make(map[string]interface{})
 
+	var opts repository.CreateWorkflowVersionOpts
+
 	if version.CreateWorkflowVersionOpts != nil {
 		err := json.Unmarshal(version.CreateWorkflowVersionOpts, &wfConfig)
 
 		if err != nil {
+			return nil
+		}
+
+		if err := json.Unmarshal(version.CreateWorkflowVersionOpts, &opts); err != nil {
 			return nil
 		}
 	}
@@ -77,7 +84,7 @@ func ToWorkflowVersion(
 			version.CreatedAt.Time,
 			version.UpdatedAt.Time,
 		),
-		// WorkflowId:      version.WorkflowId.String(),
+		WorkflowId:      version.WorkflowId.String(),
 		Order:           int32(version.Order), // nolint: gosec
 		Version:         version.Version.String,
 		ScheduleTimeout: &version.ScheduleTimeout,
@@ -149,7 +156,106 @@ func ToWorkflowVersion(
 	res.Triggers = &triggersResp
 	res.V1Concurrency = ToV1Concurrency(workflowConcurrency, stepConcurrency)
 
+	if opts.Description != nil {
+		res.Description = opts.Description
+	}
+
+	if opts.Idempotency != nil {
+		res.Idempotency = &gen.WorkflowVersionIdempotency{
+			Expression: opts.Idempotency.Expression,
+			TtlMs:      opts.Idempotency.TTLMs,
+		}
+	}
+
+	res.Tasks = ToWorkflowVersionTasks(opts.Tasks)
+
 	return res
+}
+
+func ToWorkflowVersionTasks(tasks []repository.CreateStepOpts) *[]gen.WorkflowVersionTask {
+	res := make([]gen.WorkflowVersionTask, 0, len(tasks))
+
+	for i := range tasks {
+		task := tasks[i]
+
+		parents := task.Parents
+		if parents == nil {
+			parents = []string{}
+		}
+
+		genTask := gen.WorkflowVersionTask{
+			ReadableId:          task.ReadableId,
+			Action:              task.Action,
+			Parents:             parents,
+			Timeout:             task.Timeout,
+			ScheduleTimeout:     task.ScheduleTimeout,
+			RetryBackoffFactor:  task.RetryBackoffFactor,
+			IsDurable:           &task.IsDurable,
+			RateLimits:          ToWorkflowVersionTaskRateLimits(task.RateLimits),
+			DesiredWorkerLabels: ToWorkflowVersionTaskDesiredWorkerLabels(task.DesiredWorkerLabels),
+		}
+
+		if task.Retries != nil {
+			genTask.Retries = int32(*task.Retries) // nolint: gosec
+		}
+
+		if task.RetryBackoffMaxSeconds != nil {
+			maxBackoff := int32(*task.RetryBackoffMaxSeconds) // nolint: gosec
+			genTask.RetryBackoffMaxSeconds = &maxBackoff
+		}
+
+		res = append(res, genTask)
+	}
+
+	return &res
+}
+
+func ToWorkflowVersionTaskRateLimits(rateLimits []repository.CreateWorkflowStepRateLimitOpts) *[]gen.WorkflowVersionTaskRateLimit {
+	res := make([]gen.WorkflowVersionTaskRateLimit, 0, len(rateLimits))
+
+	for i := range rateLimits {
+		rl := rateLimits[i]
+
+		genRl := gen.WorkflowVersionTaskRateLimit{
+			KeyExpression:   rl.KeyExpr,
+			UnitsExpression: rl.UnitsExpr,
+			LimitExpression: rl.LimitExpr,
+			Duration:        rl.Duration,
+		}
+
+		if rl.Key != "" {
+			key := rl.Key
+			genRl.Key = &key
+		}
+
+		if rl.Units != nil {
+			units := int32(*rl.Units) // nolint: gosec
+			genRl.Units = &units
+		}
+
+		res = append(res, genRl)
+	}
+
+	return &res
+}
+
+func ToWorkflowVersionTaskDesiredWorkerLabels(labels map[string]repository.DesiredWorkerLabelOpts) *[]gen.WorkflowVersionTaskDesiredWorkerLabel {
+	res := make([]gen.WorkflowVersionTaskDesiredWorkerLabel, 0, len(labels))
+
+	for key := range labels {
+		label := labels[key]
+
+		res = append(res, gen.WorkflowVersionTaskDesiredWorkerLabel{
+			Key:        key,
+			StrValue:   label.StrValue,
+			IntValue:   label.IntValue,
+			Required:   label.Required,
+			Weight:     label.Weight,
+			Comparator: label.Comparator,
+		})
+	}
+
+	return &res
 }
 
 func ToV1Concurrency(workflowConcurrencies []*sqlcv1.ListWorkflowConcurrencyByVersionIdRow, taskConcurrencies []*sqlcv1.ListConcurrencyStrategiesByWorkflowVersionIdRow) *[]gen.ConcurrencySetting {
