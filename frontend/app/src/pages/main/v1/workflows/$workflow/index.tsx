@@ -23,7 +23,7 @@ import { ResourceNotFound } from '@/pages/error/components/resource-not-found';
 import { appRoutes } from '@/router';
 import { Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { isAxiosError } from 'axios';
 import { useState } from 'react';
 
@@ -37,6 +37,7 @@ export default function ExpandedWorkflow() {
   const { refetchInterval } = useRefetchInterval();
 
   const params = useParams({ from: appRoutes.tenantWorkflowRoute.to });
+  const { tab } = useSearch({ from: appRoutes.tenantWorkflowRoute.to });
 
   const workflowQuery = useQuery({
     ...queries.workflows.get(params.workflow),
@@ -145,14 +146,20 @@ export default function ExpandedWorkflow() {
             )}
           </div>
         </div>
-        {workflow.description && (
-          <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
-            {workflow.description}
-          </div>
-        )}
       </div>
       <div className="min-h-0 flex-1 px-4 sm:px-6 lg:px-8">
-        <Tabs defaultValue="runs" className="flex h-full flex-col">
+        <Tabs
+          value={tab ?? 'runs'}
+          onValueChange={(value) =>
+            navigate({
+              to: appRoutes.tenantWorkflowRoute.to,
+              params: { tenant: tenantId, workflow: params.workflow },
+              search: { tab: value as 'runs' | 'settings' },
+              replace: true,
+            })
+          }
+          className="flex h-full flex-col"
+        >
           <TabsList layout="underlined" className="mb-4">
             <TabsTrigger variant="underlined" value="runs">
               Runs
@@ -171,40 +178,11 @@ export default function ExpandedWorkflow() {
             {workflowVersionQuery.isLoading || !workflowVersionQuery.data ? (
               <Loading />
             ) : (
-              <WorkflowGeneralSettings workflow={workflowVersionQuery.data} />
+              <WorkflowGeneralSettings
+                workflow={workflowVersionQuery.data}
+                onDeleteClick={() => setDeleteWorkflow(true)}
+              />
             )}
-
-            <div className="mt-8">
-              <div className="space-y-3">
-                <h3 className="border-b border-gray-200 pb-2 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
-                  Danger Zone
-                </h3>
-                <div className="pl-1">
-                  <div className="max-w-xl rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          Delete Workflow
-                        </h4>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                          Permanently delete this workflow and all its data.
-                          This action cannot be undone.
-                        </p>
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          setDeleteWorkflow(true);
-                        }}
-                      >
-                        Delete Workflow
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             <ConfirmDialog
               title={`Delete workflow`}
