@@ -727,7 +727,7 @@ WITH input AS (
 			FROM input
 		)
 		AND t.idempotency_key IS NOT NULL
-		AND wv."idempotencyKeyTtlMs" IS NOT NULL -- this is the thing to change
+		AND wv."idempotencyMethod" = 'STATUS'
 	ORDER BY k.tenant_id, k.key
 	FOR UPDATE OF v1_idempotency_key
 )
