@@ -718,9 +718,9 @@ WITH input AS (
         unnest($3::integer[]) AS retry_count
 ), keys_to_release AS (
     SELECT k.tenant_id, k.key
-	FROM v1_task t
+	FROM v1_idempotency_key k
+	JOIN v1_task t ON (t.tenant_id, t.idempotency_key) = (k.tenant_id, k.key)
 	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
-	JOIN v1_idempotency_key k ON (t.tenant_id, t.idempotency_key) = (k.tenant_id, k.key)
 	WHERE
 		(t.id, t.inserted_at, t.retry_count) IN (
 			SELECT task_id, task_inserted_at, retry_count
@@ -729,13 +729,13 @@ WITH input AS (
 		AND t.idempotency_key IS NOT NULL
 		AND wv."idempotencyMethod" = 'STATUS'
 	ORDER BY k.tenant_id, k.key
-	FOR UPDATE OF v1_idempotency_key
+	FOR UPDATE OF k
 )
 
 DELETE FROM v1_idempotency_key k
 WHERE (tenant_id, key) IN (
 	SELECT tenant_id, key
-	FROM idempotency_keys_to_release
+	FROM keys_to_release
 )
 `
 
