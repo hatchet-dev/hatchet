@@ -242,6 +242,8 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
     assert runs is not None
     assert len(runs.rows) == 1
 
+    await asyncio.sleep(1)
+
     details = await hatchet.event.aio_list(
         event_ids=[e1.event_id, e2.event_id],
     )
