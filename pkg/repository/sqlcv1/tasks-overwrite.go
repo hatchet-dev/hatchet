@@ -710,6 +710,35 @@ WHERE
     )
 `
 
+const releaseIdempotencyKeys = `-- name: ReleaseIdempotencyKeys :batchexec
+WITH input AS (
+    SELECT
+        unnest($1::bigint[]) AS task_id,
+        unnest($2::timestamptz[]) AS task_inserted_at,
+        unnest($3::integer[]) AS retry_count
+), keys_to_release AS (
+    SELECT k.tenant_id, k.key
+	FROM v1_task t
+	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
+	JOIN v1_idempotency_key k ON (t.tenant_id, t.idempotency_key) = (k.tenant_id, k.key)
+	WHERE
+		(t.id, t.inserted_at, t.retry_count) IN (
+			SELECT task_id, task_inserted_at, retry_count
+			FROM input
+		)
+		AND t.idempotency_key IS NOT NULL
+		AND wv."idempotencyKeyTtlMs" IS NOT NULL -- this is the thing to change
+	ORDER BY k.tenant_id, k.key
+	FOR UPDATE OF v1_idempotency_key
+)
+
+DELETE FROM v1_idempotency_key k
+WHERE (tenant_id, key) IN (
+	SELECT tenant_id, key
+	FROM idempotency_keys_to_release
+)
+`
+
 const releaseTasks = `-- name: ReleaseTasks :batchmany
 WITH input AS (
     SELECT
@@ -750,7 +779,8 @@ SELECT
     r.worker_id,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
-    t.concurrency_strategy_ids
+    t.concurrency_strategy_ids,
+	t.idempotency_key
 FROM
     v1_task t
 JOIN
@@ -776,6 +806,7 @@ type ReleaseTasksRow struct {
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
+	IdempotencyKey         pgtype.Text        `json:"idempotency_key"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -805,6 +836,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.RetryCount,
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,
+				&i.IdempotencyKey,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)
@@ -818,11 +850,13 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		close(errCh)
 		return nil
 	})
+
 	batch.Queue(releaseRetryQueueItems, vals...)
 	batch.Queue(releaseQueueItems, vals...)
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)
+	batch.Queue(releaseIdempotencyKeys, vals...)
 
 	br := db.SendBatch(ctx, batch)
 	err := br.Close()
