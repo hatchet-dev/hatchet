@@ -122,8 +122,8 @@ enum IdempotencyMethod {
 
 message IdempotencyConfig {
     string expression = 1; // a CEL expression for determining the idempotency key for workflow runs
-    optional int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds
-    IdempotencyMethod method = 3; // the method to use for idempotency
+    int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds
+    optional IdempotencyMethod method = 3; // the method to use for idempotency, defaults to TTL
 }
 
 message IdempotencyCollisionError {
