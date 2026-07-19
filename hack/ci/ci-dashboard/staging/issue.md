@@ -1,51 +1,39 @@
 # CI Health Dashboard
 
-_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-18T07:07:16Z · auto-generated, do not edit by hand._
+_Window: last 14 days (trend + pass rate) · tables: last 24h · updated 2026-07-19T07:06:32Z · auto-generated, do not edit by hand._
 
-**Gating-CI pass rate** — PR: 82% (2180/2646) · main: 70% (88/126)
+**Gating-CI pass rate** — PR: 82% (2203/2678) · main: 70% (88/126)
 
 ## Gating-CI pass-rate trend
 
 ```mermaid
 xychart-beta
   title "Gating-CI pass rate (%) per day"
-  x-axis [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+  x-axis [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
   y-axis "pass rate %" 0 --> 100
-  line "CI" [100, 85, 81, 84, 86, 76, 83, 96, 97, 78, 81, 84, 88, 81, 63]
-  line "main" [100, 100, 100, 67, 60, 36, 100, 100, 100, 67, 89, 71, 75, 40, 40]
+  line "CI" [85, 81, 84, 86, 76, 83, 96, 97, 78, 81, 84, 88, 81, 67, 78]
+  line "main" [100, 100, 67, 60, 36, 100, 100, 100, 67, 89, 71, 75, 40, 40, 40]
 ```
 
-_X-axis = day of month (Jul 04 → Jul 18). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
+_X-axis = day of month (Jul 05 → Jul 19). Two lines: **CI** (PR gating-CI runs, generally the upper line) and **main** (post-merge main runs, lower). Y-axis = % of that day's gating-CI runs that passed._
 
 ## Top 10 failing jobs (last 24h)
 
 | # | job | workflow | fails | recovered | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `unit` | test | 8 | 1 | 32 | 25% | flaky | main + PR | **flaky test** — TestMsgIdBufferMemoryLeak: timeout sending message to msgqueue sub-buffer under CI load |
-| 2 | `lite-arm` | build | 7 | 0 | 27 | 26% | flaky | PR | **product bug** — Docker lite-arm build fails on frontend org-invites TypeScript compile errors |
-| 3 | `authdisabled` | build | 7 | 0 | 27 | 26% | flaky | PR | **product bug** — Docker authdisabled build fails on frontend org-invites TypeScript compile errors |
-| 4 | `dashboard-amd` | build | 7 | 0 | 27 | 26% | flaky | PR | **product bug** — Docker dashboard-amd build fails on frontend org-invites TypeScript compile errors |
-| 5 | `dashboard-arm` | build | 7 | 0 | 27 | 26% | flaky | PR | **product bug** — Docker dashboard-arm build fails on frontend org-invites TypeScript compile errors |
-| 6 | `lite-amd` | build | 7 | 0 | 27 | 26% | flaky | PR | **product bug** — Docker lite-amd build fails on frontend org-invites TypeScript errors (Alpine apk line is log noise) |
-| 7 | `build` | frontend / app | 6 | 0 | 18 | 33% | flaky | PR | **product bug** — Frontend org-invites: control-plane vs cloud Organization type mismatch breaks npm build |
-| 8 | `frontend` | build | 6 | 0 | 27 | 22% | flaky | PR | **product bug** — Frontend org-invites TS compile errors fail Docker frontend build (parser noise from passing subtest name) |
-| 9 | `integration` | test | 6 | 0 | 32 | 19% | flaky | PR | **product bug** — Scheduling integration: v1_task is_dag_orchestrator NOT NULL constraint violation |
-| 10 | `test-templates` | cli-e2e-tests | 5 | 0 | 9 | 56% | flaky | PR | **flaky test** — TestQuickstartTemplates fails when simple_go_go subtest workflow trigger is killed |
+| 1 | `generate` | test | 5 | 0 | 7 | 71% | flaky | PR | **infra/CI** — generate check-for-diff drift on PR (python examples + proto not regenerated) |
+| 2 | `unit` | test | 2 | 0 | 7 | 29% | flaky | PR | **flaky test** — scheduler TryAssign replenish-timeout starvation test timing-sensitive |
+| 3 | `e2e-pgmq` | test | 1 | 0 | 7 | 14% | flaky | PR | **flaky test** — e2e durable sleep cancel replay timing race in TestDurableSleepCancelReplay |
 
 ## Top 10 failing tests (last 24h)
 
 | # | test | job | fails | runs | fail rate | flaky? | scope | cause |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `(unparsed)` | `dashboard-amd` | 7 | 27 | 26% | flaky | PR | **product bug** — Docker dashboard-amd build fails on frontend org-invites TypeScript compile errors |
-| 2 | `(unparsed)` | `dashboard-arm` | 7 | 27 | 26% | flaky | PR | **product bug** — Docker dashboard-arm build fails on frontend org-invites TypeScript compile errors |
-| 3 | `(unparsed)` | `build` | 6 | 18 | 33% | flaky | PR | **product bug** — Frontend org-invites: control-plane vs cloud Organization type mismatch breaks npm build |
-| 4 | `(unparsed)` | `frontend` | 6 | 27 | 22% | flaky | PR | **product bug** — Frontend org-invites TS compile errors fail Docker frontend build (parser noise from passing subtest name) |
-| 5 | `(unparsed)` | `authdisabled` | 6 | 27 | 22% | flaky | PR | **product bug** — Docker authdisabled build fails on frontend org-invites TypeScript compile errors |
-| 6 | `(unparsed)` | `lite-amd` | 6 | 27 | 22% | flaky | PR | **product bug** — Docker lite-amd build fails on frontend org-invites TypeScript errors (Alpine apk line is log noise) |
-| 7 | `TestQuickstartTemplates` | `test-templates` | 5 | 9 | 56% | flaky | PR | **flaky test** — TestQuickstartTemplates fails when simple_go_go subtest workflow trigger is killed |
-| 8 | `TestQuickstartTemplates/simple_go_go` | `test-templates` | 5 | 9 | 56% | flaky | PR | **flaky test** — CLI quickstart simple_go_go: workflow trigger killed (signal) after ~5min worker heartbeat loop |
-| 9 | `examples/run_details/test_run_detail_getter.py::test_run` | `test` | 4 | 24 | 17% | flaky | PR | **flaky test** — Python run_details test_run: expected 2 runs, got empty list (timing/race on py3.14) |
-| 10 | `TestConcurrency_GroupRoundRobin` | `integration` | 4 | 32 | 12% | flaky | PR | **product bug** — Scheduling integration: v1_task is_dag_orchestrator NOT NULL constraint violation |
+| 1 | `(unparsed)` | `generate` | 5 | 7 | 71% | flaky | PR | **infra/CI** — generate check-for-diff drift on PR (python examples + proto not regenerated) |
+| 2 | `TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts` | `unit` | 2 | 7 | 29% | flaky | PR | **flaky test** — scheduler TryAssign replenish-timeout starvation test timing-sensitive |
+| 3 | `examples/cron/test_cron_input.py::test_cron_input_workflow_running_options` | `test` | 2 | 7 | 29% | flaky | PR | **flaky test** — cron input workflow returns None instead of expected output intermittently |
+| 4 | `examples/conditions/test_conditions.py::test_waits` | `test` | 1 | 7 | 14% | flaky | PR | **flaky test** — conditions test_waits random_number branch races with skip assertion |
+| 5 | `TestDurableSleepCancelReplay` | `e2e-pgmq` | 1 | 7 | 14% | flaky | PR | **flaky test** — e2e durable sleep cancel replay timing race in TestDurableSleepCancelReplay |
 
 ## Recent CI-health wins (`ci-health`)
 
