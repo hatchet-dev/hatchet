@@ -3,6 +3,7 @@ import pytest
 from examples.idempotency.worker import (
     idempotent_task,
     idempotent_task_short_window,
+    idempotent_status_based_task,
     IdempotencyInput,
     EVENT_KEY,
 )
@@ -18,6 +19,7 @@ from uuid import uuid4
 from datetime import timedelta, datetime, timezone
 import asyncio
 from typing import cast
+from time import time
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -58,6 +60,76 @@ async def test_idempotency_keys_prevent_duplicate_runs_direct_trigger(
 
     result = await ref1.aio_result()
     assert "hello" in result["result"].lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_status_based(
+    hatchet: Hatchet,
+) -> None:
+    start = time()
+    test_run_id = str(uuid4())
+    ref1 = await idempotent_status_based_task.aio_run(
+        input=IdempotencyInput(id=test_run_id),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info:
+        await idempotent_status_based_task.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
+
+    res1 = await ref1.aio_result()
+
+    assert time() - start >= 2
+    assert (
+        time() - start < 10
+    ), "The task should have completed within the TTL window so we can test that the status-based idempotency is working."
+
+    ref2 = await idempotent_status_based_task.aio_run(
+        input=IdempotencyInput(id=test_run_id),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+    res2 = await ref2.aio_result()
+
+    assert (
+        res1 == res2
+    ), "The result of the second run should be the same as the first run."
+    assert (
+        time() - start >= 4
+    ), "The second run should have waited for the first run to complete before returning the result."
+    assert (
+        time() - start < 10
+    ), "The second run should have completed within the TTL window so we can test that the status-based idempotency is working."
+
+    runs: V1TaskSummaryList | None = None
+
+    for _ in range(15):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if len(runs.rows) == 0:
+            await asyncio.sleep(1)
+            continue
+
+        break
+
+    assert runs is not None
+    assert len(runs.rows) == 2
+    assert {r.metadata.id for r in runs.rows} == {
+        ref1.workflow_run_id,
+        ref2.workflow_run_id,
+    }
+
+    result1 = await ref1.aio_result()
+    assert "hello" in result1["result"].lower()
+
+    assert result1 == res2
 
 
 @pytest.mark.asyncio(loop_scope="session")

@@ -1,6 +1,12 @@
-from hatchet_sdk import Context, Hatchet, TTLBasedIdempotencyConfig
+from hatchet_sdk import (
+    Context,
+    Hatchet,
+    TTLBasedIdempotencyConfig,
+    StatusBasedIdempotencyConfig,
+)
 from datetime import timedelta
 from pydantic import BaseModel
+import asyncio
 
 hatchet = Hatchet()
 
@@ -37,6 +43,20 @@ async def idempotent_task(input: IdempotencyInput, ctx: Context) -> dict[str, st
 async def idempotent_task_short_window(
     input: IdempotencyInput, ctx: Context
 ) -> dict[str, str]:
+    return {"result": f"Hello, world from task {input.id}"}
+
+
+@hatchet.task(
+    idempotency=StatusBasedIdempotencyConfig(
+        key_expression="input.id", fallback_ttl=timedelta(seconds=10)
+    ),
+    input_validator=IdempotencyInput,
+)
+async def idempotent_status_based_task(
+    input: IdempotencyInput,
+    _ctx: Context,
+) -> dict[str, str]:
+    await asyncio.sleep(2)
     return {"result": f"Hello, world from task {input.id}"}
 
 
