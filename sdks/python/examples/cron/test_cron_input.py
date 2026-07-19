@@ -30,7 +30,7 @@ async def test_cron_input_workflow_running_options(hatchet: Hatchet) -> None:
         ref = hatchet.runs.get_run_ref(trigger_res.external_id)
         res = cast(
             dict[str, str],
-            (await ref.aio_result()).get(cron_input_example_send_greeting.name),
+            (await ref.aio_result()).get("cron_input_example_send_greeting"),
         )
 
         assert res == {"message": "Hello, Hatchet!"}
