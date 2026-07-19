@@ -46,7 +46,7 @@ module Hatchet
     # @return [Task, nil] The on_success task
     attr_reader :on_success
 
-    # @return [Hatchet::TTLBasedIdempotencyConfig, nil] Idempotency configuration
+    # @return [Hatchet::TTLBasedIdempotencyConfig, Hatchet::StatusBasedIdempotencyConfig, nil] Idempotency configuration
     attr_reader :idempotency
 
     # @return [String, nil] The workflow ID writer (set after registration)
@@ -60,7 +60,7 @@ module Hatchet
     # @param task_defaults [Hash, nil] Default task settings
     # @param default_filters [Array<DefaultFilter>] Default filters
     # @param sticky [Symbol, nil] Sticky strategy
-    # @param idempotency [Hatchet::TTLBasedIdempotencyConfig, nil] Idempotency configuration
+    # @param idempotency [Hatchet::TTLBasedIdempotencyConfig, Hatchet::StatusBasedIdempotencyConfig, nil] Idempotency configuration
     # @param client [Hatchet::Client, nil] The client
     def initialize(
       name:,

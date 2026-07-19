@@ -662,9 +662,15 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	}
 
 	if w.Idempotency != nil {
+		method := contracts.IdempotencyMethod_TTL
+		if w.Idempotency.Method == create.IdempotencyMethodStatus {
+			method = contracts.IdempotencyMethod_STATUS
+		}
+
 		req.Idempotency = &contracts.IdempotencyConfig{
 			Expression: w.Idempotency.Expression,
 			TtlMs:      w.Idempotency.TTL.Milliseconds(),
+			Method:     &method,
 		}
 	}
 
