@@ -7,6 +7,7 @@ from hatchet_sdk import (
 from datetime import timedelta
 from pydantic import BaseModel
 import asyncio
+from typing import Literal
 
 hatchet = Hatchet()
 
@@ -17,6 +18,7 @@ EVENT_KEY = "idempotency:example"
 
 class IdempotencyInput(BaseModel):
     id: str
+    desired_status: Literal["success", "cancel", "fail"] = "success"
 
 
 @hatchet.task(
@@ -54,10 +56,23 @@ async def idempotent_task_short_window(
 )
 async def idempotent_status_based_task(
     input: IdempotencyInput,
-    _ctx: Context,
+    ctx: Context,
 ) -> dict[str, str]:
-    await asyncio.sleep(2)
-    return {"result": f"Hello, world from task {input.id}"}
+    if input.desired_status == "success":
+        await asyncio.sleep(2)
+        return {"result": f"Hello, world from task {input.id}"}
+
+    if input.desired_status == "fail":
+        await asyncio.sleep(2)
+        raise Exception(f"Task {input.id} failed as requested.")
+
+    if input.desired_status == "cancel":
+        await asyncio.sleep(1)
+        await ctx.aio_cancel()
+        for _ in range(10):
+            await asyncio.sleep(1)
+
+    raise Exception(f"Task {input.id} should have been cancelled, but was not.")
 
 
 def main() -> None:
