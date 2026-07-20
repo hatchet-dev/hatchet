@@ -275,11 +275,12 @@ func (d *dispatcherClientImpl) newActionListener(ctx context.Context, req *GetAc
 		}
 	}
 
-	if req.LegacySlots != nil {
+	switch {
+	case req.LegacySlots != nil:
 		registerReq.Slots = req.LegacySlots
-	} else if len(req.SlotConfig) > 0 {
+	case len(req.SlotConfig) > 0:
 		registerReq.SlotConfig = req.SlotConfig
-	} else {
+	default:
 		return nil, nil, fmt.Errorf("slot config is required for worker registration")
 	}
 

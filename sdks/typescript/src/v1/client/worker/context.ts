@@ -15,7 +15,8 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import { Action } from '@hatchet/clients/dispatcher/action-listener';
+import type { Action } from '@hatchet/clients/dispatcher/action-listener';
+import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action-listener';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -279,9 +280,19 @@ export class Context<T, K = {}> {
   /**
    * Gets the name of the current workflow.
    * @returns The name of the workflow.
+   * @deprecated This method returns the task name. Use {@link workflowNameV1} for the workflow
+   * name or {@link taskName} for the task name.
    */
   workflowName(): string {
     return this.action.jobName;
+  }
+
+  /**
+   * Gets the name of the current workflow.
+   * @returns The name of the workflow.
+   */
+  workflowNameV1(): string {
+    return workflowNameFromAction(this.action);
   }
 
   /**
@@ -371,7 +382,7 @@ export class Context<T, K = {}> {
       workflowRunId: this.action.workflowRunId,
       taskRunExternalId: this.action.taskRunExternalId,
       retryCount: this.action.retryCount,
-      workflowName: this.action.jobName,
+      workflowName: this.workflowNameV1(),
       ...extra?.extra,
     };
 

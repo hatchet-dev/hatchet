@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - ".github/**"
+      - "api/**"
+      - "api-contracts/**"
+      - "internal/**"
+      - "pkg/**"
       - "sdks/ruby/**"
   push:
     branches:
@@ -34,6 +38,34 @@ jobs:
 
       - name: Run RBS validate
         run: rbs -I sig validate
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: "1.26"
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Generate OpenAPI spec
+        working-directory: .
+        run: sh hack/oas/generate-server.sh
+
+      - name: Generate protobuf & REST client bindings
+        run: bundle exec bash ../generate.sh
+
+      - name: Check generated bindings are up to date
+        run: |
+          cd "$GITHUB_WORKSPACE"
+
+          git add -A sdks/ruby/src/lib/hatchet/contracts sdks/ruby/src/lib/hatchet/clients/rest
+          if ! git diff --cached --exit-code -- sdks/ruby/src/lib/hatchet/contracts sdks/ruby/src/lib/hatchet/clients/rest; then
+            echo "::error::Generated protobuf/REST bindings are out of date. Run 'sdks/ruby/generate.sh' and commit the changes."
+            exit 1
+          fi
 
       - name: Test gem build
         run: gem build hatchet-sdk.gemspec

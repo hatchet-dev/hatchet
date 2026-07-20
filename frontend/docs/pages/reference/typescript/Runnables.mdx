@@ -30,6 +30,8 @@ const ref = await greet.runNoWait({ name: "World" });
 
 #### Template
 
+**MiddlewareBefore**
+
 Extra fields added to the task fn input by pre-middleware hooks.
 
 #### Methods
@@ -135,6 +137,54 @@ Overrides
 
 ```ts
 BaseWorkflowDeclaration.runAndWait;
+```
+
+<a id="runmany"></a>
+
+##### `runMany()`
+
+Triggers many task runs and waits for all results.
+
+Parameters
+
+| Parameter | Type                                  | Description                                      |
+| --------- | ------------------------------------- | ------------------------------------------------ |
+| `runs`    | `RunManyOpt`\<`I` & `GlobalInput`\>[] | The list of inputs and optional per-run options. |
+
+Returns
+
+`Promise`\<`O` & `Resolved`\<..., ...\>[]\>
+
+A promise that resolves with ordered task outputs.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runMany;
+```
+
+<a id="runmanynowait"></a>
+
+##### `runManyNoWait()`
+
+Triggers many task runs without waiting for completion.
+
+Parameters
+
+| Parameter | Type                                  | Description                                      |
+| --------- | ------------------------------------- | ------------------------------------------------ |
+| `runs`    | `RunManyOpt`\<`I` & `GlobalInput`\>[] | The list of inputs and optional per-run options. |
+
+Returns
+
+`Promise`\<`WorkflowRunRef`\<... & ...\>[]\>
+
+WorkflowRunRef values for each scheduled run.
+
+Overrides
+
+```ts
+BaseWorkflowDeclaration.runManyNoWait;
 ```
 
 <a id="runnowait"></a>
@@ -250,6 +300,7 @@ Workflows support various execution patterns, including:
 - Scheduled execution with `schedule()`
 - Cron-based recurring execution with `cron()`
 - Bulk execution by passing an array input to `run()` and `runNoWait()`
+- Per-run bulk execution options with `runMany()` and `runManyNoWait()`
 
 Tasks within workflows can be defined with `workflow.task()` or
 `workflow.durableTask()` and arranged into complex dependency patterns.
@@ -266,9 +317,9 @@ or if there is no matching property, the inferred return type of the function.
 
 Parameters
 
-| Parameter | Type                                                               | Description                     |
-| --------- | ------------------------------------------------------------------ | ------------------------------- |
-| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                                               | Description                     |
+| --------- | ---------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"slotCost"` \| `"fn"`\> & `object` | The task configuration options. |
 
 Returns
 

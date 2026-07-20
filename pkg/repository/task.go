@@ -1384,7 +1384,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1515,7 +1515,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1579,7 +1579,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1613,7 +1613,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
 		TenantID: tenantId,
-		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
+		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true}, // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 	})
 
 	if err != nil {
@@ -3282,7 +3282,7 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 func hash(s string) int64 {
 	h := fnv.New64a()
 	h.Write([]byte(s))
-	return int64(h.Sum64())
+	return int64(h.Sum64()) // #nosec G115 -- deterministic bit-reinterpretation for hashing/bucketing, wraparound is fine
 }
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
@@ -3688,8 +3688,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		for _, task := range tasks {
 			taskExternalId := task.ExternalID
 			stepId := task.StepID
-			switch {
-			case task.JobKind == sqlcv1.JobKindONFAILURE:
+			switch task.JobKind {
+			case sqlcv1.JobKindONFAILURE:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
@@ -3909,7 +3909,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 			cond := groupCondition
 
 			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
-				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, string(groupCondition.EventKey))
+				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, groupCondition.EventKey)
 
 				if match, ok := foundMatchKeys[key]; ok {
 					cond.Data = match.Data
@@ -3987,7 +3987,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 
 			if opt.ValueInt != nil {
 				valuesInt = append(valuesInt, pgtype.Int4{
-					Int32: int32(*opt.ValueInt),
+					Int32: int32(*opt.ValueInt), // #nosec G115 -- expression-evaluated value stored for later matching, overflow affects semantics only, not exploitable
 					Valid: true,
 				})
 			} else {

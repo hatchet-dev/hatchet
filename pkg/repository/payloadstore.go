@@ -355,9 +355,7 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 
 		if payload.Location == sqlcv1.V1PayloadLocationEXTERNAL {
 			key := ExternalPayloadLocationKey(payload.ExternalLocationKey.String)
-			var retrieveFromExternalOpt RetrieveFromExternalOpts
-
-			retrieveFromExternalOpt = RetrieveFromExternalOpts{
+			retrieveFromExternalOpt := RetrieveFromExternalOpts{
 				Method: RetrieveFromExternalByKey,
 				ByKey:  &RetrieveFromExternalByKeyOpt{Key: key},
 			}

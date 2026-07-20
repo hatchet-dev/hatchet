@@ -23,13 +23,16 @@ module HatchetSdkRest
 
     attr_accessor :oldest
 
+    attr_accessor :oldest_excluding_retries
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'total' => :'total',
         :'queues' => :'queues',
         :'concurrency' => :'concurrency',
-        :'oldest' => :'oldest'
+        :'oldest' => :'oldest',
+        :'oldest_excluding_retries' => :'oldestExcludingRetries'
       }
     end
 
@@ -49,7 +52,8 @@ module HatchetSdkRest
         :'total' => :'Integer',
         :'queues' => :'Hash<String, Integer>',
         :'concurrency' => :'Array<ConcurrencyStat>',
-        :'oldest' => :'Time'
+        :'oldest' => :'Time',
+        :'oldest_excluding_retries' => :'Time'
       }
     end
 
@@ -94,6 +98,10 @@ module HatchetSdkRest
       if attributes.key?(:'oldest')
         self.oldest = attributes[:'oldest']
       end
+
+      if attributes.key?(:'oldest_excluding_retries')
+        self.oldest_excluding_retries = attributes[:'oldest_excluding_retries']
+      end
     end
 
     # Show invalid properties with the reasons. Usually used together with valid?
@@ -119,7 +127,8 @@ module HatchetSdkRest
           total == o.total &&
           queues == o.queues &&
           concurrency == o.concurrency &&
-          oldest == o.oldest
+          oldest == o.oldest &&
+          oldest_excluding_retries == o.oldest_excluding_retries
     end
 
     # @see the `==` method
@@ -131,7 +140,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [total, queues, concurrency, oldest].hash
+      [total, queues, concurrency, oldest, oldest_excluding_retries].hash
     end
 
     # Builds the object from hash

@@ -390,8 +390,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
-		Task: int32(scf.OLAPStatusUpdates.TaskBatchSizeLimit),
-		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
+		Task: int32(scf.OLAPStatusUpdates.TaskBatchSizeLimit), // #nosec G115 -- admin-configured server setting, not attacker-controlled
+		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),  // #nosec G115 -- admin-configured server setting, not attacker-controlled
 	}
 
 	v1, cleanupV1 := repov1.NewRepository(

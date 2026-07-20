@@ -148,14 +148,12 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
-
 	slots := 0
 	if opts.grpcTriggersEnabled {
 		slots = opts.grpcTriggerSlots
 	}
 
-	pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
+	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
 	tw := trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, slots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler
