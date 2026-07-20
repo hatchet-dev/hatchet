@@ -15,6 +15,10 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 )
 
+type durableInvocationsKey struct {
+	tenantId uuid.UUID
+	taskId   uuid.UUID
+}
 type DispatcherServiceImpl struct {
 	contracts.UnimplementedV1DispatcherServer
 	repo               v1.Repository
@@ -25,7 +29,8 @@ type DispatcherServiceImpl struct {
 	pubBuffer          *msgqueue.MQPubBuffer
 	streamSessions     *streams.Registry
 	l                  *zerolog.Logger
-	durableInvocations syncx.Map[uuid.UUID, *durableTaskInvocation]
+	durableInvocations syncx.Map[durableInvocationsKey, *durableTaskInvocation]
+	workerInvocations  syncx.Map[uuid.UUID, *durableTaskInvocation]
 	dispatcherId       uuid.UUID
 }
 
