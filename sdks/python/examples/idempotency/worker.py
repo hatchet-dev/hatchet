@@ -48,6 +48,7 @@ async def idempotent_task_short_window(
     return {"result": f"Hello, world from task {input.id}"}
 
 
+# > status_based_idempotency
 @hatchet.task(
     idempotency=StatusBasedIdempotencyConfig(
         key_expression="input.id", fallback_ttl=timedelta(seconds=10)
@@ -73,6 +74,9 @@ async def idempotent_status_based_task(
             await asyncio.sleep(1)
 
     raise Exception(f"Task {input.id} should have been cancelled, but was not.")
+
+
+# !!
 
 
 def main() -> None:

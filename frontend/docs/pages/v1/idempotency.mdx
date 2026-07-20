@@ -14,13 +14,17 @@ Hatchet supports two different types of idempotency behavior, which you can choo
 1. **TTL-based** idempotency, which says that there can only be one run for a given idempotency key within a specified amount of time after the first run for that key is seen.
 2. **Status-based** idempotency, which clears the idempotency key when the run that claimed it reaches a terminal status (success, failure, or cancellation). This acts similarly to `CANCEL_NEWEST` concurrency, where any time there's a running task holding an idempotency key, any incoming tasks with the same key will be dropped. But once the running task reaches a terminal state, a new one that's triggered can immediately claim the key once again, with no fixed wait time.
 
-## Define an Idempotency Key
+## The Idempotency Key Expression
 
-Configuring idempotency on a workflow or standalone task requires two parameters to be set: the **expression**, which will be used to create an idempotency key from the input and additional metadata of the run that's going to be triggered, and the **TTL**, which determines how long the key should live for.
+Every idempotency configuration, regardless of strategy, requires an **expression**, which is a CEL expression that's evaluated against the input and additional metadata of the run that's about to be triggered to produce the idempotency key. Two runs with the same computed key are considered duplicates.
 
 <Callout type="warning">
   The idempotency key expression must evaluate to a string.
 </Callout>
+
+## TTL-based Idempotency
+
+TTL-based idempotency requires two parameters: the **expression** described above, and a **TTL**, which determines how long the key should live for. Only one run for a given key will occur in the time window from when the first trigger comes in until the TTL expires.
 
 <UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
   <Tabs.Tab>
@@ -37,7 +41,40 @@ Configuring idempotency on a workflow or standalone task requires two parameters
   </Tabs.Tab>
 </UniversalTabs>
 
-When idempotency is configured, only one run of a workflow will occur in the time window from when the first trigger comes in until the TTL expires. For instance, if you trigger a workflow at `00:00:00 UTC` (midnight) with a TTL of five minutes, and then the same workflow is triggered again with the same inputs and metadata at `00:02:00 UTC`, `00:04:00 UTC`, and `00:06:00 UTC`, only the first one (at midnight) and the final one (at `00:06:00 UTC`) will run, and then after the second run occurs, the lock on the key will be held until `00:11:00 UTC` (five minutes after the final run was triggered).
+The TTL window is _sliding_: each accepted run resets the clock. For instance, if you trigger a workflow at `00:00:00 UTC` (midnight) with a TTL of five minutes, and then the same workflow is triggered again with the same inputs and metadata at `00:02:00 UTC`, `00:04:00 UTC`, and `00:06:00 UTC`, only the first one (at midnight) and the final one (at `00:06:00 UTC`) will run. After the second run occurs, the lock on the key will be held until `00:11:00 UTC` (five minutes after the final run was triggered).
+
+TTL-based idempotency is a good fit when you want to _debounce_ duplicate triggers over a fixed period of time, regardless of how long the run itself takes.
+
+## Status-based Idempotency
+
+Status-based idempotency keeps the idempotency key claimed only while the run that owns it is still active. Once that run reaches a terminal status (success, failure, or cancellation), the key is released immediately, and the next trigger with the same key can claim it and start a fresh run with no fixed wait time.
+
+This behaves similarly to `CANCEL_NEWEST` concurrency: while a run is holding the key, any incoming run with the same key is dropped (raising an idempotency collision), but once the running task finishes, a new one can immediately take its place.
+
+Instead of a TTL, status-based idempotency takes a **fallback TTL**. Because the key is normally released when the run reaches a terminal state, the fallback TTL exists only as a safety net: it caps the longest the key can remain claimed if, for some reason, the run never reaches a terminal status. You should generally set the fallback TTL comfortably longer than you expect the run to take.
+
+<UniversalTabs items={["Python", "Typescript", "Go", "Ruby"]}>
+  <Tabs.Tab>
+    <Snippet
+      src={snippets.python.idempotency.worker.status_based_idempotency}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet
+      src={snippets.typescript.idempotency.workflow.status_based_idempotency}
+    />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.go.idempotency.worker.status_based_idempotency} />
+  </Tabs.Tab>
+  <Tabs.Tab>
+    <Snippet src={snippets.ruby.idempotency.worker.status_based_idempotency} />
+  </Tabs.Tab>
+</UniversalTabs>
+
+For example, if you trigger a run at `00:00:00 UTC` that takes thirty seconds to complete, any duplicate triggers that come in before `00:00:30 UTC` will collide and be rejected. But a duplicate that arrives at `00:00:31 UTC`, just after the first run has finished, will be accepted and start a new run, because the key was released as soon as the first run reached its terminal status.
+
+Status-based idempotency is a good fit when you want to guarantee that only one run for a given key is _in flight_ at any moment, without imposing a cooldown after it completes.
 
 ## Handling Collisions
 

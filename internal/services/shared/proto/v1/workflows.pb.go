@@ -989,7 +989,7 @@ type IdempotencyConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	Expression string             `protobuf:"bytes,1,opt,name=expression,proto3" json:"expression,omitempty"`                          // a CEL expression for determining the idempotency key for workflow runs
-	TtlMs      int64              `protobuf:"varint,2,opt,name=ttl_ms,json=ttlMs,proto3" json:"ttl_ms,omitempty"`                      // time-to-live for idempotency keys in milliseconds
+	TtlMs      int64              `protobuf:"varint,2,opt,name=ttl_ms,json=ttlMs,proto3" json:"ttl_ms,omitempty"`                      // time-to-live for idempotency keys in milliseconds. if the method is `STATUS`, this is a "fallback" - the longest the key can live before it's evicted
 	Method     *IdempotencyMethod `protobuf:"varint,3,opt,name=method,proto3,enum=v1.IdempotencyMethod,oneof" json:"method,omitempty"` // the method to use for idempotency, defaults to TTL
 }
 
