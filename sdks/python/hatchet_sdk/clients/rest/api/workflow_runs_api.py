@@ -20,9 +20,6 @@ from datetime import datetime
 from pydantic import Field, StrictBool, StrictInt, StrictStr
 from typing import List, Optional
 from typing_extensions import Annotated
-from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
-    V1AdditionalMetadataOperator,
-)
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
     V1BranchDurableTaskRequest,
 )
@@ -2269,12 +2266,6 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="Additional metadata k-v pairs to filter by"),
         ] = None,
-        additional_metadata_operator: Annotated[
-            Optional[V1AdditionalMetadataOperator],
-            Field(
-                description="How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR."
-            ),
-        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -2343,8 +2334,6 @@ class WorkflowRunsApi:
         :type until: datetime
         :param additional_metadata: Additional metadata k-v pairs to filter by
         :type additional_metadata: List[str]
-        :param additional_metadata_operator: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
-        :type additional_metadata_operator: V1AdditionalMetadataOperator
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
         :param worker_id: The worker id to filter by
@@ -2390,7 +2379,6 @@ class WorkflowRunsApi:
             statuses=statuses,
             until=until,
             additional_metadata=additional_metadata,
-            additional_metadata_operator=additional_metadata_operator,
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
@@ -2449,12 +2437,6 @@ class WorkflowRunsApi:
         additional_metadata: Annotated[
             Optional[List[StrictStr]],
             Field(description="Additional metadata k-v pairs to filter by"),
-        ] = None,
-        additional_metadata_operator: Annotated[
-            Optional[V1AdditionalMetadataOperator],
-            Field(
-                description="How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR."
-            ),
         ] = None,
         workflow_ids: Annotated[
             Optional[
@@ -2524,8 +2506,6 @@ class WorkflowRunsApi:
         :type until: datetime
         :param additional_metadata: Additional metadata k-v pairs to filter by
         :type additional_metadata: List[str]
-        :param additional_metadata_operator: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
-        :type additional_metadata_operator: V1AdditionalMetadataOperator
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
         :param worker_id: The worker id to filter by
@@ -2571,7 +2551,6 @@ class WorkflowRunsApi:
             statuses=statuses,
             until=until,
             additional_metadata=additional_metadata,
-            additional_metadata_operator=additional_metadata_operator,
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
@@ -2630,12 +2609,6 @@ class WorkflowRunsApi:
         additional_metadata: Annotated[
             Optional[List[StrictStr]],
             Field(description="Additional metadata k-v pairs to filter by"),
-        ] = None,
-        additional_metadata_operator: Annotated[
-            Optional[V1AdditionalMetadataOperator],
-            Field(
-                description="How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR."
-            ),
         ] = None,
         workflow_ids: Annotated[
             Optional[
@@ -2705,8 +2678,6 @@ class WorkflowRunsApi:
         :type until: datetime
         :param additional_metadata: Additional metadata k-v pairs to filter by
         :type additional_metadata: List[str]
-        :param additional_metadata_operator: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
-        :type additional_metadata_operator: V1AdditionalMetadataOperator
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
         :param worker_id: The worker id to filter by
@@ -2752,7 +2723,6 @@ class WorkflowRunsApi:
             statuses=statuses,
             until=until,
             additional_metadata=additional_metadata,
-            additional_metadata_operator=additional_metadata_operator,
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
@@ -2787,7 +2757,6 @@ class WorkflowRunsApi:
         statuses,
         until,
         additional_metadata,
-        additional_metadata_operator,
         workflow_ids,
         worker_id,
         parent_task_external_id,
@@ -2860,12 +2829,6 @@ class WorkflowRunsApi:
         if additional_metadata is not None:
 
             _query_params.append(("additional_metadata", additional_metadata))
-
-        if additional_metadata_operator is not None:
-
-            _query_params.append(
-                ("additional_metadata_operator", additional_metadata_operator.value)
-            )
 
         if workflow_ids is not None:
 
