@@ -144,6 +144,39 @@ apply_cookie_auth_patch() {
   fi
 }
 
+# ── Formatting ───────────────────────────────────────────────────────────────
+
+# Applies the same pre-commit fixer hooks (end-of-file-fixer, trailing-whitespace, etc.) that
+# run when a developer commits generated code, so a fresh run of this script produces
+# byte-for-byte what would actually land in a commit.
+run_pre_commit() {
+  if ! command -v pre-commit &>/dev/null; then
+    echo "==> pre-commit not found on PATH, skipping formatting fixups (pip install pre-commit)"
+    return
+  fi
+
+  echo "==> Running pre-commit fixups on generated files..."
+
+  local contracts_dir="sdks/ruby/src/lib/hatchet/contracts"
+  local rest_dir="sdks/ruby/src/lib/hatchet/clients/rest"
+
+  (
+    cd "$REPO_ROOT"
+
+    local changed
+    changed=$(
+      { git diff --name-only -- "$contracts_dir" "$rest_dir"
+        git ls-files --others --exclude-standard -- "$contracts_dir" "$rest_dir"
+      } | sort -u
+    )
+
+    if [ -n "$changed" ]; then
+      # Fixer hooks exit non-zero when they modify a file; that's expected here.
+      pre-commit run --files $changed || true
+    fi
+  )
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 case "${1:-all}" in
@@ -165,5 +198,7 @@ case "${1:-all}" in
     exit 1
     ;;
 esac
+
+run_pre_commit
 
 echo "==> All generation complete."

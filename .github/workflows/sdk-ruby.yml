@@ -44,6 +44,12 @@ jobs:
         with:
           go-version: "1.26"
 
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
       - name: Generate OpenAPI spec
         working-directory: .
         run: sh hack/oas/generate-server.sh
@@ -53,8 +59,10 @@ jobs:
 
       - name: Check generated bindings are up to date
         run: |
-          git add -A lib/hatchet/contracts lib/hatchet/clients/rest
-          if ! git diff --cached --exit-code -- lib/hatchet/contracts lib/hatchet/clients/rest; then
+          cd "$GITHUB_WORKSPACE"
+
+          git add -A sdks/ruby/src/lib/hatchet/contracts sdks/ruby/src/lib/hatchet/clients/rest
+          if ! git diff --cached --exit-code -- sdks/ruby/src/lib/hatchet/contracts sdks/ruby/src/lib/hatchet/clients/rest; then
             echo "::error::Generated protobuf/REST bindings are out of date. Run 'sdks/ruby/generate.sh' and commit the changes."
             exit 1
           fi
