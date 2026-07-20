@@ -32,6 +32,7 @@ func newSlotMeta(actions []string, slotType string) *slotMeta {
 type slot struct {
 	worker          *worker
 	meta            *slotMeta
+	pool            *slotPool
 	expiresAt       *time.Time
 	additionalAcks  []func()
 	additionalNacks []func()
@@ -72,9 +73,7 @@ func (a *assignedSlots) nack() {
 	}
 }
 
-func newSlot(worker *worker, meta *slotMeta) *slot {
-	expires := time.Now().Add(defaultSlotExpiry)
-
+func newSlotWithExpiry(worker *worker, meta *slotMeta, expires time.Time) *slot {
 	return &slot{
 		worker:    worker,
 		meta:      meta,
@@ -94,11 +93,10 @@ func (s *slot) getSlotType() (string, error) {
 	return s.meta.slotType, nil
 }
 
-func (s *slot) extendExpiry() {
+func (s *slot) setExpiry(expires time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	expires := time.Now().Add(defaultSlotExpiry)
 	s.expiresAt = &expires
 }
 
@@ -135,6 +133,9 @@ func (s *slot) use(additionalAcks []func(), additionalNacks []func()) bool {
 	}
 
 	s.used = true
+	if s.pool != nil {
+		s.pool.unused.Add(-1)
+	}
 	s.ackd = false
 	s.additionalAcks = additionalAcks
 	s.additionalNacks = additionalNacks
@@ -162,7 +163,11 @@ func (s *slot) nack() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	wasUsed := s.used
 	s.used = false
+	if wasUsed && s.pool != nil {
+		s.pool.unused.Add(1)
+	}
 	s.ackd = true
 
 	for _, nack := range s.additionalNacks {
