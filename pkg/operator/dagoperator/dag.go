@@ -173,6 +173,21 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 		return nil
 	}
 
+	for {
+		progressed, err := d.emitReadyTasks(ctx)
+		if err != nil {
+			return err
+		}
+
+		if !progressed {
+			return nil
+		}
+	}
+}
+
+func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
+	progressed := false
+
 	for _, t := range d.tasks {
 		if t.isTriggered || t.isSkipped {
 			continue
@@ -205,7 +220,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 			skip, cancelled, err = d.evaluateParentConditions(ctx, t)
 			if err != nil {
 				d.err = fmt.Errorf("failed to evaluate conditions for task %q: %w", t.actionId, err)
-				return d.err
+				return progressed, d.err
 			}
 
 			if !cancelled {
@@ -230,7 +245,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 						satisfiedGroups, err := d.evaluateWaitParentConditions(ctx, t)
 						if err != nil {
 							d.err = fmt.Errorf("failed to evaluate wait conditions for task %q: %w", t.actionId, err)
-							return d.err
+							return progressed, d.err
 						}
 
 						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
@@ -257,7 +272,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, cancelled)
 		if err != nil {
 			d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
-			return d.err
+			return progressed, d.err
 		}
 
 		if cancelled {
@@ -272,6 +287,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 		t.branchId = result.BranchId
 		t.workflowRunExternalId = &result.WorkflowRunExternalId
 		t.isTriggered = true
+		progressed = true
 
 		if result.IsSatisfied {
 			errorMessage := ""
@@ -282,7 +298,7 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return progressed, nil
 }
 
 func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
