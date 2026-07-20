@@ -1,3 +1,5 @@
+import { Callout } from "nextra/components";
+
 # Profiles
 
 The Hatchet CLI supports managing multiple Hatchet instances and tenants using named profiles. This feature makes it easy to switch between different environments, such as development, staging, and production.
@@ -30,6 +32,8 @@ This will display all configured profiles, with the default profile marked with 
 
 You can set a profile as the default using the `hatchet profile set-default` command. The default profile will be automatically used when no profile is specified with the `--profile` flag.
 
+When no default is configured, `hatchet server start` sets the profile it creates as the default. Commands that take the `--profile` flag also use the only configured profile without prompting.
+
 ```sh
 # Set default profile interactively (prompts for selection)
 hatchet profile set-default
@@ -58,6 +62,12 @@ To use a specific profile for your Hatchet CLI commands, you can specify the pro
 ```sh
 hatchet worker dev --profile [name]
 ```
+
+<Callout type="info">
+  In a session without a terminal, such as CI, commands cannot prompt for a
+  profile and fail with an error if they try. Pass `--profile` or set a default
+  profile first.
+</Callout>
 
 ## Updating a Profile
 

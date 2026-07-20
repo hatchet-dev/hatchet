@@ -383,7 +383,10 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 
 	defer func() {
 		for taskId := range registeredTasks {
-			d.durableInvocations.Delete(taskId)
+			d.durableInvocations.Delete(durableInvocationsKey{
+				tenantId: tenantId,
+				taskId:   taskId,
+			})
 		}
 	}()
 
@@ -394,7 +397,10 @@ func (d *DispatcherServiceImpl) DurableTask(server contracts.V1Dispatcher_Durabl
 		}
 
 		if _, exists := registeredTasks[taskExtId]; !exists {
-			d.durableInvocations.Store(taskExtId, invocation)
+			d.durableInvocations.Store(durableInvocationsKey{
+				tenantId: tenantId,
+				taskId:   taskExtId,
+			}, invocation)
 			registeredTasks[taskExtId] = struct{}{}
 		}
 	}
@@ -637,13 +643,14 @@ func (d *DispatcherServiceImpl) sendStaleInvocationEviction(invocation *durableT
 	})
 }
 
-func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, result *v1.IngestDurableTaskEventResult) error {
+func (d *DispatcherServiceImpl) deliverSatisfiedEntries(tenantId uuid.UUID, taskExternalId string, result *v1.IngestDurableTaskEventResult) error {
 	switch result.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		for _, entry := range result.TriggerRunsResult.Entries {
 			if entry.IsSatisfied {
 				taskExtId, _ := uuid.Parse(taskExternalId)
 				if err := d.DeliverDurableEventLogEntryCompletion(
+					tenantId,
 					taskExtId,
 					result.TriggerRunsResult.InvocationCount,
 					entry.BranchId,
@@ -660,6 +667,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 		if result.MemoResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
+				tenantId,
 				taskExtId,
 				result.MemoResult.InvocationCount,
 				result.MemoResult.BranchId,
@@ -675,6 +683,7 @@ func (d *DispatcherServiceImpl) deliverSatisfiedEntries(taskExternalId string, r
 		if result.WaitForResult.IsSatisfied {
 			taskExtId, _ := uuid.Parse(taskExternalId)
 			if err := d.DeliverDurableEventLogEntryCompletion(
+				tenantId,
 				taskExtId,
 				result.WaitForResult.InvocationCount,
 				result.WaitForResult.BranchId,
@@ -750,7 +759,7 @@ func (d *DispatcherServiceImpl) handleMemo(
 		return status.Errorf(codes.Internal, "failed to send memo ack: %v", err)
 	}
 
-	return d.deliverSatisfiedEntries(req.DurableTaskExternalId, ingestionResult)
+	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
 }
 
 func (d *DispatcherServiceImpl) handleTriggerRuns(
@@ -845,7 +854,7 @@ func (d *DispatcherServiceImpl) handleTriggerRuns(
 		return status.Errorf(codes.Internal, "failed to send trigger runs ack: %v", err)
 	}
 
-	return d.deliverSatisfiedEntries(req.DurableTaskExternalId, ingestionResult)
+	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
 }
 
 func (d *DispatcherServiceImpl) handleWaitFor(
@@ -957,7 +966,7 @@ func (d *DispatcherServiceImpl) handleWaitFor(
 		return status.Errorf(codes.Internal, "failed to send wait_for ack: %v", err)
 	}
 
-	return d.deliverSatisfiedEntries(req.DurableTaskExternalId, ingestionResult)
+	return d.deliverSatisfiedEntries(invocation.tenantId, req.DurableTaskExternalId, ingestionResult)
 }
 
 func (d *DispatcherServiceImpl) handleCompleteMemo(
@@ -1194,8 +1203,11 @@ func (d *DispatcherServiceImpl) deliverEntryCompleted(invocation *durableTaskInv
 	})
 }
 
-func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, isFailure bool, errorMessage *string) error {
-	inv, ok := d.durableInvocations.Load(taskExternalId)
+func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId uuid.UUID, taskExternalId uuid.UUID, invocationCount int32, branchId, nodeId int64, payload []byte, isFailure bool, errorMessage *string) error {
+	inv, ok := d.durableInvocations.Load(durableInvocationsKey{
+		tenantId: tenantId,
+		taskId:   taskExternalId,
+	})
 	if !ok {
 		return fmt.Errorf("no active invocation found for task %s", taskExternalId)
 	}

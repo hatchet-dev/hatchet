@@ -73,7 +73,7 @@ func init() {
 	rootCmd.AddCommand(triggerCmd)
 
 	// Add flags for trigger command
-	triggerCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	triggerCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
 	triggerCmd.Flags().StringP("workflow", "w", "", "Workflow name for manual triggering (non-interactive mode)")
 	triggerCmd.Flags().StringP("json", "j", "", "Path to JSON input file for manual triggering (non-interactive mode)")
 	triggerCmd.Flags().StringP("output", "o", "", "Output format: json (prints run ID as JSON, skips TUI prompt)")
