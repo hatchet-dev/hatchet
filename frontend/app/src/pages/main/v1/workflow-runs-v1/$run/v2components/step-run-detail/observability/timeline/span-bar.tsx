@@ -1,6 +1,6 @@
 import {
   getBarColor,
-  hasErrorInTree,
+  isSpanError,
   isQueuedOnlyRoot,
 } from '../utils/span-tree-utils';
 import {
@@ -101,7 +101,7 @@ export const SpanBar = memo(function SpanBar({
               'animate-pulse',
             row.span.inProgress || isQueuedOnlyRoot(row.span)
               ? 'border-yellow-500 bg-yellow-500/10'
-              : hasErrorInTree(row.span)
+              : isSpanError(row.span)
                 ? 'border-red-500 bg-red-500/10'
                 : 'border-green-500 bg-green-500/10',
           )}
