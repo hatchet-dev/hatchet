@@ -1,5 +1,6 @@
 import random
 import time
+import asyncio
 from datetime import timedelta
 
 from pydantic import BaseModel
@@ -38,6 +39,8 @@ async def step2(input: EmptyModel, ctx: Context) -> StepOutput:
 
 @dag_workflow.task(parents=[step1, step2])
 async def step3(input: EmptyModel, ctx: Context) -> RandomSum:
+    for _ in range(60):
+        await asyncio.sleep(1)
     one = ctx.task_output(step1).random_number
     two = ctx.task_output(step2).random_number
 
