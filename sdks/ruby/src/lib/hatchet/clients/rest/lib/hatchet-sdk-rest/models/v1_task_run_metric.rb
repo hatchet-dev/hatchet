@@ -19,6 +19,8 @@ module HatchetSdkRest
 
     attr_accessor :count
 
+    attr_accessor :running_detail_count
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -45,7 +47,8 @@ module HatchetSdkRest
     def self.attribute_map
       {
         :'status' => :'status',
-        :'count' => :'count'
+        :'count' => :'count',
+        :'running_detail_count' => :'runningDetailCount'
       }
     end
 
@@ -63,7 +66,8 @@ module HatchetSdkRest
     def self.openapi_types
       {
         :'status' => :'V1TaskStatus',
-        :'count' => :'Integer'
+        :'count' => :'Integer',
+        :'running_detail_count' => :'V1RunningDetailCount'
       }
     end
 
@@ -99,6 +103,10 @@ module HatchetSdkRest
         self.count = attributes[:'count']
       else
         self.count = nil
+      end
+
+      if attributes.key?(:'running_detail_count')
+        self.running_detail_count = attributes[:'running_detail_count']
       end
     end
 
@@ -153,7 +161,8 @@ module HatchetSdkRest
       return true if self.equal?(o)
       self.class == o.class &&
           status == o.status &&
-          count == o.count
+          count == o.count &&
+          running_detail_count == o.running_detail_count
     end
 
     # @see the `==` method
@@ -165,7 +174,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [status, count].hash
+      [status, count, running_detail_count].hash
     end
 
     # Builds the object from hash

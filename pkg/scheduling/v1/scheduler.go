@@ -829,7 +829,7 @@ func (s *Scheduler) tryAssignBatch(
 	_, rateLimitSpan := telemetry.NewSpan(ctx, "try-assign-batch-rate-limits")
 	for i := range res {
 		r := res[i]
-		qi := qis[i]
+		qi := qis[i] // #nosec G602 -- res and qis are both len(qis), i ranges over res
 
 		rateLimitAck := noop
 		rateLimitNack := noop
@@ -936,7 +936,7 @@ func (s *Scheduler) tryAssignBatch(
 
 		childRingOffset := newRingOffset % denom
 
-		qi := qis[i]
+		qi := qis[i] // #nosec G602 -- res and qis are both len(qis), i ranges over res
 
 		labels := []*sqlcv1.GetDesiredLabelsRow(nil)
 
@@ -1130,7 +1130,7 @@ func (s *Scheduler) tryAssignSingleton(
 		telemetry.AttributeKV{Key: "queue.name", Value: qi.Queue},
 	)
 
-	ringOffset = ringOffset % len(candidateSlots)
+	ringOffset %= len(candidateSlots)
 
 	if (qi.Sticky != sqlcv1.V1StickyStrategyNONE) || len(labels) > 0 {
 		candidateSlots = getRankedSlots(qi, labels, candidateSlots)
