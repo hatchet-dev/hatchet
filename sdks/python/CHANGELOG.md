@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adds beta `batch_task` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
 
 
+## [1.35.1] - 2026-07-20
+
+### Fixed
+
+- Removes a merge conflict that snuck into `main`
+
 ## [1.35.0] - 2026-07-16
 
 ### Added

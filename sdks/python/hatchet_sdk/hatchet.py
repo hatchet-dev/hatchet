@@ -489,53 +489,51 @@ class Hatchet:
         ]
     ):
         """
-                A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
+        A decorator to transform a function into a standalone Hatchet task that runs as part of a workflow.
 
-                :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
+        :param name: The name of the task. If not specified, defaults to the name of the function being wrapped by the `task` decorator.
 
-                :param description: An optional description for the task.
+        :param description: An optional description for the task.
 
-                :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
+        :param input_validator: A Pydantic model to use as a validator for the input to the task. If no validator is provided, defaults to an `EmptyModel`.
 
-                :param on_events: A list of event triggers for the task - events which cause the task to be run.
+        :param on_events: A list of event triggers for the task - events which cause the task to be run.
 
-                :param on_crons: A list of cron triggers for the task.
+        :param on_crons: A list of cron triggers for the task.
 
-                :param cron_input: An optional input to provide to runs triggered by the task's `on_crons` schedules. Should be an instance of the task's input model.
+        :param cron_input: An optional input to provide to runs triggered by the task's `on_crons` schedules. Should be an instance of the task's input model.
 
-                :param version: A version for the task.
+        :param version: A version for the task.
 
-                :param sticky: A sticky strategy for the task.
+        :param sticky: A sticky strategy for the task.
 
-                :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
+        :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
-                :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+        :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
-                :param schedule_timeout: The maximum time allowed for scheduling the task.
+        :param schedule_timeout: The maximum time allowed for scheduling the task.
 
-                :param execution_timeout: The maximum time allowed for executing the task.
+        :param execution_timeout: The maximum time allowed for executing the task.
 
-                :param retries: The number of times to retry the task before failing.
+        :param retries: The number of times to retry the task before failing.
 
-                :param rate_limits: A list of rate limit configurations for the task.
+        :param rate_limits: A list of rate limit configurations for the task.
 
-                :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
+        :param desired_worker_labels: A dictionary of desired worker labels that determine to which worker the task should be assigned.
 
-                :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
+        :param backoff_factor: The backoff factor for controlling exponential backoff in retries.
 
-                :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
+        :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
-                :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
+        :param default_filters: A list of filters to create with the task is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the task is created to create them.
 
-                :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
+        :param default_additional_metadata: A dictionary of additional metadata to attach to each run of this task by default.
 
-        <<<<<<< HEAD
-                :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
-        =======
-                :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
-        >>>>>>> main
+        :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
 
-                :returns: A decorator which creates a `Standalone` task object.
+        :param idempotency: An optional idempotency configuration for the task, controlling how Hatchet should determine if two runs of this task are "the same" for the purposes of deduplication and idempotent execution.
+
+        :returns: A decorator which creates a `Standalone` task object.
         """
 
         _warn_if_int_priority(default_priority)
