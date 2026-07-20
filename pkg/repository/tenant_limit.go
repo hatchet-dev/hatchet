@@ -50,6 +50,12 @@ type meterKey struct {
 	tenantId uuid.UUID
 }
 
+// cacheKey is the string form used for the canCreate result cache, which is
+// backed by a string-keyed TTL cache.
+func (k meterKey) cacheKey() string {
+	return fmt.Sprintf("%s:%s", k.resource, k.tenantId)
+}
+
 type meterSet map[meterKey]int32
 
 type tenantLimitRepository struct {
@@ -320,8 +326,8 @@ func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
 	for _, limit := range limits {
 		percent := calcPercent(limit.Value, limit.LimitValue)
 		if percent <= 50 || percent >= 100 {
-			key := fmt.Sprintf("%s:%s", limit.Resource, limit.TenantId)
-			t.c.Set(key, limit.Value < limit.LimitValue)
+			key := meterKey{tenantId: limit.TenantId, resource: limit.Resource}
+			t.c.Set(key.cacheKey(), limit.Value < limit.LimitValue)
 		}
 	}
 
@@ -329,7 +335,7 @@ func (t *tenantLimitRepository) flushToDatabase(ctx context.Context) error {
 }
 
 func (t *tenantLimitRepository) cachedCanCreate(ctx context.Context, dbtx sqlcv1.DBTX, resource sqlcv1.LimitResource, tenantId uuid.UUID, numberOfResources int32) (bool, int, error) {
-	var key = fmt.Sprintf("%s:%s", resource, tenantId)
+	key := meterKey{tenantId: tenantId, resource: resource}.cacheKey()
 
 	var canCreate *bool
 	var percent int
