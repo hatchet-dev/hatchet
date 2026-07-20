@@ -13,7 +13,8 @@ import type { Context as OtelContext, Span, Attributes } from '@opentelemetry/ap
 import type { InstrumentationConfig } from '@opentelemetry/instrumentation';
 
 import { HATCHET_VERSION } from '@hatchet/version';
-import { Action } from '@hatchet/clients/dispatcher/action-listener';
+import type { Action } from '@hatchet/clients/dispatcher/action-listener';
+import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action-listener';
 import type {
   EventClient,
   PushEventOptions,
@@ -121,7 +122,7 @@ function getActionOtelAttributes(
     [OTelAttribute.CHILD_WORKFLOW_INDEX]: action.childWorkflowIndex,
     [OTelAttribute.CHILD_WORKFLOW_KEY]: action.childWorkflowKey,
     [OTelAttribute.ACTION_PAYLOAD]: action.actionPayload,
-    [OTelAttribute.WORKFLOW_NAME]: action.jobName,
+    [OTelAttribute.WORKFLOW_NAME]: workflowNameFromAction(action),
     [OTelAttribute.ACTION_NAME]: action.actionId,
     [OTelAttribute.STEP_NAME]: action.taskName,
     [OTelAttribute.WORKFLOW_ID]: action.workflowId,

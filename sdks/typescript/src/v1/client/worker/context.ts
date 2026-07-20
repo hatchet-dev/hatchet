@@ -15,7 +15,8 @@ import {
   BaseWorkflowDeclaration as WorkflowV1,
 } from '@hatchet/v1/declaration';
 import HatchetError from '@util/errors/hatchet-error';
-import { Action } from '@hatchet/clients/dispatcher/action-listener';
+import type { Action } from '@hatchet/clients/dispatcher/action-listener';
+import { workflowNameFromAction } from '@hatchet/clients/dispatcher/action-listener';
 import { Logger, LogLevel } from '@hatchet/util/logger';
 import { parseJSON } from '@hatchet/util/parse';
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
@@ -281,7 +282,7 @@ export class Context<T, K = {}> {
    * @returns The name of the workflow.
    */
   workflowName(): string {
-    return this.action.jobName;
+    return workflowNameFromAction(this.action);
   }
 
   /**
@@ -371,7 +372,7 @@ export class Context<T, K = {}> {
       workflowRunId: this.action.workflowRunId,
       taskRunExternalId: this.action.taskRunExternalId,
       retryCount: this.action.retryCount,
-      workflowName: this.action.jobName,
+      workflowName: this.workflowName(),
       ...extra?.extra,
     };
 
