@@ -2525,13 +2525,9 @@ func (r *OLAPRepositoryImpl) ReadDAG(ctx context.Context, dagExternalId uuid.UUI
 }
 
 func (r *OLAPRepositoryImpl) ListTasksByExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenTasksByExternalIdsRow, error) {
-	externalUUIDs := make([]uuid.UUID, 0)
-
-	externalUUIDs = append(externalUUIDs, externalIds...)
-
 	return r.queries.FlattenTasksByExternalIds(ctx, r.readPool, sqlcv1.FlattenTasksByExternalIdsParams{
 		Tenantid:    tenantId,
-		Externalids: externalUUIDs,
+		Externalids: externalIds,
 	})
 }
 
