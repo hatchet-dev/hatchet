@@ -5,7 +5,7 @@ import { Context } from './context';
 import type { InternalWorker } from './worker-internal';
 
 describe('Context', () => {
-  it('returns the workflow name separately from the task name', () => {
+  it('returns the workflow name without changing the deprecated method', () => {
     const action = createAction({
       tenantId: 'tenant-id',
       workflowRunId: 'workflow-run-id',
@@ -35,7 +35,8 @@ describe('Context', () => {
 
     const context = new Context(action, client, worker);
 
-    expect(context.workflowName()).toBe('my-workflow');
+    expect(context.workflowName()).toBe('my-task');
+    expect(context.workflowNameV1()).toBe('my-workflow');
     expect(context.taskName()).toBe('my-task');
   });
 });

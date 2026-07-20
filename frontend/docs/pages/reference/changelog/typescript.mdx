@@ -2,9 +2,17 @@
 
 ## v1.26.1 - 2026-07-20
 
+### Added
+
+- Added `ctx.workflowNameV1()` to return the current workflow name.
+
+### Deprecated
+
+- Deprecated `ctx.workflowName()`, which continues to return the task name for backward compatibility. Use `ctx.workflowNameV1()` for the workflow name or `ctx.taskName()` for the task name.
+
 ### Fixed
 
-- Fixed `ctx.workflowName()` returning the task name on v1 engines. It now returns the workflow name and reports the correct workflow name in log metadata and OpenTelemetry attributes.
+- Fixed workflow name values in context log metadata and OpenTelemetry attributes.
 
 ## v1.26.0 - 2026-07-16
 
