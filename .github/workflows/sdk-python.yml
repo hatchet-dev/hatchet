@@ -57,7 +57,7 @@ jobs:
 
       - name: Generate protobuf bindings
         if: matrix.python-version == '3.14'
-        run: ./generate.sh proto
+        run: ./generate.sh
 
       - name: Check generated protobuf bindings are up to date
         if: matrix.python-version == '3.14'
