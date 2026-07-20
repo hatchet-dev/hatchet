@@ -7,6 +7,13 @@ import { snippets } from "@/lib/generated/snippets";
 
 If you need to prevent more than one run of a task from occurring within a given time window, for instance because of duplicate event sends from a webhook that can trigger duplicate runs in Hatchet, you can achieve this by adding **idempotency** configuration to your workflow or standalone task.
 
+## Types of Idempotency in Hatchet
+
+Hatchet supports two different types of idempotency behavior, which you can choose between depending on the needs of your application:
+
+1. **TTL-based** idempotency, which says that there can only be one run for a given idempotency key within a specified amount of time after the first run for that key is seen.
+2. **Status-based** idempotency, which clears the idempotency key when the run that claimed it reaches a terminal status (success, failure, or cancellation). This acts similarly to `CANCEL_NEWEST` concurrency, where any time there's a running task holding an idempotency key, any incoming tasks with the same key will be dropped. But once the running task reaches a terminal state, a new one that's triggered can immediately claim the key once again, with no fixed wait time.
+
 ## Define an Idempotency Key
 
 Configuring idempotency on a workflow or standalone task requires two parameters to be set: the **expression**, which will be used to create an idempotency key from the input and additional metadata of the run that's going to be triggered, and the **TTL**, which determines how long the key should live for.
