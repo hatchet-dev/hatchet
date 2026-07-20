@@ -45,7 +45,7 @@ jobs:
           go-version: "1.26"
 
       - name: Generate OpenAPI spec
-        working-directory: ../../..
+        working-directory: .
         run: sh hack/oas/generate-server.sh
 
       - name: Generate protobuf & REST client bindings

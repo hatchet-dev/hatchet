@@ -85,7 +85,7 @@ jobs:
 
       - name: Generate OpenAPI spec
         if: matrix.package-manager == 'pnpm'
-        working-directory: ../..
+        working-directory: .
         run: sh hack/oas/generate-server.sh
 
       - name: Generate protobuf & REST client bindings
