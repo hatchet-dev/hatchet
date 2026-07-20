@@ -77,6 +77,19 @@ jobs:
       - name: Type check
         run: ${{ matrix.tsc-cmd }}
 
+      - name: Generate protobuf bindings
+        if: matrix.package-manager == 'pnpm'
+        run: ./generate-protoc.sh
+
+      - name: Check generated protobuf bindings are up to date
+        if: matrix.package-manager == 'pnpm'
+        run: |
+          git add -A src/protoc
+          if ! git diff --cached --exit-code -- src/protoc; then
+            echo "::error::Generated protobuf bindings are out of date. Run 'sdks/typescript/generate-protoc.sh' and commit the changes."
+            exit 1
+          fi
+
   test-unit:
     runs-on: ubicloud-standard-4
     strategy:

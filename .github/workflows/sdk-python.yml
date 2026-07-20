@@ -55,6 +55,19 @@ jobs:
       - name: Run Pydoclint
         run: poetry run pydoclint .
 
+      - name: Generate protobuf bindings
+        if: matrix.python-version == '3.14'
+        run: ./generate.sh proto
+
+      - name: Check generated protobuf bindings are up to date
+        if: matrix.python-version == '3.14'
+        run: |
+          git add -A hatchet_sdk/contracts
+          if ! git diff --cached --exit-code -- hatchet_sdk/contracts; then
+            echo "::error::Generated protobuf bindings are out of date. Run 'sdks/python/generate.sh proto' and commit the changes."
+            exit 1
+          fi
+
       - name: Test install
         run: pip install -e .
 

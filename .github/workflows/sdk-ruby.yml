@@ -35,6 +35,17 @@ jobs:
       - name: Run RBS validate
         run: rbs -I sig validate
 
+      - name: Generate protobuf bindings
+        run: bundle exec bash ../generate.sh proto
+
+      - name: Check generated protobuf bindings are up to date
+        run: |
+          git add -A lib/hatchet/contracts
+          if ! git diff --cached --exit-code -- lib/hatchet/contracts; then
+            echo "::error::Generated protobuf bindings are out of date. Run 'sdks/ruby/generate.sh proto' and commit the changes."
+            exit 1
+          fi
+
       - name: Test gem build
         run: gem build hatchet-sdk.gemspec
 
