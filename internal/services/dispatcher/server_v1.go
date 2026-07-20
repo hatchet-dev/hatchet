@@ -501,14 +501,14 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 		}
 
 		if _, exists := registeredTasks[taskExtId]; !exists {
-			d.durableInvocations.Store(taskExtId, invocation)
+			d.durableInvocations.Store(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskExtId}, invocation)
 			registeredTasks[taskExtId] = struct{}{}
 		}
 	}
 
 	// register the task up front so async responses route back to this invocation
 	// immediately, before the caller sends its first message.
-	d.durableInvocations.Store(externalId, invocation)
+	d.durableInvocations.Store(durableInvocationsKey{tenantId: invocation.tenantId, taskId: externalId}, invocation)
 	registeredTasks[externalId] = struct{}{}
 
 	go func() {
@@ -522,7 +522,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 		// closed channel.
 		defer func() {
 			for taskId := range registeredTasks {
-				d.durableInvocations.Delete(taskId)
+				d.durableInvocations.Delete(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskId})
 			}
 
 			invocation.sendMu.Lock()
