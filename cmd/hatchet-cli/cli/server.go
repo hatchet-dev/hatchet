@@ -89,7 +89,12 @@ func runServerStart(cmd *cobra.Command) {
 		cli.Logger.Fatalf("%v", err)
 	}
 
-	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, disableAuth, ""))
+	additionalMessage := ""
+	if result.DefaultSet {
+		additionalMessage = fmt.Sprintf("Profile '%s' set as the default profile", result.ProfileName)
+	}
+
+	fmt.Println(serverStartedView(result.ProfileName, result.DashboardPort, result.GrpcPort, disableAuth, additionalMessage))
 
 	if disableAuth && result.Token != "" {
 		fmt.Println()
@@ -140,6 +145,7 @@ type ServerStartResult struct {
 	Token         string
 	DashboardPort int
 	GrpcPort      int
+	DefaultSet    bool
 }
 
 // startLocalServer starts a local Hatchet server and returns connection details
@@ -179,11 +185,19 @@ func startLocalServer(cmd *cobra.Command, profileName string, opts ...docker.Hat
 		return nil, fmt.Errorf("could not add profile: %w", err)
 	}
 
+	// A non-interactive session cannot answer the profile-selection form, so the profile
+	// created here becomes the default unless the user already chose one.
+	defaultSet, err := cli.SetDefaultProfileIfUnset(profileName)
+	if err != nil {
+		return nil, fmt.Errorf("could not set default profile: %w", err)
+	}
+
 	return &ServerStartResult{
 		ProfileName:   profileName,
 		Token:         token,
 		DashboardPort: actualDashboardPort,
 		GrpcPort:      actualGrpcPort,
+		DefaultSet:    defaultSet,
 	}, nil
 }
 

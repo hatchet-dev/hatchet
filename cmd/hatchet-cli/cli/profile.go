@@ -590,13 +590,8 @@ func selectProfileForm(useDefault bool) string {
 	}
 	sort.Strings(names)
 
-	// If useDefault is true, try to return the default profile without showing the form
-	if useDefault {
-		defaultProfile := cli.GetDefaultProfile()
-		// Verify the default profile is still in the list
-		if defaultProfile != "" && slices.Contains(names, defaultProfile) {
-			return defaultProfile
-		}
+	if name, ok := resolveProfileWithoutForm(names, cli.GetDefaultProfile(), useDefault); ok {
+		return name
 	}
 
 	// Create options in sorted order
@@ -621,10 +616,42 @@ func selectProfileForm(useDefault bool) string {
 	err := form.Run()
 
 	if err != nil {
-		cli.Logger.Fatalf("could not run profile remove form: %v", err)
+		cli.Logger.Fatalf("%s", profileSelectionFailureMessage(err, names))
 	}
 
 	return selectedName
+}
+
+// resolveProfileWithoutForm picks the profile when the form can be skipped: the still-valid
+// default, or the only profile when useDefault is set. Management commands keep the form even
+// with a single profile because they act immediately on the returned name.
+func resolveProfileWithoutForm(names []string, defaultProfile string, useDefault bool) (string, bool) {
+	if !useDefault {
+		return "", false
+	}
+
+	if defaultProfile != "" && slices.Contains(names, defaultProfile) {
+		return defaultProfile, true
+	}
+
+	if len(names) == 1 {
+		return names[0], true
+	}
+
+	return "", false
+}
+
+// Form failures here usually mean a session without a TTY, where the form library cannot
+// open /dev/tty.
+func profileSelectionFailureMessage(err error, names []string) string {
+	return fmt.Sprintf(
+		"could not run profile selection form: %v\n"+
+			"In a non-interactive session, pass the profile explicitly where the command supports it "+
+			"(for example --profile <name> or a profile name argument), or set a default with "+
+			"'hatchet profile set-default <name>'. Available profiles: %s",
+		err,
+		strings.Join(names, ", "),
+	)
 }
 
 // profileView renders a profile view with details
