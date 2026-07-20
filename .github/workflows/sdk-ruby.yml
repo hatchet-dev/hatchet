@@ -35,8 +35,8 @@ jobs:
       - name: Run RBS validate
         run: rbs -I sig validate
 
-      - name: Generate protobuf bindings
-        run: bundle exec bash ../generate.sh proto
+      - name: Generate protobuf/REST bindings
+        run: bundle exec bash ../generate.sh
 
       - name: Check generated protobuf bindings are up to date
         run: |

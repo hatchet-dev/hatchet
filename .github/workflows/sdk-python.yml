@@ -55,7 +55,7 @@ jobs:
       - name: Run Pydoclint
         run: poetry run pydoclint .
 
-      - name: Generate protobuf bindings
+      - name: Generate protobuf/REST bindings
         if: matrix.python-version == '3.14'
         run: ./generate.sh
 
