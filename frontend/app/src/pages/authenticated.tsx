@@ -1,4 +1,3 @@
-import { getCloudMetadataQuery } from '../hooks/use-cloud.ts';
 import { NewTenantSaverForm } from '@/components/forms/new-tenant-saver-form';
 import { AppLayout } from '@/components/layout/app-layout';
 import { AuthDisabledBanner } from '@/components/layout/auth-disabled-banner';
@@ -63,22 +62,12 @@ const DevtoolsFooter = import.meta.env.DEV
   : null;
 
 export async function loader(_args: { request: Request }) {
-  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+  const { isControlPlaneEnabled, meta } = await fetchControlPlaneStatus();
 
-  const { isLegacyCloudEnabled, ...meta } = isControlPlaneEnabled
-    ? { isLegacyCloudEnabled: false as const }
-    : await queryClient.fetchQuery(getCloudMetadataQuery);
-
-  const isCloudEnabled = isControlPlaneEnabled || isLegacyCloudEnabled;
-
-  await queryClient.fetchQuery(
-    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
-  );
+  await queryClient.fetchQuery(pendingInvitesQuery());
   return {
-    isLegacyCloudEnabled,
     isControlPlaneEnabled,
-    inactivityLogoutMs:
-      'inactivityLogoutMs' in meta ? (meta.inactivityLogoutMs ?? -1) : -1,
+    inactivityLogoutMs: meta?.data?.inactivityLogoutMs ?? -1,
   };
 }
 
@@ -165,7 +154,6 @@ function AuthenticatedInner() {
   const { pendingInvitesQuery } = usePendingInvites();
 
   const {
-    isCloudEnabled,
     isLoaded: isUserUniverseLoaded,
     isFetching: isUserUniverseFetching,
     organizations,
@@ -188,10 +176,7 @@ function AuthenticatedInner() {
   const welcomeBillingState = useQuery({
     ...queries.controlPlane.billing(organizationId || ''),
     enabled:
-      isCloudEnabled &&
-      isControlPlaneEnabled &&
-      !!controlPlaneMeta?.canBill &&
-      !!organizationId,
+      isControlPlaneEnabled && !!controlPlaneMeta?.canBill && !!organizationId,
     retry: false,
   });
 
@@ -257,7 +242,9 @@ function AuthenticatedInner() {
       !isUserUniverseFetching;
 
     const shouldHaveAnOrganizationButDoesnt =
-      isCloudEnabled && isUserUniverseLoaded && organizations.length === 0;
+      isControlPlaneEnabled &&
+      isUserUniverseLoaded &&
+      organizations?.length === 0;
 
     // Redirect to invites page only for users with no memberships yet (new users).
     // Existing users with memberships see the InviteModal overlay instead.
@@ -384,13 +371,12 @@ function AuthenticatedInner() {
     isOnboardingPage,
     isAuthPage,
     setLastTenant,
-    isCloudEnabled,
+    isControlPlaneEnabled,
     isUserUniverseLoaded,
     isUserUniverseFetching,
     organizations,
     isOnboardingCreateOrganizationPage,
     isOnboardingCreateTenantPage,
-    isControlPlaneEnabled,
     loaderData.isControlPlaneEnabled,
   ]);
 
@@ -450,7 +436,7 @@ function AuthenticatedInner() {
       return;
     }
 
-    if (!isCloudEnabled) {
+    if (!isControlPlaneEnabled) {
       localStorage.removeItem(WELCOME_KEY);
       return;
     }
@@ -509,7 +495,7 @@ function AuthenticatedInner() {
     tenant?.metadata.id,
     organizationId,
     capture,
-    isCloudEnabled,
+    isControlPlaneEnabled,
     isUserUniverseLoaded,
     controlPlaneMeta?.canBill,
     welcomeBillingState.data?.currentSubscription,

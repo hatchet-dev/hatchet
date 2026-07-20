@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
+import { ManagementTokenDuration } from '@/lib/api/generated/control-plane/data-contracts';
 import { useApiError } from '@/lib/hooks';
 import {
   KeyIcon,

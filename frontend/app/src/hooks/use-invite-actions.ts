@@ -1,7 +1,7 @@
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantInvite } from '@/lib/api';
-import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationInvite } from '@/lib/api/generated/control-plane/data-contracts';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';

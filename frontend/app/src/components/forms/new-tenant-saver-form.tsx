@@ -5,10 +5,9 @@ import {
   WELCOME_TRIGGER,
 } from '@/components/modals/welcome-modal-state';
 import { useAnalytics } from '@/hooks/use-analytics';
-import useControlPlane from '@/hooks/use-control-plane';
 import api, { Tenant } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
-import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationTenant } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -32,9 +31,8 @@ const useSaveTenant = ({
 }: {
   afterSave: NewTenantSaverFormProps['afterSave'];
 }) => {
-  const { isCloudEnabled, invalidate: invalidateUserUniverse } =
+  const { isControlPlaneEnabled, invalidate: invalidateUserUniverse } =
     useUserUniverse();
-  const { isControlPlaneEnabled } = useControlPlane();
   const { capture } = useAnalytics();
   const { handleApiError } = useApiError();
   const orgApi = useOrganizationApi();
@@ -52,10 +50,10 @@ const useSaveTenant = ({
       tags?: string[];
     }) => {
       const slug = generateTenantSlug(tenantName);
-      if (isCloudEnabled) {
+      if (isControlPlaneEnabled) {
         invariant(
           organizationId,
-          'Organization ID is required when isCloudEnabled',
+          'Organization ID is required when isControlPlaneEnabled',
         );
         const tenant = await orgApi
           .organizationCreateTenantMutation(organizationId)
@@ -101,11 +99,10 @@ export function NewTenantSaverForm({
   afterSave,
 }: NewTenantSaverFormProps) {
   const {
-    isCloudEnabled,
+    isControlPlaneEnabled,
     organizations,
     isLoaded: isUserUniverseLoaded,
   } = useUserUniverse();
-  const { isControlPlaneEnabled } = useControlPlane();
   const [selectedOrgId, setSelectedOrgId] = useState<string | undefined>(
     defaultOrganizationId,
   );
@@ -119,7 +116,7 @@ export function NewTenantSaverForm({
     queryFn: async () =>
       (await controlPlaneApi.organizationListAvailableShards(selectedOrgId!))
         .data,
-    enabled: Boolean(isCloudEnabled && isControlPlaneEnabled && selectedOrgId),
+    enabled: Boolean(isControlPlaneEnabled && selectedOrgId),
   });
 
   const saveTenantMutation = useSaveTenant({ afterSave });
@@ -128,14 +125,14 @@ export function NewTenantSaverForm({
     return <></>;
   }
 
-  invariant(!isCloudEnabled || organizations);
+  invariant(!isControlPlaneEnabled || organizations);
 
-  if (!isCloudEnabled) {
+  if (!isControlPlaneEnabled) {
     return (
       <NewTenantInputForm
         defaultTenantName={defaultTenantName}
         isSaving={saveTenantMutation.isPending}
-        isCloudEnabled={false}
+        isControlPlaneEnabled={false}
         onSubmit={saveTenantMutation.mutate}
       />
     );
@@ -145,7 +142,7 @@ export function NewTenantSaverForm({
     <NewTenantInputForm
       defaultTenantName={defaultTenantName}
       isSaving={saveTenantMutation.isPending}
-      isCloudEnabled={true}
+      isControlPlaneEnabled={true}
       organizations={organizations}
       organizationId={selectedOrgId}
       onOrganizationIdChange={setSelectedOrgId}

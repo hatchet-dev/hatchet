@@ -1,34 +1,22 @@
-import useCloud from '@/hooks/use-cloud';
-import useControlPlane from '@/hooks/use-control-plane';
 import api, { TenantInvite } from '@/lib/api';
-import { cloudApi, controlPlaneApi } from '@/lib/api/api';
-import { OrganizationInvite } from '@/lib/api/generated/cloud/data-contracts';
-import { OrganizationInviteTenant } from '@/lib/api/generated/control-plane/data-contracts';
+import { controlPlaneApi, fetchControlPlaneStatus } from '@/lib/api/api';
+import { OrganizationInvite } from '@/lib/api/generated/control-plane/data-contracts';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
-// The cloud client's OrganizationInvite lacks the control-plane-only `tenants`
-// field. It is absent (not `[]`) when there are no tenant grants, the invite is
-// for an OWNER, or the server is older — never assume it exists.
-export type PendingOrganizationInvite = OrganizationInvite & {
-  tenants?: OrganizationInviteTenant[];
-};
+export type PendingOrganizationInvite = OrganizationInvite;
 
-export const pendingInvitesQuery = (
-  isCloudEnabled: boolean,
-  isControlPlaneEnabled: boolean,
-) => ({
-  queryKey: ['pending-invites', isCloudEnabled, isControlPlaneEnabled],
+export const pendingInvitesQuery = () => ({
+  queryKey: ['pending-invites'],
   queryFn: async () => {
+    const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
     const [tenantInvitesRes, orgInvitesRes] = await Promise.allSettled([
       isControlPlaneEnabled
         ? controlPlaneApi.userListTenantInvites()
         : api.userListTenantInvites(),
       isControlPlaneEnabled
         ? controlPlaneApi.userListOrganizationInvites()
-        : isCloudEnabled
-          ? cloudApi.userListOrganizationInvites()
-          : Promise.resolve({ data: { rows: [] } }),
+        : Promise.resolve({ data: { rows: [] } }),
     ]);
 
     const tenantInvites: TenantInvite[] =
@@ -54,13 +42,9 @@ export const pendingInvitesQuery = (
 });
 
 export const usePendingInvites = () => {
-  const { isCloudEnabled, isCloudLoading } = useCloud();
-  const { isControlPlaneEnabled } = useControlPlane();
   const queryClient = useQueryClient();
 
-  const query = useQuery(
-    pendingInvitesQuery(isCloudEnabled, isControlPlaneEnabled),
-  );
+  const query = useQuery(pendingInvitesQuery());
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({
@@ -86,7 +70,7 @@ export const usePendingInvites = () => {
 
   return {
     pendingInvitesQuery: query,
-    isLoading: isCloudLoading || query.isLoading,
+    isLoading: query.isLoading,
     isLoaded: query.isSuccess,
     invalidate,
     get,

@@ -1,5 +1,5 @@
 import { Button } from '@/components/v1/ui/button';
-import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { ErrorPageLayout } from '@/pages/error/components/layout';
 import { appRoutes } from '@/router';
 import { useParams } from '@tanstack/react-router';
@@ -8,18 +8,16 @@ import { PropsWithChildren } from 'react';
 
 export function ManagedWorkersGate({ children }: PropsWithChildren) {
   const params = useParams({ from: appRoutes.tenantRoute.to });
-  const { cloud, featureFlags, isCloudEnabled } = useCloud(params.tenant);
+  const { featureFlags, isControlPlaneEnabled } = useControlPlane(
+    params.tenant,
+  );
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
-
-  if (isCloudEnabled && !cloud) {
-    return null;
-  }
 
   if (managedWorkerEnabled) {
     return <>{children}</>;
   }
 
-  if (!isCloudEnabled) {
+  if (!isControlPlaneEnabled) {
     return (
       <ErrorPageLayout
         icon={<Cloud className="h-5 w-5" />}

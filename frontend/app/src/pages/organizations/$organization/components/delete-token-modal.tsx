@@ -1,6 +1,6 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { ManagementToken } from '@/lib/api/generated/cloud/data-contracts';
+import { ManagementToken } from '@/lib/api/generated/control-plane/data-contracts';
 
 interface DeleteTokenModalProps {
   open: boolean;

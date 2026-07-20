@@ -18,7 +18,6 @@ export function settingsNavGroups(opts: {
   tenantId?: string;
   orgId?: string;
   canBill?: boolean;
-  isCloudEnabled?: boolean;
   isControlPlaneEnabled?: boolean;
   isOrganizationOwner?: boolean;
   canManageSso?: boolean;
@@ -66,7 +65,7 @@ export function settingsNavGroups(opts: {
     });
   }
 
-  if (opts.isCloudEnabled && opts.orgId) {
+  if (opts.isControlPlaneEnabled && opts.orgId) {
     const params = { organization: opts.orgId };
 
     groups.push({

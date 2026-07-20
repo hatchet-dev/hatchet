@@ -4,7 +4,7 @@ import {
   OrganizationForUser,
   OrganizationMember,
   TenantStatusType,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -28,7 +28,7 @@ export function useOrganizations() {
   const {
     organizations: organizationData,
     isLoaded: isUserUniverseLoaded,
-    isCloudEnabled,
+    isControlPlaneEnabled,
   } = useUserUniverse();
   const { handleApiError } = useApiError({});
   const orgApi = useOrganizationApi();
@@ -36,16 +36,16 @@ export function useOrganizations() {
   // Re-query for mutations (will revalidate the context)
   const organizationListQuery = useQuery({
     ...orgApi.organizationListQuery(),
-    enabled: isCloudEnabled,
+    enabled: isControlPlaneEnabled,
   });
 
   const organizations = useMemo(() => {
-    if (isUserUniverseLoaded && isCloudEnabled) {
+    if (isUserUniverseLoaded && isControlPlaneEnabled) {
       invariant(organizationData);
       return organizationData;
     }
     return [];
-  }, [isUserUniverseLoaded, organizationData, isCloudEnabled]);
+  }, [isUserUniverseLoaded, organizationData, isControlPlaneEnabled]);
 
   const getOrganizationForTenant = useMemo(() => {
     const tenantIdToOrganization = new Map<string, OrganizationForUser>();
@@ -437,7 +437,7 @@ export function useOrganizations() {
   return {
     organizations,
     organizationData, // From context
-    isCloudEnabled,
+    isControlPlaneEnabled,
     getOrganizationForTenant,
     getOrganizationIdForTenant,
     isTenantArchivedInOrg,

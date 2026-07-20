@@ -19,7 +19,7 @@ import {
 import {
   OrganizationMember,
   OrganizationMemberRoleType,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useMutation } from '@tanstack/react-query';

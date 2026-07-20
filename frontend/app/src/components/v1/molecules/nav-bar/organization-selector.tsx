@@ -16,7 +16,7 @@ import {
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { Tenant, TenantMember } from '@/lib/api';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationForUser } from '@/lib/api/generated/control-plane/data-contracts';
 import { globalEmitter } from '@/lib/global-emitter';
 import { cn } from '@/lib/utils';
 import { appRoutes } from '@/router';

@@ -15,7 +15,7 @@ import {
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import { Spinner } from '@/components/v1/ui/loading.tsx';
 import { useAnalytics } from '@/hooks/use-analytics';
-import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { controlPlaneApi } from '@/lib/api/api';
 import { SubscriptionPlanCode } from '@/lib/api/generated/control-plane/data-contracts';
@@ -38,11 +38,12 @@ export function WelcomeModal({
 }: WelcomeModalProps) {
   const { capture } = useAnalytics();
   const navigate = useNavigate();
-  const { cloud, isCloudEnabled } = useCloud();
+  const { controlPlaneCapabilities, isControlPlaneEnabled } = useControlPlane();
 
   const welcomePlansQuery = useQuery({
     ...queries.controlPlane.subscriptionPlans(),
-    enabled: open && isCloudEnabled && !!cloud?.canBill,
+    enabled:
+      open && isControlPlaneEnabled && !!controlPlaneCapabilities?.canBill,
   });
 
   const freeLimits = welcomePlansQuery.data?.freeLimits;

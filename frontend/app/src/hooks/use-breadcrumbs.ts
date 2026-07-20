@@ -21,7 +21,7 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
     },
     {} as Record<string, string>,
   );
-  const { isCloudEnabled } = useUserUniverse();
+  const { isControlPlaneEnabled } = useUserUniverse();
 
   // Get tenant ID and home route at the top level (before any conditional returns).
   // Organization routes have no `tenant` URL param, so fall back to the active
@@ -54,7 +54,7 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
   const breadcrumbs = generateBreadcrumbs(
     location.pathname,
     cleanParams,
-    isCloudEnabled,
+    isControlPlaneEnabled,
   );
 
   // Update the Home breadcrumb href with the conditional route

@@ -30,7 +30,7 @@ interface UpdateMemberFormProps {
   onSubmit: (opts: z.infer<typeof schema>) => void;
   isLoading: boolean;
   member: TenantMember;
-  isCloudEnabled?: boolean;
+  isControlPlaneEnabled?: boolean;
   canSetOwnerRole?: boolean;
   formErrors?: string[];
 }
@@ -100,7 +100,8 @@ export function UpdateMemberForm({
                         <SelectValue id="role" placeholder="Role..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(!props.isCloudEnabled || props.canSetOwnerRole) && (
+                        {(!props.isControlPlaneEnabled ||
+                          props.canSetOwnerRole) && (
                           <SelectItem value="OWNER">Owner</SelectItem>
                         )}
                         <SelectItem value="ADMIN">Admin</SelectItem>

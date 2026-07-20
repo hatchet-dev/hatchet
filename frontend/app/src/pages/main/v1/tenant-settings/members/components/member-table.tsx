@@ -194,7 +194,7 @@ function EditMemberRoleDialog({
         onSubmit={handleSubmit}
         formErrors={formErrors}
         member={member}
-        isCloudEnabled={true}
+        isControlPlaneEnabled={true}
         canSetOwnerRole={canManageOrganization}
       />
     </Dialog>

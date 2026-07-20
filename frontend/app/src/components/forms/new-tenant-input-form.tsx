@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/v1/ui/select';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationForUser } from '@/lib/api/generated/control-plane/data-contracts';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
 import { shardDeploymentKey } from '@/lib/shard-deployment-key';
 import { XMarkIcon } from '@heroicons/react/24/outline';
@@ -22,7 +22,7 @@ type NewTenantInputFormProps = {
   allTenantTags?: string[];
 } & (
   | {
-      isCloudEnabled: true;
+      isControlPlaneEnabled: true;
       organizations: OrganizationForUser[];
       organizationId?: string;
       onOrganizationIdChange: (organizationId: string) => void;
@@ -38,7 +38,7 @@ type NewTenantInputFormProps = {
       showTagsInput?: boolean;
     }
   | {
-      isCloudEnabled: false;
+      isControlPlaneEnabled: false;
       organizations?: null;
       onSubmit: (values: { tenantName: string }) => void;
       organizationId?: undefined;
@@ -94,7 +94,7 @@ function OrganizationSelect({
 export function NewTenantInputForm({
   defaultTenantName = '',
   isSaving = false,
-  isCloudEnabled,
+  isControlPlaneEnabled,
   organizations = null,
   organizationId,
   onOrganizationIdChange,
@@ -145,7 +145,7 @@ export function NewTenantInputForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (isCloudEnabled) {
+    if (isControlPlaneEnabled) {
       invariant(organizationId);
       onSubmit({
         tenantName,
@@ -160,7 +160,7 @@ export function NewTenantInputForm({
     }
   };
 
-  const shouldFocusOrganization = isCloudEnabled && !organizationId;
+  const shouldFocusOrganization = isControlPlaneEnabled && !organizationId;
 
   const cannotSubmitRegion =
     showRegionSelect &&
@@ -170,7 +170,7 @@ export function NewTenantInputForm({
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-6 max-w-lg w-full">
-      {isCloudEnabled && organizations && (
+      {isControlPlaneEnabled && organizations && (
         <OrganizationSelect
           organizations={organizations}
           organizationId={organizationId}
@@ -180,7 +180,7 @@ export function NewTenantInputForm({
         />
       )}
 
-      {isCloudEnabled &&
+      {isControlPlaneEnabled &&
         showRegionSelect &&
         (isShardsLoading || availableShards.length > 0) && (
           <RegionSelect

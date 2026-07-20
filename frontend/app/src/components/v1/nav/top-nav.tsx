@@ -26,7 +26,7 @@ import {
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
-import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import { useTenantHomeRoute } from '@/hooks/use-tenant-home-route';
 import { TenantMember, User } from '@/lib/api';
@@ -190,7 +190,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
     setStoredCollapsed(!storedCollapsed);
   };
 
-  const { isCloudEnabled } = useCloud();
+  const { isControlPlaneEnabled } = useControlPlane();
   const { tenant } = useTenantDetails();
   const showTenantSwitcher =
     !!user && tenantMemberships?.length > 0 && !!tenant;
@@ -221,7 +221,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         <div className="flex ml-auto items-center justify-end gap-2">
           <Notifications />
           {showTenantSwitcher &&
-            (isCloudEnabled ? (
+            (isControlPlaneEnabled ? (
               <OrganizationSelector memberships={tenantMemberships} />
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />
@@ -297,7 +297,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         <div className="flex items-center justify-end gap-2 pr-4">
           <Notifications />
           {showTenantSwitcher &&
-            (isCloudEnabled ? (
+            (isControlPlaneEnabled ? (
               <OrganizationSelector memberships={tenantMemberships} />
             ) : (
               <TenantSwitcher memberships={tenantMemberships} />

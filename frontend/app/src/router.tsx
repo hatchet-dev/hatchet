@@ -1,4 +1,3 @@
-import { getCloudMetadataQuery } from './hooks/use-cloud.ts';
 import { NotFound } from './pages/error/components/not-found';
 import ErrorBoundary from './pages/error/index.tsx';
 import Root from './pages/root.tsx';
@@ -360,15 +359,9 @@ const onboardingCreateTenantRoute = createRoute({
     'default',
   ),
   loader: async () => {
-    const [{ isLegacyCloudEnabled }, { isControlPlaneEnabled }] =
-      await Promise.all([
-        queryClient.fetchQuery(getCloudMetadataQuery),
-        fetchControlPlaneStatus(),
-      ]);
+    const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
     return queryClient.fetchQuery(
       userUniverseQuery({
-        isCloudEnabled: isControlPlaneEnabled || isLegacyCloudEnabled,
-        isCloudLoaded: true,
         isControlPlaneEnabled,
       }),
     );
@@ -418,21 +411,13 @@ const v1RedirectRoute = createRoute({
 });
 
 async function getOrganizationIdForTenantInRouter(tenantId: string) {
-  const [{ isLegacyCloudEnabled }, { isControlPlaneEnabled }] =
-    await Promise.all([
-      queryClient.fetchQuery(getCloudMetadataQuery),
-      fetchControlPlaneStatus(),
-    ]);
-
-  const isCloudEnabled = isControlPlaneEnabled || isLegacyCloudEnabled;
-  if (!isCloudEnabled) {
+  const { isControlPlaneEnabled } = await fetchControlPlaneStatus();
+  if (!isControlPlaneEnabled) {
     return null;
   }
 
   const universe = await queryClient.fetchQuery(
     userUniverseQuery({
-      isCloudEnabled,
-      isCloudLoaded: true,
       isControlPlaneEnabled,
     }),
   );

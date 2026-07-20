@@ -226,7 +226,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({
 
       const invalidations = [
         queryClient.invalidateQueries({
-          queryKey: queries.controlPlane.billing(organizationId).queryKey,
+          queryKey: queries.controlPlane.billing(organizationId || '').queryKey,
         }),
       ];
 

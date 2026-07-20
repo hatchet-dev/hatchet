@@ -52,7 +52,7 @@ export interface BreadcrumbItem {
 
 const createRouteLabel = (
   path: TenantedPath,
-  isCloudEnabled: boolean,
+  isControlPlaneEnabled: boolean,
 ): string => {
   switch (path) {
     case '/tenants/:tenant/events':
@@ -110,7 +110,7 @@ const createRouteLabel = (
     case '/tenants/:tenant/settings/integrations':
       return 'Integrations';
     case '/tenants/:tenant/settings/organization':
-      return isCloudEnabled ? 'Organization' : 'Tenants';
+      return isControlPlaneEnabled ? 'Organization' : 'Tenants';
     case '/tenants/:tenant/workflow-runs':
     case '/tenants/:tenant/workflow-runs/:run':
     case '/tenants/:tenant/':
@@ -191,7 +191,7 @@ function generateOrganizationBreadcrumbs(
 function getTenantedPathLabel(
   pathSegments: string[],
   tenantId: string,
-  isCloudEnabled: boolean,
+  isControlPlaneEnabled: boolean,
 ): string | null {
   const fullPath = '/' + pathSegments.join('/');
   const normalizedPath = fullPath.replace(
@@ -202,7 +202,7 @@ function getTenantedPathLabel(
   try {
     const label = createRouteLabel(
       normalizedPath as TenantedPath,
-      isCloudEnabled,
+      isControlPlaneEnabled,
     );
     return label || null;
   } catch {
@@ -225,7 +225,7 @@ function buildParentPath(
 export function generateBreadcrumbs(
   pathname: string,
   params?: Record<string, string>,
-  isCloudEnabled?: boolean,
+  isControlPlaneEnabled?: boolean,
 ): BreadcrumbItem[] {
   const breadcrumbs: BreadcrumbItem[] = [];
 
@@ -291,7 +291,7 @@ export function generateBreadcrumbs(
     const label = getTenantedPathLabel(
       segments.slice(0, 2 + i + 1),
       tenantId,
-      isCloudEnabled ?? false,
+      isControlPlaneEnabled ?? false,
     );
 
     if (label) {

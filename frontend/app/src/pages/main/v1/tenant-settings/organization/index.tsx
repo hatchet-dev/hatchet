@@ -43,15 +43,12 @@ import {
   ManagementToken,
   OrganizationInvite,
   OrganizationInviteStatus,
+  OrganizationInviteTenant,
   OrganizationMember,
-  OrganizationTenant,
-  TenantStatusType,
-} from '@/lib/api/generated/cloud/data-contracts';
-import {
   OrganizationAvailableShard,
   OrganizationAvailableShardClass,
-  OrganizationInviteTenant,
-  OrganizationTenant as ControlPlaneOrganizationTenant,
+  OrganizationTenant,
+  TenantStatusType,
 } from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { OFFICE_HOURS_URL } from '@/lib/external-links';
@@ -94,13 +91,7 @@ import { AxiosError } from 'axios';
 import { formatDistanceToNow } from 'date-fns';
 import { useMemo, useState } from 'react';
 
-// FIXME: remove this once we migrate everyone to the control plane
-// The cloud `OrganizationTenant` lacks `region`/`tags`; the control-plane one
-// has both. Graft them on so callers don't have to cast.
-export type OrganizationTenantWithRegion = OrganizationTenant & {
-  region?: ControlPlaneOrganizationTenant['region'];
-  tags?: ControlPlaneOrganizationTenant['tags'];
-};
+export type OrganizationTenantWithRegion = OrganizationTenant;
 
 const TERRAFORM_PROVIDER_DOCS_URL =
   'https://registry.terraform.io/providers/hatchet-dev/hatchet/latest/docs';
@@ -133,17 +124,9 @@ function formatTimeoutMs(ms: number): string {
   return `${days} day${days !== 1 ? 's' : ''} ${remHours} hour${remHours !== 1 ? 's' : ''}`;
 }
 
-// The cloud client's OrganizationInvite lacks the control-plane-only `tenants`
-// field. `tenants` is absent (not `[]`) when there are no grants or the server
-// is older — never assume it exists.
-type OrganizationInviteWithTenants = OrganizationInvite & {
-  tenants?: OrganizationInviteTenant[];
-};
+type OrganizationInviteWithTenants = OrganizationInvite;
 
-// The cloud client's ManagementToken lacks the control-plane-only `tags` field.
-type ManagementTokenWithTags = ManagementToken & {
-  tags?: string[];
-};
+type ManagementTokenWithTags = ManagementToken;
 
 export type OrganizationSettingsSection =
   'general' | 'tenants' | 'team' | 'tokens' | 'regions' | 'sso' | 'audit-log';
@@ -239,7 +222,7 @@ function SectionUnavailable({ description }: { description?: string }) {
   );
 }
 
-export function CloudOrganizationSettings({
+export function OrganizationSettings({
   orgId,
   section = 'general',
 }: {
@@ -495,8 +478,6 @@ export function CloudOrganizationSettings({
                 organizationId={orgId}
                 currentUserEmail={currentUser?.email}
                 onDelete={setMemberToDelete}
-                // Role changes are control-plane-only; the legacy cloud
-                // management API is deprecated and has no update endpoint.
                 onChangeRole={
                   isControlPlaneEnabled ? setMemberToEditRole : undefined
                 }

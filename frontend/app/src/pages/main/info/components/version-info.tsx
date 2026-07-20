@@ -1,5 +1,4 @@
 import { Spinner } from '@/components/v1/ui/loading';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { queries } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -11,8 +10,6 @@ export const VersionInfo: React.FC = () => {
     ...queries.info.getVersion,
     enabled: !isControlPlaneEnabled,
   });
-
-  const { isCloudEnabled } = useCloud();
 
   if (isControlPlaneEnabled) {
     return null;
@@ -32,9 +29,5 @@ export const VersionInfo: React.FC = () => {
     return <div className="text-xs text-red-500">{errorMessage}</div>;
   }
 
-  return (
-    <div className="text-xs">
-      {isCloudEnabled ? 'Cloud' : 'Self-Hosted'} {data.version}
-    </div>
-  );
+  return <div className="text-xs">Self-Hosted {data.version}</div>;
 };

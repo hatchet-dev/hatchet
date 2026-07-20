@@ -9,7 +9,7 @@ import useControlPlane from '@/hooks/use-control-plane';
 import {
   Organization,
   OrganizationTenant,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { useUserUniverse } from '@/providers/user-universe';
@@ -84,8 +84,8 @@ export function NewOrganizationSaverForm({
   defaultTenantName,
   afterSave,
 }: NewOrganizationSaverFormProps) {
-  const { isLoaded: isUserUniverseLoaded, isCloudEnabled } = useUserUniverse();
-  const { isControlPlaneEnabled } = useControlPlane();
+  const { isLoaded: isUserUniverseLoaded, isControlPlaneEnabled } =
+    useUserUniverse();
   const orgApi = useOrganizationApi();
 
   const shardsQuery = useQuery({
@@ -100,8 +100,8 @@ export function NewOrganizationSaverForm({
   }
 
   invariant(
-    isCloudEnabled,
-    'Organizations only exist in the cloud environment, thus the NewOrganizationSaverForm should never be rendered except in the cloud environment.  If this throws, a UI dev made a mistake.',
+    isControlPlaneEnabled,
+    'NewOrganizationSaverForm requires the control plane',
   );
 
   return (

@@ -1,6 +1,6 @@
 import { useUserUniverse } from './user-universe';
 import { Tenant, User } from '@/lib/api';
-import type { OrganizationForUserList } from '@/lib/api/generated/cloud/data-contracts';
+import type { OrganizationForUserList } from '@/lib/api/generated/control-plane/data-contracts';
 import type { TenantMember } from '@/lib/api/generated/data-contracts';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
@@ -37,13 +37,13 @@ type UserUniverseData =
     }
   | {
       isUserUniverseLoaded: true;
-      isCloudEnabled: true;
+      isControlPlaneEnabled: true;
       membership: string | undefined;
       organizations: OrganizationForUserList['rows'];
     }
   | {
       isUserUniverseLoaded: true;
-      isCloudEnabled: false;
+      isControlPlaneEnabled: false;
       membership: string | undefined;
       organizations: undefined;
     };
@@ -106,13 +106,13 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     isLoaded: isUserUniverseLoaded,
     organizations,
     tenantMemberships,
-    isCloudEnabled: userUniverseIsCloudEnabled,
+    isControlPlaneEnabled: userUniverseIsControlPlaneEnabled,
   } = useUserUniverse();
 
   const organizationScopedTenantId = useMemo(() => {
     if (
       !organizationParamInPath ||
-      !userUniverseIsCloudEnabled ||
+      !userUniverseIsControlPlaneEnabled ||
       !organizations
     ) {
       return undefined;
@@ -137,7 +137,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     return organization.tenants[0]?.id;
   }, [
     organizationParamInPath,
-    userUniverseIsCloudEnabled,
+    userUniverseIsControlPlaneEnabled,
     organizations,
     lastTenant?.metadata.id,
   ]);
@@ -204,11 +204,11 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
       };
     }
 
-    if (userUniverseIsCloudEnabled) {
+    if (userUniverseIsControlPlaneEnabled) {
       return {
         ...baseValue,
         isUserUniverseLoaded: true,
-        isCloudEnabled: true,
+        isControlPlaneEnabled: true,
         membership: validTenantMembership?.role,
         organizations: organizations || [],
       };
@@ -217,7 +217,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     return {
       ...baseValue,
       isUserUniverseLoaded: true,
-      isCloudEnabled: false,
+      isControlPlaneEnabled: false,
       membership: validTenantMembership?.role,
       organizations: undefined,
     };
@@ -231,7 +231,7 @@ export function AppContextProvider({ children }: AppContextProviderProps) {
     tenant,
     tenantParamInPath,
     isUserUniverseLoaded,
-    userUniverseIsCloudEnabled,
+    userUniverseIsControlPlaneEnabled,
     validTenantMembership?.role,
     organizations,
   ]);

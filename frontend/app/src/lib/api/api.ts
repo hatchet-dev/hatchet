@@ -128,6 +128,10 @@ export const controlPlaneMetaQuery = {
     try {
       return await controlPlaneApi.metadataGet();
     } catch {
+      console.log('\x1b[33m🪓 Thanks for self-hosting Hatchet!\x1b[0m');
+      console.log('For support, please contact support@hatchet.run,');
+      console.log('Join our Discord server at https://hatchet.run/discord,');
+      console.log('or visit https://docs.hatchet.run/self-hosting');
       return null;
     }
   },

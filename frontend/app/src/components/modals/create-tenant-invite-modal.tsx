@@ -31,7 +31,7 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantMember, TenantMemberRole } from '@/lib/api';
-import { TenantStatusType } from '@/lib/api/generated/cloud/data-contracts';
+import { TenantStatusType } from '@/lib/api/generated/control-plane/data-contracts';
 import {
   CreateTenantInviteRequest,
   TenantInvite,
@@ -128,7 +128,7 @@ type CreateTenantInviteFormProps = {
   isLoading: boolean;
   fieldErrors?: Record<string, string>;
   formErrors?: string[];
-  isCloudEnabled?: boolean;
+  isControlPlaneEnabled?: boolean;
   defaultEmail?: string;
   defaultTenantId?: string;
   tenantOptions?: TenantOption[];
@@ -149,7 +149,7 @@ const CreateTenantInviteForm = ({
   const showTenantSelect = props.tenantOptions !== undefined;
 
   const schema = useMemo(() => {
-    const availableRoles = props.isCloudEnabled
+    const availableRoles = props.isControlPlaneEnabled
       ? [TenantMemberRole.ADMIN, TenantMemberRole.MEMBER]
       : [
           TenantMemberRole.OWNER,
@@ -168,7 +168,7 @@ const CreateTenantInviteForm = ({
         ? z.string({ required_error: 'Select a tenant' }).min(1)
         : z.string().optional(),
     });
-  }, [props.isCloudEnabled, showTenantSelect]);
+  }, [props.isControlPlaneEnabled, showTenantSelect]);
 
   const {
     register,
@@ -320,7 +320,7 @@ const CreateTenantInviteForm = ({
                           <SelectValue id="role" placeholder="Role..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {!props.isCloudEnabled && (
+                          {!props.isControlPlaneEnabled && (
                             <SelectItem value="OWNER">Owner</SelectItem>
                           )}
                           <SelectItem value="ADMIN">Admin</SelectItem>
@@ -359,7 +359,7 @@ export const CreateTenantInviteModal = ({
   onClose: () => void;
   onCreated: (tenantId: string, invite: TenantInvite) => void;
 }) => {
-  const { isCloudEnabled } = useOrganizations();
+  const { isControlPlaneEnabled } = useOrganizations();
   // `fieldErrors` is only for the client-side duplicate-member guard below.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formErrors, setFormErrors] = useState<string[]>([]);
@@ -523,7 +523,7 @@ export const CreateTenantInviteModal = ({
         }}
         fieldErrors={fieldErrors}
         formErrors={formErrors}
-        isCloudEnabled={isCloudEnabled}
+        isControlPlaneEnabled={isControlPlaneEnabled}
         defaultEmail={defaultEmail}
         defaultTenantId={needsTenantSelect ? tenantId : undefined}
         tenantOptions={tenantOptions}

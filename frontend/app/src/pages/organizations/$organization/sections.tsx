@@ -1,5 +1,5 @@
 import {
-  CloudOrganizationSettings,
+  OrganizationSettings,
   OrganizationSettingsSection,
 } from '@/pages/main/v1/tenant-settings/organization';
 import { appRoutes } from '@/router';
@@ -14,7 +14,7 @@ function OrganizationSectionPage({
     from: appRoutes.organizationsRoute.to,
   });
 
-  return <CloudOrganizationSettings orgId={organization} section={section} />;
+  return <OrganizationSettings orgId={organization} section={section} />;
 }
 
 export function OrganizationTenantsPage() {

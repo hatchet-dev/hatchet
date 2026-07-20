@@ -20,7 +20,7 @@ import {
 } from '@/components/v1/cloud/observability/trace-search';
 import { Loading } from '@/components/v1/ui/loading';
 import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
-import useCloud from '@/hooks/use-cloud';
+import useControlPlane from '@/hooks/use-control-plane';
 import api from '@/lib/api/api';
 import { docsPages } from '@/lib/generated/docs';
 import useApiMeta from '@/pages/auth/hooks/use-api-meta';
@@ -157,7 +157,7 @@ export const Observability = (props: ObservabilityProps) => {
 
   const runExternalId = props.taskRunId ?? props.workflowRunExternalId;
   const { tenant } = useParams({ from: appRoutes.tenantRoute.to });
-  const { isCloudEnabled } = useCloud(tenant);
+  const { isControlPlaneEnabled } = useControlPlane(tenant);
   const { meta } = useApiMeta();
 
   const { queryString, setQueryString } = useRunDetailSearch();
@@ -316,7 +316,7 @@ export const Observability = (props: ObservabilityProps) => {
           <div className="py-4 text-sm text-muted-foreground">
             No spans match the current filter.
           </div>
-        ) : !isCloudEnabled && !meta?.observabilityEnabled ? (
+        ) : !isControlPlaneEnabled && !meta?.observabilityEnabled ? (
           <OnboardingCard
             icon={<Activity className="size-4" />}
             title="Enable Observability"

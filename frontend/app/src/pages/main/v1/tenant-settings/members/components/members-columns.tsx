@@ -1,6 +1,5 @@
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
 import { TableRowActions } from '@/components/v1/molecules/data-table/data-table-row-actions';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { TenantMember } from '@/lib/api';
 import { useTenantApi } from '@/lib/api/tenant-wrapper';
@@ -30,7 +29,6 @@ export function MemberActions({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { handleApiError } = useApiError({});
   const { meta } = useApiMeta();
-  const { isCloudEnabled } = useCloud();
   const { isControlPlaneEnabled } = useControlPlane();
 
   const { tenantMemberDeleteMutation } = useTenantApi();
@@ -62,7 +60,7 @@ export function MemberActions({
     isManuallyAdded &&
     member.user.email !== user?.email &&
     meta?.allowInvites &&
-    !(isCloudEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
+    !(isControlPlaneEnabled && isOwnerRole); // Hide delete option for OWNER in cloud mode
 
   const canChangePassword =
     member.user.email === user?.email && meta?.allowChangePassword;

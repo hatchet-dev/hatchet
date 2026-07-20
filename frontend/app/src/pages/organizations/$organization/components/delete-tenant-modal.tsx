@@ -8,7 +8,7 @@ import {
 import { Input } from '@/components/v1/ui/input';
 import { Spinner } from '@/components/v1/ui/loading';
 import { useOrganizations } from '@/hooks/use-organizations';
-import { OrganizationTenant } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationTenant } from '@/lib/api/generated/control-plane/data-contracts';
 import { useState, useEffect } from 'react';
 
 interface DeleteTenantModalProps {

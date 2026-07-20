@@ -6,8 +6,8 @@ import {
   DialogTitle,
 } from '@/components/v1/ui/dialog';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
-import { getCloudMetadataQuery } from '@/hooks/use-cloud';
-import type { APICloudMetadata } from '@/lib/api/generated/cloud/data-contracts';
+import useControlPlane from '@/hooks/use-control-plane';
+import { cloudApi } from '@/lib/api/api';
 import {
   buildRedirectFrontendHref,
   parseRedirectFrontendOrigin,
@@ -15,26 +15,18 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
-type CloudMetadataQueryData = APICloudMetadata & {
-  isLegacyCloudEnabled?: boolean;
-};
-
-function isCloudEnabledMetadata(data: unknown): data is CloudMetadataQueryData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    (data as CloudMetadataQueryData).isLegacyCloudEnabled === true
-  );
-}
-
 export function DomainRedirectModal() {
-  const { data } = useQuery(getCloudMetadataQuery);
+  const { isControlPlaneEnabled, isControlPlaneLoading } = useControlPlane();
+  const { data } = useQuery({
+    queryKey: ['domain-redirect-metadata:get'],
+    queryFn: async () => (await cloudApi.metadataGet()).data,
+    enabled: !isControlPlaneLoading && !isControlPlaneEnabled,
+    retry: false,
+    staleTime: 1000 * 60,
+  });
 
   const targetOrigin = useMemo(() => {
-    if (!isCloudEnabledMetadata(data)) {
-      return null;
-    }
-    const raw = data.redirectFrontendHost?.trim();
+    const raw = data?.redirectFrontendHost?.trim();
     if (!raw) {
       return null;
     }

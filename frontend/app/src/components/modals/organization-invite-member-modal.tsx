@@ -24,7 +24,7 @@ import {
   OrganizationInviteStatus,
   OrganizationMemberRoleType,
   TenantStatusType,
-} from '@/lib/api/generated/cloud/data-contracts';
+} from '@/lib/api/generated/control-plane/data-contracts';
 import { OrganizationInviteTenantRole } from '@/lib/api/generated/control-plane/data-contracts';
 import {
   OrganizationInviteCreateRequest,

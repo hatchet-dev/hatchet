@@ -34,7 +34,6 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/v1/ui/tabs';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, {
@@ -55,12 +54,12 @@ import { ReactNode, useMemo, useState } from 'react';
 import invariant from 'tiny-invariant';
 
 export default function Integrations() {
-  const { cloud, featureFlags } = useCloud();
+  const { controlPlaneCapabilities, featureFlags } = useControlPlane();
   const integrations = useApiMetaIntegrations();
 
   const hasEmailIntegration = integrations?.find((i) => i.name === 'email');
   const hasSlackIntegration = integrations?.find((i) => i.name === 'slack');
-  const hasGithubIntegration = cloud?.canLinkGithub;
+  const hasGithubIntegration = controlPlaneCapabilities?.canLinkGithub;
   const managedWorkerEnabled = featureFlags?.['managed-worker'] === 'true';
 
   return (

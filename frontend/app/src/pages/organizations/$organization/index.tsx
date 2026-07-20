@@ -1,4 +1,4 @@
-import { CloudOrganizationSettings } from '@/pages/main/v1/tenant-settings/organization';
+import { OrganizationSettings } from '@/pages/main/v1/tenant-settings/organization';
 import { appRoutes } from '@/router';
 import { useParams } from '@tanstack/react-router';
 
@@ -7,5 +7,5 @@ export default function OrganizationPage() {
     from: appRoutes.organizationsRoute.to,
   });
 
-  return <CloudOrganizationSettings orgId={organization} section="general" />;
+  return <OrganizationSettings orgId={organization} section="general" />;
 }

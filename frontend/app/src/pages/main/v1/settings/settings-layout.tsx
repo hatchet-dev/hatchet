@@ -1,6 +1,5 @@
 import { settingsNavGroups } from './settings-nav-items';
 import { Button } from '@/components/v1/ui/button';
-import useCloud from '@/hooks/use-cloud';
 import useControlPlane from '@/hooks/use-control-plane';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useTenantDetails } from '@/hooks/use-tenant';
@@ -15,8 +14,8 @@ import { Link, useMatchRoute, useParams } from '@tanstack/react-router';
 export default function SettingsLayout() {
   const { tenantId, organizationId } = useTenantDetails();
   const params = useParams({ strict: false });
-  const { cloud, isCloudEnabled } = useCloud(tenantId);
-  const { isControlPlaneEnabled } = useControlPlane();
+  const { controlPlaneCapabilities, isControlPlaneEnabled } =
+    useControlPlane(tenantId);
   const { organizations } = useOrganizations();
   const { meta } = useApiMeta();
   const matchRoute = useMatchRoute();
@@ -34,8 +33,7 @@ export default function SettingsLayout() {
   const groups = settingsNavGroups({
     tenantId,
     orgId,
-    canBill: cloud?.canBill,
-    isCloudEnabled,
+    canBill: controlPlaneCapabilities?.canBill,
     isControlPlaneEnabled,
     isOrganizationOwner,
     canManageSso,

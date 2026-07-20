@@ -4,7 +4,7 @@ import { Button } from '@/components/v1/ui/button';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { TenantMember } from '@/lib/api';
-import { OrganizationForUser } from '@/lib/api/generated/cloud/data-contracts';
+import { OrganizationForUser } from '@/lib/api/generated/control-plane/data-contracts';
 import { useUserApi } from '@/lib/api/user-wrapper';
 import { lastTenantAtom } from '@/lib/atoms';
 import { getOptionalStringParam } from '@/lib/router-helpers';
@@ -104,7 +104,7 @@ export function TenantForbidden() {
   const queryClient = useQueryClient();
 
   const { currentUser } = useCurrentUser();
-  const { tenantMemberships, isCloudEnabled } = useUserUniverse();
+  const { tenantMemberships, isControlPlaneEnabled } = useUserUniverse();
   const { organizations, getOrganizationForTenant, isTenantArchivedInOrg } =
     useOrganizations();
 
@@ -137,16 +137,16 @@ export function TenantForbidden() {
         if (!id || id === tenant) {
           return false;
         }
-        if (isCloudEnabled && isTenantArchivedInOrg(id)) {
+        if (isControlPlaneEnabled && isTenantArchivedInOrg(id)) {
           return false;
         }
         return true;
       }) || [],
-    [tenantMemberships, tenant, isCloudEnabled, isTenantArchivedInOrg],
+    [tenantMemberships, tenant, isControlPlaneEnabled, isTenantArchivedInOrg],
   );
 
   const { orgGroups, standaloneTenants } = useMemo(() => {
-    if (!isCloudEnabled) {
+    if (!isControlPlaneEnabled) {
       return { orgGroups: [], standaloneTenants: availableTenants };
     }
 
@@ -181,7 +181,7 @@ export function TenantForbidden() {
 
     return { orgGroups: groups, standaloneTenants: standalone };
   }, [
-    isCloudEnabled,
+    isControlPlaneEnabled,
     availableTenants,
     organizations,
     getOrganizationForTenant,
