@@ -27,6 +27,7 @@ type RunsClient interface {
 	GetStatus(ctx context.Context, runId string) (*rest.V1WorkflowRunGetStatusResponse, error)
 
 	// GetDetails retrieves detailed information about a workflow run by its ID.
+	//
 	// Deprecated: Use Get instead.
 	GetDetails(ctx context.Context, runId string) (*rest.V1WorkflowRunGetResponse, error)
 

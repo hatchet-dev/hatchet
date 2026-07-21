@@ -135,65 +135,26 @@ w.RegisterWorkflow(
 
 ### Tuning Buffer Settings
 
-Hatchet has configurable write buffers which enable it to reduce the total number of database queries by batching DB writes. This speeds up throughput dramatically at the expense of a slight increase in latency. In general, increasing the buffer size and reducing the buffer flush frequency reduces the CPU load on the DB.
-
-The two most important configurable settings for the buffers are
-
-1. **Flush Period:** The amount of milliseconds to wait between subsequent writes to the database
-
-2. **Max Buffer Size:** The maximum size of the internal buffer writing to the database.
-
-The following environment variables are all configurable:
+Hatchet batches message-queue writes to cut down on round-trips to the broker and database. These settings are the defaults for the publish (outgoing) and subscribe (incoming) buffers, which batch messages per `(queue, tenant, message)`:
 
 ```sh
-# Default values if the values below are not set
-SERVER_FLUSH_PERIOD_MILLISECONDS
-SERVER_FLUSH_ITEMS_THRESHOLD
+# Max messages a buffer accumulates before flushing early (default: 10)
+SERVER_DEFAULT_BUFFER_SIZE=10
 
-# Settings for writing workflow runs to the database
-SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
-SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD
+# How long a buffer waits before flushing what it has accumulated (default: 10ms)
+SERVER_DEFAULT_BUFFER_FLUSH_INTERVAL=10ms
 
-# Settings for writing events to the database
-SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS
-SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD
-
-# Settings for releasing slots for workers
-SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS
-SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD
-
-# Settings for writing queue items to the database
-SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS
-SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD
+# Max concurrent in-flight flushes (default: 1 for the publish buffer, 10 for the subscribe buffer)
+SERVER_DEFAULT_BUFFER_CONCURRENCY=10
 ```
 
-A buffer configuration for higher throughput might look like the following:
+Larger buffer sizes and longer flush intervals batch more work per write, which lowers broker and database load at the cost of a small increase in latency. Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
 
-```sh
-
-# Default values if the values below are not set
-SERVER_FLUSH_PERIOD_MILLISECONDS=250
-SERVER_FLUSH_ITEMS_THRESHOLD=1000
-
-# Settings for writing workflow runs to the database
-SERVER_WORKFLOWRUNBUFFER_FLUSH_PERIOD_MILLISECONDS=100
-SERVER_WORKFLOWRUNBUFFER_FLUSH_ITEMS_THRESHOLD=500
-
-# Settings for writing events to the database
-SERVER_EVENTBUFFER_FLUSH_PERIOD_MILLISECONDS=1000
-SERVER_EVENTBUFFER_FLUSH_ITEMS_THRESHOLD=1000
-
-# Settings for releasing slots for workers
-SERVER_RELEASESEMAPHOREBUFFER_FLUSH_PERIOD_MILLISECONDS=100
-SERVER_RELEASESEMAPHOREBUFFER_FLUSH_ITEMS_THRESHOLD=200
-
-# Settings for writing queue items to the database
-SERVER_QUEUESTEPRUNBUFFER_FLUSH_PERIOD_MILLISECONDS=100
-SERVER_QUEUESTEPRUNBUFFER_FLUSH_ITEMS_THRESHOLD=500
-
-```
-
-Benchmarking and tuning on your own infrastructure is recommended to find the optimal values for your workload and use case.
+<Callout type="info">
+  These are defaults. Some internal subscribers pin their own values: the shared
+  tenant reader fixes its flush interval and concurrency, so only
+  `SERVER_DEFAULT_BUFFER_SIZE` affects it.
+</Callout>
 
 ## Slow Time to Start
 

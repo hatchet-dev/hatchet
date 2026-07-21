@@ -15,6 +15,12 @@ Extended by
 
 - [`DurableContext`](#durablecontext)
 
+Properties
+
+| Property                                          | Type     | Default value | Description                                                       |
+| ------------------------------------------------- | -------- | ------------- | ----------------------------------------------------------------- |
+| <a id="property-spawnindex"></a> ~~`spawnIndex`~~ | `number` | `0`           | **Deprecated** — kept for backward compat; prefer nextChildIndex. |
+
 #### Methods
 
 <a id="additionalmetadata"></a>
@@ -308,6 +314,30 @@ Returns
 
 True if the workflow was triggered by an event, otherwise false.
 
+<a id="triggeringeventid"></a>
+
+##### `triggeringEventId()`
+
+Gets the external ID of the event that triggered this workflow run, if any.
+
+Returns
+
+`string` \| `undefined`
+
+The triggering event external ID, or undefined if the workflow was not triggered by an event.
+
+<a id="triggeringeventkey"></a>
+
+##### `triggeringEventKey()`
+
+Gets the key of the event that triggered this workflow run, if any.
+
+Returns
+
+`string` \| `undefined`
+
+The triggering event key, or undefined if the workflow was not triggered by an event.
+
 <a id="triggers"></a>
 
 ##### `triggers()`
@@ -500,10 +530,43 @@ Duration is "global" meaning it will wait in real time regardless of transient f
 
 Parameters
 
+| Parameter  | Type              | Description                |
+| ---------- | ----------------- | -------------------------- |
+| `duration` | `Duration`        | The duration to sleep for. |
+| `options?` | `SleepForOptions` | -                          |
+
+Returns
+
+`Promise`\<`SleepResult`\>
+
+A promise that resolves with a SleepResult when the sleep duration has elapsed.
+
+Pauses execution for the specified duration.
+Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
+
+Parameters
+
 | Parameter          | Type       | Description                |
 | ------------------ | ---------- | -------------------------- |
 | `duration`         | `Duration` | The duration to sleep for. |
 | `readableDataKey?` | `string`   | -                          |
+
+Returns
+
+`Promise`\<`SleepResult`\>
+
+A promise that resolves with a SleepResult when the sleep duration has elapsed.
+
+Pauses execution for the specified duration.
+Duration is "global" meaning it will wait in real time regardless of transient failures like worker restarts.
+
+Parameters
+
+| Parameter          | Type       | Description                                                                     |
+| ------------------ | ---------- | ------------------------------------------------------------------------------- |
+| `duration`         | `Duration` | The duration to sleep for.                                                      |
+| `readableDataKey?` | `string`   | -                                                                               |
+| `label?`           | `string`   | Optional wait label used when readableDataKey is passed as the second argument. |
 
 Returns
 
@@ -580,6 +643,7 @@ Parameters
 | Parameter    | Type                           | Description                 |
 | ------------ | ------------------------------ | --------------------------- |
 | `conditions` | `Conditions` \| `Conditions`[] | The conditions to wait for. |
+| `label?`     | `string`                       | -                           |
 
 Returns
 
@@ -598,15 +662,18 @@ For more complicated conditions, use `ctx.waitFor` directly.
 
 Parameters
 
-| Parameter        | Type     | Description                                                     |
-| ---------------- | -------- | --------------------------------------------------------------- |
-| `key`            | `string` | The event key to wait for.                                      |
-| `expression?`    | `string` | An optional CEL expression to filter events.                    |
-| `payloadSchema?` | `T`      | An optional Zod schema to validate and parse the event payload. |
+| Parameter         | Type        | Description                                                     |
+| ----------------- | ----------- | --------------------------------------------------------------- |
+| `key`             | `string`    | The event key to wait for.                                      |
+| `expression?`     | `string`    | An optional CEL expression to filter events.                    |
+| `payloadSchema?`  | `undefined` | An optional Zod schema to validate and parse the event payload. |
+| `scope?`          | `string`    | -                                                               |
+| `lookbackWindow?` | `Duration`  | -                                                               |
+| `label?`          | `string`    | -                                                               |
 
 Returns
 
-`Promise`\<`TypeOf`\<`T`\>\>
+`Promise`\<`Record`\<`string`, `any`\>\>
 
 The event payload, validated against the schema if provided.
 
@@ -617,13 +684,17 @@ For more complicated conditions, use `ctx.waitFor` directly.
 
 Parameters
 
-| Parameter     | Type     | Description                                  |
-| ------------- | -------- | -------------------------------------------- |
-| `key`         | `string` | The event key to wait for.                   |
-| `expression?` | `string` | An optional CEL expression to filter events. |
+| Parameter         | Type       | Description                                                     |
+| ----------------- | ---------- | --------------------------------------------------------------- |
+| `key`             | `string`   | The event key to wait for.                                      |
+| `expression?`     | `string`   | An optional CEL expression to filter events.                    |
+| `payloadSchema?`  | `T`        | An optional Zod schema to validate and parse the event payload. |
+| `scope?`          | `string`   | -                                                               |
+| `lookbackWindow?` | `Duration` | -                                                               |
+| `label?`          | `string`   | -                                                               |
 
 Returns
 
-`Promise`\<`Record`\<`string`, `any`\>\>
+`Promise`\<`output`\<`T`\>\>
 
 The event payload, validated against the schema if provided.

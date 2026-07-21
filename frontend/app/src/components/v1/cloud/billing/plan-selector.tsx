@@ -161,7 +161,7 @@ export function PlanSelector({
           '100M+ runs per month',
           'Custom SLAs & uptime guarantees',
           'Dedicated support & onboarding',
-          'SSO / SAML & audit logging',
+          'SSO & audit logging',
           'Bring your own cloud',
         ]}
         onSelect={() => window.open(enterpriseContactUrl, '_blank')}

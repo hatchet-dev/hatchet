@@ -28,7 +28,7 @@ WITH inputs AS (
             FROM deduplicated_potential_claims
         )
     ORDER BY tenant_id, expires_at, key
-    FOR UPDATE SKIP LOCKED
+    FOR UPDATE
 ), claimable_keys AS (
     SELECT *
     FROM locked_existing_keys
