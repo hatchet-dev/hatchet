@@ -23,7 +23,7 @@ module HatchetSdkRest
     # Create SNS integration
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
-    # @option opts [CreateSNSIntegrationRequest] :create_sns_integration_request 
+    # @option opts [CreateSNSIntegrationRequest] :create_sns_integration_request
     # @return [SNSIntegration]
     def sns_create(tenant, opts = {})
       data, _status_code, _headers = sns_create_with_http_info(tenant, opts)
@@ -34,7 +34,7 @@ module HatchetSdkRest
     # Create SNS integration
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
-    # @option opts [CreateSNSIntegrationRequest] :create_sns_integration_request 
+    # @option opts [CreateSNSIntegrationRequest] :create_sns_integration_request
     # @return [Array<(SNSIntegration, Integer, Hash)>] SNSIntegration data, response status code and response headers
     def sns_create_with_http_info(tenant, opts = {})
       if @api_client.config.debugging

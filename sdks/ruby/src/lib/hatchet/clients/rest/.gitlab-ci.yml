@@ -23,4 +23,3 @@ gem:
   artifacts:
     paths:
       - pkg/*.gem
-

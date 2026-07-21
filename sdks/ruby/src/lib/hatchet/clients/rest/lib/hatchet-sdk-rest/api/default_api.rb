@@ -332,7 +332,7 @@ module HatchetSdkRest
     # Creates a webhook
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
-    # @option opts [WebhookWorkerCreateRequest] :webhook_worker_create_request 
+    # @option opts [WebhookWorkerCreateRequest] :webhook_worker_create_request
     # @return [WebhookWorkerCreated]
     def webhook_create(tenant, opts = {})
       data, _status_code, _headers = webhook_create_with_http_info(tenant, opts)
@@ -343,7 +343,7 @@ module HatchetSdkRest
     # Creates a webhook
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
-    # @option opts [WebhookWorkerCreateRequest] :webhook_worker_create_request 
+    # @option opts [WebhookWorkerCreateRequest] :webhook_worker_create_request
     # @return [Array<(WebhookWorkerCreated, Integer, Hash)>] WebhookWorkerCreated data, response status code and response headers
     def webhook_create_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
