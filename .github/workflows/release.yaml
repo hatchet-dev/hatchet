@@ -47,7 +47,7 @@ jobs:
         optimistic-scheduling: ["true", "false"]
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.verify.outputs.tag }}
           fetch-depth: 0
@@ -150,6 +150,18 @@ jobs:
             ghcr.io/hatchet-dev/hatchet/hatchet-lite:${{steps.tag_name.outputs.tag}}-arm64
 
           docker manifest push ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+      - name: Pull and push dev images
+        run: |
+          for img in hatchet-api hatchet-engine hatchet-admin hatchet-lite hatchet-dashboard; do
+            docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64
+            docker pull ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64
+
+            docker manifest create ghcr.io/hatchet-dev/hatchet/$img-dev:latest \
+              ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-amd64 \
+              ghcr.io/hatchet-dev/hatchet/$img-dev:${{steps.tag_name.outputs.tag}}-arm64
+
+            docker manifest push ghcr.io/hatchet-dev/hatchet/$img-dev:latest
+          done
       - name: Pull and push hatchet-dashboard
         run: |
           docker pull ghcr.io/hatchet-dev/hatchet/hatchet-dashboard:${{steps.tag_name.outputs.tag}}-arm64

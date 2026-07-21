@@ -82,8 +82,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 	// but might not in the future
 	actions, err := getActionsForTasks(createOpts)
 
-	if tenant.SchedulerPartitionId.Valid && err == nil {
-		go func() {
+	switch {
+	case tenant.SchedulerPartitionId.Valid && err == nil:
+		go func() { // #nosec G118 -- intentionally decoupled from request context so notification survives the response, bounded by its own timeout
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -109,9 +110,9 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				}
 			}
 		}()
-	} else if err != nil {
+	case err != nil:
 		a.l.Warn().Ctx(ctx).Err(err).Msgf("could not get actions for tasks for workflow version %s, skipping notifying new queues for tenant %s", currWorkflow.WorkflowVersion.ID.String(), tenantId)
-	} else if !tenant.SchedulerPartitionId.Valid {
+	case !tenant.SchedulerPartitionId.Valid:
 		a.l.Debug().Ctx(ctx).Msgf("tenant %s does not have a valid scheduler partition id, skipping notifying new queues for workflow version %s", tenantId, currWorkflow.WorkflowVersion.ID.String())
 	}
 

@@ -36,6 +36,70 @@ RETURNS v1_readable_status_olap IMMUTABLE LANGUAGE sql AS $$
     END::v1_readable_status_olap;
 $$;
 
+-- Mirrors the body of the convert_duration_to_interval migration so sqlc can
+-- resolve the function during codegen. Keep both definitions in sync.
+CREATE OR REPLACE FUNCTION convert_duration_to_interval(duration text) RETURNS interval AS $$
+DECLARE
+    rest text;
+    total_seconds double precision := 0;
+    m text[];
+    val double precision;
+    unit text;
+    factor double precision;
+BEGIN
+    IF duration IS NULL OR length(duration) = 0 THEN
+        RETURN '5 minutes'::interval;
+    END IF;
+
+    m := regexp_match(duration, '^([0-9]{1,8})(d|w|y)$');
+    IF m IS NOT NULL THEN
+        val := m[1]::double precision;
+        unit := m[2];
+        CASE unit
+            WHEN 'd' THEN RETURN make_interval(days => val::int);
+            WHEN 'w' THEN RETURN make_interval(days => (val * 7)::int);
+            WHEN 'y' THEN RETURN make_interval(months => (val * 12)::int);
+        END CASE;
+    END IF;
+
+    rest := duration;
+
+    LOOP
+        EXIT WHEN length(rest) = 0;
+
+        m := regexp_match(rest, '^([0-9]+(?:\.[0-9]*)?|\.[0-9]+)(ms|s|m|h)');
+
+        IF m IS NULL THEN
+            RETURN '5 minutes'::interval;
+        END IF;
+
+        IF length(m[1]) > 15 THEN
+            RAISE EXCEPTION 'duration % has a numeric component exceeding 15 digits', duration;
+        END IF;
+
+        val := m[1]::double precision;
+        unit := m[2];
+
+        CASE unit
+            WHEN 'ms' THEN factor := 1e-3;
+            WHEN 's' THEN factor := 1;
+            WHEN 'm' THEN factor := 60;
+            WHEN 'h' THEN factor := 3600;
+        END CASE;
+
+        total_seconds := total_seconds + val * factor;
+
+        rest := substring(rest from length(m[1]) + length(m[2]) + 1);
+    END LOOP;
+
+    IF total_seconds > 9223372036 THEN
+        RAISE EXCEPTION 'duration % exceeds maximum supported value (~292 years)', duration;
+    END IF;
+
+    RETURN make_interval(secs => total_seconds);
+END;
+$$ LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE;
+
 -- HELPER FUNCTIONS FOR PARTITIONED TABLES --
 CREATE OR REPLACE FUNCTION get_v1_partitions_before_date(
     targetTableName text,
@@ -156,13 +220,18 @@ CREATE TABLE v1_tasks_olap (
     dag_inserted_at TIMESTAMPTZ,
     parent_task_external_id UUID,
     is_durable BOOLEAN NOT NULL DEFAULT FALSE,
+    idempotency_key TEXT,
 
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX v1_tasks_olap_workflow_id_idx ON v1_tasks_olap (tenant_id, workflow_id);
-
 CREATE INDEX v1_tasks_olap_worker_id_idx ON v1_tasks_olap (tenant_id, latest_worker_id) WHERE latest_worker_id IS NOT NULL;
+CREATE INDEX ix_v1_tasks_olap_idempotency_key ON v1_tasks_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
+
+-- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
+-- supports containment, which is all the list/count queries use.
+CREATE INDEX ix_v1_tasks_olap_additional_metadata_gin ON v1_tasks_olap USING gin (additional_metadata jsonb_path_ops);
 
 -- DAG DEFINITIONS --
 CREATE TABLE v1_dags_olap (
@@ -178,6 +247,7 @@ CREATE TABLE v1_dags_olap (
     additional_metadata JSONB,
     parent_task_external_id UUID,
     total_tasks INT NOT NULL DEFAULT 1,
+    idempotency_key TEXT,
     PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
@@ -187,7 +257,6 @@ CREATE INDEX v1_dags_olap_workflow_id_idx ON v1_dags_olap (tenant_id, workflow_i
 CREATE TYPE v1_run_kind AS ENUM ('TASK', 'DAG');
 
 -- v1_runs_olap represents an invocation of a workflow. it can either refer to a DAG or a task.
--- we partition this table on status to allow for efficient querying of tasks in different states.
 CREATE TABLE v1_runs_olap (
     tenant_id UUID NOT NULL,
     id BIGINT NOT NULL,
@@ -199,12 +268,18 @@ CREATE TABLE v1_runs_olap (
     workflow_version_id UUID NOT NULL,
     additional_metadata JSONB,
     parent_task_external_id UUID,
+    idempotency_key TEXT,
 
-    PRIMARY KEY (inserted_at, id, readable_status, kind)
+    PRIMARY KEY (inserted_at, id)
 ) PARTITION BY RANGE(inserted_at);
 
 CREATE INDEX ix_v1_runs_olap_parent_task_external_id ON v1_runs_olap (parent_task_external_id) WHERE parent_task_external_id IS NOT NULL;
 CREATE INDEX ix_v1_runs_olap_tenant_ins_at_status ON v1_runs_olap (tenant_id, inserted_at DESC, readable_status);
+CREATE INDEX ix_v1_runs_olap_idempotency_key ON v1_runs_olap (idempotency_key, inserted_at) WHERE idempotency_key IS NOT NULL;
+
+-- Backs additional_metadata containment filters (@> / @> ANY). jsonb_path_ops only
+-- supports containment, which is all the list/count queries use.
+CREATE INDEX ix_v1_runs_olap_additional_metadata_gin ON v1_runs_olap USING gin (additional_metadata jsonb_path_ops);
 
 -- LOOKUP TABLES --
 CREATE TABLE v1_lookup_table_olap (
@@ -512,7 +587,7 @@ CREATE TABLE v1_event_to_run_olap (
     PRIMARY KEY (event_id, event_seen_at, run_id, run_inserted_at)
 ) PARTITION BY RANGE(event_seen_at);
 
-CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK');
+CREATE TYPE v1_cel_evaluation_failure_source AS ENUM ('FILTER', 'WEBHOOK', 'IDEMPOTENCY_KEY');
 
 CREATE TABLE v1_cel_evaluation_failures_olap (
     id BIGINT NOT NULL GENERATED ALWAYS AS IDENTITY,
@@ -544,7 +619,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     )
     SELECT
         tenant_id,
@@ -556,7 +632,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     FROM new_rows
     WHERE dag_id IS NULL
     ON CONFLICT (inserted_at, id) DO NOTHING;
@@ -665,7 +742,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     )
     SELECT
         tenant_id,
@@ -677,7 +755,8 @@ BEGIN
         workflow_id,
         workflow_version_id,
         additional_metadata,
-        parent_task_external_id
+        parent_task_external_id,
+        idempotency_key
     FROM new_rows
     ON CONFLICT (inserted_at, id) DO NOTHING;
 
@@ -787,18 +866,37 @@ REFERENCING NEW TABLE AS new_rows
 FOR EACH STATEMENT
 EXECUTE FUNCTION v1_runs_olap_insert_function();
 
+-- We use INSERT INTO rather than UPDATE for ensuring this query is fast on TimescaleDB,
+-- which does not have effective runtime partition pruning on UPDATE and would involve scanning
+-- every partition in v1_statuses_olap.
 CREATE OR REPLACE FUNCTION v1_runs_olap_status_update_function()
 RETURNS TRIGGER AS
 $$
 BEGIN
-    UPDATE
-        v1_statuses_olap s
-    SET
-        readable_status = n.readable_status
-    FROM new_rows n
-    WHERE
-        s.external_id = n.external_id
-        AND s.inserted_at = n.inserted_at;
+    INSERT INTO v1_statuses_olap (
+        external_id,
+        inserted_at,
+        tenant_id,
+        workflow_id,
+        kind,
+        readable_status
+    )
+    -- DISTINCT ON: nothing constraint-enforces (external_id, inserted_at)
+    -- uniqueness across new_rows, and ON CONFLICT DO UPDATE errors if a single
+    -- statement affects the same row twice. On duplicates, keep the
+    -- highest-priority status.
+    SELECT DISTINCT ON (external_id, inserted_at)
+        external_id,
+        inserted_at,
+        tenant_id,
+        workflow_id,
+        kind,
+        readable_status
+    FROM new_rows
+    ORDER BY external_id, inserted_at, v1_status_to_priority(readable_status) DESC
+    ON CONFLICT (external_id, inserted_at) DO UPDATE
+    SET readable_status = EXCLUDED.readable_status
+    WHERE v1_statuses_olap.readable_status IS DISTINCT FROM EXCLUDED.readable_status;
 
     RETURN NULL;
 END;

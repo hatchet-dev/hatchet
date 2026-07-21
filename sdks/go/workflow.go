@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sync"
 	"time"
@@ -148,6 +149,17 @@ func (w *Workflow) GetName() string {
 // WorkflowOption configures a workflow instance.
 type WorkflowOption func(*workflowConfig)
 
+// IdempotencyConfig configures idempotency behavior for a workflow or standalone task.
+// When set, runs triggered with the same computed key within the TTL window return an
+// IdempotencyCollisionError instead of creating a new run.
+type IdempotencyConfig struct {
+	// Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
+	Expression string
+
+	// TTL is the duration during which duplicate runs with the same key are rejected.
+	TTL time.Duration
+}
+
 type workflowConfig struct {
 	onCron          []string
 	onEvents        []string
@@ -159,6 +171,7 @@ type workflowConfig struct {
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
 	defaultFilters  []types.DefaultFilter
+	idempotency     *IdempotencyConfig
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -236,6 +249,15 @@ func WithWorkflowStickyStrategy(stickyStrategy types.StickyStrategy) WorkflowOpt
 	}
 }
 
+// WithWorkflowIdempotency configures idempotency for the workflow.
+// When set, runs triggered with the same computed key within the TTL window return an
+// IdempotencyCollisionError instead of creating a new run.
+func WithWorkflowIdempotency(config IdempotencyConfig) WorkflowOption {
+	return func(c *workflowConfig) {
+		c.idempotency = &config
+	}
+}
+
 // newWorkflow creates a new workflow definition.
 func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOption) *Workflow {
 	config := &workflowConfig{}
@@ -267,6 +289,13 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		createOpts.DefaultPriority = &priority
 	}
 
+	if config.idempotency != nil {
+		createOpts.Idempotency = &create.IdempotencyConfig{
+			Expression: config.idempotency.Expression,
+			TTL:        config.idempotency.TTL,
+		}
+	}
+
 	declaration := internal.NewWorkflowDeclaration[any, any](createOpts, v0Client)
 
 	return &Workflow{
@@ -294,12 +323,13 @@ type taskConfig struct {
 	skipIf                 condition.Condition
 	description            string
 	evictionPolicy         *EvictionPolicy
+	slotCost               *int32
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
 func WithRetries(retries int) TaskOption {
 	return func(config *taskConfig) {
-		config.retries = int32(retries)
+		config.retries = int32(retries) // #nosec G115 -- developer-configured retry count, not attacker-controlled
 	}
 }
 
@@ -307,7 +337,23 @@ func WithRetries(retries int) TaskOption {
 func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 	return func(config *taskConfig) {
 		config.retryBackoffFactor = factor
-		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds)
+		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds) // #nosec G115 -- developer-configured backoff, not attacker-controlled
+	}
+}
+
+// WithSlotCost sets the number of default worker slots this task consumes. A normal task consumes
+// one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at
+// once. A single worker must have that many free slots to run it. Durable tasks ignore it. Panics
+// if cost is not positive.
+func WithSlotCost(cost int) TaskOption {
+	if cost <= 0 || cost > math.MaxInt32 {
+		panic("slot cost must be a positive integer")
+	}
+
+	c := int32(cost)
+
+	return func(config *taskConfig) {
+		config.slotCost = &c
 	}
 }
 
@@ -511,6 +557,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,
 		SkipIf:                 config.skipIf,
+		SlotCost:               config.slotCost,
 	}
 
 	if config.isDurable {
@@ -540,7 +587,9 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task {
-	durableOptions := append(options, withDurable())
+	durableOptions := make([]TaskOption, len(options), len(options)+1)
+	copy(durableOptions, options)
+	durableOptions = append(durableOptions, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
 }
 
@@ -726,6 +775,14 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 	}
 
 	if err != nil {
+		var idempViolation *v0Client.IdempotencyViolationErr
+		if errors.As(err, &idempViolation) {
+			span.SetStatus(codes.Error, err.Error())
+			span.RecordError(err)
+			return nil, &IdempotencyCollisionError{
+				ExistingRunExternalId: idempViolation.ExistingRunExternalId,
+			}
+		}
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return nil, err
@@ -767,7 +824,8 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 	var workflowRefs []WorkflowRunRef
 
 	var wg sync.WaitGroup
-	var errs []error
+	var otherErrs []error
+	var collisions []*IdempotencyCollisionError
 	var errsMutex sync.Mutex
 	var workflowRefsMutex sync.Mutex
 	wg.Add(len(inputs))
@@ -779,7 +837,11 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 			workflowRef, err := w.RunNoWait(originalCtx, input.Input, input.Opts...)
 			if err != nil {
 				errsMutex.Lock()
-				errs = append(errs, err)
+				if collision, ok := IsIdempotencyCollisionError(err); ok {
+					collisions = append(collisions, collision)
+				} else {
+					otherErrs = append(otherErrs, err)
+				}
 				errsMutex.Unlock()
 				return
 			}
@@ -791,9 +853,22 @@ func (w *Workflow) RunMany(ctx context.Context, inputs []RunManyOpt) ([]Workflow
 
 	wg.Wait()
 
-	if err := errors.Join(errs...); err != nil {
+	if err := errors.Join(otherErrs...); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return workflowRefs, err
+	}
+
+	if len(collisions) > 0 {
+		successfulIds := make([]string, 0, len(workflowRefs))
+		for _, ref := range workflowRefs {
+			successfulIds = append(successfulIds, ref.RunId)
+		}
+		bulkErr := &BulkTriggerIdempotencyCollisionError{
+			SuccessfulRunExternalIds: successfulIds,
+			Collisions:               collisions,
+		}
+		span.SetStatus(codes.Error, bulkErr.Error())
+		return workflowRefs, bulkErr
 	}
 
 	span.SetStatus(codes.Ok, "")

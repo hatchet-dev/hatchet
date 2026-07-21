@@ -723,6 +723,12 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 
 	s.pool.NotifyQueues(ctx, tenantId, queues)
 
+	// The in-memory concurrency flush releases the task runtime in-transaction, so the
+	// MsgIDTaskCancelled handler below (handleTaskCancelled -> CancelTasks) can no longer resolve the
+	// worker for a task that was running when it got cancelled. Signal those workers' dispatchers
+	// directly using the worker id captured during the flush, mirroring sendTaskCancellationsToDispatcher.
+	s.signalWorkersToCancelInProgress(ctx, tenantId, res.Cancelled)
+
 	// handle cancellations
 	for _, cancelled := range res.Cancelled {
 		eventType := sqlcv1.V1EventTypeOlapCANCELLED
@@ -738,11 +744,11 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 
 		msg, err := tasktypes.CancelledTaskMessage(
 			tenantId,
-			cancelled.TaskIdInsertedAtRetryCount.Id,
-			cancelled.TaskIdInsertedAtRetryCount.InsertedAt,
+			cancelled.Id,
+			cancelled.InsertedAt,
 			cancelled.TaskExternalId,
 			cancelled.WorkflowRunId,
-			cancelled.TaskIdInsertedAtRetryCount.RetryCount,
+			cancelled.RetryCount,
 			eventType,
 			eventMessage,
 			shouldNotify,
@@ -762,6 +768,74 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 		if err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("could not send cancelled task")
 			continue
+		}
+	}
+}
+
+// signalWorkersToCancelInProgress tells the relevant dispatchers to cancel tasks that were running on
+// a worker when a concurrency strategy cancelled them. The in-memory concurrency flush releases the
+// task runtime in its transaction, so the MsgIDTaskCancelled handler (handleTaskCancelled) can't map
+// these tasks back to a worker; we do it here from the worker id captured during the flush. Tasks that
+// were only queued (no runtime) carry a nil worker id and are skipped - their cancellation still flows
+// through the MsgIDTaskCancelled handler. This mirrors sendTaskCancellationsToDispatcher in the tasks
+// controller.
+func (s *Scheduler) signalWorkersToCancelInProgress(ctx context.Context, tenantId uuid.UUID, cancelled []repov1.TaskWithCancelledReason) {
+	signals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(cancelled))
+	workerIds := make([]uuid.UUID, 0, len(cancelled))
+
+	for _, c := range cancelled {
+		if c.WorkerId == uuid.Nil {
+			continue
+		}
+
+		signals = append(signals, tasktypes.SignalTaskCancelledPayload{
+			TaskId:     c.Id,
+			InsertedAt: c.InsertedAt,
+			RetryCount: c.RetryCount,
+			WorkerId:   c.WorkerId,
+		})
+		workerIds = append(workerIds, c.WorkerId)
+	}
+
+	if len(signals) == 0 {
+		return
+	}
+
+	workerIdToDispatcherId, _, err := s.repov1.Workers().GetDispatcherIdsForWorkers(ctx, tenantId, workerIds)
+
+	if err != nil {
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not list dispatcher ids for cancelled in-progress tasks")
+		return
+	}
+
+	dispatcherIdsToPayloads := make(map[uuid.UUID][]tasktypes.SignalTaskCancelledPayload)
+
+	for _, sig := range signals {
+		dispatcherId, ok := workerIdToDispatcherId[sig.WorkerId]
+
+		if !ok {
+			continue
+		}
+
+		dispatcherIdsToPayloads[dispatcherId] = append(dispatcherIdsToPayloads[dispatcherId], sig)
+	}
+
+	for dispatcherId, payloads := range dispatcherIdsToPayloads {
+		msg, err := msgqueue.NewTenantMessage(
+			tenantId,
+			msgqueue.MsgIDTaskCancelled,
+			false,
+			true,
+			payloads...,
+		)
+
+		if err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not create task cancellation signal for dispatcher")
+			continue
+		}
+
+		if err := s.mq.SendMessage(ctx, msgqueue.QueueTypeFromDispatcherID(dispatcherId), msg); err != nil {
+			s.l.Error().Ctx(ctx).Err(err).Msg("could not send task cancellation signal to dispatcher")
 		}
 	}
 }

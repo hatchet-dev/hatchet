@@ -20,7 +20,7 @@ const (
 	HatchetNameErr = "Hatchet names must match the regex ^[a-zA-Z0-9\\.\\-_]+$"
 	ActionIDErr    = "Invalid action ID. Action IDs must be in the format <integrationId>:<verb>"
 	CronErr        = "Invalid cron expression"
-	DurationErr    = "Invalid duration. Durations must be in the format <number><unit>, where unit is one of: 's', 'm', 'h'"
+	DurationErr    = "Invalid duration. Durations must be one or more <number><unit> components, where unit is one of: 'ms', 's', 'm', 'h'. For example: '10s', '1h30m', '1.5h'"
 	CELExprErr     = "Invalid CEL expression"
 )
 
@@ -32,7 +32,7 @@ func (a *APIErrors) String() string {
 	sb.WriteString("Validation failed with the following errors:\n")
 
 	for i, err := range a.Errors {
-		sb.WriteString(fmt.Sprintf("%d: %s\n", i, err.Description))
+		fmt.Fprintf(&sb, "%d: %s\n", i, err.Description)
 	}
 
 	return sb.String()
@@ -212,10 +212,10 @@ func (obj *ValidationErrObject) SafeExternalError(suffix string) string {
 
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("validation failed on field '%s': %s", obj.Namespace, suffix))
+	fmt.Fprintf(&sb, "validation failed on field '%s': %s", obj.Namespace, suffix)
 
 	if obj.Param != "" {
-		sb.WriteString(fmt.Sprintf(" [ %s ]: got %s", obj.Param, obj.getActualValueString()))
+		fmt.Fprintf(&sb, " [ %s ]: got %s", obj.Param, obj.getActualValueString())
 	}
 
 	return sb.String()

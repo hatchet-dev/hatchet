@@ -146,19 +146,19 @@ func runCreateCloudKMSJWTKeyset() error {
 
 	if encryptionKeyDir != "" {
 		// we write these as .key files so that they're gitignored by default
-		err = os.WriteFile(encryptionKeyDir+"/private_ec256.key", privateEc256, 0600)
+		err = os.WriteFile(encryptionKeyDir+"/private_ec256.key", privateEc256, 0600) // #nosec G703 -- encryptionKeyDir is an operator-supplied CLI flag for this local admin tool, not remote input
 
 		if err != nil {
 			return err
 		}
 
-		err = os.WriteFile(encryptionKeyDir+"/public_ec256.key", publicEc256, 0600)
+		err = os.WriteFile(encryptionKeyDir+"/public_ec256.key", publicEc256, 0600) // #nosec G703 -- encryptionKeyDir is an operator-supplied CLI flag for this local admin tool, not remote input
 
 		if err != nil {
 			return err
 		}
 
-		err = os.WriteFile(encryptionKeyDir+"/public_handle_unencrypted_ec256.key", insecurePublicHandleEc256, 0600)
+		err = os.WriteFile(encryptionKeyDir+"/public_handle_unencrypted_ec256.key", insecurePublicHandleEc256, 0600) // #nosec G703 -- encryptionKeyDir is an operator-supplied CLI flag for this local admin tool, not remote input
 
 		if err != nil {
 			return err

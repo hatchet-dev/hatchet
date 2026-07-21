@@ -155,6 +155,23 @@ export class DagPanel {
     } satisfies ToWebviewMessage);
     this._panel.title = `Hatchet DAG — ${this._decl!.name}`;
 
+    // Function-scope workflows build their DAG inline (same file), so the
+    // single-file fallback IS the answer — not a degraded one. Use it directly
+    // and skip the cross-file LSP step (and its "language server unavailable"
+    // banner, which would be misleading here).
+    if (this._decl!.localOnly) {
+      const workflow = this._fallbackWorkflow!;
+      this._workflow = workflow;
+      void this._panel.webview.postMessage({
+        type: 'setShape',
+        shape: workflowToShape(workflow),
+        workflowName: workflow.name,
+        isFallback: false,
+      } satisfies ToWebviewMessage);
+      this._panel.title = `Hatchet DAG — ${workflow.name}`;
+      return;
+    }
+
     const { workflow, usedFallback } = await this._analyzer.analyzeWorkflow(
       this._decl!,
       this._documentUri!,

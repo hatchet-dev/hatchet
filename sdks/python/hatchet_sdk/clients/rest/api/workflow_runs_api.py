@@ -20,6 +20,9 @@ from datetime import datetime
 from pydantic import Field, StrictBool, StrictInt, StrictStr
 from typing import List, Optional
 from typing_extensions import Annotated
+from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
+    V1AdditionalMetadataOperator,
+)
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
     V1BranchDurableTaskRequest,
 )
@@ -2266,6 +2269,12 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="Additional metadata k-v pairs to filter by"),
         ] = None,
+        additional_metadata_operator: Annotated[
+            Optional[V1AdditionalMetadataOperator],
+            Field(
+                description="How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR."
+            ),
+        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -2297,6 +2306,10 @@ class WorkflowRunsApi:
             Field(
                 description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
             ),
+        ] = None,
+        idempotency_keys: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The idempotency key(s) to filter for"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -2330,6 +2343,8 @@ class WorkflowRunsApi:
         :type until: datetime
         :param additional_metadata: Additional metadata k-v pairs to filter by
         :type additional_metadata: List[str]
+        :param additional_metadata_operator: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+        :type additional_metadata_operator: V1AdditionalMetadataOperator
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
         :param worker_id: The worker id to filter by
@@ -2342,6 +2357,8 @@ class WorkflowRunsApi:
         :type include_payloads: bool
         :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
         :type running_filter: V1RunningFilter
+        :param idempotency_keys: The idempotency key(s) to filter for
+        :type idempotency_keys: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2373,12 +2390,14 @@ class WorkflowRunsApi:
             statuses=statuses,
             until=until,
             additional_metadata=additional_metadata,
+            additional_metadata_operator=additional_metadata_operator,
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
             running_filter=running_filter,
+            idempotency_keys=idempotency_keys,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2431,6 +2450,12 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="Additional metadata k-v pairs to filter by"),
         ] = None,
+        additional_metadata_operator: Annotated[
+            Optional[V1AdditionalMetadataOperator],
+            Field(
+                description="How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR."
+            ),
+        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -2462,6 +2487,10 @@ class WorkflowRunsApi:
             Field(
                 description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
             ),
+        ] = None,
+        idempotency_keys: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The idempotency key(s) to filter for"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -2495,6 +2524,8 @@ class WorkflowRunsApi:
         :type until: datetime
         :param additional_metadata: Additional metadata k-v pairs to filter by
         :type additional_metadata: List[str]
+        :param additional_metadata_operator: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+        :type additional_metadata_operator: V1AdditionalMetadataOperator
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
         :param worker_id: The worker id to filter by
@@ -2507,6 +2538,8 @@ class WorkflowRunsApi:
         :type include_payloads: bool
         :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
         :type running_filter: V1RunningFilter
+        :param idempotency_keys: The idempotency key(s) to filter for
+        :type idempotency_keys: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2538,12 +2571,14 @@ class WorkflowRunsApi:
             statuses=statuses,
             until=until,
             additional_metadata=additional_metadata,
+            additional_metadata_operator=additional_metadata_operator,
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
             running_filter=running_filter,
+            idempotency_keys=idempotency_keys,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2596,6 +2631,12 @@ class WorkflowRunsApi:
             Optional[List[StrictStr]],
             Field(description="Additional metadata k-v pairs to filter by"),
         ] = None,
+        additional_metadata_operator: Annotated[
+            Optional[V1AdditionalMetadataOperator],
+            Field(
+                description="How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR."
+            ),
+        ] = None,
         workflow_ids: Annotated[
             Optional[
                 List[Annotated[str, Field(min_length=36, strict=True, max_length=36)]]
@@ -2627,6 +2668,10 @@ class WorkflowRunsApi:
             Field(
                 description="Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL."
             ),
+        ] = None,
+        idempotency_keys: Annotated[
+            Optional[List[StrictStr]],
+            Field(description="The idempotency key(s) to filter for"),
         ] = None,
         _request_timeout: Union[
             None,
@@ -2660,6 +2705,8 @@ class WorkflowRunsApi:
         :type until: datetime
         :param additional_metadata: Additional metadata k-v pairs to filter by
         :type additional_metadata: List[str]
+        :param additional_metadata_operator: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+        :type additional_metadata_operator: V1AdditionalMetadataOperator
         :param workflow_ids: The workflow ids to find runs for
         :type workflow_ids: List[str]
         :param worker_id: The worker id to filter by
@@ -2672,6 +2719,8 @@ class WorkflowRunsApi:
         :type include_payloads: bool
         :param running_filter: Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL.
         :type running_filter: V1RunningFilter
+        :param idempotency_keys: The idempotency key(s) to filter for
+        :type idempotency_keys: List[str]
         :param _request_timeout: timeout setting for this request. If one
                                  number provided, it will be total request
                                  timeout. It can also be a pair (tuple) of
@@ -2703,12 +2752,14 @@ class WorkflowRunsApi:
             statuses=statuses,
             until=until,
             additional_metadata=additional_metadata,
+            additional_metadata_operator=additional_metadata_operator,
             workflow_ids=workflow_ids,
             worker_id=worker_id,
             parent_task_external_id=parent_task_external_id,
             triggering_event_external_id=triggering_event_external_id,
             include_payloads=include_payloads,
             running_filter=running_filter,
+            idempotency_keys=idempotency_keys,
             _request_auth=_request_auth,
             _content_type=_content_type,
             _headers=_headers,
@@ -2736,12 +2787,14 @@ class WorkflowRunsApi:
         statuses,
         until,
         additional_metadata,
+        additional_metadata_operator,
         workflow_ids,
         worker_id,
         parent_task_external_id,
         triggering_event_external_id,
         include_payloads,
         running_filter,
+        idempotency_keys,
         _request_auth,
         _content_type,
         _headers,
@@ -2754,6 +2807,7 @@ class WorkflowRunsApi:
             "statuses": "multi",
             "additional_metadata": "multi",
             "workflow_ids": "multi",
+            "idempotency_keys": "multi",
         }
 
         _path_params: Dict[str, str] = {}
@@ -2807,6 +2861,12 @@ class WorkflowRunsApi:
 
             _query_params.append(("additional_metadata", additional_metadata))
 
+        if additional_metadata_operator is not None:
+
+            _query_params.append(
+                ("additional_metadata_operator", additional_metadata_operator.value)
+            )
+
         if workflow_ids is not None:
 
             _query_params.append(("workflow_ids", workflow_ids))
@@ -2836,6 +2896,10 @@ class WorkflowRunsApi:
         if running_filter is not None:
 
             _query_params.append(("running_filter", running_filter.value))
+
+        if idempotency_keys is not None:
+
+            _query_params.append(("idempotency_keys", idempotency_keys))
 
         # process the header parameters
         # process the form parameters

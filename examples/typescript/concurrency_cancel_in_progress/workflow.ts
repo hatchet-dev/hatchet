@@ -12,6 +12,7 @@ export type WorkflowOutput = {
   step2: EmptyTaskOutput;
 };
 
+// > Cancel In Progress
 export const concurrencyCancelInProgressWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
   name: 'concurrencycancelinprogress',
   concurrency: {

@@ -25,13 +25,17 @@ module HatchetSdkRest
     # The priority of the workflow run.
     attr_accessor :priority
 
+    # A boolean flag indicating whether to only return the id of the created run.
+    attr_accessor :return_only_id
+
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'workflow_name' => :'workflowName',
         :'input' => :'input',
         :'additional_metadata' => :'additionalMetadata',
-        :'priority' => :'priority'
+        :'priority' => :'priority',
+        :'return_only_id' => :'return_only_id'
       }
     end
 
@@ -51,7 +55,8 @@ module HatchetSdkRest
         :'workflow_name' => :'String',
         :'input' => :'Object',
         :'additional_metadata' => :'Object',
-        :'priority' => :'Integer'
+        :'priority' => :'Integer',
+        :'return_only_id' => :'Boolean'
       }
     end
 
@@ -95,6 +100,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'priority')
         self.priority = attributes[:'priority']
+      end
+
+      if attributes.key?(:'return_only_id')
+        self.return_only_id = attributes[:'return_only_id']
       end
     end
 
@@ -151,7 +160,8 @@ module HatchetSdkRest
           workflow_name == o.workflow_name &&
           input == o.input &&
           additional_metadata == o.additional_metadata &&
-          priority == o.priority
+          priority == o.priority &&
+          return_only_id == o.return_only_id
     end
 
     # @see the `==` method
@@ -163,7 +173,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [workflow_name, input, additional_metadata, priority].hash
+      [workflow_name, input, additional_metadata, priority, return_only_id].hash
     end
 
     # Builds the object from hash

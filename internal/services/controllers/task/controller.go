@@ -42,25 +42,26 @@ type TasksController interface {
 }
 
 type TasksControllerImpl struct {
-	mq                                    msgqueue.MessageQueue
-	pubBuffer                             *msgqueue.MQPubBuffer
-	l                                     *zerolog.Logger
-	queueLogger                           *zerolog.Logger
-	pgxStatsLogger                        *zerolog.Logger
-	repov1                                v1.Repository
-	dv                                    datautils.DataDecoderValidator
-	s                                     gocron.Scheduler
-	a                                     *hatcheterrors.Wrapped
-	p                                     *partition.Partition
-	celParser                             *cel.CELParser
-	opsPoolPollInterval                   time.Duration
-	opsPoolJitter                         time.Duration
-	timeoutTaskOperations                 *operation.TenantOperationPool
-	reassignTaskOperations                *operation.TenantOperationPool
-	retryTaskOperations                   *operation.TenantOperationPool
-	emitSleepOperations                   *operation.TenantOperationPool
-	evictExpiredIdempotencyKeysOperations *operation.TenantOperationPool
-	// deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
+	mq                                       msgqueue.MessageQueue
+	pubBuffer                                *msgqueue.MQPubBuffer
+	l                                        *zerolog.Logger
+	queueLogger                              *zerolog.Logger
+	pgxStatsLogger                           *zerolog.Logger
+	repov1                                   v1.Repository
+	dv                                       datautils.DataDecoderValidator
+	s                                        gocron.Scheduler
+	a                                        *hatcheterrors.Wrapped
+	p                                        *partition.Partition
+	celParser                                *cel.CELParser
+	opsPoolPollInterval                      time.Duration
+	opsPoolJitter                            time.Duration
+	timeoutTaskOperations                    *operation.TenantOperationPool
+	reassignTaskOperations                   *operation.TenantOperationPool
+	retryTaskOperations                      *operation.TenantOperationPool
+	emitSleepOperations                      *operation.TenantOperationPool
+	evictExpiredIdempotencyKeysOperations    *operation.TenantOperationPool
+	deactivateStaleStepConcurrencyOperations *operation.TenantOperationPool
+
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
 	signaler            *signal.OLAPSignaler
@@ -286,16 +287,14 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opts.repov1.Tasks().DefaultTaskActivityGauge,
 	))
 
-	// FIXME(mnafees): temporarily disabling this operation for the meantime
-	//
-	// t.deactivateStaleStepConcurrencyOperations = operation.NewTenantOperationPool(opts.p, opts.l, "deactivate-stale-step-concurrency", timeout, "deactivate stale step concurrency", t.deactivateStaleStepConcurrency, operation.WithPoolInterval(
-	// 	opts.repov1.IntervalSettings(),
-	// 	jitter,
-	// 	15*time.Minute,
-	// 	30*time.Minute,
-	// 	3,
-	// 	opts.repov1.Tasks().DefaultTaskActivityGauge,
-	// ))
+	t.deactivateStaleStepConcurrencyOperations = operation.NewTenantOperationPool(opts.p, opts.l, "deactivate-stale-step-concurrency", timeout, "deactivate stale step concurrency", t.deactivateStaleStepConcurrency, operation.WithPoolInterval(
+		opts.repov1.IntervalSettings(),
+		jitter,
+		15*time.Minute,
+		30*time.Minute,
+		3,
+		opts.repov1.Tasks().DefaultTaskActivityGauge,
+	))
 
 	return t, nil
 }
@@ -412,7 +411,7 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.retryTaskOperations.Cleanup()
 		tc.emitSleepOperations.Cleanup()
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
-		// tc.deactivateStaleStepConcurrencyOperations.Cleanup()
+		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
 
 		tc.pubBuffer.Stop()
 
@@ -1046,23 +1045,15 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 	msgs := msgqueue.JSONConvert[tasktypes.UserEventTaskPayload](payloads)
 
-	eg := &errgroup.Group{}
+	if err := tc.handleProcessUserEventTrigger(ctx, tenantId, msgs); err != nil {
+		return err
+	}
 
-	// TODO: run these in the same tx or send as separate messages?
-	eg.Go(func() error {
-		return tc.handleProcessUserEventTrigger(ctx, tenantId, msgs)
-	})
-
-	eg.Go(func() error {
-		return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
-	})
-
-	return eg.Wait()
+	return tc.handleProcessUserEventMatches(ctx, tenantId, msgs)
 }
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
-	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
 	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
@@ -1080,8 +1071,6 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
 		}
-
-		opts = append(opts, opt)
 
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
@@ -1108,7 +1097,8 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	_, err := tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	return err
 }
 
 // processUserEventMatches looks for user event matches

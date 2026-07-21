@@ -21,9 +21,7 @@ func (t *V1FiltersService) V1FilterList(ctx echo.Context, request gen.V1FilterLi
 	var scopeParams []string
 
 	if workflowIds != nil {
-		for _, id := range *workflowIds {
-			workflowIdParams = append(workflowIdParams, id)
-		}
+		workflowIdParams = append(workflowIdParams, *workflowIds...)
 	}
 
 	if scopes != nil {

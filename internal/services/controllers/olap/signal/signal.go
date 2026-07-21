@@ -322,7 +322,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 	}
 
 	// instrumentation
-	go func() {
+	go func() { // #nosec G118 -- fire-and-forget metric recording, intentionally decoupled from request context
 		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
 
 		for range tasks {
@@ -389,7 +389,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndCancelled(ctx context.Context, tenan
 	}
 
 	// instrumentation
-	go func() {
+	go func() { // #nosec G118 -- fire-and-forget metric recording, intentionally decoupled from request context
 		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
 
 		for range tasks {
@@ -459,7 +459,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndFailed(ctx context.Context, tenantId
 	}
 
 	// instrumentation
-	go func() {
+	go func() { // #nosec G118 -- fire-and-forget metric recording, intentionally decoupled from request context
 		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
 
 		for range tasks {
@@ -528,7 +528,7 @@ func (s *OLAPSignaler) signalTasksCreatedAndSkipped(ctx context.Context, tenantI
 	}
 
 	// instrumentation
-	go func() {
+	go func() { // #nosec G118 -- fire-and-forget metric recording, intentionally decoupled from request context
 		tenantMetricsEnabled := s.promGate.Enabled(context.Background(), tenantId)
 
 		for range tasks {

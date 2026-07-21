@@ -15,7 +15,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/internal/statusutils"
@@ -421,7 +420,7 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 		return nil, fmt.Errorf("could not generate external ids: %w", err)
 	}
 
-	err = a.ingest(
+	idempotencyKeyCollisions, err := a.ingest(
 		ctx,
 		tenantId,
 		opt,
@@ -429,6 +428,22 @@ func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contract
 
 	if err != nil {
 		return nil, err
+	}
+
+	for _, collision := range idempotencyKeyCollisions {
+		if collision.RequestedExternalId == opt.ExternalId {
+			st, err := status.New(codes.AlreadyExists, "idempotency key collision").WithDetails(
+				&contracts.IdempotencyCollisionError{
+					ExistingRunExternalId: collision.ExistingExternalId.String(),
+				},
+			)
+
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to build idempotency collision error: %v", err)
+			}
+
+			return nil, st.Err()
+		}
 	}
 
 	return &contracts.TriggerWorkflowRunResponse{
@@ -587,7 +602,7 @@ func (a *AdminServiceImpl) generateExternalIds(ctx context.Context, tenantId uui
 	return a.repo.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 }
 
-func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) error {
+func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts ...*v1.WorkflowNameTriggerOpts) ([]v1.IdempotencyCollision, error) {
 	optsToSend := make([]*v1.WorkflowNameTriggerOpts, 0)
 
 	for _, opt := range opts {
@@ -599,7 +614,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 	}
 
 	if len(optsToSend) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if a.localScheduler != nil {
@@ -609,7 +624,7 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 			localWorkerIds = a.localDispatcher.GetLocalWorkerIds()
 		}
 
-		localAssigned, schedulingErr := a.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
+		localAssigned, idempotencyKeyCollisions, schedulingErr := a.localScheduler.RunOptimisticScheduling(ctx, tenantId, opts, localWorkerIds)
 
 		// if we have a scheduling error, we'll fall back to normal ingestion
 		if schedulingErr != nil {
@@ -641,55 +656,53 @@ func (a *AdminServiceImpl) ingest(ctx context.Context, tenantId uuid.UUID, opts 
 
 			// we return nil because the failed assignments would have been requeued by the local dispatcher,
 			// and we have already written the tasks to the database
-			return nil
+			return idempotencyKeyCollisions, nil
 		}
 
 		// if there's no scheduling error, we return here because the tasks have been scheduled optimistically
 		if schedulingErr == nil {
-			return nil
-		}
-	} else if a.tw != nil {
-		triggerErr := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
-
-		// if we fail to trigger via gRPC, we fall back to normal ingestion
-		if triggerErr != nil && !errors.Is(triggerErr, trigger.ErrNoTriggerSlots) {
-			a.l.Error().Ctx(ctx).Err(triggerErr).Msg("could not trigger workflow runs via gRPC")
-		} else if triggerErr == nil {
-			return nil
+			return idempotencyKeyCollisions, nil
 		}
 	}
 
-	verifyErr := a.repo.Triggers().PreflightVerifyWorkflowNameOpts(ctx, tenantId, optsToSend)
-
-	if verifyErr != nil {
+	if err := a.repo.Triggers().PopulateWorkflowIdempotencyPresence(ctx, tenantId, optsToSend); err != nil {
 		namesNotFound := &v1.ErrNamesNotFound{}
 
-		if errors.As(verifyErr, &namesNotFound) {
-			return status.Error(
-				codes.InvalidArgument,
-				verifyErr.Error(),
-			)
+		if errors.As(err, &namesNotFound) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 
-		return fmt.Errorf("could not verify workflow name opts: %w", verifyErr)
+		return nil, fmt.Errorf("could not populate workflow info: %w", err)
 	}
 
-	msg, err := tasktypes.TriggerTaskMessage(
-		tenantId,
-		optsToSend...,
-	)
+	hasIdempotencyKeys := false
+	for _, opt := range optsToSend {
+		if opt.HasIdempotencyKey {
+			hasIdempotencyKeys = true
+			break
+		}
+	}
+
+	// if we have _any_ runs to trigger with idempotency keys, we trigger everything in the batch directly to maintain atomicity
+	if hasIdempotencyKeys {
+		idempotencyKeyCollisions, err := a.tw.TriggerFromWorkflowNames(ctx, tenantId, optsToSend)
+		if err != nil {
+			return nil, fmt.Errorf("could not trigger workflows: %w", err)
+		}
+		return idempotencyKeyCollisions, nil
+	}
+
+	msg, err := tasktypes.TriggerTaskMessage(tenantId, optsToSend...)
 
 	if err != nil {
-		return fmt.Errorf("could not create event task: %w", err)
+		return nil, fmt.Errorf("could not create trigger message: %w", err)
 	}
 
-	err = a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
-
-	if err != nil {
-		return fmt.Errorf("could not add event to task queue: %w", err)
+	if err := a.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return nil, fmt.Errorf("could not send trigger message: %w", err)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.CreateWorkflowVersionRequest) (*contracts.CreateWorkflowVersionResponse, error) {
@@ -737,7 +750,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	actions, err := getActionsForTasks(req.Tasks)
 
 	if tenant.SchedulerPartitionId.Valid && err == nil {
-		go func() {
+		go func() { // #nosec G118 -- intentionally decoupled from request context so notification survives the response, bounded by its own timeout
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -897,6 +910,15 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		})
 	}
 
+	var idempotency *v1.IdempotencyConfig
+
+	if req.Idempotency != nil {
+		idempotency = &v1.IdempotencyConfig{
+			Expression: req.Idempotency.Expression,
+			TTLMs:      req.Idempotency.TtlMs,
+		}
+	}
+
 	return &v1.CreateWorkflowVersionOpts{
 		Name:            req.Name,
 		Concurrency:     concurrency,
@@ -910,6 +932,7 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 		DefaultPriority: req.DefaultPriority,
 		DefaultFilters:  defaultFilters,
 		InputJsonSchema: req.InputJsonSchema,
+		Idempotency:     idempotency,
 	}, nil
 }
 

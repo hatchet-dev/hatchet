@@ -1,8 +1,75 @@
 ## [Unreleased]
 
-### Added
+### Highlights
 
-- Add Go SDK client retry controls, gRPC full-jitter retry backoff, and bounded REST read retries for transient API failures by @igor-kupczynski in [#4240](https://github.com/hatchet-dev/hatchet/pull/4240)
+- Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+- Engine rows in the run trace view now carry a badge with their workflow, task, or event name, and the retry number on retried tasks, so repeated spans such as `hatchet.engine.workflow_run` are distinguishable at a glance.
+- CLI commands that take `--profile` now use the configured default or only profile without prompting, and `hatchet server start` sets its new profile as the default when none is configured. In sessions without a terminal, such as CI, a selection that would still need a prompt fails with an error that explains how to proceed.
+
+## [0.94.10] - 2026-07-14
+
+Hatchet v0.94.10 headlines two DevEx improvements: development images that run without authentication, and use-case templates for the `hatchet quickstart` command. The release also adds independent OLAP and core data retention settings to the engine, tenant tagging and consolidated settings pages in Hatchet Cloud, automatic stream listener reconnection in the Go SDK, and RSS feeds for newly published changelog and cookbooks entries.
+
+### Highlights
+
+- Introduces a set of development images that allow Hatchet to be run without authentication, removing the need to manage API tokens in development and testing environments. See [Running without authentication](#running-without-authentication).
+- Hatchet Cloud now supports tagging tenants and organization user groups, automatically adding group members to tenants with matching tags. Additionally, the tenant and organization-scoped settings pages have been consolidated into a single `Settings` section.
+- OLAP and core data retention can be configured independently on the Hatchet engine via `SERVER_LIMITS_OLAP_PARTITION_RETENTION` and `SERVER_LIMITS_CORE_PARTITION_RETENTION`, falling back to `SERVER_LIMITS_DEFAULT_TENANT_RETENTION_PERIOD` when unset.
+- Exposes additional Prometheus [Tenant Metrics](https://docs.hatchet.run/self-hosting/prometheus-metrics#tenant-metrics) for tracking slot utilization per worker pool, grouped by labels: `hatchet_tenant_worker_label_slots` (total), `hatchet_tenant_used_worker_label_slots` (in-use), and `hatchet_tenant_available_worker_label_slots` (free).
+- The Go SDK's streaming listeners now reconnect automatically with jittered backoff: `Workflow.Result()` no longer hangs if its listener dies, and transient network failures no longer kill workers.
+- The Hatchet documentation website now supports RSS feeds for new cookbooks and releases. These can be accessed at [`https://docs.hatchet.run/cookbooks/feed.xml`](https://docs.hatchet.run/cookbooks/feed.xml) and `/reference/changelog/<component>/feed.xml` (e.g. [platform](https://docs.hatchet.run/reference/changelog/platform/feed.xml)), or via autodiscovery by adding a page URL directly to your RSS reader.
+- Fixed timeouts in the `UserSession` cleanup job (introduced in v0.90.13) by indexing the relevant columns; the migration is applied automatically on upgrade.
+- `hatchet quickstart` supports use-case templates via a new `--use-case` flag, starting with `scheduled`: a Go template whose workflow runs on a cron schedule and can also be run on demand. See the [quickstart CLI docs](https://docs.hatchet.run/cli/quickstarts).
+
+### Upgrade Notes
+
+#### Running without authentication
+
+The Hatchet development images can be pulled directly as `hatchet-api-dev`, `hatchet-engine-dev`, `hatchet-admin-dev`, and `hatchet-dashboard-dev`, or spun up via the Hatchet CLI with `hatchet server start --disable-auth`, which runs `hatchet-lite-dev` in place of `hatchet-lite`.
+
+This approach embeds a single global worker API key in the Hatchet binaries themselves, so it should only be used in development and testing environments.
+
+See the docs for [running without authentication via the CLI](https://docs.hatchet.run/reference/cli/running-hatchet-locally#running-without-authentication) and [via Docker Compose](https://docs.hatchet.run/self-hosting/docker-compose#running-without-authentication).
+
+## [0.90.13] - 2026-06-29
+
+Hatchet v0.90.13 is a stability-focused release. It keeps long-running deployments healthy by bounding session-table growth, reduces scheduling latency under load, fixes a duration-parsing bug that could silently shorten your timeouts, and ships a batch of dashboard fixes.
+
+### Highlights
+
+- The `UserSession` table no longer grows unbounded: an hourly cleanup job now removes expired and orphaned sessions automatically. See [Upgrade Notes](#usersession-bulk-cleanup) for an optional one-time bulk cleanup to run before upgrading.
+- Multi-unit duration strings such as `42m30s` are now parsed correctly and enforce their full value, rather than silently truncating to a shorter duration. See [Upgrade Notes](#stricter-duration-validation) for the related behavior and validation changes.
+- Reduced engine cold-start latency when moving runs from `QUEUED` to `ASSIGNED_TO_WORKER` under load, and stale concurrency state is now cleaned up automatically so it can no longer build up and slow scheduling.
+- Fixed a dashboard race that could return a 500 when triggering a run, alongside several quality-of-life improvements: a system theme option in account settings, a scrollable workflow settings page, persisted sidebar scroll position across navigation, a tooltip for long tenant names, and CodeEditor theming and border fixes in light mode.
+- The Go SDK now retries bodyless `GET` and `HEAD` reads with backoff on transient failures, which can be disabled via the `HATCHET_CLIENT_NO_RETRY` environment variable.
+- Durable execution is sturdier: dead-lettered callback messages are now handled gracefully instead of erroring, and a failing child task correctly raises an error in its durable parent, matching the behavior of regular tasks.
+- Hatchet Cloud now has self-serve support for tenant-scoped Prometheus metrics and an audit logs API available on the Scale plan.
+
+### Upgrade Notes
+
+#### Stricter duration validation
+
+Registration now rejects duration strings that were previously accepted and silently coerced: signed values, bare numbers, sub-millisecond units (`ns`/`us`), and mixed forms using `d`/`w`/`y`. If you register durations in any of these forms, they'll now fail at registration — check your workflow definitions before upgrading.
+
+#### `UserSession` bulk cleanup
+
+This update includes an additional cleanup job for the `UserSession` table to correctly remove expired/invalid user sessions from the table -- addressing unbounded growth. However, you can optionally run the following query as many times as needed against your Postgres instance to ensure a bulk-cleanup prior to upgrade:
+
+```sql
+DELETE FROM "UserSession"
+WHERE ctid IN (
+    SELECT ctid
+    FROM "UserSession"
+    WHERE NOT (
+        ("userId" IS NOT NULL AND "expiresAt" >= NOW())
+        OR
+        ("userId" IS NULL AND "createdAt" >= NOW() - INTERVAL '24 hours')
+    )
+    LIMIT 10000
+);
+```
+
+Note: the `10000` limit can be adjusted as needed.
 
 ## [0.89.0] - 2026-06-09
 

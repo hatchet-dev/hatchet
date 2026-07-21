@@ -2,6 +2,7 @@
 
 require "json"
 require "google/protobuf/timestamp_pb"
+require "google/rpc/status_pb"
 
 module Hatchet
   module Clients
@@ -93,6 +94,9 @@ module Hatchet
             response = @v0_stub.trigger_workflow(request, metadata: @config.auth_metadata)
             response.workflow_run_id
           rescue ::GRPC::AlreadyExists => e
+            run_id = extract_idempotency_run_id(e)
+            raise(IdempotencyCollisionError, run_id) if run_id
+
             raise DedupeViolationError, "Deduplication violation: #{e.message}"
           rescue ::GRPC::ResourceExhausted => e
             raise ResourceExhaustedError, e.message
@@ -108,6 +112,7 @@ module Hatchet
         # @param workflow_name [String] The workflow name (will be namespaced)
         # @param items [Array<Hash>] Array of { input:, options: } items
         # @return [Array<String>] Array of workflow run IDs
+        # @raise [BulkTriggerIdempotencyCollisionError] If any runs collide on idempotency keys
         def bulk_trigger_workflow(workflow_name, items)
           ensure_connected!
 
@@ -150,6 +155,12 @@ module Hatchet
               response = @v0_stub.bulk_trigger_workflow(bulk_request, metadata: @config.auth_metadata)
               all_run_ids.concat(response.workflow_run_ids.to_a)
             end
+          rescue ::GRPC::AlreadyExists => e
+            collision = extract_bulk_trigger_idempotency_collision(e)
+
+            raise collision if collision
+
+            raise Error, "gRPC error triggering bulk workflow: #{e.class}: #{e.message}"
           rescue ::GRPC::ResourceExhausted => e
             raise ResourceExhaustedError, e.message
           rescue ::GRPC::BadStatus => e
@@ -282,6 +293,102 @@ module Hatchet
                   end
             map[k.to_s] = dwl
           end
+        end
+
+        def extract_idempotency_run_id(grpc_error)
+          status_bin = grpc_error.to_status.metadata&.[]("grpc-status-details-bin")
+          return nil unless status_bin
+
+          rpc_status = Google::Rpc::Status.decode(status_bin.b)
+          rpc_status.details.each do |any|
+            next unless any.type_url.include?("IdempotencyCollisionError") &&
+                        !any.type_url.include?("BulkTriggerIdempotencyCollisionError")
+
+            return ::V1::IdempotencyCollisionError.decode(any.value).existing_run_external_id
+          end
+          nil
+        rescue StandardError
+          nil
+        end
+
+        def extract_bulk_trigger_idempotency_collision(grpc_error)
+          status_bin = grpc_error.to_status.metadata&.[]("grpc-status-details-bin")
+          return nil unless status_bin
+
+          rpc_status = Google::Rpc::Status.decode(status_bin.b)
+          rpc_status.details.each do |any|
+            next unless any.type_url.include?("BulkTriggerIdempotencyCollisionError")
+
+            successful_ids, collisions = decode_bulk_trigger_collision_bytes(any.value)
+            return BulkTriggerIdempotencyCollisionError.new(
+              successful_workflow_run_external_ids: successful_ids,
+              collisions: collisions,
+            )
+          end
+          nil
+        rescue StandardError
+          nil
+        end
+
+        # Manually decode a BulkTriggerIdempotencyCollisionError proto message.
+        # Field 1 (repeated string): successful_workflow_run_external_ids
+        # Field 2 (repeated message): collisions (each is an IdempotencyCollisionError)
+        def decode_bulk_trigger_collision_bytes(bytes)
+          successful_ids = []
+          collisions = []
+          data = bytes.b
+          pos = 0
+
+          while pos < data.bytesize
+            tag, bytes_read = decode_proto_varint(data, pos)
+            pos += bytes_read
+            field_number = tag >> 3
+            wire_type = tag & 0x7
+
+            case wire_type
+            when 2
+              len, bytes_read = decode_proto_varint(data, pos)
+              pos += bytes_read
+              field_bytes = data.byteslice(pos, len)
+              pos += len
+
+              if field_number == 1
+                successful_ids << field_bytes.force_encoding("UTF-8")
+              elsif field_number == 2
+                proto = ::V1::IdempotencyCollisionError.decode(field_bytes)
+                collisions << IdempotencyCollisionError.new(proto.existing_run_external_id)
+              end
+            when 0
+              _, bytes_read = decode_proto_varint(data, pos)
+              pos += bytes_read
+            when 5
+              pos += 4
+            when 1
+              pos += 8
+            else
+              break
+            end
+          end
+
+          [successful_ids, collisions]
+        rescue StandardError
+          [[], []]
+        end
+
+        def decode_proto_varint(data, pos)
+          result = 0
+          shift = 0
+          bytes_read = 0
+          loop do
+            byte = data.getbyte(pos + bytes_read)
+            return [result, bytes_read] if byte.nil?
+
+            bytes_read += 1
+            result |= (byte & 0x7f) << shift
+            shift += 7
+            break if byte.nobits?(0x80)
+          end
+          [result, bytes_read]
         end
 
         def ensure_connected!

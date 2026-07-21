@@ -1,12 +1,7 @@
 import { Notification } from './types';
 import { usePendingInvites } from '@/hooks/use-pending-invites';
-import { appRoutes } from '@/router';
+import { globalEmitter } from '@/lib/global-emitter';
 import { useMemo } from 'react';
-
-const startsWithVowelRegex = /^[aeiou]/i;
-
-const getArticle = (word: string) =>
-  startsWithVowelRegex.test(word) ? 'an' : 'a';
 
 export const useInviteNotifications = () => {
   const { pendingInvitesQuery, isLoading } = usePendingInvites();
@@ -17,27 +12,26 @@ export const useInviteNotifications = () => {
       return [];
     }
 
+    const count = data.inviteCount;
+    const mostRecent = [...data.tenantInvites, ...data.organizationInvites]
+      .map((inv) => inv.metadata.createdAt as string | undefined)
+      .filter((ts): ts is string => Boolean(ts))
+      .reduce((max, ts) => (ts > max ? ts : max), '');
+
     return [
-      ...data.tenantInvites.map(
-        (invite): Notification => ({
-          color: 'green',
-          shortTitle: 'Tenant invite',
-          title: `Tenant invite: ${invite.tenantName ?? 'Unknown'}`,
-          message: `You're invited to ${invite.tenantName ? `the "${invite.tenantName}"` : 'a'} tenant as ${getArticle(invite.role)} ${invite.role.toLowerCase()}`,
-          timestamp: invite.metadata.createdAt,
-          url: appRoutes.onboardingInvitesRoute.to,
-        }),
-      ),
-      ...data.organizationInvites.map(
-        (invite): Notification => ({
-          color: 'green',
-          shortTitle: 'Organization invite',
-          title: 'Organization invite',
-          message: `You're invited to be ${getArticle(invite.role)} ${invite.role.toLowerCase()} of an organization`,
-          timestamp: invite.metadata.createdAt,
-          url: appRoutes.onboardingInvitesRoute.to,
-        }),
-      ),
+      {
+        color: 'green',
+        shortTitle: count === 1 ? 'Invite' : 'Invites',
+        title:
+          count === 1
+            ? data.tenantInvites[0]
+              ? `Invite to join ${data.tenantInvites[0].tenantName ?? 'a tenant'}`
+              : 'Organization invite'
+            : `${count} pending invites`,
+        message: `You have ${count} pending invite${count > 1 ? 's' : ''} awaiting your response.`,
+        timestamp: mostRecent,
+        onClick: () => globalEmitter.emit('open-invite-modal', {}),
+      },
     ];
   }, [pendingInvitesQuery.data]);
 

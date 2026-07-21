@@ -100,6 +100,9 @@ type CreateTaskOpts struct {
 
 	// (optional) the key of the event that triggered the workflow run, if there was one
 	TriggeringEventKey *string
+
+	// (optional) the idempotency key that was claimed before triggering this task
+	IdempotencyKey *string
 }
 
 type ReplayTasksResult struct {
@@ -1330,7 +1333,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1400,7 +1403,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1464,7 +1467,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1498,7 +1501,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
 		TenantID: tenantId,
-		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
+		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true}, // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 	})
 
 	if err != nil {
@@ -2277,6 +2280,7 @@ func (r *sharedRepository) insertTasks(
 				DesiredWorkerLabels:          make([][]byte, 0),
 				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
+				IdempotencyKeys:              make([]pgtype.Text, 0),
 			}
 		}
 
@@ -2326,6 +2330,16 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		params.TriggeringEventKeys = append(params.TriggeringEventKeys, triggeringEventKey)
+
+		idempotencyKey := pgtype.Text{}
+		if task.IdempotencyKey != nil {
+			idempotencyKey = pgtype.Text{
+				String: *task.IdempotencyKey,
+				Valid:  true,
+			}
+		}
+
+		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
 
 		if r.payloadStore.DualWritesEnabled() {
 			// if dual writes are enabled, write the inputs to the tasks table
@@ -3061,7 +3075,7 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 func hash(s string) int64 {
 	h := fnv.New64a()
 	h.Write([]byte(s))
-	return int64(h.Sum64())
+	return int64(h.Sum64()) // #nosec G115 -- deterministic bit-reinterpretation for hashing/bucketing, wraparound is fine
 }
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
@@ -3445,13 +3459,13 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 	stepsToAdditionalMatches := make(map[uuid.UUID][]*sqlcv1.V1StepMatchCondition)
 
 	if len(stepIdsInDAGs) > 0 {
-		additionalMatches, err := r.queries.ListStepMatchConditions(ctx, r.pool, sqlcv1.ListStepMatchConditionsParams{
+		additionalMatches, listErr := r.queries.ListStepMatchConditions(ctx, tx, sqlcv1.ListStepMatchConditionsParams{
 			Stepids:  listutils.Uniq(stepIdsInDAGs),
 			Tenantid: tenantId,
 		})
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to list step match conditions: %w", err)
+		if listErr != nil {
+			return nil, fmt.Errorf("failed to list step match conditions: %w", listErr)
 		}
 
 		for _, match := range additionalMatches {
@@ -3467,8 +3481,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		for _, task := range tasks {
 			taskExternalId := task.ExternalID
 			stepId := task.StepID
-			switch {
-			case task.JobKind == sqlcv1.JobKindONFAILURE:
+			switch task.JobKind {
+			case sqlcv1.JobKindONFAILURE:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
@@ -3688,7 +3702,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 			cond := groupCondition
 
 			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
-				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, string(groupCondition.EventKey))
+				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, groupCondition.EventKey)
 
 				if match, ok := foundMatchKeys[key]; ok {
 					cond.Data = match.Data
@@ -3766,7 +3780,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 
 			if opt.ValueInt != nil {
 				valuesInt = append(valuesInt, pgtype.Int4{
-					Int32: int32(*opt.ValueInt),
+					Int32: int32(*opt.ValueInt), // #nosec G115 -- expression-evaluated value stored for later matching, overflow affects semantics only, not exploitable
 					Valid: true,
 				})
 			} else {
@@ -4152,10 +4166,11 @@ type TaskStat struct {
 
 // TaskStatusStat represents statistics for a specific task status (queued or running)
 type TaskStatusStat struct {
-	Total       int64             `json:"total"`
-	Oldest      *time.Time        `json:"oldest,omitempty"`
-	Queues      map[string]int64  `json:"queues,omitempty"`
-	Concurrency []ConcurrencyStat `json:"concurrency,omitempty"`
+	Total                  int64             `json:"total"`
+	Oldest                 *time.Time        `json:"oldest,omitempty"`
+	OldestExcludingRetries *time.Time        `json:"oldest_excluding_retries,omitempty"`
+	Queues                 map[string]int64  `json:"queues,omitempty"`
+	Concurrency            []ConcurrencyStat `json:"concurrency,omitempty"`
 }
 
 // ConcurrencyStat represents concurrency information for a task
@@ -4164,6 +4179,12 @@ type ConcurrencyStat struct {
 	Type       string           `json:"type"`
 	Keys       map[string]int64 `json:"keys"`
 }
+
+const (
+	taskStatsRowKindQueued             = "queued"
+	taskStatsRowKindRunningTotal       = "running_total"
+	taskStatsRowKindRunningConcurrency = "running_concurrency"
+)
 
 func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUID) (map[string]TaskStat, error) {
 	rows, err := r.queries.GetTenantTaskStats(ctx, r.pool, tenantId)
@@ -4176,13 +4197,11 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 
 	for _, row := range rows {
 		stepReadableId := row.StepReadableID
-		taskStatus := row.TaskStatus
+		rowKind := row.RowKind
 		queue := row.Queue
-		expression := row.Expression.String
-		strategy := row.Strategy.String
-		key := row.Key.String
 		count := row.Count
 		oldest := row.Oldest
+		oldestExcludingRetries := row.OldestExcludingRetries
 
 		taskStat, ok := result[stepReadableId]
 		if !ok {
@@ -4190,69 +4209,104 @@ func (r *TaskRepositoryImpl) GetTaskStats(ctx context.Context, tenantId uuid.UUI
 			taskStat = result[stepReadableId]
 		}
 
-		var statusStat *TaskStatusStat
-
-		switch taskStatus {
-		case "queued":
+		switch rowKind {
+		case taskStatsRowKindQueued:
 			if taskStat.Queued == nil {
 				taskStat.Queued = &TaskStatusStat{
 					Queues: make(map[string]int64),
 				}
 				result[stepReadableId] = taskStat
 			}
-			statusStat = result[stepReadableId].Queued
+			statusStat := result[stepReadableId].Queued
+
+			statusStat.Total += count
 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
 			}
-		case "running":
-			if taskStat.Running == nil {
-				taskStat.Running = &TaskStatusStat{}
-				result[stepReadableId] = taskStat
+
+			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
+				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
 			}
-			statusStat = result[stepReadableId].Running
+
+			if queue != "" {
+				if statusStat.Queues == nil {
+					statusStat.Queues = make(map[string]int64)
+				}
+				statusStat.Queues[queue] += count
+			}
+
+			if isTaskStatsConcurrencyDetail(row.Expression, row.Strategy, row.Key) {
+				addTaskStatsConcurrencyEntry(statusStat, row.Expression.String, row.Strategy.String, row.Key.String, count)
+			}
+		case taskStatsRowKindRunningTotal:
+			statusStat := getOrCreateRunningTaskStatus(result, stepReadableId)
+
+			statusStat.Total += count
 
 			if oldest.Valid && (statusStat.Oldest == nil || oldest.Time.Before(*statusStat.Oldest)) {
 				statusStat.Oldest = &oldest.Time
 			}
-		}
 
-		statusStat.Total += count
-
-		if taskStatus == "queued" && queue != "" {
-			if statusStat.Queues == nil {
-				statusStat.Queues = make(map[string]int64)
+			if oldestExcludingRetries.Valid && (statusStat.OldestExcludingRetries == nil || oldestExcludingRetries.Time.Before(*statusStat.OldestExcludingRetries)) {
+				statusStat.OldestExcludingRetries = &oldestExcludingRetries.Time
 			}
-			statusStat.Queues[queue] += count
-		}
+		case taskStatsRowKindRunningConcurrency:
+			statusStat := getOrCreateRunningTaskStatus(result, stepReadableId)
 
-		if expression != "" && key != "" && strategy != "NONE" {
-			var concurrencyEntry *ConcurrencyStat
-			for i := range statusStat.Concurrency {
-				if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
-					concurrencyEntry = &statusStat.Concurrency[i]
-					break
-				}
+			if isTaskStatsConcurrencyDetail(row.Expression, row.Strategy, row.Key) {
+				addTaskStatsConcurrencyEntry(statusStat, row.Expression.String, row.Strategy.String, row.Key.String, count)
 			}
-
-			if concurrencyEntry == nil {
-				newEntry := ConcurrencyStat{
-					Expression: expression,
-					Type:       strategy,
-					Keys:       make(map[string]int64),
-				}
-				statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
-				concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
-			}
-
-			if concurrencyEntry.Keys == nil {
-				concurrencyEntry.Keys = make(map[string]int64)
-			}
-			concurrencyEntry.Keys[key] += count
+		default:
+			return nil, fmt.Errorf("unknown task stats row kind: %q", rowKind)
 		}
 	}
 
 	return result, nil
+}
+
+func getOrCreateRunningTaskStatus(result map[string]TaskStat, stepReadableId string) *TaskStatusStat {
+	taskStat := result[stepReadableId]
+	if taskStat.Running == nil {
+		taskStat.Running = &TaskStatusStat{}
+		result[stepReadableId] = taskStat
+	}
+
+	return taskStat.Running
+}
+
+func isTaskStatsConcurrencyDetail(expression, strategy, key pgtype.Text) bool {
+	return expression.Valid &&
+		expression.String != "" &&
+		strategy.Valid &&
+		strategy.String != string(sqlcv1.V1ConcurrencyStrategyNONE) &&
+		key.Valid &&
+		key.String != ""
+}
+
+func addTaskStatsConcurrencyEntry(statusStat *TaskStatusStat, expression, strategy, key string, count int64) {
+	var concurrencyEntry *ConcurrencyStat
+	for i := range statusStat.Concurrency {
+		if statusStat.Concurrency[i].Expression == expression && statusStat.Concurrency[i].Type == strategy {
+			concurrencyEntry = &statusStat.Concurrency[i]
+			break
+		}
+	}
+
+	if concurrencyEntry == nil {
+		newEntry := ConcurrencyStat{
+			Expression: expression,
+			Type:       strategy,
+			Keys:       make(map[string]int64),
+		}
+		statusStat.Concurrency = append(statusStat.Concurrency, newEntry)
+		concurrencyEntry = &statusStat.Concurrency[len(statusStat.Concurrency)-1]
+	}
+
+	if concurrencyEntry.Keys == nil {
+		concurrencyEntry.Keys = make(map[string]int64)
+	}
+	concurrencyEntry.Keys[key] += count
 }
 
 func (r *TaskRepositoryImpl) FindOldestRunningTaskInsertedAt(ctx context.Context) (*time.Time, error) {

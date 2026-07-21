@@ -2,19 +2,15 @@ package ticker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
 func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) error {
@@ -23,21 +19,18 @@ func (t *TickerImpl) RunScheduledWorkflowV1(ctx context.Context, tenantId uuid.U
 }
 
 func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.MessageQueue, repo v1.Repository, tenantId uuid.UUID, opts v1.RunScheduledWorkflowV1Opts) (*uuid.UUID, error) {
-	expiresAt := opts.TriggerAt.Add(time.Second * 30)
-	err := repo.Idempotency().CreateIdempotencyKey(ctx, tenantId, opts.ID.String(), sqlchelpers.TimestamptzFromTime(expiresAt))
+	externalId := uuid.New()
 
-	var pgErr *pgconn.PgError
-	// if we get a unique violation, it means we tried to create a duplicate idempotency key, which means this
-	// run has already been processed, so we should just return
-	if err != nil && errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already exists, skipping", opts.ID.String())
-		return nil, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("could not create idempotency key: %w", err)
+	claimed, err := repo.Idempotency().ClaimKey(ctx, tenantId, fmt.Sprintf("hatchet_internal_%s", opts.ID.String()), opts.TriggerAt.Add(30*time.Second), externalId)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not claim idempotency key for scheduled workflow: %w", err)
 	}
 
-	key := v1.IdempotencyKey(opts.ID.String())
-	externalId := uuid.New()
+	if !claimed {
+		l.Info().Ctx(ctx).Msgf("idempotency key for scheduled workflow %s already claimed, skipping", opts.ID.String())
+		return nil, nil
+	}
 
 	msg, err := tasktypes.TriggerTaskMessage(
 		tenantId,
@@ -48,9 +41,8 @@ func RunScheduledWorkflow(ctx context.Context, l *zerolog.Logger, mq msgqueue.Me
 				AdditionalMetadata: opts.AdditionalMetadata,
 				Priority:           opts.Priority,
 			},
-			IdempotencyKey: &key,
-			ExternalId:     externalId,
-			ShouldSkip:     false,
+			ExternalId: externalId,
+			ShouldSkip: false,
 		},
 	)
 

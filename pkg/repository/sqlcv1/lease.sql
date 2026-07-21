@@ -50,8 +50,10 @@ RETURNING l.*;
 
 -- name: ListActiveWorkers :many
 SELECT
-    DISTINCT w."id",
-    w."name"
+    w."id",
+    w."name",
+    wsc."slot_type" AS "slotType",
+    SUM(wsc."max_units")::int AS "maxUnits"
 FROM
     "Worker" w
 JOIN
@@ -61,4 +63,8 @@ WHERE
     AND w."dispatcherId" IS NOT NULL
     AND w."lastHeartbeatAt" > NOW() - INTERVAL '5 seconds'
     AND w."isActive" = true
-    AND w."isPaused" = false;
+    AND w."isPaused" = false
+GROUP BY
+    w."id",
+    w."name",
+    wsc."slot_type";

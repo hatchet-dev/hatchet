@@ -25,6 +25,7 @@ import {
   Concurrency,
   DurableTaskFn,
   WorkerLabelComparator,
+  IdempotencyConfig,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -208,6 +209,12 @@ export type CreateBaseWorkflowOpts = {
    * can be used on the dashboard for autocomplete.
    */
   inputValidator?: z.ZodType<any>;
+
+  /**
+   * (optional) idempotency configuration for the workflow.
+   * Prevents more than one run from occurring for a given key within the TTL window.
+   */
+  idempotency?: IdempotencyConfig;
 };
 
 export type CreateTaskWorkflowOpts<
@@ -903,12 +910,12 @@ export class WorkflowDeclaration<
    */
   task<
     Name extends string,
-    Fn extends Name extends keyof O
+    Fn extends (Name extends keyof O
       ? (
           input: I & MiddlewareBefore,
           ctx: Context<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void,
+      : (input: I & MiddlewareBefore, ctx: Context<I & MiddlewareBefore>) => void),
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -1017,12 +1024,12 @@ export class WorkflowDeclaration<
    */
   durableTask<
     Name extends string,
-    Fn extends Name extends keyof O
+    Fn extends (Name extends keyof O
       ? (
           input: I & MiddlewareBefore,
           ctx: DurableContext<I & MiddlewareBefore>
         ) => O[Name] extends OutputType ? O[Name] | Promise<O[Name]> : void
-      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void,
+      : (input: I & MiddlewareBefore, ctx: DurableContext<I & MiddlewareBefore>) => void),
     FnReturn = ReturnType<Fn> extends Promise<infer P> ? P : ReturnType<Fn>,
     TO extends OutputType = Name extends keyof O
       ? O[Name] extends OutputType
@@ -1032,7 +1039,7 @@ export class WorkflowDeclaration<
         ? FnReturn
         : never,
   >(
-    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn'> & {
+    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn' | 'slotCost'> & {
       name: Name;
       fn: Fn;
     }

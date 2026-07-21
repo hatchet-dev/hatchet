@@ -60,6 +60,13 @@ func (a *AuthN) authenticate(c echo.Context, r *middleware.RouteInfo) error {
 		return a.handleNoAuth(c)
 	}
 
+	// authPreflight only returns handled=true in authdisabled builds, where it resolves the
+	// request as the seeded admin and short-circuits the strategies below. In normal builds it
+	// is a no-op (returns false), so authentication always proceeds. Do not invert this check.
+	if handled, err := a.authPreflight(c); handled {
+		return err
+	}
+
 	var bearerErr error
 
 	if r.Security.BearerAuth() {
@@ -245,7 +252,11 @@ func (a *AuthN) handleBearerAuth(c echo.Context) error {
 		// we permit exchange token auth if the token is valid and represents a user if the endpoint is not tenant-scoped, because
 		// this is effectively a PAT without the tenant scoping
 		if isTenantScoped && *tenantId != queriedTenant.ID {
-			a.l.Error().Msgf("tenant id in token does not match tenant id in context")
+			a.l.Error().
+				Str("tenant_id", tenantId.String()).
+				Str("queried_tenant_id", queriedTenant.ID.String()).
+				Str("user_id", userId.String()).
+				Msgf("tenant id in token does not match tenant id in context")
 
 			return forbidden
 		}

@@ -187,7 +187,9 @@ SELECT
     run_external_id,
     event_id,
     event_seen_at,
-    filter_id
+    CASE WHEN filter_id = '00000000-0000-0000-0000-000000000000'::uuid THEN NULL
+        ELSE filter_id
+    END AS filter_id
 FROM
     input
 RETURNING
@@ -722,7 +724,7 @@ func (q *Queries) FindOldestRunningTask(ctx context.Context, db DBTX) (*FindOlde
 }
 
 const findOldestTask = `-- name: FindOldestTask :one
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key
 FROM v1_task
 ORDER BY id, inserted_at
 LIMIT 1
@@ -773,6 +775,7 @@ func (q *Queries) FindOldestTask(ctx context.Context, db DBTX) (*V1Task, error) 
 		&i.DesiredWorkerLabel,
 		&i.TriggeringEventExternalID,
 		&i.TriggeringEventKey,
+		&i.IdempotencyKey,
 	)
 	return &i, err
 }
@@ -909,7 +912,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_queue_item qi
     JOIN
@@ -924,7 +928,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_retry_queue_item rqi
     JOIN
@@ -939,7 +944,8 @@ WITH queued_tasks AS (
         t.step_readable_id,
         t.queue,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_rate_limited_queue_items rqi
     JOIN
@@ -957,7 +963,8 @@ WITH queued_tasks AS (
         sc.strategy,
         cs.key,
         COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        MIN(t.inserted_at) AS oldest,
+        MIN(t.inserted_at) FILTER (WHERE t.retry_count = 0) AS oldest_excluding_retries
     FROM
         v1_concurrency_slot cs
     JOIN
@@ -976,106 +983,151 @@ WITH queued_tasks AS (
         sc.expression,
         sc.strategy,
         cs.key
-), running_tasks AS (
+), running_task_attempts AS (
     SELECT
+        t.id AS task_id,
         t.step_readable_id,
-        COALESCE(sc.expression, '') as expression,
-        COALESCE(sc.strategy, 'NONE'::v1_concurrency_strategy) as strategy,
-        COALESCE(cs.key, '') as key,
-        COUNT(*) as count,
-        MIN(t.inserted_at) AS oldest
+        t.inserted_at AS task_inserted_at,
+        t.retry_count,
+        t.tenant_id,
+        t.workflow_id,
+        t.workflow_version_id,
+        t.step_id
     FROM
         v1_task_runtime tr
     JOIN
         v1_task t ON tr.task_id = t.id AND tr.task_inserted_at = t.inserted_at AND tr.retry_count = t.retry_count
-    LEFT JOIN
-        v1_concurrency_slot cs ON cs.task_id = t.id AND cs.task_inserted_at = t.inserted_at AND cs.task_retry_count = t.retry_count
-    LEFT JOIN
-        v1_step_concurrency sc ON sc.workflow_id = t.workflow_id AND sc.workflow_version_id = t.workflow_version_id AND sc.step_id = t.step_id
     WHERE
         t.tenant_id = $1::uuid
         AND tr.tenant_id = $1::uuid
         AND tr.worker_id IS NOT NULL
-        AND (t.concurrency_strategy_ids IS NULL OR array_length(t.concurrency_strategy_ids, 1) IS NULL OR sc.id = ANY(t.concurrency_strategy_ids))
+), running_totals AS (
+    SELECT
+        step_readable_id,
+        COUNT(*) as count,
+        MIN(task_inserted_at) AS oldest,
+        MIN(task_inserted_at) FILTER (WHERE retry_count = 0) AS oldest_excluding_retries
+    FROM
+        running_task_attempts
     GROUP BY
-        t.step_readable_id,
+        step_readable_id
+), running_concurrency AS (
+    SELECT
+        rta.step_readable_id,
+        sc.expression,
+        sc.strategy,
+        cs.key,
+        COUNT(DISTINCT (rta.task_id, rta.task_inserted_at, rta.retry_count)) as count
+    FROM
+        running_task_attempts rta
+    JOIN
+        v1_concurrency_slot cs ON cs.task_id = rta.task_id AND cs.task_inserted_at = rta.task_inserted_at AND cs.task_retry_count = rta.retry_count AND cs.workflow_id = rta.workflow_id AND cs.workflow_version_id = rta.workflow_version_id
+    JOIN
+        v1_step_concurrency sc ON sc.workflow_id = rta.workflow_id AND sc.workflow_version_id = rta.workflow_version_id AND sc.step_id = rta.step_id AND cs.strategy_id = sc.id
+    WHERE
+        cs.tenant_id = $1::uuid
+        AND cs.tenant_id = rta.tenant_id
+        AND cs.is_filled = TRUE
+        AND sc.tenant_id = $1::uuid
+    GROUP BY
+        rta.step_readable_id,
         sc.expression,
         sc.strategy,
         cs.key
 )
 SELECT
-    'queued' as task_status,
+    'queued' as row_kind,
     step_readable_id,
     queue,
     NULL::text as expression,
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM queued_tasks
 
 UNION ALL
 
 SELECT
-    'queued' as task_status,
+    'queued' as row_kind,
     step_readable_id,
     queue,
     NULL::text as expression,
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM retry_queued_tasks
 
 UNION ALL
 
 SELECT
-    'queued' as task_status,
+    'queued' as row_kind,
     step_readable_id,
     queue,
     NULL::text as expression,
     NULL::text as strategy,
     NULL::text as key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM rate_limited_queued_tasks
 
 UNION ALL
 
 SELECT
-    'queued' as task_status,
+    'queued' as row_kind,
     step_readable_id,
     queue,
     expression,
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
 FROM concurrency_queued_tasks
 
 UNION ALL
 
 SELECT
-    'running' as task_status,
+    'running_total' as row_kind,
+    step_readable_id,
+    ''::text as queue,
+    NULL::text as expression,
+    NULL::text as strategy,
+    NULL::text as key,
+    count,
+    oldest::TIMESTAMPTZ,
+    oldest_excluding_retries::TIMESTAMPTZ
+FROM running_totals
+
+UNION ALL
+
+SELECT
+    'running_concurrency' as row_kind,
     step_readable_id,
     ''::text as queue,
     expression,
     strategy::text,
     key,
     count,
-    oldest::TIMESTAMPTZ
-FROM running_tasks
+    NULL::TIMESTAMPTZ as oldest,
+    NULL::TIMESTAMPTZ as oldest_excluding_retries
+FROM running_concurrency
 `
 
 type GetTenantTaskStatsRow struct {
-	TaskStatus     string             `json:"task_status"`
-	StepReadableID string             `json:"step_readable_id"`
-	Queue          string             `json:"queue"`
-	Expression     pgtype.Text        `json:"expression"`
-	Strategy       pgtype.Text        `json:"strategy"`
-	Key            pgtype.Text        `json:"key"`
-	Count          int64              `json:"count"`
-	Oldest         pgtype.Timestamptz `json:"oldest"`
+	RowKind                string             `json:"row_kind"`
+	StepReadableID         string             `json:"step_readable_id"`
+	Queue                  string             `json:"queue"`
+	Expression             pgtype.Text        `json:"expression"`
+	Strategy               pgtype.Text        `json:"strategy"`
+	Key                    pgtype.Text        `json:"key"`
+	Count                  int64              `json:"count"`
+	Oldest                 pgtype.Timestamptz `json:"oldest"`
+	OldestExcludingRetries pgtype.Timestamptz `json:"oldest_excluding_retries"`
 }
 
 func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*GetTenantTaskStatsRow, error) {
@@ -1088,7 +1140,7 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid
 	for rows.Next() {
 		var i GetTenantTaskStatsRow
 		if err := rows.Scan(
-			&i.TaskStatus,
+			&i.RowKind,
 			&i.StepReadableID,
 			&i.Queue,
 			&i.Expression,
@@ -1096,6 +1148,7 @@ func (q *Queries) GetTenantTaskStats(ctx context.Context, db DBTX, tenantid uuid
 			&i.Key,
 			&i.Count,
 			&i.Oldest,
+			&i.OldestExcludingRetries,
 		); err != nil {
 			return nil, err
 		}
@@ -1756,7 +1809,7 @@ func (q *Queries) ListTaskRunningStatuses(ctx context.Context, db DBTX, arg List
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key
+SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key
 FROM
     v1_task
 WHERE
@@ -1820,6 +1873,7 @@ func (q *Queries) ListTasks(ctx context.Context, db DBTX, arg ListTasksParams) (
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.IdempotencyKey,
 		); err != nil {
 			return nil, err
 		}
@@ -2519,7 +2573,7 @@ WITH input AS (
         UNNEST($3::bigint[]) AS task_id,
         UNNEST($4::timestamptz[]) AS task_inserted_at
 ), relevant_tasks AS (
-    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, task_id, task_inserted_at
+    SELECT id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, task_id, task_inserted_at
     FROM
         v1_task t
     JOIN

@@ -121,7 +121,9 @@ INSERT INTO "WorkflowVersion" (
     "kind",
     "defaultPriority",
     "createWorkflowVersionOpts",
-    "inputJsonSchema"
+    "inputJsonSchema",
+    "idempotencyKeyExpression",
+    "idempotencyKeyTtlMs"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -136,7 +138,9 @@ INSERT INTO "WorkflowVersion" (
     coalesce(sqlc.narg('kind')::"WorkflowKind", 'DAG'),
     sqlc.narg('defaultPriority') :: integer,
     sqlc.narg('createWorkflowVersionOpts')::jsonb,
-    sqlc.narg('inputJsonSchema')::jsonb
+    sqlc.narg('inputJsonSchema')::jsonb,
+    sqlc.narg('idempotencyKeyExpression')::text,
+    sqlc.narg('idempotencyKeyTtlMs')::bigint
 ) RETURNING *;
 
 -- name: CreateJob :one
@@ -322,8 +326,11 @@ SELECT
     unnest(@units::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
--- NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
-ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING;
+-- The trigger v1_step_slot_request_insert_trigger writes a {default: 1} (or {durable: 1}) row on
+-- Step insert, so DO UPDATE overwrites it with the requested units instead of leaving the default.
+-- The conflict handling is only here because of that trigger.
+ON CONFLICT (tenant_id, step_id, slot_type) DO UPDATE
+    SET units = EXCLUDED.units, updated_at = CURRENT_TIMESTAMP;
 
 -- name: AddStepParents :exec
 INSERT INTO "_StepOrder" ("A", "B")
