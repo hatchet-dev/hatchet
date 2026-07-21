@@ -269,9 +269,7 @@ export class AdminClient {
             },
           }),
         this.logger,
-        undefined,
-        undefined,
-        (e) => !isNiceGrpcAlreadyExists(e)
+        { ...this.config.retrier, shouldRetry: (e) => !isNiceGrpcAlreadyExists(e) }
       );
 
       const id = resp.workflowRunId;
@@ -389,11 +387,12 @@ export class AdminClient {
               },
             }),
           this.logger,
-          undefined,
-          undefined,
-          (e) =>
-            !isNiceGrpcAlreadyExists(e) &&
-            !(isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS)
+          {
+            ...this.config.retrier,
+            shouldRetry: (e) =>
+              !isNiceGrpcAlreadyExists(e) &&
+              !(isGrpcServiceError(e) && e.code === GrpcStatus.ALREADY_EXISTS),
+          }
         );
 
         this.logger.debug(`batch ${batchIndex + 1} of ${batches.length}`);
@@ -435,6 +434,10 @@ export class AdminClient {
       duration,
     };
 
-    await retrier(async () => this.workflowsGrpc.putRateLimit(request), this.logger);
+    await retrier(
+      async () => this.workflowsGrpc.putRateLimit(request),
+      this.logger,
+      this.config.retrier
+    );
   }
 }

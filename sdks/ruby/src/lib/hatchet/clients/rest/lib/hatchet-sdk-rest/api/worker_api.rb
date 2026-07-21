@@ -94,6 +94,9 @@ module HatchetSdkRest
     # Get all workers for a tenant
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
+    # @option opts [Integer] :offset The number to skip
+    # @option opts [Integer] :limit The number to limit by
+    # @option opts [Array<WorkerStatus>] :statuses Filter by worker status
     # @return [WorkerList]
     def worker_list(tenant, opts = {})
       data, _status_code, _headers = worker_list_with_http_info(tenant, opts)
@@ -104,6 +107,9 @@ module HatchetSdkRest
     # Get all workers for a tenant
     # @param tenant [String] The tenant id
     # @param [Hash] opts the optional parameters
+    # @option opts [Integer] :offset The number to skip
+    # @option opts [Integer] :limit The number to limit by
+    # @option opts [Array<WorkerStatus>] :statuses Filter by worker status
     # @return [Array<(WorkerList, Integer, Hash)>] WorkerList data, response status code and response headers
     def worker_list_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
@@ -126,6 +132,9 @@ module HatchetSdkRest
 
       # query parameters
       query_params = opts[:query_params] || {}
+      query_params[:'offset'] = opts[:'offset'] if !opts[:'offset'].nil?
+      query_params[:'limit'] = opts[:'limit'] if !opts[:'limit'].nil?
+      query_params[:'statuses'] = @api_client.build_collection_param(opts[:'statuses'], :multi) if !opts[:'statuses'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}

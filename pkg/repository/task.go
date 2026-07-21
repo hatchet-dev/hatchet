@@ -1333,7 +1333,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1403,7 +1403,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1467,7 +1467,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1501,7 +1501,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
 		TenantID: tenantId,
-		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
+		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true}, // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 	})
 
 	if err != nil {
@@ -2341,13 +2341,7 @@ func (r *sharedRepository) insertTasks(
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
 
-		if r.payloadStore.DualWritesEnabled() {
-			// if dual writes are enabled, write the inputs to the tasks table
-			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
-		} else {
-			// otherwise, write an empty json object to the inputs column
-			params.Inputs = append(params.Inputs, []byte("{}"))
-		}
+		params.Inputs = append(params.Inputs, []byte("{}"))
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -2999,12 +2993,6 @@ func (r *sharedRepository) createTaskEvents(
 		// because it'll try to unmarshal the `nil` value.
 		externalIdToData[externalId] = eventDatas[i]
 
-		if len(eventDatas[i]) == 0 || !r.payloadStore.TaskEventDualWritesEnabled() {
-			paramDatas[i] = nil
-		} else {
-			paramDatas[i] = eventDatas[i]
-		}
-
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{
 				String: eventKeys[i],
@@ -3075,7 +3063,7 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 func hash(s string) int64 {
 	h := fnv.New64a()
 	h.Write([]byte(s))
-	return int64(h.Sum64())
+	return int64(h.Sum64()) // #nosec G115 -- deterministic bit-reinterpretation for hashing/bucketing, wraparound is fine
 }
 
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
@@ -3481,8 +3469,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		for _, task := range tasks {
 			taskExternalId := task.ExternalID
 			stepId := task.StepID
-			switch {
-			case task.JobKind == sqlcv1.JobKindONFAILURE:
+			switch task.JobKind {
+			case sqlcv1.JobKindONFAILURE:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
@@ -3702,7 +3690,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 			cond := groupCondition
 
 			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
-				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, string(groupCondition.EventKey))
+				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, groupCondition.EventKey)
 
 				if match, ok := foundMatchKeys[key]; ok {
 					cond.Data = match.Data
@@ -3780,7 +3768,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 
 			if opt.ValueInt != nil {
 				valuesInt = append(valuesInt, pgtype.Int4{
-					Int32: int32(*opt.ValueInt),
+					Int32: int32(*opt.ValueInt), // #nosec G115 -- expression-evaluated value stored for later matching, overflow affects semantics only, not exploitable
 					Valid: true,
 				})
 			} else {

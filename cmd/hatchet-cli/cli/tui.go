@@ -24,7 +24,7 @@ var tuiCmd = &cobra.Command{
 	Aliases: []string{"terminal-ui"},
 	Short:   "Start the Hatchet terminal UI",
 	Long:    `Start an interactive terminal UI for viewing and managing Hatchet tasks.`,
-	Example: `  # Start TUI (prompts for profile selection)
+	Example: `  # Start TUI (uses the default or only profile, otherwise prompts)
   hatchet tui
 
   # Start TUI with a specific profile
@@ -85,7 +85,7 @@ var tuiCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(tuiCmd)
-	tuiCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: prompts for selection)")
+	tuiCmd.Flags().StringP("profile", "p", "", "Profile to use for connecting to Hatchet (default: the configured default or only profile, otherwise prompts)")
 	tuiCmd.Flags().StringP("run", "r", "", "Navigate to a specific workflow run by ID")
 }
 

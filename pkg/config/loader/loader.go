@@ -378,10 +378,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	inlineStoreTTL := time.Duration(inlineStoreTTLDays) * 24 * time.Hour
 
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
-		EnablePayloadDualWrites:              scf.PayloadStore.EnablePayloadDualWrites,
-		EnableTaskEventPayloadDualWrites:     scf.PayloadStore.EnableTaskEventPayloadDualWrites,
-		EnableOLAPPayloadDualWrites:          scf.PayloadStore.EnableOLAPPayloadDualWrites,
-		EnableDagDataPayloadDualWrites:       scf.PayloadStore.EnableDagDataPayloadDualWrites,
 		ExternalCutoverProcessInterval:       scf.PayloadStore.ExternalCutoverProcessInterval,
 		ExternalCutoverBatchSize:             scf.PayloadStore.ExternalCutoverBatchSize,
 		ExternalCutoverNumConcurrentOffloads: scf.PayloadStore.ExternalCutoverNumConcurrentOffloads,
@@ -390,8 +386,8 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	}
 
 	statusUpdateOpts := repov1.StatusUpdateBatchSizeLimits{
-		Task: int32(scf.OLAPStatusUpdates.TaskBatchSizeLimit),
-		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),
+		Task: int32(scf.OLAPStatusUpdates.TaskBatchSizeLimit), // #nosec G115 -- admin-configured server setting, not attacker-controlled
+		DAG:  int32(scf.OLAPStatusUpdates.DagBatchSizeLimit),  // #nosec G115 -- admin-configured server setting, not attacker-controlled
 	}
 
 	v1, cleanupV1 := repov1.NewRepository(
