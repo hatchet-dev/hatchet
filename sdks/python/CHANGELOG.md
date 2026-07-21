@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a `display_name` option to set a custom, human-readable name on a run at trigger time. It is accepted as a direct keyword argument on every run surface (`run`, `run_no_wait`, `aio_run`, `aio_run_no_wait`, per-item via `create_bulk_run_item` for `run_many`, and child spawns) and on `TriggerWorkflowOptions`. Single-task runs carry the name on the task; multi-step DAG runs carry it on the DAG (the DAG's step tasks keep their generated names). Empty or whitespace-only values fall back to the generated `<readableId>-<timestamp>` name, and names longer than 255 characters are stored truncated rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+- Added a definition-level `display_name` option that holds a CEL expression the engine evaluates against a run's input at trigger time to produce a human-readable name. Set it on `hatchet.workflow(display_name=...)` to name the run, or on a DAG step via `.task(display_name=...)` / `.durable_task(display_name=...)` to name that step; on a single-task `hatchet.task(display_name=...)` the task-level expression names the run. Because it is evaluated by the engine at trigger time, it applies to every trigger source — manual `run`, `run_many`, child spawns, events, and crons. Malformed expressions are rejected at registration; runtime evaluation errors fall back to the generated `<readableId>-<timestamp>` name, and results longer than 255 characters are stored truncated. This replaces the previously proposed trigger-time `display_name` option, which has been removed ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
 
 ## [1.33.18] - 2026-07-08
 

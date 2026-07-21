@@ -1,83 +1,116 @@
 import { Callout, Tabs } from "nextra/components";
 import UniversalTabs from "../../components/UniversalTabs";
 
-# Naming runs with a custom display name
+# Naming runs with a display-name expression
 
 By default, each run in Hatchet is labelled with a generated name of the form `<readableId>-<timestamp>` (for example, `resolve-subprocessor-info-1782146942603`). When a parent fans out many child runs in a single batch, they all share the same step id and batch timestamp, so the runs list renders several identically-named rows and you have to open each run's input to tell them apart.
 
-You can instead set a human-readable **display name** at trigger time. The dashboard renders it automatically in the runs list, the run detail header, and the children list — no other configuration required.
+You can instead give a run a human-readable **display name** by declaring a [CEL](https://github.com/google/cel-spec) expression on the workflow (and/or on individual tasks) in the workflow **definition**. Hatchet evaluates the expression against the run's input at trigger time and renders the result in the runs list, the run detail header, and the children list — no per-trigger configuration required. Because the expression lives in the definition, **every** trigger source — manual, event, and cron — produces meaningful names automatically.
 
 <Callout type="info" emoji="🪓">
 
-The display name is applied to the **run**:
+The expression is pure CEL — the **whole string** is evaluated as one expression, consistent with concurrency and rate-limit keys. There is no `{{ }}` templating:
 
-- For a **single-task** workflow, it lands on the task (the task _is_ the run).
-- For a **multi-step DAG**, it lands on the DAG run; the DAG's step tasks keep their generated names.
-
-Omitting the field (or passing an empty/whitespace value) preserves the default generated name. A name longer than 255 characters is stored truncated, never rejected.
+- **Reference the run input** with `input.<key>`, e.g. `input.customerName`.
+- **Quote string literals** as CEL strings, e.g. `'Acme Corp'`.
+- **Guard optional keys** with `has()`, e.g. `has(input.name) ? input.name : 'run'` — referencing a key that isn't present is an error.
 
 </Callout>
 
-## Setting a display name
+## Workflow-level vs. per-task expressions
 
-Pass the display name in the options you already use to trigger a run. This works for top-level runs, `run_many` / bulk triggers (each item gets its own name), and child spawns (each child gets its own name).
+- A **workflow-level** expression names the run. For a multi-step DAG it lands on the DAG run; for a single-task workflow it lands on that task (the task _is_ the run).
+- A **per-task** expression names an individual task of a DAG. Each step of a DAG can be named independently.
+- On a **single-task** workflow the precedence is: the task's own expression, then the workflow-level expression, then the generated fallback.
+
+<Callout type="info" emoji="🪓">
+
+**Failures never fail the run.** A malformed expression is rejected when you register the workflow. At run time, any evaluation error — a missing key, a non-string result, or an empty result — silently falls back to the generated `<readableId|workflowName>-<timestamp>` name. A result longer than 255 characters is stored truncated (rune-safe), never rejected.
+
+</Callout>
+
+## Declaring an expression
+
+Set the expression on the workflow and/or task definition. It applies to every run regardless of how the run is triggered (manual, `run_many` / bulk, child spawn, event, or cron).
 
 <UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
 
 ```python
-# Top-level run
-workflow.run(input, display_name="Acme Corp")
+# Workflow-level: names the run from the run input
+customer_workflow = hatchet.workflow(
+    name="CustomerWorkflow",
+    display_name="input.customerName",
+    input_validator=WorkflowInput,
+)
 
-# Per-item names in a bulk run
-workflow.run_many([
-    workflow.create_bulk_run_item(input=input_a, display_name="Acme Corp"),
-    workflow.create_bulk_run_item(input=input_b, display_name="Globex"),
-])
+# Per-task: names an individual DAG step
+@customer_workflow.task(display_name="'enrich-' + input.customerName")
+def enrich(input: WorkflowInput, ctx: Context) -> None:
+    ...
 ```
 
   </Tabs.Tab>
   <Tabs.Tab>
 
 ```typescript
-// Top-level run
-await workflow.run(input, { displayName: "Acme Corp" });
+// Workflow-level: names the run from the run input
+export const customerWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
+  name: "customer-workflow",
+  displayName: "input.customerName",
+});
 
-// Spawning a child with its own name
-await ctx.runChild(childWorkflow, input, { displayName: "Acme Corp" });
+// Per-task: names an individual DAG step
+customerWorkflow.task({
+  name: "enrich",
+  displayName: "'enrich-' + input.customerName",
+  fn: (input) => {
+    /* ... */
+  },
+});
 ```
 
   </Tabs.Tab>
   <Tabs.Tab>
 
 ```go
-// Top-level run
-_, err := client.Run(ctx, "my-workflow", input, hatchet.WithRunDisplayName("Acme Corp"))
+// Workflow-level: names the run from the run input
+workflow := client.NewWorkflow("customer-workflow",
+    hatchet.WithWorkflowDisplayName("input.customerName"),
+)
+
+// Per-task: names an individual DAG step
+workflow.NewTask("enrich", enrichFn,
+    hatchet.WithDisplayName("'enrich-' + input.customerName"),
+)
 ```
 
   </Tabs.Tab>
   <Tabs.Tab>
 
 ```ruby
-# Top-level run
-workflow.run(input, options: { display_name: "Acme Corp" })
+# Workflow-level: names the run from the run input
+customer_workflow = hatchet.workflow(
+  name: "CustomerWorkflow",
+  display_name: "input.customerName",
+)
+
+# Per-task: names an individual DAG step
+customer_workflow.task(name: "enrich", display_name: "'enrich-' + input.customerName") do |input, ctx|
+  # ...
+end
 ```
 
   </Tabs.Tab>
 </UniversalTabs>
 
-## REST
+## Fan-out and bulk runs
 
-The REST trigger endpoint accepts the same field:
+Because the name is derived from each run's own input, a `run_many` / bulk trigger — or a parent fanning out many children — produces a distinct, meaningful name per run without any per-item configuration. This is the original motivation: a batch of a hundred child runs no longer renders as a hundred identical `<step-id>-<timestamp>` rows.
 
-```json
-POST /api/v1/stable/tenants/{tenant}/workflow-runs/trigger
-{
-  "workflowName": "my-workflow",
-  "input": { ... },
-  "displayName": "Acme Corp"
-}
-```
+## Event- and cron-triggered runs
+
+The same expression applies to runs started by an [event](./events.mdx) or a [cron schedule](./scheduled-runs.mdx). The event's or cron's input payload is the `input` the expression reads, so those runs get evaluated names too — nothing extra to configure on the trigger side.
 
 ## Related
 

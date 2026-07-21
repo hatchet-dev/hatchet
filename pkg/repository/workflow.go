@@ -56,6 +56,9 @@ type CreateWorkflowVersionOpts struct {
 	DefaultFilters []types.DefaultFilter `json:"defaultFilters,omitempty" validate:"omitempty,dive"`
 
 	InputJsonSchema []byte `json:"inputJsonSchema,omitempty"`
+
+	// (optional) a CEL expression evaluated against run input to derive the run's display name
+	DisplayName *string `json:"displayName,omitempty" validate:"omitnil,celworkflowrunstr"`
 }
 
 type CreateConcurrencyOpts struct {
@@ -111,6 +114,9 @@ type CreateStepOpts struct {
 
 	// (optional) the step concurrency options
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
+
+	// (optional) a CEL expression evaluated against run input to derive the task's display name
+	DisplayName *string `json:"displayName,omitempty" validate:"omitnil,celworkflowrunstr"`
 }
 
 type CreateStepMatchConditionOpt struct {
@@ -433,6 +439,11 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 			Valid: true,
 		}
 	}
+
+	if opts.DisplayName != nil {
+		createParams.DisplayName = sqlchelpers.TextFromStr(*opts.DisplayName)
+	}
+
 	sqlcWorkflowVersion, err := r.queries.CreateWorkflowVersion(
 		ctx,
 		tx,
@@ -761,6 +772,10 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 				Int32: int32(*stepOpts.RetryBackoffMaxSeconds), // nolint: gosec
 				Valid: true,
 			}
+		}
+
+		if stepOpts.DisplayName != nil {
+			createStepParams.DisplayName = sqlchelpers.TextFromStr(*stepOpts.DisplayName)
 		}
 
 		_, err = r.queries.CreateStep(

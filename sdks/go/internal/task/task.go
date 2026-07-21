@@ -56,6 +56,9 @@ type TaskShared struct {
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
+	// DisplayName is a CEL expression evaluated against run input to derive the task's display name
+	DisplayName *string
+
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
 	Fn interface{}
@@ -136,6 +139,7 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	taskOpts := &contracts.CreateTaskOpts{
 		RateLimits:  make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
 		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
+		DisplayName: t.DisplayName,
 	}
 
 	for j, rateLimit := range t.RateLimits {

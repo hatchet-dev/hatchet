@@ -51,8 +51,10 @@ message TriggerWorkflowRunRequest {
     optional int32 priority = 4;
     map<string, DesiredWorkerLabels> desired_worker_labels = 5;
 
-    // (optional) a custom display name for the run; falls back to a generated name if unset
-    optional string display_name = 6;
+    // field number 6 (display_name) is retired and must not be reused.
+    // Run display names are now defined as CEL expressions on the workflow/task definition.
+    reserved 6;
+    reserved "display_name";
 }
 
 message TriggerWorkflowRunResponse {
@@ -114,6 +116,7 @@ message CreateWorkflowVersionRequest {
     repeated Concurrency concurrency_arr = 12; // (optional) the workflow concurrency options
     repeated DefaultFilter default_filters = 13; // (optional) the default filters for the workflow
     optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
+    optional string display_name = 15; // (optional) a CEL expression evaluated against run input to name the run
 }
 
 
@@ -155,6 +158,7 @@ message CreateTaskOpts {
     optional string schedule_timeout = 13; // (optional) the timeout for the schedule
     bool is_durable = 14; // (optional) whether the task is durable
     map<string, int32> slot_requests = 15; // (optional) slot requests (slot_type -> units)
+    optional string display_name = 16; // (optional) a CEL expression evaluated against run input to name the task
 }
 
 message CreateTaskRateLimit {

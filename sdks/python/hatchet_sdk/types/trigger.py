@@ -24,7 +24,6 @@ class TriggerWorkflowOptions(ScheduleTriggerWorkflowOptions):
     desired_worker_label: (
         dict[str, DesiredWorkerLabel] | list[DesiredWorkerLabel] | None
     ) = None
-    display_name: str | None = None
 
 
 class WorkflowRunTriggerConfig(BaseModel):

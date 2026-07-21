@@ -8,7 +8,6 @@ module Hatchet
     attr_reader child_index: Integer?
     attr_reader sticky: bool?
     attr_reader desired_worker_labels: Hash[Symbol, untyped]?
-    attr_reader display_name: String?
 
     def initialize: (
       ?additional_metadata: Hash[String, untyped]?,
@@ -18,8 +17,7 @@ module Hatchet
       ?parent_step_run_id: String?,
       ?child_index: Integer?,
       ?sticky: bool?,
-      ?desired_worker_labels: Hash[Symbol, untyped]?,
-      ?display_name: String?
+      ?desired_worker_labels: Hash[Symbol, untyped]?
     ) -> void
 
     def to_h: () -> Hash[Symbol, untyped]

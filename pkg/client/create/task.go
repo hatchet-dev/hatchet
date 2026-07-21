@@ -65,6 +65,9 @@ type WorkflowTask[I, O any] struct {
 	Parents []NamedTask
 
 	DefaultPriority *int32
+
+	// (optional) DisplayName is a CEL expression evaluated against run input to derive the task's display name
+	DisplayName *string
 }
 
 type WorkflowOnFailureTask[I, O any] struct {
@@ -145,6 +148,9 @@ type StandaloneTask struct {
 	DefaultPriority *int32
 
 	DefaultFilters []types.DefaultFilter
+
+	// (optional) DisplayName is a CEL expression evaluated against run input to derive the run's display name
+	DisplayName *string
 }
 
 // DurableTaskCreateOpts defines options for creating a standalone durable task.

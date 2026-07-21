@@ -261,6 +261,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             ),  # type: ignore[arg-type]
             concurrency=_concurrency,
             concurrency_arr=_concurrency_arr,
+            display_name=self._config.display_name,
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
@@ -291,7 +292,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TriggerWorkflowOptions:
         if options is not None:
             warn(
@@ -307,7 +307,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_label=desired_worker_labels,
-            display_name=display_name,
         )
         options_copy = options.model_copy()
         options_copy.additional_metadata = self._combine_additional_metadata(
@@ -383,7 +382,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         desired_worker_id: str | None = None,
         sticky: bool = False,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunTriggerConfig:
         """
         Create a bulk run item for the workflow. This is intended to be used in conjunction with the various `run_many` methods.
@@ -397,7 +395,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `WorkflowRunTriggerConfig` object that can be used to trigger the workflow run, which you then pass into the `run_many` methods.
         """
@@ -412,7 +409,6 @@ class BaseWorkflow(Generic[TWorkflowInput]):
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
-                display_name=display_name,
             ),
             key=key,
         )
@@ -871,7 +867,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunRef:
         """
         Synchronously trigger a workflow run without waiting for it to complete.
@@ -885,7 +880,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
 
@@ -904,7 +898,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
-            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -922,7 +915,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> dict[str, Any]: ...
 
     @overload
@@ -938,7 +930,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunRef: ...
 
     def run(
@@ -952,7 +943,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow synchronously and wait for it to complete.
@@ -968,7 +958,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
         """
@@ -984,7 +973,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
-                display_name=display_name,
             ),
         )
 
@@ -1003,7 +991,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunRef:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
@@ -1017,7 +1004,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `WorkflowRunRef` object representing the reference to the workflow run.
 
@@ -1036,7 +1022,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
-            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -1054,7 +1039,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> dict[str, Any]: ...
 
     @overload
@@ -1070,7 +1054,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunRef: ...
 
     async def aio_run(
@@ -1084,7 +1067,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> WorkflowRunRef | dict[str, Any]:
         """
         Run the workflow asynchronously and wait for it to complete.
@@ -1100,7 +1082,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The result of the workflow execution as a dictionary, or a WorkflowRunRef if wait_for_result is False.
 
@@ -1113,7 +1094,6 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
             additional_metadata=additional_metadata,
             priority=priority,
             sticky=sticky,
-            display_name=display_name,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
         )
@@ -1369,6 +1349,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1398,6 +1379,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :param concurrency: A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
 
         :param wait_for: A list of conditions that must be met before the task can run.
 
@@ -1449,6 +1432,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
@@ -1474,6 +1458,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
@@ -1512,6 +1497,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         :param backoff_max_seconds: The maximum number of seconds to allow retries with exponential backoff to continue.
 
         :param concurrency: A list of concurrency expressions for the task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
 
         :param wait_for: A list of conditions that must be met before the task can run.
 
@@ -1565,6 +1552,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=computed_params.backoff_factor,
                 backoff_max_seconds=computed_params.backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
@@ -1587,6 +1575,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1610,6 +1599,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param concurrency: A list of concurrency expressions for the on-failure task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
+
         :returns: A decorator which creates a `Task` object.
         """
         _warn_if_str_duration(schedule_timeout, execution_timeout)
@@ -1632,6 +1623,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 desired_worker_labels=None,
                 parents=None,
                 wait_for=None,
@@ -1658,6 +1650,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         backoff_factor: float | None = None,
         backoff_max_seconds: int | None = None,
         concurrency: int | list[ConcurrencyExpression] | None = None,
+        display_name: str | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1681,6 +1674,8 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param concurrency: A list of concurrency expressions for the on-success task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
+
         :returns: A decorator which creates a Task object.
         """
         _warn_if_str_duration(schedule_timeout, execution_timeout)
@@ -1703,6 +1698,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=concurrency,
+                display_name=display_name,
                 parents=None,
                 desired_worker_labels=None,
                 wait_for=None,
@@ -1843,7 +1839,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> R: ...
 
     @overload
@@ -1859,7 +1854,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     def run(
@@ -1873,7 +1867,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow synchronously and wait for it to complete.
@@ -1889,7 +1882,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
@@ -1901,7 +1893,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
-                display_name=display_name,
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
@@ -1916,7 +1907,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
-                display_name=display_name,
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
@@ -1935,7 +1925,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> R: ...
 
     @overload
@@ -1951,7 +1940,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]: ...
 
     async def aio_run(
@@ -1965,7 +1953,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R] | R:
         """
         Run the workflow asynchronously and wait for it to complete.
@@ -1981,7 +1968,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: The extracted result of the workflow execution, or a TaskRunRef if wait_for_result is False.
         """
@@ -1994,7 +1980,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
                 child_key=child_key,
                 additional_metadata=additional_metadata,
                 priority=priority,
-                display_name=display_name,
                 sticky=sticky,
                 desired_worker_id=desired_worker_id,
                 desired_worker_labels=desired_worker_labels,
@@ -2009,7 +1994,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
-            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -2026,7 +2010,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Trigger a workflow run without waiting for it to complete.
@@ -2041,7 +2024,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
 
@@ -2060,7 +2042,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
-            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,
@@ -2076,7 +2057,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         sticky: bool = False,
         desired_worker_id: str | None = None,
         desired_worker_labels: list[DesiredWorkerLabel] | None = None,
-        display_name: str | None = None,
     ) -> TaskRunRef[TWorkflowInput, R]:
         """
         Asynchronously trigger a workflow run without waiting for it to complete.
@@ -2090,7 +2070,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
         :param sticky: Whether to use sticky scheduling for the workflow run.
         :param desired_worker_id: The ID of the desired worker to run the workflow on.
         :param desired_worker_labels: A list of desired worker labels for worker affinity.
-        :param display_name: A custom display name for the workflow run. If not provided, a name is generated automatically.
 
         :returns: A `TaskRunRef` object representing the reference to the workflow run.
 
@@ -2109,7 +2088,6 @@ class Standalone(BaseWorkflow[TWorkflowInput], Generic[TWorkflowInput, R]):
             child_key=child_key,
             additional_metadata=additional_metadata,
             priority=priority,
-            display_name=display_name,
             sticky=sticky,
             desired_worker_id=desired_worker_id,
             desired_worker_labels=desired_worker_labels,

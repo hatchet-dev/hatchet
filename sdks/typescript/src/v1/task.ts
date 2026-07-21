@@ -159,6 +159,18 @@ export type CreateBaseTaskOpts<
    */
   concurrency?: Concurrency | Concurrency[];
 
+  /**
+   * (optional) a CEL expression evaluated against the run's input to produce a
+   * human-readable display name for this task. Declared in the task definition
+   * and evaluated at trigger time. For a single-task workflow the task-level
+   * expression names the run and takes precedence over the workflow-level one.
+   * Any evaluation error falls back to the generated `<readableId>-<timestamp>`
+   * label. A malformed expression is rejected at registration.
+   *
+   * @example "'enrich-' + input.customerName"
+   */
+  displayName?: string;
+
   /** @internal */
   slotRequests?: Record<string, number>;
 };

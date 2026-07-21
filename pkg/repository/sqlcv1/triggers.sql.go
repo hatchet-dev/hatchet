@@ -9,12 +9,14 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const listWorkflowsByNames = `-- name: ListWorkflowsByNames :many
 SELECT DISTINCT ON("workflowId")
     "workflowId",
     workflowVersions."id" AS "workflowVersionId",
+    workflowVersions."displayName" AS "displayName",
     workflow."name" AS "workflowName"
 FROM
     "WorkflowVersion" as workflowVersions
@@ -33,9 +35,10 @@ type ListWorkflowsByNamesParams struct {
 }
 
 type ListWorkflowsByNamesRow struct {
-	WorkflowId        uuid.UUID `json:"workflowId"`
-	WorkflowVersionId uuid.UUID `json:"workflowVersionId"`
-	WorkflowName      string    `json:"workflowName"`
+	WorkflowId        uuid.UUID   `json:"workflowId"`
+	WorkflowVersionId uuid.UUID   `json:"workflowVersionId"`
+	DisplayName       pgtype.Text `json:"displayName"`
+	WorkflowName      string      `json:"workflowName"`
 }
 
 func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWorkflowsByNamesParams) ([]*ListWorkflowsByNamesRow, error) {
@@ -47,7 +50,12 @@ func (q *Queries) ListWorkflowsByNames(ctx context.Context, db DBTX, arg ListWor
 	var items []*ListWorkflowsByNamesRow
 	for rows.Next() {
 		var i ListWorkflowsByNamesRow
-		if err := rows.Scan(&i.WorkflowId, &i.WorkflowVersionId, &i.WorkflowName); err != nil {
+		if err := rows.Scan(
+			&i.WorkflowId,
+			&i.WorkflowVersionId,
+			&i.DisplayName,
+			&i.WorkflowName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -63,6 +71,7 @@ WITH latest_versions AS (
     SELECT DISTINCT ON("workflowId")
         "workflowId",
         workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."displayName" AS "displayName",
         workflow."name" AS "workflowName"
     FROM
         "WorkflowVersion" as workflowVersions
@@ -81,6 +90,7 @@ SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
+    latest_versions."displayName",
     eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
     k.event_key::TEXT as "incomingEventKey"
 FROM
@@ -98,11 +108,12 @@ type ListWorkflowsForEventsParams struct {
 }
 
 type ListWorkflowsForEventsRow struct {
-	WorkflowVersionId                 uuid.UUID `json:"workflowVersionId"`
-	WorkflowId                        uuid.UUID `json:"workflowId"`
-	WorkflowName                      string    `json:"workflowName"`
-	WorkflowTriggeringEventKeyPattern string    `json:"workflowTriggeringEventKeyPattern"`
-	IncomingEventKey                  string    `json:"incomingEventKey"`
+	WorkflowVersionId                 uuid.UUID   `json:"workflowVersionId"`
+	WorkflowId                        uuid.UUID   `json:"workflowId"`
+	WorkflowName                      string      `json:"workflowName"`
+	DisplayName                       pgtype.Text `json:"displayName"`
+	WorkflowTriggeringEventKeyPattern string      `json:"workflowTriggeringEventKeyPattern"`
+	IncomingEventKey                  string      `json:"incomingEventKey"`
 }
 
 // Get all of the latest workflow versions
@@ -120,6 +131,7 @@ func (q *Queries) ListWorkflowsForEvents(ctx context.Context, db DBTX, arg ListW
 			&i.WorkflowVersionId,
 			&i.WorkflowId,
 			&i.WorkflowName,
+			&i.DisplayName,
 			&i.WorkflowTriggeringEventKeyPattern,
 			&i.IncomingEventKey,
 		); err != nil {

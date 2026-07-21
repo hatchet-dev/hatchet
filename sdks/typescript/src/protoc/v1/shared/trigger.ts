@@ -120,8 +120,6 @@ export interface TriggerWorkflowRequest {
   priority?: number | undefined;
   /** (optional) the desired worker labels for the workflow run, which will be used to determine which workers can pick up the workflow's tasks. if not set, defaults to an empty set of labels, which means any worker can pick up the tasks. */
   desiredWorkerLabels: { [key: string]: DesiredWorkerLabels };
-  /** (optional) a custom display name for the run; falls back to "<name>-<timestamp>" if unset */
-  displayName?: string | undefined;
 }
 
 export interface TriggerWorkflowRequest_DesiredWorkerLabelsEntry {
@@ -281,7 +279,6 @@ function createBaseTriggerWorkflowRequest(): TriggerWorkflowRequest {
     desiredWorkerId: undefined,
     priority: undefined,
     desiredWorkerLabels: {},
-    displayName: undefined,
   };
 }
 
@@ -322,9 +319,6 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
         ).join();
       }
     );
-    if (message.displayName !== undefined) {
-      writer.uint32(90).string(message.displayName);
-    }
     return writer;
   },
 
@@ -421,14 +415,6 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
           }
           continue;
         }
-        case 11: {
-          if (tag !== 90) {
-            break;
-          }
-
-          message.displayName = reader.string();
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -490,11 +476,6 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
               {}
             )
           : {},
-      displayName: isSet(object.displayName)
-        ? globalThis.String(object.displayName)
-        : isSet(object.display_name)
-          ? globalThis.String(object.display_name)
-          : undefined,
     };
   },
 
@@ -539,9 +520,6 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
         });
       }
     }
-    if (message.displayName !== undefined) {
-      obj.displayName = message.displayName;
-    }
     return obj;
   },
 
@@ -573,7 +551,6 @@ export const TriggerWorkflowRequest: MessageFns<TriggerWorkflowRequest> = {
       },
       {}
     );
-    message.displayName = object.displayName ?? undefined;
     return message;
   },
 };

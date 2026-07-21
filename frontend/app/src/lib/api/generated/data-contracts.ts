@@ -658,8 +658,6 @@ export interface V1TriggerWorkflowRunRequest {
   additionalMetadata?: object;
   /** The priority of the workflow run. */
   priority?: number;
-  /** A custom display name for the run. Falls back to a generated name if unset. */
-  displayName?: string;
   /** A boolean flag indicating whether to only return the id of the created run. */
   return_only_id?: boolean;
 }

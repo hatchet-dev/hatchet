@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a `displayName` run option to set a custom, human-readable name on a run at trigger time. It is accepted in the options for `run`, `runNoWait`, `runMany`/`runManyNoWait` (per-item), and child spawns (`runChild`/`runChildren`). Single-task runs carry the name on the task; multi-step DAG runs carry it on the DAG (the DAG's step tasks keep their generated names). Empty or whitespace-only values fall back to the generated `<readableId>-<timestamp>` name, and names longer than 255 characters are stored truncated rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+- Added a `displayName` option to the workflow and task **definitions** for naming runs with a [CEL](https://github.com/google/cel-spec) expression evaluated against each run's input at trigger time. Set it on `hatchet.workflow({ displayName })` to name the run, and/or on `.task({ displayName })` to name individual DAG steps; on a single-task workflow the task-level expression takes precedence over the workflow-level one. Because the expression lives in the definition, it applies to every trigger source (manual, `run`/`runMany`, child spawn, event, and cron) with no per-trigger configuration. A malformed expression is rejected at registration; any run-time evaluation error (missing key, non-string result, empty result) silently falls back to the generated `<readableId>-<timestamp>` name, and results longer than 255 characters are stored truncated rather than rejected. This replaces the previous trigger-time `displayName` run option, which has been removed ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
 
 ## [1.24.3] - 2026-06-17
 

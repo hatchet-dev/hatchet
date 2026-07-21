@@ -142,6 +142,9 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	DefaultPriority *int32
 	DefaultFilters  []types.DefaultFilter
+
+	// DisplayName is a CEL expression evaluated against run input to derive the run's display name
+	DisplayName *string
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
@@ -197,6 +200,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		outputSetters:    make(map[string]func(*O, interface{})),
 		DefaultPriority:  opts.DefaultPriority,
 		DefaultFilters:   opts.DefaultFilters,
+		DisplayName:      opts.DisplayName,
 	}
 
 	if opts.Version != "" {
@@ -316,6 +320,7 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           opts.WorkerLabels,
 			Concurrency:            opts.Concurrency,
+			DisplayName:            opts.DisplayName,
 		},
 	}
 
@@ -422,6 +427,7 @@ func (w *workflowDeclarationImpl[I, O]) DurableTask(opts create.WorkflowTask[I, 
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           labels,
 			Concurrency:            opts.Concurrency,
+			DisplayName:            opts.DisplayName,
 		},
 	}
 
@@ -623,6 +629,7 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		CronInput:       w.CronInput,
 		DefaultPriority: w.DefaultPriority,
 		DefaultFilters:  filters,
+		DisplayName:     w.DisplayName,
 	}
 
 	if w.Version != nil {

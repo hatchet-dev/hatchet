@@ -63,7 +63,6 @@ func (t *V1WorkflowRunsService) V1WorkflowRunCreate(ctx echo.Context, request ge
 		Input:              inputBytes,
 		AdditionalMetadata: additionalMetadataBytes,
 		Priority:           priority,
-		DisplayName:        request.Body.DisplayName,
 	}
 
 	resp, err := t.proxyTrigger.Do(

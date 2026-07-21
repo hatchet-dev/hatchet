@@ -4,6 +4,7 @@ WITH latest_versions AS (
     SELECT DISTINCT ON("workflowId")
         "workflowId",
         workflowVersions."id" AS "workflowVersionId",
+        workflowVersions."displayName" AS "displayName",
         workflow."name" AS "workflowName"
     FROM
         "WorkflowVersion" as workflowVersions
@@ -23,6 +24,7 @@ SELECT
     latest_versions."workflowVersionId",
     latest_versions."workflowId",
     latest_versions."workflowName",
+    latest_versions."displayName",
     eventRef."eventKey" as "workflowTriggeringEventKeyPattern",
     k.event_key::TEXT as "incomingEventKey"
 FROM
@@ -38,6 +40,7 @@ JOIN event_keys k ON k.event_key LIKE REPLACE(eventRef."eventKey", '*', '%')
 SELECT DISTINCT ON("workflowId")
     "workflowId",
     workflowVersions."id" AS "workflowVersionId",
+    workflowVersions."displayName" AS "displayName",
     workflow."name" AS "workflowName"
 FROM
     "WorkflowVersion" as workflowVersions

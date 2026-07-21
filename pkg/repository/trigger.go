@@ -74,9 +74,6 @@ type TriggerTaskData struct {
 
 	// (optional) overrides for desired worker labels for the task, used for routing a task to a specific worker (or worker pool)
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow `json:"desired_worker_labels"`
-
-	// (optional) custom display name for the run
-	DisplayName *string `json:"display_name"`
 }
 
 // maxDisplayNameRunes bounds a stored run display name; over-long labels are
@@ -101,6 +98,44 @@ func NormalizeDisplayName(in *string) *string {
 	}
 
 	return &trimmed
+}
+
+// resolveDisplayName evaluates a CEL display-name expression against the run
+// input and returns the normalized result, or the generated fallback on any
+// problem. A display name is cosmetic, so evaluation must never fail the run:
+// an unset/empty expression, a compile/eval error, a non-string result, or an
+// empty result all resolve to the caller-supplied fallback.
+func resolveDisplayName(
+	parser *cel.CELParser,
+	l *zerolog.Logger,
+	expr *string,
+	runInput map[string]interface{},
+	meta map[string]interface{},
+	runID uuid.UUID,
+	fallback string,
+) string {
+	if expr == nil || strings.TrimSpace(*expr) == "" {
+		return fallback
+	}
+
+	in := cel.NewInput(
+		cel.WithInput(runInput),
+		cel.WithAdditionalMetadata(meta),
+		cel.WithWorkflowRunID(runID),
+	)
+
+	out, err := parser.ParseAndEvalWorkflowString(*expr, in)
+	if err != nil {
+		l.Warn().Err(err).Str("expression", *expr).Msg("failed to evaluate display name expression; falling back to generated name")
+		return fallback
+	}
+
+	normalized := NormalizeDisplayName(&out)
+	if normalized == nil {
+		return fallback
+	}
+
+	return *normalized
 }
 
 func ProtoToDesiredWorkerLabel(key string, strValue *string, intValue *int32, required *bool, weight *int32, comparator *string) *sqlcv1.GetDesiredLabelsRow {
@@ -163,7 +198,8 @@ type createDAGOpts struct {
 	// (optional) overrides for desired worker labels, propagated to all downstream tasks
 	DesiredWorkerLabels []*sqlcv1.GetDesiredLabelsRow
 
-	// (optional) custom display name for the DAG run
+	// (optional) the workflow-level CEL expression, evaluated against run input to
+	// derive the DAG run's display name
 	DisplayName *string
 }
 
@@ -619,7 +655,9 @@ type triggerTuple struct {
 	desiredWorkerLabels       []*sqlcv1.GetDesiredLabelsRow
 	triggeringEventExternalId *uuid.UUID
 	triggeringEventKey        *string
-	displayName               *string
+	// displayName carries the workflow-level CEL display-name expression (from the
+	// workflow version), evaluated at trigger time — not a caller-supplied literal.
+	displayName *string
 }
 
 type createCoreUserEventOpts struct {
@@ -1070,9 +1108,10 @@ func (r *sharedRepository) triggerWorkflows(
 					if isDag {
 						dagTaskOpts[tuple.externalId] = append(dagTaskOpts[tuple.externalId], opt)
 					} else {
-						// single-task run: the task IS the run, so it carries the display name.
-						// DAG step tasks keep their generated names (the DAG row is named instead).
-						opt.DisplayName = tuple.displayName
+						// single-task run: the task IS the run, so it inherits the
+						// workflow-level display-name expression when the step has none.
+						// DAG step tasks leave this nil (the DAG row is named instead).
+						opt.WorkflowDisplayName = tuple.displayName
 						nonDagTaskOpts = append(nonDagTaskOpts, opt)
 					}
 				}
@@ -1447,11 +1486,33 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 	for _, opt := range opts {
 		tenantIds = append(tenantIds, tenantId)
 		externalIds = append(externalIds, opt.ExternalId)
-		if opt.DisplayName != nil {
-			displayNames = append(displayNames, *opt.DisplayName)
-		} else {
-			displayNames = append(displayNames, fmt.Sprintf("%s-%d", opt.WorkflowName, unix))
+
+		// Evaluate the workflow-level display-name expression against the raw run
+		// input; fall back to the generated name on any error/empty result.
+		fallback := fmt.Sprintf("%s-%d", opt.WorkflowName, unix)
+
+		var runInput map[string]interface{}
+		if len(opt.Input) > 0 {
+			if err := json.Unmarshal(opt.Input, &runInput); err != nil {
+				runInput = map[string]interface{}{}
+			}
 		}
+		if runInput == nil {
+			runInput = map[string]interface{}{}
+		}
+
+		var meta map[string]interface{}
+		if len(opt.AdditionalMetadata) > 0 {
+			if err := json.Unmarshal(opt.AdditionalMetadata, &meta); err != nil {
+				meta = map[string]interface{}{}
+			}
+		}
+		if meta == nil {
+			meta = map[string]interface{}{}
+		}
+
+		displayNames = append(displayNames, resolveDisplayName(r.celParser, r.l, opt.DisplayName, runInput, meta, opt.ExternalId, fallback))
+
 		workflowIds = append(workflowIds, opt.WorkflowId)
 		workflowVersionIds = append(workflowVersionIds, opt.WorkflowVersionId)
 
@@ -2289,6 +2350,7 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 					filterPayload:             decision.FilterPayload,
 					triggeringEventExternalId: &opt.ExternalId,
 					triggeringEventKey:        &opt.Key,
+					displayName:               sqlchelpers.TextToPtr(workflow.DisplayName),
 				})
 
 				externalIdToEventIdAndFilterId[externalId] = EventExternalIdFilterId{
@@ -2401,7 +2463,7 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 				childKey:             opt.ChildKey,
 				priority:             opt.Priority,
 				desiredWorkerLabels:  opt.DesiredWorkerLabels,
-				displayName:          opt.DisplayName,
+				displayName:          sqlchelpers.TextToPtr(workflowVersion.DisplayName),
 			})
 		}
 	}
@@ -2457,7 +2519,6 @@ func (r *sharedRepository) NewTriggerTaskData(
 		AdditionalMetadata: []byte(additionalMeta),
 		DesiredWorkerId:    desiredWorkerId,
 		Priority:           req.Priority,
-		DisplayName:        NormalizeDisplayName(req.DisplayName),
 	}
 
 	if len(req.DesiredWorkerLabels) > 0 {

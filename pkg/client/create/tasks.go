@@ -62,4 +62,7 @@ type WorkflowCreateOpts[I any] struct {
 	DefaultPriority *int32
 
 	DefaultFilters []types.DefaultFilter
+
+	// (optional) DisplayName is a CEL expression evaluated against run input to derive the run's display name
+	DisplayName *string
 }

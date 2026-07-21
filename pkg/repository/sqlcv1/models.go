@@ -2780,6 +2780,7 @@ type Step struct {
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout    string           `json:"scheduleTimeout"`
 	IsDurable          bool             `json:"isDurable"`
+	DisplayName        pgtype.Text      `json:"displayName"`
 }
 
 type StepDesiredWorkerLabel struct {
@@ -4012,4 +4013,5 @@ type WorkflowVersion struct {
 	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte             `json:"inputJsonSchema"`
+	DisplayName               pgtype.Text        `json:"displayName"`
 }

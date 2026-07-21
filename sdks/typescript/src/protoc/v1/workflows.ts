@@ -253,8 +253,6 @@ export interface TriggerWorkflowRunRequest {
   additionalMetadata: Uint8Array;
   priority?: number | undefined;
   desiredWorkerLabels: { [key: string]: DesiredWorkerLabels };
-  /** (optional) a custom display name for the run; falls back to a generated name if unset */
-  displayName?: string | undefined;
 }
 
 export interface TriggerWorkflowRunRequest_DesiredWorkerLabelsEntry {
@@ -314,6 +312,8 @@ export interface CreateWorkflowVersionRequest {
   defaultFilters: DefaultFilter[];
   /** (optional) the JSON schema for the workflow input */
   inputJsonSchema?: Uint8Array | undefined;
+  /** (optional) a CEL expression evaluated against run input to name the run */
+  displayName?: string | undefined;
 }
 
 export interface DefaultFilter {
@@ -366,6 +366,8 @@ export interface CreateTaskOpts {
   isDurable: boolean;
   /** (optional) slot requests (slot_type -> units) */
   slotRequests: { [key: string]: number };
+  /** (optional) a CEL expression evaluated against run input to name the task */
+  displayName?: string | undefined;
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
@@ -880,7 +882,6 @@ function createBaseTriggerWorkflowRunRequest(): TriggerWorkflowRunRequest {
     additionalMetadata: new Uint8Array(0),
     priority: undefined,
     desiredWorkerLabels: {},
-    displayName: undefined,
   };
 }
 
@@ -909,9 +910,6 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
         ).join();
       }
     );
-    if (message.displayName !== undefined) {
-      writer.uint32(50).string(message.displayName);
-    }
     return writer;
   },
 
@@ -968,14 +966,6 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
           }
           continue;
         }
-        case 6: {
-          if (tag !== 50) {
-            break;
-          }
-
-          message.displayName = reader.string();
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1016,11 +1006,6 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
               {}
             )
           : {},
-      displayName: isSet(object.displayName)
-        ? globalThis.String(object.displayName)
-        : isSet(object.display_name)
-          ? globalThis.String(object.display_name)
-          : undefined,
     };
   },
 
@@ -1050,9 +1035,6 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
         });
       }
     }
-    if (message.displayName !== undefined) {
-      obj.displayName = message.displayName;
-    }
     return obj;
   },
 
@@ -1079,7 +1061,6 @@ export const TriggerWorkflowRunRequest: MessageFns<TriggerWorkflowRunRequest> = 
       },
       {}
     );
-    message.displayName = object.displayName ?? undefined;
     return message;
   },
 };
@@ -1471,6 +1452,7 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     concurrencyArr: [],
     defaultFilters: [],
     inputJsonSchema: undefined,
+    displayName: undefined,
   };
 }
 
@@ -1520,6 +1502,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     if (message.inputJsonSchema !== undefined) {
       writer.uint32(114).bytes(message.inputJsonSchema);
+    }
+    if (message.displayName !== undefined) {
+      writer.uint32(122).string(message.displayName);
     }
     return writer;
   },
@@ -1643,6 +1628,14 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.inputJsonSchema = reader.bytes();
           continue;
         }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1702,6 +1695,11 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
         : isSet(object.input_json_schema)
           ? bytesFromBase64(object.input_json_schema)
           : undefined,
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+          ? globalThis.String(object.display_name)
+          : undefined,
     };
   },
 
@@ -1749,6 +1747,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.inputJsonSchema !== undefined) {
       obj.inputJsonSchema = base64FromBytes(message.inputJsonSchema);
     }
+    if (message.displayName !== undefined) {
+      obj.displayName = message.displayName;
+    }
     return obj;
   },
 
@@ -1777,6 +1778,7 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     message.concurrencyArr = object.concurrencyArr?.map((e) => Concurrency.fromPartial(e)) || [];
     message.defaultFilters = object.defaultFilters?.map((e) => DefaultFilter.fromPartial(e)) || [];
     message.inputJsonSchema = object.inputJsonSchema ?? undefined;
+    message.displayName = object.displayName ?? undefined;
     return message;
   },
 };
@@ -1990,6 +1992,7 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     scheduleTimeout: undefined,
     isDurable: false,
     slotRequests: {},
+    displayName: undefined,
   };
 }
 
@@ -2048,6 +2051,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         writer.uint32(122).fork()
       ).join();
     });
+    if (message.displayName !== undefined) {
+      writer.uint32(130).string(message.displayName);
+    }
     return writer;
   },
 
@@ -2184,6 +2190,14 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           }
           continue;
         }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2270,6 +2284,11 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
               {}
             )
           : {},
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+          ? globalThis.String(object.display_name)
+          : undefined,
     };
   },
 
@@ -2335,6 +2354,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         });
       }
     }
+    if (message.displayName !== undefined) {
+      obj.displayName = message.displayName;
+    }
     return obj;
   },
 
@@ -2381,6 +2403,7 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
       }
       return acc;
     }, {});
+    message.displayName = object.displayName ?? undefined;
     return message;
   },
 };

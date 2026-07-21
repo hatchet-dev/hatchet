@@ -385,6 +385,7 @@ export class InternalWorker {
         onFailureTask,
         defaultPriority: workflow.defaultPriority,
         inputJsonSchema,
+        displayName: workflow.displayName,
         tasks: [...workflow._tasks, ...workflow._durableTasks].map<CreateTaskOpts>((task) => ({
           readableId: task.name,
           action: `${workflow.name}:${task.name}`,
@@ -404,6 +405,7 @@ export class InternalWorker {
           isDurable: durableTaskSet.has(task),
           slotRequests:
             task.slotRequests || (durableTaskSet.has(task) ? { durable: 1 } : { default: 1 }),
+          displayName: task.displayName,
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency

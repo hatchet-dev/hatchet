@@ -455,6 +455,8 @@ CREATE TABLE "Step" (
     "retryMaxBackoff" INTEGER,
     "scheduleTimeout" TEXT NOT NULL DEFAULT '5m',
     "isDurable" BOOLEAN NOT NULL DEFAULT false,
+    -- a CEL expression evaluated against run input to derive the task's display name
+    "displayName" TEXT,
 
     CONSTRAINT "Step_pkey" PRIMARY KEY ("id")
 );
@@ -1088,6 +1090,8 @@ CREATE TABLE
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
+        -- a CEL expression evaluated against run input to derive the run's display name
+        "displayName" TEXT,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

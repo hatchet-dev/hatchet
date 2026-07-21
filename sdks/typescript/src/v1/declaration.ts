@@ -76,13 +76,6 @@ export type RunOpts = {
   priority?: Priority;
 
   /**
-   * (optional) a custom display name for the run, shown in the dashboard.
-   * The engine trims and truncates it; an empty/whitespace value falls back to
-   * the generated `<name>-<timestamp>` label.
-   */
-  displayName?: string;
-
-  /**
    * (optional) if the task run should be run on the same worker.
    * only used if spawned from within a parent task.
    */
@@ -200,6 +193,17 @@ export type CreateBaseWorkflowOpts = {
    * (optional) concurrency config for the workflow.
    */
   concurrency?: Concurrency | Concurrency[];
+
+  /**
+   * (optional) a CEL expression evaluated against each run's input to produce a
+   * human-readable display name for the run. Declared in the workflow definition
+   * and evaluated at trigger time, so it applies to every trigger source (manual,
+   * event, cron). Any evaluation error falls back to the generated
+   * `<name>-<timestamp>` label. A malformed expression is rejected at registration.
+   *
+   * @example "input.customerName"
+   */
+  displayName?: string;
 
   /**
    * (optional) the priority for the workflow.

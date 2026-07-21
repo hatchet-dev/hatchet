@@ -53,6 +53,9 @@ module Hatchet
     # @return [Array<ConcurrencyExpression>, ConcurrencyExpression, nil] Task-level concurrency
     attr_reader :concurrency
 
+    # @return [String, nil] CEL expression evaluated against run input to name this task
+    attr_reader :display_name
+
     # @return [Hash, nil] Desired worker labels for scheduling
     attr_reader :desired_worker_labels
 
@@ -89,6 +92,7 @@ module Hatchet
     # @param backoff_factor [Float, nil] Backoff multiplier
     # @param rate_limits [Array<RateLimit>] Rate limits
     # @param concurrency [Array<ConcurrencyExpression>, ConcurrencyExpression, nil]
+    # @param display_name [String, nil] CEL expression evaluated against run input to name this task
     # @param desired_worker_labels [Hash, nil]
     # @param wait_for [Array] Wait conditions
     # @param skip_if [Array] Skip conditions
@@ -107,6 +111,7 @@ module Hatchet
       backoff_factor: nil,
       rate_limits: [],
       concurrency: nil,
+      display_name: nil,
       desired_worker_labels: nil,
       wait_for: [],
       skip_if: [],
@@ -126,6 +131,7 @@ module Hatchet
       @backoff_factor = backoff_factor
       @rate_limits = rate_limits
       @concurrency = concurrency
+      @display_name = display_name
       @desired_worker_labels = desired_worker_labels
       @wait_for = wait_for
       @skip_if = skip_if
@@ -184,6 +190,9 @@ module Hatchet
         conc_list = @concurrency.is_a?(Array) ? @concurrency : [@concurrency]
         opts[:concurrency] = conc_list.map(&:to_proto)
       end
+
+      # Display name CEL expression (evaluated against run input at trigger time)
+      opts[:display_name] = @display_name if @display_name
 
       # Conditions (wait_for, skip_if)
       conditions_proto = conditions_to_proto(config)

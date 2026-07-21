@@ -141,9 +141,6 @@ V1TriggerWorkflowRunRequest:
     priority:
       type: integer
       description: The priority of the workflow run.
-    displayName:
-      type: string
-      description: A custom display name for the run. Falls back to a generated name if unset.
     return_only_id:
       type: boolean
       description: A boolean flag indicating whether to only return the id of the created run.

@@ -2068,10 +2068,7 @@ type V1TaskTimingList struct {
 // V1TriggerWorkflowRunRequest defines model for V1TriggerWorkflowRunRequest.
 type V1TriggerWorkflowRunRequest struct {
 	AdditionalMetadata *map[string]interface{} `json:"additionalMetadata,omitempty"`
-
-	// DisplayName A custom display name for the run. Falls back to a generated name if unset.
-	DisplayName *string                `json:"displayName,omitempty"`
-	Input       map[string]interface{} `json:"input"`
+	Input              map[string]interface{}  `json:"input"`
 
 	// Priority The priority of the workflow run.
 	Priority *int `json:"priority,omitempty"`

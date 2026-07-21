@@ -59,7 +59,6 @@ type runOpts struct {
 	Sticky              *bool
 	Key                 *string
 	DesiredWorkerLabels map[string]*DesiredWorkerLabel
-	DisplayName         *string
 }
 
 type RunOptFunc func(*runOpts)
@@ -89,14 +88,6 @@ func WithRunSticky(sticky bool) RunOptFunc {
 func WithRunKey(key string) RunOptFunc {
 	return func(opts *runOpts) {
 		opts.Key = &key
-	}
-}
-
-// WithRunDisplayName sets a custom display name for the workflow run. The engine
-// trims and truncates it; an empty/whitespace value falls back to the generated name.
-func WithRunDisplayName(displayName string) RunOptFunc {
-	return func(opts *runOpts) {
-		opts.DisplayName = &displayName
 	}
 }
 
@@ -168,6 +159,7 @@ type workflowConfig struct {
 	stickyStrategy  *types.StickyStrategy
 	cronInput       *string
 	defaultFilters  []types.DefaultFilter
+	displayName     *string
 }
 
 // WithWorkflowCron configures the workflow to run on a cron schedule.
@@ -224,6 +216,15 @@ func WithWorkflowConcurrency(concurrency ...types.Concurrency) WorkflowOption {
 	}
 }
 
+// WithWorkflowDisplayName sets a CEL expression used to derive the run's display name.
+// The expression is evaluated against the run input at trigger time (e.g. "input.customerName");
+// on any evaluation error or empty result the run falls back to a generated name.
+func WithWorkflowDisplayName(expression string) WorkflowOption {
+	return func(config *workflowConfig) {
+		config.displayName = &expression
+	}
+}
+
 // WithWorkflowTaskDefaults sets the default configuration for all tasks in the workflow.
 func WithWorkflowTaskDefaults(defaults *create.TaskDefaults) WorkflowOption {
 	return func(config *workflowConfig) {
@@ -269,6 +270,7 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		TaskDefaults:   config.taskDefaults,
 		StickyStrategy: config.stickyStrategy,
 		DefaultFilters: config.defaultFilters,
+		DisplayName:    config.displayName,
 	}
 
 	if config.defaultPriority != nil {
@@ -303,6 +305,7 @@ type taskConfig struct {
 	skipIf                 condition.Condition
 	description            string
 	evictionPolicy         *EvictionPolicy
+	displayName            *string
 }
 
 // WithRetries sets the number of retry attempts for failed tasks.
@@ -361,6 +364,15 @@ func WithDefaultFilters(filters ...types.DefaultFilter) WorkflowOption {
 func WithConcurrency(concurrency ...*types.Concurrency) TaskOption {
 	return func(config *taskConfig) {
 		config.concurrency = concurrency
+	}
+}
+
+// WithDisplayName sets a CEL expression used to derive the task's display name.
+// The expression is evaluated against the run input at trigger time (e.g. "input.customerName");
+// on any evaluation error or empty result the task falls back to a generated name.
+func WithDisplayName(expression string) TaskOption {
+	return func(config *taskConfig) {
+		config.displayName = &expression
 	}
 }
 
@@ -520,6 +532,7 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 		Parents:                config.parents,
 		WaitFor:                config.waitFor,
 		SkipIf:                 config.skipIf,
+		DisplayName:            config.displayName,
 	}
 
 	if config.isDurable {
@@ -707,10 +720,6 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 		v0Opts = append(v0Opts, v0Client.WithDesiredWorkerLabels(runOpts.DesiredWorkerLabels))
 	}
 
-	if runOpts.DisplayName != nil {
-		v0Opts = append(v0Opts, v0Client.WithDisplayName(*runOpts.DisplayName))
-	}
-
 	var v0Workflow *v0Client.Workflow
 	var err error
 
@@ -733,7 +742,6 @@ func (w *Workflow) runWorkflowInternal(ctx context.Context, otelCtx context.Cont
 			Priority:            priority,
 			AdditionalMetadata:  runOpts.AdditionalMetadata,
 			DesiredWorkerLabels: runOpts.DesiredWorkerLabels,
-			DisplayName:         runOpts.DisplayName,
 		})
 	} else {
 		v0Workflow, err = w.v0Client.Admin().RunWorkflow(w.declaration.Name(), input, v0Opts...)

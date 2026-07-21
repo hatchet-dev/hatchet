@@ -1161,7 +1161,6 @@ export class DurableContext<T, K = {}> extends Context<T, K> {
       desiredWorkerId: options?.sticky ? this.worker.id() : undefined,
       priority: options?.priority,
       desiredWorkerLabels: {},
-      displayName: options?.displayName,
     };
 
     return { workflowName, triggerOpts };

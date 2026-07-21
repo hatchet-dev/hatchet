@@ -98,6 +98,7 @@ class WorkflowConfig(BaseModel):
     on_crons: list[str] = Field(default_factory=list)
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
+    display_name: str | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None
 
