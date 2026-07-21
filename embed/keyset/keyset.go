@@ -1,7 +1,3 @@
-// Package keyset manages the encryption keysets shared across embedded Hatchet
-// instances. The keyset is persisted in a dedicated Postgres schema so that every
-// process in an embedded fleet — single or multi-engine — resolves the same keys
-// without the user having to generate or distribute them.
 package keyset
 
 import (
@@ -15,10 +11,8 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 )
 
-// DefaultSchema is the Postgres schema that stores the embedded keyset.
 const DefaultSchema = "hatchet_embed"
 
-// Keyset holds the encryption keysets shared across embedded instances.
 type Keyset struct {
 	Master     []byte
 	PrivateJWT []byte
@@ -29,22 +23,16 @@ type options struct {
 	schema string
 }
 
-// Opt configures keyset resolution.
 type Opt func(*options)
 
 func defaultOpts() *options {
 	return &options{schema: DefaultSchema}
 }
 
-// WithSchema overrides the Postgres schema that stores the keyset (default "hatchet_embed").
 func WithSchema(schema string) Opt {
 	return func(o *options) { o.schema = schema }
 }
 
-// Resolve returns the shared keyset, generating and persisting it on first use. It is safe to
-// call concurrently across processes: a Postgres advisory lock serializes generation so every
-// caller converges on a single keyset. The schema is created if absent, which requires only
-// CREATE on the database (not CREATEDB).
 func Resolve(ctx context.Context, databaseURL string, opts ...Opt) (*Keyset, error) {
 	o := defaultOpts()
 	for _, f := range opts {

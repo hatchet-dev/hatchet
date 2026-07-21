@@ -8,8 +8,6 @@ import (
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // SA1019: bridges to the internal v0 client option type
 )
 
-// EmbeddedDatabaseURLEnv, when set to a non-empty value and no WithEmbeddedPostgres option is
-// passed, starts NewClient in embedded mode against that Postgres URL.
 const EmbeddedDatabaseURLEnv = "HATCHET_CLIENT_EMBEDDED_DATABASE_URL"
 
 func resolveEmbeddedConfig(probe *v0Client.ClientOpts) (*EmbeddedConfig, error) { //nolint:staticcheck // SA1019
@@ -26,7 +24,6 @@ func resolveEmbeddedConfig(probe *v0Client.ClientOpts) (*EmbeddedConfig, error) 
 	return nil, nil
 }
 
-// EmbeddedConfig describes an in-process Hatchet engine requested via WithEmbeddedPostgres.
 type EmbeddedConfig struct {
 	GRPCPort      *int
 	APIPort       *int
@@ -37,24 +34,16 @@ type EmbeddedConfig struct {
 	DatabaseURL   string
 }
 
-// EmbeddedOption customizes an embedded engine.
 type EmbeddedOption func(*EmbeddedConfig)
 
-// EmbeddedBackend boots an in-process engine for cfg and returns a shutdown function.
-// It is registered by importing github.com/hatchet-dev/hatchet/embed.
 type EmbeddedBackend func(ctx context.Context, cfg EmbeddedConfig) (shutdown func(context.Context) error, err error)
 
 var embeddedBackend EmbeddedBackend
 
-// RegisterEmbeddedBackend wires the embed package into the SDK. Callers do not invoke
-// this directly; it runs from the embed package's init when it is imported.
 func RegisterEmbeddedBackend(b EmbeddedBackend) {
 	embeddedBackend = b
 }
 
-// WithEmbeddedPostgres runs a full Hatchet engine in-process against the given Postgres
-// URL, with the database as the only shared source of truth. Requires a blank import of
-// github.com/hatchet-dev/hatchet/embed so the engine is linked into the binary.
 func WithEmbeddedPostgres(databaseURL string, opts ...EmbeddedOption) v0Client.ClientOpt { //nolint:staticcheck // SA1019
 	cfg := EmbeddedConfig{DatabaseURL: databaseURL}
 	for _, o := range opts {

@@ -28,8 +28,6 @@ import (
 type Client struct {
 	legacyClient v0Client.Client
 
-	// embeddedShutdown tears down an in-process engine started via WithEmbeddedPostgres.
-	// nil when the client connects to an external engine.
 	embeddedShutdown func(context.Context) error
 
 	// Feature clients (lazy loaded)
@@ -85,8 +83,6 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 	}, nil
 }
 
-// Close releases client resources. When the client was created with WithEmbeddedPostgres,
-// it also shuts down the in-process engine, bounded by ctx.
 func (c *Client) Close(ctx context.Context) error {
 	if c.embeddedShutdown != nil {
 		return c.embeddedShutdown(ctx)

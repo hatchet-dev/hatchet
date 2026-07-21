@@ -8,10 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// schemaNameRE matches a safe Postgres identifier: a leading letter or underscore
-// followed by letters, digits, or underscores, up to the 63-byte identifier limit.
-// The schema name is interpolated into DDL, so we reject anything outside this set
-// to avoid identifier injection.
 var schemaNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,62}$`)
 
 func validateSchemaName(schema string) error {
@@ -21,8 +17,6 @@ func validateSchemaName(schema string) error {
 	return nil
 }
 
-// Migrate ensures the keyset schema and table exist. It is the explicit alternative to the
-// auto-migration Resolve performs, for callers that want to run DDL in a separate phase.
 func Migrate(ctx context.Context, databaseURL string, opts ...Opt) error {
 	o := defaultOpts()
 	for _, f := range opts {
