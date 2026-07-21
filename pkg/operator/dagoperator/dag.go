@@ -243,12 +243,16 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 		}
 
-		var skip bool
+		skip := false
 
 		if !cancelled {
-			skip, cancelled = d.evaluateParentConditions(ctx, t)
+			if allParentsSkipped(t) {
+				skip = true
+			} else {
+				skip, cancelled = d.evaluateParentConditions(ctx, t)
+			}
 
-			if !cancelled {
+			if !skip && !cancelled {
 				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
 					d.registerCondition(ctx, t, conditionKindSkip)
 					t.skipWatchRegistered = true
@@ -469,6 +473,20 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 	parent.output = nil
 
 	return nil
+}
+
+func allParentsSkipped(t *task) bool {
+	if len(t.parents) == 0 {
+		return false
+	}
+
+	for _, p := range t.parents {
+		if !p.isSkipped {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (d *dag) isDone() bool {
