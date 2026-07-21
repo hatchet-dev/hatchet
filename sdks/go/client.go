@@ -54,16 +54,17 @@ func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
 		o(probe)
 	}
 
+	embeddedCfg, err := resolveEmbeddedConfig(probe)
+	if err != nil {
+		return nil, err
+	}
+
 	var shutdown func(context.Context) error
-	if probe.Embedded != nil {
-		cfg, ok := probe.Embedded.(*EmbeddedConfig)
-		if !ok {
-			return nil, fmt.Errorf("unexpected embedded config type %T", probe.Embedded)
-		}
+	if embeddedCfg != nil {
 		if embeddedBackend == nil {
 			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
 		}
-		sd, err := embeddedBackend(context.Background(), *cfg)
+		sd, err := embeddedBackend(context.Background(), *embeddedCfg)
 		if err != nil {
 			return nil, err
 		}

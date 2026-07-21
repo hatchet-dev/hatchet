@@ -20,8 +20,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "building worker + trigger..."
-(cd embed/example && go build -o "$BIN/worker" ./worker)
-(cd embed/example && go build -o "$BIN/trigger" ./trigger)
+(cd sdks/go/examples/embedded && go build -o "$BIN/worker" ./worker)
+(cd sdks/go/examples/embedded && go build -o "$BIN/trigger" ./trigger)
 
 for idx in $(seq 0 $((WORKERS - 1))); do
   echo "starting worker $idx (embedded engine, auto-selected ports)"
@@ -38,6 +38,6 @@ RUNS="$RUNS" "$BIN/trigger"
 echo
 echo "every process embeds its own engine; Postgres is the only shared coordination layer."
 echo "re-trigger anytime with:"
-echo "  RUNS=50 go run -C embed/example ./trigger"
+echo "  RUNS=50 go run -C sdks/go/examples/embedded ./trigger"
 echo "Ctrl+C to stop."
 wait

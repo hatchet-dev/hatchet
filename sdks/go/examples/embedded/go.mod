@@ -1,4 +1,4 @@
-module github.com/hatchet-dev/hatchet/embed/example
+module github.com/hatchet-dev/hatchet/sdks/go/examples/embedded
 
 go 1.26
 
@@ -139,4 +139,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/hatchet-dev/hatchet => ../..
+replace github.com/hatchet-dev/hatchet => ../../../..

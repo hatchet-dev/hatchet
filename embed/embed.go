@@ -16,6 +16,7 @@ import (
 	api "github.com/hatchet-dev/hatchet/cmd/hatchet-api/api"
 	engine "github.com/hatchet-dev/hatchet/cmd/hatchet-engine/engine"
 	migrate "github.com/hatchet-dev/hatchet/cmd/hatchet-migrate/migrate"
+	"github.com/hatchet-dev/hatchet/embed/keyset"
 	"github.com/hatchet-dev/hatchet/pkg/config/loader"
 	"github.com/hatchet-dev/hatchet/pkg/config/server"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -97,13 +98,16 @@ func start(ctx context.Context, opts ...Option) (*Instance, error) {
 	}
 
 	if cfg.masterKeyset == nil || len(*cfg.masterKeyset) == 0 {
-		master, privateJWT, publicJWT, keysetErr := resolveKeysets(ctx, cfg.postgresURL)
+		fmt.Fprintf(os.Stderr, "embed: using auto-managed keysets stored in the %q schema; "+
+			"at-rest encryption offers no additional protection here because the keys live in the same database as the data they encrypt. "+
+			"Pass WithKeysets to manage keys externally.\n", keyset.DefaultSchema)
+		ks, keysetErr := keyset.Resolve(ctx, cfg.postgresURL)
 		if keysetErr != nil {
 			return nil, keysetErr
 		}
-		cfg.masterKeyset = &master
-		cfg.privateJWTKeyset = &privateJWT
-		cfg.publicJWTKeyset = &publicJWT
+		cfg.masterKeyset = &ks.Master
+		cfg.privateJWTKeyset = &ks.PrivateJWT
+		cfg.publicJWTKeyset = &ks.PublicJWT
 	}
 
 	startServerAPI := cfg.startAPI == nil || *cfg.startAPI

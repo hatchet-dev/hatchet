@@ -2,9 +2,29 @@ package hatchet
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	v0Client "github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck // SA1019: bridges to the internal v0 client option type
 )
+
+// EmbeddedDatabaseURLEnv, when set to a non-empty value and no WithEmbeddedPostgres option is
+// passed, starts NewClient in embedded mode against that Postgres URL.
+const EmbeddedDatabaseURLEnv = "HATCHET_CLIENT_EMBEDDED_DATABASE_URL"
+
+func resolveEmbeddedConfig(probe *v0Client.ClientOpts) (*EmbeddedConfig, error) { //nolint:staticcheck // SA1019
+	if probe.Embedded != nil {
+		cfg, ok := probe.Embedded.(*EmbeddedConfig)
+		if !ok {
+			return nil, fmt.Errorf("unexpected embedded config type %T", probe.Embedded)
+		}
+		return cfg, nil
+	}
+	if url := os.Getenv(EmbeddedDatabaseURLEnv); url != "" {
+		return &EmbeddedConfig{DatabaseURL: url}, nil
+	}
+	return nil, nil
+}
 
 // EmbeddedConfig describes an in-process Hatchet engine requested via WithEmbeddedPostgres.
 type EmbeddedConfig struct {
