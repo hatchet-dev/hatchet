@@ -60,6 +60,10 @@ type dag struct {
 	err             error
 
 	pendingWaitAcks []*pendingWaitAck
+
+	// cache of the result of each parent override condition so we don't need to
+	// keep outputs in memory for the lifetime of the DAG
+	conditionMatches map[*sqlcv1.V1StepMatchCondition]bool
 }
 
 type conditionKind int
@@ -133,14 +137,15 @@ func dagDurableTask(
 	)
 
 	d := &dag{
-		tasks:           tasks,
-		pendingTasks:    append([]*task{}, tasks...),
-		requestCh:       requestCh,
-		evalBoolExpr:    evalBoolExpr,
-		externalId:      externalId,
-		invocationCount: invocationCount,
-		input:           input,
-		triggerStep:     triggerStep,
+		tasks:            tasks,
+		pendingTasks:     append([]*task{}, tasks...),
+		requestCh:        requestCh,
+		evalBoolExpr:     evalBoolExpr,
+		externalId:       externalId,
+		invocationCount:  invocationCount,
+		input:            input,
+		triggerStep:      triggerStep,
+		conditionMatches: make(map[*sqlcv1.V1StepMatchCondition]bool),
 	}
 
 	for !d.isDone() {
@@ -241,12 +246,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		var skip bool
 
 		if !cancelled {
-			var err error
-			skip, cancelled, err = d.evaluateParentConditions(ctx, t)
-			if err != nil {
-				d.err = fmt.Errorf("failed to evaluate conditions for task %q: %w", t.actionId, err)
-				return progressed, d.err
-			}
+			skip, cancelled = d.evaluateParentConditions(ctx, t)
 
 			if !cancelled {
 				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
@@ -267,11 +267,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 
 				if !skip && !cancelled && d.hasEventOrSleepConditions(t, conditionKindWait) && !t.isWaitSatisfied {
 					if !t.isWaiting {
-						satisfiedGroups, err := d.evaluateWaitParentConditions(ctx, t)
-						if err != nil {
-							d.err = fmt.Errorf("failed to evaluate wait conditions for task %q: %w", t.actionId, err)
-							return progressed, d.err
-						}
+						satisfiedGroups := d.evaluateWaitParentConditions(ctx, t)
 
 						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
 							t.isWaitSatisfied = true
@@ -307,6 +303,11 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			t.isSkipped = true
 			t.isCompleted = true
 			t.output = map[string]interface{}{"skipped": true}
+
+			if err := d.evaluateConditionsForParent(ctx, t); err != nil {
+				d.err = err
+				return progressed, d.err
+			}
 		}
 
 		t.nodeId = result.NodeId
@@ -320,7 +321,10 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			if result.ErrorMessage != nil {
 				errorMessage = *result.ErrorMessage
 			}
-			t.applyCompletion(result.IsFailure, errorMessage, result.ResultPayload)
+			if err := d.applyCompletion(ctx, t, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
+				d.err = err
+				return progressed, d.err
+			}
 		}
 	}
 
@@ -390,14 +394,16 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 				continue
 			}
 
-			t.applyCompletion(m.EntryCompleted.GetIsFailure(), m.EntryCompleted.GetErrorMessage(), m.EntryCompleted.GetPayload())
+			if err := d.applyCompletion(ctx, t, m.EntryCompleted.GetIsFailure(), m.EntryCompleted.GetErrorMessage(), m.EntryCompleted.GetPayload()); err != nil {
+				d.err = err
+			}
 
 			return
 		}
 	}
 }
 
-func (t *task) applyCompletion(isFailure bool, errorMessage string, payload []byte) {
+func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {
 	t.isCompleted = true
 
 	if isFailure && !t.isCancelled {
@@ -419,6 +425,49 @@ func (t *task) applyCompletion(isFailure bool, errorMessage string, payload []by
 			}
 		}
 	}
+
+	return d.evaluateConditionsForParent(ctx, t)
+}
+
+func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) error {
+	if parent.output == nil {
+		return nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "dag.evaluateConditionsForParent")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("dag.parent_readable_id", parent.readableId))
+
+	for _, t := range d.tasks {
+		for _, cond := range t.stepConditions {
+			if cond.Kind != sqlcv1.V1StepMatchConditionKindPARENTOVERRIDE {
+				continue
+			}
+			if cond.ParentReadableID.String != parent.readableId {
+				continue
+			}
+			if _, ok := d.conditionMatches[cond]; ok {
+				continue
+			}
+
+			expr := cond.Expression.String
+			if expr == "" {
+				expr = "true"
+			}
+
+			matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
+			if err != nil {
+				return fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, err)
+			}
+
+			d.conditionMatches[cond] = matched
+		}
+	}
+
+	parent.output = nil
+
+	return nil
 }
 
 func (d *dag) isDone() bool {
@@ -435,11 +484,9 @@ func (d *dag) isDone() bool {
 	return true
 }
 
-func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool, cancel bool, err error) {
-	parentByReadableId := make(map[string]*task, len(d.tasks))
-	for _, p := range d.tasks {
-		parentByReadableId[p.readableId] = p
-	}
+func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool, cancel bool) {
+	_, span := telemetry.NewSpan(ctx, "dag.evaluateParentConditions")
+	defer span.End()
 
 	type groupKey struct {
 		action    sqlcv1.V1MatchConditionAction
@@ -456,20 +503,9 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			continue
 		}
 
-		parentReadableId := cond.ParentReadableID.String
-		parent, ok := parentByReadableId[parentReadableId]
-		if !ok || parent.output == nil {
+		matched, ok := d.conditionMatches[cond]
+		if !ok {
 			continue
-		}
-
-		expr := cond.Expression.String
-		if expr == "" {
-			expr = "true"
-		}
-
-		matched, evalErr := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
-		if evalErr != nil {
-			return false, false, fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, evalErr)
 		}
 
 		key := groupKey{action: cond.Action, orGroupId: cond.OrGroupID}
@@ -501,13 +537,13 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 	}
 
 	if cancelTotal > 0 && len(cancelGroups) == cancelTotal {
-		return false, true, nil
+		return false, true
 	}
 	if skipTotal > 0 && len(skipGroups) == skipTotal {
-		return true, false, nil
+		return true, false
 	}
 
-	return false, false, nil
+	return false, false
 }
 
 func getMatchConditionActionForWatchKind(kind conditionKind) sqlcv1.V1MatchConditionAction {
@@ -537,11 +573,9 @@ func (d *dag) hasEventOrSleepConditions(t *task, kind conditionKind) bool {
 	return false
 }
 
-func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) (map[uuid.UUID]bool, error) {
-	parentByReadableId := make(map[string]*task, len(d.tasks))
-	for _, p := range d.tasks {
-		parentByReadableId[p.readableId] = p
-	}
+func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) map[uuid.UUID]bool {
+	_, span := telemetry.NewSpan(ctx, "dag.evaluateWaitParentConditions")
+	defer span.End()
 
 	satisfied := make(map[uuid.UUID]bool)
 
@@ -556,19 +590,9 @@ func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) (map[uu
 			continue
 		}
 
-		parent, ok := parentByReadableId[c.ParentReadableID.String]
-		if !ok || parent.output == nil {
+		matched, ok := d.conditionMatches[c]
+		if !ok {
 			continue
-		}
-
-		expr := c.Expression.String
-		if expr == "" {
-			expr = "true"
-		}
-
-		matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
-		if err != nil {
-			return nil, fmt.Errorf("CEL eval error for task %q wait condition %q: %w", t.actionId, expr, err)
 		}
 
 		if matched {
@@ -576,7 +600,7 @@ func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) (map[uu
 		}
 	}
 
-	return satisfied, nil
+	return satisfied
 }
 
 func (d *dag) allWaitGroupsSatisfied(t *task, satisfiedGroups map[uuid.UUID]bool) bool {
