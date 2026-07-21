@@ -128,7 +128,7 @@ func triggerRun(
 	err = r.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 	require.NoError(t, err)
 
-	tasks, dags, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	tasks, dags, _, _, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 	require.NoError(t, err)
 
 	return tasks, dags
@@ -160,7 +160,7 @@ func triggerRunMany(
 	err := r.Triggers().PopulateExternalIdsForWorkflow(ctx, tenantId, opts)
 	require.NoError(t, err)
 
-	tasks, _, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	tasks, _, _, _, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 	require.NoError(t, err)
 
 	return tasks
@@ -224,7 +224,7 @@ func spawnChildOnce(
 		return opt, nil
 	}
 
-	tasks, _, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
+	tasks, _, _, _, err := r.Triggers().TriggerFromWorkflowNames(ctx, tenantId, opts)
 	require.NoError(t, err)
 
 	return opt, tasks

@@ -170,6 +170,7 @@ class CreateWorkflowVersionRequest(_message.Message):
     DEFAULT_FILTERS_FIELD_NUMBER: _ClassVar[int]
     INPUT_JSON_SCHEMA_FIELD_NUMBER: _ClassVar[int]
     IDEMPOTENCY_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
     name: str
     description: str
     version: str
@@ -263,6 +264,7 @@ class CreateTaskOpts(_message.Message):
     SCHEDULE_TIMEOUT_FIELD_NUMBER: _ClassVar[int]
     IS_DURABLE_FIELD_NUMBER: _ClassVar[int]
     SLOT_REQUESTS_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
     readable_id: str
     action: str
     timeout: str
