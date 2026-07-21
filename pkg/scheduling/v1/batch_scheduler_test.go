@@ -418,7 +418,7 @@ func TestBatchSchedulerAssignAndDispatchCommitsAssignments(t *testing.T) {
 
 	var assignCalls int
 
-	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
 		assignCalls++
 
 		assignments := make([]*assignedQueueItem, len(queueItems))
@@ -546,7 +546,7 @@ func TestBatchSchedulerUsesSingleSlotForBatch(t *testing.T) {
 	var assignCalls int
 	var lastAssignedLen int
 
-	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
 		assignCalls++
 		lastAssignedLen = len(queueItems)
 
@@ -701,7 +701,7 @@ func TestBatchSchedulerHandlesMultipleBatchKeysForStep(t *testing.T) {
 	)
 	require.NotNil(t, scheduler)
 
-	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
 		assignments := make([]*assignedQueueItem, len(queueItems))
 		for i, qi := range queueItems {
 			assignments[i] = &assignedQueueItem{QueueItem: qi, WorkerId: workerID}
@@ -833,7 +833,7 @@ func TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems(t *testing.T) {
 	require.NotNil(t, scheduler)
 	scheduler.ctx = context.Background()
 
-	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow, _ map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
+	scheduler.assignOverride = func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, _ map[string][]*sqlcv1.GetDesiredLabelsRow) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
 		assignments := make([]*assignedQueueItem, len(queueItems))
 		for i, qi := range queueItems {
 			assignments[i] = &assignedQueueItem{QueueItem: qi, WorkerId: workerID}

@@ -186,7 +186,7 @@ func (b *BatchScheduler) reconcileBuffers() {
 	}
 }
 
-type assignmentFn func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, labels map[string][]*sqlcv1.GetDesiredLabelsRow, rateLimits map[int64]map[string]int32) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error)
+type assignmentFn func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, labels map[string][]*sqlcv1.GetDesiredLabelsRow) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error)
 
 // newBatchScheduler creates a scheduler for the step identified by resource.StepID. resource is
 // only used to seed the shared step-level batch config (max size/interval/max runs); its
@@ -675,10 +675,9 @@ func (b *BatchScheduler) assignQueueItems(
 	ctx context.Context,
 	queueItems []*sqlcv1.V1QueueItem,
 	labels map[string][]*sqlcv1.GetDesiredLabelsRow,
-	rateLimits map[int64]map[string]int32,
 ) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error) {
 	if b.assignOverride != nil {
-		return b.assignOverride(ctx, queueItems, labels, rateLimits)
+		return b.assignOverride(ctx, queueItems, labels)
 	}
 
 	// Batch flush scheduling is intentionally a separate path: we only need ONE slot for the whole batch.
@@ -795,16 +794,10 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 			return items, fmt.Errorf("get desired labels: %w", err)
 		}
 
-		rateLimits, err := queueRepo.GetTaskRateLimits(ctx, nil, []*sqlcv1.V1QueueItem{schedulingItem})
-		if err != nil {
-			queueRepo.Cleanup()
-			return items, fmt.Errorf("get task rate limits: %w", err)
-		}
-
 		stepKey := b.stepId.String()
 		assigned, failedQueueItems, err := b.assignQueueItems(ctx, []*sqlcv1.V1QueueItem{schedulingItem}, map[string][]*sqlcv1.GetDesiredLabelsRow{
 			stepKey: stepLabelsMap[b.stepId],
-		}, rateLimits)
+		})
 		if err != nil {
 			queueRepo.Cleanup()
 			return items, err

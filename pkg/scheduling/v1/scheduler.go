@@ -53,62 +53,27 @@ type Scheduler struct {
 
 	rl   *rateLimiter
 	exts *Extensions
-
-	batchCoordinatorMu rwMutex
-	batchCoordinator   BatchCoordinator
-}
-
-type BatchCoordinator interface {
-	DecideBatch(ctx context.Context, qi *sqlcv1.V1QueueItem, workerID uuid.UUID) BatchDecision
-}
-
-type BatchAction string
-
-const (
-	BatchActionAssign BatchAction = "assign"
-	BatchActionBuffer BatchAction = "buffer"
-	BatchActionDefer  BatchAction = "defer"
-)
-
-type BatchDecision struct {
-	Action      BatchAction
-	ReleaseSlot bool
 }
 
 func newScheduler(cf *sharedConfig, tenantId uuid.UUID, rl *rateLimiter, exts *Extensions) *Scheduler {
 	l := cf.l.With().Str("tenant_id", tenantId.String()).Logger()
 
 	return &Scheduler{
-		repo:               cf.repo.Assignment(),
-		tenantId:           tenantId,
-		l:                  &l,
-		actions:            make(map[string]*action),
-		unackedSlots:       make(map[int]*assignedSlots),
-		warmedSlotTypes:    make(map[uuid.UUID]map[string]struct{}),
-		rl:                 rl,
-		actionsMu:          newRWMu(cf.l),
-		replenishMu:        newMu(cf.l),
-		workers:            map[uuid.UUID]*worker{},
-		workersMu:          newMu(cf.l),
-		assignedCountMu:    newMu(cf.l),
-		unackedMu:          newMu(cf.l),
-		exts:               exts,
-		batchCoordinatorMu: newRWMu(cf.l),
+		repo:            cf.repo.Assignment(),
+		tenantId:        tenantId,
+		l:               &l,
+		actions:         make(map[string]*action),
+		unackedSlots:    make(map[int]*assignedSlots),
+		warmedSlotTypes: make(map[uuid.UUID]map[string]struct{}),
+		rl:              rl,
+		actionsMu:       newRWMu(cf.l),
+		replenishMu:     newMu(cf.l),
+		workers:         map[uuid.UUID]*worker{},
+		workersMu:       newMu(cf.l),
+		assignedCountMu: newMu(cf.l),
+		unackedMu:       newMu(cf.l),
+		exts:            exts,
 	}
-}
-
-func (s *Scheduler) SetBatchCoordinator(coord BatchCoordinator) {
-	s.batchCoordinatorMu.Lock()
-	defer s.batchCoordinatorMu.Unlock()
-
-	s.batchCoordinator = coord
-}
-
-func (s *Scheduler) getBatchCoordinator() BatchCoordinator {
-	s.batchCoordinatorMu.RLock()
-	defer s.batchCoordinatorMu.RUnlock()
-
-	return s.batchCoordinator
 }
 
 func (s *Scheduler) ack(ids []int) {
@@ -1425,7 +1390,6 @@ func (s *Scheduler) tryAssign(
 					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
 					batchBuffered := make([]*assignedQueueItem, 0, len(batchQis))
 					batchBatched := make([]*batchedQueueItemResult, 0, len(batchQis))
-					coord := s.getBatchCoordinator()
 
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchRateLimitedToMove := make([]*scheduleRateLimitResult, 0, len(batchQis))
@@ -1477,39 +1441,6 @@ func (s *Scheduler) tryAssign(
 						}
 
 						batchAssigned = append(batchAssigned, assignedItem)
-
-						if coord != nil {
-							decision := coord.DecideBatch(ctx, singleRes.qi, singleRes.workerId)
-
-							switch decision.Action {
-							case BatchActionDefer:
-								if decision.ReleaseSlot {
-									s.nack([]int{singleRes.ackId})
-								}
-
-								if len(batchAssigned) > 0 {
-									batchAssigned = batchAssigned[:len(batchAssigned)-1]
-								}
-
-								batchUnassigned = append(batchUnassigned, singleRes.qi)
-								singleRes.noSlots = true
-								singleRes.succeeded = false
-							case BatchActionBuffer:
-								if decision.ReleaseSlot {
-									s.nack([]int{singleRes.ackId})
-								}
-
-								if len(batchAssigned) > 0 {
-									lastIdx := len(batchAssigned) - 1
-									batchBuffered = append(batchBuffered, batchAssigned[lastIdx])
-									batchAssigned = batchAssigned[:lastIdx]
-								}
-							case BatchActionAssign:
-								if decision.ReleaseSlot {
-									s.l.Warn().Msg("batch coordinator requested slot release without buffering; ignoring")
-								}
-							}
-						}
 					}
 
 					if sinceStart := time.Since(batchStart); sinceStart > 100*time.Millisecond {
