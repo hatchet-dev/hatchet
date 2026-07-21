@@ -6,6 +6,7 @@ import {
 import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
+import { isRetryableRequestError } from '@/lib/query-retry';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
@@ -157,15 +158,22 @@ export const controlPlaneMetaQuery = {
         return lastKnown;
       }
 
-      // First load: a 4xx (404 on OSS deployments without a control plane)
-      // is a definitive "no control plane" answer.
+      // First load: a non-retryable 4xx (404 on OSS deployments without a
+      // control plane) is a definitive "no control plane" answer. Retryable
+      // statuses (408/429) are transient and must not be cached as one.
       const status = getApiErrorStatus(err);
-      if (status && status >= 400 && status < 500) {
+      if (
+        status &&
+        status >= 400 &&
+        status < 500 &&
+        !isRetryableRequestError(err)
+      ) {
         return null;
       }
 
-      // First load with a transient error (network, timeout, 5xx): fail so
-      // React Query retries, rather than caching "disabled" for staleTime.
+      // First load with a transient error (network, timeout, 408/429, 5xx):
+      // fail so React Query retries, rather than caching "disabled" for
+      // staleTime.
       throw err;
     }
   },
