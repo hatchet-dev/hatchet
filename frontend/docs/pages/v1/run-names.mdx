@@ -5,7 +5,7 @@ import UniversalTabs from "../../components/UniversalTabs";
 
 By default, each run in Hatchet is labelled with a generated name of the form `<readableId>-<timestamp>` (for example, `resolve-subprocessor-info-1782146942603`). When a parent fans out many child runs in a single batch, they all share the same step id and batch timestamp, so the runs list renders several identically-named rows and you have to open each run's input to tell them apart.
 
-You can instead give a run a human-readable **display name** by declaring a [CEL](https://github.com/google/cel-spec) expression on the workflow (and/or on individual tasks) in the workflow **definition**. Hatchet evaluates the expression against the run's input at trigger time and renders the result in the runs list, the run detail header, and the children list — no per-trigger configuration required. Because the expression lives in the definition, **every** trigger source — manual, event, and cron — produces meaningful names automatically.
+You can instead give a run a human-readable **display name** by declaring a [CEL](https://github.com/google/cel-spec) expression on the workflow (and/or on individual tasks) in the workflow **definition**. Hatchet evaluates the expression against the run's input at trigger time and renders the result in the runs list, the run detail header, and the children list. Because the expression lives in the definition, it automatically names runs from **every** trigger source — manual, event, and cron — with no per-trigger configuration.
 
 <Callout type="info" emoji="🪓">
 
@@ -31,7 +31,7 @@ The expression is pure CEL — the **whole string** is evaluated as one expressi
 
 ## Declaring an expression
 
-Set the expression on the workflow and/or task definition. It applies to every run regardless of how the run is triggered (manual, `run_many` / bulk, child spawn, event, or cron).
+Set the expression on the workflow and/or task definition.
 
 <UniversalTabs items={['Python', 'Typescript', 'Go', "Ruby"]}>
   <Tabs.Tab>
@@ -106,11 +106,11 @@ end
 
 ## Fan-out and bulk runs
 
-Because the name is derived from each run's own input, a `run_many` / bulk trigger — or a parent fanning out many children — produces a distinct, meaningful name per run without any per-item configuration. This is the original motivation: a batch of a hundred child runs no longer renders as a hundred identical `<step-id>-<timestamp>` rows.
+Because the name is derived from each run's own input, a `run_many` / bulk trigger — or a parent fanning out many children — produces a distinct, meaningful name per run without any per-item configuration, directly solving the identical-rows problem described above.
 
 ## Event- and cron-triggered runs
 
-The same expression applies to runs started by an [event](./events.mdx) or a [cron schedule](./scheduled-runs.mdx). The event's or cron's input payload is the `input` the expression reads, so those runs get evaluated names too — nothing extra to configure on the trigger side.
+The same expression applies to runs started by an [event](./events.mdx) or a [cron schedule](./scheduled-runs.mdx): the event's or cron's input payload is the `input` the expression reads, so those runs get evaluated names too.
 
 ## Related
 
