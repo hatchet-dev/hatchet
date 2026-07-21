@@ -72,11 +72,17 @@ module HatchetSdkRest
     # The duration of the task run, in milliseconds.
     attr_accessor :duration
 
+    # Whether this task was created as a durable task.
+    attr_accessor :is_durable
+
     # The error message of the task run (for the latest run)
     attr_accessor :error_message
 
     # The timestamp the task run finished.
     attr_accessor :finished_at
+
+    # Whether the task has been evicted from a worker (still counts as RUNNING).
+    attr_accessor :is_evicted
 
     # The timestamp the task run started.
     attr_accessor :started_at
@@ -93,6 +99,9 @@ module HatchetSdkRest
 
     # The external ID of the parent task.
     attr_accessor :parent_task_external_id
+
+    # The idempotency key that was claimed by the task run
+    attr_accessor :idempotency_key
 
     class EnumAttributeValidator
       attr_reader :datatype
@@ -139,14 +148,17 @@ module HatchetSdkRest
         :'additional_metadata' => :'additionalMetadata',
         :'children' => :'children',
         :'duration' => :'duration',
+        :'is_durable' => :'isDurable',
         :'error_message' => :'errorMessage',
         :'finished_at' => :'finishedAt',
+        :'is_evicted' => :'isEvicted',
         :'started_at' => :'startedAt',
         :'step_id' => :'stepId',
         :'workflow_name' => :'workflowName',
         :'workflow_version_id' => :'workflowVersionId',
         :'workflow_config' => :'workflowConfig',
-        :'parent_task_external_id' => :'parentTaskExternalId'
+        :'parent_task_external_id' => :'parentTaskExternalId',
+        :'idempotency_key' => :'idempotencyKey'
       }
     end
 
@@ -183,14 +195,17 @@ module HatchetSdkRest
         :'additional_metadata' => :'Object',
         :'children' => :'Array<V1TaskSummary>',
         :'duration' => :'Integer',
+        :'is_durable' => :'Boolean',
         :'error_message' => :'String',
         :'finished_at' => :'Time',
+        :'is_evicted' => :'Boolean',
         :'started_at' => :'Time',
         :'step_id' => :'String',
         :'workflow_name' => :'String',
         :'workflow_version_id' => :'String',
         :'workflow_config' => :'Object',
-        :'parent_task_external_id' => :'String'
+        :'parent_task_external_id' => :'String',
+        :'idempotency_key' => :'String'
       }
     end
 
@@ -326,12 +341,20 @@ module HatchetSdkRest
         self.duration = attributes[:'duration']
       end
 
+      if attributes.key?(:'is_durable')
+        self.is_durable = attributes[:'is_durable']
+      end
+
       if attributes.key?(:'error_message')
         self.error_message = attributes[:'error_message']
       end
 
       if attributes.key?(:'finished_at')
         self.finished_at = attributes[:'finished_at']
+      end
+
+      if attributes.key?(:'is_evicted')
+        self.is_evicted = attributes[:'is_evicted']
       end
 
       if attributes.key?(:'started_at')
@@ -356,6 +379,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'parent_task_external_id')
         self.parent_task_external_id = attributes[:'parent_task_external_id']
+      end
+
+      if attributes.key?(:'idempotency_key')
+        self.idempotency_key = attributes[:'idempotency_key']
       end
     end
 
@@ -673,14 +700,17 @@ module HatchetSdkRest
           additional_metadata == o.additional_metadata &&
           children == o.children &&
           duration == o.duration &&
+          is_durable == o.is_durable &&
           error_message == o.error_message &&
           finished_at == o.finished_at &&
+          is_evicted == o.is_evicted &&
           started_at == o.started_at &&
           step_id == o.step_id &&
           workflow_name == o.workflow_name &&
           workflow_version_id == o.workflow_version_id &&
           workflow_config == o.workflow_config &&
-          parent_task_external_id == o.parent_task_external_id
+          parent_task_external_id == o.parent_task_external_id &&
+          idempotency_key == o.idempotency_key
     end
 
     # @see the `==` method
@@ -692,7 +722,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, created_at, display_name, input, num_spawned_children, output, status, task_external_id, task_id, task_inserted_at, tenant_id, type, workflow_id, workflow_run_external_id, action_id, retry_count, attempt, additional_metadata, children, duration, error_message, finished_at, started_at, step_id, workflow_name, workflow_version_id, workflow_config, parent_task_external_id].hash
+      [metadata, created_at, display_name, input, num_spawned_children, output, status, task_external_id, task_id, task_inserted_at, tenant_id, type, workflow_id, workflow_run_external_id, action_id, retry_count, attempt, additional_metadata, children, duration, is_durable, error_message, finished_at, is_evicted, started_at, step_id, workflow_name, workflow_version_id, workflow_config, parent_task_external_id, idempotency_key].hash
     end
 
     # Builds the object from hash

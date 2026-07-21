@@ -369,6 +369,91 @@ module HatchetSdkRest
       return data, status_code, headers
     end
 
+    # Trigger cron job workflow run immediately
+    # Trigger a cron workflow immediately for a tenant
+    # @param tenant [String] The tenant id
+    # @param cron_workflow [String] The cron job id
+    # @param [Hash] opts the optional parameters
+    # @return [TriggerRunResult]
+    def workflow_cron_trigger(tenant, cron_workflow, opts = {})
+      data, _status_code, _headers = workflow_cron_trigger_with_http_info(tenant, cron_workflow, opts)
+      data
+    end
+
+    # Trigger cron job workflow run immediately
+    # Trigger a cron workflow immediately for a tenant
+    # @param tenant [String] The tenant id
+    # @param cron_workflow [String] The cron job id
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(TriggerRunResult, Integer, Hash)>] TriggerRunResult data, response status code and response headers
+    def workflow_cron_trigger_with_http_info(tenant, cron_workflow, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: WorkflowApi.workflow_cron_trigger ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling WorkflowApi.workflow_cron_trigger"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowApi.workflow_cron_trigger, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowApi.workflow_cron_trigger, the character length must be greater than or equal to 36.'
+      end
+
+      # verify the required parameter 'cron_workflow' is set
+      if @api_client.config.client_side_validation && cron_workflow.nil?
+        fail ArgumentError, "Missing the required parameter 'cron_workflow' when calling WorkflowApi.workflow_cron_trigger"
+      end
+      if @api_client.config.client_side_validation && cron_workflow.to_s.length > 36
+        fail ArgumentError, 'invalid value for "cron_workflow" when calling WorkflowApi.workflow_cron_trigger, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && cron_workflow.to_s.length < 36
+        fail ArgumentError, 'invalid value for "cron_workflow" when calling WorkflowApi.workflow_cron_trigger, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s)).sub('{' + 'cron-workflow' + '}', CGI.escape(cron_workflow.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'TriggerRunResult'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"WorkflowApi.workflow_cron_trigger",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:POST, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: WorkflowApi#workflow_cron_trigger\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
     # Update cron job workflow run
     # Update a cron workflow for a tenant
     # @param tenant [String] The tenant id
@@ -1743,6 +1828,91 @@ module HatchetSdkRest
       data, status_code, headers = @api_client.call_api(:GET, local_var_path, new_options)
       if @api_client.config.debugging
         @api_client.config.logger.debug "API called: WorkflowApi#workflow_scheduled_list\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
+    # Trigger scheduled workflow run
+    # Trigger a scheduled workflow run immediately for a tenant
+    # @param tenant [String] The tenant id
+    # @param scheduled_workflow_run [String] The scheduled workflow id
+    # @param [Hash] opts the optional parameters
+    # @return [TriggerRunResult]
+    def workflow_scheduled_trigger(tenant, scheduled_workflow_run, opts = {})
+      data, _status_code, _headers = workflow_scheduled_trigger_with_http_info(tenant, scheduled_workflow_run, opts)
+      data
+    end
+
+    # Trigger scheduled workflow run
+    # Trigger a scheduled workflow run immediately for a tenant
+    # @param tenant [String] The tenant id
+    # @param scheduled_workflow_run [String] The scheduled workflow id
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(TriggerRunResult, Integer, Hash)>] TriggerRunResult data, response status code and response headers
+    def workflow_scheduled_trigger_with_http_info(tenant, scheduled_workflow_run, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: WorkflowApi.workflow_scheduled_trigger ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling WorkflowApi.workflow_scheduled_trigger"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowApi.workflow_scheduled_trigger, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling WorkflowApi.workflow_scheduled_trigger, the character length must be greater than or equal to 36.'
+      end
+
+      # verify the required parameter 'scheduled_workflow_run' is set
+      if @api_client.config.client_side_validation && scheduled_workflow_run.nil?
+        fail ArgumentError, "Missing the required parameter 'scheduled_workflow_run' when calling WorkflowApi.workflow_scheduled_trigger"
+      end
+      if @api_client.config.client_side_validation && scheduled_workflow_run.to_s.length > 36
+        fail ArgumentError, 'invalid value for "scheduled_workflow_run" when calling WorkflowApi.workflow_scheduled_trigger, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && scheduled_workflow_run.to_s.length < 36
+        fail ArgumentError, 'invalid value for "scheduled_workflow_run" when calling WorkflowApi.workflow_scheduled_trigger, the character length must be greater than or equal to 36.'
+      end
+
+      # resource path
+      local_var_path = '/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s)).sub('{' + 'scheduled-workflow-run' + '}', CGI.escape(scheduled_workflow_run.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type] || 'TriggerRunResult'
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"WorkflowApi.workflow_scheduled_trigger",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:POST, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: WorkflowApi#workflow_scheduled_trigger\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
       end
       return data, status_code, headers
     end

@@ -7,6 +7,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/google/uuid"
+
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	schedulingv1 "github.com/hatchet-dev/hatchet/pkg/scheduling/v1"
 )
@@ -18,7 +19,7 @@ func (s *Scheduler) RunOptimisticScheduling(ctx context.Context, tenantId uuid.U
 		return nil, nil, err
 	}
 
-	go func() {
+	go func() { // #nosec G118 -- intentionally decoupled from request context so signaling survives the response, bounded by its own timeout
 		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -43,7 +44,7 @@ func (s *Scheduler) RunOptimisticSchedulingFromEvents(ctx context.Context, tenan
 		eventIdToOpts[opt.ExternalId] = opt
 	}
 
-	go func() {
+	go func() { // #nosec G118 -- intentionally decoupled from request context so signaling survives the response, bounded by its own timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

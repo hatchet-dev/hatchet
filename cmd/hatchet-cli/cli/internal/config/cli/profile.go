@@ -322,6 +322,20 @@ func SetDefaultProfile(name string) error {
 	return saveConfig()
 }
 
+// SetDefaultProfileIfUnset makes name the default profile when none is configured and
+// reports whether it did.
+func SetDefaultProfileIfUnset(name string) (bool, error) {
+	if GetDefaultProfile() != "" {
+		return false, nil
+	}
+
+	if err := SetDefaultProfile(name); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // ClearDefaultProfile clears the default profile setting
 func ClearDefaultProfile() error {
 	unlock, err := acquireLock()

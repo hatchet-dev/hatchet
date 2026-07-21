@@ -62,20 +62,22 @@ This will set the environment variable `MY_ENV_VAR` to `"my-value"` for all back
 
 ### Setup Job
 
-The `quickstartJob` bootstraps Hatchet's encryption and auth secrets into a Kubernetes Secret (`hatchet-config`):
+The quickstart job bootstraps Hatchet's encryption and auth secrets into a Kubernetes Secret (`hatchet-config`). It lives in the `hatchet-api` subchart, so in the `hatchet-stack` and `hatchet-ha` charts it is configured under the `api` alias and is enabled by default:
 
 ```yaml
-quickstartJob:
-  enabled: true
+api:
+  quickstartJob:
+    enabled: true
 ```
 
 ### Worker Token Job
 
-The worker token job generates a client token after the engine is running:
+The worker token job generates a client token after the engine is running. Like the quickstart job, it lives in the `hatchet-api` subchart:
 
 ```yaml
-workerTokenJob:
-  enabled: true
+api:
+  workerTokenJob:
+    enabled: true
 ```
 
 The token is stored as `HATCHET_CLIENT_TOKEN` in the `hatchet-client-config` secret. Alternatively, navigate to the `Settings` tab in the Hatchet frontend and click on the `API Tokens` tab to generate a token manually.
@@ -110,10 +112,10 @@ For all available options, see [Encryption Configuration](/self-hosting/configur
 
 ### Seeding Data
 
-The `sharedConfig` object also allows you to seed the database with a default tenant and user. The following environment variables are used for seeding:
+The `sharedConfig` object also allows you to seed the database with a default tenant and user. The default admin credentials are set directly on `sharedConfig`, and the remaining seed values are passed as environment variables via `sharedConfig.env`:
 
 ```yaml
-seed:
+sharedConfig:
   defaultAdminEmail: "admin@example.com" # in exposed/production environments, change this to a valid email
   defaultAdminPassword: "Admin123!!" # in exposed/production environments, change this to a secure password
   env:

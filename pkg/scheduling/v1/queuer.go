@@ -425,7 +425,7 @@ func (q *Queuer) loopQueue(ctx context.Context) {
 		// if we processed all queue items, queue again
 		prevQis := qis
 
-		go func(originalStart time.Time) {
+		go func(originalStart time.Time) { // #nosec G118 -- background re-queue loop, intentionally decoupled from any single request's context
 			wg.Wait()
 			span.End()
 

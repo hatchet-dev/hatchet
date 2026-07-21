@@ -15,7 +15,7 @@ import (
 
 	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib" // register the pgx driver for database/sql
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 	"github.com/sethvargo/go-retry"

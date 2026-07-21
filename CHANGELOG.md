@@ -4,6 +4,7 @@
 
 - Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
 - Engine rows in the run trace view now carry a badge with their workflow, task, or event name, and the retry number on retried tasks, so repeated spans such as `hatchet.engine.workflow_run` are distinguishable at a glance.
+- CLI commands that take `--profile` now use the configured default or only profile without prompting, and `hatchet server start` sets its new profile as the default when none is configured. In sessions without a terminal, such as CI, a selection that would still need a prompt fails with an error that explains how to proceed.
 
 ## [0.94.10] - 2026-07-14
 

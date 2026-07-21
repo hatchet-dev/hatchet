@@ -26,9 +26,6 @@ type ConfigFile struct {
 	MaxConns int `mapstructure:"maxConns" json:"maxConns,omitempty" default:"50"`
 	MinConns int `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
 
-	MaxQueueConns int `mapstructure:"maxQueueConns" json:"maxQueueConns,omitempty" default:"50"`
-	MinQueueConns int `mapstructure:"minQueueConns" json:"minQueueConns,omitempty" default:"10"`
-
 	// PgBouncerURL is an optional connection string for pgbouncer. When set, most queries are routed
 	// through pgbouncer, other than DDL-modifying statements which use the separate direct connection pool.
 	PgBouncerURL string `mapstructure:"pgbouncerUrl" json:"pgbouncerUrl,omitempty" default:""`
@@ -66,8 +63,6 @@ type SeedConfigFile struct {
 	DefaultTenantName string `mapstructure:"defaultTenantName" json:"defaultTenantName,omitempty" default:"Default"`
 	DefaultTenantSlug string `mapstructure:"defaultTenantSlug" json:"defaultTenantSlug,omitempty" default:"default"`
 	DefaultTenantID   string `mapstructure:"defaultTenantId" json:"defaultTenantId,omitempty" default:"707d0855-80ab-4e1f-a156-f1c4546cbf52"`
-
-	IsDevelopment bool `mapstructure:"isDevelopment" json:"isDevelopment,omitempty" default:"false"`
 }
 
 type Layer struct {
@@ -96,8 +91,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("logQueries", "DATABASE_LOG_QUERIES")
 	_ = v.BindEnv("maxConns", "DATABASE_MAX_CONNS")
 	_ = v.BindEnv("minConns", "DATABASE_MIN_CONNS")
-	_ = v.BindEnv("maxQueueConns", "DATABASE_MAX_QUEUE_CONNS")
-	_ = v.BindEnv("minQueueConns", "DATABASE_MIN_QUEUE_CONNS")
 	_ = v.BindEnv("maxConnLifetime", "DATABASE_MAX_CONN_LIFETIME")
 	_ = v.BindEnv("maxConnIdleTime", "DATABASE_MAX_CONN_IDLE_TIME")
 	_ = v.BindEnv("applicationNamePrefix", "K8S_POD_NAMESPACE")
@@ -120,7 +113,6 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("seed.defaultTenantName", "DEFAULT_TENANT_NAME")
 	_ = v.BindEnv("seed.defaultTenantSlug", "DEFAULT_TENANT_SLUG")
 	_ = v.BindEnv("seed.defaultTenantId", "DEFAULT_TENANT_ID")
-	_ = v.BindEnv("seed.isDevelopment", "SEED_DEVELOPMENT")
 
 	_ = v.BindEnv("logger.level", "DATABASE_LOGGER_LEVEL")
 	_ = v.BindEnv("logger.format", "DATABASE_LOGGER_FORMAT")
