@@ -55,10 +55,12 @@ def enrich(input: WorkflowInput, ctx: Context) -> None:
 
 ```typescript
 // Workflow-level: names the run from the run input
-export const customerWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
-  name: "customer-workflow",
-  displayName: "input.customerName",
-});
+export const customerWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>(
+  {
+    name: "customer-workflow",
+    displayName: "input.customerName",
+  },
+);
 
 // Per-task: names an individual DAG step
 customerWorkflow.task({
