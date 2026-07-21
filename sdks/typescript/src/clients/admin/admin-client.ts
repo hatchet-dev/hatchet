@@ -166,7 +166,8 @@ export class AdminClient {
             limit,
             duration,
           }),
-        this.logger
+        this.logger,
+        this.config.retrier
       );
     } catch (e: unknown) {
       throw toHatchetError(e);

@@ -3,6 +3,14 @@ import { z } from 'zod/v4';
 import type { Context } from '@hatchet/v1/client/worker/context';
 import { Logger, LogLevel } from '@util/logger';
 
+export const RetrierConfigSchema = z.object({
+  maxAttempts: z.number().int().positive().optional(),
+  initialInterval: z.number().positive().optional(),
+  maxJitter: z.number().nonnegative().optional(),
+});
+
+export type RetrierConfig = z.infer<typeof RetrierConfigSchema>;
+
 const ClientTLSConfigSchema = z.object({
   tls_strategy: z.enum(['tls', 'mtls', 'none']).optional(),
   cert_file: z.string().optional(),
@@ -75,6 +83,7 @@ export const ClientConfigSchema = z.object({
     .positive()
     .optional()
     .default(4 * 1024 * 1024),
+  retrier: RetrierConfigSchema.optional(),
 });
 
 export type LogConstructor = (context: string, logLevel?: LogLevel) => Logger;
