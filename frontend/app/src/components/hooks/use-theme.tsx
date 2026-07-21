@@ -111,9 +111,7 @@ export function ThemeProvider({
 
   const toggleTheme = () => {
     // Cycle based on what the user actually sees (handles "system" correctly).
-    setThemeAndLocal(
-      getThemeToDisplay(theme) === 'dark' ? 'light' : 'dark',
-    );
+    setThemeAndLocal(getThemeToDisplay(theme) === 'dark' ? 'light' : 'dark');
   };
 
   const value = {
