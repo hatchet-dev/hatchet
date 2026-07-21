@@ -4,6 +4,7 @@ from examples.idempotency.worker import (
     idempotent_task,
     idempotent_task_short_window,
     idempotent_status_based_task,
+    idempotent_status_based_task_with_retries,
     IdempotencyInput,
     EVENT_KEY,
 )
@@ -412,3 +413,166 @@ async def test_idempotency_keys_prevent_duplicate_runs_event_trigger(
             continue
 
         assert run_details.status == RunStatus.COMPLETED
+
+
+async def _wait_for_retry_count(
+    hatchet: Hatchet, test_run_id: str, min_retry_count: int
+) -> None:
+    for _ in range(30):
+        runs = await hatchet.runs.aio_list(
+            since=datetime.now(timezone.utc) - timedelta(minutes=5),
+            additional_metadata={"test_run_id": test_run_id},
+        )
+
+        if runs.rows and (runs.rows[0].retry_count or 0) >= min_retry_count:
+            return
+
+        await asyncio.sleep(1)
+
+    pytest.fail(f"Timed out waiting for run to reach retry_count >= {min_retry_count}.")
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_status_based_key_held_across_all_retries_until_exhausted(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    ref1 = await idempotent_status_based_task_with_retries.aio_run(
+        input=IdempotencyInput(id=test_run_id, desired_status="fail"),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
+
+    await _wait_for_retry_count(hatchet, test_run_id, min_retry_count=1)
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info_mid_retry:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info_mid_retry.value.existing_run_external_id == ref1.workflow_run_id
+
+    await _wait_for_retry_count(hatchet, test_run_id, min_retry_count=2)
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info_late_retry:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info_late_retry.value.existing_run_external_id == ref1.workflow_run_id
+
+    with pytest.raises(Exception) as exc_info_final:
+        await ref1.aio_result()
+
+    assert "failed as requested" in str(exc_info_final.value).lower()
+
+    details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
+    assert details.status == RunStatus.FAILED
+
+    ref2 = await idempotent_status_based_task_with_retries.aio_run(
+        input=IdempotencyInput(id=test_run_id, desired_status="fail"),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+    assert ref2.workflow_run_id != ref1.workflow_run_id
+
+    with pytest.raises(Exception) as exc_info_ref2:
+        await ref2.aio_result()
+
+    assert "failed as requested" in str(exc_info_ref2.value).lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_status_based_key_released_immediately_on_success_after_retry(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    ref1 = await idempotent_status_based_task_with_retries.aio_run(
+        input=IdempotencyInput(id=test_run_id, desired_status="success"),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
+
+    await _wait_for_retry_count(hatchet, test_run_id, min_retry_count=1)
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info_mid_retry:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info_mid_retry.value.existing_run_external_id == ref1.workflow_run_id
+
+    result = await ref1.aio_result()
+    assert "hello" in result["result"].lower()
+
+    details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
+    assert details.status == RunStatus.COMPLETED
+
+    ref2 = await idempotent_status_based_task_with_retries.aio_run(
+        input=IdempotencyInput(id=test_run_id, desired_status="success"),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+    assert ref2.workflow_run_id != ref1.workflow_run_id
+
+    result2 = await ref2.aio_result()
+    assert "hello" in result2["result"].lower()
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_idempotency_status_based_key_released_immediately_on_cancel_after_retry(
+    hatchet: Hatchet,
+) -> None:
+    test_run_id = str(uuid4())
+    ref1 = await idempotent_status_based_task_with_retries.aio_run(
+        input=IdempotencyInput(id=test_run_id, desired_status="cancel"),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info.value.existing_run_external_id == ref1.workflow_run_id
+
+    await _wait_for_retry_count(hatchet, test_run_id, min_retry_count=1)
+
+    with pytest.raises(IdempotencyCollisionError) as exc_info_mid_retry:
+        await idempotent_status_based_task_with_retries.aio_run(
+            input=IdempotencyInput(id=test_run_id), wait_for_result=False
+        )
+
+    assert exc_info_mid_retry.value.existing_run_external_id == ref1.workflow_run_id
+
+    await ref1.aio_result()
+
+    details = await hatchet.runs.aio_get_details(ref1.workflow_run_id)
+    assert details.status == RunStatus.CANCELLED
+
+    ref2 = await idempotent_status_based_task_with_retries.aio_run(
+        input=IdempotencyInput(id=test_run_id, desired_status="cancel"),
+        wait_for_result=False,
+        additional_metadata={"test_run_id": test_run_id},
+    )
+    assert ref2.workflow_run_id != ref1.workflow_run_id
+
+    await ref2.aio_result()
+
+    details2 = await hatchet.runs.aio_get_details(ref2.workflow_run_id)
+    assert details2.status == RunStatus.CANCELLED
