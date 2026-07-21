@@ -1531,6 +1531,46 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 	return &i, err
 }
 
+const listStepDesiredWorkerLabels = `-- name: ListStepDesiredWorkerLabels :many
+SELECT
+    id, "createdAt", "updatedAt", "stepId", key, "strValue", "intValue", required, comparator, weight
+FROM
+    "StepDesiredWorkerLabel"
+WHERE
+    "stepId" = ANY($1::uuid[])
+`
+
+func (q *Queries) ListStepDesiredWorkerLabels(ctx context.Context, db DBTX, stepids []uuid.UUID) ([]*StepDesiredWorkerLabel, error) {
+	rows, err := db.Query(ctx, listStepDesiredWorkerLabels, stepids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*StepDesiredWorkerLabel
+	for rows.Next() {
+		var i StepDesiredWorkerLabel
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StepId,
+			&i.Key,
+			&i.StrValue,
+			&i.IntValue,
+			&i.Required,
+			&i.Comparator,
+			&i.Weight,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStepExpressions = `-- name: ListStepExpressions :many
 SELECT
     key, "stepId", expression, kind
