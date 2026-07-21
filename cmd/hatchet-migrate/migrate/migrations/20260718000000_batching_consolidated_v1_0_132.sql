@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 -- v0 schema alignment
-ALTER TYPE "LeaseKind" ADD VALUE 'BATCH';
+ALTER TYPE "LeaseKind" ADD VALUE IF NOT EXISTS 'BATCH';
 
 -- v1 batching propagation fields
 ALTER TABLE v1_task
@@ -81,9 +81,9 @@ CREATE INDEX v1_batch_runtime_key_idx
     ON v1_batch_runtime (tenant_id, step_id, batch_key);
 
 -- OLAP enum additions for batching lifecycle events
-ALTER TYPE v1_event_type_olap ADD VALUE 'BATCH_BUFFERED';
-ALTER TYPE v1_event_type_olap ADD VALUE 'WAITING_FOR_BATCH';
-ALTER TYPE v1_event_type_olap ADD VALUE 'BATCH_FLUSHED';
+ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_BUFFERED';
+ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'WAITING_FOR_BATCH';
+ALTER TYPE v1_event_type_olap ADD VALUE IF NOT EXISTS 'BATCH_FLUSHED';
 
 -- Update trigger functions to match current canonical definitions in sql/schema/v1-core.sql (batch_key propagation)
 CREATE OR REPLACE FUNCTION v1_task_insert_function()
