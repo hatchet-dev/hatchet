@@ -16,6 +16,8 @@ type ThemeProviderState = {
   currentlyVisibleTheme: DisplayableTheme;
 };
 
+const SELECTABLE_THEMES: SelectableTheme[] = ['light', 'dark', 'system'];
+
 const initialState: ThemeProviderState = {
   theme: 'system',
   setTheme: () => null,
@@ -24,6 +26,10 @@ const initialState: ThemeProviderState = {
 };
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
+
+export const isSelectableTheme = (value: unknown): value is SelectableTheme =>
+  typeof value === 'string' &&
+  SELECTABLE_THEMES.includes(value as SelectableTheme);
 
 const getThemeToDisplay = (theme: SelectableTheme): DisplayableTheme => {
   if (theme === 'system') {
@@ -34,14 +40,29 @@ const getThemeToDisplay = (theme: SelectableTheme): DisplayableTheme => {
   return theme;
 };
 
+const readStoredTheme = (
+  storageKey: string,
+  defaultTheme: SelectableTheme,
+): SelectableTheme => {
+  try {
+    const stored = localStorage.getItem(storageKey);
+    if (isSelectableTheme(stored)) {
+      return stored;
+    }
+  } catch {
+    // localStorage can throw in private mode / restricted iframes
+  }
+  return defaultTheme;
+};
+
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
   storageKey = 'vite-ui-theme',
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<SelectableTheme>(
-    () => (localStorage.getItem(storageKey) as SelectableTheme) || defaultTheme,
+  const [theme, setTheme] = useState<SelectableTheme>(() =>
+    readStoredTheme(storageKey, defaultTheme),
   );
 
   const [currentlyVisibleTheme, setCurrentlyVisibleTheme] =
@@ -55,8 +76,10 @@ export function ThemeProvider({
     const themeToDisplay = getThemeToDisplay(theme);
     setCurrentlyVisibleTheme(themeToDisplay);
     root.classList.add(themeToDisplay);
+    root.style.colorScheme = themeToDisplay;
   }, [theme]);
 
+  // Follow OS theme changes while preference is "system"
   useEffect(() => {
     if (theme !== 'system') {
       return;
@@ -70,19 +93,27 @@ export function ThemeProvider({
       const root = window.document.documentElement;
       root.classList.remove('light', 'dark');
       root.classList.add(themeToDisplay);
+      root.style.colorScheme = themeToDisplay;
     };
 
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
-  const setThemeAndLocal = (theme: SelectableTheme) => {
-    localStorage.setItem(storageKey, theme);
-    setTheme(theme);
+  const setThemeAndLocal = (nextTheme: SelectableTheme) => {
+    try {
+      localStorage.setItem(storageKey, nextTheme);
+    } catch {
+      // ignore persistence failures; still update in-memory theme
+    }
+    setTheme(nextTheme);
   };
 
   const toggleTheme = () => {
-    setThemeAndLocal(theme === 'dark' ? 'light' : 'dark');
+    // Cycle based on what the user actually sees (handles "system" correctly).
+    setThemeAndLocal(
+      getThemeToDisplay(theme) === 'dark' ? 'light' : 'dark',
+    );
   };
 
   const value = {
