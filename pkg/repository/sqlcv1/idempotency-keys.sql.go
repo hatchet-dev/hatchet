@@ -131,24 +131,16 @@ WITH input AS (
     SELECT
         UNNEST($1::BIGINT[]) AS task_id,
         UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
-        UNNEST($3::INTEGER[]) AS retry_count,
-        UNNEST($4::BOOLEAN[]) AS force_release
+        UNNEST($3::INTEGER[]) AS retry_count
 ), relevant_tasks AS (
     SELECT t.tenant_id, t.idempotency_key
 	FROM v1_task t
 	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
 	JOIN "Step" s ON t.step_id = s.id
 	WHERE
-		(t.id, t.inserted_at, t.retry_count) IN (
-			SELECT task_id, task_inserted_at, retry_count
-			FROM input
-		)
+        (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 		AND t.idempotency_key IS NOT NULL
 		AND wv."idempotencyMethod" = 'STATUS'
-			-- the caller tells us whether this release is for a terminal outcome
-			-- (completed/cancelled), in which case we always release the key.
-			-- otherwise (a failure that may retry), we only release the key once
-			-- the task has exhausted its retries.
 ), keys_to_release AS (
     SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
 	FROM v1_idempotency_key
@@ -168,24 +160,14 @@ WHERE (tenant_id, key) IN (
 `
 
 type ReleaseIdempotencyKeysParams struct {
-	Taskids           []int64              `json:"taskids"`
-	Taskinsertedats   []pgtype.Timestamptz `json:"taskinsertedats"`
-	Taskretrycounts   []int32              `json:"taskretrycounts"`
-	Forcereleaseflags []bool               `json:"forcereleaseflags"`
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
 }
 
-// AND (
-//
-//	$4::boolean
-//	OR t.retry_count >= s.retries
-//
-// )
+// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+// which means we want to evict any idempotency keys that still are live and tied to the task at this point
 func (q *Queries) ReleaseIdempotencyKeys(ctx context.Context, db DBTX, arg ReleaseIdempotencyKeysParams) error {
-	_, err := db.Exec(ctx, releaseIdempotencyKeys,
-		arg.Taskids,
-		arg.Taskinsertedats,
-		arg.Taskretrycounts,
-		arg.Forcereleaseflags,
-	)
+	_, err := db.Exec(ctx, releaseIdempotencyKeys, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
 	return err
 }

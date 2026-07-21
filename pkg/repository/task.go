@@ -2969,29 +2969,22 @@ func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
 	dbtx sqlcv1.DBTX,
 	opts []ReleaseIdempotencyKeysOpt,
 ) error {
+	// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+	// which means we want to evict any idempotency keys that still are live and tied to the task at this point
 	taskIds := make([]int64, len(opts))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
 	taskRetryCounts := make([]int32, len(opts))
-	forceReleaseFlags := make([]bool, len(opts))
 
 	for i, opt := range opts {
 		taskIds[i] = opt.Id
 		taskInsertedAts[i] = opt.InsertedAt
 		taskRetryCounts[i] = opt.RetryCount
-
-		switch opt.EventType {
-		case sqlcv1.V1TaskEventTypeCOMPLETED, sqlcv1.V1TaskEventTypeCANCELLED:
-			forceReleaseFlags[i] = true
-		case sqlcv1.V1TaskEventTypeFAILED:
-			forceReleaseFlags[i] = false
-		}
 	}
 
 	return r.queries.ReleaseIdempotencyKeys(ctx, dbtx, sqlcv1.ReleaseIdempotencyKeysParams{
-		Taskids:           taskIds,
-		Taskinsertedats:   taskInsertedAts,
-		Taskretrycounts:   taskRetryCounts,
-		Forcereleaseflags: forceReleaseFlags,
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
 	})
 }
 
