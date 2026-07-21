@@ -16,7 +16,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
-	celgo "github.com/google/cel-go/cel"
 	"github.com/google/uuid"
 )
 
@@ -45,12 +44,11 @@ type sharedRepository struct {
 	stepIdLabelsCache           *expirable.LRU[uuid.UUID, []*sqlcv1.GetDesiredLabelsRow]
 	stepIdSlotRequestsCache     *expirable.LRU[uuid.UUID, map[string]int32]
 
-	celParser       *cel.CELParser
-	env             *celgo.Env
-	celProgramCache *lru.Cache[uint64, celgo.Program]
-	taskLookupCache *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
-	payloadStore    PayloadStoreRepository
-	m               TenantLimitRepository
+	celParser         *cel.CELParser
+	boolExprEvaluator *cel.BoolExprEvaluator
+	taskLookupCache   *lru.Cache[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow]
+	payloadStore      PayloadStoreRepository
+	m                 TenantLimitRepository
 }
 
 func newSharedRepository(
@@ -77,25 +75,16 @@ func newSharedRepository(
 
 	celParser := cel.NewCELParser()
 
-	env, err := celgo.NewEnv(
-		celgo.Variable("input", celgo.MapType(celgo.StringType, celgo.DynType)),
-		celgo.Variable("output", celgo.MapType(celgo.StringType, celgo.DynType)),
-	)
+	boolExprEvaluator, err := cel.NewBoolExprEvaluator()
 
 	if err != nil {
-		log.Fatalf("failed to create CEL environment: %v", err)
+		log.Fatalf("failed to create CEL bool expr evaluator: %v", err)
 	}
 
 	lookupCache, err := lru.New[taskExternalIdTenantIdTuple, *sqlcv1.FlattenExternalIdsRow](20000)
 
 	if err != nil {
 		log.Fatalf("failed to create LRU cache: %v", err)
-	}
-
-	celProgramCache, err := lru.New[uint64, celgo.Program](50000)
-
-	if err != nil {
-		log.Fatalf("failed to create CEL program cache: %v", err)
 	}
 
 	s := &sharedRepository{
@@ -114,8 +103,7 @@ func newSharedRepository(
 		stepIdLabelsCache:           stepIdLabelsCache,
 		stepIdSlotRequestsCache:     stepIdSlotRequestsCache,
 		celParser:                   celParser,
-		env:                         env,
-		celProgramCache:             celProgramCache,
+		boolExprEvaluator:           boolExprEvaluator,
 		taskLookupCache:             lookupCache,
 		payloadStore:                payloadStore,
 	}
