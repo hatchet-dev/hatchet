@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/google/uuid"
+
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 )
@@ -77,7 +78,7 @@ func ToV1Event(event *v1.EventWithPayload) gen.V1Event {
 		},
 		Payload:               &payload,
 		SeenAt:                &event.EventSeenAt.Time,
-		Scope:                 &event.EventScope,
+		Scope:                 event.EventScope,
 		TriggeredRuns:         &triggeredRuns,
 		TriggeringWebhookName: event.TriggeringWebhookName,
 	}

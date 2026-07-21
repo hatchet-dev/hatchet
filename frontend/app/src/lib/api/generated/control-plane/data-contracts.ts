@@ -237,6 +237,11 @@ export interface RemoveOrganizationMembersRequest {
   emails: string[];
 }
 
+export interface UpdateOrganizationMemberRequest {
+  /** The new role for the member in the organization */
+  role: OrganizationMemberRoleType;
+}
+
 export interface OrganizationTenant {
   /**
    * ID of the tenant

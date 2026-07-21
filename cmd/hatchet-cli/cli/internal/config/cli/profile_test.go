@@ -912,6 +912,37 @@ func TestSetDefaultProfile_NilConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), "config not initialized")
 }
 
+func TestSetDefaultProfileIfUnset(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	err := AddProfile("local", makeTestProfile("local", "token-123"))
+	require.NoError(t, err)
+
+	set, err := SetDefaultProfileIfUnset("local")
+	require.NoError(t, err)
+	assert.True(t, set)
+	assert.Equal(t, "local", GetDefaultProfile())
+}
+
+func TestSetDefaultProfileIfUnset_ExistingDefaultKept(t *testing.T) {
+	_, cleanup := setupTestConfig(t)
+	defer cleanup()
+
+	err := AddProfile("prod", makeTestProfile("prod", "token-123"))
+	require.NoError(t, err)
+	err = AddProfile("local", makeTestProfile("local", "token-456"))
+	require.NoError(t, err)
+
+	err = SetDefaultProfile("prod")
+	require.NoError(t, err)
+
+	set, err := SetDefaultProfileIfUnset("local")
+	require.NoError(t, err)
+	assert.False(t, set)
+	assert.Equal(t, "prod", GetDefaultProfile())
+}
+
 func TestClearDefaultProfile(t *testing.T) {
 	_, cleanup := setupTestConfig(t)
 	defer cleanup()

@@ -40,6 +40,7 @@ export default {
   "rate-limits": "Rate Limits",
   priority: "Priority",
   "run-names": "Run Names",
+  idempotency: "Idempotency",
   "--durable-workflows-section": {
     title: "Durable Execution",
     type: "separator",

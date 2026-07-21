@@ -253,8 +253,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             event_triggers=event_triggers,
             cron_triggers=self._config.on_crons,
             tasks=tasks,
-            ## TODO: Fix this
-            cron_input=None,
+            cron_input=self._serialize_input(self._config.cron_input, target="bytes"),
             on_failure_task=on_failure_task,
             sticky=convert_python_enum_to_proto(
                 self._config.sticky, StickyStrategyProto
@@ -265,6 +264,11 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             default_priority=self._config.default_priority,
             default_filters=[f.to_proto() for f in self._config.default_filters],
             input_json_schema=json_schema,
+            idempotency=(
+                self._config.idempotency.to_proto()
+                if self._config.idempotency
+                else None
+            ),
         )
 
     def _get_workflow_input(self, ctx: Context) -> TWorkflowInput:
@@ -400,7 +404,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         """
         return WorkflowRunTriggerConfig(
             workflow_name=self._config.name,
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
                 options,
                 child_key=child_key,
@@ -413,7 +417,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
             key=key,
         )
 
-    def _serialize_input_to_str(self, input: TWorkflowInput | None) -> str | None:
+    def _serialize_input_to_bytes(self, input: TWorkflowInput | None) -> str | None:
         return self._config.input_validator.dump_json(
             input,  # type: ignore[arg-type]
             context=HATCHET_PYDANTIC_SENTINEL,
@@ -433,7 +437,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
 
     @overload
     def _serialize_input(
-        self, input: TWorkflowInput | None, target: Literal["string"] = "string"
+        self, input: TWorkflowInput | None, target: Literal["bytes"] = "bytes"
     ) -> str | None: ...
 
     @overload
@@ -444,13 +448,13 @@ class BaseWorkflow(Generic[TWorkflowInput]):
     def _serialize_input(
         self,
         input: TWorkflowInput | None,
-        target: Literal["string"] | Literal["dict"] = "string",
+        target: Literal["bytes"] | Literal["dict"] = "bytes",
     ) -> JSONSerializableMapping | str | None:
         if not input:
             return None
 
-        if target == "string":
-            return self._serialize_input_to_str(input)
+        if target == "bytes":
+            return self._serialize_input_to_bytes(input)
 
         if target == "dict":
             return self._serialize_input_to_dict(input)
@@ -637,7 +641,7 @@ class BaseWorkflow(Generic[TWorkflowInput]):
         return self._client._client.admin.schedule_workflow(
             name=self._config.name,
             schedules=[run_at],
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=opts,
         )
 
@@ -964,7 +968,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         ref = self._client._client.admin.run_workflow(
             workflow_name=self._config.name,
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=self._create_trigger_run_options_with_combined_additional_meta(
                 options,
                 child_key=child_key,
@@ -1102,7 +1106,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         if durable_ctx is not None and durable_ctx._supports_durable_eviction:
             config = WorkflowRunTriggerConfig(
                 workflow_name=self._config.name,
-                input=self._serialize_input(input, target="string"),
+                input=self._serialize_input(input, target="bytes"),
                 options=opts,
             )
             durable_spawn_results = await durable_ctx._spawn_children_no_wait([config])
@@ -1126,7 +1130,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         ref = await self._client._client.admin.aio_run_workflow(
             workflow_name=self._config.name,
-            input=self._serialize_input(input, target="string"),
+            input=self._serialize_input(input, target="bytes"),
             options=opts,
         )
 
@@ -1353,6 +1357,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
         wait_for: list[Condition | OrGroup] | None = None,
         skip_if: list[Condition | OrGroup] | None = None,
         cancel_if: list[Condition | OrGroup] | None = None,
+        slot_cost: int | None = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Task[TWorkflowInput, R],
@@ -1388,10 +1393,19 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
 
         :param cancel_if: A list of conditions that, if met, will cause the task to be canceled.
 
+        :param slot_cost: The number of default worker slots this task consumes. A normal task consumes one. Set it higher for a task that needs more memory or CPU, so a worker runs fewer of them at once. A single worker must have that many free slots to run it.
+
         :returns: A decorator which creates a `Task` object.
+
+        :raises ValueError: If `slot_cost` is not positive.
         """
 
         _warn_if_str_duration(schedule_timeout, execution_timeout)
+
+        if slot_cost is not None and slot_cost <= 0:
+            raise ValueError("slot_cost must be a positive integer")
+
+        slot_requests = {"default": slot_cost} if slot_cost is not None else None
 
         computed_params = ComputedTaskParameters(
             schedule_timeout=schedule_timeout,
@@ -1436,6 +1450,7 @@ class Workflow(BaseWorkflow[TWorkflowInput]):
                 wait_for=wait_for,
                 skip_if=skip_if,
                 cancel_if=cancel_if,
+                slot_requests=slot_requests,
             )
 
             self._default_tasks.append(task)

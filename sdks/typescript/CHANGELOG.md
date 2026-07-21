@@ -10,6 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added a `displayName` option to the workflow and task **definitions** for naming runs with a [CEL](https://github.com/google/cel-spec) expression evaluated against each run's input at trigger time. Set it on `hatchet.workflow({ displayName })` to name the run, and/or on `.task({ displayName })` to name individual DAG steps; on a single-task workflow the task-level expression takes precedence over the workflow-level one. Because the expression lives in the definition, it applies to every trigger source (manual, `run`/`runMany`, child spawn, event, and cron) with no per-trigger configuration. A malformed expression is rejected at registration; any run-time evaluation error (missing key, non-string result, empty result) silently falls back to the generated `<readableId>-<timestamp>` name, and results longer than 255 characters are stored truncated rather than rejected. This replaces the previous trigger-time `displayName` run option, which has been removed ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+## [1.26.2] - 2026-07-21
+
+### Added
+
+- Added a `retrier` config option to `ClientConfig` (and corresponding `HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS`, `HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL`, `HATCHET_CLIENT_RETRIER_MAX_JITTER` env vars) to control retry behavior for user-facing gRPC calls — event pushes and workflow triggers. Internal engine communications (action events, stream events, workflow registration) are unaffected and continue using hardcoded defaults.
+
+## [1.26.1] - 2026-07-20
+
+### Added
+
+- Added `ctx.workflowNameV1()` to return the current workflow name.
+
+### Deprecated
+
+- Deprecated `ctx.workflowName()`, which continues to return the task name for backward compatibility. Use `ctx.workflowNameV1()` for the workflow name or `ctx.taskName()` for the task name.
+
+### Fixed
+
+- Fixed workflow name values in context log metadata and OpenTelemetry attributes.
+
+## [1.26.0] - 2026-07-16
+
+### Added
+
+- Adds support for defining **idempotency keys** on workflows and standalone tasks via an `idempotency` option, which ensures that they're only run once in a provided time window, based on a CEL expression. Triggers that collide with an existing run throw an `IdempotencyCollisionError` containing the existing run's ID.
+
+## [1.25.0] - 2026-07-09
+
+### Added
+
+- Added `slotCost` to task options, so a task that needs more memory or CPU can consume more than one worker slot and a worker runs fewer of them at once. Durable tasks do not accept it, and on older engines it has no effect. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
 
 ## [1.24.3] - 2026-06-17
 

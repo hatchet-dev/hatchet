@@ -149,7 +149,7 @@ func Props(kvs ...interface{}) Properties {
 		if !ok {
 			continue
 		}
-		v := kvs[i+1]
+		v := kvs[i+1] // #nosec G602 -- len(kvs) is validated even above, i+1 is always in range
 		if v == nil {
 			continue
 		}

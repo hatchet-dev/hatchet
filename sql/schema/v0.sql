@@ -1090,6 +1090,8 @@ CREATE TABLE
         "defaultPriority" INTEGER,
         "createWorkflowVersionOpts" JSONB,
         "inputJsonSchema" JSONB,
+        "idempotencyKeyExpression" TEXT,
+        "idempotencyKeyTtlMs" BIGINT,
         -- a CEL expression evaluated against run input to derive the run's display name
         "displayName" TEXT,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")

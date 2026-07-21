@@ -1054,7 +1054,6 @@ func (tc *TasksControllerImpl) handleProcessUserEvents(ctx context.Context, tena
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context, tenantId uuid.UUID, msgs []*tasktypes.UserEventTaskPayload) error {
-	opts := make([]v1.EventTriggerOpts, 0, len(msgs))
 	eventIdToOpts := make(map[uuid.UUID]v1.EventTriggerOpts)
 
 	for _, msg := range msgs {
@@ -1072,8 +1071,6 @@ func (tc *TasksControllerImpl) handleProcessUserEventTrigger(ctx context.Context
 			Scope:                 msg.EventScope,
 			TriggeringWebhookName: msg.TriggeringWebhookName,
 		}
-
-		opts = append(opts, opt)
 
 		eventIdToOpts[msg.EventExternalId] = opt
 	}
@@ -1100,7 +1097,8 @@ func (tc *TasksControllerImpl) handleProcessInternalEvents(ctx context.Context, 
 
 // handleProcessEventTrigger is responsible for inserting tasks into the database based on event triggers.
 func (tc *TasksControllerImpl) handleProcessTaskTrigger(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	return tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	_, err := tc.tw.TriggerFromWorkflowNames(ctx, tenantId, msgqueue.JSONConvert[v1.WorkflowNameTriggerOpts](payloads))
+	return err
 }
 
 // processUserEventMatches looks for user event matches

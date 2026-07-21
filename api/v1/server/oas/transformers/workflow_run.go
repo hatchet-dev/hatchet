@@ -2,16 +2,10 @@ package transformers
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
-
-func getEpochFromTime(t time.Time) *int {
-	epoch := int(t.UnixMilli())
-	return &epoch
-}
 
 func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *gen.ScheduledWorkflows {
 
@@ -33,7 +27,9 @@ func ToScheduledWorkflowsFromSQLC(scheduled *sqlcv1.ListScheduledWorkflowsRow) *
 
 	input := make(map[string]interface{})
 	if scheduled.Input != nil {
-		json.Unmarshal(scheduled.Input, &input)
+		if err := json.Unmarshal(scheduled.Input, &input); err != nil {
+			return nil
+		}
 	}
 
 	res := &gen.ScheduledWorkflows{

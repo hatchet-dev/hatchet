@@ -68,6 +68,9 @@ type WorkflowTask[I, O any] struct {
 
 	// (optional) DisplayName is a CEL expression evaluated against run input to derive the task's display name
 	DisplayName *string
+	// (optional) SlotCost is the number of default worker slots this task consumes. Defaults to one.
+	// Durable tasks ignore it.
+	SlotCost *int32
 }
 
 type WorkflowOnFailureTask[I, O any] struct {

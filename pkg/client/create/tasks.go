@@ -8,6 +8,15 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
+// IdempotencyConfig configures idempotency behavior for a workflow.
+type IdempotencyConfig struct {
+	// Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
+	Expression string
+
+	// TTL is the duration during which duplicate runs with the same key are rejected.
+	TTL time.Duration
+}
+
 // TaskDefaults defines default configuration values for tasks within a workflow.
 type TaskDefaults struct {
 	// (optional) ExecutionTimeout specifies the maximum duration a task can run after starting before being terminated
@@ -65,4 +74,6 @@ type WorkflowCreateOpts[I any] struct {
 
 	// (optional) DisplayName is a CEL expression evaluated against run input to derive the run's display name
 	DisplayName *string
+	// (optional) Idempotency configuration for preventing duplicate runs
+	Idempotency *IdempotencyConfig
 }

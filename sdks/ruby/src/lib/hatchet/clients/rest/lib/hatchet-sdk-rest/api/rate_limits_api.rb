@@ -19,6 +19,84 @@ module HatchetSdkRest
     def initialize(api_client = ApiClient.default)
       @api_client = api_client
     end
+    # Delete rate limit
+    # Delete a rate limit for a tenant.
+    # @param tenant [String] The tenant id
+    # @param key [String] The limit key
+    # @param [Hash] opts the optional parameters
+    # @return [nil]
+    def rate_limit_delete(tenant, key, opts = {})
+      rate_limit_delete_with_http_info(tenant, key, opts)
+      nil
+    end
+
+    # Delete rate limit
+    # Delete a rate limit for a tenant.
+    # @param tenant [String] The tenant id
+    # @param key [String] The limit key
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(nil, Integer, Hash)>] nil, response status code and response headers
+    def rate_limit_delete_with_http_info(tenant, key, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: RateLimitsApi.rate_limit_delete ...'
+      end
+      # verify the required parameter 'tenant' is set
+      if @api_client.config.client_side_validation && tenant.nil?
+        fail ArgumentError, "Missing the required parameter 'tenant' when calling RateLimitsApi.rate_limit_delete"
+      end
+      if @api_client.config.client_side_validation && tenant.to_s.length > 36
+        fail ArgumentError, 'invalid value for "tenant" when calling RateLimitsApi.rate_limit_delete, the character length must be smaller than or equal to 36.'
+      end
+
+      if @api_client.config.client_side_validation && tenant.to_s.length < 36
+        fail ArgumentError, 'invalid value for "tenant" when calling RateLimitsApi.rate_limit_delete, the character length must be greater than or equal to 36.'
+      end
+
+      # verify the required parameter 'key' is set
+      if @api_client.config.client_side_validation && key.nil?
+        fail ArgumentError, "Missing the required parameter 'key' when calling RateLimitsApi.rate_limit_delete"
+      end
+      # resource path
+      local_var_path = '/api/v1/tenants/{tenant}/rate-limits'.sub('{' + 'tenant' + '}', CGI.escape(tenant.to_s))
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+      query_params[:'key'] = key
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Accept' (if needed)
+      header_params['Accept'] = @api_client.select_header_accept(['application/json']) unless header_params['Accept']
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:debug_body]
+
+      # return_type
+      return_type = opts[:debug_return_type]
+
+      # auth_names
+      auth_names = opts[:debug_auth_names] || ['cookieAuth', 'bearerAuth']
+
+      new_options = opts.merge(
+        :operation => :"RateLimitsApi.rate_limit_delete",
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type
+      )
+
+      data, status_code, headers = @api_client.call_api(:DELETE, local_var_path, new_options)
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: RateLimitsApi#rate_limit_delete\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
+
     # List rate limits
     # Lists all rate limits for a tenant.
     # @param tenant [String] The tenant id

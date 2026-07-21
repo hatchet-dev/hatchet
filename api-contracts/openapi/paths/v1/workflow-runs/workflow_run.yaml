@@ -57,6 +57,12 @@ listWorkflowRuns:
           type: array
           items:
             type: string
+      - description: How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR.
+        in: query
+        name: additional_metadata_operator
+        required: false
+        schema:
+          $ref: "../../../components/schemas/_index.yaml#/V1AdditionalMetadataOperator"
       - description: The workflow ids to find runs for
         in: query
         name: workflow_ids
@@ -113,6 +119,14 @@ listWorkflowRuns:
         required: false
         schema:
           $ref: "../../../components/schemas/_index.yaml#/V1RunningFilter"
+      - description: The idempotency key(s) to filter for
+        in: query
+        name: idempotency_keys
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
     responses:
       "200":
         content:

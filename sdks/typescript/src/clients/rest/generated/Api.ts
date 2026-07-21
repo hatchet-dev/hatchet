@@ -77,6 +77,7 @@ import {
   TenantQueueMetrics,
   TenantResourcePolicy,
   TenantStepRunQueueMetrics,
+  TriggerRunResult,
   TriggerWorkflowRunRequest,
   UpdateCronWorkflowTriggerRequest,
   UpdateScheduledWorkflowRunRequest,
@@ -90,6 +91,7 @@ import {
   UserLoginRequest,
   UserRegisterRequest,
   UserTenantMembershipsList,
+  V1AdditionalMetadataOperator,
   V1BranchDurableTaskRequest,
   V1BranchDurableTaskResponse,
   V1CELDebugRequest,
@@ -99,6 +101,7 @@ import {
   V1CreateFilterRequest,
   V1CreateWebhookRequest,
   V1DagChildren,
+  V1DurableEventLogList,
   V1Event,
   V1EventList,
   V1Filter,
@@ -134,6 +137,7 @@ import {
   WebhookWorkerRequestListResponse,
   Worker,
   WorkerList,
+  WorkerStatus,
   Workflow,
   WorkflowID,
   WorkflowKindList,
@@ -476,6 +480,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       until?: string;
       /** Additional metadata k-v pairs to filter by */
       additional_metadata?: string[];
+      /** How to combine multiple additional_metadata pairs. OR matches runs containing any pair, AND matches runs containing all pairs. Defaults to OR. */
+      additional_metadata_operator?: V1AdditionalMetadataOperator;
       /** The workflow ids to find runs for */
       workflow_ids?: string[];
       /**
@@ -505,6 +511,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       include_payloads?: boolean;
       /** Filter within the RUNNING status bucket. ALL returns both on-worker and evicted tasks, ON_WORKER returns only tasks running on a worker, EVICTED returns only evicted tasks. Defaults to ALL. */
       running_filter?: V1RunningFilter;
+      /** The idempotency key(s) to filter for */
+      idempotency_keys?: string[];
     },
     params: RequestParams = {}
   ) =>
@@ -625,6 +633,40 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      format: 'json',
+      ...params,
+    });
+  /**
+   * @description Lists all event log entries for a durable task.
+   *
+   * @tags Durable Tasks
+   * @name V1DurableTaskEventLogList
+   * @summary List durable event log
+   * @request GET:/api/v1/stable/tenants/{tenant}/durable-tasks/{durable-task}
+   * @secure
+   */
+  v1DurableTaskEventLogList = (
+    tenant: string,
+    durableTask: string,
+    query?: {
+      /**
+       * The number of event log entries to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number of event log entries to limit by
+       * @format int64
+       */
+      limit?: number;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<V1DurableEventLogList, APIErrors>({
+      path: `/api/v1/stable/tenants/${tenant}/durable-tasks/${durableTask}`,
+      method: 'GET',
+      query: query,
+      secure: true,
       format: 'json',
       ...params,
     });
@@ -2136,6 +2178,30 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Delete a rate limit for a tenant.
+   *
+   * @tags Rate Limits
+   * @name RateLimitDelete
+   * @summary Delete rate limit
+   * @request DELETE:/api/v1/tenants/{tenant}/rate-limits
+   * @secure
+   */
+  rateLimitDelete = (
+    tenant: string,
+    query: {
+      /** The limit key */
+      key: string;
+    },
+    params: RequestParams = {}
+  ) =>
+    this.request<void, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/rate-limits`,
+      method: 'DELETE',
+      query: query,
+      secure: true,
+      ...params,
+    });
+  /**
    * @description Gets a list of tenant members
    *
    * @tags Tenant
@@ -2453,6 +2519,27 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       ...params,
     });
   /**
+   * @description Trigger a scheduled workflow run immediately for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowScheduledTrigger
+   * @summary Trigger scheduled workflow run
+   * @request POST:/api/v1/tenants/{tenant}/workflows/scheduled/{scheduled-workflow-run}
+   * @secure
+   */
+  workflowScheduledTrigger = (
+    tenant: string,
+    scheduledWorkflowRun: string,
+    params: RequestParams = {}
+  ) =>
+    this.request<TriggerRunResult, APIErrors>({
+      path: `/api/v1/tenants/${tenant}/workflows/scheduled/${scheduledWorkflowRun}`,
+      method: 'POST',
+      secure: true,
+      format: 'json',
+      ...params,
+    });
+  /**
    * @description Bulk delete scheduled workflow runs for a tenant
    *
    * @tags Workflow
@@ -2629,6 +2716,23 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       body: data,
       secure: true,
       type: ContentType.Json,
+      ...params,
+    });
+  /**
+   * @description Trigger a cron workflow immediately for a tenant
+   *
+   * @tags Workflow
+   * @name WorkflowCronTrigger
+   * @summary Trigger cron job workflow run immediately
+   * @request POST:/api/v1/tenants/{tenant}/workflows/crons/{cron-workflow}
+   * @secure
+   */
+  workflowCronTrigger = (tenant: string, cronWorkflow: string, params: RequestParams = {}) =>
+    this.request<TriggerRunResult, APIErrors | APIError>({
+      path: `/api/v1/tenants/${tenant}/workflows/crons/${cronWorkflow}`,
+      method: 'POST',
+      secure: true,
+      format: 'json',
       ...params,
     });
   /**
@@ -3220,10 +3324,28 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/worker
    * @secure
    */
-  workerList = (tenant: string, params: RequestParams = {}) =>
+  workerList = (
+    tenant: string,
+    query?: {
+      /**
+       * The number to skip
+       * @format int64
+       */
+      offset?: number;
+      /**
+       * The number to limit by
+       * @format int64
+       */
+      limit?: number;
+      /** Filter by worker status */
+      statuses?: WorkerStatus[];
+    },
+    params: RequestParams = {}
+  ) =>
     this.request<WorkerList, APIErrors>({
       path: `/api/v1/tenants/${tenant}/worker`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,
@@ -3406,10 +3528,18 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
    * @request GET:/api/v1/tenants/{tenant}/task-stats
    * @secure
    */
-  tenantGetTaskStats = (tenant: string, params: RequestParams = {}) =>
+  tenantGetTaskStats = (
+    tenant: string,
+    query?: {
+      /** Task names that must appear in the response. Missing tasks are zero-filled so KEDA's metrics-api JSONPath always resolves. */
+      taskNames?: string[];
+    },
+    params: RequestParams = {}
+  ) =>
     this.request<TaskStats, APIErrors>({
       path: `/api/v1/tenants/${tenant}/task-stats`,
       method: 'GET',
+      query: query,
       secure: true,
       format: 'json',
       ...params,

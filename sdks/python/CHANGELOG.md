@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a definition-level `display_name` option that holds a CEL expression the engine evaluates against a run's input at trigger time to produce a human-readable name. Set it on `hatchet.workflow(display_name=...)` to name the run, or on a DAG step via `.task(display_name=...)` / `.durable_task(display_name=...)` to name that step; on a single-task `hatchet.task(display_name=...)` the task-level expression names the run. Because it is evaluated by the engine at trigger time, it applies to every trigger source — manual `run`, `run_many`, child spawns, events, and crons. Malformed expressions are rejected at registration; runtime evaluation errors fall back to the generated `<readableId>-<timestamp>` name, and results longer than 255 characters are stored truncated. This replaces the previously proposed trigger-time `display_name` option, which has been removed ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
 
+## [1.35.1] - 2026-07-20
+
+### Fixed
+
+- Removes a merge conflict that snuck into `main`
+
+## [1.35.0] - 2026-07-16
+
+### Added
+
+- Adds support for defining **idempotency keys** on workflows and standalone tasks, which ensures that they're only run once in a provided time window, based on a CEL expression.
+
+## [1.34.1] - 2026-07-15
+
+### Added
+
+- Adds a `cron_input` option to `workflow`, `task`, and `durable_task` declarations, allowing an input to be supplied to runs triggered by a workflow's `on_crons` schedules. The value is typed against the workflow's input model and serialized onto the workflow version.
+
+## [1.34.0] - 2026-07-09
+
+### Added
+
+- Added `slot_cost` to the `hatchet.task` and `workflow.task` decorators, so a task that needs more memory or CPU can consume more than one worker slot and a worker runs fewer of them at once. On older engines it has no effect. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).
+
 ## [1.33.18] - 2026-07-08
 
 ### Fixed

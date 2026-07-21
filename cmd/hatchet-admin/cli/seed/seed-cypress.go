@@ -325,17 +325,17 @@ func writeCypressSeededUsersModule(users []User) error {
 		envList = append(envList, cypressEnvUser{Email: u.email, Password: u.password})
 	}
 
-	byKeyJSON, err := json.MarshalIndent(byKey, "", "  ")
+	byKeyJSON, err := json.MarshalIndent(byKey, "", "  ") // #nosec G117 -- local dev/test fixture data with known seed passwords, not real secrets
 	if err != nil {
 		return err
 	}
 
-	listJSON, err := json.MarshalIndent(list, "", "  ")
+	listJSON, err := json.MarshalIndent(list, "", "  ") // #nosec G117 -- local dev/test fixture data with known seed passwords, not real secrets
 	if err != nil {
 		return err
 	}
 
-	envListJSON, err := json.MarshalIndent(envList, "", "  ")
+	envListJSON, err := json.MarshalIndent(envList, "", "  ") // #nosec G117 -- local dev/test fixture data with known seed passwords, not real secrets
 	if err != nil {
 		return err
 	}
