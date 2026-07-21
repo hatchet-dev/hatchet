@@ -35,7 +35,6 @@ lib/hatchet-sdk-rest/api/workflow_run_api.rb
 lib/hatchet-sdk-rest/api/workflow_runs_api.rb
 lib/hatchet-sdk-rest/api_client.rb
 lib/hatchet-sdk-rest/api_error.rb
-lib/hatchet-sdk-rest/api_model_base.rb
 lib/hatchet-sdk-rest/configuration.rb
 lib/hatchet-sdk-rest/models/accept_invite_request.rb
 lib/hatchet-sdk-rest/models/api_error.rb

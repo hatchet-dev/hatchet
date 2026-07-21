@@ -77,6 +77,12 @@ generate_rest() {
 
   # Generate
   local additional_props="gemName=hatchet-sdk-rest,moduleName=HatchetSdkRest,gemVersion=0.0.1,gemDescription=HatchetRubySDKRestClient,gemAuthor=HatchetTeam,gemHomepage=https://github.com/hatchet-dev/hatchet,gemLicense=MIT,library=faraday"
+
+  version=7.12.0
+
+  openapi-generator-cli version || npm install @openapitools/openapi-generator-cli -g
+  openapi-generator-cli version-manager set "$version"
+
   # TODO-RUBY: we can generate docs here :wow:
   local cmd=(
     openapi-generator-cli generate
