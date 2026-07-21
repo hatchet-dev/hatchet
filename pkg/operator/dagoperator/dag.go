@@ -7,11 +7,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	v1contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	"github.com/hatchet-dev/hatchet/pkg/operator"
 	"github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type dagCancelledError struct {
@@ -45,11 +47,13 @@ func isDagChildFailedErr(err error) bool {
 }
 
 type dag struct {
-	requestCh   chan<- *v1contracts.DurableTaskRequest
-	matchRepo   repository.MatchRepository
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
+	requestCh    chan<- *v1contracts.DurableTaskRequest
+	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
+	triggerStep  func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
 
-	tasks           []*task
+	tasks []*task
+
+	pendingTasks    []*task
 	externalId      uuid.UUID
 	invocationCount int32
 	input           string
@@ -116,13 +120,23 @@ func dagDurableTask(
 	input string,
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
-	matchRepo repository.MatchRepository,
+	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error),
 	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
 ) error {
+	ctx, span := telemetry.NewSpan(ctx, "dag.dagDurableTask")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dag.external_id", externalId.String()),
+		attribute.Int("dag.invocation_count", int(invocationCount)),
+		attribute.Int("dag.task_count", len(tasks)),
+	)
+
 	d := &dag{
 		tasks:           tasks,
+		pendingTasks:    append([]*task{}, tasks...),
 		requestCh:       requestCh,
-		matchRepo:       matchRepo,
+		evalBoolExpr:    evalBoolExpr,
 		externalId:      externalId,
 		invocationCount: invocationCount,
 		input:           input,
@@ -145,7 +159,7 @@ func dagDurableTask(
 			if !ok {
 				return fmt.Errorf("durable task session closed")
 			}
-			d.taskConsumer(resp)
+			d.taskConsumer(ctx, resp)
 		}
 	}
 
@@ -169,6 +183,9 @@ func dagDurableTask(
 }
 
 func (d *dag) taskEmitter(ctx context.Context) error {
+	ctx, span := telemetry.NewSpan(ctx, "dag.taskEmitter")
+	defer span.End()
+
 	if d.err != nil {
 		return nil
 	}
@@ -186,9 +203,16 @@ func (d *dag) taskEmitter(ctx context.Context) error {
 }
 
 func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "dag.emitReadyTasks")
+	defer span.End()
+
+	span.SetAttributes(attribute.Int("dag.pending_task_count", len(d.pendingTasks)))
+
 	progressed := false
 
-	for _, t := range d.tasks {
+	stillPending := d.pendingTasks[:0]
+
+	for _, t := range d.pendingTasks {
 		if t.isTriggered || t.isSkipped {
 			continue
 		}
@@ -202,6 +226,7 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		}
 
 		if !ready {
+			stillPending = append(stillPending, t)
 			continue
 		}
 
@@ -225,12 +250,12 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 
 			if !cancelled {
 				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
-					d.registerCondition(t, conditionKindSkip)
+					d.registerCondition(ctx, t, conditionKindSkip)
 					t.skipWatchRegistered = true
 				}
 
 				if d.hasEventOrSleepConditions(t, conditionKindCancel) && !t.cancelWatchRegistered {
-					d.registerCondition(t, conditionKindCancel)
+					d.registerCondition(ctx, t, conditionKindCancel)
 					t.cancelWatchRegistered = true
 				}
 
@@ -251,11 +276,12 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
 							t.isWaitSatisfied = true
 						} else {
-							d.registerCondition(t, conditionKindWait, satisfiedGroups)
+							d.registerCondition(ctx, t, conditionKindWait, satisfiedGroups)
 							t.isWaiting = true
 						}
 					}
 					if !t.isWaitSatisfied {
+						stillPending = append(stillPending, t)
 						continue
 					}
 				}
@@ -298,13 +324,20 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 		}
 	}
 
+	d.pendingTasks = stillPending
+
 	return progressed, nil
 }
 
-func (d *dag) taskConsumer(resp *v1contracts.DurableTaskResponse) {
+func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskResponse) {
+	ctx, span := telemetry.NewSpan(ctx, "dag.taskConsumer")
+	defer span.End()
+
 	if resp == nil || resp.Message == nil {
 		return
 	}
+
+	span.SetAttributes(attribute.String("dag.response_type", fmt.Sprintf("%T", resp.Message)))
 
 	switch m := resp.Message.(type) {
 	case *v1contracts.DurableTaskResponse_WaitForAck:
@@ -434,7 +467,7 @@ func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool,
 			expr = "true"
 		}
 
-		matched, evalErr := d.matchRepo.EvalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
+		matched, evalErr := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 		if evalErr != nil {
 			return false, false, fmt.Errorf("CEL eval error for task %q condition %q: %w", t.actionId, expr, evalErr)
 		}
@@ -533,7 +566,7 @@ func (d *dag) evaluateWaitParentConditions(ctx context.Context, t *task) (map[uu
 			expr = "true"
 		}
 
-		matched, err := d.matchRepo.EvalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
+		matched, err := d.evalBoolExpr(ctx, expr, map[string]interface{}{"output": parent.output})
 		if err != nil {
 			return nil, fmt.Errorf("CEL eval error for task %q wait condition %q: %w", t.actionId, expr, err)
 		}
@@ -558,7 +591,15 @@ func (d *dag) allWaitGroupsSatisfied(t *task, satisfiedGroups map[uuid.UUID]bool
 	return true
 }
 
-func (d *dag) registerCondition(t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) {
+func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) {
+	_, span := telemetry.NewSpan(ctx, "dag.registerCondition")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("dag.task_action_id", t.actionId),
+		attribute.Int("dag.condition_kind", int(kind)),
+	)
+
 	action := getMatchConditionActionForWatchKind(kind)
 	conditions := &v1contracts.DurableEventListenerConditions{}
 

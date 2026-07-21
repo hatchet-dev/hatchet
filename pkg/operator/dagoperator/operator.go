@@ -267,7 +267,7 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 		action.ActionPayload,
 		requestCh,
 		responseCh,
-		d.repo.Matches(),
+		d.repo.Matches().EvalBoolExpr,
 		triggerStep,
 	)
 
