@@ -114,10 +114,10 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "eslint-plugin-unused-imports": "^3.2.0",
     "postcss": "^8.5.16",
-    "prettier": "^3.9.1",
+    "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^3.4.19",
-    "tsx": "^4.22.5",
+    "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.3"
   },
