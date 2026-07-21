@@ -136,7 +136,6 @@ WITH input AS (
     SELECT t.tenant_id, t.idempotency_key
 	FROM v1_task t
 	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
-	JOIN "Step" s ON t.step_id = s.id
 	WHERE
         (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
 		AND t.idempotency_key IS NOT NULL
