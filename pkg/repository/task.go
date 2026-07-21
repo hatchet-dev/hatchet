@@ -2341,13 +2341,7 @@ func (r *sharedRepository) insertTasks(
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
 
-		if r.payloadStore.DualWritesEnabled() {
-			// if dual writes are enabled, write the inputs to the tasks table
-			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
-		} else {
-			// otherwise, write an empty json object to the inputs column
-			params.Inputs = append(params.Inputs, []byte("{}"))
-		}
+		params.Inputs = append(params.Inputs, []byte("{}"))
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -2998,12 +2992,6 @@ func (r *sharedRepository) createTaskEvents(
 		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
 		// because it'll try to unmarshal the `nil` value.
 		externalIdToData[externalId] = eventDatas[i]
-
-		if len(eventDatas[i]) == 0 || !r.payloadStore.TaskEventDualWritesEnabled() {
-			paramDatas[i] = nil
-		} else {
-			paramDatas[i] = eventDatas[i]
-		}
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{

@@ -107,10 +107,6 @@ type PayloadStoreRepository interface {
 	RetrieveSingle(ctx context.Context, tx sqlcv1.DBTX, opt RetrievePayloadOpts) ([]byte, error)
 	RetrieveFromExternal(ctx context.Context, opts ...RetrieveFromExternalOpts) (map[RetrieveFromExternalOpts][]byte, error)
 	OverwriteExternalStore(store ExternalStore)
-	DualWritesEnabled() bool
-	TaskEventDualWritesEnabled() bool
-	DagDataDualWritesEnabled() bool
-	OLAPDualWritesEnabled() bool
 	ExternalCutoverProcessInterval() time.Duration
 	InlineStoreTTL() *time.Duration
 	ExternalCutoverBatchSize() int32
@@ -129,10 +125,6 @@ type payloadStoreRepositoryImpl struct {
 	externalStoreEnabled                 bool
 	inlineStoreTTL                       *time.Duration
 	externalStore                        ExternalStore
-	enablePayloadDualWrites              bool
-	enableTaskEventPayloadDualWrites     bool
-	enableDagDataPayloadDualWrites       bool
-	enableOLAPPayloadDualWrites          bool
 	externalCutoverProcessInterval       time.Duration
 	externalCutoverBatchSize             int32
 	externalCutoverNumConcurrentOffloads int32
@@ -140,10 +132,6 @@ type payloadStoreRepositoryImpl struct {
 }
 
 type PayloadStoreRepositoryOpts struct {
-	EnablePayloadDualWrites              bool
-	EnableTaskEventPayloadDualWrites     bool
-	EnableDagDataPayloadDualWrites       bool
-	EnableOLAPPayloadDualWrites          bool
 	ExternalCutoverProcessInterval       time.Duration
 	ExternalCutoverBatchSize             int32
 	ExternalCutoverNumConcurrentOffloads int32
@@ -165,10 +153,6 @@ func NewPayloadStoreRepository(
 		externalStoreEnabled:                 false,
 		inlineStoreTTL:                       opts.InlineStoreTTL,
 		externalStore:                        &NoOpExternalStore{},
-		enablePayloadDualWrites:              opts.EnablePayloadDualWrites,
-		enableTaskEventPayloadDualWrites:     opts.EnableTaskEventPayloadDualWrites,
-		enableDagDataPayloadDualWrites:       opts.EnableDagDataPayloadDualWrites,
-		enableOLAPPayloadDualWrites:          opts.EnableOLAPPayloadDualWrites,
 		externalCutoverProcessInterval:       opts.ExternalCutoverProcessInterval,
 		externalCutoverBatchSize:             opts.ExternalCutoverBatchSize,
 		externalCutoverNumConcurrentOffloads: opts.ExternalCutoverNumConcurrentOffloads,
@@ -437,22 +421,6 @@ func (p *payloadStoreRepositoryImpl) retrieve(ctx context.Context, tx sqlcv1.DBT
 func (p *payloadStoreRepositoryImpl) OverwriteExternalStore(store ExternalStore) {
 	p.externalStoreEnabled = true
 	p.externalStore = store
-}
-
-func (p *payloadStoreRepositoryImpl) DualWritesEnabled() bool {
-	return p.enablePayloadDualWrites
-}
-
-func (p *payloadStoreRepositoryImpl) TaskEventDualWritesEnabled() bool {
-	return p.enableTaskEventPayloadDualWrites
-}
-
-func (p *payloadStoreRepositoryImpl) DagDataDualWritesEnabled() bool {
-	return p.enableDagDataPayloadDualWrites
-}
-
-func (p *payloadStoreRepositoryImpl) OLAPDualWritesEnabled() bool {
-	return p.enableOLAPPayloadDualWrites
 }
 
 func (p *payloadStoreRepositoryImpl) ExternalCutoverProcessInterval() time.Duration {

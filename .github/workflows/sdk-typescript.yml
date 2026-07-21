@@ -247,7 +247,6 @@ jobs:
       - name: Setup
         working-directory: .
         run: |
-          export SEED_DEVELOPMENT=true
           export SERVER_PORT=8080
           export SERVER_URL=http://localhost:8080
           export SERVER_AUTH_COOKIE_DOMAIN=localhost
