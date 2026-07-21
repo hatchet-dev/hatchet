@@ -277,9 +277,6 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
-from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
-    V1AdditionalMetadataOperator,
-)
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
     V1BranchDurableTaskRequest,
 )
@@ -462,15 +459,5 @@ from hatchet_sdk.clients.rest.models.workflow_version import WorkflowVersion
 from hatchet_sdk.clients.rest.models.workflow_version_definition import (
     WorkflowVersionDefinition,
 )
-from hatchet_sdk.clients.rest.models.workflow_version_idempotency import (
-    WorkflowVersionIdempotency,
-)
 from hatchet_sdk.clients.rest.models.workflow_version_meta import WorkflowVersionMeta
-from hatchet_sdk.clients.rest.models.workflow_version_task import WorkflowVersionTask
-from hatchet_sdk.clients.rest.models.workflow_version_task_desired_worker_label import (
-    WorkflowVersionTaskDesiredWorkerLabel,
-)
-from hatchet_sdk.clients.rest.models.workflow_version_task_rate_limit import (
-    WorkflowVersionTaskRateLimit,
-)
 from hatchet_sdk.clients.rest.models.workflow_workers_count import WorkflowWorkersCount

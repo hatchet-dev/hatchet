@@ -24,10 +24,6 @@ from hatchet_sdk.clients.rest.models.job import Job
 from hatchet_sdk.clients.rest.models.workflow import Workflow
 from hatchet_sdk.clients.rest.models.workflow_concurrency import WorkflowConcurrency
 from hatchet_sdk.clients.rest.models.workflow_triggers import WorkflowTriggers
-from hatchet_sdk.clients.rest.models.workflow_version_idempotency import (
-    WorkflowVersionIdempotency,
-)
-from hatchet_sdk.clients.rest.models.workflow_version_task import WorkflowVersionTask
 from typing import Optional, Set
 from typing_extensions import Self
 
@@ -60,14 +56,6 @@ class WorkflowVersion(BaseModel):
     v1_concurrency: Optional[List[ConcurrencySetting]] = Field(
         default=None, alias="v1Concurrency"
     )
-    description: Optional[StrictStr] = Field(
-        default=None, description="The workflow description (may contain markdown)."
-    )
-    idempotency: Optional[WorkflowVersionIdempotency] = None
-    tasks: Optional[List[WorkflowVersionTask]] = Field(
-        default=None,
-        description="The tasks in the workflow, including their DAG dependencies and per-task configuration.",
-    )
     input_json_schema: Optional[Dict[str, Any]] = Field(
         default=None,
         description="The JSON schema for the workflow input.",
@@ -87,9 +75,6 @@ class WorkflowVersion(BaseModel):
         "jobs",
         "workflowConfig",
         "v1Concurrency",
-        "description",
-        "idempotency",
-        "tasks",
         "inputJsonSchema",
     ]
 
@@ -156,16 +141,6 @@ class WorkflowVersion(BaseModel):
                 if _item_v1_concurrency:
                     _items.append(_item_v1_concurrency.to_dict())
             _dict["v1Concurrency"] = _items
-        # override the default output from pydantic by calling `to_dict()` of idempotency
-        if self.idempotency:
-            _dict["idempotency"] = self.idempotency.to_dict()
-        # override the default output from pydantic by calling `to_dict()` of each item in tasks (list)
-        _items = []
-        if self.tasks:
-            for _item_tasks in self.tasks:
-                if _item_tasks:
-                    _items.append(_item_tasks.to_dict())
-            _dict["tasks"] = _items
         return _dict
 
     @classmethod
@@ -217,17 +192,6 @@ class WorkflowVersion(BaseModel):
                         for _item in obj["v1Concurrency"]
                     ]
                     if obj.get("v1Concurrency") is not None
-                    else None
-                ),
-                "description": obj.get("description"),
-                "idempotency": (
-                    WorkflowVersionIdempotency.from_dict(obj["idempotency"])
-                    if obj.get("idempotency") is not None
-                    else None
-                ),
-                "tasks": (
-                    [WorkflowVersionTask.from_dict(_item) for _item in obj["tasks"]]
-                    if obj.get("tasks") is not None
                     else None
                 ),
                 "inputJsonSchema": obj.get("inputJsonSchema"),

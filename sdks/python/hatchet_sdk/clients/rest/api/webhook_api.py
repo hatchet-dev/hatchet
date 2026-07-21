@@ -1342,7 +1342,6 @@ class WebhookApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIErrors",
-            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1419,7 +1418,6 @@ class WebhookApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIErrors",
-            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
@@ -1496,7 +1494,6 @@ class WebhookApi:
             "204": None,
             "400": "APIErrors",
             "403": "APIErrors",
-            "429": "APIErrors",
         }
         response_data = self.api_client.call_api(
             *_param, _request_timeout=_request_timeout
