@@ -1244,10 +1244,6 @@ func (s *Scheduler) tryAssignSingleton(
 	ctx, span := telemetry.NewSpan(ctx, "try-assign-singleton") // nolint: ineffassign
 	defer span.End()
 
-	if err := ctx.Err(); err != nil {
-		return res, err
-	}
-
 	telemetry.WithAttributes(span,
 		telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()},
 		telemetry.AttributeKV{Key: "queue.name", Value: qi.Queue},

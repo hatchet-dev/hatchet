@@ -286,8 +286,6 @@ type TaskRepository interface {
 
 	ProcessTaskRetryQueueItems(ctx context.Context, tenantId uuid.UUID) ([]*sqlcv1.V1RetryQueueItem, bool, error)
 
-	ProcessBatchedQueueItemTimeouts(ctx context.Context, tenantId string) (int, bool, error)
-
 	ProcessDurableSleeps(ctx context.Context, tenantId uuid.UUID) (*EventMatchResults, bool, error)
 
 	GetQueueCounts(ctx context.Context, tenantId uuid.UUID) (map[string]interface{}, error)
@@ -1491,14 +1489,6 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		FailTasksResponse: failResp,
 		TimeoutTasks:      toTimeout,
 	}, len(toTimeout) == limit, nil
-}
-
-func (r *TaskRepositoryImpl) ProcessBatchedQueueItemTimeouts(ctx context.Context, tenantId string) (int, bool, error) {
-	// NOTE: Batched schedule timeouts are currently handled by the in-memory batch
-	// scheduler, which deletes timed-out rows and emits SCHEDULING_TIMED_OUT events.
-	// This background DB cleanup was causing confusion by deleting rows without
-	// updating task state, so it is intentionally a no-op for now.
-	return 0, false, nil
 }
 
 func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenantId uuid.UUID) (*FailTasksResponse, bool, error) {
