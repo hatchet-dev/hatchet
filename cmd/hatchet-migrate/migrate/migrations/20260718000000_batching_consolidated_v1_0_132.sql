@@ -728,6 +728,7 @@ BEGIN
             WHERE tr.tenant_id = br.tenant_id
               AND tr.batch_id = br.batch_id
         )
+        ORDER BY br.batch_id
         FOR UPDATE
     )
     DELETE FROM
