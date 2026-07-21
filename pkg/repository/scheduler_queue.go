@@ -29,8 +29,6 @@ type RateLimitResult struct {
 	RetryCount     int32
 }
 
-const rateLimitedRequeueAfterThreshold = 2 * time.Second
-
 type AssignedItem struct {
 	WorkerId uuid.UUID
 

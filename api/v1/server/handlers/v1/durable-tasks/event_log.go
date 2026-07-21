@@ -124,6 +124,5 @@ func toGenWaitData(raw []byte) *gen.V1WaitData {
 		return nil
 	}
 
-	result := gen.V1WaitData(items)
-	return &result
+	return &items
 }

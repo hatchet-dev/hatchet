@@ -240,8 +240,8 @@ func describeCondition(c DurableWaitCondition) string {
 	switch c.Kind {
 	case DurableWaitConditionKindSleep:
 		if c.SleepDurationMs != nil {
-			sleepDurationMs := time.Duration(*c.SleepDurationMs) * time.Millisecond
-			return "sleep(" + sleepDurationMs.String() + ")"
+			sleepDuration := time.Duration(*c.SleepDurationMs) * time.Millisecond
+			return "sleep(" + sleepDuration.String() + ")"
 		}
 		return "sleep"
 	case DurableWaitConditionKindUserEvent:
@@ -1513,6 +1513,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 	if opts.Kind == sqlcv1.V1DurableEventLogKindWAITFOR {
 		waitForResult, err = r.handleEventLookback(ctx, tenantId, waitForResult, opts.WaitFor.WaitForConditions)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &IngestDurableTaskEventResult{

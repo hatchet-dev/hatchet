@@ -22,7 +22,7 @@ func decodeArgsToInterface(fnType reflect.Type) (results interface{}, err error)
 	if numIn == 2 {
 		secondArg := fnType.In(1)
 
-		if secondArg.Kind() != reflect.Ptr {
+		if secondArg.Kind() != reflect.Pointer {
 			return nil, fmt.Errorf("second argument must be a pointer to a struct")
 		}
 
@@ -63,7 +63,7 @@ func decodeFnArgTypes(fnType reflect.Type) (result []reflect.Type, err error) {
 		// if second argument is not a pointer to a struct, return error
 		secondArg := fnType.In(1)
 
-		if secondArg.Kind() != reflect.Ptr {
+		if secondArg.Kind() != reflect.Pointer {
 			return nil, fmt.Errorf("second argument must be a pointer to a struct")
 		}
 
@@ -88,7 +88,7 @@ func decodeFnReturnTypes(fnType reflect.Type) (result []reflect.Type, err error)
 
 	// if there are two args, the first one should be a pointer to a struct
 	if fnType.NumOut() == 2 {
-		if firstOut.Kind() != reflect.Ptr {
+		if firstOut.Kind() != reflect.Pointer {
 			return nil, fmt.Errorf("first argument must be a pointer to a struct when there are two return values")
 		}
 

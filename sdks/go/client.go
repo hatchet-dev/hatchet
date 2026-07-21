@@ -137,7 +137,7 @@ func (c *Client) NewWorker(name string, options ...WorkerOption) (*Worker, error
 
 	slotConfigMap := make(map[string]int32, len(slotConfig))
 	for key, value := range slotConfig {
-		slotConfigMap[string(key)] = int32(value)
+		slotConfigMap[string(key)] = int32(value) // #nosec G115 -- worker slot count is developer-configured, not attacker-controlled
 	}
 	workerOpts = append(workerOpts, worker.WithSlotConfig(slotConfigMap))
 
