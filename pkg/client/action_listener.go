@@ -269,6 +269,14 @@ func (a *actionListenerImpl) actionFromAssigned(ctx context.Context, assignedAct
 		}
 		act.BatchStart = batchStart
 	}
+	if actionType == ActionTypeStartBatch && assignedAction.ActionPayload != "" {
+		var items map[string]BatchItemData
+		if err := json.Unmarshal([]byte(assignedAction.ActionPayload), &items); err != nil {
+			a.l.Error().Ctx(ctx).Err(err).Msg("could not unmarshal batch items payload")
+		} else {
+			act.BatchItems = items
+		}
+	}
 	return act, true
 }
 
