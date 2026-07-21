@@ -281,12 +281,47 @@ func (d *DAGOperator) run(deliveryCtx context.Context, action *contracts.Assigne
 	}
 
 	output := make(map[string]json.RawMessage, len(tasks))
+
+	var completedRefs []repository.TaskExternalIdNodeIdBranchId
+	refToReadableId := make(map[repository.TaskExternalIdNodeIdBranchId]string, len(tasks))
+
 	for _, t := range tasks {
-		if t.output != nil {
-			b, err := json.Marshal(t.output)
-			if err == nil {
+		switch {
+		case t.isSkipped:
+			if b, err := json.Marshal(map[string]interface{}{"skipped": true}); err == nil {
 				output[t.readableId] = json.RawMessage(b)
 			}
+		case t.isCancelled:
+			if b, err := json.Marshal(map[string]interface{}{"cancelled": true}); err == nil {
+				output[t.readableId] = json.RawMessage(b)
+			}
+		default:
+			ref := repository.TaskExternalIdNodeIdBranchId{
+				TaskExternalId: externalId,
+				NodeId:         t.nodeId,
+				BranchId:       t.branchId,
+			}
+			completedRefs = append(completedRefs, ref)
+			refToReadableId[ref] = t.readableId
+		}
+	}
+
+	if len(completedRefs) > 0 {
+		events, err := d.repo.DurableEvents().GetSatisfiedDurableEvents(d.ctx, d.TenantId(), completedRefs)
+		if err != nil {
+			return d.fail(action, fmt.Errorf("could not fetch completed task outputs: %w", err), false)
+		}
+
+		for _, ev := range events {
+			readableId, ok := refToReadableId[repository.TaskExternalIdNodeIdBranchId{
+				TaskExternalId: ev.TaskExternalId,
+				NodeId:         ev.NodeID,
+				BranchId:       ev.BranchID,
+			}]
+			if !ok {
+				continue
+			}
+			output[readableId] = json.RawMessage(ev.Result)
 		}
 	}
 

@@ -61,8 +61,8 @@ type dag struct {
 
 	pendingWaitAcks []*pendingWaitAck
 
-	// cache of the result of each parent override condition so we don't need to
-	// keep outputs in memory for the lifetime of the DAG
+	// cache of the result of each parent override condition, evaluated once when the
+	// referenced parent completes instead of repeatedly on every readiness check
 	conditionMatches map[*sqlcv1.V1StepMatchCondition]bool
 }
 
@@ -465,6 +465,7 @@ func (d *dag) evaluateConditionsForParent(ctx context.Context, parent *task) err
 		}
 	}
 
+	// getting rid of memory here so we don't hold onto the output for the lifetime of the DAG
 	parent.output = nil
 
 	return nil
