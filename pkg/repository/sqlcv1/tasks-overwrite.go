@@ -710,41 +710,6 @@ WHERE
     )
 `
 
-const releaseIdempotencyKeys = `-- name: ReleaseIdempotencyKeys :batchexec
-WITH input AS (
-    SELECT
-        unnest($1::bigint[]) AS task_id,
-        unnest($2::timestamptz[]) AS task_inserted_at,
-        unnest($3::integer[]) AS retry_count
-), relevant_tasks AS (
-    SELECT t.tenant_id, t.idempotency_key
-	FROM v1_task t
-	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
-	WHERE
-		(t.id, t.inserted_at, t.retry_count) IN (
-			SELECT task_id, task_inserted_at, retry_count
-			FROM input
-		)
-		AND t.idempotency_key IS NOT NULL
-		AND wv."idempotencyMethod" = 'STATUS'
-), keys_to_release AS (
-    SELECT *
-	FROM v1_idempotency_key
-	WHERE (tenant_id, key) IN (
-		SELECT tenant_id, idempotency_key
-		FROM relevant_tasks
-	)
-	ORDER BY tenant_id, key
-	FOR UPDATE
-)
-
-DELETE FROM v1_idempotency_key k
-WHERE (tenant_id, key) IN (
-	SELECT tenant_id, key
-	FROM keys_to_release
-)
-`
-
 const releaseTasks = `-- name: ReleaseTasks :batchmany
 WITH input AS (
     SELECT
@@ -862,7 +827,6 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)
-	batch.Queue(releaseIdempotencyKeys, vals...)
 
 	br := db.SendBatch(ctx, batch)
 	err := br.Close()

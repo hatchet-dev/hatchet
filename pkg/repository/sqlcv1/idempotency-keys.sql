@@ -62,3 +62,47 @@ SELECT
 FROM inputs i
 LEFT JOIN claims c USING (key)
 ;
+
+-- name: ReleaseIdempotencyKeys :exec
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::INTEGER[]) AS retry_count,
+        UNNEST(@forceReleaseFlags::BOOLEAN[]) AS force_release
+), relevant_tasks AS (
+    SELECT t.tenant_id, t.idempotency_key
+	FROM v1_task t
+	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
+	JOIN "Step" s ON t.step_id = s.id
+	WHERE
+		(t.id, t.inserted_at, t.retry_count) IN (
+			SELECT task_id, task_inserted_at, retry_count
+			FROM input
+		)
+		AND t.idempotency_key IS NOT NULL
+		AND wv."idempotencyMethod" = 'STATUS'
+--		AND (
+			-- the caller tells us whether this release is for a terminal outcome
+			-- (completed/cancelled), in which case we always release the key.
+			-- otherwise (a failure that may retry), we only release the key once
+			-- the task has exhausted its retries.
+--			$4::boolean
+--			OR t.retry_count >= s.retries
+--		)
+), keys_to_release AS (
+    SELECT *
+	FROM v1_idempotency_key
+	WHERE (tenant_id, key) IN (
+		SELECT tenant_id, idempotency_key
+		FROM relevant_tasks
+	)
+	ORDER BY tenant_id, key
+	FOR UPDATE
+)
+
+DELETE FROM v1_idempotency_key k
+WHERE (tenant_id, key) IN (
+	SELECT tenant_id, key
+	FROM keys_to_release
+);
