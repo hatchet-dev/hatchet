@@ -157,7 +157,7 @@ jobs:
         run: ${{ matrix.install-cmd }}
 
       - name: Unit tests
-        run: ${{ matrix.test-cmd }}
+        run: ${{ matrix.unit-test-cmd }}
 
   test-e2e:
     runs-on: ubicloud-standard-4
@@ -185,10 +185,11 @@ jobs:
         run: |
           ./branch-sync.sh
       - name: Install Protoc
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
-        with:
-          version: "25.1"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PROTOC_VERSION="25.1"
+          curl -OL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          sudo unzip -o "protoc-${PROTOC_VERSION}-linux-x86_64.zip" -d /usr/local bin/protoc 'include/*'
+          rm -f "protoc-${PROTOC_VERSION}-linux-x86_64.zip"
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -272,7 +273,7 @@ jobs:
           export HATCHET_CLIENT_TLS_ROOT_CA_FILE=../../certs/ca.cert
           export HATCHET_CLIENT_TLS_SERVER_NAME=cluster
           export NODE_TLS_REJECT_UNAUTHORIZED=0
-          ${{ matrix.test-cmd }}
+          ${{ matrix.e2e-test-cmd }}
 
       - name: Upload engine logs
         if: always()
