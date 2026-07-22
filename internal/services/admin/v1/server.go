@@ -750,7 +750,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	actions, err := getActionsForTasks(req.Tasks)
 
 	if tenant.SchedulerPartitionId.Valid && err == nil {
-		go func() {
+		go func() { // #nosec G118 -- intentionally decoupled from request context so notification survives the response, bounded by its own timeout
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 

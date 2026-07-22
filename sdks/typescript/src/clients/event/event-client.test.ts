@@ -77,7 +77,7 @@ describe('EventClient', () => {
       throw new Error('foo');
     });
 
-    jest.spyOn(client, 'retrier').mockImplementation((fn, logger, retries, interval) => fn());
+    jest.spyOn(client, 'retrier').mockImplementation((fn) => fn());
 
     await expect(client.push('type', { foo: 'bar' })).rejects.toThrow(new HatchetError('foo'));
   });
@@ -168,7 +168,7 @@ describe('EventClient', () => {
       throw new Error('bulk error');
     });
 
-    jest.spyOn(client, 'retrier').mockImplementation((fn, logger, retries, interval) => fn());
+    jest.spyOn(client, 'retrier').mockImplementation((fn) => fn());
 
     const events = [
       { payload: { foo: 'bar1' }, additionalMetadata: { user_id: 'user1' } },

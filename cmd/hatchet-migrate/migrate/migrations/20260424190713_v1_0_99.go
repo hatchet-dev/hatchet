@@ -456,6 +456,7 @@ func backfillByPartition(ctx context.Context, db *sql.DB, srcTable, newTable str
 			continue
 		}
 
+		// #nosec G201 -- table/column identifiers are derived from internal migration logic, not user input
 		insertSQL := fmt.Sprintf(
 			"INSERT INTO %s (%s) SELECT %s FROM %s src ON CONFLICT DO NOTHING",
 			newTable, colList, srcColList, partition,
