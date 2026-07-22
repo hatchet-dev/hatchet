@@ -34,7 +34,10 @@ func listenStream[C any, E any](
 	client, generation, connected := stream.snapshot()
 	defer func() {
 		if stream.closeSend != nil && connected {
-			if closeErr := stream.closeSend(client); closeErr != nil {
+			stream.sendMu.Lock()
+			closeErr := stream.closeSend(client)
+			stream.sendMu.Unlock()
+			if closeErr != nil {
 				stream.l.Warn().Err(closeErr).Str("stream", stream.name).Msg("failed to close stream after listen exit")
 			}
 		}
