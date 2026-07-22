@@ -14,6 +14,7 @@ import (
 
 	v1repo "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 const defaultBatchPollInterval = 200 * time.Millisecond
@@ -140,8 +141,11 @@ type BatchScheduler struct {
 // reconcileBuffers drops cancelled/deleted items out of every group's buffer, using a single
 // ListExistingBatchedQueueItemIds call across all groups rather than one call per group -- this
 // is the tenant-wide (well, step-wide) analog of what fetchNewItems already does for fetching.
-func (b *BatchScheduler) reconcileBuffers() {
-	if b.ctx == nil || b.ctx.Err() != nil {
+func (b *BatchScheduler) reconcileBuffers(ctx context.Context) {
+	ctx, span := telemetry.NewSpan(ctx, "reconcile-buffers")
+	defer span.End()
+
+	if ctx.Err() != nil {
 		return
 	}
 
@@ -150,12 +154,15 @@ func (b *BatchScheduler) reconcileBuffers() {
 		ids = append(ids, group.getBufferedIds()...)
 	}
 
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "ids.checked", Value: len(ids)})
+
 	if len(ids) == 0 {
 		return
 	}
 
-	existing, err := b.repo.ListExistingBatchedQueueItemIds(b.ctx, ids)
+	existing, err := b.repo.ListExistingBatchedQueueItemIds(ctx, ids)
 	if err != nil {
+		span.RecordError(err)
 		b.l.Debug().Err(err).Msg("failed to reconcile batch buffers")
 		return
 	}
@@ -164,26 +171,31 @@ func (b *BatchScheduler) reconcileBuffers() {
 		return
 	}
 
+	dropped := 0
 	for _, group := range b.groups {
 		if len(group.buffer) == 0 {
 			continue
 		}
 
 		newBuf := make([]bufferedItem, 0, len(group.buffer))
-		dropped := 0
+		groupDropped := 0
+
 		for _, item := range group.buffer {
 			if _, ok := existing[item.ID]; ok {
 				newBuf = append(newBuf, item)
 			} else {
-				dropped++
+				groupDropped++
 			}
 		}
 
-		if dropped > 0 {
-			group.l.Debug().Int("dropped", dropped).Msg("dropped stale/cancelled batched queue items from buffer")
+		if groupDropped > 0 {
+			group.l.Debug().Int("dropped", groupDropped).Msg("dropped stale/cancelled batched queue items from buffer")
 			group.buffer = newBuf
+			dropped += groupDropped
 		}
 	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "ids.dropped", Value: dropped})
 }
 
 type assignmentFn func(ctx context.Context, queueItems []*sqlcv1.V1QueueItem, labels map[string][]*sqlcv1.GetDesiredLabelsRow) ([]*assignedQueueItem, []*sqlcv1.V1QueueItem, error)
@@ -320,16 +332,26 @@ func (b *BatchScheduler) shouldMemoryLimitFlush(group *batchGroup) (bool, int) {
 }
 
 func (b *BatchScheduler) tick() error {
+	ctx, span := telemetry.NewSpan(b.ctx, "batch-scheduler-tick")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: b.tenantId},
+		telemetry.AttributeKV{Key: "step.id", Value: b.stepId},
+		telemetry.AttributeKV{Key: "groups.count", Value: len(b.groups)},
+	)
+
 	// new items are added to buffer--items that are timed-out before they arrive are
 	// handled by `handleScheduleTimeouts`
-	timedOutItems, err := b.fetchNewItems()
+	timedOutItems, err := b.fetchNewItems(ctx)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
 	// The buffers now have all fresh new items, but may potentially have stale/cancelled items
 	// drop those
-	b.reconcileBuffers()
+	b.reconcileBuffers(ctx)
 
 	// Remove timed out items that are already in buffer. These only have the slim bufferedItem
 	// record, so hydrate full rows before handleScheduleTimeouts can report/delete them.
@@ -341,12 +363,14 @@ func (b *BatchScheduler) tick() error {
 	if len(poppedTimedOut) > 0 {
 		hydrated, err := b.hydrateItems(poppedTimedOut)
 		if err != nil {
+			span.RecordError(err)
 			return err
 		}
 		timedOutItems = append(timedOutItems, hydrated...)
 	}
 	// Send timeout messages for all timed-out tasks
-	if err := b.handleScheduleTimeouts(timedOutItems); err != nil {
+	if err := b.handleScheduleTimeouts(ctx, timedOutItems); err != nil {
+		span.RecordError(err)
 		return err
 	}
 	for key, group := range b.groups {
@@ -356,21 +380,24 @@ func (b *BatchScheduler) tick() error {
 			if !flush {
 				break
 			}
-			if err := b.flush(group, count, v1repo.FlushReasonBufferMemorySizeReached); err != nil {
+			if err := b.flush(ctx, group, count, v1repo.FlushReasonBufferMemorySizeReached); err != nil {
+				span.RecordError(err)
 				return err
 			}
 		}
 
 		// flush for batch size
 		if b.batchSize > 0 && len(group.buffer) >= b.batchSize {
-			if err := b.flush(group, b.batchSize, v1repo.FlushReasonBatchSizeReached); err != nil {
+			if err := b.flush(ctx, group, b.batchSize, v1repo.FlushReasonBatchSizeReached); err != nil {
+				span.RecordError(err)
 				return err
 			}
 		}
 
 		// flush if deadline is exceeded
 		if group.flushDeadline != nil && time.Now().After(*group.flushDeadline) && len(group.buffer) > 0 {
-			if err := b.flush(group, len(group.buffer), v1repo.FlushReasonIntervalElapsed); err != nil {
+			if err := b.flush(ctx, group, len(group.buffer), v1repo.FlushReasonIntervalElapsed); err != nil {
+				span.RecordError(err)
 				return err
 			}
 		}
@@ -385,9 +412,12 @@ func (b *BatchScheduler) tick() error {
 	return nil
 }
 
-func (b *BatchScheduler) fetchNewItems() ([]*sqlcv1.V1BatchedQueueItem, error) {
-	if b.ctx.Err() != nil {
-		return nil, b.ctx.Err()
+func (b *BatchScheduler) fetchNewItems(ctx context.Context) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	ctx, span := telemetry.NewSpan(ctx, "fetch-new-items")
+	defer span.End()
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
 	}
 
 	limit := pgtype.Int4{
@@ -395,10 +425,13 @@ func (b *BatchScheduler) fetchNewItems() ([]*sqlcv1.V1BatchedQueueItem, error) {
 		Valid: true,
 	}
 
-	items, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, limit.Int32)
+	items, err := b.repo.ListBatchedQueueItems(ctx, b.stepId, limit.Int32)
 	if err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "items.fetched", Value: len(items)})
 
 	if len(items) == 0 {
 		return nil, nil
@@ -416,6 +449,7 @@ func (b *BatchScheduler) fetchNewItems() ([]*sqlcv1.V1BatchedQueueItem, error) {
 		itemsByGroup[item.BatchKey] = append(itemsByGroup[item.BatchKey], item)
 	}
 	timedOutItems := make([]*sqlcv1.V1BatchedQueueItem, 0)
+	newItemsTotal := 0
 	for batchKey, groupItems := range itemsByGroup {
 		group, ok := b.groups[batchKey]
 		if !ok {
@@ -465,7 +499,15 @@ func (b *BatchScheduler) fetchNewItems() ([]*sqlcv1.V1BatchedQueueItem, error) {
 		if len(newItems) > 0 {
 			group.lastActiveAt = &now
 		}
+		newItemsTotal += len(newItems)
 	}
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "items.new", Value: newItemsTotal},
+		telemetry.AttributeKV{Key: "items.timed_out", Value: len(timedOutItems)},
+		telemetry.AttributeKV{Key: "groups.touched", Value: len(itemsByGroup)},
+	)
+
 	return timedOutItems, nil
 }
 
@@ -547,24 +589,37 @@ func (b *BatchScheduler) maybeStopIfIdle() {
 	b.cancel()
 }
 
-func (b *BatchScheduler) flush(group *batchGroup, count int, reason v1repo.BatchFlushReason) error {
+func (b *BatchScheduler) flush(ctx context.Context, group *batchGroup, count int, reason v1repo.BatchFlushReason) error {
 	if len(group.buffer) == 0 || count <= 0 {
 		return nil
 	}
+
+	ctx, span := telemetry.NewSpan(ctx, "batch-flush")
+	defer span.End()
 
 	if count > len(group.buffer) {
 		count = len(group.buffer)
 	}
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch_key", Value: group.batchKey},
+		telemetry.AttributeKV{Key: "flush.reason", Value: string(reason)},
+		telemetry.AttributeKV{Key: "count", Value: count},
+	)
+
 	toFlush, err := b.hydrateItems(group.popN(count))
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
-	remaining, err := b.assignAndDispatch(b.ctx, group, toFlush, reason)
+	remaining, err := b.assignAndDispatch(ctx, group, toFlush, reason)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "remaining", Value: len(remaining)})
 
 	if len(remaining) > 0 {
 		// Requeue remaining items at the front to preserve ordering.
@@ -706,16 +761,33 @@ func (b *BatchScheduler) assignQueueItems(
 }
 
 func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGroup, items []*sqlcv1.V1BatchedQueueItem, reason v1repo.BatchFlushReason) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	ctx, span := telemetry.NewSpan(ctx, "assign-and-dispatch")
+	defer span.End()
+
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "tenant.id", Value: b.tenantId},
+		telemetry.AttributeKV{Key: "step.id", Value: b.stepId},
+		telemetry.AttributeKV{Key: "batch_key", Value: group.batchKey},
+		telemetry.AttributeKV{Key: "flush.reason", Value: string(reason)},
+		telemetry.AttributeKV{Key: "items.count", Value: len(items)},
+	)
+
 	if b.scheduler == nil {
-		return items, fmt.Errorf("batch scheduler missing core scheduler")
+		err := fmt.Errorf("batch scheduler missing core scheduler")
+		span.RecordError(err)
+		return items, err
 	}
 
 	if b.queueFactory == nil {
-		return items, fmt.Errorf("batch scheduler missing queue factory")
+		err := fmt.Errorf("batch scheduler missing queue factory")
+		span.RecordError(err)
+		return items, err
 	}
 
 	if b.emitResults == nil {
-		return items, fmt.Errorf("batch scheduler missing results emitter")
+		err := fmt.Errorf("batch scheduler missing results emitter")
+		span.RecordError(err)
+		return items, err
 	}
 
 	if len(items) == 0 {
@@ -791,7 +863,9 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 		stepLabelsMap, err := queueRepo.GetDesiredLabels(ctx, nil, []uuid.UUID{b.stepId})
 		if err != nil {
 			queueRepo.Cleanup()
-			return items, fmt.Errorf("get desired labels: %w", err)
+			err = fmt.Errorf("get desired labels: %w", err)
+			span.RecordError(err)
+			return items, err
 		}
 
 		stepKey := b.stepId.String()
@@ -917,7 +991,9 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 			if len(ackIds) > 0 {
 				b.scheduler.nack(ackIds)
 			}
-			return items, fmt.Errorf("reserve and commit batch assignments: %w", err)
+			err = fmt.Errorf("reserve and commit batch assignments: %w", err)
+			span.RecordError(err)
+			return items, err
 		}
 
 		if !reserved {
@@ -960,13 +1036,23 @@ func (b *BatchScheduler) assignAndDispatch(ctx context.Context, group *batchGrou
 		b.emitResults(result)
 	}
 
+	telemetry.WithAttributes(span,
+		telemetry.AttributeKV{Key: "batch.assigned", Value: len(allAssigned)},
+		telemetry.AttributeKV{Key: "batch.remaining", Value: len(remaining)},
+	)
+
 	return remaining, nil
 }
 
-func (b *BatchScheduler) handleScheduleTimeouts(timedOutItems []*sqlcv1.V1BatchedQueueItem) error {
+func (b *BatchScheduler) handleScheduleTimeouts(ctx context.Context, timedOutItems []*sqlcv1.V1BatchedQueueItem) error {
 	if len(timedOutItems) == 0 {
 		return nil
 	}
+
+	ctx, span := telemetry.NewSpan(ctx, "handle-schedule-timeouts")
+	defer span.End()
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "items.timed_out", Value: len(timedOutItems)})
 
 	idsToDelete := make([]int64, 0, len(timedOutItems))
 	schedulingTimedOut := make([]*sqlcv1.V1QueueItem, 0, len(timedOutItems))
@@ -983,8 +1069,10 @@ func (b *BatchScheduler) handleScheduleTimeouts(timedOutItems []*sqlcv1.V1Batche
 
 	// Delete the timed out items from the batched queue
 	if len(idsToDelete) > 0 {
-		if err := b.repo.DeleteBatchedQueueItems(b.ctx, idsToDelete); err != nil {
-			return fmt.Errorf("failed to delete timed out batched queue items: %w", err)
+		if err := b.repo.DeleteBatchedQueueItems(ctx, idsToDelete); err != nil {
+			err = fmt.Errorf("failed to delete timed out batched queue items: %w", err)
+			span.RecordError(err)
+			return err
 		}
 	}
 

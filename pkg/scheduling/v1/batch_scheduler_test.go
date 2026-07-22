@@ -784,7 +784,7 @@ func TestBatchSchedulerReconcilesBuffersInSingleCall(t *testing.T) {
 		},
 	}
 
-	scheduler.reconcileBuffers()
+	scheduler.reconcileBuffers(context.Background())
 
 	require.Len(t, repo.existingIdsCalls, 1, "expected a single reconcile call across all groups")
 	require.ElementsMatch(t, []int64{1, 2, 3, 4}, repo.existingIdsCalls[0])
