@@ -580,6 +580,14 @@ func (a *adminClientImpl) PutRateLimit(key string, opts *types.RateLimitOpts) er
 		putParams.Duration = admincontracts.RateLimitDuration_MINUTE
 	case types.Hour:
 		putParams.Duration = admincontracts.RateLimitDuration_HOUR
+	case types.Day:
+		putParams.Duration = admincontracts.RateLimitDuration_DAY
+	case types.Week:
+		putParams.Duration = admincontracts.RateLimitDuration_WEEK
+	case types.Month:
+		putParams.Duration = admincontracts.RateLimitDuration_MONTH
+	case types.Year:
+		putParams.Duration = admincontracts.RateLimitDuration_YEAR
 	default:
 		putParams.Duration = admincontracts.RateLimitDuration_SECOND
 	}

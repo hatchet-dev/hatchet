@@ -797,7 +797,6 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Externalids:            externalIds,
 		Seenats:                seenAts,
 		Keys:                   keys,
-		Payloads:               payloadstoInsert,
 		Additionalmetadatas:    additionalMetadatas,
 		Scopes:                 scopes,
 		TriggeringWebhookNames: triggeringWebhookNames,
@@ -805,7 +804,10 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		bulkCreateEventParams,
+		v1.BulkCreateEventsAndTriggersParams{
+			BulkCreateEventsOLAPParams: &bulkCreateEventParams,
+			Payloads:                   payloadstoInsert,
+		},
 		bulkCreateTriggersParams,
 	); err != nil {
 		return err

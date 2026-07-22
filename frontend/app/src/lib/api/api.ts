@@ -1,8 +1,12 @@
 import { inferControlPlaneEnabled } from './control-plane-status';
-import { exchangeTokenQueryOptions } from './exchange-token';
+import {
+  ExchangeTokenFetchError,
+  exchangeTokenQueryOptions,
+} from './exchange-token';
 import { Api } from './generated/Api';
 import { Api as CloudApi } from './generated/cloud/Api';
 import { Api as ControlPlaneApi } from './generated/control-plane/Api';
+import { isRetryableRequestError } from '@/lib/query-retry';
 import queryClient from '@/query-client';
 import { InternalAxiosRequestConfig } from 'axios';
 import qs from 'qs';
@@ -60,8 +64,14 @@ export const cloudApi = new CloudApi({
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
 });
 
+// Control-plane calls are all fast CRUD, but they cross regions for users on
+// non-US shards; bound them well below the browser's own limit (~60s in
+// Safari) so a stuck request fails into the retry path quickly.
+const CONTROL_PLANE_REQUEST_TIMEOUT_MS = 15_000;
+
 export const controlPlaneApi = new ControlPlaneApi({
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+  timeout: CONTROL_PLANE_REQUEST_TIMEOUT_MS,
 });
 
 api.instance.interceptors.request.use(exchangeTokenInterceptor);
@@ -117,21 +127,59 @@ export function resolveExchangeTokenTenantId(
   return config.xTenantId ?? readTenantIdFromLocation() ?? readStoredTenantId();
 }
 
+const CONTROL_PLANE_META_QUERY_KEY = ['control-plane-metadata:get'] as const;
+
+type ControlPlaneMetaResponse = Awaited<
+  ReturnType<typeof controlPlaneApi.metadataGet>
+>;
+
 /**
  * Shared query config for control-plane metadata.
  * Exported so loaders and the hook can reuse the same key/fn/staleTime,
  * keeping a single React Query cache entry as the source of truth.
  */
 export const controlPlaneMetaQuery = {
-  queryKey: ['control-plane-metadata:get'] as const,
-  queryFn: async () => {
+  queryKey: CONTROL_PLANE_META_QUERY_KEY,
+  queryFn: async (): Promise<ControlPlaneMetaResponse | null> => {
     try {
       return await controlPlaneApi.metadataGet();
-    } catch {
-      return null;
+    } catch (err) {
+      // The control plane doesn't appear or disappear at runtime; once we
+      // have an answer (including a definitive null), keep serving it so a
+      // transient failure can't flip the app into "control plane disabled"
+      // mode. That would make the exchange-token interceptor skip routing
+      // tenant requests to the shard apiUrl, sending them to the
+      // control-plane host where those routes don't exist (hard 404s).
+      const lastKnown =
+        queryClient.getQueryData<ControlPlaneMetaResponse | null>(
+          CONTROL_PLANE_META_QUERY_KEY,
+        );
+      if (lastKnown !== undefined) {
+        return lastKnown;
+      }
+
+      // First load: a non-retryable 4xx (404 on OSS deployments without a
+      // control plane) is a definitive "no control plane" answer. Retryable
+      // statuses (408/429) are transient and must not be cached as one.
+      const status = getApiErrorStatus(err);
+      if (
+        status &&
+        status >= 400 &&
+        status < 500 &&
+        !isRetryableRequestError(err)
+      ) {
+        return null;
+      }
+
+      // First load with a transient error (network, timeout, 408/429, 5xx):
+      // fail so React Query retries, rather than caching "disabled" for
+      // staleTime.
+      throw err;
     }
   },
-  staleTime: 1000 * 60,
+  // Whether the control plane exists doesn't change at runtime, so a longer
+  // staleTime just avoids blocking a request on a metadata round trip.
+  staleTime: 1000 * 60 * 5,
 };
 
 /**
@@ -155,8 +203,9 @@ async function resolveControlPlaneEnabled(): Promise<boolean> {
  * transparently authenticated with an exchange token and routed to the OSS apiUrl.
  *
  * If the exchange token cannot be obtained (e.g. network error), the request
- * proceeds unchanged and will likely fail with a 401, which React Query will
- * surface to the UI normally.
+ * is rejected with the token error. Proceeding unchanged would send the
+ * request to the control-plane host, where OSS routes don't exist, and the
+ * resulting 404 is both misleading and never retried by React Query.
  */
 export async function exchangeTokenInterceptor(
   config: InternalAxiosRequestConfig,
@@ -197,6 +246,7 @@ export async function exchangeTokenInterceptor(
       tenantId,
       err,
     });
+    throw new ExchangeTokenFetchError(tenantId, err);
   }
 
   return config;

@@ -2448,7 +2448,6 @@ func (r *sharedRepository) insertTasks(
 				RetryMaxBackoff:              make([]pgtype.Int4, 0),
 				WorkflowVersionIds:           make([]uuid.UUID, 0),
 				WorkflowRunIds:               make([]uuid.UUID, 0),
-				Inputs:                       make([][]byte, 0),
 				BatchKeys:                    make([]string, 0),
 				IsDurables:                   make([]bool, 0),
 				DesiredWorkerLabels:          make([][]byte, 0),
@@ -2515,8 +2514,6 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
-
-		params.Inputs = append(params.Inputs, []byte("{}"))
 
 		stepIdsToParams[task.StepId] = params
 	}
