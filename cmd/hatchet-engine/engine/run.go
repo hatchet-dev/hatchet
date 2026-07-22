@@ -274,8 +274,8 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		)
 
 		sizeLimits := v1.StatusUpdateBatchSizeLimits{
-			Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
-			DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+			Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit), // #nosec G115 -- admin-configured server setting, not attacker-controlled
+			DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),  // #nosec G115 -- admin-configured server setting, not attacker-controlled
 		}
 
 		olap, err := olap.New(
@@ -661,8 +661,8 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 
 		if isControllerActive(sc.PausedControllers, OLAPController) {
 			sizeLimits := v1.StatusUpdateBatchSizeLimits{
-				Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit),
-				DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),
+				Task: int32(sc.OLAPStatusUpdates.TaskBatchSizeLimit), // #nosec G115 -- admin-configured server setting, not attacker-controlled
+				DAG:  int32(sc.OLAPStatusUpdates.DagBatchSizeLimit),  // #nosec G115 -- admin-configured server setting, not attacker-controlled
 			}
 
 			olap, err := olap.New(
@@ -982,8 +982,9 @@ func startPrometheus(l *zerolog.Logger, c shared.PrometheusConfigFile) func() er
 	mux.Handle(c.Path, promhttp.Handler())
 
 	srv := &http.Server{
-		Addr:    c.Address,
-		Handler: mux,
+		Addr:              c.Address,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {

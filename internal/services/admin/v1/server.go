@@ -750,7 +750,7 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.Creat
 	actions, err := getActionsForTasks(req.Tasks)
 
 	if tenant.SchedulerPartitionId.Valid && err == nil {
-		go func() {
+		go func() { // #nosec G118 -- intentionally decoupled from request context so notification survives the response, bounded by its own timeout
 			notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
@@ -913,9 +913,16 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 	var idempotency *v1.IdempotencyConfig
 
 	if req.Idempotency != nil {
+		method := sqlcv1.IdempotencyMethodTTL
+
+		if req.Idempotency.Method != nil {
+			method = sqlcv1.IdempotencyMethod(req.Idempotency.Method.String())
+		}
+
 		idempotency = &v1.IdempotencyConfig{
 			Expression: req.Idempotency.Expression,
 			TTLMs:      req.Idempotency.TtlMs,
+			Method:     method,
 		}
 	}
 

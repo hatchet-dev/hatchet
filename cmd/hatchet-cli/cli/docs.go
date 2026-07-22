@@ -157,7 +157,7 @@ for comprehensive context. Documentation covers Python, TypeScript, and Go SDKs.
 `, url)
 
 	if err := os.MkdirAll(rulesDir, 0o755); err == nil {
-		if err := os.WriteFile(rulesFile, []byte(ruleContent), 0o644); err == nil {
+		if err := os.WriteFile(rulesFile, []byte(ruleContent), 0o644); err == nil { // #nosec G306 -- non-sensitive editor rules config, meant to be readable by other tools
 			fmt.Println(styles.SuccessMessage("Created " + rulesFile))
 		} else {
 			fmt.Printf("  ⚠ Could not write %s: %v\n", rulesFile, err)

@@ -219,7 +219,7 @@ type fanoutQueue struct {
 
 // The fanout exchange key for a consumer is the name of the consumer queue.
 func (f fanoutQueue) FanoutExchangeKey() string {
-	return f.consumerQueue.Name()
+	return f.Name()
 }
 
 func TenantEventConsumerQueue(t uuid.UUID) fanoutQueue {

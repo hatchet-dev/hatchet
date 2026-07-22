@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strings"
 	"sync"
@@ -1333,7 +1332,7 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 	toTimeout, err := r.queries.ListTasksToTimeout(ctx, tx, sqlcv1.ListTasksToTimeoutParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1403,7 +1402,7 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	toReassign, err := r.queries.ListTasksToReassign(ctx, tx, sqlcv1.ListTasksToReassignParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1467,7 +1466,7 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	res, err := r.queries.ProcessRetryQueueItems(ctx, tx, sqlcv1.ProcessRetryQueueItemsParams{
 		Tenantid: tenantId,
 		Limit: pgtype.Int4{
-			Int32: int32(limit),
+			Int32: int32(limit), // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 			Valid: true,
 		},
 	})
@@ -1501,7 +1500,7 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 
 	emitted, err := r.queries.PopDurableSleep(ctx, tx, sqlcv1.PopDurableSleepParams{
 		TenantID: tenantId,
-		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true},
+		Limit:    pgtype.Int4{Int32: int32(limit), Valid: true}, // #nosec G115 -- internal engine-configured limit, not attacker-controlled
 	})
 
 	if err != nil {
@@ -2341,13 +2340,7 @@ func (r *sharedRepository) insertTasks(
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
 
-		if r.payloadStore.DualWritesEnabled() {
-			// if dual writes are enabled, write the inputs to the tasks table
-			params.Inputs = append(params.Inputs, externalIdToInput[task.ExternalId])
-		} else {
-			// otherwise, write an empty json object to the inputs column
-			params.Inputs = append(params.Inputs, []byte("{}"))
-		}
+		params.Inputs = append(params.Inputs, []byte("{}"))
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -2959,6 +2952,35 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	)
 }
 
+type ReleaseIdempotencyKeysOpt struct {
+	*TaskIdInsertedAtRetryCount
+	EventType sqlcv1.V1TaskEventType
+}
+
+func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
+	ctx context.Context,
+	dbtx sqlcv1.DBTX,
+	opts []ReleaseIdempotencyKeysOpt,
+) error {
+	// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+	// which means we want to evict any idempotency keys that still are live and tied to the task at this point
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
+	taskRetryCounts := make([]int32, len(opts))
+
+	for i, opt := range opts {
+		taskIds[i] = opt.Id
+		taskInsertedAts[i] = opt.InsertedAt
+		taskRetryCounts[i] = opt.RetryCount
+	}
+
+	return r.queries.ReleaseIdempotencyKeys(ctx, dbtx, sqlcv1.ReleaseIdempotencyKeysParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
+}
+
 func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv1.DBTX,
@@ -2984,6 +3006,7 @@ func (r *sharedRepository) createTaskEvents(
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
 	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
+	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -2998,12 +3021,6 @@ func (r *sharedRepository) createTaskEvents(
 		// we'll get errors downstream when we try to read the payload back and parse it in `registerChildWorkflows`
 		// because it'll try to unmarshal the `nil` value.
 		externalIdToData[externalId] = eventDatas[i]
-
-		if len(eventDatas[i]) == 0 || !r.payloadStore.TaskEventDualWritesEnabled() {
-			paramDatas[i] = nil
-		} else {
-			paramDatas[i] = eventDatas[i]
-		}
 
 		if eventKeys[i] != "" {
 			paramKeys[i] = pgtype.Text{
@@ -3021,6 +3038,15 @@ func (r *sharedRepository) createTaskEvents(
 			EventKey:       eventKeys[i],
 			Data:           eventDatas[i],
 		}
+
+		releaseIdempotencyKeysOpts[i] = ReleaseIdempotencyKeysOpt{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         task.Id,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			EventType: eventTypes[i],
+		}
 	}
 
 	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
@@ -3036,6 +3062,10 @@ func (r *sharedRepository) createTaskEvents(
 
 	if err != nil {
 		return nil, err
+	}
+
+	if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
+		return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
 	}
 
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
@@ -3072,12 +3102,6 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
-func hash(s string) int64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return int64(h.Sum64())
-}
-
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -3087,7 +3111,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("replay_"+tenantId.String()))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
@@ -3481,8 +3505,8 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		for _, task := range tasks {
 			taskExternalId := task.ExternalID
 			stepId := task.StepID
-			switch {
-			case task.JobKind == sqlcv1.JobKindONFAILURE:
+			switch task.JobKind {
+			case sqlcv1.JobKindONFAILURE:
 				conditions := make([]GroupMatchCondition, 0)
 				groupId := uuid.New()
 
@@ -3702,7 +3726,7 @@ func (r *TaskRepositoryImpl) reconstructGroupConditions(
 			cond := groupCondition
 
 			if groupCondition.EventType == sqlcv1.V1EventTypeINTERNAL && groupCondition.EventResourceHint != nil {
-				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, string(groupCondition.EventKey))
+				key := fmt.Sprintf("%s:%s", *groupCondition.EventResourceHint, groupCondition.EventKey)
 
 				if match, ok := foundMatchKeys[key]; ok {
 					cond.Data = match.Data
@@ -3780,7 +3804,7 @@ func (r *sharedRepository) createExpressionEvals(ctx context.Context, dbtx sqlcv
 
 			if opt.ValueInt != nil {
 				valuesInt = append(valuesInt, pgtype.Int4{
-					Int32: int32(*opt.ValueInt),
+					Int32: int32(*opt.ValueInt), // #nosec G115 -- expression-evaluated value stored for later matching, overflow affects semantics only, not exploitable
 					Valid: true,
 				})
 			} else {
@@ -3972,7 +3996,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-task-tables"))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("analyze-task-tables"))
 
 	if err != nil {
 		return fmt.Errorf("error acquiring advisory lock: %v", err)
@@ -4033,7 +4057,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			}
 			defer rollback()
 
-			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockName))
+			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey(lockName))
 			if err != nil {
 				return fmt.Errorf("error acquiring advisory lock for %s: %v", lockName, err)
 			}

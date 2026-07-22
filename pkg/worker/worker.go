@@ -671,7 +671,7 @@ func (w *Worker) startStepRun(ctx context.Context, assignedAction *client.Action
 	// send a message that the step run started
 	actionEvent := w.getActionEvent(assignedAction, client.ActionEventTypeStarted)
 
-	go func() {
+	go func() { // #nosec G118 -- intentionally decoupled from request context so the event send survives, bounded by its own timeout
 		eventCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 
 		defer cancel()

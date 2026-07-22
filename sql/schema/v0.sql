@@ -1071,6 +1071,8 @@ CREATE TABLE
         CONSTRAINT "WorkflowTriggers_pkey" PRIMARY KEY ("id")
     );
 
+CREATE TYPE idempotency_method AS ENUM ('TTL', 'STATUS');
+
 -- CreateTable
 CREATE TABLE
     "WorkflowVersion" (
@@ -1091,6 +1093,7 @@ CREATE TABLE
         "inputJsonSchema" JSONB,
         "idempotencyKeyExpression" TEXT,
         "idempotencyKeyTtlMs" BIGINT,
+        "idempotencyMethod" idempotency_method,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

@@ -36,6 +36,11 @@ class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     CANCELLED: _ClassVar[RunStatus]
     EVICTED: _ClassVar[RunStatus]
 
+class IdempotencyMethod(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    TTL: _ClassVar[IdempotencyMethod]
+    STATUS: _ClassVar[IdempotencyMethod]
+
 class ConcurrencyLimitStrategy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CANCEL_IN_PROGRESS: _ClassVar[ConcurrencyLimitStrategy]
@@ -58,6 +63,8 @@ COMPLETED: RunStatus
 FAILED: RunStatus
 CANCELLED: RunStatus
 EVICTED: RunStatus
+TTL: IdempotencyMethod
+STATUS: IdempotencyMethod
 CANCEL_IN_PROGRESS: ConcurrencyLimitStrategy
 DROP_NEWEST: ConcurrencyLimitStrategy
 QUEUE_NEWEST: ConcurrencyLimitStrategy
@@ -188,12 +195,14 @@ class CreateWorkflowVersionRequest(_message.Message):
     def __init__(self, name: _Optional[str] = ..., description: _Optional[str] = ..., version: _Optional[str] = ..., event_triggers: _Optional[_Iterable[str]] = ..., cron_triggers: _Optional[_Iterable[str]] = ..., tasks: _Optional[_Iterable[_Union[CreateTaskOpts, _Mapping]]] = ..., concurrency: _Optional[_Union[Concurrency, _Mapping]] = ..., cron_input: _Optional[str] = ..., on_failure_task: _Optional[_Union[CreateTaskOpts, _Mapping]] = ..., sticky: _Optional[_Union[StickyStrategy, str]] = ..., default_priority: _Optional[int] = ..., concurrency_arr: _Optional[_Iterable[_Union[Concurrency, _Mapping]]] = ..., default_filters: _Optional[_Iterable[_Union[DefaultFilter, _Mapping]]] = ..., input_json_schema: _Optional[bytes] = ..., idempotency: _Optional[_Union[IdempotencyConfig, _Mapping]] = ...) -> None: ...
 
 class IdempotencyConfig(_message.Message):
-    __slots__ = ("expression", "ttl_ms")
+    __slots__ = ("expression", "ttl_ms", "method")
     EXPRESSION_FIELD_NUMBER: _ClassVar[int]
     TTL_MS_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
     expression: str
     ttl_ms: int
-    def __init__(self, expression: _Optional[str] = ..., ttl_ms: _Optional[int] = ...) -> None: ...
+    method: IdempotencyMethod
+    def __init__(self, expression: _Optional[str] = ..., ttl_ms: _Optional[int] = ..., method: _Optional[_Union[IdempotencyMethod, str]] = ...) -> None: ...
 
 class IdempotencyCollisionError(_message.Message):
     __slots__ = ("existing_run_external_id", "colliding_run_external_id")

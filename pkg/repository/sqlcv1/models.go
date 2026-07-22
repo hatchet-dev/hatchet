@@ -58,6 +58,48 @@ func (ns NullConcurrencyLimitStrategy) Value() (driver.Value, error) {
 	return string(ns.ConcurrencyLimitStrategy), nil
 }
 
+type IdempotencyMethod string
+
+const (
+	IdempotencyMethodTTL    IdempotencyMethod = "TTL"
+	IdempotencyMethodSTATUS IdempotencyMethod = "STATUS"
+)
+
+func (e *IdempotencyMethod) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = IdempotencyMethod(s)
+	case string:
+		*e = IdempotencyMethod(s)
+	default:
+		return fmt.Errorf("unsupported scan type for IdempotencyMethod: %T", src)
+	}
+	return nil
+}
+
+type NullIdempotencyMethod struct {
+	IdempotencyMethod IdempotencyMethod `json:"idempotency_method"`
+	Valid             bool              `json:"valid"` // Valid is true if IdempotencyMethod is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullIdempotencyMethod) Scan(value interface{}) error {
+	if value == nil {
+		ns.IdempotencyMethod, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.IdempotencyMethod.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullIdempotencyMethod) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.IdempotencyMethod), nil
+}
+
 type InternalQueue string
 
 const (
@@ -4058,21 +4100,22 @@ type WorkflowTriggers struct {
 }
 
 type WorkflowVersion struct {
-	ID                        uuid.UUID          `json:"id"`
-	CreatedAt                 pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt                 pgtype.Timestamp   `json:"updatedAt"`
-	DeletedAt                 pgtype.Timestamp   `json:"deletedAt"`
-	Version                   pgtype.Text        `json:"version"`
-	Order                     int64              `json:"order"`
-	WorkflowId                uuid.UUID          `json:"workflowId"`
-	Checksum                  string             `json:"checksum"`
-	ScheduleTimeout           string             `json:"scheduleTimeout"`
-	OnFailureJobId            *uuid.UUID         `json:"onFailureJobId"`
-	Sticky                    NullStickyStrategy `json:"sticky"`
-	Kind                      WorkflowKind       `json:"kind"`
-	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
-	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
-	InputJsonSchema           []byte             `json:"inputJsonSchema"`
-	IdempotencyKeyExpression  pgtype.Text        `json:"idempotencyKeyExpression"`
-	IdempotencyKeyTtlMs       pgtype.Int8        `json:"idempotencyKeyTtlMs"`
+	ID                        uuid.UUID             `json:"id"`
+	CreatedAt                 pgtype.Timestamp      `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp      `json:"updatedAt"`
+	DeletedAt                 pgtype.Timestamp      `json:"deletedAt"`
+	Version                   pgtype.Text           `json:"version"`
+	Order                     int64                 `json:"order"`
+	WorkflowId                uuid.UUID             `json:"workflowId"`
+	Checksum                  string                `json:"checksum"`
+	ScheduleTimeout           string                `json:"scheduleTimeout"`
+	OnFailureJobId            *uuid.UUID            `json:"onFailureJobId"`
+	Sticky                    NullStickyStrategy    `json:"sticky"`
+	Kind                      WorkflowKind          `json:"kind"`
+	DefaultPriority           pgtype.Int4           `json:"defaultPriority"`
+	CreateWorkflowVersionOpts []byte                `json:"createWorkflowVersionOpts"`
+	InputJsonSchema           []byte                `json:"inputJsonSchema"`
+	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
+	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
 }

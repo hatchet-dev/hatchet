@@ -87,6 +87,45 @@ WHERE "tenantId" = @tenantId::uuid
     AND "resource" = sqlc.narg('resource')::"LimitResource"
 RETURNING *;
 
+-- name: BulkMeterTenantResources :many
+WITH input AS (
+    SELECT
+        unnest(@tenantIds::uuid[]) AS tenant_id,
+        unnest(cast(@resources::text[] AS "LimitResource"[])) AS resource,
+        unnest(@numResources::int[]) AS num_resources
+), to_update AS (
+    SELECT
+        trl.*,
+        i.num_resources
+    FROM
+        "TenantResourceLimit" trl
+    JOIN
+        input i ON i.tenant_id = trl."tenantId" AND i.resource = trl."resource"
+    ORDER BY
+        trl."tenantId", trl."resource"
+    FOR UPDATE
+)
+UPDATE "TenantResourceLimit" trl
+SET
+    "value" = CASE
+        WHEN (trl."customValueMeter" = true OR (trl."window" IS NOT NULL AND trl."window" != '' AND NOW() - trl."lastRefill" >= trl."window"::INTERVAL)) THEN
+            0
+        ELSE
+            trl."value" + tu.num_resources
+    END,
+    "lastRefill" = CASE
+        WHEN (trl."window" IS NOT NULL AND trl."window" != '' AND NOW() - trl."lastRefill" >= trl."window"::INTERVAL) THEN
+            CURRENT_TIMESTAMP
+        ELSE
+            trl."lastRefill"
+    END
+FROM
+    to_update tu
+WHERE
+    trl."tenantId" = tu."tenantId"
+    AND trl."resource" = tu."resource"
+RETURNING trl.*;
+
 -- name: CountTenantWorkers :one
 SELECT COUNT(distinct id) AS "count"
 FROM "Worker"

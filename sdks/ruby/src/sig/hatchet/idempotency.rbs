@@ -6,4 +6,12 @@ module Hatchet
     def initialize: (expression: String, ttl_ms: Integer) -> void
     def to_proto: () -> untyped
   end
+
+  class StatusBasedIdempotencyConfig
+    attr_reader expression: String
+    attr_reader fallback_ttl_ms: Integer
+
+    def initialize: (expression: String, fallback_ttl_ms: Integer) -> void
+    def to_proto: () -> untyped
+  end
 end
