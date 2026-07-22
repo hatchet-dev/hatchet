@@ -101,6 +101,10 @@ type ClientOpts struct {
 
 	disableGzipCompression bool
 	grpcHeaders            map[string]string
+
+	// Embedded is set by the Go SDK's WithEmbeddedPostgres option and consumed by
+	// hatchet.NewClient to bootstrap an in-process engine. It is nil in all other cases.
+	Embedded any
 }
 
 func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {

@@ -28,6 +28,8 @@ import (
 type Client struct {
 	legacyClient v0Client.Client
 
+	embeddedShutdown func(context.Context) error
+
 	// Feature clients (lazy loaded)
 	metrics    *features.MetricsClient
 	rateLimits *features.RateLimitsClient
@@ -45,14 +47,47 @@ type Client struct {
 // NewClient creates a new Hatchet client.
 // Configuration options can be provided to customize the client behavior.
 func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
-	legacyClient, err := v0Client.New(opts...)
+	probe := &v0Client.ClientOpts{} //nolint:staticcheck // SA1019
+	for _, o := range opts {
+		o(probe)
+	}
+
+	embeddedCfg, err := resolveEmbeddedConfig(probe)
 	if err != nil {
 		return nil, err
 	}
 
+	var shutdown func(context.Context) error
+	if embeddedCfg != nil {
+		if embeddedBackend == nil {
+			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
+		}
+		sd, err := embeddedBackend(context.Background(), *embeddedCfg)
+		if err != nil {
+			return nil, err
+		}
+		shutdown = sd
+	}
+
+	legacyClient, err := v0Client.New(opts...)
+	if err != nil {
+		if shutdown != nil {
+			_ = shutdown(context.Background())
+		}
+		return nil, err
+	}
+
 	return &Client{
-		legacyClient: legacyClient,
+		legacyClient:     legacyClient,
+		embeddedShutdown: shutdown,
 	}, nil
+}
+
+func (c *Client) Close(ctx context.Context) error {
+	if c.embeddedShutdown != nil {
+		return c.embeddedShutdown(ctx)
+	}
+	return nil
 }
 
 // Worker represents a worker that can execute workflows.

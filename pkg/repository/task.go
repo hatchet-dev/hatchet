@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strings"
 	"sync"
@@ -3103,12 +3102,6 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
-func hash(s string) int64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return int64(h.Sum64()) // #nosec G115 -- deterministic bit-reinterpretation for hashing/bucketing, wraparound is fine
-}
-
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -3118,7 +3111,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("replay_"+tenantId.String()))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
@@ -4003,7 +3996,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-task-tables"))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("analyze-task-tables"))
 
 	if err != nil {
 		return fmt.Errorf("error acquiring advisory lock: %v", err)
@@ -4064,7 +4057,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			}
 			defer rollback()
 
-			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockName))
+			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey(lockName))
 			if err != nil {
 				return fmt.Errorf("error acquiring advisory lock for %s: %v", lockName, err)
 			}
