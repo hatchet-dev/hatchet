@@ -920,7 +920,8 @@ INSERT INTO "WorkflowVersion" (
     "createWorkflowVersionOpts",
     "inputJsonSchema",
     "idempotencyKeyExpression",
-    "idempotencyKeyTtlMs"
+    "idempotencyKeyTtlMs",
+    "idempotencyMethod"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -937,25 +938,27 @@ INSERT INTO "WorkflowVersion" (
     $11::jsonb,
     $12::jsonb,
     $13::text,
-    $14::bigint
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs"
+    $14::bigint,
+    $15::idempotency_method
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod"
 `
 
 type CreateWorkflowVersionParams struct {
-	ID                        uuid.UUID          `json:"id"`
-	CreatedAt                 pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt                 pgtype.Timestamp   `json:"updatedAt"`
-	Deletedat                 pgtype.Timestamp   `json:"deletedat"`
-	Checksum                  string             `json:"checksum"`
-	Version                   pgtype.Text        `json:"version"`
-	Workflowid                uuid.UUID          `json:"workflowid"`
-	Sticky                    NullStickyStrategy `json:"sticky"`
-	Kind                      NullWorkflowKind   `json:"kind"`
-	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
-	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
-	InputJsonSchema           []byte             `json:"inputJsonSchema"`
-	IdempotencyKeyExpression  pgtype.Text        `json:"idempotencyKeyExpression"`
-	IdempotencyKeyTtlMs       pgtype.Int8        `json:"idempotencyKeyTtlMs"`
+	ID                        uuid.UUID             `json:"id"`
+	CreatedAt                 pgtype.Timestamp      `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp      `json:"updatedAt"`
+	Deletedat                 pgtype.Timestamp      `json:"deletedat"`
+	Checksum                  string                `json:"checksum"`
+	Version                   pgtype.Text           `json:"version"`
+	Workflowid                uuid.UUID             `json:"workflowid"`
+	Sticky                    NullStickyStrategy    `json:"sticky"`
+	Kind                      NullWorkflowKind      `json:"kind"`
+	DefaultPriority           pgtype.Int4           `json:"defaultPriority"`
+	CreateWorkflowVersionOpts []byte                `json:"createWorkflowVersionOpts"`
+	InputJsonSchema           []byte                `json:"inputJsonSchema"`
+	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
+	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -974,6 +977,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.InputJsonSchema,
 		arg.IdempotencyKeyExpression,
 		arg.IdempotencyKeyTtlMs,
+		arg.IdempotencyMethod,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -994,6 +998,7 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.InputJsonSchema,
 		&i.IdempotencyKeyExpression,
 		&i.IdempotencyKeyTtlMs,
+		&i.IdempotencyMethod,
 	)
 	return &i, err
 }
@@ -1247,7 +1252,7 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."idempotencyKeyExpression", wv."idempotencyKeyTtlMs",
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."idempotencyKeyExpression", wv."idempotencyKeyTtlMs", wv."idempotencyMethod",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused"
 FROM
     "WorkflowVersion" as wv
@@ -1284,6 +1289,7 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.U
 		&i.WorkflowVersion.InputJsonSchema,
 		&i.WorkflowVersion.IdempotencyKeyExpression,
 		&i.WorkflowVersion.IdempotencyKeyTtlMs,
+		&i.WorkflowVersion.IdempotencyMethod,
 		&i.Workflow.ID,
 		&i.Workflow.CreatedAt,
 		&i.Workflow.UpdatedAt,
@@ -1372,7 +1378,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."idempotencyKeyExpression", workflowversions."idempotencyKeyTtlMs",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."idempotencyKeyExpression", workflowversions."idempotencyKeyTtlMs", workflowversions."idempotencyMethod",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1432,6 +1438,7 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.InputJsonSchema,
 			&i.WorkflowVersion.IdempotencyKeyExpression,
 			&i.WorkflowVersion.IdempotencyKeyTtlMs,
+			&i.WorkflowVersion.IdempotencyMethod,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -1498,7 +1505,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod"
 `
 
 type LinkOnFailureJobParams struct {
@@ -1527,6 +1534,7 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.InputJsonSchema,
 		&i.IdempotencyKeyExpression,
 		&i.IdempotencyKeyTtlMs,
+		&i.IdempotencyMethod,
 	)
 	return &i, err
 }

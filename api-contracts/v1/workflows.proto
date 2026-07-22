@@ -115,9 +115,15 @@ message CreateWorkflowVersionRequest {
     optional IdempotencyConfig idempotency = 15; // (optional) idempotency configuration for the workflow
 }
 
+enum IdempotencyMethod {
+    TTL = 0;
+    STATUS = 1;
+}
+
 message IdempotencyConfig {
     string expression = 1; // a CEL expression for determining the idempotency key for workflow runs
-    int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds
+    int64 ttl_ms = 2; // time-to-live for idempotency keys in milliseconds. if the method is `STATUS`, this is a "fallback" - the longest the key can live before it's evicted
+    optional IdempotencyMethod method = 3; // the method to use for idempotency, defaults to TTL
 }
 
 message IdempotencyCollisionError {

@@ -52,3 +52,20 @@ After installation, verify that the Hatchet CLI is installed correctly by checki
 ```sh
 hatchet --version
 ```
+
+## Anonymous Telemetry
+
+The CLI sends anonymous usage telemetry to help us understand which versions and platforms are in use and prioritize our work. No personal data is collected: each ping contains only the CLI version, operating system, and CPU architecture, keyed to a randomly generated install identifier stored in `~/.hatchet/telemetry_id`. This identifier is not derived from your machine, user, or network identity.
+
+Telemetry is enabled by default. To disable it, set the following in `~/.hatchet/config.yaml`:
+
+```yaml
+telemetry:
+  enabled: false
+```
+
+or set the environment variable:
+
+```sh
+export HATCHET_CLI_TELEMETRY_ENABLED=false
+```
