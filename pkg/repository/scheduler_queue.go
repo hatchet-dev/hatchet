@@ -1218,7 +1218,7 @@ func (b *batchQueueRepository) ReserveAndCommitBatchRun(
 
 	// Serializes concurrent reservation attempts for the same (tenant, step, batch_key) group
 	// across the whole reserve-then-activate sequence.
-	if advisoryLockErr := b.queries.AdvisoryLock(ctx, tx, hash(tenantId.String()+":"+stepId.String()+":"+batchKey)); advisoryLockErr != nil {
+	if advisoryLockErr := b.queries.AdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey(tenantId.String()+":"+stepId.String())); advisoryLockErr != nil {
 		return false, nil, fmt.Errorf("could not acquire batch reservation lock: %w", advisoryLockErr)
 	}
 

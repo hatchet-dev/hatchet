@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"sort"
 	"strings"
 	"sync"
@@ -3150,6 +3149,35 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	)
 }
 
+type ReleaseIdempotencyKeysOpt struct {
+	*TaskIdInsertedAtRetryCount
+	EventType sqlcv1.V1TaskEventType
+}
+
+func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
+	ctx context.Context,
+	dbtx sqlcv1.DBTX,
+	opts []ReleaseIdempotencyKeysOpt,
+) error {
+	// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+	// which means we want to evict any idempotency keys that still are live and tied to the task at this point
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
+	taskRetryCounts := make([]int32, len(opts))
+
+	for i, opt := range opts {
+		taskIds[i] = opt.Id
+		taskInsertedAts[i] = opt.InsertedAt
+		taskRetryCounts[i] = opt.RetryCount
+	}
+
+	return r.queries.ReleaseIdempotencyKeys(ctx, dbtx, sqlcv1.ReleaseIdempotencyKeysParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
+}
+
 func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv1.DBTX,
@@ -3175,6 +3203,7 @@ func (r *sharedRepository) createTaskEvents(
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
 	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
+	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -3206,6 +3235,15 @@ func (r *sharedRepository) createTaskEvents(
 			EventKey:       eventKeys[i],
 			Data:           eventDatas[i],
 		}
+
+		releaseIdempotencyKeysOpts[i] = ReleaseIdempotencyKeysOpt{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         task.Id,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			EventType: eventTypes[i],
+		}
 	}
 
 	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
@@ -3221,6 +3259,10 @@ func (r *sharedRepository) createTaskEvents(
 
 	if err != nil {
 		return nil, err
+	}
+
+	if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
+		return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
 	}
 
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
@@ -3257,12 +3299,6 @@ func makeEventTypeArr(status sqlcv1.V1TaskEventType, n int) []sqlcv1.V1TaskEvent
 	return a
 }
 
-func hash(s string) int64 {
-	h := fnv.New64a()
-	h.Write([]byte(s))
-	return int64(h.Sum64()) // #nosec G115 -- deterministic bit-reinterpretation for hashing/bucketing, wraparound is fine
-}
-
 func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*ReplayTasksResult, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
@@ -3272,7 +3308,7 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("replay_"+tenantId.String()))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("replay_"+tenantId.String()))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to try advisory lock for replaying tasks: %w", err)
@@ -4157,7 +4193,7 @@ func (r *TaskRepositoryImpl) AnalyzeTaskTables(ctx context.Context) error {
 
 	defer rollback()
 
-	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash("analyze-task-tables"))
+	acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey("analyze-task-tables"))
 
 	if err != nil {
 		return fmt.Errorf("error acquiring advisory lock: %v", err)
@@ -4218,7 +4254,7 @@ func (r *TaskRepositoryImpl) Cleanup(ctx context.Context) (bool, error) {
 			}
 			defer rollback()
 
-			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, hash(lockName))
+			acquired, err := r.queries.TryAdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey(lockName))
 			if err != nil {
 				return fmt.Errorf("error acquiring advisory lock for %s: %v", lockName, err)
 			}

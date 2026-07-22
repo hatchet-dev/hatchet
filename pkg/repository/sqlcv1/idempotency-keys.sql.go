@@ -125,3 +125,48 @@ func (q *Queries) CleanUpExpiredIdempotencyKeys(ctx context.Context, db DBTX, te
 	_, err := db.Exec(ctx, cleanUpExpiredIdempotencyKeys, tenantid)
 	return err
 }
+
+const releaseIdempotencyKeys = `-- name: ReleaseIdempotencyKeys :exec
+WITH input AS (
+    SELECT
+        UNNEST($1::BIGINT[]) AS task_id,
+        UNNEST($2::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST($3::INTEGER[]) AS retry_count
+), relevant_tasks AS (
+    SELECT t.tenant_id, t.idempotency_key
+	FROM v1_task t
+	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
+	WHERE
+        (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+		AND t.idempotency_key IS NOT NULL
+		AND wv."idempotencyMethod" = 'STATUS'
+), keys_to_release AS (
+    SELECT tenant_id, key, expires_at, claimed_by_external_id, inserted_at, updated_at
+	FROM v1_idempotency_key
+	WHERE (tenant_id, key) IN (
+		SELECT tenant_id, idempotency_key
+		FROM relevant_tasks
+	)
+	ORDER BY tenant_id, key
+	FOR UPDATE
+)
+
+DELETE FROM v1_idempotency_key k
+WHERE (tenant_id, key) IN (
+	SELECT tenant_id, key
+	FROM keys_to_release
+)
+`
+
+type ReleaseIdempotencyKeysParams struct {
+	Taskids         []int64              `json:"taskids"`
+	Taskinsertedats []pgtype.Timestamptz `json:"taskinsertedats"`
+	Taskretrycounts []int32              `json:"taskretrycounts"`
+}
+
+// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+// which means we want to evict any idempotency keys that still are live and tied to the task at this point
+func (q *Queries) ReleaseIdempotencyKeys(ctx context.Context, db DBTX, arg ReleaseIdempotencyKeysParams) error {
+	_, err := db.Exec(ctx, releaseIdempotencyKeys, arg.Taskids, arg.Taskinsertedats, arg.Taskretrycounts)
+	return err
+}

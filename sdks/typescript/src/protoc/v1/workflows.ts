@@ -219,6 +219,39 @@ export function concurrencyLimitStrategyToJSON(object: ConcurrencyLimitStrategy)
   }
 }
 
+export enum IdempotencyMethod {
+  TTL = 0,
+  STATUS = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function idempotencyMethodFromJSON(object: any): IdempotencyMethod {
+  switch (object) {
+    case 0:
+    case 'TTL':
+      return IdempotencyMethod.TTL;
+    case 1:
+    case 'STATUS':
+      return IdempotencyMethod.STATUS;
+    case -1:
+    case 'UNRECOGNIZED':
+    default:
+      return IdempotencyMethod.UNRECOGNIZED;
+  }
+}
+
+export function idempotencyMethodToJSON(object: IdempotencyMethod): string {
+  switch (object) {
+    case IdempotencyMethod.TTL:
+      return 'TTL';
+    case IdempotencyMethod.STATUS:
+      return 'STATUS';
+    case IdempotencyMethod.UNRECOGNIZED:
+    default:
+      return 'UNRECOGNIZED';
+  }
+}
+
 export interface CancelTasksRequest {
   /** a list of external UUIDs */
   externalIds: string[];
@@ -319,8 +352,10 @@ export interface CreateWorkflowVersionRequest {
 export interface IdempotencyConfig {
   /** a CEL expression for determining the idempotency key for workflow runs */
   expression: string;
-  /** time-to-live for idempotency keys in milliseconds */
+  /** time-to-live for idempotency keys in milliseconds. if the method is `STATUS`, this is a "fallback" - the longest the key can live before it's evicted */
   ttlMs: number;
+  /** the method to use for idempotency, defaults to TTL */
+  method?: IdempotencyMethod | undefined;
 }
 
 export interface IdempotencyCollisionError {
@@ -1802,7 +1837,7 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
 };
 
 function createBaseIdempotencyConfig(): IdempotencyConfig {
-  return { expression: '', ttlMs: 0 };
+  return { expression: '', ttlMs: 0, method: undefined };
 }
 
 export const IdempotencyConfig: MessageFns<IdempotencyConfig> = {
@@ -1812,6 +1847,9 @@ export const IdempotencyConfig: MessageFns<IdempotencyConfig> = {
     }
     if (message.ttlMs !== 0) {
       writer.uint32(16).int64(message.ttlMs);
+    }
+    if (message.method !== undefined) {
+      writer.uint32(24).int32(message.method);
     }
     return writer;
   },
@@ -1839,6 +1877,14 @@ export const IdempotencyConfig: MessageFns<IdempotencyConfig> = {
           message.ttlMs = longToNumber(reader.int64());
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.method = reader.int32() as any;
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1856,6 +1902,7 @@ export const IdempotencyConfig: MessageFns<IdempotencyConfig> = {
         : isSet(object.ttl_ms)
           ? globalThis.Number(object.ttl_ms)
           : 0,
+      method: isSet(object.method) ? idempotencyMethodFromJSON(object.method) : undefined,
     };
   },
 
@@ -1867,6 +1914,9 @@ export const IdempotencyConfig: MessageFns<IdempotencyConfig> = {
     if (message.ttlMs !== 0) {
       obj.ttlMs = Math.round(message.ttlMs);
     }
+    if (message.method !== undefined) {
+      obj.method = idempotencyMethodToJSON(message.method);
+    }
     return obj;
   },
 
@@ -1877,6 +1927,7 @@ export const IdempotencyConfig: MessageFns<IdempotencyConfig> = {
     const message = createBaseIdempotencyConfig();
     message.expression = object.expression ?? '';
     message.ttlMs = object.ttlMs ?? 0;
+    message.method = object.method ?? undefined;
     return message;
   },
 };

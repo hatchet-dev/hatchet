@@ -42,7 +42,10 @@ from hatchet_sdk.runnables.types import (
 )
 from hatchet_sdk.runnables.workflow import BaseWorkflow, Standalone, Workflow
 from hatchet_sdk.types.concurrency import ConcurrencyExpression
-from hatchet_sdk.types.idempotency import TTLBasedIdempotencyConfig
+from hatchet_sdk.types.idempotency import (
+    StatusBasedIdempotencyConfig,
+    TTLBasedIdempotencyConfig,
+)
 from hatchet_sdk.types.labels import DesiredWorkerLabel
 from hatchet_sdk.types.priority import Priority, _warn_if_int_priority
 from hatchet_sdk.types.rate_limit import RateLimit
@@ -281,7 +284,9 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Workflow[EmptyModel]: ...
 
     @overload
@@ -303,7 +308,9 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Workflow[TWorkflowInput]: ...
 
     def workflow(
@@ -324,7 +331,9 @@ class Hatchet:
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Workflow[EmptyModel] | Workflow[TWorkflowInput]:
         """
         Define a Hatchet workflow, which can then declare `task`s and be `run`, `schedule`d, and so on.
@@ -410,7 +419,9 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -444,7 +455,9 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Callable[
         [Callable[Concatenate[TWorkflowInput, Context, P], R | CoroutineLike[R]]],
         Standalone[TWorkflowInput, R],
@@ -477,7 +490,9 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         slot_cost: int | None = None,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> (
         Callable[
             [Callable[Concatenate[EmptyModel, Context, P], R | CoroutineLike[R]]],
@@ -889,7 +904,9 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Callable[
         [Callable[Concatenate[EmptyModel, DurableContext, P], R | CoroutineLike[R]]],
         Standalone[EmptyModel, R],
@@ -923,7 +940,9 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> Callable[
         [
             Callable[
@@ -960,7 +979,9 @@ class Hatchet:
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
         eviction_policy: EvictionPolicy | None = DEFAULT_DURABLE_TASK_EVICTION_POLICY,
-        idempotency: TTLBasedIdempotencyConfig | None = None,
+        idempotency: (
+            TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None
+        ) = None,
     ) -> (
         Callable[
             [
