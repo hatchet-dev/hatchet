@@ -382,7 +382,7 @@ func NewOLAPRepositoryFromPool(
 ) (OLAPRepository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, false)
+	shared, cleanupShared := newSharedRepository(pool, pool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	return newOLAPRepository(shared, olapRetentionPeriod, shouldPartitionEventsTables, shouldPartitionOtelTables, statusUpdateBatchSizeLimits), cleanupShared
 }

@@ -36,8 +36,6 @@ type AdminServiceImpl struct {
 
 	tw        *trigger.TriggerWriter
 	pubBuffer *msgqueue.MQPubBuffer
-
-	dagOperatorEnabled bool
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -55,8 +53,6 @@ type AdminServiceOpts struct {
 
 	grpcTriggersEnabled bool
 	grpcTriggerSlots    int
-
-	dagOperatorEnabled bool
 
 	promGate *prometheus.Gate
 }
@@ -132,12 +128,6 @@ func WithGrpcTriggerSlots(slots int) AdminServiceOpt {
 	}
 }
 
-func WithDagOperatorEnabled(enabled bool) AdminServiceOpt {
-	return func(opts *AdminServiceOpts) {
-		opts.dagOperatorEnabled = enabled
-	}
-}
-
 func WithPrometheusGate(gate *prometheus.Gate) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.promGate = gate
@@ -169,16 +159,15 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	}
 
 	return &AdminServiceImpl{
-		repo:               opts.repo,
-		mq:                 opts.mq,
-		v:                  opts.v,
-		analytics:          opts.analytics,
-		localScheduler:     localScheduler,
-		localDispatcher:    opts.localDispatcher,
-		l:                  opts.l,
-		tw:                 tw,
-		pubBuffer:          pubBuffer,
-		dagOperatorEnabled: opts.dagOperatorEnabled,
+		repo:            opts.repo,
+		mq:              opts.mq,
+		v:               opts.v,
+		analytics:       opts.analytics,
+		localScheduler:  localScheduler,
+		localDispatcher: opts.localDispatcher,
+		l:               opts.l,
+		tw:              tw,
+		pubBuffer:       pubBuffer,
 	}, nil
 }
 

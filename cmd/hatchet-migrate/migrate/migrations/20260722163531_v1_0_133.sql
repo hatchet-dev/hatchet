@@ -26,6 +26,8 @@ CREATE TABLE v1_operator (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT v1_operator_pkey PRIMARY KEY (id)
 );
+
+ALTER TABLE tenant_entitlement ADD COLUMN dag_operator BOOLEAN NOT NULL DEFAULT FALSE;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -44,4 +46,6 @@ DROP TABLE v1_operator;
 DROP TYPE v1_operator_kind;
 
 ALTER TABLE "Worker" DROP COLUMN "operatorId";
+
+ALTER TABLE tenant_entitlement DROP COLUMN dag_operator;
 -- +goose StatementEnd

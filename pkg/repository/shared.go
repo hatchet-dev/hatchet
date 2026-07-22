@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 
@@ -32,8 +34,7 @@ type sharedRepository struct {
 	l       *zerolog.Logger
 	queries *sqlcv1.Queries
 
-	dagOperatorEnabled bool
-	limitConfig        limits.LimitConfigFile
+	limitConfig limits.LimitConfigFile
 
 	queueCache               *cache.Cache
 	stepExpressionCache      *cache.Cache
@@ -59,7 +60,6 @@ func newSharedRepository(
 	c limits.LimitConfigFile,
 	shouldEnforceLimits bool,
 	cacheDuration time.Duration,
-	dagOperatorEnabled bool,
 ) (*sharedRepository, func() error) {
 	queries := sqlcv1.New()
 	queueCache := cache.New(5 * time.Minute)
@@ -93,7 +93,6 @@ func newSharedRepository(
 		v:                           v,
 		l:                           l,
 		queries:                     queries,
-		dagOperatorEnabled:          dagOperatorEnabled,
 		limitConfig:                 c,
 		queueCache:                  queueCache,
 		stepExpressionCache:         stepExpressionCache,
@@ -115,9 +114,29 @@ func newSharedRepository(
 	return s, s.cleanup
 }
 
-func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+func (s *sharedRepository) isDagOperatorEnabled(ctx context.Context, db sqlcv1.DBTX, tenantId uuid.UUID) (bool, error) {
 	// fixme: can probably cache this?
-	if !s.dagOperatorEnabled {
+	entitlement, err := s.queries.GetTenantEntitlement(ctx, db, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.DagOperator, nil
+}
+
+func (s *sharedRepository) hasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	enabled, err := s.isDagOperatorEnabled(ctx, s.pool, tenantId)
+
+	if err != nil {
+		return false, err
+	}
+
+	if !enabled {
 		return false, nil
 	}
 

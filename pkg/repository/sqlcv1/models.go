@@ -3036,6 +3036,7 @@ type TenantEntitlement struct {
 	AuditLogs                       bool               `json:"audit_logs"`
 	PrometheusMetrics               bool               `json:"prometheus_metrics"`
 	StrictAdditionalMetadataFilters bool               `json:"strict_additional_metadata_filters"`
+	DagOperator                     bool               `json:"dag_operator"`
 	CreatedAt                       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                       pgtype.Timestamptz `json:"updated_at"`
 }

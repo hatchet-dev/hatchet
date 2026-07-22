@@ -106,11 +106,10 @@ func NewRepository(
 	statusUpdateBatchSizeLimits StatusUpdateBatchSizeLimits,
 	tenantLimitConfig limits.LimitConfigFile,
 	enforceLimits bool,
-	dagOperatorEnabled bool,
 ) (Repository, func() error) {
 	v := validator.NewDefaultValidator()
 
-	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration, dagOperatorEnabled)
+	shared, cleanupShared := newSharedRepository(pool, ddlPool, v, l, payloadStoreOpts, tenantLimitConfig, enforceLimits, cacheDuration)
 
 	mq, cleanupMq := newMessageQueueRepository(shared)
 

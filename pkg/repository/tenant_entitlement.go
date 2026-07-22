@@ -33,6 +33,10 @@ type TenantEntitlementRepository interface {
 	// entitled.
 	IsStrictAdditionalMetadataFiltersEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
 
+	// IsDagOperatorEnabled reports whether the tenant is entitled to use the
+	// DAG operator to orchestrate DAGs.
+	IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error)
+
 	// SetEntitlements upserts the full set of feature entitlements for the tenant.
 	SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error
 }
@@ -43,6 +47,7 @@ type TenantEntitlements struct {
 	AuditLogs                       bool
 	PrometheusMetrics               bool
 	StrictAdditionalMetadataFilters bool
+	DAGOperator                     bool
 }
 
 type tenantEntitlementRepository struct {
@@ -105,12 +110,27 @@ func (t *tenantEntitlementRepository) IsStrictAdditionalMetadataFiltersEnabled(c
 	return entitlement.StrictAdditionalMetadataFilters, nil
 }
 
+func (t *tenantEntitlementRepository) IsDagOperatorEnabled(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	entitlement, err := t.queries.GetTenantEntitlement(ctx, t.pool, tenantId)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	return entitlement.DagOperator, nil
+}
+
 func (t *tenantEntitlementRepository) SetEntitlements(ctx context.Context, tenantId uuid.UUID, entitlements TenantEntitlements) error {
 	_, err := t.queries.UpsertTenantEntitlement(ctx, t.pool, sqlcv1.UpsertTenantEntitlementParams{
 		Tenantid:                        tenantId,
 		Auditlogs:                       entitlements.AuditLogs,
 		Prometheusmetrics:               entitlements.PrometheusMetrics,
 		Strictadditionalmetadatafilters: entitlements.StrictAdditionalMetadataFilters,
+		Dagoperator:                     entitlements.DAGOperator,
 	})
 
 	return err

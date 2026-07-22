@@ -432,8 +432,14 @@ func (r *workflowRepository) PutWorkflowVersion(ctx context.Context, tenantId uu
 func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sqlcv1.DBTX, tenantId, workflowId uuid.UUID, opts *CreateWorkflowVersionOpts, oldWorkflowVersion *sqlcv1.GetWorkflowVersionForEngineRow) (*uuid.UUID, error) {
 	workflowVersionId := uuid.New()
 
+	dagOperatorEnabled, err := r.isDagOperatorEnabled(ctx, tx, tenantId)
+
+	if err != nil {
+		return nil, err
+	}
+
 	// todo: maybe don't need `len` check here?
-	isUsingDagOperator := r.dagOperatorEnabled && len(opts.Tasks) > 1
+	isUsingDagOperator := dagOperatorEnabled && len(opts.Tasks) > 1
 
 	if isUsingDagOperator {
 		var retentionPeriod *string
