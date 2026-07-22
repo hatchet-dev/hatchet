@@ -62,3 +62,36 @@ SELECT
 FROM inputs i
 LEFT JOIN claims c USING (key)
 ;
+
+-- name: ReleaseIdempotencyKeys :exec
+-- !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+-- which means we want to evict any idempotency keys that still are live and tied to the task at this point
+WITH input AS (
+    SELECT
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@taskRetryCounts::INTEGER[]) AS retry_count
+), relevant_tasks AS (
+    SELECT t.tenant_id, t.idempotency_key
+	FROM v1_task t
+	JOIN "WorkflowVersion" wv ON t.workflow_version_id = wv.id
+	WHERE
+        (t.id, t.inserted_at, t.retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+		AND t.idempotency_key IS NOT NULL
+		AND wv."idempotencyMethod" = 'STATUS'
+), keys_to_release AS (
+    SELECT *
+	FROM v1_idempotency_key
+	WHERE (tenant_id, key) IN (
+		SELECT tenant_id, idempotency_key
+		FROM relevant_tasks
+	)
+	ORDER BY tenant_id, key
+	FOR UPDATE
+)
+
+DELETE FROM v1_idempotency_key k
+WHERE (tenant_id, key) IN (
+	SELECT tenant_id, key
+	FROM keys_to_release
+);

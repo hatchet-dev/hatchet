@@ -101,6 +101,10 @@ type ClientOpts struct {
 
 	disableGzipCompression bool
 	grpcHeaders            map[string]string
+
+	// Embedded is set by the Go SDK's WithEmbeddedPostgres option and consumed by
+	// hatchet.NewClient to bootstrap an in-process engine. It is nil in all other cases.
+	Embedded any
 }
 
 func defaultClientOpts(token *string, cf *client.ClientConfigFile) *ClientOpts {
@@ -236,6 +240,16 @@ func WithGRPCHeaders(headers map[string]string) ClientOpt {
 		for k, v := range headers {
 			opts.grpcHeaders[k] = v
 		}
+	}
+}
+
+// WithTLSConfig sets the gRPC TLS config directly, overriding any config derived
+// from environment variables. A nil config connects without TLS (insecure).
+// This lets a caller (e.g. the CLI, which is profile-authoritative) avoid having
+// ambient HATCHET_CLIENT_TLS_* env vars silently override its intended TLS setup.
+func WithTLSConfig(tlsConfig *tls.Config) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.tls = tlsConfig
 	}
 }
 
