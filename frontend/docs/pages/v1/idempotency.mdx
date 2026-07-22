@@ -5,6 +5,10 @@ import { snippets } from "@/lib/generated/snippets";
 
 # Idempotency
 
+<Callout type="info">
+  Idempotency is currently in beta and may be subject to change.
+</Callout>
+
 If you need to prevent more than one run of a task from occurring within a given time window, for instance because of duplicate event sends from a webhook that can trigger duplicate runs in Hatchet, you can achieve this by adding **idempotency** configuration to your workflow or standalone task.
 
 ## Types of Idempotency in Hatchet
