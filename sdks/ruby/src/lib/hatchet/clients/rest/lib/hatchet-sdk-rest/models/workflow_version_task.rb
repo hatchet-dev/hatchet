@@ -14,67 +14,52 @@ require 'date'
 require 'time'
 
 module HatchetSdkRest
-  class WorkflowVersion
-    attr_accessor :metadata
+  class WorkflowVersionTask
+    # The readable id of the task.
+    attr_accessor :readable_id
 
-    # The version of the workflow.
-    attr_accessor :version
+    # The action id of the task.
+    attr_accessor :action
 
-    attr_accessor :order
+    # The readable ids of the tasks that this task depends on (its DAG parents).
+    attr_accessor :parents
 
-    attr_accessor :workflow_id
+    # The number of retries for the task.
+    attr_accessor :retries
 
-    # The sticky strategy of the workflow.
-    attr_accessor :sticky
+    # The execution timeout of the task.
+    attr_accessor :timeout
 
-    # The default priority of the workflow.
-    attr_accessor :default_priority
-
-    attr_accessor :workflow
-
-    attr_accessor :concurrency
-
-    attr_accessor :triggers
-
+    # The scheduling timeout of the task.
     attr_accessor :schedule_timeout
 
-    attr_accessor :jobs
+    # The retry backoff factor for the task.
+    attr_accessor :retry_backoff_factor
 
-    attr_accessor :workflow_config
+    # The maximum retry backoff, in seconds.
+    attr_accessor :retry_backoff_max_seconds
 
-    attr_accessor :v1_concurrency
+    # Whether the task is durable.
+    attr_accessor :is_durable
 
-    # The workflow description (may contain markdown).
-    attr_accessor :description
+    attr_accessor :rate_limits
 
-    attr_accessor :idempotency
-
-    # The tasks in the workflow, including their DAG dependencies and per-task configuration.
-    attr_accessor :tasks
-
-    # The JSON schema for the workflow input.
-    attr_accessor :input_json_schema
+    attr_accessor :desired_worker_labels
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'metadata' => :'metadata',
-        :'version' => :'version',
-        :'order' => :'order',
-        :'workflow_id' => :'workflowId',
-        :'sticky' => :'sticky',
-        :'default_priority' => :'defaultPriority',
-        :'workflow' => :'workflow',
-        :'concurrency' => :'concurrency',
-        :'triggers' => :'triggers',
+        :'readable_id' => :'readableId',
+        :'action' => :'action',
+        :'parents' => :'parents',
+        :'retries' => :'retries',
+        :'timeout' => :'timeout',
         :'schedule_timeout' => :'scheduleTimeout',
-        :'jobs' => :'jobs',
-        :'workflow_config' => :'workflowConfig',
-        :'v1_concurrency' => :'v1Concurrency',
-        :'description' => :'description',
-        :'idempotency' => :'idempotency',
-        :'tasks' => :'tasks',
-        :'input_json_schema' => :'inputJsonSchema'
+        :'retry_backoff_factor' => :'retryBackoffFactor',
+        :'retry_backoff_max_seconds' => :'retryBackoffMaxSeconds',
+        :'is_durable' => :'isDurable',
+        :'rate_limits' => :'rateLimits',
+        :'desired_worker_labels' => :'desiredWorkerLabels'
       }
     end
 
@@ -91,23 +76,17 @@ module HatchetSdkRest
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'metadata' => :'APIResourceMeta',
-        :'version' => :'String',
-        :'order' => :'Integer',
-        :'workflow_id' => :'String',
-        :'sticky' => :'String',
-        :'default_priority' => :'Integer',
-        :'workflow' => :'Workflow',
-        :'concurrency' => :'WorkflowConcurrency',
-        :'triggers' => :'WorkflowTriggers',
+        :'readable_id' => :'String',
+        :'action' => :'String',
+        :'parents' => :'Array<String>',
+        :'retries' => :'Integer',
+        :'timeout' => :'String',
         :'schedule_timeout' => :'String',
-        :'jobs' => :'Array<Job>',
-        :'workflow_config' => :'Object',
-        :'v1_concurrency' => :'Array<ConcurrencySetting>',
-        :'description' => :'String',
-        :'idempotency' => :'WorkflowVersionIdempotency',
-        :'tasks' => :'Array<WorkflowVersionTask>',
-        :'input_json_schema' => :'Object'
+        :'retry_backoff_factor' => :'Float',
+        :'retry_backoff_max_seconds' => :'Integer',
+        :'is_durable' => :'Boolean',
+        :'rate_limits' => :'Array<WorkflowVersionTaskRateLimit>',
+        :'desired_worker_labels' => :'Array<WorkflowVersionTaskDesiredWorkerLabel>'
       }
     end
 
@@ -121,98 +100,74 @@ module HatchetSdkRest
     # @param [Hash] attributes Model attributes in the form of hash
     def initialize(attributes = {})
       if (!attributes.is_a?(Hash))
-        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::WorkflowVersion` initialize method"
+        fail ArgumentError, "The input argument (attributes) must be a hash in `HatchetSdkRest::WorkflowVersionTask` initialize method"
       end
 
       # check to see if the attribute exists and convert string to symbol for hash key
       acceptable_attribute_map = self.class.acceptable_attribute_map
       attributes = attributes.each_with_object({}) { |(k, v), h|
         if (!acceptable_attribute_map.key?(k.to_sym))
-          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::WorkflowVersion`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
+          fail ArgumentError, "`#{k}` is not a valid attribute in `HatchetSdkRest::WorkflowVersionTask`. Please check the name to make sure it's valid. List of attributes: " + acceptable_attribute_map.keys.inspect
         end
         h[k.to_sym] = v
       }
 
-      if attributes.key?(:'metadata')
-        self.metadata = attributes[:'metadata']
+      if attributes.key?(:'readable_id')
+        self.readable_id = attributes[:'readable_id']
       else
-        self.metadata = nil
+        self.readable_id = nil
       end
 
-      if attributes.key?(:'version')
-        self.version = attributes[:'version']
+      if attributes.key?(:'action')
+        self.action = attributes[:'action']
       else
-        self.version = nil
+        self.action = nil
       end
 
-      if attributes.key?(:'order')
-        self.order = attributes[:'order']
+      if attributes.key?(:'parents')
+        if (value = attributes[:'parents']).is_a?(Array)
+          self.parents = value
+        end
       else
-        self.order = nil
+        self.parents = nil
       end
 
-      if attributes.key?(:'workflow_id')
-        self.workflow_id = attributes[:'workflow_id']
+      if attributes.key?(:'retries')
+        self.retries = attributes[:'retries']
       else
-        self.workflow_id = nil
+        self.retries = nil
       end
 
-      if attributes.key?(:'sticky')
-        self.sticky = attributes[:'sticky']
-      end
-
-      if attributes.key?(:'default_priority')
-        self.default_priority = attributes[:'default_priority']
-      end
-
-      if attributes.key?(:'workflow')
-        self.workflow = attributes[:'workflow']
-      end
-
-      if attributes.key?(:'concurrency')
-        self.concurrency = attributes[:'concurrency']
-      end
-
-      if attributes.key?(:'triggers')
-        self.triggers = attributes[:'triggers']
+      if attributes.key?(:'timeout')
+        self.timeout = attributes[:'timeout']
       end
 
       if attributes.key?(:'schedule_timeout')
         self.schedule_timeout = attributes[:'schedule_timeout']
       end
 
-      if attributes.key?(:'jobs')
-        if (value = attributes[:'jobs']).is_a?(Array)
-          self.jobs = value
+      if attributes.key?(:'retry_backoff_factor')
+        self.retry_backoff_factor = attributes[:'retry_backoff_factor']
+      end
+
+      if attributes.key?(:'retry_backoff_max_seconds')
+        self.retry_backoff_max_seconds = attributes[:'retry_backoff_max_seconds']
+      end
+
+      if attributes.key?(:'is_durable')
+        self.is_durable = attributes[:'is_durable']
+      end
+
+      if attributes.key?(:'rate_limits')
+        if (value = attributes[:'rate_limits']).is_a?(Array)
+          self.rate_limits = value
         end
       end
 
-      if attributes.key?(:'workflow_config')
-        self.workflow_config = attributes[:'workflow_config']
-      end
-
-      if attributes.key?(:'v1_concurrency')
-        if (value = attributes[:'v1_concurrency']).is_a?(Array)
-          self.v1_concurrency = value
+      if attributes.key?(:'desired_worker_labels')
+        if (value = attributes[:'desired_worker_labels']).is_a?(Array)
+          self.desired_worker_labels = value
         end
-      end
-
-      if attributes.key?(:'description')
-        self.description = attributes[:'description']
-      end
-
-      if attributes.key?(:'idempotency')
-        self.idempotency = attributes[:'idempotency']
-      end
-
-      if attributes.key?(:'tasks')
-        if (value = attributes[:'tasks']).is_a?(Array)
-          self.tasks = value
-        end
-      end
-
-      if attributes.key?(:'input_json_schema')
-        self.input_json_schema = attributes[:'input_json_schema']
       end
     end
 
@@ -221,20 +176,20 @@ module HatchetSdkRest
     def list_invalid_properties
       warn '[DEPRECATED] the `list_invalid_properties` method is obsolete'
       invalid_properties = Array.new
-      if @metadata.nil?
-        invalid_properties.push('invalid value for "metadata", metadata cannot be nil.')
+      if @readable_id.nil?
+        invalid_properties.push('invalid value for "readable_id", readable_id cannot be nil.')
       end
 
-      if @version.nil?
-        invalid_properties.push('invalid value for "version", version cannot be nil.')
+      if @action.nil?
+        invalid_properties.push('invalid value for "action", action cannot be nil.')
       end
 
-      if @order.nil?
-        invalid_properties.push('invalid value for "order", order cannot be nil.')
+      if @parents.nil?
+        invalid_properties.push('invalid value for "parents", parents cannot be nil.')
       end
 
-      if @workflow_id.nil?
-        invalid_properties.push('invalid value for "workflow_id", workflow_id cannot be nil.')
+      if @retries.nil?
+        invalid_properties.push('invalid value for "retries", retries cannot be nil.')
       end
 
       invalid_properties
@@ -244,51 +199,51 @@ module HatchetSdkRest
     # @return true if the model is valid
     def valid?
       warn '[DEPRECATED] the `valid?` method is obsolete'
-      return false if @metadata.nil?
-      return false if @version.nil?
-      return false if @order.nil?
-      return false if @workflow_id.nil?
+      return false if @readable_id.nil?
+      return false if @action.nil?
+      return false if @parents.nil?
+      return false if @retries.nil?
       true
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] metadata Value to be assigned
-    def metadata=(metadata)
-      if metadata.nil?
-        fail ArgumentError, 'metadata cannot be nil'
+    # @param [Object] readable_id Value to be assigned
+    def readable_id=(readable_id)
+      if readable_id.nil?
+        fail ArgumentError, 'readable_id cannot be nil'
       end
 
-      @metadata = metadata
+      @readable_id = readable_id
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] version Value to be assigned
-    def version=(version)
-      if version.nil?
-        fail ArgumentError, 'version cannot be nil'
+    # @param [Object] action Value to be assigned
+    def action=(action)
+      if action.nil?
+        fail ArgumentError, 'action cannot be nil'
       end
 
-      @version = version
+      @action = action
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] order Value to be assigned
-    def order=(order)
-      if order.nil?
-        fail ArgumentError, 'order cannot be nil'
+    # @param [Object] parents Value to be assigned
+    def parents=(parents)
+      if parents.nil?
+        fail ArgumentError, 'parents cannot be nil'
       end
 
-      @order = order
+      @parents = parents
     end
 
     # Custom attribute writer method with validation
-    # @param [Object] workflow_id Value to be assigned
-    def workflow_id=(workflow_id)
-      if workflow_id.nil?
-        fail ArgumentError, 'workflow_id cannot be nil'
+    # @param [Object] retries Value to be assigned
+    def retries=(retries)
+      if retries.nil?
+        fail ArgumentError, 'retries cannot be nil'
       end
 
-      @workflow_id = workflow_id
+      @retries = retries
     end
 
     # Checks equality by comparing each attribute.
@@ -296,23 +251,17 @@ module HatchetSdkRest
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          metadata == o.metadata &&
-          version == o.version &&
-          order == o.order &&
-          workflow_id == o.workflow_id &&
-          sticky == o.sticky &&
-          default_priority == o.default_priority &&
-          workflow == o.workflow &&
-          concurrency == o.concurrency &&
-          triggers == o.triggers &&
+          readable_id == o.readable_id &&
+          action == o.action &&
+          parents == o.parents &&
+          retries == o.retries &&
+          timeout == o.timeout &&
           schedule_timeout == o.schedule_timeout &&
-          jobs == o.jobs &&
-          workflow_config == o.workflow_config &&
-          v1_concurrency == o.v1_concurrency &&
-          description == o.description &&
-          idempotency == o.idempotency &&
-          tasks == o.tasks &&
-          input_json_schema == o.input_json_schema
+          retry_backoff_factor == o.retry_backoff_factor &&
+          retry_backoff_max_seconds == o.retry_backoff_max_seconds &&
+          is_durable == o.is_durable &&
+          rate_limits == o.rate_limits &&
+          desired_worker_labels == o.desired_worker_labels
     end
 
     # @see the `==` method
@@ -324,7 +273,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, version, order, workflow_id, sticky, default_priority, workflow, concurrency, triggers, schedule_timeout, jobs, workflow_config, v1_concurrency, description, idempotency, tasks, input_json_schema].hash
+      [readable_id, action, parents, retries, timeout, schedule_timeout, retry_backoff_factor, retry_backoff_max_seconds, is_durable, rate_limits, desired_worker_labels].hash
     end
 
     # Builds the object from hash
