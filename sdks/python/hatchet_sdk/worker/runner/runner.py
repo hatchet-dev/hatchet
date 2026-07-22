@@ -453,6 +453,22 @@ class Runner:
             finally:
                 self.cleanup_run_id(action.key)
 
+    def _cast_input(self, task: Task[TWorkflowInput, R], input: Any) -> TWorkflowInput:
+        return task._workflow.input_validator.validate_python(
+            input, context=HATCHET_PYDANTIC_SENTINEL
+        )
+
+    def _create_batch_input(
+        self, task: Task[TWorkflowInput, R], action: Action
+    ) -> dict[BatchMemberId, TWorkflowInput]:
+        if not action.batch_items:
+            return {}
+
+        return {
+            i: self._cast_input(task, item.payload.input)
+            for i, item in action.batch_items.items()
+        }
+
     async def handle_start_batch(self, action: Action) -> None:
         action_id = action.action_id
         task = self.action_registry.get(action_id)
@@ -476,15 +492,9 @@ class Runner:
             )
         )
 
-        def cast_input(input: Any) -> Any:
-            return task._workflow.input_validator.validate_python(
-                input, context=HATCHET_PYDANTIC_SENTINEL
-            )
-
-        task_inputs: dict[BatchMemberId, Any] = {
-            i: cast_input(item.payload.input) for i, item in action.batch_items.items()
-        }
+        task_inputs = self._create_batch_input(task, action)
         context = self.create_context(action=action, task=task, is_durable=False)
+
         try:
             if task._is_async_function:
                 outputs = await cast(Any, task._fn)(task_inputs, context)
