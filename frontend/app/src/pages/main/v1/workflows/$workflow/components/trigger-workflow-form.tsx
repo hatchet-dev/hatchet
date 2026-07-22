@@ -179,7 +179,7 @@ export function TriggerWorkflowForm({
       navigate({
         to: appRoutes.tenantRunRoute.to,
         params: { tenant: tenantId, run: workflowRun.run.metadata.id },
-        search: (prev) => ({ ...prev, wasRedirectedFromTrigger: 'true' }),
+        search: (prev) => ({ ...prev, wasRedirectedFromTrigger: true }),
       });
     },
     onError: handleApiError,
