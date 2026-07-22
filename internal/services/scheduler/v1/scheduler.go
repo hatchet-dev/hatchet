@@ -617,21 +617,10 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			err = s.mq.SendMessage(
-				ctx,
-				msgqueue.TASK_PROCESSING_QUEUE,
-				msg,
-			)
+			err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
-				continue
-			}
-
-			// best-effort publish to the tenant stream: the dispatcher's workflow
-			// event subscriptions consume task-cancelled
-			if err := s.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-				s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish task-cancelled to tenant stream")
 			}
 		}
 	}
@@ -700,21 +689,11 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 			continue
 		}
 
-		err = s.mq.SendMessage(
-			ctx,
-			msgqueue.TASK_PROCESSING_QUEUE,
-			msg,
-		)
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("could not send failed task")
 			continue
-		}
-
-		// best-effort publish to the tenant stream: the dispatcher's workflow
-		// event subscriptions consume task-failed
-		if err := s.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-			s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish task-failed to tenant stream")
 		}
 	}
 }
@@ -784,21 +763,11 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		err = s.mq.SendMessage(
-			ctx,
-			msgqueue.TASK_PROCESSING_QUEUE,
-			msg,
-		)
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("could not send cancelled task")
 			continue
-		}
-
-		// best-effort publish to the tenant stream: the dispatcher's workflow
-		// event subscriptions consume task-cancelled
-		if err := s.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-			s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish task-cancelled to tenant stream")
 		}
 	}
 }
@@ -949,19 +918,13 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			return fmt.Errorf("could not create failed task message: %w", err)
 		}
 
-		err = s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			// NOTE: failure to send on the MQ is likely not transient; ideally we could only retry individual
 			// tasks but since this message has the tasks in a batch, we retry all of them instead. we're banking
 			// on the downstream `task-failed` processing to be idempotent.
 			return fmt.Errorf("could not send failed task message: %w", err)
-		}
-
-		// best-effort publish to the tenant stream: the dispatcher's workflow
-		// event subscriptions consume task-failed
-		if err := s.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-			s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish task-failed to tenant stream")
 		}
 	}
 

@@ -103,9 +103,9 @@ func (o *OLAPControllerImpl) notifyDAGsUpdated(ctx context.Context, rows []v1.Up
 				return err
 			}
 
-			// best-effort publish to the tenant stream: the dispatcher's workflow
-			// run subscriptions consume workflow-run-finished
-			if err := o.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
+			// fanout-only: the dispatcher's workflow run subscriptions consume
+			// workflow-run-finished off the tenant stream
+			if err := msgqueue.PubTenantMessage(ctx, o.l, nil, o.pubsub, nil, msg); err != nil {
 				o.l.Warn().Ctx(ctx).Err(err).Msg("could not publish workflow-run-finished to tenant stream")
 			}
 		}

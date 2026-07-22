@@ -41,7 +41,7 @@ const (
 
 // SubscribeFunc subscribes to a message source with pre-ack and post-ack
 // hooks, returning a cleanup function.
-type SubscribeFunc func(preAck AckHook, postAck AckHook) (func() error, error)
+type SubscribeFunc func(preAck MsgHandler, postAck MsgHandler) (func() error, error)
 
 // MQSubBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
 // to the task handler as necessary.
@@ -103,7 +103,7 @@ func defaultMQSubBufferOpts() *mqSubBufferOpts {
 }
 
 func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc, fs ...mqSubBufferOptFunc) *MQSubBuffer {
-	return NewSubBufferFromSubscribe(func(preAck AckHook, postAck AckHook) (func() error, error) {
+	return NewSubBufferFromSubscribe(func(preAck MsgHandler, postAck MsgHandler) (func() error, error) {
 		return mq.Subscribe(queue, preAck, postAck)
 	}, dst, fs...)
 }

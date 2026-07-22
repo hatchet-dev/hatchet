@@ -122,9 +122,9 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 			continue
 		}
 
-		// best-effort publish to the tenant stream: the dispatcher's workflow
-		// event subscriptions consume created-task
-		if err := s.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
+		// the durable write went through the pub buffer above; this publishes the
+		// stream copy the dispatcher's workflow event subscriptions consume
+		if err := msgqueue.PubTenantMessage(ctx, s.l, nil, s.pubsub, nil, msg); err != nil {
 			s.l.Warn().Ctx(ctx).Err(err).Msg("could not publish created-task to tenant stream")
 		}
 	}

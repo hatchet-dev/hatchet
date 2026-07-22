@@ -167,7 +167,7 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 	return nil
 }
 
-func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.AckHook, postAck msgqueue.AckHook) (func() error, error) {
+func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.MsgHandler, postAck msgqueue.MsgHandler) (func() error, error) {
 	err := p.upsertQueue(context.Background(), queue)
 
 	if err != nil {

@@ -459,8 +459,8 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 // Subscribe subscribes to the msg queue.
 func (t *MessageQueueImpl) Subscribe(
 	q msgqueue.Queue,
-	preAck msgqueue.AckHook,
-	postAck msgqueue.AckHook,
+	preAck msgqueue.MsgHandler,
+	postAck msgqueue.MsgHandler,
 ) (func() error, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -571,8 +571,8 @@ func (t *MessageQueueImpl) subscribe(
 	ctx context.Context,
 	subId string,
 	q msgqueue.Queue,
-	preAck msgqueue.AckHook,
-	postAck msgqueue.AckHook,
+	preAck msgqueue.MsgHandler,
+	postAck msgqueue.MsgHandler,
 ) (func() error, error) {
 	sessionCount := 0
 

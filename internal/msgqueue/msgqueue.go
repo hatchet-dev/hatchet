@@ -151,7 +151,10 @@ func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {
 	return dispatcherQueue(d.String() + "_dispatcher_v1")
 }
 
-type AckHook func(task *Message) error
+// MsgHandler processes a received message. On the durable MessageQueue it is
+// invoked as a pre-ack or post-ack hook; on the best-effort PubSub it is the
+// sole handler with no ack semantics.
+type MsgHandler func(task *Message) error
 
 type MessageQueue interface {
 	// Clone copies the message queue with a new instance.
@@ -165,7 +168,7 @@ type MessageQueue interface {
 
 	// Subscribe subscribes to the task queue. It returns a cleanup function that should be called when the
 	// subscription is no longer needed.
-	Subscribe(queue Queue, preAck AckHook, postAck AckHook) (func() error, error)
+	Subscribe(queue Queue, preAck MsgHandler, postAck MsgHandler) (func() error, error)
 
 	// IsReady returns true if the task queue is ready to accept tasks.
 	IsReady() bool

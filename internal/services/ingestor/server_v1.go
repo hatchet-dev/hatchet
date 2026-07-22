@@ -51,8 +51,8 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		return nil, err
 	}
 
-	// stream events are fanout-only: publish straight to the tenant stream
-	err = i.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg)
+	// stream events are fanout-only: the tenant stream is their sole delivery path
+	err = msgqueue.PubTenantMessage(ctx, i.l, nil, i.pubsub, nil, msg)
 
 	if err != nil {
 		return nil, err

@@ -1347,16 +1347,10 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
-	}
-
-	// best-effort publish to the tenant stream: the dispatcher's workflow event
-	// subscriptions consume task-completed
-	if err := s.pubsub.Pub(inputCtx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-		s.l.Warn().Ctx(inputCtx).Err(err).Msg("could not publish task-completed to tenant stream")
 	}
 
 	resp := &contracts.ActionEventResponse{
@@ -1413,16 +1407,10 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
-	}
-
-	// best-effort publish to the tenant stream: the dispatcher's workflow event
-	// subscriptions consume task-failed
-	if err := s.pubsub.Pub(inputCtx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-		s.l.Warn().Ctx(inputCtx).Err(err).Msg("could not publish task-failed to tenant stream")
 	}
 
 	return &contracts.ActionEventResponse{

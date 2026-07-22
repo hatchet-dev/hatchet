@@ -957,16 +957,10 @@ func (d *DispatcherImpl) handleRetries(
 
 			queueutils.SleepWithExponentialBackoff(100*time.Millisecond, 5*time.Second, int(task.InternalRetryCount))
 
-			err = d.mqv1.SendMessage(retryCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+			err = msgqueue.PubTenantMessage(retryCtx, d.l, d.mqv1, d.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 			if err != nil {
 				return fmt.Errorf("could not send failed task message: %w", err)
-			}
-
-			// best-effort publish to the tenant stream: the dispatcher's workflow
-			// event subscriptions consume task-failed
-			if err := d.pubsub.Pub(retryCtx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-				d.l.Warn().Ctx(retryCtx).Err(err).Msg("could not publish task-failed to tenant stream")
 			}
 
 			return nil

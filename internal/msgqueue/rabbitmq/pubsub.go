@@ -255,7 +255,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	exchange := ""
 	routingKey := topic.Name()
 
-	if topic.IsTenantStream() {
+	if topic.Kind() == msgqueue.TopicKindTenantStream {
 		// tenant streams ride the per-tenant fanout exchange; declare it lazily
 		if _, ok := p.exchangeCache.Get(topic.Name()); !ok {
 			if err := p.declareExchange(pub, topic.Name()); err != nil {
@@ -290,7 +290,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 
 // Sub subscribes to a topic. Delivery is at-most-once: messages are acked
 // before the handler runs, and handler errors are logged, never redelivered.
-func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.AckHook) (func() error, error) {
+func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	ctx, cancel := context.WithCancel(p.ctx)
 
 	p.l.Debug().Msgf("subscribing to topic: %s", topic.Name())
@@ -425,7 +425,7 @@ func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string
 
 	name := topic.Name()
 
-	if topic.IsTenantStream() {
+	if topic.Kind() == msgqueue.TopicKindTenantStream {
 		if err := p.declareExchange(ch, topic.Name()); err != nil {
 			return "", err
 		}
@@ -445,7 +445,7 @@ func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string
 		return "", err
 	}
 
-	if topic.IsTenantStream() {
+	if topic.Kind() == msgqueue.TopicKindTenantStream {
 		p.l.Debug().Msgf("binding queue: %s to exchange: %s", name, topic.Name())
 
 		if err := ch.QueueBind(name, "", topic.Name(), false, nil); err != nil {

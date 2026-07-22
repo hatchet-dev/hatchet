@@ -1171,14 +1171,8 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 		if err != nil {
 			return err
 		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+		if err := msgqueue.PubTenantMessage(ctx, tc.l, tc.mq, tc.pubsub, msgqueue.OLAP_QUEUE, msg); err != nil {
 			return err
-		}
-
-		// best-effort publish to the tenant stream, mirroring the original
-		// created-task publish this requeue stands in for
-		if err := tc.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
-			tc.l.Warn().Ctx(ctx).Err(err).Msg("could not publish created-task to tenant stream")
 		}
 	}
 	return nil

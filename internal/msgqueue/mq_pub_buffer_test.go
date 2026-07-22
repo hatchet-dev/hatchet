@@ -22,7 +22,7 @@ func (m *mockMessageQueue) SendMessage(ctx context.Context, q Queue, msg *Messag
 	}
 	return nil
 }
-func (m *mockMessageQueue) Subscribe(_ Queue, _ AckHook, _ AckHook) (func() error, error) {
+func (m *mockMessageQueue) Subscribe(_ Queue, _ MsgHandler, _ MsgHandler) (func() error, error) {
 	return func() error { return nil }, nil
 }
 func (m *mockMessageQueue) IsReady() bool { return true }

@@ -11,7 +11,7 @@ import (
 )
 
 type sharedTenantSub struct {
-	fs        *syncx.Map[int, AckHook]
+	fs        *syncx.Map[int, MsgHandler]
 	counter   int
 	isRunning bool
 	mu        sync.Mutex
@@ -30,9 +30,9 @@ func NewSharedTenantReader(ps PubSub) *SharedTenantReader {
 	}
 }
 
-func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck AckHook) (func() error, error) {
+func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck MsgHandler) (func() error, error) {
 	t, _ := s.tenants.LoadOrStore(tenantId, &sharedTenantSub{
-		fs: &syncx.Map[int, AckHook]{},
+		fs: &syncx.Map[int, MsgHandler]{},
 	})
 
 	t.mu.Lock()
@@ -50,7 +50,7 @@ func (s *SharedTenantReader) Subscribe(tenantId uuid.UUID, postAck AckHook) (fun
 		cleanupSingleSub, err := s.ps.Sub(TenantTopic(tenantId), func(task *Message) error {
 			var innerErr error
 
-			t.fs.Range(func(key int, f AckHook) bool {
+			t.fs.Range(func(key int, f MsgHandler) bool {
 				if err := f(task); err != nil {
 					innerErr = multierror.Append(innerErr, err)
 				}
@@ -128,7 +128,7 @@ func (s *SharedBufferedTenantReader) Subscribe(tenantId uuid.UUID, f DstFunc) (f
 
 		// the buffer runs in PostAck mode, which only uses the post hook, so the
 		// single-handler pubsub Sub maps cleanly onto the subscribe function
-		subBuffer := NewSubBufferFromSubscribe(func(preAck AckHook, postAck AckHook) (func() error, error) {
+		subBuffer := NewSubBufferFromSubscribe(func(preAck MsgHandler, postAck MsgHandler) (func() error, error) {
 			return s.ps.Sub(TenantTopic(tenantId), postAck)
 		}, func(tenantId uuid.UUID, msgId string, payloads [][]byte) error {
 			var innerErr error

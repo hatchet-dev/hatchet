@@ -823,8 +823,11 @@ func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId u
 			return fmt.Errorf("could not create message for task cancellation: %w", err)
 		}
 
-		return tc.mq.SendMessage(
+		return msgqueue.PubTenantMessage(
 			ctx,
+			tc.l,
+			tc.mq,
+			tc.pubsub,
 			msgqueue.TASK_PROCESSING_QUEUE,
 			msg,
 		)
@@ -1037,9 +1040,9 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		return
 	}
 
-	// best-effort publish to the tenant stream: the dispatcher's workflow run
-	// subscriptions consume workflow-run-finished-candidate
-	err = tc.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg)
+	// fanout-only: the dispatcher's workflow run subscriptions consume
+	// workflow-run-finished-candidate off the tenant stream
+	err = msgqueue.PubTenantMessage(ctx, tc.l, nil, tc.pubsub, nil, msg)
 
 	if err != nil {
 		tc.l.Err(err).Ctx(ctx).Msg("could not publish workflow-run-finished-candidate message")
