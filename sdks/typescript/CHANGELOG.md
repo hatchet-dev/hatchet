@@ -5,6 +5,13 @@ All notable changes to Hatchet's TypeScript SDK will be documented in this chang
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.27.0] - 2026-07-22
+
+### Added
+
+- Adds support for terminal status-based idempotency keys, which are released when the task holding the key reaches a terminal state (either completed, cancelled, or having failed and exhausted all retries).
+
+
 ## [1.26.2] - 2026-07-21
 
 ### Added
