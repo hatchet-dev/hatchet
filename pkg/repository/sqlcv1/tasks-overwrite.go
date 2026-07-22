@@ -757,6 +757,7 @@ SELECT
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids,
+	t.idempotency_key,
     t.is_dag_orchestrator
 FROM
     v1_task t
@@ -783,6 +784,7 @@ type ReleaseTasksRow struct {
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
+	IdempotencyKey         pgtype.Text        `json:"idempotency_key"`
 	IsDagOrchestrator      bool               `json:"is_dag_orchestrator"`
 }
 
@@ -813,6 +815,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.RetryCount,
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,
+				&i.IdempotencyKey,
 				&i.IsDagOrchestrator,
 			); err != nil {
 				errCh <- err
@@ -827,6 +830,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 		close(errCh)
 		return nil
 	})
+
 	batch.Queue(releaseRetryQueueItems, vals...)
 	batch.Queue(releaseQueueItems, vals...)
 	batch.Queue(lockParentConcurrencySlots, vals...)

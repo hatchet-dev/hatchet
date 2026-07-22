@@ -149,15 +149,33 @@ func (w *Workflow) GetName() string {
 // WorkflowOption configures a workflow instance.
 type WorkflowOption func(*workflowConfig)
 
+// IdempotencyMethod determines how the lifetime of an idempotency key is managed.
+type IdempotencyMethod = create.IdempotencyMethod
+
+const (
+	// IdempotencyMethodTTL evicts the idempotency key after a fixed time-to-live window.
+	IdempotencyMethodTTL = create.IdempotencyMethodTTL
+
+	// IdempotencyMethodStatus keeps the idempotency key alive until the associated run
+	// reaches a terminal status. TTL acts as a fallback that caps how long the key can live.
+	IdempotencyMethodStatus = create.IdempotencyMethodStatus
+)
+
 // IdempotencyConfig configures idempotency behavior for a workflow or standalone task.
-// When set, runs triggered with the same computed key within the TTL window return an
-// IdempotencyCollisionError instead of creating a new run.
+// When set, runs triggered with the same computed key return an IdempotencyCollisionError
+// instead of creating a new run. The Method controls how long the key lives: TTL evicts
+// after a fixed window, while STATUS keeps the key until the run reaches a terminal status
+// (using TTL as a fallback cap).
 type IdempotencyConfig struct {
 	// Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
 	Expression string
 
 	// TTL is the duration during which duplicate runs with the same key are rejected.
+	// When Method is STATUS, this acts as a fallback: the longest the key can live before it's evicted.
 	TTL time.Duration
+
+	// Method determines how the idempotency key's lifetime is managed. Defaults to TTL.
+	Method IdempotencyMethod
 }
 
 type workflowConfig struct {
@@ -293,6 +311,7 @@ func newWorkflow(name string, v0Client v0Client.Client, options ...WorkflowOptio
 		createOpts.Idempotency = &create.IdempotencyConfig{
 			Expression: config.idempotency.Expression,
 			TTL:        config.idempotency.TTL,
+			Method:     config.idempotency.Method,
 		}
 	}
 
@@ -329,7 +348,7 @@ type taskConfig struct {
 // WithRetries sets the number of retry attempts for failed tasks.
 func WithRetries(retries int) TaskOption {
 	return func(config *taskConfig) {
-		config.retries = int32(retries)
+		config.retries = int32(retries) // #nosec G115 -- developer-configured retry count, not attacker-controlled
 	}
 }
 
@@ -337,7 +356,7 @@ func WithRetries(retries int) TaskOption {
 func WithRetryBackoff(factor float32, maxBackoffSeconds int) TaskOption {
 	return func(config *taskConfig) {
 		config.retryBackoffFactor = factor
-		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds)
+		config.retryMaxBackoffSeconds = int32(maxBackoffSeconds) // #nosec G115 -- developer-configured backoff, not attacker-controlled
 	}
 }
 
@@ -587,7 +606,9 @@ func (w *Workflow) NewTask(name string, fn any, options ...TaskOption) *Task {
 //
 // Function signatures are validated at runtime using reflection.
 func (w *Workflow) NewDurableTask(name string, fn any, options ...TaskOption) *Task {
-	durableOptions := append(options, withDurable())
+	durableOptions := make([]TaskOption, len(options), len(options)+1)
+	copy(durableOptions, options)
+	durableOptions = append(durableOptions, withDurable())
 	return w.NewTask(name, fn, durableOptions...)
 }
 

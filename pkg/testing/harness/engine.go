@@ -152,7 +152,6 @@ func startEngine() func() {
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_QUEUE_FORMAT", "console")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_LEVEL", "error")
 	os.Setenv("SERVER_ADDITIONAL_LOGGERS_PGXSTATS_FORMAT", "console")
-	os.Setenv("SERVER_DEFAULT_ENGINE_VERSION", "V1")
 	os.Setenv("SERVER_ENABLE_DURABLE_USER_EVENT_LOG", "true")
 
 	var cleanupRabbitMQ func() error
@@ -174,9 +173,13 @@ func startEngine() func() {
 
 	// Run migrations
 	if migrateStrategy == "penultimate" {
-		migrate.RunMigrations(ctx, migrate.WithUpToPenultimate())
+		if migrateErr := migrate.RunMigrations(ctx, migrate.WithUpToPenultimate()); migrateErr != nil {
+			log.Fatalf("failed to run migrations: %v", migrateErr)
+		}
 	} else {
-		migrate.RunMigrations(ctx)
+		if migrateErr := migrate.RunMigrations(ctx); migrateErr != nil {
+			log.Fatalf("failed to run migrations: %v", migrateErr)
+		}
 	}
 
 	// Set higher rate limit for load tests
@@ -586,8 +589,8 @@ func WaitEngineReady(ctx context.Context, timeout time.Duration) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil)
-			resp, err := http.DefaultClient.Do(req) //nolint:gosec
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, addr, nil) // #nosec G704 -- host is hardcoded to localhost, only the port varies
+			resp, err := http.DefaultClient.Do(req)                              //nolint:gosec
 			if err != nil {
 				continue
 			}

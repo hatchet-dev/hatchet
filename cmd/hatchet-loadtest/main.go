@@ -37,6 +37,13 @@ type LoadTestConfig struct {
 	RlDurationUnit           string
 	AverageDurationThreshold time.Duration
 	PlotDir                  string
+
+	// ExternalWorker, if set, skips registering a workflow and starting an
+	// in-process worker altogether - it assumes a separately-running SDK
+	// worker (e.g. cmd/hatchet-loadtest/go) has already registered a
+	// compatible workflow named "load-test-0" (or "load-test-{i}" for
+	// i<EventFanout).
+	ExternalWorker bool
 }
 
 func main() {
@@ -88,6 +95,7 @@ func main() {
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
+	loadtest.Flags().BoolVar(&config.ExternalWorker, "externalWorker", false, "externalWorker skips registering a workflow and starting an in-process worker, assuming a separately-running SDK worker (e.g. cmd/hatchet-loadtest/go) has already registered a compatible workflow; worker/workflow flags (slots, dagSteps, eventFanout, rlKeys, workerDelay, failureRate, delay) are ignored in this mode")
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)
 	if err := cmd.Execute(); err != nil {

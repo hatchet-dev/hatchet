@@ -141,7 +141,7 @@ func NewRepository(
 		slack:             newSlackRepository(shared),
 		sns:               newSNSRepository(shared),
 		tenantInvite:      newTenantInviteRepository(shared),
-		tenantLimit:       newTenantLimitRepository(shared, tenantLimitConfig, enforceLimits, cacheDuration),
+		tenantLimit:       shared.m,
 		tenantEntitlement: newTenantEntitlementRepository(shared),
 		tenantAlerting:    newTenantAlertingRepository(shared, cacheDuration),
 		tenant:            newTenantRepository(shared, cacheDuration),

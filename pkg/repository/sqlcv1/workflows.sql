@@ -125,7 +125,8 @@ INSERT INTO "WorkflowVersion" (
     "isUsingDagOperator",
     "dagShape",
     "idempotencyKeyExpression",
-    "idempotencyKeyTtlMs"
+    "idempotencyKeyTtlMs",
+    "idempotencyMethod"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -144,7 +145,8 @@ INSERT INTO "WorkflowVersion" (
     coalesce(sqlc.narg('isUsingDagOperator')::boolean, false),
     coalesce(sqlc.narg('dagShape')::jsonb, NULL),
     sqlc.narg('idempotencyKeyExpression')::text,
-    sqlc.narg('idempotencyKeyTtlMs')::bigint
+    sqlc.narg('idempotencyKeyTtlMs')::bigint,
+    sqlc.narg('idempotencyMethod')::idempotency_method
 ) RETURNING *;
 
 -- name: CreateJob :one

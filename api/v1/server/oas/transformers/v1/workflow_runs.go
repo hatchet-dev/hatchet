@@ -63,7 +63,7 @@ func WorkflowRunDataToV1TaskSummary(task *v1.WorkflowRunData, workflowIdsToNames
 
 	retryCount := 0
 	if task.RetryCount != nil {
-		retryCount = int(*task.RetryCount)
+		retryCount = *task.RetryCount
 	}
 	attempt := retryCount + 1
 

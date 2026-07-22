@@ -32,7 +32,7 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 	if numIn == 2 {
 		secondArg := methodType.In(1)
 
-		if secondArg.Kind() != reflect.Ptr {
+		if secondArg.Kind() != reflect.Pointer {
 			return nil, fmt.Errorf("second argument must be a pointer to a struct")
 		}
 
@@ -47,11 +47,11 @@ func getFnFromMethod(method any) (result actionFunc, err error) {
 		// if first return value is not a pointer to a struct, return error
 		firstReturn := methodType.Out(0)
 
-		if firstReturn.Kind() != reflect.Ptr && firstReturn.Kind() != reflect.Interface {
+		if firstReturn.Kind() != reflect.Pointer && firstReturn.Kind() != reflect.Interface {
 			return nil, fmt.Errorf("first return value must be a pointer to a struct or an interface")
 		}
 
-		if firstReturn.Kind() == reflect.Ptr {
+		if firstReturn.Kind() == reflect.Pointer {
 			firstReturnElem := firstReturn.Elem()
 
 			if firstReturnElem.Kind() != reflect.Struct && firstReturnElem.Kind() != reflect.Interface {

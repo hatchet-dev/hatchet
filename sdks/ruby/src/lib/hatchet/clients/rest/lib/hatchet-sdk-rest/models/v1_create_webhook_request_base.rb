@@ -30,6 +30,9 @@ module HatchetSdkRest
     # The static payload to use for the webhook. This is used to send a static payload with the webhook.
     attr_accessor :static_payload
 
+    # Whether to return the triggered event as the response payload when this webhook is triggered
+    attr_accessor :return_event_as_response_payload
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -59,7 +62,8 @@ module HatchetSdkRest
         :'name' => :'name',
         :'event_key_expression' => :'eventKeyExpression',
         :'scope_expression' => :'scopeExpression',
-        :'static_payload' => :'staticPayload'
+        :'static_payload' => :'staticPayload',
+        :'return_event_as_response_payload' => :'returnEventAsResponsePayload'
       }
     end
 
@@ -80,7 +84,8 @@ module HatchetSdkRest
         :'name' => :'String',
         :'event_key_expression' => :'String',
         :'scope_expression' => :'String',
-        :'static_payload' => :'Object'
+        :'static_payload' => :'Object',
+        :'return_event_as_response_payload' => :'Boolean'
       }
     end
 
@@ -130,6 +135,10 @@ module HatchetSdkRest
 
       if attributes.key?(:'static_payload')
         self.static_payload = attributes[:'static_payload']
+      end
+
+      if attributes.key?(:'return_event_as_response_payload')
+        self.return_event_as_response_payload = attributes[:'return_event_as_response_payload']
       end
     end
 
@@ -202,7 +211,8 @@ module HatchetSdkRest
           name == o.name &&
           event_key_expression == o.event_key_expression &&
           scope_expression == o.scope_expression &&
-          static_payload == o.static_payload
+          static_payload == o.static_payload &&
+          return_event_as_response_payload == o.return_event_as_response_payload
     end
 
     # @see the `==` method
@@ -214,7 +224,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [source_name, name, event_key_expression, scope_expression, static_payload].hash
+      [source_name, name, event_key_expression, scope_expression, static_payload, return_event_as_response_payload].hash
     end
 
     # Builds the object from hash

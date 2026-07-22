@@ -524,7 +524,9 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	if runOpts.Priority != nil {
@@ -533,7 +535,9 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMeta := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta); err != nil {
+			return nil, err
+		}
 		cronTriggerOpts.AdditionalMetadata = additionalMeta
 	}
 
@@ -564,12 +568,16 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata); err != nil {
+			return nil, err
+		}
 
 		triggerOpts.AdditionalMetadata = additionalMetadata
 	}
@@ -601,7 +609,9 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		durableOpts[i] = task.Dump(w.name, w.TaskDefaults)
 	}
 
-	tasksToRegister := append(taskOpts, durableOpts...)
+	tasksToRegister := make([]*contracts.CreateTaskOpts, 0, len(taskOpts)+len(durableOpts))
+	tasksToRegister = append(tasksToRegister, taskOpts...)
+	tasksToRegister = append(tasksToRegister, durableOpts...)
 
 	filters := make([]*contracts.DefaultFilter, 0, len(w.DefaultFilters))
 
@@ -662,9 +672,15 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 	}
 
 	if w.Idempotency != nil {
+		method := contracts.IdempotencyMethod_TTL
+		if w.Idempotency.Method == create.IdempotencyMethodStatus {
+			method = contracts.IdempotencyMethod_STATUS
+		}
+
 		req.Idempotency = &contracts.IdempotencyConfig{
 			Expression: w.Idempotency.Expression,
 			TtlMs:      w.Idempotency.TTL.Milliseconds(),
+			Method:     &method,
 		}
 	}
 

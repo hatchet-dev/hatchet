@@ -15,7 +15,7 @@ import (
 
 	"github.com/hatchet-dev/pgoutbox"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/jackc/pgx/v5/stdlib" // register the pgx driver for database/sql
 	"github.com/pressly/goose/v3"
 	"github.com/pressly/goose/v3/lock"
 	"github.com/sethvargo/go-retry"
@@ -39,13 +39,7 @@ func WithUpToPenultimate() RunMigrationsOpt {
 	}
 }
 
-func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
-	if err := runMigrationsImpl(ctx, opts...); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func runMigrationsImpl(ctx context.Context, opts ...RunMigrationsOpt) error {
+func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	// Set default options
 	options := &runMigrationsOpt{}
 
