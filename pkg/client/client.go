@@ -243,6 +243,16 @@ func WithGRPCHeaders(headers map[string]string) ClientOpt {
 	}
 }
 
+// WithTLSConfig sets the gRPC TLS config directly, overriding any config derived
+// from environment variables. A nil config connects without TLS (insecure).
+// This lets a caller (e.g. the CLI, which is profile-authoritative) avoid having
+// ambient HATCHET_CLIENT_TLS_* env vars silently override its intended TLS setup.
+func WithTLSConfig(tlsConfig *tls.Config) ClientOpt {
+	return func(opts *ClientOpts) {
+		opts.tls = tlsConfig
+	}
+}
+
 type sharedClientOpts struct {
 	tenantId   string
 	namespace  string
