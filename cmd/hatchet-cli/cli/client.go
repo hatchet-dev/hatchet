@@ -54,7 +54,7 @@ func NewClientFromProfile(profile *profileconfig.Profile, logger *zerolog.Logger
 	// Create client with the config file and logger
 	return client.NewFromConfigFile( //nolint:staticcheck
 		configFile,
-		client.WithLogger(logger), //nolint:staticcheck
+		client.WithLogger(logger),       //nolint:staticcheck
 		client.WithTLSConfig(tlsConfig), //nolint:staticcheck
 		client.WithGRPCHeaders(map[string]string{
 			analytics.SourceMetadataKey: string(analytics.SourceCLI),
