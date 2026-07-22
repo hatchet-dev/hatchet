@@ -1,5 +1,4 @@
 import { useSidebar } from '@/components/hooks/use-sidebar';
-import { useTheme } from '@/components/hooks/use-theme';
 import { OrganizationSelector } from '@/components/v1/molecules/nav-bar/organization-selector';
 import { TenantSwitcher } from '@/components/v1/molecules/nav-bar/tenant-switcher';
 import { Notifications } from '@/components/v1/nav/notifications';
@@ -18,12 +17,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/v1/ui/dropdown-menu';
 import { HatchetLogo } from '@/components/v1/ui/hatchet-logo';
+import { ThemeToggle } from '@/components/v1/ui/theme-toggle';
 import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useBreadcrumbs } from '@/hooks/use-breadcrumbs';
 import useCloud from '@/hooks/use-cloud';
@@ -39,16 +36,7 @@ import {
   useNavigate,
   useParams,
 } from '@tanstack/react-router';
-import {
-  Check,
-  ChevronDown,
-  LogOut,
-  Menu,
-  Monitor,
-  Moon,
-  Sun,
-  UserCircle2,
-} from 'lucide-react';
+import { ChevronDown, LogOut, Menu, UserCircle2 } from 'lucide-react';
 import React from 'react';
 
 interface TopNavProps {
@@ -56,16 +44,9 @@ interface TopNavProps {
   tenantMemberships: TenantMember[];
 }
 
-const THEME_OPTIONS = [
-  { value: 'light' as const, label: 'Light', icon: Sun },
-  { value: 'dark' as const, label: 'Dark', icon: Moon },
-  { value: 'system' as const, label: 'System', icon: Monitor },
-];
-
 function AccountDropdown({ user }: { user?: User }) {
   const [open, setOpen] = React.useState(false);
   const { logoutMutation } = useUserUniverse();
-  const { theme, setTheme } = useTheme();
   const authDisabled = useAuthDisabled();
 
   if (!user) {
@@ -73,9 +54,6 @@ function AccountDropdown({ user }: { user?: User }) {
   }
 
   const displayName = user.name || user.email;
-  const activeThemeOption =
-    THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[2];
-  const ThemeIcon = activeThemeOption.icon;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -103,27 +81,6 @@ function AccountDropdown({ user }: { user?: User }) {
           </p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="cursor-pointer">
-            <ThemeIcon className="mr-2 size-4" />
-            Theme: {activeThemeOption.label}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {THEME_OPTIONS.map((option) => (
-              <DropdownMenuItem
-                key={option.value}
-                variant="interactive"
-                className="cursor-pointer"
-                onClick={() => setTheme(option.value)}
-              >
-                <option.icon className="mr-2 size-4" />
-                {option.label}
-                {theme === option.value && <Check className="ml-auto size-4" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
         {!authDisabled && (
           <>
             <DropdownMenuSeparator />
@@ -219,6 +176,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex ml-auto items-center justify-end gap-2">
+          <ThemeToggle />
           <Notifications />
           {showTenantSwitcher &&
             (isCloudEnabled ? (
@@ -295,6 +253,7 @@ export default function TopNav({ user, tenantMemberships }: TopNavProps) {
         </div>
 
         <div className="flex items-center justify-end gap-2 pr-4">
+          <ThemeToggle />
           <Notifications />
           {showTenantSwitcher &&
             (isCloudEnabled ? (
