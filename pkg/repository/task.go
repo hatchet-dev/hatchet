@@ -264,7 +264,7 @@ type TaskRepository interface {
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
 
-	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error)
+	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, reasons map[int64]string) (*FinalizedTaskResponse, error)
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error)
 
@@ -1130,7 +1130,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, reasons map[int64]string) (*FinalizedTaskResponse, error) {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CancelTasks")
 	defer span.End()
 
@@ -1153,7 +1153,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 	defer rollback()
 
 	// release queue items
-	res, err := r.cancelTasks(ctx, tx, tenantId, tasks)
+	res, err := r.cancelTasks(ctx, tx, tenantId, tasks, reasons)
 
 	if err != nil {
 		err = fmt.Errorf("failed to cancel tasks: %w", err)
@@ -1173,7 +1173,7 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 	return res, nil
 }
 
-func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount, reasons map[int64]string) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
 	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
 
@@ -1187,9 +1187,13 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	outputs := make([][]byte, len(releasedTasks))
 
 	for i, releasedTask := range releasedTasks {
-		out := NewCancelledTaskOutputEvent(releasedTask).Bytes()
+		out := NewCancelledTaskOutputEvent(releasedTask)
 
-		outputs[i] = out
+		if reason, ok := reasons[releasedTask.ID]; ok {
+			out.ErrorMessage = reason
+		}
+
+		outputs[i] = out.Bytes()
 	}
 
 	internalEvents, err := r.createTaskEventsAfterRelease(
