@@ -28,6 +28,7 @@ type AdminServiceImpl struct {
 
 	repov1    v1.Repository
 	mqv1      msgqueue.MessageQueue
+	pubsub    msgqueue.PubSub
 	v         validator.Validator
 	analytics analytics.Analytics
 
@@ -45,6 +46,7 @@ type AdminServiceOpt func(*AdminServiceOpts)
 type AdminServiceOpts struct {
 	repov1                      v1.Repository
 	mqv1                        msgqueue.MessageQueue
+	pubsub                      msgqueue.PubSub
 	v                           validator.Validator
 	analytics                   analytics.Analytics
 	localScheduler              *scheduler.Scheduler
@@ -76,6 +78,12 @@ func WithRepositoryV1(r v1.Repository) AdminServiceOpt {
 func WithMessageQueueV1(mq msgqueue.MessageQueue) AdminServiceOpt {
 	return func(opts *AdminServiceOpts) {
 		opts.mqv1 = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) AdminServiceOpt {
+	return func(opts *AdminServiceOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -148,13 +156,17 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("task queue v1 is required. use WithMessageQueueV1")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	slots := 0
 	if opts.grpcTriggersEnabled {
 		slots = opts.grpcTriggerSlots
 	}
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mqv1)
-	tw := trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, slots, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.mqv1, opts.pubsub, opts.repov1, opts.l, pubBuffer, slots, opts.promGate)
 
 	var localScheduler *scheduler.Scheduler
 
@@ -165,6 +177,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 	return &AdminServiceImpl{
 		repov1:              opts.repov1,
 		mqv1:                opts.mqv1,
+		pubsub:              opts.pubsub,
 		v:                   opts.v,
 		analytics:           opts.analytics,
 		localScheduler:      localScheduler,

@@ -9,6 +9,14 @@ import (
 	"sync"
 )
 
+// compressor holds gzip compression settings shared by the durable
+// MessageQueueImpl and the best-effort PubSub (compression must agree on both
+// sides for wire compatibility).
+type compressor struct {
+	compressionEnabled   bool
+	compressionThreshold int
+}
+
 type CompressionResult struct {
 	Payloads       [][]byte
 	WasCompressed  bool
@@ -40,7 +48,7 @@ func getPayloadSize(payloads [][]byte) int {
 
 // compressPayloads compresses message payloads using gzip if they exceed the minimum size threshold.
 // Returns compression results including the compressed payloads and compression statistics.
-func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
+func (t compressor) compressPayloads(payloads [][]byte) (*CompressionResult, error) {
 	result := &CompressionResult{
 		Payloads:      payloads,
 		WasCompressed: false,
@@ -98,7 +106,7 @@ func (t *MessageQueueImpl) compressPayloads(payloads [][]byte) (*CompressionResu
 }
 
 // decompressPayloads decompresses message payloads using gzip.
-func (t *MessageQueueImpl) decompressPayloads(payloads [][]byte) ([][]byte, error) {
+func (t compressor) decompressPayloads(payloads [][]byte) ([][]byte, error) {
 	if len(payloads) == 0 {
 		return payloads, nil
 	}

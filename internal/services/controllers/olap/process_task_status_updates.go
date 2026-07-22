@@ -103,12 +103,10 @@ func (o *OLAPControllerImpl) notifyTasksUpdated(ctx context.Context, rows []v1.U
 				return err
 			}
 
-			q := msgqueue.TenantEventConsumerQueue(tenantId)
-
-			err = o.mq.SendMessage(ctx, q, msg)
-
-			if err != nil {
-				return err
+			// best-effort publish to the tenant stream: the dispatcher's workflow
+			// run subscriptions consume workflow-run-finished
+			if err := o.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg); err != nil {
+				o.l.Warn().Ctx(ctx).Err(err).Msg("could not publish workflow-run-finished to tenant stream")
 			}
 		}
 	}

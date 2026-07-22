@@ -51,9 +51,8 @@ func (i *IngestorImpl) putStreamEventV1(ctx context.Context, tenant *sqlcv1.Tena
 		return nil, err
 	}
 
-	q := msgqueue.TenantEventConsumerQueue(tenantId)
-
-	err = i.mqv1.SendMessage(ctx, q, msg)
+	// stream events are fanout-only: publish straight to the tenant stream
+	err = i.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg)
 
 	if err != nil {
 		return nil, err

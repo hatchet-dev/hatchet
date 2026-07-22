@@ -96,14 +96,14 @@ func (a *AdminServiceImpl) PutWorkflow(ctx context.Context, req *contracts.PutWo
 				if err != nil {
 					a.l.Err(err).Ctx(ctx).Msg("could not create message for notifying new queue")
 				} else {
-					err = a.mqv1.SendMessage(
+					err = a.pubsub.Pub(
 						notifyCtx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 						msg,
 					)
 
 					if err != nil {
-						a.l.Err(err).Ctx(ctx).Msg("could not add message to scheduler partition queue")
+						a.l.Err(err).Ctx(ctx).Msg("could not publish message to scheduler partition topic")
 					}
 
 					a.l.Debug().Ctx(ctx).Msgf("notified new queue for tenant %s and action %s", tenantId, action)

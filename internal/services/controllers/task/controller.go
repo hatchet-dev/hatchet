@@ -43,6 +43,7 @@ type TasksController interface {
 
 type TasksControllerImpl struct {
 	mq                                       msgqueue.MessageQueue
+	pubsub                                   msgqueue.PubSub
 	pubBuffer                                *msgqueue.MQPubBuffer
 	l                                        *zerolog.Logger
 	queueLogger                              *zerolog.Logger
@@ -73,6 +74,7 @@ type TasksControllerOpt func(*TasksControllerOpts)
 
 type TasksControllerOpts struct {
 	mq                  msgqueue.MessageQueue
+	pubsub              msgqueue.PubSub
 	l                   *zerolog.Logger
 	repov1              v1.Repository
 	dv                  datautils.DataDecoderValidator
@@ -110,6 +112,12 @@ func defaultTasksControllerOpts() *TasksControllerOpts {
 func WithMessageQueue(mq msgqueue.MessageQueue) TasksControllerOpt {
 	return func(opts *TasksControllerOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) TasksControllerOpt {
+	return func(opts *TasksControllerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -193,6 +201,10 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
 	}
@@ -215,11 +227,12 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 
 	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer, opts.promGate)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
+		pubsub:              opts.pubsub,
 		pubBuffer:           pubBuffer,
 		l:                   opts.l,
 		queueLogger:         opts.queueLogger,
@@ -991,14 +1004,14 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		if err != nil {
 			tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for scheduler partition queue")
 		} else {
-			err = tc.mq.SendMessage(
+			err = tc.pubsub.Pub(
 				ctx,
-				msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+				msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 				msg,
 			)
 
 			if err != nil {
-				tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+				tc.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 			}
 		}
 	}
@@ -1024,14 +1037,12 @@ func (tc *TasksControllerImpl) notifyQueuesOnCompletion(ctx context.Context, ten
 		return
 	}
 
-	err = tc.mq.SendMessage(
-		ctx,
-		msgqueue.TenantEventConsumerQueue(tenantId),
-		msg,
-	)
+	// best-effort publish to the tenant stream: the dispatcher's workflow run
+	// subscriptions consume workflow-run-finished-candidate
+	err = tc.pubsub.Pub(ctx, msgqueue.TenantTopic(tenantId), msg)
 
 	if err != nil {
-		tc.l.Err(err).Ctx(ctx).Msg("could not send workflow-run-finished-candidate message")
+		tc.l.Err(err).Ctx(ctx).Msg("could not publish workflow-run-finished-candidate message")
 		return
 	}
 }

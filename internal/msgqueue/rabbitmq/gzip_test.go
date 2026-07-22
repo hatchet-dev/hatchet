@@ -25,8 +25,8 @@ func generatePayloads(count, size int) [][]byte {
 	return payloads
 }
 
-func newMQ() *MessageQueueImpl {
-	return &MessageQueueImpl{
+func newMQ() compressor {
+	return compressor{
 		compressionEnabled:   true,
 		compressionThreshold: 0,
 	}
@@ -52,7 +52,7 @@ func TestCompressDecompressRoundtrip(t *testing.T) {
 }
 
 func TestCompressPayloadsDisabled(t *testing.T) {
-	mq := &MessageQueueImpl{
+	mq := compressor{
 		compressionEnabled:   false,
 		compressionThreshold: 0,
 	}
@@ -65,7 +65,7 @@ func TestCompressPayloadsDisabled(t *testing.T) {
 }
 
 func TestCompressPayloadsBelowThreshold(t *testing.T) {
-	mq := &MessageQueueImpl{
+	mq := compressor{
 		compressionEnabled:   true,
 		compressionThreshold: 100 * 1024,
 	}

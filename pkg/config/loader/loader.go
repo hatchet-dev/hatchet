@@ -415,10 +415,11 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 
 			return cleanupV1()
 		},
-		Pool:    pool,
-		DDLPool: ddlPool,
-		V1:      v1,
-		Seed:    cf.Seed,
+		Pool:              pool,
+		DirectDatabaseURL: databaseUrl,
+		DDLPool:           ddlPool,
+		V1:                v1,
+		Seed:              cf.Seed,
 	}, nil
 }
 
@@ -475,7 +476,11 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 	}
 
 	var mqv1 msgqueue.MessageQueue
+	var pubsubv1 msgqueue.PubSub
 	cleanup1 := func() error {
+		return nil
+	}
+	cleanupPubSub := func() error {
 		return nil
 	}
 
@@ -510,7 +515,6 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 				rabbitmq.WithURL(cf.MessageQueue.RabbitMQ.URL),
 				rabbitmq.WithLogger(&l),
 				rabbitmq.WithQos(cf.MessageQueue.RabbitMQ.Qos),
-				rabbitmq.WithDisableTenantExchangePubs(cf.Runtime.DisableTenantPubs),
 				rabbitmq.WithMaxPubChannels(cf.MessageQueue.RabbitMQ.MaxPubChans),
 				rabbitmq.WithMaxSubChannels(cf.MessageQueue.RabbitMQ.MaxSubChans),
 				rabbitmq.WithGzipCompression(
@@ -529,8 +533,91 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			}
 		}
 
+		// The best-effort pub/sub is constructed with strictly disjoint pooled
+		// resources: its own AMQP connections/channel pools, or its own small
+		// pgx pool on the direct database URL.
+		pubsubKind, pubsubURL := resolvePubSubKindAndURL(cf)
+
+		switch strings.ToLower(pubsubKind) {
+		case "postgres":
+			// never dc.Pool and never the pgbouncer URL: the pub/sub owns its pool,
+			// and LISTEN does not survive transaction pooling
+			pubsubPoolConfig, err := pgxpool.ParseConfig(dc.DirectDatabaseURL)
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not parse direct database url for pubsub: %w", err)
+			}
+
+			setPgxApplicationName(pubsubPoolConfig, cf.OpenTelemetry.ServiceName+":pubsub")
+
+			pubsubPoolConfig.MaxConns = cf.MessageQueue.PubSub.Postgres.MaxConns
+			pubsubPoolConfig.MinConns = cf.MessageQueue.PubSub.Postgres.MinConns
+			pubsubPoolConfig.ConnConfig.Tracer = newOTelPgxTracer()
+
+			pubsubPool, err := pgxpool.NewWithConfig(context.Background(), pubsubPoolConfig)
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not create pubsub pool: %w", err)
+			}
+
+			pubsubRepo, cleanupPubSubRepo := repov1.NewMessageQueueRepositoryWithPool(&l, pubsubPool)
+
+			cleanupPg, ps, err := pgmq.NewPubSub(
+				pubsubRepo,
+				pgmq.WithPubSubLogger(&l),
+			)
+
+			if err != nil {
+				pubsubPool.Close()
+				return nil, nil, fmt.Errorf("could not init postgres pubsub: %w", err)
+			}
+
+			pubsubv1 = ps
+			cleanupPubSub = func() error {
+				if err := cleanupPg(); err != nil {
+					return err
+				}
+
+				if err := cleanupPubSubRepo(); err != nil {
+					return err
+				}
+
+				pubsubPool.Close()
+				return nil
+			}
+		case "rabbitmq":
+			if pubsubURL == "" {
+				return nil, nil, fmt.Errorf("using RabbitMQ as pubsub requires a URL to be set")
+			}
+
+			cleanupRmq, ps, err := rabbitmq.NewPubSub(
+				rabbitmq.WithPubSubURL(pubsubURL),
+				rabbitmq.WithPubSubLogger(&l),
+				rabbitmq.WithPubSubMaxPubChannels(cf.MessageQueue.PubSub.RabbitMQ.MaxPubChans),
+				rabbitmq.WithPubSubMaxSubChannels(cf.MessageQueue.PubSub.RabbitMQ.MaxSubChans),
+				// compression settings inherit from the durable queue: both sides
+				// publish to the same tenant exchanges, so they must agree
+				rabbitmq.WithPubSubGzip(
+					cf.MessageQueue.RabbitMQ.CompressionEnabled,
+					cf.MessageQueue.RabbitMQ.CompressionThreshold,
+				),
+			)
+
+			if err != nil {
+				return nil, nil, fmt.Errorf("could not init rabbitmq pubsub: %w", err)
+			}
+
+			pubsubv1 = ps
+			cleanupPubSub = cleanupRmq
+		default:
+			return nil, nil, fmt.Errorf("invalid pubsub kind %q, must be 'rabbitmq' or 'postgres'", pubsubKind)
+		}
+
+		pubsubv1 = msgqueue.NewGatedPubSub(pubsubv1, cf.Runtime.DisableTenantPubs)
+
 		ing, err = ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(mqv1),
+			ingestor.WithPubSub(pubsubv1),
 			ingestor.WithRepositoryV1(dc.V1),
 		)
 
@@ -853,6 +940,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			return fmt.Errorf("error cleaning up rabbitmq: %w", err)
 		}
 
+		if err := cleanupPubSub(); err != nil {
+			return fmt.Errorf("error cleaning up pubsub: %w", err)
+		}
+
 		if closeErr := analyticsEmitter.Close(); closeErr != nil {
 			l.Error().Err(closeErr).Msg("error closing analytics emitter")
 		}
@@ -903,6 +994,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		Encryption:             encryptionSvc,
 		Layer:                  dc,
 		MessageQueueV1:         mqv1,
+		PubSubV1:               pubsubv1,
 		Services:               services,
 		PausedControllers:      pausedControllers,
 		InternalClientFactory:  internalClientFactory,
@@ -929,6 +1021,27 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		OLAPStatusUpdates:      cf.OLAPStatusUpdates,
 		MQMaxDeathCount:        cf.MessageQueue.RabbitMQ.MaxDeathCount,
 	}, nil
+}
+
+// resolvePubSubKindAndURL resolves the pub/sub kind and rabbit URL, inheriting
+// from the resolved durable msgQueue settings when unset. This is the config
+// backwards-compatibility invariant: a deployment configured only with today's
+// durable variables (including the legacy SERVER_TASKQUEUE_* aliases) gets a
+// fully working pub/sub path with zero new configuration.
+func resolvePubSubKindAndURL(cf *server.ServerConfigFile) (kind string, rabbitURL string) {
+	kind = cf.MessageQueue.PubSub.Kind
+
+	if kind == "" {
+		kind = cf.MessageQueue.Kind
+	}
+
+	rabbitURL = cf.MessageQueue.PubSub.RabbitMQ.URL
+
+	if rabbitURL == "" {
+		rabbitURL = cf.MessageQueue.RabbitMQ.URL
+	}
+
+	return kind, rabbitURL
 }
 
 func getStrArr(v string) []string {

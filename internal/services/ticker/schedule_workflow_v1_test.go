@@ -75,8 +75,7 @@ func (m *mockMQ) SetQOS(_ int)                                        {}
 func (m *mockMQ) Subscribe(_ msgqueue.Queue, _, _ msgqueue.AckHook) (func() error, error) {
 	return nil, nil
 }
-func (m *mockMQ) RegisterTenant(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockMQ) IsReady() bool                                       { return true }
+func (m *mockMQ) IsReady() bool { return true }
 
 type mockRepo struct {
 	v1.Repository

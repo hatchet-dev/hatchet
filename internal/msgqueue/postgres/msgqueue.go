@@ -150,11 +150,7 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 		return err
 	}
 
-	if !queue.Durable() {
-		err = p.pubNonDurableMessages(ctx, queue.Name(), task)
-	} else {
-		err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
-	}
+	err = p.repo.AddMessage(ctx, queue.Name(), msgBytes)
 
 	if err != nil {
 		p.l.Error().Err(err).Msgf("error adding message for queue %s", queue.Name())
@@ -166,10 +162,6 @@ func (p *PostgresMessageQueue) addMessage(ctx context.Context, queue msgqueue.Qu
 
 	if err != nil {
 		p.l.Error().Err(err).Msgf("error notifying queue %s", queue.Name())
-	}
-
-	if task.TenantID != uuid.Nil {
-		return p.addTenantExchangeMessage(ctx, queue, task)
 	}
 
 	return nil
@@ -285,20 +277,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	// start the listener
 	go func() {
 		err := p.repo.Listen(subscribeCtx, queue.Name(), func(ctx context.Context, notification *v1.PubSubMessage) error {
-			// if this is not a durable queue, and the message starts with JSON '{', then we process the message directly
-			if !queue.Durable() && len(notification.Payload) >= 1 && notification.Payload[0] == '{' {
-				var task msgqueue.Message
-
-				err := json.Unmarshal([]byte(notification.Payload), &task)
-
-				if err != nil {
-					p.l.Error().Err(err).Msg("error unmarshalling message")
-					return err
-				}
-
-				return doTask(task, nil)
-			}
-
 			newMsgCh <- struct{}{}
 			return nil
 		})
@@ -334,10 +312,6 @@ func (p *PostgresMessageQueue) Subscribe(queue msgqueue.Queue, preAck msgqueue.A
 	}, nil
 }
 
-func (p *PostgresMessageQueue) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
-	return p.upsertQueue(ctx, msgqueue.TenantEventConsumerQueue(tenantId))
-}
-
 func (p *PostgresMessageQueue) IsReady() bool {
 	return true
 }
@@ -348,13 +322,6 @@ func (p *PostgresMessageQueue) upsertQueue(ctx context.Context, queue msgqueue.Q
 	}
 
 	exclusive := queue.Exclusive()
-
-	// If the queue is a fanout exchange, then it is not exclusive. This is different from the RabbitMQ
-	// implementation, where a fanout exchange will map to an exclusively bound queue which has a random
-	// suffix appended to the queue name. In this implementation, there is no concept of an exchange.
-	if queue.FanoutExchangeKey() != "" {
-		exclusive = false
-	}
 
 	var consumer *string
 

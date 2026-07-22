@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -24,7 +22,6 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
-	"github.com/hatchet-dev/hatchet/pkg/random"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
@@ -42,19 +39,14 @@ type MessageQueueImpl struct {
 
 	l *zerolog.Logger
 
-	disableTenantExchangePubs bool
-
-	// lru cache for tenant ids
-	tenantIdCache *lru.Cache[uuid.UUID, bool]
-
 	pubChannels *channelPool
 	subChannels *channelPool
 
 	deadLetterBackoff time.Duration
 
+	compressor
+
 	maxPayloadSize         int
-	compressionEnabled     bool
-	compressionThreshold   int
 	enableMessageRejection bool
 	maxDeathCount          int
 }
@@ -66,28 +58,26 @@ func (t *MessageQueueImpl) IsReady() bool {
 type MessageQueueImplOpt func(*MessageQueueImplOpts)
 
 type MessageQueueImplOpts struct {
-	l                         *zerolog.Logger
-	url                       string
-	qos                       int
-	disableTenantExchangePubs bool
-	deadLetterBackoff         time.Duration
-	maxPubChannels            int32
-	maxSubChannels            int32
-	compressionEnabled        bool
-	compressionThreshold      int
-	enableMessageRejection    bool
-	maxDeathCount             int
+	l                      *zerolog.Logger
+	url                    string
+	qos                    int
+	deadLetterBackoff      time.Duration
+	maxPubChannels         int32
+	maxSubChannels         int32
+	compressionEnabled     bool
+	compressionThreshold   int
+	enableMessageRejection bool
+	maxDeathCount          int
 }
 
 func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 	l := logger.NewDefaultLogger("rabbitmq")
 
 	return &MessageQueueImplOpts{
-		l:                         &l,
-		disableTenantExchangePubs: false,
-		deadLetterBackoff:         5 * time.Second,
-		enableMessageRejection:    false,
-		maxDeathCount:             5,
+		l:                      &l,
+		deadLetterBackoff:      5 * time.Second,
+		enableMessageRejection: false,
+		maxDeathCount:          5,
 	}
 }
 
@@ -118,12 +108,6 @@ func WithMaxSubChannels(maxConns int32) MessageQueueImplOpt {
 func WithQos(qos int) MessageQueueImplOpt {
 	return func(opts *MessageQueueImplOpts) {
 		opts.qos = qos
-	}
-}
-
-func WithDisableTenantExchangePubs(disable bool) MessageQueueImplOpt {
-	return func(opts *MessageQueueImplOpts) {
-		opts.disableTenantExchangePubs = disable
 	}
 }
 
@@ -198,24 +182,22 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	}
 
 	t := &MessageQueueImpl{
-		ctx:                       ctx,
-		identity:                  identity(),
-		l:                         opts.l,
-		qos:                       opts.qos,
-		configFs:                  fs,
-		disableTenantExchangePubs: opts.disableTenantExchangePubs,
-		pubChannels:               pubChannelPool,
-		subChannels:               subChannelPool,
-		deadLetterBackoff:         opts.deadLetterBackoff,
-		compressionEnabled:        opts.compressionEnabled,
-		compressionThreshold:      opts.compressionThreshold,
-		enableMessageRejection:    opts.enableMessageRejection,
-		maxDeathCount:             opts.maxDeathCount,
-		maxPayloadSize:            16 * 1024 * 1024, // 16 MB
+		ctx:               ctx,
+		identity:          identity(),
+		l:                 opts.l,
+		qos:               opts.qos,
+		configFs:          fs,
+		pubChannels:       pubChannelPool,
+		subChannels:       subChannelPool,
+		deadLetterBackoff: opts.deadLetterBackoff,
+		compressor: compressor{
+			compressionEnabled:   opts.compressionEnabled,
+			compressionThreshold: opts.compressionThreshold,
+		},
+		enableMessageRejection: opts.enableMessageRejection,
+		maxDeathCount:          opts.maxDeathCount,
+		maxPayloadSize:         16 * 1024 * 1024, // 16 MB
 	}
-
-	// create a new lru cache for tenant ids
-	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) //nolint:errcheck // this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
 	poolCh, err := subChannelPool.Acquire(ctx)
@@ -469,28 +451,6 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.End()
 
-	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != uuid.Nil {
-		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
-			err = t.declareTenantExchange(ctx, pub, msg.TenantID)
-
-			if err != nil {
-				t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error registering tenant exchange: %v", err)
-				return err
-			}
-		}
-
-		t.l.Debug().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("publishing tenant msg to exchange %s", msg.TenantID)
-
-		err = pub.PublishWithContext(ctx, msgqueue.GetTenantExchangeName(msg.TenantID), "", false, false, amqp.Publishing{
-			Body: body,
-		})
-
-		if err != nil {
-			t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error publishing tenant msg: %v", err)
-			return err
-		}
-	}
-
 	t.l.Debug().Msgf("published msg to queue %s", q.Name())
 
 	return nil
@@ -550,53 +510,6 @@ func (t *MessageQueueImpl) Subscribe(
 	}, nil
 }
 
-func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
-	poolCh, err := t.pubChannels.Acquire(ctx)
-
-	if err != nil {
-		t.l.Error().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("[RegisterTenant] cannot acquire channel: %v", err)
-		return err
-	}
-
-	ch := poolCh.Value()
-
-	if ch.IsClosed() {
-		poolCh.Destroy()
-		return fmt.Errorf("channel is closed")
-	}
-
-	defer poolCh.Release()
-
-	return t.declareTenantExchange(ctx, ch, tenantId)
-}
-
-// declareTenantExchange creates the tenant fanout exchange on an already-held channel
-// and records the tenant in the local cache. Callers that already hold a pub channel
-// (e.g. pubMessage) must use this instead of RegisterTenant to avoid a nested Acquire.
-func (t *MessageQueueImpl) declareTenantExchange(ctx context.Context, ch *amqp.Channel, tenantId uuid.UUID) error {
-	t.l.Debug().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("registering tenant exchange: %s", tenantId)
-
-	// each consumer of the fanout exchange will get notified with the tenant events
-	err := ch.ExchangeDeclare(
-		msgqueue.GetTenantExchangeName(tenantId),
-		"fanout",
-		true,  // durable
-		false, // auto-deleted
-		false, // not internal, accepts publishings
-		false, // no-wait
-		nil,   // arguments
-	)
-
-	if err != nil {
-		t.l.Error().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("cannot declare exchange: %q, %v", tenantId, err)
-		return err
-	}
-
-	t.tenantIdCache.Add(tenantId, true)
-
-	return nil
-}
-
 func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string, error) {
 	if q.IsDLQ() {
 		return q.Name(), nil
@@ -605,17 +518,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 	args := make(amqp.Table)
 	args["x-consumer-timeout"] = 300000 // 5 minutes
 	name := q.Name()
-
-	if q.FanoutExchangeKey() != "" {
-		suffix, err := random.Generate(8)
-
-		if err != nil {
-			t.l.Error().Msgf("error generating random bytes: %v", err)
-			return "", err
-		}
-
-		name = fmt.Sprintf("%s-%s", q.Name(), suffix)
-	}
 
 	if !q.IsDLQ() && q.DLQ() != nil && q.DLQ().IsAutoDLQ() {
 		dlx1 := getTmpDLQName(q.DLQ().Name())
@@ -660,16 +562,6 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 	if _, err := ch.QueueDeclare(name, q.Durable(), q.AutoDeleted(), q.Exclusive(), false, args); err != nil {
 		t.l.Error().Msgf("cannot declare queue: %q, %v", name, err)
 		return "", err
-	}
-
-	// if the queue has a subscriber key, bind it to the fanout exchange
-	if q.FanoutExchangeKey() != "" {
-		t.l.Debug().Msgf("binding queue: %s to exchange: %s", name, q.FanoutExchangeKey())
-
-		if err := ch.QueueBind(name, "", q.FanoutExchangeKey(), false, nil); err != nil {
-			t.l.Error().Msgf("cannot bind queue: %q, %v", name, err)
-			return "", err
-		}
 	}
 
 	return name, nil

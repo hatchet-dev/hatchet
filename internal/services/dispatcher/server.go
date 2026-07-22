@@ -468,14 +468,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 				if err != nil {
 					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
 				} else {
-					err = s.mqv1.SendMessage(
+					err = s.pubsub.Pub(
 						notifyCtx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 						msg,
 					)
 
 					if err != nil {
-						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 					}
 				}
 			}()
@@ -1353,6 +1353,12 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
+	// best-effort publish to the tenant stream: the dispatcher's workflow event
+	// subscriptions consume task-completed
+	if err := s.pubsub.Pub(inputCtx, msgqueue.TenantTopic(tenantId), msg); err != nil {
+		s.l.Warn().Ctx(inputCtx).Err(err).Msg("could not publish task-completed to tenant stream")
+	}
+
 	resp := &contracts.ActionEventResponse{
 		TenantId: tenantId.String(),
 		WorkerId: request.WorkerId,
@@ -1411,6 +1417,12 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 
 	if err != nil {
 		return nil, err
+	}
+
+	// best-effort publish to the tenant stream: the dispatcher's workflow event
+	// subscriptions consume task-failed
+	if err := s.pubsub.Pub(inputCtx, msgqueue.TenantTopic(tenantId), msg); err != nil {
+		s.l.Warn().Ctx(inputCtx).Err(err).Msg("could not publish task-failed to tenant stream")
 	}
 
 	return &contracts.ActionEventResponse{
