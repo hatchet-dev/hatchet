@@ -256,11 +256,7 @@ HatchetSdkRest.autoload :WorkflowTriggers, 'hatchet-sdk-rest/models/workflow_tri
 HatchetSdkRest.autoload :WorkflowUpdateRequest, 'hatchet-sdk-rest/models/workflow_update_request'
 HatchetSdkRest.autoload :WorkflowVersion, 'hatchet-sdk-rest/models/workflow_version'
 HatchetSdkRest.autoload :WorkflowVersionDefinition, 'hatchet-sdk-rest/models/workflow_version_definition'
-HatchetSdkRest.autoload :WorkflowVersionIdempotency, 'hatchet-sdk-rest/models/workflow_version_idempotency'
 HatchetSdkRest.autoload :WorkflowVersionMeta, 'hatchet-sdk-rest/models/workflow_version_meta'
-HatchetSdkRest.autoload :WorkflowVersionTask, 'hatchet-sdk-rest/models/workflow_version_task'
-HatchetSdkRest.autoload :WorkflowVersionTaskDesiredWorkerLabel, 'hatchet-sdk-rest/models/workflow_version_task_desired_worker_label'
-HatchetSdkRest.autoload :WorkflowVersionTaskRateLimit, 'hatchet-sdk-rest/models/workflow_version_task_rate_limit'
 HatchetSdkRest.autoload :WorkflowWorkersCount, 'hatchet-sdk-rest/models/workflow_workers_count'
 
 # APIs

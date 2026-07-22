@@ -275,11 +275,7 @@ lib/hatchet-sdk-rest/models/workflow_triggers.rb
 lib/hatchet-sdk-rest/models/workflow_update_request.rb
 lib/hatchet-sdk-rest/models/workflow_version.rb
 lib/hatchet-sdk-rest/models/workflow_version_definition.rb
-lib/hatchet-sdk-rest/models/workflow_version_idempotency.rb
 lib/hatchet-sdk-rest/models/workflow_version_meta.rb
-lib/hatchet-sdk-rest/models/workflow_version_task.rb
-lib/hatchet-sdk-rest/models/workflow_version_task_desired_worker_label.rb
-lib/hatchet-sdk-rest/models/workflow_version_task_rate_limit.rb
 lib/hatchet-sdk-rest/models/workflow_workers_count.rb
 lib/hatchet-sdk-rest/version.rb
 spec/spec_helper.rb

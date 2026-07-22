@@ -97,7 +97,6 @@ module HatchetSdkRest
     # @option opts [Integer] :offset The number to skip
     # @option opts [Integer] :limit The number to limit by
     # @option opts [Array<WorkerStatus>] :statuses Filter by worker status
-    # @option opts [Array<String>] :labels Filter by worker labels
     # @return [WorkerList]
     def worker_list(tenant, opts = {})
       data, _status_code, _headers = worker_list_with_http_info(tenant, opts)
@@ -111,7 +110,6 @@ module HatchetSdkRest
     # @option opts [Integer] :offset The number to skip
     # @option opts [Integer] :limit The number to limit by
     # @option opts [Array<WorkerStatus>] :statuses Filter by worker status
-    # @option opts [Array<String>] :labels Filter by worker labels
     # @return [Array<(WorkerList, Integer, Hash)>] WorkerList data, response status code and response headers
     def worker_list_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
@@ -137,7 +135,6 @@ module HatchetSdkRest
       query_params[:'offset'] = opts[:'offset'] if !opts[:'offset'].nil?
       query_params[:'limit'] = opts[:'limit'] if !opts[:'limit'].nil?
       query_params[:'statuses'] = @api_client.build_collection_param(opts[:'statuses'], :multi) if !opts[:'statuses'].nil?
-      query_params[:'labels'] = @api_client.build_collection_param(opts[:'labels'], :multi) if !opts[:'labels'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}
