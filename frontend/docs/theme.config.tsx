@@ -168,7 +168,8 @@ const config = {
       <>
         <title>{title ? `${title} - ${fallbackTitle}` : fallbackTitle}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link rel="icon" type="image/png" href="/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="/frontend/favicon/favicon.svg" />
+        <link rel="icon" type="image/png" href="/frontend/favicon/favicon.ico" />
         <link rel="alternate" type="text/markdown" href={llmsMarkdownHref} />
         <link rel="prefetch" href={router.basePath ? `${router.basePath}/llms-search-index.json` : "/llms-search-index.json"} />
         {hasRssFeed && <link rel="alternate" type="application/rss+xml" href={rssFeedHref}/>}
