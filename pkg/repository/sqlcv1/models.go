@@ -3263,6 +3263,7 @@ type V1DurableEventLogBranchPoint struct {
 	FirstNodeIDInNewBranch int64              `json:"first_node_id_in_new_branch"`
 	ParentBranchID         int64              `json:"parent_branch_id"`
 	NextBranchID           int64              `json:"next_branch_id"`
+	ReplayChildExternalIds []uuid.UUID        `json:"replay_child_external_ids"`
 }
 
 type V1DurableEventLogEntry struct {

@@ -1034,6 +1034,8 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 	return items, nil
 }
 
+// note: this is an overwrite because sqlc can't seem to figure out that the return type is `[]uuid.UUID` and not `[]*uuid.UUID` even though
+// we filter out null ids in the query
 const listDurableOrchestratorChildTaskExternalIds = `-- name: ListDurableOrchestratorChildTaskExternalIds :many
 SELECT DISTINCT e.child_task_external_id
 FROM v1_lookup_table l

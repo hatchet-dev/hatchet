@@ -55,6 +55,10 @@ type DAGStepTriggerRequest struct {
 	IsSkipped            bool
 	IsCancelled          bool
 	DesiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
+
+	// ParentReExecuted forces the step to re-run during a replay when any of its parents
+	// re-executed this invocation.
+	ParentReExecuted bool
 }
 
 type DAGStepTriggerResult struct {
@@ -66,6 +70,10 @@ type DAGStepTriggerResult struct {
 	ResultPayload []byte
 	IsFailure     bool
 	ErrorMessage  *string
+
+	// ReExecuted is true when the step actually runs this invocation rather than being
+	// satisfied from the log.
+	ReExecuted bool
 }
 
 type TaskEventWriter interface {

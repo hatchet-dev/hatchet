@@ -38,6 +38,10 @@ type WorkflowNameTriggerOpts struct {
 	// (DAG operator steps), the existing child run is re-executed in place, preserving task
 	// identity; otherwise a fresh child run is spawned on the active branch.
 	ReplayOrphanedChildren bool
+
+	// ParentReExecuted marks a DAG step whose parent re-executed this invocation, so it must
+	// re-run during a replay even when its own orphaned entry is satisfied.
+	ParentReExecuted bool
 }
 
 func (g *WorkflowNameTriggerOpts) childSpawnKey() string {

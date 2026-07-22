@@ -280,14 +280,31 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 		return nil, err
 	}
 
+	wholeRunOrchestrators := make(map[uuid.UUID]bool)
+
 	for _, task := range tasks {
 		if !task.IsDagOrchestrator {
 			continue
 		}
 
-		if _, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenant.ID, task); err != nil {
+		wholeRunOrchestrators[task.ExternalID] = true
+
+		// a whole-run replay forces every step of the DAG to re-run
+		childExternalIds, err := a.repo.Tasks().ListDurableOrchestratorChildExternalIds(ctx, tenant.ID, task.ExternalID)
+
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to list orchestrator children for replay: %v", err)
+		}
+
+		if _, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenant.ID, task, childExternalIds); err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to branch durable task for replay: %v", err)
 		}
+	}
+
+	tasks, err = a.handleOperatorDAGStepReplays(ctx, tenant.ID, tasks, wholeRunOrchestrators)
+
+	if err != nil {
+		return nil, err
 	}
 
 	// Deduplicate based on TaskIdInsertedAtRetryCountWithExternalId
@@ -383,6 +400,110 @@ func (a *AdminServiceImpl) ReplayTasks(ctx context.Context, req *contracts.Repla
 	return &contracts.ReplayTasksResponse{
 		ReplayedTasks: replayedIds,
 	}, nil
+}
+
+// handleOperatorDAGStepReplays rewrites the replay set for selected steps of operator-managed
+// DAGs: resetting a child task alone would never re-trigger its descendants, so the orchestrator's
+// log is branched with the selected children as the forced-replay set and the orchestrator
+// replaces them in the replay batch.
+func (a *AdminServiceImpl) handleOperatorDAGStepReplays(
+	ctx context.Context,
+	tenantId uuid.UUID,
+	tasks []*sqlcv1.FlattenExternalIdsRow,
+	wholeRunOrchestrators map[uuid.UUID]bool,
+) ([]*sqlcv1.FlattenExternalIdsRow, error) {
+	parentExternalIds := make([]uuid.UUID, 0)
+	seenParents := make(map[uuid.UUID]bool)
+
+	for _, task := range tasks {
+		if task.IsDagOrchestrator || task.ParentTaskExternalID == nil || seenParents[*task.ParentTaskExternalID] {
+			continue
+		}
+
+		seenParents[*task.ParentTaskExternalID] = true
+		parentExternalIds = append(parentExternalIds, *task.ParentTaskExternalID)
+	}
+
+	if len(parentExternalIds) == 0 {
+		return tasks, nil
+	}
+
+	parents, err := a.repo.Tasks().FlattenExternalIds(ctx, tenantId, parentExternalIds)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to look up parent tasks for replay: %v", err)
+	}
+
+	orchestrators := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow)
+
+	for _, parent := range parents {
+		if parent.IsDagOrchestrator {
+			orchestrators[parent.ExternalID] = parent
+		}
+	}
+
+	if len(orchestrators) == 0 {
+		return tasks, nil
+	}
+
+	orchestratorToChildren := make(map[uuid.UUID][]uuid.UUID)
+	childRows := make(map[uuid.UUID]*sqlcv1.FlattenExternalIdsRow)
+
+	for _, task := range tasks {
+		if task.IsDagOrchestrator || task.ParentTaskExternalID == nil {
+			continue
+		}
+
+		orchestrator, ok := orchestrators[*task.ParentTaskExternalID]
+
+		if !ok {
+			continue
+		}
+
+		childRows[task.ExternalID] = task
+
+		// when the whole run is also selected, its branch already replays every step
+		if !wholeRunOrchestrators[orchestrator.ExternalID] {
+			orchestratorToChildren[orchestrator.ExternalID] = append(orchestratorToChildren[orchestrator.ExternalID], task.ExternalID)
+		}
+	}
+
+	if len(childRows) == 0 {
+		return tasks, nil
+	}
+
+	result := make([]*sqlcv1.FlattenExternalIdsRow, 0, len(tasks))
+
+	for _, task := range tasks {
+		if _, ok := childRows[task.ExternalID]; ok {
+			continue
+		}
+
+		result = append(result, task)
+	}
+
+	for orchestratorExternalId, childExternalIds := range orchestratorToChildren {
+		orchestrator := orchestrators[orchestratorExternalId]
+
+		branch, err := a.repo.DurableEvents().HandleBranchForDAGReplay(ctx, tenantId, orchestrator, childExternalIds)
+
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to branch durable task for step replay: %v", err)
+		}
+
+		if branch == nil {
+			// no durable event log to re-invoke; replay the selected children directly
+			for _, childExternalId := range childExternalIds {
+				result = append(result, childRows[childExternalId])
+			}
+
+			continue
+		}
+
+		result = append(result, orchestrator)
+	}
+
+	return result, nil
 }
 
 func (a *AdminServiceImpl) TriggerWorkflowRun(ctx context.Context, req *contracts.TriggerWorkflowRunRequest) (*contracts.TriggerWorkflowRunResponse, error) {

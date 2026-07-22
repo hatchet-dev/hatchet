@@ -49,7 +49,7 @@ func isDagChildFailedErr(err error) bool {
 type dag struct {
 	requestCh    chan<- *v1contracts.DurableTaskRequest
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
-	triggerStep  func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error)
+	triggerStep  func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error)
 
 	tasks []*task
 
@@ -94,6 +94,10 @@ type task struct {
 	errorMessage string
 	output       map[string]interface{}
 
+	// reExecuted is true when the task actually ran this invocation rather than being satisfied
+	// from the log; children of a re-executed parent must re-run during a replay
+	reExecuted bool
+
 	isWaiting       bool
 	isWaitSatisfied bool
 	waitNodeId      int64
@@ -125,7 +129,7 @@ func dagDurableTask(
 	requestCh chan<- *v1contracts.DurableTaskRequest,
 	responseCh <-chan *v1contracts.DurableTaskResponse,
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error),
-	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled bool) (*operator.DAGStepTriggerResult, error),
+	triggerStep func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error),
 ) error {
 	ctx, span := telemetry.NewSpan(ctx, "dag.dagDurableTask")
 	defer span.End()
@@ -295,11 +299,21 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 			}
 		}
 
-		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, cancelled)
+		parentReExecuted := false
+		for _, p := range t.parents {
+			if p.reExecuted {
+				parentReExecuted = true
+				break
+			}
+		}
+
+		result, err := d.triggerStep(ctx, t.actionId, t.workflowName, t.index, parentTaskRunIds, skip, cancelled, parentReExecuted)
 		if err != nil {
 			d.err = fmt.Errorf("failed to trigger step %q: %w", t.actionId, err)
 			return progressed, d.err
 		}
+
+		t.reExecuted = result.ReExecuted
 
 		if cancelled {
 			t.isCancelled = true

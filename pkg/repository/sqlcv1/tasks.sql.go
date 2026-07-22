@@ -808,7 +808,8 @@ WITH lookup_rows AS (
         t.workflow_id,
         t.step_id,
         t.is_dag_orchestrator,
-        t.workflow_version_id
+        t.workflow_version_id,
+        t.parent_task_external_id
     FROM
         lookup_rows l
     JOIN
@@ -835,7 +836,8 @@ SELECT
     t.workflow_id,
     t.step_id,
     t.is_dag_orchestrator,
-    t.workflow_version_id
+    t.workflow_version_id,
+    t.parent_task_external_id
 FROM
     lookup_rows l
 JOIN
@@ -846,7 +848,7 @@ WHERE
 UNION ALL
 
 SELECT
-    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id
+    id, inserted_at, retry_count, external_id, workflow_run_id, additional_metadata, dag_id, dag_inserted_at, parent_task_id, child_index, child_key, step_readable_id, workflow_run_external_id, workflow_id, step_id, is_dag_orchestrator, workflow_version_id, parent_task_external_id
 FROM
     tasks_from_dags
 `
@@ -874,6 +876,7 @@ type FlattenExternalIdsRow struct {
 	StepID                uuid.UUID          `json:"step_id"`
 	IsDagOrchestrator     bool               `json:"is_dag_orchestrator"`
 	WorkflowVersionID     uuid.UUID          `json:"workflow_version_id"`
+	ParentTaskExternalID  *uuid.UUID         `json:"parent_task_external_id"`
 }
 
 // Union the tasks from the lookup table with the tasks from the DAGs
@@ -904,6 +907,7 @@ func (q *Queries) FlattenExternalIds(ctx context.Context, db DBTX, arg FlattenEx
 			&i.StepID,
 			&i.IsDagOrchestrator,
 			&i.WorkflowVersionID,
+			&i.ParentTaskExternalID,
 		); err != nil {
 			return nil, err
 		}

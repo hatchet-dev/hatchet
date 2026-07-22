@@ -28,6 +28,7 @@ CREATE TABLE v1_operator (
 );
 
 ALTER TABLE tenant_entitlement ADD COLUMN dag_operator BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE v1_durable_event_log_branch_point ADD COLUMN replay_child_external_ids UUID[];
 -- +goose StatementEnd
 
 -- +goose Down
@@ -48,4 +49,6 @@ DROP TYPE v1_operator_kind;
 ALTER TABLE "Worker" DROP COLUMN "operatorId";
 
 ALTER TABLE tenant_entitlement DROP COLUMN dag_operator;
+
+ALTER TABLE v1_durable_event_log_branch_point DROP COLUMN replay_child_external_ids;
 -- +goose StatementEnd

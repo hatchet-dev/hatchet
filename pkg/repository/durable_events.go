@@ -86,6 +86,10 @@ type IngestTriggerRunsEntry struct {
 	AlreadyExisted        bool
 
 	ChildNeedsReplay bool
+
+	// ReExecuted is true when the entry was newly created this invocation, i.e. the child
+	// actually runs rather than being satisfied from a cached log entry.
+	ReExecuted bool
 }
 
 type IngestTriggerRunsResult struct {
@@ -142,7 +146,7 @@ type NodeIdBranchIdTuple struct {
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
-	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
+	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
@@ -895,6 +899,11 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 				continue
 			}
 
+			// node ids restart every re-invocation, so a child's newest entry is on the highest branch
+			if existing, ok := childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID]; ok && existing.BranchID >= row.BranchID {
+				continue
+			}
+
 			r := sqlcv1.BulkGetDurableEventLogEntriesRow(*row)
 			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &r
 		}
@@ -1052,7 +1061,19 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 		return nil, fmt.Errorf("failed to get log entries for deduped child runs: %w", err)
 	}
 
+	// A NULL forced set (pre-column branch points, or worker-initiated HandleBranch) means every
+	// orphaned child is replayed.
+	var forcedReplayChildren map[uuid.UUID]bool
+
+	if bp, ok := nextBranchIdToBranchPoint[logFile.LatestBranchID]; ok && bp.ReplayChildExternalIds != nil {
+		forcedReplayChildren = make(map[uuid.UUID]bool, len(bp.ReplayChildExternalIds))
+		for _, id := range bp.ReplayChildExternalIds {
+			forcedReplayChildren[id] = true
+		}
+	}
+
 	childOnActiveBranch := make(map[uuid.UUID]bool)
+	latestEntryByChild := make(map[uuid.UUID]*sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow)
 
 	for _, row := range rows {
 		if row.ChildTaskExternalID == nil {
@@ -1062,6 +1083,11 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 		if resolveBranchForNode(row.NodeID, logFile.LatestBranchID, nextBranchIdToBranchPoint) == row.BranchID {
 			childOnActiveBranch[*row.ChildTaskExternalID] = true
 		}
+
+		// node ids restart every re-invocation, so a child's newest entry is on the highest branch
+		if latest, ok := latestEntryByChild[*row.ChildTaskExternalID]; !ok || row.BranchID > latest.BranchID {
+			latestEntryByChild[*row.ChildTaskExternalID] = row
+		}
 	}
 
 	for _, to := range triggerOpts {
@@ -1069,11 +1095,19 @@ func (r *durableEventsRepository) resolveOrphanedChildDedupes(
 			continue
 		}
 
-		to.ShouldSkip = false
-
 		if to.ReplayOrphanedChildren {
+			forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
+			latestSatisfied := latestEntryByChild[to.ExternalId] != nil && latestEntryByChild[to.ExternalId].IsSatisfied
+
+			if forcedReplayChildren != nil && !forced && latestSatisfied {
+				// untouched subtree: the skip path returns the cached result without re-running
+				continue
+			}
+
+			to.ShouldSkip = false
 			childrenToReplay[to.ExternalId] = true
 		} else {
+			to.ShouldSkip = false
 			to.ExternalId = uuid.New()
 		}
 	}
@@ -1336,6 +1370,7 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				ChildTaskIsFailure:    entry.Entry.ChildTaskIsFailure,
 				ChildTaskErrorMessage: childTaskErrorMessage,
 				ChildNeedsReplay:      childNeedsReplay,
+				ReExecuted:            !entry.AlreadyExisted,
 			}
 		}
 
@@ -1868,6 +1903,10 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 }
 
 func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error) {
+	return r.handleBranch(ctx, tenantId, nodeId, branchId, task, nil)
+}
+
+func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, replayChildExternalIds []uuid.UUID) (*HandleBranchResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -1903,6 +1942,7 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 		Nextbranchid:           newBranchId,
 		Durabletaskid:          task.ID,
 		Durabletaskinsertedat:  task.InsertedAt,
+		ReplayChildExternalIds: replayChildExternalIds,
 	})
 
 	if err != nil {
@@ -1920,7 +1960,7 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 	}, nil
 }
 
-func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error) {
+func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error) {
 	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, r.pool, sqlcv1.GetDurableTaskLogFilesParams{
 		Durabletaskids:         []int64{task.ID},
 		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
@@ -1934,7 +1974,7 @@ func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, 
 		return nil, nil
 	}
 
-	return r.HandleBranch(ctx, tenantId, 0, logFiles[0].LatestBranchID, task)
+	return r.handleBranch(ctx, tenantId, 0, logFiles[0].LatestBranchID, task, forcedChildExternalIds)
 }
 
 func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error) {

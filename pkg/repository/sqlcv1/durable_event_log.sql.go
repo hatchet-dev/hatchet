@@ -252,7 +252,8 @@ INSERT INTO v1_durable_event_log_branch_point (
     durable_task_inserted_at,
     first_node_id_in_new_branch,
     parent_branch_id,
-    next_branch_id
+    next_branch_id,
+    replay_child_external_ids
 )
 VALUES (
     $1::UUID,
@@ -260,9 +261,10 @@ VALUES (
     $3::TIMESTAMPTZ,
     $4::BIGINT,
     $5::BIGINT,
-    $6::BIGINT
+    $6::BIGINT,
+    $7::UUID[]
 )
-RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, replay_child_external_ids
 `
 
 type CreateDurableEventLogBranchPointParams struct {
@@ -272,6 +274,7 @@ type CreateDurableEventLogBranchPointParams struct {
 	Firstnodeidinnewbranch int64              `json:"firstnodeidinnewbranch"`
 	Parentbranchid         int64              `json:"parentbranchid"`
 	Nextbranchid           int64              `json:"nextbranchid"`
+	ReplayChildExternalIds []uuid.UUID        `json:"replayChildExternalIds"`
 }
 
 func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX, arg CreateDurableEventLogBranchPointParams) error {
@@ -282,6 +285,7 @@ func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX,
 		arg.Firstnodeidinnewbranch,
 		arg.Parentbranchid,
 		arg.Nextbranchid,
+		arg.ReplayChildExternalIds,
 	)
 	return err
 }
@@ -561,7 +565,7 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 }
 
 const listDurableEventLogBranchPoints = `-- name: ListDurableEventLogBranchPoints :many
-SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
+SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, replay_child_external_ids
 FROM v1_durable_event_log_branch_point
 WHERE
     durable_task_id = $1::BIGINT
@@ -594,6 +598,7 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 			&i.FirstNodeIDInNewBranch,
 			&i.ParentBranchID,
 			&i.NextBranchID,
+			&i.ReplayChildExternalIds,
 		); err != nil {
 			return nil, err
 		}

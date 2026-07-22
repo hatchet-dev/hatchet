@@ -1292,6 +1292,7 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	orchestratorWorkflowRunId := task.ExternalID
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		ReplayOrphanedChildren: true,
+		ParentReExecuted:       req.ParentReExecuted,
 		TriggerTaskData: &v1.TriggerTaskData{
 			WorkflowName:         req.WorkflowName, // todo: check if this should be `task.WorkflowName` instead
 			TargetActionId:       &req.ActionId,
@@ -1356,5 +1357,6 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		ResultPayload:         entry.ResultPayload,
 		IsFailure:             entry.ChildTaskIsFailure,
 		ErrorMessage:          entry.ChildTaskErrorMessage,
+		ReExecuted:            entry.ReExecuted,
 	}, nil
 }
