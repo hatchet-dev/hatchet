@@ -1220,15 +1220,12 @@ func (s *DispatcherImpl) taskEventsToWorkflowRunEvent(ctx context.Context, tenan
 				Error:             &event.ErrorMessage,
 			}
 		case sqlcv1.V1TaskEventTypeCANCELLED:
-			msg := event.ErrorMessage
-			if msg == "" {
-				msg = v1.TaskCancelledErrorMessage
-			}
+			//FIXME: this should be more specific for schedule timeouts
 			return &contracts.StepRunResult{
 				TaskRunExternalId: event.TaskExternalId.String(),
 				TaskName:          event.StepReadableID,
 				JobRunId:          event.TaskExternalId.String(),
-				Error:             &msg,
+				Error:             &event.ErrorMessage,
 			}
 		}
 		return nil
