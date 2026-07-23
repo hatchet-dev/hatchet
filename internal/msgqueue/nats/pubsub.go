@@ -20,9 +20,6 @@ const requiredMaxPayload = 16 * 1024 * 1024
 
 // PubSub implements msgqueue.PubSub over core NATS (no JetStream). Subjects are
 // "hatchet.pubsub." + topic.Name(); delivery is best-effort at-most-once.
-//
-// INVARIANT: the PubSub owns its nats.Conn and never shares it with the durable
-// MessageQueue, since Pub can be called from within durable-write paths.
 type PubSub struct {
 	nc *natsgo.Conn
 	l  *zerolog.Logger
@@ -92,8 +89,8 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	l := opts.l
 
 	connectOpts := []natsgo.Option{
-		natsgo.MaxReconnects(-1),
-		natsgo.ReconnectBufSize(-1), // publishes fail during disconnect — no stale buffering
+		natsgo.MaxReconnects(-1),    // reconnect indefinitely
+		natsgo.ReconnectBufSize(-1), // do not buffer pubs during disconnect
 		natsgo.DisconnectErrHandler(func(_ *natsgo.Conn, err error) {
 			if err != nil {
 				l.Warn().Err(err).Msg("nats pubsub disconnected")
@@ -174,6 +171,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 
 		// split the payloads in half and publish recursively until each chunk is
 		// under the max size (same strategy as rabbitmq/pubsub.go)
+		// TODO: Igor - investigate if we really need >16MB payloads for pub/sub
 		payloadsPerChunk := max(len(msg.Payloads)/2, 1)
 
 		for chunk := range slices.Chunk(msg.Payloads, payloadsPerChunk) {
@@ -217,10 +215,22 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 			return
 		}
 
-		// The durable RabbitMQ path may compress payloads in place
-		// (msg.Compressed=true, gzipped Payloads) before the same *Message
-		// pointer reaches pubsub.Pub via PubTenantMessage. Mirror rabbitmq/pubsub.go
-		// Sub and transparently decompress so handlers always see plain payloads.
+		// Decompress when the wire message says Compressed=true.
+		//
+		// Why a NATS subscriber cares about RabbitMQ compression: callers dual-
+		// publish via msgqueue.PubTenantMessage, which hands the *same* *Message
+		// pointer to durable mq.SendMessage first, then to pubsub.Pub. Durable
+		// RabbitMQ (internal/msgqueue/rabbitmq/rabbitmq.go) gzip-compresses
+		// payloads *in place* when compression is enabled (mutates Payloads and
+		// sets Compressed=true). NATS Pub does not compress itself — it only
+		// JSON-marshals whatever is on msg — so those already-gzipped bytes are
+		// what land on the NATS subject. Handlers expect plain payloads, so Sub
+		// must decompress (same as rabbitmq/pubsub.go Sub).
+		//
+		// When durable MQ is postgres, or RabbitMQ compression is off, Compressed
+		// stays false and this branch is a no-op. RabbitMQ's own PubSub path
+		// shallow-copies before compressing and does not create this leak; the
+		// durable SendMessage path does.
 		if msg.Compressed {
 			decompressed, err := msgqueue.DecompressPayloads(msg.Payloads)
 			if err != nil {

@@ -122,8 +122,7 @@ func TestPubSubLargePayload(t *testing.T) {
 	tenantId := uuid.New()
 	topic := msgqueue.TenantTopic(tenantId)
 
-	// >1MiB: validates the 16MiB NATS server max_payload end-to-end
-	payload := make([]byte, 2*1024*1024)
+	payload := make([]byte, 8*1024*1024)
 	_, err := rand.Read(payload)
 	require.NoError(t, err)
 
