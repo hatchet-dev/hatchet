@@ -353,7 +353,7 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 				}
 
 				if msg.Compressed {
-					decompressedPayloads, err := p.decompressPayloads(msg.Payloads)
+					decompressedPayloads, err := msgqueue.DecompressPayloads(msg.Payloads)
 
 					if err != nil {
 						p.l.Error().Msgf("error decompressing payloads: %v", err)

@@ -519,12 +519,14 @@ type MessageQueueConfigFile struct {
 // are optional overrides which inherit from the durable message queue settings
 // when unset, so existing deployments need zero new configuration.
 type PubSubConfigFile struct {
-	// Kind is "rabbitmq" or "postgres"; empty inherits msgQueue.kind
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres"`
+	// Kind is "rabbitmq", "postgres", or "nats"; empty inherits msgQueue.kind
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres nats"`
 
 	RabbitMQ PubSubRabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty"`
 
 	Postgres PubSubPostgresConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
+
+	NATS PubSubNATSConfigFile `mapstructure:"nats" json:"nats,omitempty"`
 }
 
 type PubSubRabbitMQConfigFile struct {
@@ -542,6 +544,13 @@ type PubSubPostgresConfigFile struct {
 	// (never pgbouncer — LISTEN does not survive transaction pooling).
 	MaxConns int32 `mapstructure:"maxConns" json:"maxConns,omitempty" default:"5"`
 	MinConns int32 `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
+}
+
+type PubSubNATSConfigFile struct {
+	// URL is the NATS server URL (comma-separated for a cluster). Credentials
+	// and tokens embed in the URL; use the tls:// scheme for TLS. There is no
+	// inheritance from the durable message queue — NATS is pub/sub only.
+	URL string `mapstructure:"url" json:"url,omitempty"`
 }
 
 type PostgresMQConfigFile struct {
@@ -889,6 +898,7 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.pubSub.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS")
 	_ = v.BindEnv("msgQueue.pubSub.postgres.maxConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS")
 	_ = v.BindEnv("msgQueue.pubSub.postgres.minConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS")
+	_ = v.BindEnv("msgQueue.pubSub.nats.url", "SERVER_MSGQUEUE_PUBSUB_NATS_URL")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")

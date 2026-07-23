@@ -52,6 +52,7 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/validator"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
+	natsmq "github.com/hatchet-dev/hatchet/internal/msgqueue/nats"
 	pgmq "github.com/hatchet-dev/hatchet/internal/msgqueue/postgres"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue/rabbitmq"
 	clientv1 "github.com/hatchet-dev/hatchet/pkg/client/v1"
@@ -1026,8 +1027,26 @@ func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.
 
 		ps = rmqps
 		cleanup = cleanupRmq
+	case "nats":
+		natsURL := cf.MessageQueue.PubSub.NATS.URL
+
+		if natsURL == "" {
+			return nil, nil, fmt.Errorf("using NATS as pubsub requires a URL to be set")
+		}
+
+		cleanupNats, natsps, err := natsmq.NewPubSub(
+			natsmq.WithPubSubURL(natsURL),
+			natsmq.WithPubSubLogger(l),
+		)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("could not init nats pubsub: %w", err)
+		}
+
+		ps = natsps
+		cleanup = cleanupNats
 	default:
-		return nil, nil, fmt.Errorf("invalid pubsub kind %q, must be 'rabbitmq' or 'postgres'", pubsubKind)
+		return nil, nil, fmt.Errorf("invalid pubsub kind %q, must be 'rabbitmq', 'postgres', or 'nats'", pubsubKind)
 	}
 
 	return cleanup, msgqueue.NewGatedPubSub(ps, cf.Runtime.DisableTenantPubs), nil

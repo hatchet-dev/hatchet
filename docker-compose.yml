@@ -44,6 +44,17 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+  nats:
+    # No healthcheck: the alpine image is effectively shell-less for e2e
+    # --wait jobs; a plain "running" state satisfies --wait when no healthcheck
+    # is defined. max_payload is set via config file — nats-server has no
+    # --max_payload CLI flag (see hack/dev/nats-server.conf).
+    image: "nats:2.14.3-alpine"
+    ports:
+      - "4222:4222"
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    volumes:
+      - "./hack/dev/nats-server.conf:/etc/nats/nats-server.conf:ro"
 
 volumes:
   hatchet_postgres_data:

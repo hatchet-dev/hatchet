@@ -302,12 +302,13 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_MSGQUEUE_RABBITMQ_COMPRESSION_THRESHOLD`    | Byte size above which messages are compressed                                                              | `5120`        |
 | `SERVER_MSGQUEUE_RABBITMQ_ENABLE_MESSAGE_REJECTION` | Reject (rather than requeue) messages past the max death count                                             | `false`       |
 | `SERVER_MSGQUEUE_RABBITMQ_MAX_DEATH_COUNT`          | Max redeliveries before a message is dead-lettered                                                         | `1000`        |
-| `SERVER_MSGQUEUE_PUBSUB_KIND`                       | Pub/sub kind for best-effort notifications (inherits `SERVER_MSGQUEUE_KIND` when unset)                    |               |
+| `SERVER_MSGQUEUE_PUBSUB_KIND`                       | Pub/sub kind for best-effort notifications (`rabbitmq`, `postgres`, or `nats`; inherits `SERVER_MSGQUEUE_KIND` when unset) |               |
 | `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_URL`               | Pub/sub RabbitMQ URL (inherits `SERVER_MSGQUEUE_RABBITMQ_URL` when unset; always uses its own connections) |               |
 | `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_PUB_CHANS`     | Pub/sub RabbitMQ max publish channels                                                                      | `10`          |
 | `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS`     | Pub/sub RabbitMQ max subscribe channels                                                                    | `20`          |
 | `SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS`         | Pub/sub Postgres pool max connections (pool is built from the direct `DATABASE_URL`)                       | `5`           |
 | `SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS`         | Pub/sub Postgres pool min connections                                                                      | `1`           |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_URL`                   | Pub/sub NATS URL (comma-separated for a cluster; core NATS only, best-effort at-most-once). Server must set `max_payload: 16777216` (1MiB default is insufficient). Publishes fail while disconnected; polling covers gaps. |               |
 | `SERVER_SINGLE_QUEUE_LIMIT`                         | Single queue limit                                                                                         | `100`         |
 
 ### Message Queue Buffers
