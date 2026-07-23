@@ -123,10 +123,10 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::EventApi* | [**v1_event_list**](docs/EventApi.md#v1_event_list) | **GET** /api/v1/stable/tenants/{tenant}/events | List events
 *HatchetSdkRest::FeatureFlagsApi* | [**tenant_feature_flag_evaluate**](docs/FeatureFlagsApi.md#tenant_feature_flag_evaluate) | **GET** /api/v1/tenants/{tenant}/feature-flags | Evaluate a feature flag for a tenant
 *HatchetSdkRest::FilterApi* | [**v1_filter_create**](docs/FilterApi.md#v1_filter_create) | **POST** /api/v1/stable/tenants/{tenant}/filters | Create a filter
-*HatchetSdkRest::FilterApi* | [**v1_filter_delete**](docs/FilterApi.md#v1_filter_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} |
+*HatchetSdkRest::FilterApi* | [**v1_filter_delete**](docs/FilterApi.md#v1_filter_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | Delete a filter
 *HatchetSdkRest::FilterApi* | [**v1_filter_get**](docs/FilterApi.md#v1_filter_get) | **GET** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | Get a filter
 *HatchetSdkRest::FilterApi* | [**v1_filter_list**](docs/FilterApi.md#v1_filter_list) | **GET** /api/v1/stable/tenants/{tenant}/filters | List filters
-*HatchetSdkRest::FilterApi* | [**v1_filter_update**](docs/FilterApi.md#v1_filter_update) | **PATCH** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} |
+*HatchetSdkRest::FilterApi* | [**v1_filter_update**](docs/FilterApi.md#v1_filter_update) | **PATCH** /api/v1/stable/tenants/{tenant}/filters/{v1-filter} | Update a filter
 *HatchetSdkRest::GithubApi* | [**sns_update**](docs/GithubApi.md#sns_update) | **POST** /api/v1/sns/{tenant}/{event} | Github app tenant webhook
 *HatchetSdkRest::HealthcheckApi* | [**liveness_get**](docs/HealthcheckApi.md#liveness_get) | **GET** /api/live | Get liveness
 *HatchetSdkRest::HealthcheckApi* | [**readiness_get**](docs/HealthcheckApi.md#readiness_get) | **GET** /api/ready | Get readiness
@@ -137,6 +137,11 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::MetadataApi* | [**metadata_get**](docs/MetadataApi.md#metadata_get) | **GET** /api/v1/meta | Get metadata
 *HatchetSdkRest::MetadataApi* | [**metadata_list_integrations**](docs/MetadataApi.md#metadata_list_integrations) | **GET** /api/v1/meta/integrations | List integrations
 *HatchetSdkRest::ObservabilityApi* | [**v1_observability_get_trace**](docs/ObservabilityApi.md#v1_observability_get_trace) | **GET** /api/v1/stable/tenants/{tenant}/traces | Get OTel trace
+*HatchetSdkRest::OperatorApi* | [**v1_http_operator_create**](docs/OperatorApi.md#v1_http_operator_create) | **POST** /api/v1/stable/tenants/{tenant}/operators/http | Create an HTTP operator
+*HatchetSdkRest::OperatorApi* | [**v1_http_operator_delete**](docs/OperatorApi.md#v1_http_operator_delete) | **DELETE** /api/v1/stable/operators/http/{v1-http-operator} | Delete an HTTP operator
+*HatchetSdkRest::OperatorApi* | [**v1_http_operator_get**](docs/OperatorApi.md#v1_http_operator_get) | **GET** /api/v1/stable/operators/http/{v1-http-operator} | Get an HTTP operator
+*HatchetSdkRest::OperatorApi* | [**v1_http_operator_list**](docs/OperatorApi.md#v1_http_operator_list) | **GET** /api/v1/stable/tenants/{tenant}/operators/http | List HTTP operators
+*HatchetSdkRest::OperatorApi* | [**v1_http_operator_update**](docs/OperatorApi.md#v1_http_operator_update) | **PATCH** /api/v1/stable/operators/http/{v1-http-operator} | Update an HTTP operator
 *HatchetSdkRest::RateLimitsApi* | [**rate_limit_delete**](docs/RateLimitsApi.md#rate_limit_delete) | **DELETE** /api/v1/tenants/{tenant}/rate-limits | Delete rate limit
 *HatchetSdkRest::RateLimitsApi* | [**rate_limit_list**](docs/RateLimitsApi.md#rate_limit_list) | **GET** /api/v1/tenants/{tenant}/rate-limits | List rate limits
 *HatchetSdkRest::SNSApi* | [**sns_create**](docs/SNSApi.md#sns_create) | **POST** /api/v1/tenants/{tenant}/sns | Create SNS integration
@@ -192,7 +197,7 @@ Class | Method | HTTP request | Description
 *HatchetSdkRest::UserApi* | [**user_update_slack_oauth_callback**](docs/UserApi.md#user_update_slack_oauth_callback) | **GET** /api/v1/users/slack/callback | Complete OAuth flow
 *HatchetSdkRest::UserApi* | [**user_update_slack_oauth_start**](docs/UserApi.md#user_update_slack_oauth_start) | **GET** /api/v1/tenants/{tenant}/slack/start | Start OAuth flow
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_create**](docs/WebhookApi.md#v1_webhook_create) | **POST** /api/v1/stable/tenants/{tenant}/webhooks | Create a webhook
-*HatchetSdkRest::WebhookApi* | [**v1_webhook_delete**](docs/WebhookApi.md#v1_webhook_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} |
+*HatchetSdkRest::WebhookApi* | [**v1_webhook_delete**](docs/WebhookApi.md#v1_webhook_delete) | **DELETE** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} | Delete a webhook
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_get**](docs/WebhookApi.md#v1_webhook_get) | **GET** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} | Get a webhook
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_list**](docs/WebhookApi.md#v1_webhook_list) | **GET** /api/v1/stable/tenants/{tenant}/webhooks | List webhooks
 *HatchetSdkRest::WebhookApi* | [**v1_webhook_receive**](docs/WebhookApi.md#v1_webhook_receive) | **POST** /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook} | Post a webhook message
@@ -384,6 +389,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1CancelTaskRequest](docs/V1CancelTaskRequest.md)
  - [HatchetSdkRest::V1CancelledTasks](docs/V1CancelledTasks.md)
  - [HatchetSdkRest::V1CreateFilterRequest](docs/V1CreateFilterRequest.md)
+ - [HatchetSdkRest::V1CreateHTTPOperatorRequest](docs/V1CreateHTTPOperatorRequest.md)
  - [HatchetSdkRest::V1CreateWebhookRequest](docs/V1CreateWebhookRequest.md)
  - [HatchetSdkRest::V1CreateWebhookRequestAPIKey](docs/V1CreateWebhookRequestAPIKey.md)
  - [HatchetSdkRest::V1CreateWebhookRequestBase](docs/V1CreateWebhookRequestBase.md)
@@ -400,6 +406,8 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1EventWorkflowRunSummary](docs/V1EventWorkflowRunSummary.md)
  - [HatchetSdkRest::V1Filter](docs/V1Filter.md)
  - [HatchetSdkRest::V1FilterList](docs/V1FilterList.md)
+ - [HatchetSdkRest::V1HTTPOperator](docs/V1HTTPOperator.md)
+ - [HatchetSdkRest::V1HTTPOperatorList](docs/V1HTTPOperatorList.md)
  - [HatchetSdkRest::V1LogLine](docs/V1LogLine.md)
  - [HatchetSdkRest::V1LogLineLevel](docs/V1LogLineLevel.md)
  - [HatchetSdkRest::V1LogLineList](docs/V1LogLineList.md)
@@ -426,6 +434,7 @@ Class | Method | HTTP request | Description
  - [HatchetSdkRest::V1TaskTimingList](docs/V1TaskTimingList.md)
  - [HatchetSdkRest::V1TriggerWorkflowRunRequest](docs/V1TriggerWorkflowRunRequest.md)
  - [HatchetSdkRest::V1UpdateFilterRequest](docs/V1UpdateFilterRequest.md)
+ - [HatchetSdkRest::V1UpdateHTTPOperatorRequest](docs/V1UpdateHTTPOperatorRequest.md)
  - [HatchetSdkRest::V1UpdateWebhookRequest](docs/V1UpdateWebhookRequest.md)
  - [HatchetSdkRest::V1WaitItem](docs/V1WaitItem.md)
  - [HatchetSdkRest::V1Webhook](docs/V1Webhook.md)

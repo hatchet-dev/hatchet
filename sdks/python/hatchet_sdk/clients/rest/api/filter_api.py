@@ -372,7 +372,7 @@ class FilterApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> V1Filter:
-        """v1_filter_delete
+        """Delete a filter
 
         Delete a filter
 
@@ -456,7 +456,7 @@ class FilterApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[V1Filter]:
-        """v1_filter_delete
+        """Delete a filter
 
         Delete a filter
 
@@ -540,7 +540,7 @@ class FilterApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """v1_filter_delete
+        """Delete a filter
 
         Delete a filter
 
@@ -1343,7 +1343,7 @@ class FilterApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> V1Filter:
-        """v1_filter_update
+        """Update a filter
 
         Update a filter
 
@@ -1433,7 +1433,7 @@ class FilterApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[V1Filter]:
-        """v1_filter_update
+        """Update a filter
 
         Update a filter
 
@@ -1523,7 +1523,7 @@ class FilterApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """v1_filter_update
+        """Update a filter
 
         Update a filter
 
