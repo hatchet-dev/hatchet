@@ -40,6 +40,16 @@ from examples.concurrency_multiple_keys.worker import concurrency_multiple_keys_
 from examples.concurrency_workflow_level.worker import (
     concurrency_workflow_level_workflow,
 )
+from examples.conditions.worker import (
+    task_condition_workflow,
+    cancel_if_workflow,
+    skip_if_sleep_workflow,
+    skip_if_or_workflow,
+    cancel_if_event_workflow,
+    cancel_if_sleep_workflow,
+    cancel_if_or_workflow,
+    wait_for_event_only_workflow,
+)
 from examples.conditions.worker import task_condition_workflow
 from examples.cron.cron_input import cron_input_example_send_greeting
 from examples.dag.worker import dag_workflow
@@ -144,7 +154,7 @@ hatchet = Hatchet()
 def main() -> None:
     worker = hatchet.worker(
         "e2e-test-worker",
-        slots=100,
+        slots=250,
         workflows=[
             affinity_worker_workflow,
             batch_simple,
@@ -178,6 +188,12 @@ def main() -> None:
             timeout_wf,
             refresh_timeout_wf,
             task_condition_workflow,
+            skip_if_sleep_workflow,
+            skip_if_or_workflow,
+            cancel_if_event_workflow,
+            cancel_if_sleep_workflow,
+            cancel_if_or_workflow,
+            wait_for_event_only_workflow,
             cron_input_example_send_greeting,
             cancellation_workflow,
             sync_fanout_parent,
@@ -255,6 +271,7 @@ def main() -> None:
             idempotent_status_based_task_with_retries,
             error_raising_durable_parent,
             error_raising_task,
+            cancel_if_workflow,
         ],
         lifespan=lifespan,
     )

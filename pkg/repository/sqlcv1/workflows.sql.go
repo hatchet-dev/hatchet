@@ -168,7 +168,8 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable"
+    "isDurable",
+    "isDagOrchestrator"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -184,8 +185,9 @@ INSERT INTO "Step" (
     coalesce($12::text, '5m'),
     $13,
     $14,
-    coalesce($15::boolean, false)
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable"
+    coalesce($15::boolean, false),
+    coalesce($16::boolean, false)
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", "readableId", "tenantId", "jobId", "actionId", timeout, "customUserData", retries, "retryBackoffFactor", "retryMaxBackoff", "scheduleTimeout", "isDurable", "isDagOrchestrator"
 `
 
 type CreateStepParams struct {
@@ -204,6 +206,7 @@ type CreateStepParams struct {
 	RetryBackoffFactor pgtype.Float8    `json:"retryBackoffFactor"`
 	RetryMaxBackoff    pgtype.Int4      `json:"retryMaxBackoff"`
 	IsDurable          pgtype.Bool      `json:"isDurable"`
+	IsDagOrchestrator  pgtype.Bool      `json:"isDagOrchestrator"`
 }
 
 func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams) (*Step, error) {
@@ -223,6 +226,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		arg.RetryBackoffFactor,
 		arg.RetryMaxBackoff,
 		arg.IsDurable,
+		arg.IsDagOrchestrator,
 	)
 	var i Step
 	err := row.Scan(
@@ -241,6 +245,7 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 		&i.RetryMaxBackoff,
 		&i.ScheduleTimeout,
 		&i.IsDurable,
+		&i.IsDagOrchestrator,
 	)
 	return &i, err
 }
@@ -695,6 +700,21 @@ WITH inserted_wcs AS (
         WHERE
           wv."id" = $2::uuid
           AND j."kind" = 'DEFAULT'
+          -- For DAG-operator workflows the orchestrator task represents the run, so the
+          -- workflow-level concurrency slot must be held by the orchestrator step alone.
+          -- Attaching the strategy to the child steps as well would let a run's own children
+          -- contend with their parent for the same slot and deadlock. Fall back to all steps
+          -- for workflows that have no orchestrator (the non-operator path).
+          AND (
+            s."isDagOrchestrator"
+            OR NOT EXISTS (
+              SELECT 1
+              FROM "Step" s2
+              JOIN "Job" j2 ON s2."jobId" = j2."id"
+              WHERE j2."workflowVersionId" = wv."id"
+                AND s2."isDagOrchestrator"
+            )
+          )
     ) s, inserted_wcs wcs
     RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 )
@@ -963,6 +983,8 @@ INSERT INTO "WorkflowVersion" (
     "defaultPriority",
     "createWorkflowVersionOpts",
     "inputJsonSchema",
+    "isUsingDagOperator",
+    "dagShape",
     "idempotencyKeyExpression",
     "idempotencyKeyTtlMs",
     "idempotencyMethod"
@@ -981,10 +1003,12 @@ INSERT INTO "WorkflowVersion" (
     $10 :: integer,
     $11::jsonb,
     $12::jsonb,
-    $13::text,
-    $14::bigint,
-    $15::idempotency_method
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod"
+    coalesce($13::boolean, false),
+    coalesce($14::jsonb, NULL),
+    $15::text,
+    $16::bigint,
+    $17::idempotency_method
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod", "isUsingDagOperator", "dagShape"
 `
 
 type CreateWorkflowVersionParams struct {
@@ -1000,6 +1024,8 @@ type CreateWorkflowVersionParams struct {
 	DefaultPriority           pgtype.Int4           `json:"defaultPriority"`
 	CreateWorkflowVersionOpts []byte                `json:"createWorkflowVersionOpts"`
 	InputJsonSchema           []byte                `json:"inputJsonSchema"`
+	IsUsingDagOperator        pgtype.Bool           `json:"isUsingDagOperator"`
+	DagShape                  []byte                `json:"dagShape"`
 	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
 	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
 	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
@@ -1019,6 +1045,8 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.DefaultPriority,
 		arg.CreateWorkflowVersionOpts,
 		arg.InputJsonSchema,
+		arg.IsUsingDagOperator,
+		arg.DagShape,
 		arg.IdempotencyKeyExpression,
 		arg.IdempotencyKeyTtlMs,
 		arg.IdempotencyMethod,
@@ -1043,6 +1071,8 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.IdempotencyKeyExpression,
 		&i.IdempotencyKeyTtlMs,
 		&i.IdempotencyMethod,
+		&i.IsUsingDagOperator,
+		&i.DagShape,
 	)
 	return &i, err
 }
@@ -1103,7 +1133,7 @@ func (q *Queries) GetLatestWorkflowVersionForWorkflows(ctx context.Context, db D
 const getStepsForJobs = `-- name: GetStepsForJobs :many
 SELECT
 	j."id" as "jobId",
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator",
     (
         SELECT array_agg(so."A")::uuid[]  -- Casting the array_agg result to uuid[]
         FROM "_StepOrder" so
@@ -1154,6 +1184,7 @@ func (q *Queries) GetStepsForJobs(ctx context.Context, db DBTX, arg GetStepsForJ
 			&i.Step.RetryMaxBackoff,
 			&i.Step.ScheduleTimeout,
 			&i.Step.IsDurable,
+			&i.Step.IsDagOrchestrator,
 			&i.Parents,
 		); err != nil {
 			return nil, err
@@ -1265,6 +1296,7 @@ JOIN "Job" j ON v."id" = j."workflowVersionId"
 JOIN "Step" s ON j."id" = s."jobId"
 LEFT JOIN "_StepOrder" so ON so."A" = s.id
 WHERE v.id = $1::uuid
+    AND NOT s."isDagOrchestrator"
 GROUP BY s.id, s."readableId"
 `
 
@@ -1296,7 +1328,7 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."idempotencyKeyExpression", wv."idempotencyKeyTtlMs", wv."idempotencyMethod",
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."idempotencyKeyExpression", wv."idempotencyKeyTtlMs", wv."idempotencyMethod", wv."isUsingDagOperator", wv."dagShape",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused"
 FROM
     "WorkflowVersion" as wv
@@ -1334,6 +1366,8 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.U
 		&i.WorkflowVersion.IdempotencyKeyExpression,
 		&i.WorkflowVersion.IdempotencyKeyTtlMs,
 		&i.WorkflowVersion.IdempotencyMethod,
+		&i.WorkflowVersion.IsUsingDagOperator,
+		&i.WorkflowVersion.DagShape,
 		&i.Workflow.ID,
 		&i.Workflow.CreatedAt,
 		&i.Workflow.UpdatedAt,
@@ -1422,7 +1456,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."idempotencyKeyExpression", workflowversions."idempotencyKeyTtlMs", workflowversions."idempotencyMethod",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."idempotencyKeyExpression", workflowversions."idempotencyKeyTtlMs", workflowversions."idempotencyMethod", workflowversions."isUsingDagOperator", workflowversions."dagShape",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1483,6 +1517,8 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.IdempotencyKeyExpression,
 			&i.WorkflowVersion.IdempotencyKeyTtlMs,
 			&i.WorkflowVersion.IdempotencyMethod,
+			&i.WorkflowVersion.IsUsingDagOperator,
+			&i.WorkflowVersion.DagShape,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -1549,7 +1585,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod", "isUsingDagOperator", "dagShape"
 `
 
 type LinkOnFailureJobParams struct {
@@ -1579,6 +1615,8 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.IdempotencyKeyExpression,
 		&i.IdempotencyKeyTtlMs,
 		&i.IdempotencyMethod,
+		&i.IsUsingDagOperator,
+		&i.DagShape,
 	)
 	return &i, err
 }
@@ -1666,7 +1704,7 @@ func (q *Queries) ListStepMatchConditions(ctx context.Context, db DBTX, arg List
 
 const listStepsByIds = `-- name: ListStepsByIds :many
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator",
     wv."id" as "workflowVersionId",
     wv."sticky" as "workflowVersionSticky",
     w."name" as "workflowName",
@@ -1719,6 +1757,7 @@ type ListStepsByIdsRow struct {
 	RetryMaxBackoff       pgtype.Int4        `json:"retryMaxBackoff"`
 	ScheduleTimeout       string             `json:"scheduleTimeout"`
 	IsDurable             bool               `json:"isDurable"`
+	IsDagOrchestrator     bool               `json:"isDagOrchestrator"`
 	WorkflowVersionId     uuid.UUID          `json:"workflowVersionId"`
 	WorkflowVersionSticky NullStickyStrategy `json:"workflowVersionSticky"`
 	WorkflowName          string             `json:"workflowName"`
@@ -1754,6 +1793,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
 			&i.IsDurable,
+			&i.IsDagOrchestrator,
 			&i.WorkflowVersionId,
 			&i.WorkflowVersionSticky,
 			&i.WorkflowName,
@@ -1776,7 +1816,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 const listStepsByWorkflowVersionIds = `-- name: ListStepsByWorkflowVersionIds :many
 WITH steps AS (
     SELECT
-        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable",
+        s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator",
         wv."id" as "workflowVersionId",
         w."name" as "workflowName",
         w."id" as "workflowId",
@@ -1811,7 +1851,7 @@ WITH steps AS (
         so."B"
 )
 SELECT
-    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
+    s.id, s."createdAt", s."updatedAt", s."deletedAt", s."readableId", s."tenantId", s."jobId", s."actionId", s.timeout, s."customUserData", s.retries, s."retryBackoffFactor", s."retryMaxBackoff", s."scheduleTimeout", s."isDurable", s."isDagOrchestrator", s."workflowVersionId", s."workflowName", s."workflowId", s."jobKind", s."matchConditionCount",
     COALESCE(so."parents", '{}'::uuid[]) as "parents"
 FROM
     steps s
@@ -1840,6 +1880,7 @@ type ListStepsByWorkflowVersionIdsRow struct {
 	RetryMaxBackoff     pgtype.Int4      `json:"retryMaxBackoff"`
 	ScheduleTimeout     string           `json:"scheduleTimeout"`
 	IsDurable           bool             `json:"isDurable"`
+	IsDagOrchestrator   bool             `json:"isDagOrchestrator"`
 	WorkflowVersionId   uuid.UUID        `json:"workflowVersionId"`
 	WorkflowName        string           `json:"workflowName"`
 	WorkflowId          uuid.UUID        `json:"workflowId"`
@@ -1873,6 +1914,7 @@ func (q *Queries) ListStepsByWorkflowVersionIds(ctx context.Context, db DBTX, ar
 			&i.RetryMaxBackoff,
 			&i.ScheduleTimeout,
 			&i.IsDurable,
+			&i.IsDagOrchestrator,
 			&i.WorkflowVersionId,
 			&i.WorkflowName,
 			&i.WorkflowId,

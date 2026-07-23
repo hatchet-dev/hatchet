@@ -46,11 +46,16 @@ func (t *V1WorkflowRunsService) getWorkflowRunDetails(
 	taskMetadata := rawWorkflowRun.TaskMetadata
 	workflowRunId := workflowRun.ExternalID
 
-	taskRunEvents, err := t.config.V1.OLAP().ListTaskRunEventsByWorkflowRunId(
-		ctx,
-		tenantId,
-		workflowRunId,
+	var (
+		taskRunEvents []*v1.TaskEventWithPayloads
+		err           error
 	)
+
+	if workflowRun.Kind == sqlcv1.V1RunKindTASK {
+		taskRunEvents, err = t.config.V1.OLAP().ListTaskRunEventsByTaskIds(ctx, tenantId, taskMetadata)
+	} else {
+		taskRunEvents, err = t.config.V1.OLAP().ListTaskRunEventsByWorkflowRunId(ctx, tenantId, workflowRunId)
+	}
 
 	if err != nil {
 		return nil, err

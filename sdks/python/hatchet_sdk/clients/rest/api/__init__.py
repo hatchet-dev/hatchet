@@ -12,6 +12,7 @@ from hatchet_sdk.clients.rest.api.healthcheck_api import HealthcheckApi
 from hatchet_sdk.clients.rest.api.log_api import LogApi
 from hatchet_sdk.clients.rest.api.metadata_api import MetadataApi
 from hatchet_sdk.clients.rest.api.observability_api import ObservabilityApi
+from hatchet_sdk.clients.rest.api.operator_api import OperatorApi
 from hatchet_sdk.clients.rest.api.rate_limits_api import RateLimitsApi
 from hatchet_sdk.clients.rest.api.sns_api import SNSApi
 from hatchet_sdk.clients.rest.api.slack_api import SlackApi

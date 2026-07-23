@@ -36,11 +36,13 @@ export function StepRunEvents({
   workflowRunId,
   isDurable,
   durableTaskIds,
+  events: externalEvents,
 }: {
   taskRunId?: string;
   workflowRunId?: string;
   isDurable?: boolean;
   durableTaskIds?: string[];
+  events?: V1TaskEvent[];
   taskDisplayName?: string;
   fallbackTaskDisplayName?: string;
   onClick?: (stepRunId: string) => void;
@@ -61,7 +63,8 @@ export function StepRunEvents({
       taskRunId,
       workflowRunId,
     ),
-    refetchInterval,
+    enabled: !externalEvents,
+    refetchInterval: externalEvents ? false : refetchInterval,
   });
 
   // fixme: this is an n+1 query, would be better to have a bulk getter
@@ -76,7 +79,7 @@ export function StepRunEvents({
 
   const logs = useMemo(() => {
     const taskLines = toTaskEventLogLines(
-      eventsQuery.data?.rows ?? [],
+      externalEvents ?? eventsQuery.data?.rows ?? [],
       isDag,
       tenantId,
     );
@@ -84,7 +87,7 @@ export function StepRunEvents({
       toDurableEventLogLines(q.data ?? []),
     );
     return mergeByTimestamp(taskLines, durableEventLogLines);
-  }, [eventsQuery.data, isDag, tenantId, durableLogsQueries]);
+  }, [externalEvents, eventsQuery.data, isDag, tenantId, durableLogsQueries]);
 
   const handleTaskRunExpand = useCallback(
     (taskRunId: string) => {
@@ -112,7 +115,7 @@ export function StepRunEvents({
     [open],
   );
 
-  if (eventsQuery.isLoading) {
+  if (!externalEvents && eventsQuery.isLoading) {
     return <Loading />;
   }
 
@@ -327,6 +330,9 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
   const userMessage = entry.userMessage?.trim();
 
   if (entry.kind === V1DurableEventLogKind.RUN) {
+    if (userMessage) {
+      return `spawned child ${userMessage}`;
+    }
     const item = entry.waitData?.[0];
     if (
       entry.waitData?.length === 1 &&
@@ -337,7 +343,7 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
         ? `spawned child ${item.workflowName}`
         : 'spawned child';
     }
-    return userMessage || 'spawned child';
+    return 'spawned child';
   }
   if (userMessage) {
     return userMessage;
@@ -350,6 +356,10 @@ function entryMessage(entry: V1DurableEventLogEntry): string {
 
 function entryCompletionMessage(entry: V1DurableEventLogEntry): string {
   if (entry.kind === V1DurableEventLogKind.RUN) {
+    const userMessage = entry.userMessage?.trim();
+    if (userMessage) {
+      return `child ${userMessage} completed`;
+    }
     const item = entry.waitData?.[0];
     if (
       entry.waitData?.length === 1 &&
@@ -412,6 +422,10 @@ function childNamesFromEntries(
   entries: V1DurableEventLogEntry[],
 ): (string | null)[] {
   return entries.map((e) => {
+    const userMessage = e.userMessage?.trim();
+    if (userMessage) {
+      return userMessage;
+    }
     const item = e.waitData?.[0];
     if (
       e.waitData?.length === 1 &&

@@ -43,12 +43,49 @@ type Operator interface {
 	Drain()
 }
 
+type DAGStepTriggerRequest struct {
+	ParentTaskExternalId uuid.UUID
+	InvocationCount      int32
+	WorkflowName         string
+	ActionId             string
+	ChildIndex           int32
+	Input                string
+	AdditionalMetadata   []byte
+	DagParentTaskRunIds  []uuid.UUID
+	IsSkipped            bool
+	IsCancelled          bool
+	DesiredWorkerLabels  []*sqlcv1.GetDesiredLabelsRow
+
+	// ParentReExecuted forces the step to re-run during a replay when any of its parents
+	// re-executed this invocation.
+	ParentReExecuted bool
+}
+
+type DAGStepTriggerResult struct {
+	NodeId                int64
+	BranchId              int64
+	WorkflowRunExternalId uuid.UUID
+
+	IsSatisfied   bool
+	ResultPayload []byte
+	IsFailure     bool
+	ErrorMessage  *string
+
+	// ReExecuted is true when the step actually runs this invocation rather than being
+	// satisfied from the log.
+	ReExecuted bool
+}
+
 type TaskEventWriter interface {
 	SendStepActionEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
+
+	CancelTaskEvent(ctx context.Context, request *contracts.StepActionEvent) (*contracts.ActionEventResponse, error)
 
 	// RegisterDurableTask opens a channel-based durable-task session: the operator (acting as
 	// a durable worker) writes requests to the returned channel and reads responses from it.
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
+
+	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
 }
 
 type SharedOperator[T any] struct {
@@ -101,6 +138,16 @@ func (s *SharedOperator[T]) UpdateWorkerActions(ctx context.Context, actions []s
 	return s.repo.Operators().UpdateOperatorWorkerActions(ctx, s.tenantId, s.workerId, actions)
 }
 
+func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error) {
+	if s.taskEventWriter == nil {
+		return nil, fmt.Errorf("operator has no task event writer configured")
+	}
+
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId})
+
+	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
+}
+
 // RegisterDurableTask opens a channel-based durable-task session through the dispatcher,
 // injecting the tenant the dispatcher reads off the context (the same key sendStepActionEvent
 // uses). Operators that drive durable execution write requests to the returned channel and
@@ -130,6 +177,34 @@ func (s *SharedOperator[T]) SendCompleted(action *contracts.AssignedAction, outp
 // prevents the task from being retried.
 func (s *SharedOperator[T]) SendFailed(action *contracts.AssignedAction, errMsg string, shouldNotRetry bool) error {
 	return s.sendStepActionEvent(action, contracts.StepActionEventType_STEP_EVENT_TYPE_FAILED, errMsg, &shouldNotRetry)
+}
+
+func (s *SharedOperator[T]) SendCancelled(action *contracts.AssignedAction, msg string) error {
+	if s.taskEventWriter == nil {
+		return fmt.Errorf("operator has no task event writer configured")
+	}
+
+	retryCount := action.RetryCount
+
+	event := &contracts.StepActionEvent{
+		WorkerId:          s.workerId.String(),
+		JobId:             action.JobId,
+		JobRunId:          action.JobRunId,
+		TaskId:            action.TaskId,
+		TaskRunExternalId: action.TaskRunExternalId,
+		ActionId:          action.ActionId,
+		EventTimestamp:    timestamppb.Now(),
+		EventPayload:      msg,
+		RetryCount:        &retryCount,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), eventReportTimeout)
+	defer cancel()
+
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId}) // nolint:staticcheck
+
+	_, err := s.taskEventWriter.CancelTaskEvent(ctx, event)
+	return err
 }
 
 // sendStepActionEvent builds a StepActionEvent from the assigned action and reports it back

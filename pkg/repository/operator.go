@@ -32,9 +32,13 @@ type OperatorRepository interface {
 	// UpdateOperatorWorkerActions updates the registered actions for the worker corresponding to the operator.
 	UpdateOperatorWorkerActions(ctx context.Context, tenantId, workerId uuid.UUID, actions []string) error
 
-	// ListDAGWorkflowIds returns the ids of all DAG workflows for a tenant. The DAG operator
-	// polls this to keep its worker's registered actions in sync with the tenant's DAGs.
-	ListDAGWorkflowIds(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error)
+	// ListDAGOrchestrationActions returns the orchestration action IDs ("{name}_orchestrator")
+	// for all DAG workflows of a tenant. The DAG operator polls this to keep its registered
+	// actions in sync with the tenant's DAGs.
+	ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error)
+
+	// HasDAGOperator reports whether any DAG operator is registered for the given tenant.
+	HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error)
 }
 
 type operatorRepository struct {
@@ -152,8 +156,12 @@ func (r *operatorRepository) ClaimOperators(ctx context.Context, dispatcherId uu
 	return r.queries.ClaimOperators(ctx, r.pool, dispatcherId)
 }
 
-func (r *operatorRepository) ListDAGWorkflowIds(ctx context.Context, tenantId uuid.UUID) ([]uuid.UUID, error) {
-	return r.queries.ListDAGWorkflowIdsForTenant(ctx, r.pool, tenantId)
+func (r *operatorRepository) ListDAGOrchestrationActions(ctx context.Context, tenantId uuid.UUID) ([]string, error) {
+	return r.queries.ListDAGOrchestrationActionsForTenant(ctx, r.pool, tenantId)
+}
+
+func (r *operatorRepository) HasDAGOperator(ctx context.Context, tenantId uuid.UUID) (bool, error) {
+	return r.sharedRepository.hasDAGOperator(ctx, tenantId)
 }
 
 func (r *operatorRepository) CreateOperatorWorker(ctx context.Context, dispatcherId uuid.UUID, operator *sqlcv1.V1Operator, slotConfig map[string]int32) (*sqlcv1.Worker, error) {

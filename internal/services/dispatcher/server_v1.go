@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	contracts "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v1"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/operator"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -324,7 +326,6 @@ type durableTaskInvocation struct {
 	l        *zerolog.Logger
 	sendMu   sync.Mutex
 	tenantId uuid.UUID
-	workerId uuid.UUID
 	closed   bool // channel transport only; guarded by sendMu
 }
 
@@ -474,7 +475,8 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 	ctx, cancel := context.WithCancel(ctx)
 	deregister := d.streamSessions.Register(cancel)
 
-	requestCh := make(chan *contracts.DurableTaskRequest)
+	// fixme / important: this probably can't be hard-coded to 64, but I'm not sure what it should be set to yet
+	requestCh := make(chan *contracts.DurableTaskRequest, 64)
 	respCh := make(chan *contracts.DurableTaskResponse)
 
 	invocation := &durableTaskInvocation{
@@ -499,14 +501,14 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 		}
 
 		if _, exists := registeredTasks[taskExtId]; !exists {
-			d.durableInvocations.Store(durableInvocationsKey{invocation.tenantId, taskExtId}, invocation)
+			d.durableInvocations.Store(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskExtId}, invocation)
 			registeredTasks[taskExtId] = struct{}{}
 		}
 	}
 
 	// register the task up front so async responses route back to this invocation
 	// immediately, before the caller sends its first message.
-	d.durableInvocations.Store(durableInvocationsKey{invocation.tenantId, externalId}, invocation)
+	d.durableInvocations.Store(durableInvocationsKey{tenantId: invocation.tenantId, taskId: externalId}, invocation)
 	registeredTasks[externalId] = struct{}{}
 
 	go func() {
@@ -520,7 +522,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 		// closed channel.
 		defer func() {
 			for taskId := range registeredTasks {
-				d.durableInvocations.Delete(durableInvocationsKey{tenant.ID, taskId})
+				d.durableInvocations.Delete(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskId})
 			}
 
 			invocation.sendMu.Lock()
@@ -588,8 +590,6 @@ func (d *DispatcherServiceImpl) handleRegisterWorker(
 	}
 
 	d.analytics.Count(ctx, analytics.DurableTask, analytics.Register)
-
-	invocation.workerId = workerId
 
 	err = d.repo.Workers().UpdateWorkerDurableTaskDispatcherId(ctx, invocation.tenantId, workerId, d.dispatcherId)
 	if err != nil {
@@ -1232,4 +1232,131 @@ func (d *DispatcherServiceImpl) DeliverDurableEventLogEntryCompletion(tenantId u
 			EntryCompleted: resp,
 		},
 	})
+}
+
+func (d *DispatcherServiceImpl) replayDAGStepChild(ctx context.Context, tenantId, childExternalId uuid.UUID) error {
+	childTasks, err := d.repo.Tasks().FlattenExternalIds(ctx, tenantId, []uuid.UUID{childExternalId})
+	if err != nil {
+		return fmt.Errorf("failed to look up child task %s for replay: %w", childExternalId, err)
+	}
+
+	if len(childTasks) == 0 {
+		return fmt.Errorf("child task %s not found for replay", childExternalId)
+	}
+
+	replayTasks := make([]tasktypes.TaskIdInsertedAtRetryCountWithExternalId, 0, len(childTasks))
+
+	for _, ct := range childTasks {
+		replayTasks = append(replayTasks, tasktypes.TaskIdInsertedAtRetryCountWithExternalId{
+			TaskIdInsertedAtRetryCount: v1.TaskIdInsertedAtRetryCount{
+				Id:         ct.ID,
+				InsertedAt: ct.InsertedAt,
+				RetryCount: ct.RetryCount,
+			},
+			WorkflowRunExternalId: ct.WorkflowRunID,
+			TaskExternalId:        ct.ExternalID,
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDReplayTasks,
+		false,
+		true,
+		tasktypes.ReplayTasksPayload{Tasks: replayTasks},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create replay message for child task %s: %w", childExternalId, err)
+	}
+
+	if err := d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg); err != nil {
+		return fmt.Errorf("failed to send replay message for child task %s: %w", childExternalId, err)
+	}
+
+	return nil
+}
+
+func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *operator.DAGStepTriggerRequest) (*operator.DAGStepTriggerResult, error) {
+	task, err := d.repo.Tasks().GetTaskByExternalId(ctx, tenantId, req.ParentTaskExternalId, false)
+	if err != nil {
+		return nil, fmt.Errorf("task not found: %w", err)
+	}
+
+	childIndex := int64(req.ChildIndex)
+	stepLabel := req.ActionId
+	if parts := strings.SplitN(req.ActionId, ":", 2); len(parts) == 2 {
+		stepLabel = parts[1]
+	}
+
+	orchestratorWorkflowRunId := task.ExternalID
+	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
+		ReplayOrphanedChildren: true,
+		ParentReExecuted:       req.ParentReExecuted,
+		TriggerTaskData: &v1.TriggerTaskData{
+			WorkflowName:         req.WorkflowName, // todo: check if this should be `task.WorkflowName` instead
+			TargetActionId:       &req.ActionId,
+			UserMessage:          &stepLabel,
+			Data:                 []byte(req.Input),
+			AdditionalMetadata:   req.AdditionalMetadata,
+			ParentExternalId:     &task.ExternalID,
+			ParentTaskId:         &task.ID,
+			ParentTaskInsertedAt: &task.InsertedAt.Time,
+			ChildIndex:           &childIndex,
+			DagParentTaskRunIds:  req.DagParentTaskRunIds,
+			IsSkipped:            req.IsSkipped,
+			IsCancelled:          req.IsCancelled,
+			DesiredWorkerLabels:  req.DesiredWorkerLabels,
+			WorkflowRunId:        &orchestratorWorkflowRunId,
+			OlapDagId:            &task.ID,
+			OlapDagInsertedAt:    &task.InsertedAt.Time,
+		},
+	}}
+
+	ingestionResult, err := d.repo.DurableEvents().IngestDurableTaskEvent(ctx, v1.IngestDurableTaskEventOpts{
+		BaseIngestEventOpts: &v1.BaseIngestEventOpts{
+			TenantId:        tenantId,
+			Task:            task,
+			Kind:            sqlcv1.V1DurableEventLogKindRUN,
+			InvocationCount: req.InvocationCount,
+		},
+		TriggerRuns: &v1.IngestTriggerRunsOpts{
+			TriggerOpts: triggerOpts,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to ingest durable task event: %w", err)
+	}
+
+	dags := ingestionResult.TriggerRunsResult.CreatedDAGs
+	tasks := ingestionResult.TriggerRunsResult.CreatedTasks
+
+	if len(dags) > 0 || len(tasks) > 0 {
+		if sigErr := d.triggerWriter.SignalCreated(ctx, tenantId, tasks, dags); sigErr != nil {
+			d.l.Error().Err(sigErr).Msg("failed to signal created tasks/dags for dag step trigger")
+		}
+	}
+
+	if len(ingestionResult.TriggerRunsResult.Entries) == 0 {
+		return nil, fmt.Errorf("no entries returned from durable event ingestion")
+	}
+
+	entry := ingestionResult.TriggerRunsResult.Entries[0]
+
+	if entry.ChildNeedsReplay {
+		if err := d.replayDAGStepChild(ctx, tenantId, entry.WorkflowRunExternalId); err != nil {
+			return nil, err
+		}
+	}
+
+	return &operator.DAGStepTriggerResult{
+		NodeId:                entry.NodeId,
+		BranchId:              entry.BranchId,
+		WorkflowRunExternalId: entry.WorkflowRunExternalId,
+		IsSatisfied:           entry.IsSatisfied,
+		ResultPayload:         entry.ResultPayload,
+		IsFailure:             entry.ChildTaskIsFailure,
+		ErrorMessage:          entry.ChildTaskErrorMessage,
+		ReExecuted:            entry.ReExecuted,
+	}, nil
 }

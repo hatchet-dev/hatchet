@@ -27,6 +27,8 @@ type TaskOutputEvent struct {
 	ErrorMessage string `json:"error_message"`
 
 	StepReadableID string `json:"step_readable_id"`
+
+	IsDagOrchestrator bool `json:"is_dag_orchestrator"`
 }
 
 func (e *TaskOutputEvent) IsCompleted() bool {
@@ -115,10 +117,11 @@ func NewCancelledTaskOutputEvent(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 
 func baseFromReleaseTasksRow(row *sqlcv1.ReleaseTasksRow) *TaskOutputEvent {
 	return &TaskOutputEvent{
-		TaskExternalId: row.ExternalID,
-		TaskId:         row.ID,
-		RetryCount:     row.RetryCount,
-		StepReadableID: row.StepReadableID,
+		TaskExternalId:    row.ExternalID,
+		TaskId:            row.ID,
+		RetryCount:        row.RetryCount,
+		StepReadableID:    row.StepReadableID,
+		IsDagOrchestrator: row.IsDagOrchestrator,
 	}
 }
 
@@ -200,6 +203,8 @@ func ExtractOutputFromMatchData(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("no entries found in match data")
 }
 
+const TaskCancelledErrorMessage = "task was cancelled"
+
 func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 	var outer map[string]map[string][]json.RawMessage
 	if err := json.Unmarshal(data, &outer); err != nil {
@@ -217,6 +222,10 @@ func ExtractFailureFromMatchData(data []byte) (bool, *string, error) {
 			}
 			if event.IsFailure {
 				return true, &event.ErrorMessage, nil
+			}
+			if event.EventType == sqlcv1.V1TaskEventTypeCANCELLED {
+				msg := TaskCancelledErrorMessage
+				return true, &msg, nil
 			}
 		}
 	}

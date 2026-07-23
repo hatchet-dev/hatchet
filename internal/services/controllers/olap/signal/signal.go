@@ -101,6 +101,11 @@ func (s *OLAPSignaler) SignalTasksCreated(ctx context.Context, tenantId uuid.UUI
 			skippedTasks = append(skippedTasks, task)
 		}
 
+		// orchestrator tasks are represented in OLAP by their run's DAG row, not as tasks
+		if task.IsDagOrchestrator {
+			continue
+		}
+
 		msg, err := tasktypes.CreatedTaskMessage(tenantId, tasktypes.CreatedTaskPayload{V1TaskWithPayload: task})
 
 		if err != nil {
@@ -282,6 +287,11 @@ func (s *OLAPSignaler) signalTasksCreatedAndQueued(ctx context.Context, tenantId
 	// notify that tasks have been created
 	// TODO: make this transactionally safe?
 	for _, task := range tasks {
+		// orchestrator tasks have no OLAP task row for monitoring events to attach to
+		if task.IsDagOrchestrator {
+			continue
+		}
+
 		msg := ""
 
 		if len(task.ConcurrencyKeys) > 0 {

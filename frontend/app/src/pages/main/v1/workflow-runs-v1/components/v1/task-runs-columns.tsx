@@ -185,7 +185,7 @@ export const columns: (
       <DataTableColumnHeader column={column} title={TaskRunColumn.taskName} />
     ),
     cell: ({ row }) => {
-      if (row.getCanExpand()) {
+      if (row.original.type === 'DAG') {
         return (
           <Link
             to={appRoutes.tenantRunRoute.to}

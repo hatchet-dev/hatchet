@@ -49,7 +49,8 @@ WITH input AS (
 		unnest($35::uuid[]) AS triggering_event_external_id,
 		unnest($36::text[]) AS triggering_event_key,
 		unnest($37::text[]) AS idempotency_key,
-		unnest($38::text[]) AS batch_key
+		unnest($38::text[]) AS batch_key,
+		unnest($39::boolean[]) AS is_dag_orchestrator
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -90,7 +91,8 @@ INSERT INTO v1_task (
 	triggering_event_external_id,
 	triggering_event_key,
 	idempotency_key,
-	batch_key
+	batch_key,
+	is_dag_orchestrator
 )
 SELECT
     i.tenant_id,
@@ -134,13 +136,14 @@ SELECT
 	CASE
 		WHEN sbc.batch_max_size IS NOT NULL AND sbc.batch_max_size >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
 		ELSE NULLIF(BTRIM(i.batch_key), '')
-	END
+	END,
+	i.is_dag_orchestrator
 FROM
     input i
 LEFT JOIN
 	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key, is_dag_orchestrator
 `
 
 type CreateTasksParams struct {
@@ -183,6 +186,7 @@ type CreateTasksParams struct {
 	DesiredWorkerLabels          [][]byte             `json:"desiredWorkerLabels"`
 	TriggeringEventExternalIds   []*uuid.UUID         `json:"triggeringEventExternalIds"`
 	TriggeringEventKeys          []pgtype.Text        `json:"triggeringEventKeys"`
+	IsDagOrchestrators           []bool               `json:"isDagOrchestrators"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
 	BatchKeys                    []string             `json:"batchKeys"`
 }
@@ -240,6 +244,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.TriggeringEventKeys,
 		arg.IdempotencyKeys,
 		arg.BatchKeys,
+		arg.IsDagOrchestrators,
 	)
 	if err != nil {
 		return nil, err
@@ -292,6 +297,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.TriggeringEventKey,
 			&i.IdempotencyKey,
 			&i.BatchKey,
+			&i.IsDagOrchestrator,
 		); err != nil {
 			return nil, err
 		}
@@ -827,7 +833,8 @@ SELECT
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids,
-	t.idempotency_key
+	t.idempotency_key,
+    t.is_dag_orchestrator
 FROM
     v1_task t
 JOIN
@@ -856,6 +863,7 @@ type ReleaseTasksRow struct {
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
 	IdempotencyKey         pgtype.Text        `json:"idempotency_key"`
+	IsDagOrchestrator      bool               `json:"is_dag_orchestrator"`
 }
 
 func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksParams) ([]*ReleaseTasksRow, error) {
@@ -888,6 +896,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,
 				&i.IdempotencyKey,
+				&i.IsDagOrchestrator,
 			); err != nil {
 				errCh <- err
 				close(rowsCh)
@@ -1099,6 +1108,39 @@ func (q *Queries) BulkCreateEvents(ctx context.Context, db DBTX, arg BulkCreateE
 			return nil, err
 		}
 		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// note: this is an overwrite because sqlc can't seem to figure out that the return type is `[]uuid.UUID` and not `[]*uuid.UUID` even though
+// we filter out null ids in the query
+const listDurableOrchestratorChildTaskExternalIds = `-- name: ListDurableOrchestratorChildTaskExternalIds :many
+SELECT DISTINCT e.child_task_external_id
+FROM v1_lookup_table l
+JOIN v1_task orch ON (orch.id, orch.inserted_at, orch.is_dag_orchestrator) = (l.task_id, l.inserted_at, TRUE)
+JOIN v1_durable_event_log_entry e ON (e.durable_task_id, e.durable_task_inserted_at) = (orch.id, orch.inserted_at)
+WHERE
+    l.external_id = ANY($1::uuid[])
+    AND e.kind = 'RUN'
+    AND e.child_task_external_id IS NOT NULL
+`
+
+func (q *Queries) ListDurableOrchestratorChildTaskExternalIds(ctx context.Context, db DBTX, externalids []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := db.Query(ctx, listDurableOrchestratorChildTaskExternalIds, externalids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var child_task_external_id uuid.UUID
+		if err := rows.Scan(&child_task_external_id); err != nil {
+			return nil, err
+		}
+		items = append(items, child_task_external_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

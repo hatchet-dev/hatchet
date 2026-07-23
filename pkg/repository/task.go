@@ -259,6 +259,8 @@ type TaskRepository interface {
 	// This is non-cacheable because tasks can be added to a workflow run as it executes.
 	FlattenExternalIds(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.FlattenExternalIdsRow, error)
 
+	ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error)
+
 	CompleteTasks(ctx context.Context, tenantId uuid.UUID, tasks []CompleteTaskOpts) (*FinalizedTaskResponse, error)
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
@@ -273,9 +275,16 @@ type TaskRepository interface {
 
 	ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, error)
 
+	// ListDurableOrchestratorChildOutputEvents returns the terminal output events of the child tasks spawned by a DAG orchestrator.
+	ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error)
+
 	// ListTaskParentOutputs is a method to return the output of a task's parent and grandparent tasks. This is for v0 compatibility
 	// with the v1 engine, and shouldn't be called from new v1 endpoints.
 	ListTaskParentOutputs(ctx context.Context, tenantId uuid.UUID, tasks []*sqlcv1.V1Task) (map[int64][]*TaskOutputEvent, error)
+
+	// GetDagParentOutputs looks up completed output data for tasks identified by their workflow run external IDs.
+	// Used for durable DAG orchestration where parent outputs are resolved at dispatch time.
+	GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[string]json.RawMessage, error)
 
 	DefaultTaskActivityGauge(ctx context.Context, tenantId string) (int, error)
 
@@ -1271,6 +1280,24 @@ func (r *TaskRepositoryImpl) ListTaskRuntimes(ctx context.Context, tenantId uuid
 	return result, nil
 }
 
+func (r *TaskRepositoryImpl) ListDurableOrchestratorChildOutputEvents(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]*TaskOutputEvent, error) {
+	childExternalIds, err := r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to list durable orchestrator child task external ids: %w", err)
+	}
+
+	if len(childExternalIds) == 0 {
+		return nil, nil
+	}
+
+	return r.listTaskOutputEvents(ctx, r.pool, tenantId, childExternalIds)
+}
+
+func (r *TaskRepositoryImpl) ListDurableOrchestratorChildExternalIds(ctx context.Context, tenantId, orchestratorExternalId uuid.UUID) ([]uuid.UUID, error) {
+	return r.queries.ListDurableOrchestratorChildTaskExternalIds(ctx, r.pool, []uuid.UUID{orchestratorExternalId})
+}
+
 func (r *TaskRepositoryImpl) listTaskOutputEvents(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, taskExternalIds []uuid.UUID) ([]*TaskOutputEvent, error) {
 	eventTypes := make([][]string, 0)
 
@@ -2103,6 +2130,7 @@ func (r *sharedRepository) insertTasks(
 	workflowRunIds := make([]uuid.UUID, len(tasks))
 	isDurables := make([]bool, len(tasks))
 	desiredWorkerLabels := make([][]byte, len(tasks))
+	isDagOrchestrators := make([]bool, len(tasks))
 	batchKeys := make([]string, len(tasks))
 
 	externalIdToInput := make(map[uuid.UUID][]byte, len(tasks))
@@ -2131,6 +2159,7 @@ func (r *sharedRepository) insertTasks(
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff
 		workflowRunIds[i] = task.WorkflowRunId
 		isDurables[i] = stepConfig.IsDurable
+		isDagOrchestrators[i] = stepConfig.IsDagOrchestrator
 
 		externalIdToInput[task.ExternalId] = r.ToV1StepRunData(task.Input).Bytes()
 
@@ -2453,6 +2482,7 @@ func (r *sharedRepository) insertTasks(
 				DesiredWorkerLabels:          make([][]byte, 0),
 				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
 				TriggeringEventKeys:          make([]pgtype.Text, 0),
+				IsDagOrchestrators:           make([]bool, 0),
 				IdempotencyKeys:              make([]pgtype.Text, 0),
 			}
 		}
@@ -2493,6 +2523,7 @@ func (r *sharedRepository) insertTasks(
 		params.BatchKeys = append(params.BatchKeys, batchKeys[i])
 		params.IsDurables = append(params.IsDurables, isDurables[i])
 		params.TriggeringEventExternalIds = append(params.TriggeringEventExternalIds, task.TriggeringEventExternalId)
+		params.IsDagOrchestrators = append(params.IsDagOrchestrators, isDagOrchestrators[i])
 
 		triggeringEventKey := pgtype.Text{}
 
@@ -4111,6 +4142,10 @@ func (r *TaskRepositoryImpl) ListTaskParentOutputs(ctx context.Context, tenantId
 	return resMap, nil
 }
 
+func (r *TaskRepositoryImpl) GetDagParentOutputs(ctx context.Context, tenantId uuid.UUID, parentExternalIds []uuid.UUID) (map[string]json.RawMessage, error) {
+	return r.sharedRepository.lookupParentOutputsByWorkflowRunIds(ctx, tenantId, parentExternalIds)
+}
+
 func (r *TaskRepositoryImpl) ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error) {
 	taskIds := make([]int64, 0)
 	taskInsertedAts := make([]pgtype.Timestamptz, 0)
@@ -4602,6 +4637,8 @@ type WorkflowRunDetails struct {
 	ReadableIdToDetails map[StepReadableId]TaskRunDetails
 	InputPayload        []byte
 	AdditionalMetadata  []byte
+
+	OrchestratorStatus *statusutils.V1RunStatus // used for dag orchestrator to override the dag status
 }
 
 func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, tenantId uuid.UUID, externalId uuid.UUID) (*WorkflowRunDetails, error) {
@@ -4611,14 +4648,53 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		return nil, fmt.Errorf("failed to flatten external ids: %w", err)
 	}
 
-	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, []uuid.UUID{externalId})
+	if len(flat) == 0 {
+		return nil, nil
+	}
+
+	rootExternalIds := []uuid.UUID{externalId}
+	isOperatorDAG := len(flat) == 1 && flat[0].IsDagOrchestrator
+	var orchestratorDagShape DagShape
+
+	var childExternalIds []uuid.UUID
+
+	if isOperatorDAG {
+		orchestrator := flat[0]
+		childExternalIds, err = r.ListDurableOrchestratorChildExternalIds(ctx, tenantId, orchestrator.ExternalID)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list child task external ids: %w", err)
+		}
+
+		flattenedChildren, err := r.FlattenExternalIds(ctx, tenantId, childExternalIds)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to flatten child task external ids: %w", err)
+		}
+
+		flat = append(flat, flattenedChildren...)
+
+		for _, child := range flattenedChildren {
+			rootExternalIds = append(rootExternalIds, child.ExternalID)
+		}
+
+		version, err := r.queries.GetWorkflowVersionById(ctx, r.pool, orchestrator.WorkflowVersionID)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get workflow version: %w", err)
+		}
+
+		err = json.Unmarshal(version.WorkflowVersion.DagShape, &orchestratorDagShape)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dag shape: %w", err)
+		}
+	}
+
+	finalizedWorkflowRuns, err := r.ListFinalizedWorkflowRuns(ctx, tenantId, rootExternalIds)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list finalized workflow runs: %w", err)
-	}
-
-	if len(flat) == 0 {
-		return nil, nil
 	}
 
 	var inputRetrieveOpt RetrievePayloadOpts
@@ -4693,6 +4769,8 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		externalIdToIsEvicted[stat.ExternalID] = stat.IsEvicted
 	}
 
+	var orchestratorStatus *statusutils.V1RunStatus
+
 	for _, task := range flat {
 		isRunning := externalIdToIsRunning[task.ExternalID]
 		isEvicted := externalIdToIsEvicted[task.ExternalID]
@@ -4702,6 +4780,12 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			status = statusutils.V1RunStatusEvicted
 		} else if isRunning {
 			status = statusutils.V1RunStatusRunning
+		}
+
+		if isOperatorDAG && task.ExternalID == externalId {
+			s := status
+			orchestratorStatus = &s
+			continue
 		}
 
 		// default everything to QUEUED
@@ -4719,30 +4803,37 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 			InputPayload:        input,
 			ReadableIdToDetails: taskRunDetails,
 			AdditionalMetadata:  additionalMeta,
+			OrchestratorStatus:  orchestratorStatus,
 		}, nil
 	}
 
 	outputs := make(map[string][]byte)
 	errors := make(map[string]string)
-	finalizedRun := finalizedWorkflowRuns[0]
 
-	for _, event := range finalizedRun.OutputEvents {
-		outputs[event.StepReadableID] = event.Output
-		errors[event.StepReadableID] = event.ErrorMessage
+	for _, finalizedRun := range finalizedWorkflowRuns {
+		for _, event := range finalizedRun.OutputEvents {
+			status, err := statusutils.V1RunStatusFromEventType(event.EventType)
 
-		status, err := statusutils.V1RunStatusFromEventType(event.EventType)
+			if err != nil {
+				r.l.Error().Ctx(ctx).Msgf("failed to parse event type %s: %v", event.EventType, err)
+				statusPtr := statusutils.V1RunStatusQueued
+				status = &statusPtr
+			}
 
-		if err != nil {
-			r.l.Error().Ctx(ctx).Msgf("failed to parse event type %s: %v", event.EventType, err)
-			statusPtr := statusutils.V1RunStatusQueued
-			status = &statusPtr
-		}
+			if isOperatorDAG && event.IsDagOrchestrator {
+				orchestratorStatus = status
+				continue
+			}
 
-		taskRunDetails[StepReadableId(event.StepReadableID)] = TaskRunDetails{
-			OutputPayload: event.Output,
-			Status:        *status,
-			Error:         &event.ErrorMessage,
-			ExternalId:    event.TaskExternalId,
+			outputs[event.StepReadableID] = event.Output
+			errors[event.StepReadableID] = event.ErrorMessage
+
+			taskRunDetails[StepReadableId(event.StepReadableID)] = TaskRunDetails{
+				OutputPayload: event.Output,
+				Status:        *status,
+				Error:         &event.ErrorMessage,
+				ExternalId:    event.TaskExternalId,
+			}
 		}
 	}
 
@@ -4750,6 +4841,7 @@ func (r *TaskRepositoryImpl) GetWorkflowRunResultDetails(ctx context.Context, te
 		InputPayload:        input,
 		ReadableIdToDetails: taskRunDetails,
 		AdditionalMetadata:  additionalMeta,
+		OrchestratorStatus:  orchestratorStatus,
 	}, nil
 }
 

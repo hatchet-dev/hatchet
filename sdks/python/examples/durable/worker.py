@@ -14,6 +14,7 @@ from hatchet_sdk import (
     SleepCondition,
     UserEventCondition,
     or_,
+    EvictionPolicy,
 )
 from hatchet_sdk.exceptions import NonDeterminismError
 
@@ -424,7 +425,10 @@ class ReplayResetResponse(BaseModel):
     sleep_3_duration: float
 
 
-@hatchet.durable_task(execution_timeout=timedelta(seconds=20))
+@hatchet.durable_task(
+    execution_timeout=timedelta(seconds=20),
+    eviction_policy=EvictionPolicy(allow_capacity_eviction=False, ttl=None),
+)
 async def durable_replay_reset(
     input: EmptyModel, ctx: DurableContext
 ) -> ReplayResetResponse:

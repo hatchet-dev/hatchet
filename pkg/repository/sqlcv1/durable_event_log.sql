@@ -60,7 +60,8 @@ INSERT INTO v1_durable_event_log_branch_point (
     durable_task_inserted_at,
     first_node_id_in_new_branch,
     parent_branch_id,
-    next_branch_id
+    next_branch_id,
+    replay_child_external_ids
 )
 VALUES (
     @tenantId::UUID,
@@ -68,7 +69,8 @@ VALUES (
     @durableTaskInsertedAt::TIMESTAMPTZ,
     @firstNodeIdInNewBranch::BIGINT,
     @parentBranchId::BIGINT,
-    @nextBranchId::BIGINT
+    @nextBranchId::BIGINT,
+    sqlc.narg('replayChildExternalIds')::UUID[]
 )
 RETURNING *
 ;

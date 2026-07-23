@@ -265,33 +265,32 @@ func (q *Queries) GetOperator(ctx context.Context, db DBTX, id uuid.UUID) (*V1Op
 	return &i, err
 }
 
-const listDAGWorkflowIdsForTenant = `-- name: ListDAGWorkflowIdsForTenant :many
-SELECT DISTINCT w."id"
-FROM "Workflow" w
-JOIN "WorkflowVersion" wv ON wv."workflowId" = w."id"
+const listDAGOrchestrationActionsForTenant = `-- name: ListDAGOrchestrationActionsForTenant :many
+SELECT DISTINCT s."actionId"::text AS action
+FROM "Step" s
+JOIN "Job" j ON j."id" = s."jobId"
+JOIN "WorkflowVersion" wv ON wv."id" = j."workflowVersionId"
 WHERE
-    w."tenantId" = $1::UUID
-    AND w."deletedAt" IS NULL
+    s."tenantId" = $1::UUID
+    AND s."isDagOrchestrator" = true
+    AND s."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
-    AND wv."kind" = 'DAG'
-ORDER BY w."id"
+ORDER BY action
 `
 
-// Returns the ids of all DAG workflows for a tenant. The DAG operator registers these as
-// worker actions so tasks for those workflows are routed to it.
-func (q *Queries) ListDAGWorkflowIdsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := db.Query(ctx, listDAGWorkflowIdsForTenant, tenantid)
+func (q *Queries) ListDAGOrchestrationActionsForTenant(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]string, error) {
+	rows, err := db.Query(ctx, listDAGOrchestrationActionsForTenant, tenantid)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []string
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var action string
+		if err := rows.Scan(&action); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, action)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -352,6 +351,23 @@ func (q *Queries) ListOperators(ctx context.Context, db DBTX, arg ListOperatorsP
 		return nil, err
 	}
 	return items, nil
+}
+
+const tenantHasDAGOperator = `-- name: TenantHasDAGOperator :one
+SELECT EXISTS(
+    SELECT 1
+    FROM v1_operator
+    WHERE
+        tenant_id = $1::UUID
+        AND kind = 'DAG'
+) AS has_operator
+`
+
+func (q *Queries) TenantHasDAGOperator(ctx context.Context, db DBTX, tenantid uuid.UUID) (bool, error) {
+	row := db.QueryRow(ctx, tenantHasDAGOperator, tenantid)
+	var has_operator bool
+	err := row.Scan(&has_operator)
+	return has_operator, err
 }
 
 const updateOperator = `-- name: UpdateOperator :one

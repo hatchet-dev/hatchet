@@ -84,6 +84,12 @@ type IngestTriggerRunsEntry struct {
 	WorkflowRunExternalId uuid.UUID
 	IsSatisfied           bool
 	AlreadyExisted        bool
+
+	ChildNeedsReplay bool
+
+	// ReExecuted is true when the entry was newly created this invocation, i.e. the child
+	// actually runs rather than being satisfied from a cached log entry.
+	ReExecuted bool
 }
 
 type IngestTriggerRunsResult struct {
@@ -140,6 +146,7 @@ type NodeIdBranchIdTuple struct {
 type DurableEventsRepository interface {
 	IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error)
 	HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error)
+	HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error)
 
 	GetSatisfiedDurableEvents(ctx context.Context, tenantId uuid.UUID, events []TaskExternalIdNodeIdBranchId) ([]*SatisfiedEventWithPayload, error)
 	GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error)
@@ -891,25 +898,14 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 			if row.ChildTaskExternalID == nil {
 				continue
 			}
-			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &sqlcv1.BulkGetDurableEventLogEntriesRow{
-				TenantID:                row.TenantID,
-				ExternalID:              row.ExternalID,
-				ChildTaskExternalID:     row.ChildTaskExternalID,
-				ResultPayloadExternalID: row.ResultPayloadExternalID,
-				InsertedAt:              row.InsertedAt,
-				ID:                      row.ID,
-				DurableTaskID:           row.DurableTaskID,
-				DurableTaskInsertedAt:   row.DurableTaskInsertedAt,
-				Kind:                    row.Kind,
-				NodeID:                  row.NodeID,
-				BranchID:                row.BranchID,
-				IdempotencyKey:          row.IdempotencyKey,
-				IsSatisfied:             row.IsSatisfied,
-				SatisfiedAt:             row.SatisfiedAt,
-				UserMessage:             row.UserMessage,
-				WaitData:                row.WaitData,
-				InvocationCount:         row.InvocationCount,
+
+			// node ids restart every re-invocation, so a child's newest entry is on the highest branch
+			if existing, ok := childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID]; ok && existing.BranchID >= row.BranchID {
+				continue
 			}
+
+			r := sqlcv1.BulkGetDurableEventLogEntriesRow(*row)
+			childTaskExternalIdToSkipEntry[*row.ChildTaskExternalID] = &r
 		}
 
 		for _, o := range skipOpts {
@@ -1035,6 +1031,90 @@ func (r *durableEventsRepository) getOrCreateEventLogEntries(
 	return results, nil
 }
 
+func (r *durableEventsRepository) resolveOrphanedChildDedupes(
+	ctx context.Context,
+	tx sqlcv1.DBTX,
+	logFile *sqlcv1.V1DurableEventLogFile,
+	nextBranchIdToBranchPoint map[int64]*sqlcv1.V1DurableEventLogBranchPoint,
+	triggerOpts []*WorkflowNameTriggerOpts,
+) (map[uuid.UUID]bool, error) {
+	childrenToReplay := make(map[uuid.UUID]bool)
+	skipChildIds := make([]uuid.UUID, 0)
+
+	for _, to := range triggerOpts {
+		if to.ShouldSkip {
+			skipChildIds = append(skipChildIds, to.ExternalId)
+		}
+	}
+
+	if len(skipChildIds) == 0 {
+		return childrenToReplay, nil
+	}
+
+	rows, err := r.queries.GetDurableEventLogEntriesByChildTaskExternalIds(ctx, tx, sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsParams{
+		Durabletaskid:         logFile.DurableTaskID,
+		Durabletaskinsertedat: logFile.DurableTaskInsertedAt,
+		Childtaskexternalids:  skipChildIds,
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get log entries for deduped child runs: %w", err)
+	}
+
+	// A NULL forced set (pre-column branch points, or worker-initiated HandleBranch) means every
+	// orphaned child is replayed.
+	var forcedReplayChildren map[uuid.UUID]bool
+
+	if bp, ok := nextBranchIdToBranchPoint[logFile.LatestBranchID]; ok && bp.ReplayChildExternalIds != nil {
+		forcedReplayChildren = make(map[uuid.UUID]bool, len(bp.ReplayChildExternalIds))
+		for _, id := range bp.ReplayChildExternalIds {
+			forcedReplayChildren[id] = true
+		}
+	}
+
+	childOnActiveBranch := make(map[uuid.UUID]bool)
+	latestEntryByChild := make(map[uuid.UUID]*sqlcv1.GetDurableEventLogEntriesByChildTaskExternalIdsRow)
+
+	for _, row := range rows {
+		if row.ChildTaskExternalID == nil {
+			continue
+		}
+
+		if resolveBranchForNode(row.NodeID, logFile.LatestBranchID, nextBranchIdToBranchPoint) == row.BranchID {
+			childOnActiveBranch[*row.ChildTaskExternalID] = true
+		}
+
+		// node ids restart every re-invocation, so a child's newest entry is on the highest branch
+		if latest, ok := latestEntryByChild[*row.ChildTaskExternalID]; !ok || row.BranchID > latest.BranchID {
+			latestEntryByChild[*row.ChildTaskExternalID] = row
+		}
+	}
+
+	for _, to := range triggerOpts {
+		if !to.ShouldSkip || childOnActiveBranch[to.ExternalId] {
+			continue
+		}
+
+		if to.ReplayOrphanedChildren {
+			forced := forcedReplayChildren[to.ExternalId] || to.ParentReExecuted
+			latestSatisfied := latestEntryByChild[to.ExternalId] != nil && latestEntryByChild[to.ExternalId].IsSatisfied
+
+			if forcedReplayChildren != nil && !forced && latestSatisfied {
+				// untouched subtree: the skip path returns the cached result without re-running
+				continue
+			}
+
+			to.ShouldSkip = false
+			childrenToReplay[to.ExternalId] = true
+		} else {
+			to.ShouldSkip = false
+			to.ExternalId = uuid.New()
+		}
+	}
+
+	return childrenToReplay, nil
+}
+
 func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, opts IngestDurableTaskEventOpts) (*IngestDurableTaskEventResult, error) {
 	if err := r.v.Validate(opts); err != nil {
 		return nil, fmt.Errorf("invalid opts: %w", err)
@@ -1080,11 +1160,17 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 	nodeIdBranchIdToTriggerOpts := make(map[NodeIdBranchIdTuple]*WorkflowNameTriggerOpts)
 	runExternalIdToNodeIdBranchId := make(map[uuid.UUID]NodeIdBranchIdTuple)
 	externalIdToTriggerOpts := make(map[uuid.UUID]*WorkflowNameTriggerOpts)
+	childrenToReplay := make(map[uuid.UUID]bool)
 
 	switch opts.Kind {
 	case sqlcv1.V1DurableEventLogKindRUN:
 		if populateErr := r.populateExternalIdsForWorkflow(ctx, tx, tenantId, opts.TriggerRuns.TriggerOpts); populateErr != nil {
 			return nil, fmt.Errorf("failed to populate external ids for workflow: %w", populateErr)
+		}
+
+		childrenToReplay, err = r.resolveOrphanedChildDedupes(ctx, tx, logFile, nextBranchIdToBranchPoint, opts.TriggerRuns.TriggerOpts)
+		if err != nil {
+			return nil, err
 		}
 
 		innerOpts := make([]GetOrCreateLogEntryOpt, len(opts.TriggerRuns.TriggerOpts))
@@ -1129,6 +1215,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				return nil, fmt.Errorf("failed to create idempotency key: %w", keyErr)
 			}
 
+			// A re-executed child that is being cancelled or skipped this time around never
+			// runs, so no completion event will arrive for it: its entry is terminal at
+			// creation. The operator marks such steps complete locally when it triggers them.
+			isSatisfied := childrenToReplay[triggerOpts.ExternalId] && (triggerOpts.IsCancelled || triggerOpts.IsSkipped)
+
 			innerOpts[i] = GetOrCreateLogEntryOpt{
 				Kind:                sqlcv1.V1DurableEventLogKindRUN,
 				NodeId:              nodeId,
@@ -1138,6 +1229,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				IdempotencyKey:      idempotencyKey,
 				InputPayload:        inputPayload,
 				WaitData:            marshalWaitData(waitDataFromTriggerOpt(triggerOpts)),
+				UserMessage:         triggerOpts.UserMessage,
+				IsSatisfied:         isSatisfied,
 			}
 
 			nodeBranchKey := NodeIdBranchIdTuple{NodeId: nodeId, BranchId: branchId}
@@ -1262,6 +1355,11 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				childTaskErrorMessage = &entry.Entry.ChildTaskErrorMessage.String
 			}
 
+			childNeedsReplay := !entry.AlreadyExisted &&
+				!entry.Entry.IsSatisfied &&
+				entry.Entry.ChildTaskExternalID != nil &&
+				childrenToReplay[*entry.Entry.ChildTaskExternalID]
+
 			entries[i] = &IngestTriggerRunsEntry{
 				NodeId:                entry.Entry.NodeID,
 				BranchId:              entry.Entry.BranchID,
@@ -1271,6 +1369,8 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				WorkflowRunExternalId: workflowRunExternalId,
 				ChildTaskIsFailure:    entry.Entry.ChildTaskIsFailure,
 				ChildTaskErrorMessage: childTaskErrorMessage,
+				ChildNeedsReplay:      childNeedsReplay,
+				ReExecuted:            !entry.AlreadyExisted,
 			}
 		}
 
@@ -1288,6 +1388,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 
 			if le.Entry.ChildTaskExternalID == nil {
 				return nil, fmt.Errorf("new RUN log entry at nodeId %d branchId %d is missing child_task_external_id", le.Entry.NodeID, le.Entry.BranchID)
+			}
+
+			// Re-executed children already have task rows; they are replayed by the caller
+			// rather than triggered as new runs.
+			if childrenToReplay[*le.Entry.ChildTaskExternalID] {
+				continue
 			}
 
 			triggerOpts := externalIdToTriggerOpts[*le.Entry.ChildTaskExternalID]
@@ -1312,6 +1418,12 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			dagExternalIds := make(map[uuid.UUID]struct{}, len(createdDags))
 
 			for _, dag := range createdDags {
+				// operator runs are signaled by their orchestrator task's completion, not
+				// by per-step conditions, so they're handled in the created tasks loop below
+				if dag.IsOperatorRun {
+					continue
+				}
+
 				dagExternalIds[dag.ExternalID] = struct{}{}
 			}
 
@@ -1376,6 +1488,10 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 			}
 
 			for _, dag := range createdDags {
+				if dag.IsOperatorRun {
+					continue
+				}
+
 				conditions := make([]GroupMatchCondition, 0, len(dag.TaskExternalIDs)*3)
 
 				for i, taskExtId := range dag.TaskExternalIDs {
@@ -1445,6 +1561,79 @@ func (r *durableEventsRepository) IngestDurableTaskEvent(ctx context.Context, op
 				if matchErr := r.createEventMatches(ctx, tx, tenantId, createMatchOpts); matchErr != nil {
 					return nil, fmt.Errorf("failed to register run completion matches: %w", matchErr)
 				}
+			}
+		}
+
+		// Re-executed children keep their task rows, so no new run was triggered above — but the
+		// previous completion match was consumed when the old entry was satisfied, so a fresh
+		// match tied to the new entry must be registered before the caller replays the task.
+		replayMatchOpts := make([]CreateMatchOpts, 0)
+
+		for _, le := range logEntries {
+			if le.AlreadyExisted || le.Entry.IsSatisfied || le.Entry.ChildTaskExternalID == nil {
+				continue
+			}
+
+			childExternalId := *le.Entry.ChildTaskExternalID
+
+			if !childrenToReplay[childExternalId] {
+				continue
+			}
+
+			childHint := childExternalId.String()
+			orGroupId := uuid.New()
+
+			conditions := []GroupMatchCondition{
+				{
+					GroupId:           orGroupId,
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeCOMPLETED),
+					ReadableDataKey:   "output",
+					EventResourceHint: &childHint,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCREATE,
+				},
+				{
+					GroupId:           orGroupId,
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeFAILED),
+					ReadableDataKey:   "output",
+					EventResourceHint: &childHint,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCREATE,
+				},
+				{
+					GroupId:           orGroupId,
+					EventType:         sqlcv1.V1EventTypeINTERNAL,
+					EventKey:          string(sqlcv1.V1TaskEventTypeCANCELLED),
+					ReadableDataKey:   "output",
+					EventResourceHint: &childHint,
+					Expression:        "true",
+					Action:            sqlcv1.V1MatchConditionActionCREATE,
+				},
+			}
+
+			nodeId := le.Entry.NodeID
+			branchId := le.Entry.BranchID
+			runEventLogEntrySignalKey := fmt.Sprintf("durable_run:%s:%d:%d", task.ExternalID.String(), branchId, nodeId)
+			taskId := task.ID
+
+			replayMatchOpts = append(replayMatchOpts, CreateMatchOpts{
+				Kind:                         sqlcv1.V1MatchKindSIGNAL,
+				Conditions:                   conditions,
+				SignalTaskId:                 &taskId,
+				SignalTaskInsertedAt:         task.InsertedAt,
+				SignalExternalId:             &childExternalId,
+				SignalTaskExternalId:         &task.ExternalID,
+				SignalKey:                    &runEventLogEntrySignalKey,
+				DurableEventLogEntryNodeId:   &nodeId,
+				DurableEventLogEntryBranchId: &branchId,
+			})
+		}
+
+		if len(replayMatchOpts) > 0 {
+			if matchErr := r.createEventMatches(ctx, tx, tenantId, replayMatchOpts); matchErr != nil {
+				return nil, fmt.Errorf("failed to register replayed run completion matches: %w", matchErr)
 			}
 		}
 	case sqlcv1.V1DurableEventLogKindWAITFOR:
@@ -1714,6 +1903,10 @@ func (r *durableEventsRepository) CompleteMemoEntry(ctx context.Context, opts Co
 }
 
 func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow) (*HandleBranchResult, error) {
+	return r.handleBranch(ctx, tenantId, nodeId, branchId, task, nil)
+}
+
+func (r *durableEventsRepository) handleBranch(ctx context.Context, tenantId uuid.UUID, nodeId, branchId int64, task *sqlcv1.FlattenExternalIdsRow, replayChildExternalIds []uuid.UUID) (*HandleBranchResult, error) {
 	optTx, err := r.PrepareOptimisticTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare tx: %w", err)
@@ -1749,6 +1942,7 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 		Nextbranchid:           newBranchId,
 		Durabletaskid:          task.ID,
 		Durabletaskinsertedat:  task.InsertedAt,
+		ReplayChildExternalIds: replayChildExternalIds,
 	})
 
 	if err != nil {
@@ -1764,6 +1958,23 @@ func (r *durableEventsRepository) HandleBranch(ctx context.Context, tenantId uui
 		BranchId:     newBranchId,
 		EventLogFile: logFile,
 	}, nil
+}
+
+func (r *durableEventsRepository) HandleBranchForDAGReplay(ctx context.Context, tenantId uuid.UUID, task *sqlcv1.FlattenExternalIdsRow, forcedChildExternalIds []uuid.UUID) (*HandleBranchResult, error) {
+	logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, r.pool, sqlcv1.GetDurableTaskLogFilesParams{
+		Durabletaskids:         []int64{task.ID},
+		Durabletaskinsertedats: []pgtype.Timestamptz{task.InsertedAt},
+		Tenantids:              []uuid.UUID{tenantId},
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get log file for replay branch: %w", err)
+	}
+	if len(logFiles) == 0 {
+		return nil, nil
+	}
+
+	return r.handleBranch(ctx, tenantId, 0, logFiles[0].LatestBranchID, task, forcedChildExternalIds)
 }
 
 func (r *durableEventsRepository) GetDurableTaskInvocationCounts(ctx context.Context, tenantId uuid.UUID, tasks []IdInsertedAt) (map[IdInsertedAt]*int32, error) {
