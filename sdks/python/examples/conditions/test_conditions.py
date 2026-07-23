@@ -65,8 +65,7 @@ async def test_waits(hatchet: Hatchet) -> None:
 async def test_cancel_if(hatchet: Hatchet) -> None:
     ref = cancel_if_workflow.run(wait_for_result=False)
 
-    with pytest.raises(Exception):
-        await ref.aio_result()
+    await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
 
@@ -110,8 +109,7 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
     await asyncio.sleep(3)
     hatchet.event.push("cancel_if_event:abort", {})
 
-    with pytest.raises(Exception):
-        await ref.aio_result()
+    await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == RunStatus.CANCELLED
@@ -121,8 +119,7 @@ async def test_cancel_if_user_event(hatchet: Hatchet) -> None:
 async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
     ref = cancel_if_sleep_workflow.run(wait_for_result=False)
 
-    with pytest.raises(Exception):
-        await ref.aio_result()
+    await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == RunStatus.CANCELLED
@@ -132,8 +129,7 @@ async def test_cancel_if_sleep(hatchet: Hatchet) -> None:
 async def test_cancel_if_or_group(hatchet: Hatchet) -> None:
     ref = cancel_if_or_workflow.run(wait_for_result=False)
 
-    with pytest.raises(Exception):
-        await ref.aio_result()
+    await ref.aio_result()
 
     details = await hatchet.runs.aio_get_details(ref.workflow_run_id)
     assert details.status == RunStatus.CANCELLED

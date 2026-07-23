@@ -154,7 +154,7 @@ hatchet = Hatchet()
 def main() -> None:
     worker = hatchet.worker(
         "e2e-test-worker",
-        slots=100,
+        slots=250,
         workflows=[
             affinity_worker_workflow,
             batch_simple,

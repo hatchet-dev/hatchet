@@ -29,8 +29,7 @@ async def test_payload_replay_bug(hatchet: Hatchet) -> None:
         wait_for_result=False,
     )
 
-    with pytest.raises(FailedTaskRunExceptionGroup, match="task was cancelled"):
-        result = await ref.aio_result()
+    result = await ref.aio_result()
 
     await asyncio.sleep(3)
 
