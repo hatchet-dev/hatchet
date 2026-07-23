@@ -56,6 +56,8 @@ type TaskShared struct {
 	// Concurrency defines constraints on how many instances of this task can run simultaneously
 	Concurrency []*types.Concurrency
 
+	// DisplayName is a CEL expression evaluated against run input to derive the task's display name
+	DisplayName *string
 	// SlotCost is the number of default worker slots a non-durable task consumes. Defaults to one.
 	// Durable tasks ignore it.
 	SlotCost *int32
@@ -140,6 +142,7 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 	taskOpts := &contracts.CreateTaskOpts{
 		RateLimits:  make([]*contracts.CreateTaskRateLimit, len(t.RateLimits)),
 		Concurrency: make([]*contracts.Concurrency, len(t.Concurrency)),
+		DisplayName: t.DisplayName,
 	}
 
 	for j, rateLimit := range t.RateLimits {

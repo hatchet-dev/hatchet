@@ -50,6 +50,11 @@ message TriggerWorkflowRunRequest {
     bytes additional_metadata = 3;
     optional int32 priority = 4;
     map<string, DesiredWorkerLabels> desired_worker_labels = 5;
+
+    // field number 6 (display_name) is retired and must not be reused.
+    // Run display names are now defined as CEL expressions on the workflow/task definition.
+    reserved 6;
+    reserved "display_name";
 }
 
 message TriggerWorkflowRunResponse {
@@ -113,6 +118,7 @@ message CreateWorkflowVersionRequest {
     optional bytes input_json_schema = 14; // (optional) the JSON schema for the workflow input
 
     optional IdempotencyConfig idempotency = 15; // (optional) idempotency configuration for the workflow
+    optional string display_name = 16; // (optional) a CEL expression evaluated against run input to name the run
 }
 
 enum IdempotencyMethod {
@@ -174,6 +180,7 @@ message CreateTaskOpts {
     optional string schedule_timeout = 13; // (optional) the timeout for the schedule
     bool is_durable = 14; // (optional) whether the task is durable
     map<string, int32> slot_requests = 15; // (optional) slot requests (slot_type -> units)
+    optional string display_name = 16; // (optional) a CEL expression evaluated against run input to name the task
 }
 
 message CreateTaskRateLimit {

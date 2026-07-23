@@ -25,6 +25,9 @@ module Hatchet
     # @return [Array<ConcurrencyExpression>, ConcurrencyExpression, nil] Workflow-level concurrency
     attr_reader :concurrency
 
+    # @return [String, nil] CEL expression evaluated against run input to name the run
+    attr_reader :display_name
+
     # @return [Integer, nil] Default priority for runs (1-4)
     attr_reader :default_priority
 
@@ -56,6 +59,7 @@ module Hatchet
     # @param on_events [Array<String>] Event trigger keys
     # @param on_crons [Array<String>] Cron trigger expressions
     # @param concurrency [Array<ConcurrencyExpression>, ConcurrencyExpression, nil]
+    # @param display_name [String, nil] CEL expression evaluated against run input to name the run
     # @param default_priority [Integer, nil] Default priority
     # @param task_defaults [Hash, nil] Default task settings
     # @param default_filters [Array<DefaultFilter>] Default filters
@@ -67,6 +71,7 @@ module Hatchet
       on_events: [],
       on_crons: [],
       concurrency: nil,
+      display_name: nil,
       default_priority: nil,
       task_defaults: nil,
       default_filters: [],
@@ -79,6 +84,7 @@ module Hatchet
       @on_events = on_events
       @on_crons = on_crons
       @concurrency = concurrency
+      @display_name = display_name
       @default_priority = default_priority
       @task_defaults = task_defaults
       @default_filters = default_filters
@@ -213,6 +219,7 @@ module Hatchet
       args[:sticky] = sticky_proto if sticky_proto
       args[:default_priority] = @default_priority if @default_priority
       args[:default_filters] = filter_protos unless filter_protos.empty?
+      args[:display_name] = @display_name if @display_name
 
       args[:idempotency] = @idempotency.to_proto if @idempotency
 

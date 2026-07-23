@@ -347,6 +347,8 @@ export interface CreateWorkflowVersionRequest {
   inputJsonSchema?: Uint8Array | undefined;
   /** (optional) idempotency configuration for the workflow */
   idempotency?: IdempotencyConfig | undefined;
+  /** (optional) a CEL expression evaluated against run input to name the run */
+  displayName?: string | undefined;
 }
 
 export interface IdempotencyConfig {
@@ -422,6 +424,8 @@ export interface CreateTaskOpts {
   isDurable: boolean;
   /** (optional) slot requests (slot_type -> units) */
   slotRequests: { [key: string]: number };
+  /** (optional) a CEL expression evaluated against run input to name the task */
+  displayName?: string | undefined;
 }
 
 export interface CreateTaskOpts_WorkerLabelsEntry {
@@ -1507,6 +1511,7 @@ function createBaseCreateWorkflowVersionRequest(): CreateWorkflowVersionRequest 
     defaultFilters: [],
     inputJsonSchema: undefined,
     idempotency: undefined,
+    displayName: undefined,
   };
 }
 
@@ -1559,6 +1564,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     }
     if (message.idempotency !== undefined) {
       IdempotencyConfig.encode(message.idempotency, writer.uint32(122).fork()).join();
+    }
+    if (message.displayName !== undefined) {
+      writer.uint32(130).string(message.displayName);
     }
     return writer;
   },
@@ -1690,6 +1698,14 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
           message.idempotency = IdempotencyConfig.decode(reader, reader.uint32());
           continue;
         }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1752,6 +1768,11 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
       idempotency: isSet(object.idempotency)
         ? IdempotencyConfig.fromJSON(object.idempotency)
         : undefined,
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+          ? globalThis.String(object.display_name)
+          : undefined,
     };
   },
 
@@ -1802,6 +1823,9 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
     if (message.idempotency !== undefined) {
       obj.idempotency = IdempotencyConfig.toJSON(message.idempotency);
     }
+    if (message.displayName !== undefined) {
+      obj.displayName = message.displayName;
+    }
     return obj;
   },
 
@@ -1834,6 +1858,7 @@ export const CreateWorkflowVersionRequest: MessageFns<CreateWorkflowVersionReque
       object.idempotency !== undefined && object.idempotency !== null
         ? IdempotencyConfig.fromPartial(object.idempotency)
         : undefined;
+    message.displayName = object.displayName ?? undefined;
     return message;
   },
 };
@@ -2327,6 +2352,7 @@ function createBaseCreateTaskOpts(): CreateTaskOpts {
     scheduleTimeout: undefined,
     isDurable: false,
     slotRequests: {},
+    displayName: undefined,
   };
 }
 
@@ -2385,6 +2411,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         writer.uint32(122).fork()
       ).join();
     });
+    if (message.displayName !== undefined) {
+      writer.uint32(130).string(message.displayName);
+    }
     return writer;
   },
 
@@ -2521,6 +2550,14 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
           }
           continue;
         }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2607,6 +2644,11 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
               {}
             )
           : {},
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+          ? globalThis.String(object.display_name)
+          : undefined,
     };
   },
 
@@ -2672,6 +2714,9 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
         });
       }
     }
+    if (message.displayName !== undefined) {
+      obj.displayName = message.displayName;
+    }
     return obj;
   },
 
@@ -2718,6 +2763,7 @@ export const CreateTaskOpts: MessageFns<CreateTaskOpts> = {
       }
       return acc;
     }, {});
+    message.displayName = object.displayName ?? undefined;
     return message;
   },
 };

@@ -107,6 +107,7 @@ class WorkflowConfig(BaseModel):
     cron_input: Any = None
     sticky: StickyStrategy | None = None
     concurrency: int | ConcurrencyExpression | list[ConcurrencyExpression] | None = None
+    display_name: str | None = None
     input_validator: TypeAdapter[TaskPayloadForInternalUse]
     default_priority: int | Priority | None = None
     idempotency: TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig | None = None

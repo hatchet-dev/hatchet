@@ -3,7 +3,9 @@ package repository
 import (
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +43,39 @@ func Test_cleanAdditionalMetadataTableTest(t *testing.T) {
 			assert.Equal(t, test.expected, actual)
 		})
 	}
+}
+
+func Test_NormalizeDisplayName_returns_trimmed_value(t *testing.T) {
+	in := "Acme Corp"
+
+	got := NormalizeDisplayName(&in)
+
+	require.NotNil(t, got)
+	assert.Equal(t, "Acme Corp", *got)
+}
+
+func Test_NormalizeDisplayName_returns_nil_for_nil(t *testing.T) {
+	assert.Nil(t, NormalizeDisplayName(nil))
+}
+
+func Test_NormalizeDisplayName_returns_nil_for_whitespace(t *testing.T) {
+	empty := ""
+	assert.Nil(t, NormalizeDisplayName(&empty))
+
+	spaces := "   \t\n "
+	assert.Nil(t, NormalizeDisplayName(&spaces))
+}
+
+func Test_NormalizeDisplayName_truncates_by_rune_not_byte(t *testing.T) {
+	// "世" is 3 bytes; 300 of them is 900 bytes. Byte-truncation would split a
+	// multibyte rune, so this proves the truncation is rune-safe.
+	in := strings.Repeat("世", 300)
+
+	got := NormalizeDisplayName(&in)
+
+	require.NotNil(t, got)
+	assert.Equal(t, 255, utf8.RuneCountInString(*got), "truncated to 255 runes")
+	assert.True(t, utf8.ValidString(*got), "no multibyte rune was split")
 }
 
 func Test_ensureTraceparent_creates_when_absent(t *testing.T) {

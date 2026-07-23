@@ -124,6 +124,7 @@ INSERT INTO "WorkflowVersion" (
     "inputJsonSchema",
     "idempotencyKeyExpression",
     "idempotencyKeyTtlMs",
+    "displayName",
     "idempotencyMethod"
 ) VALUES (
     @id::uuid,
@@ -142,6 +143,7 @@ INSERT INTO "WorkflowVersion" (
     sqlc.narg('inputJsonSchema')::jsonb,
     sqlc.narg('idempotencyKeyExpression')::text,
     sqlc.narg('idempotencyKeyTtlMs')::bigint,
+    sqlc.narg('displayName')::text,
     sqlc.narg('idempotencyMethod')::idempotency_method
 ) RETURNING *;
 
@@ -293,7 +295,8 @@ INSERT INTO "Step" (
     "scheduleTimeout",
     "retryBackoffFactor",
     "retryMaxBackoff",
-    "isDurable"
+    "isDurable",
+    "displayName"
 ) VALUES (
     @id::uuid,
     coalesce(sqlc.narg('createdAt')::timestamp, CURRENT_TIMESTAMP),
@@ -309,7 +312,8 @@ INSERT INTO "Step" (
     coalesce(sqlc.narg('scheduleTimeout')::text, '5m'),
     sqlc.narg('retryBackoffFactor'),
     sqlc.narg('retryMaxBackoff'),
-    coalesce(sqlc.narg('isDurable')::boolean, false)
+    coalesce(sqlc.narg('isDurable')::boolean, false),
+    sqlc.narg('displayName')::text
 ) RETURNING *;
 
 -- name: CreateStepSlotRequests :exec

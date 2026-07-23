@@ -14,6 +14,12 @@ Hatchet allows you to attach arbitrary key-value string pairs to events and task
   runs.
 </Callout>
 
+<Callout type="info">
+  If you only want a human-readable label to tell fanned-out runs apart in the
+  dashboard, see [Run Names](./run-names.mdx) — it sets the run's `display_name`
+  directly instead of relying on metadata.
+</Callout>
+
 You can attach additional metadata when pushing events or triggering task runs using the Hatchet client libraries:
 
 <Tabs items={['Event Push', 'Task Run Trigger']}>

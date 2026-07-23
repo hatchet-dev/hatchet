@@ -5,6 +5,12 @@ All notable changes to Hatchet's Ruby SDK will be documented in this changelog.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added a `display_name` option to the workflow and task **definitions** for naming runs with a [CEL](https://github.com/google/cel-spec) expression evaluated against each run's input at trigger time. Set it on `hatchet.workflow(display_name:)` to name the run, and/or on `.task(display_name:)` to name individual DAG steps; on a single-task workflow (`hatchet.task(display_name:)`) the task-level expression names the run. Because the expression lives in the definition, it applies to every trigger source (manual, `run_many`, child spawn, event, and cron) with no per-trigger configuration. A malformed expression is rejected at registration; any run-time evaluation error (missing key, non-string result, empty result) silently falls back to the generated `<readableId>-<timestamp>` name, and results longer than 255 characters are stored truncated rather than rejected. This replaces the previous trigger-time `display_name` option on `TriggerWorkflowOptions`, which has been removed ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+
 ## [0.5.0] - 2026-07-22
 
 ### Added

@@ -280,6 +280,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
@@ -304,6 +305,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
@@ -327,6 +329,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         task_defaults: TaskDefaults = TaskDefaults(),
         default_filters: list[DefaultFilter] | None = None,
         default_additional_metadata: JSONSerializableMapping | None = None,
@@ -357,6 +360,8 @@ class Hatchet:
 
         :param concurrency: A concurrency object controlling the concurrency settings for this workflow. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
 
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
+
         :param task_defaults: A `TaskDefaults` object controlling the default task settings for this workflow.
 
         :param default_filters: A list of filters to create with the workflow is created. Note that this is a helper to allow you to create filters "declaratively" without needing to make a separate API call once the workflow is created to create them.
@@ -380,6 +385,7 @@ class Hatchet:
                 cron_input=cron_input,
                 sticky=sticky,
                 concurrency=concurrency,
+                display_name=display_name,
                 input_validator=TypeAdapter(normalize_validator(input_validator)),
                 task_defaults=task_defaults,
                 default_priority=default_priority,
@@ -406,6 +412,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -442,6 +449,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -477,6 +485,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -524,6 +533,8 @@ class Hatchet:
         :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
         :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
 
         :param schedule_timeout: The maximum time allowed for scheduling the task.
 
@@ -597,6 +608,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                display_name=display_name,
                 slot_cost=slot_cost,
             )
 
@@ -625,6 +637,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -661,6 +674,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -700,6 +714,7 @@ class Hatchet:
         concurrency: (
             int | ConcurrencyExpression | list[ConcurrencyExpression] | None
         ) = None,
+        display_name: str | None = None,
         schedule_timeout: Duration = timedelta(minutes=5),
         execution_timeout: Duration = timedelta(seconds=60),
         retries: int = 0,
@@ -755,6 +770,8 @@ class Hatchet:
         :param default_priority: The priority of the task. Higher values will cause this task to have priority in scheduling.
 
         :param concurrency: A concurrency object controlling the concurrency settings for this task. If an integer is provided, it is treated as a constant concurrency limit with a `GROUP_ROUND_ROBIN` strategy, which means that only `N` runs of the task may execute at any given time.
+
+        :param display_name: A CEL expression evaluated against the run's input at trigger time to produce a human-readable name for the run/task. Malformed expressions are rejected at registration; runtime evaluation errors fall back to a generated name.
 
         :param schedule_timeout: The maximum time allowed for scheduling the task.
 
@@ -825,6 +842,7 @@ class Hatchet:
                 backoff_factor=backoff_factor,
                 backoff_max_seconds=backoff_max_seconds,
                 concurrency=_concurrency,
+                display_name=display_name,
                 eviction_policy=eviction_policy,
             )
 

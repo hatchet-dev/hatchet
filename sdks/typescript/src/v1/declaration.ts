@@ -196,6 +196,17 @@ export type CreateBaseWorkflowOpts = {
   concurrency?: Concurrency | Concurrency[];
 
   /**
+   * (optional) a CEL expression evaluated against each run's input to produce a
+   * human-readable display name for the run. Declared in the workflow definition
+   * and evaluated at trigger time, so it applies to every trigger source (manual,
+   * event, cron). Any evaluation error falls back to the generated
+   * `<name>-<timestamp>` label. A malformed expression is rejected at registration.
+   *
+   * @example "input.customerName"
+   */
+  displayName?: string;
+
+  /**
    * (optional) the priority for the workflow.
    * values: Priority.LOW, Priority.MEDIUM, Priority.HIGH (1, 2, or 3 )
    */

@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+### Added
+- Runs and individual DAG steps can now be given a human-readable display name via a CEL expression declared on the workflow/task **definition** (`display_name`), evaluated against the run input at trigger time — so fanned-out child runs are identifiable at a glance in the dashboard instead of sharing a generated `<readableId>-<timestamp>` label. Because the expression lives in the definition, every trigger source (manual, event, and cron) gets meaningful names automatically, and each step of a DAG can be named independently. A workflow-level expression names the run (the DAG row, or the single task for a one-step workflow, falling back to the workflow-level expression when the step has none); a per-task expression names an individual step. Malformed expressions are rejected at registration; any runtime evaluation error (missing key, non-string, empty) silently falls back to the generated name and never fails the run; results are truncated to 255 runes rather than rejected ([#4259](https://github.com/hatchet-dev/hatchet/issues/4259)).
+
 ### Highlights
 
 - Tasks can declare a slot cost, so a task that needs more memory or CPU consumes more than one worker slot. See [Task Slot Cost](https://docs.hatchet.run/v1/advanced-assignment/slot-cost).

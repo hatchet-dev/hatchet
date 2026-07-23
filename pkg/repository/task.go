@@ -100,6 +100,11 @@ type CreateTaskOpts struct {
 	// (optional) the key of the event that triggered the workflow run, if there was one
 	TriggeringEventKey *string
 
+	// (optional) the workflow-level CEL display-name expression. Only set for
+	// single-task (non-DAG) runs, where the task IS the run and inherits the
+	// run-level name when the step defines no expression of its own. DAG step
+	// tasks leave this nil (the DAG row carries the run-level name).
+	WorkflowDisplayName *string
 	// (optional) the idempotency key that was claimed before triggering this task
 	IdempotencyKey *string
 }
@@ -1978,7 +1983,45 @@ func (r *sharedRepository) insertTasks(
 		scheduleTimeouts[i] = stepConfig.ScheduleTimeout
 		stepTimeouts[i] = stepConfig.Timeout.String
 		externalIds[i] = task.ExternalId
-		displayNames[i] = fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+
+		// Resolve the task display name by precedence: step-level expression →
+		// workflow-level expression (single-task runs only) → generated fallback.
+		// Both root and lazily-created downstream tasks funnel through here, and
+		// task.Input.Input is the run input in every case.
+		fallbackName := fmt.Sprintf("%s-%d", stepConfig.ReadableId.String, unix)
+
+		var displayExpr *string
+		if stepConfig.DisplayName.Valid && strings.TrimSpace(stepConfig.DisplayName.String) != "" {
+			expr := stepConfig.DisplayName.String
+			displayExpr = &expr
+		} else if task.WorkflowDisplayName != nil {
+			displayExpr = task.WorkflowDisplayName
+		}
+
+		if displayExpr == nil {
+			displayNames[i] = fallbackName
+		} else {
+			var runInput map[string]interface{}
+			if task.Input != nil {
+				runInput = task.Input.Input
+			}
+			if runInput == nil {
+				runInput = map[string]interface{}{}
+			}
+
+			var meta map[string]interface{}
+			if len(task.AdditionalMetadata) > 0 {
+				if err := json.Unmarshal(task.AdditionalMetadata, &meta); err != nil {
+					meta = map[string]interface{}{}
+				}
+			}
+			if meta == nil {
+				meta = map[string]interface{}{}
+			}
+
+			displayNames[i] = resolveDisplayName(r.celParser, r.l, displayExpr, runInput, meta, task.WorkflowRunId, fallbackName)
+		}
+
 		stepIndices[i] = int64(task.StepIndex)
 		retryBackoffFactors[i] = stepConfig.RetryBackoffFactor
 		retryMaxBackoffs[i] = stepConfig.RetryMaxBackoff

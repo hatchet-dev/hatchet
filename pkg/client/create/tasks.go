@@ -88,6 +88,8 @@ type WorkflowCreateOpts[I any] struct {
 
 	DefaultFilters []types.DefaultFilter
 
+	// (optional) DisplayName is a CEL expression evaluated against run input to derive the run's display name
+	DisplayName *string
 	// (optional) Idempotency configuration for preventing duplicate runs
 	Idempotency *IdempotencyConfig
 }
