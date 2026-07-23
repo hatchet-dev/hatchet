@@ -226,6 +226,11 @@ module Hatchet
       end
 
       def execute_task(action)
+        if batch_action?(action)
+          execute_batch_task(action)
+          return
+        end
+
         action_key = nil
         prepare_action_execution(action)
 
@@ -327,6 +332,114 @@ module Hatchet
         ctx.deps = resolve_dependencies(task.deps, input, ctx) if task.deps && !task.deps.empty?
         result = task.call(input, ctx)
         send_result(action, result)
+      end
+
+      def batch_action?(action)
+        action.respond_to?(:action_type) && action.action_type == :START_BATCH
+      end
+
+      # Handles a START_BATCH action: invokes the registered batch task block once with
+      # every buffered item, then reports completion/failure back per-member (or, for
+      # broadcast batch tasks, the same result for every member) via send_batch_action_event.
+      def execute_batch_task(action)
+        task_key = action.action_id.downcase
+        task = @task_map[task_key]
+
+        unless task
+          @logger.error("No task found for action: #{task_key}")
+          return
+        end
+
+        batch_items = parse_batch_items(action)
+        send_batch_started(action, batch_items.keys)
+
+        ctx = build_context(action, task)
+
+        begin
+          result = task.call(batch_items, ctx)
+
+          # If the handler cancelled the batch (ctx.cancel), a CANCELLED batch event
+          # covering every member was already sent from within cancel itself. Don't also
+          # send a COMPLETED event for the same members afterward.
+          send_batch_result(action, task, batch_items, result) unless ctx.cancelled?
+        rescue StandardError => e
+          @logger.error("Error in batch task #{action.action_id}: #{e.message}")
+          send_batch_failure_for_all(action, batch_items.keys, e)
+        end
+      ensure
+        ContextVars.clear
+      end
+
+      def send_batch_started(action, member_ids)
+        items = member_ids.map { |id| { task_run_external_id: id } }
+        @dispatcher_client.send_batch_action_event(action: action, event_type: :STEP_EVENT_TYPE_STARTED, items: items)
+      rescue StandardError => e
+        @logger.warn("Failed to send batch STARTED event: #{e.message}")
+      end
+
+      def send_batch_result(action, task, batch_items, result)
+        if task.batch.broadcast_output
+          payload = JSON.generate(result.nil? ? {} : result)
+          items = batch_items.keys.map { |id| { task_run_external_id: id, event_payload: payload } }
+          @dispatcher_client.send_batch_action_event(action: action, event_type: :STEP_EVENT_TYPE_COMPLETED, items: items)
+          return
+        end
+
+        unless result.is_a?(Hash)
+          send_batch_failure_for_all(
+            action, batch_items.keys,
+            StandardError.new("batch task handler must return a Hash keyed by batch member id"),
+          )
+          return
+        end
+
+        missing = batch_items.keys - result.keys
+        extra = result.keys - batch_items.keys
+
+        if !missing.empty? || !extra.empty?
+          send_batch_failure_for_all(
+            action, batch_items.keys,
+            StandardError.new("batch task handler result keys do not match batch member ids (missing=#{missing}, extra=#{extra})"),
+          )
+          return
+        end
+
+        completed_items = []
+        failed_items = []
+
+        result.each do |id, value|
+          completed_items << { task_run_external_id: id, event_payload: JSON.generate(value) }
+        rescue StandardError => e
+          failed_items << { task_run_external_id: id, event_payload: JSON.generate({ "error" => e.message }) }
+        end
+
+        unless completed_items.empty?
+          @dispatcher_client.send_batch_action_event(action: action, event_type: :STEP_EVENT_TYPE_COMPLETED, items: completed_items)
+        end
+
+        return if failed_items.empty?
+
+        @dispatcher_client.send_batch_action_event(action: action, event_type: :STEP_EVENT_TYPE_FAILED, items: failed_items)
+      end
+
+      def send_batch_failure_for_all(action, member_ids, error)
+        payload = JSON.generate({ "error" => error.message })
+        items = member_ids.map { |id| { task_run_external_id: id, event_payload: payload, should_not_retry: true } }
+        @dispatcher_client.send_batch_action_event(action: action, event_type: :STEP_EVENT_TYPE_FAILED, items: items)
+      end
+
+      def parse_batch_items(action)
+        raw = action.respond_to?(:action_payload) ? action.action_payload : nil
+        return {} if raw.nil? || raw.to_s.empty?
+
+        parsed = JSON.parse(raw)
+        return {} unless parsed.is_a?(Hash)
+
+        parsed.each_with_object({}) do |(id, item), acc|
+          acc[id] = item.is_a?(Hash) && item["payload"].is_a?(Hash) ? (item["payload"]["input"] || {}) : {}
+        end
+      rescue JSON::ParserError
+        {}
       end
 
       def action_key_for(action)

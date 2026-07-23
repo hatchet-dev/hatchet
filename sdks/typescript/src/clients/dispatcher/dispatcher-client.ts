@@ -3,6 +3,7 @@ import {
   DispatcherClient as PbDispatcherClient,
   DispatcherDefinition,
   StepActionEvent,
+  BatchActionEvent,
   GroupKeyActionEvent,
   OverridesData,
   DeepPartial,
@@ -106,6 +107,18 @@ export class DispatcherClient {
 
     try {
       return await retrier(async () => this.client.sendStepActionEvent(event), this.logger);
+    } catch (e: unknown) {
+      throw toHatchetError(e);
+    }
+  }
+
+  /**
+   * Reports a lifecycle event (STARTED, COMPLETED, or FAILED) covering one or more
+   * members of a batch task's execution.
+   */
+  async sendBatchActionEvent(in_: BatchActionEvent) {
+    try {
+      return await retrier(async () => this.client.sendBatchActionEvent(in_), this.logger);
     } catch (e: unknown) {
       throw toHatchetError(e);
     }

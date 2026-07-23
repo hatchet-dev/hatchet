@@ -2,7 +2,7 @@ import logging
 import warnings
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, Concatenate, ParamSpec, overload
+from typing import Any, Concatenate, Literal, ParamSpec, cast, overload
 
 from pydantic import TypeAdapter
 
@@ -31,6 +31,7 @@ from hatchet_sdk.runnables.eviction import (
     EvictionPolicy,
 )
 from hatchet_sdk.runnables.types import (
+    BatchMemberId,
     DefaultFilter,
     EmptyModel,
     R,
@@ -601,6 +602,272 @@ class Hatchet:
             )
 
             created_task = task_wrapper(func)
+
+            return Standalone[TWorkflowInput, R](
+                workflow=workflow,
+                task=created_task,
+            )
+
+        return inner
+
+    @overload
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: None = None,
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[True],
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                R | CoroutineLike[R],
+            ]
+        ],
+        Standalone[EmptyModel, R],
+    ]: ...
+
+    @overload
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: None = None,
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[False] = False,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, EmptyModel], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+            ]
+        ],
+        Standalone[EmptyModel, R],
+    ]: ...
+
+    @overload
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: type[TWorkflowInput],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[True],
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                R | CoroutineLike[R],
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]: ...
+
+    @overload
+    def batch_task(
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: type[TWorkflowInput],
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = ...,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: Literal[False] = False,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R] | CoroutineLike[dict[BatchMemberId, R]],
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]: ...
+
+    # mypy can't prove this implementation covers the `input_validator`-bound overloads
+    # above when their inner-callable return types differ (broadcast vs. dict) -- a known
+    # limitation when a TypeVar is required in overloads but optional in the implementation.
+    def batch_task(  # type: ignore[misc]
+        self,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        input_validator: type[TWorkflowInput] | None = None,
+        version: str | None = None,
+        sticky: StickyStrategy | None = None,
+        default_priority: int = 1,
+        schedule_timeout: Duration = timedelta(minutes=5),
+        execution_timeout: Duration = timedelta(seconds=60),
+        rate_limits: list[RateLimit] | None = None,
+        desired_worker_labels: dict[str, DesiredWorkerLabel] | None = None,
+        backoff_factor: float | None = None,
+        backoff_max_seconds: int | None = None,
+        default_filters: list[DefaultFilter] | None = None,
+        batch_max_size: int = 1,
+        batch_max_interval: timedelta | None = None,
+        batch_group_key: str | None = None,
+        batch_group_max_runs: int | None = None,
+        broadcast_output: bool = False,
+    ) -> Callable[
+        [
+            Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
+            ]
+        ],
+        Standalone[TWorkflowInput, R],
+    ]:
+        """
+        .. note::
+        **Preview:** This function is in beta and may change in future releases.
+
+        A decorator to transform a function into a Hatchet *batch* task that runs as part of a workflow.
+
+        Batch tasks buffer individual executions until Hatchet flushes the batch (size reached or flush interval),
+        then invoke the handler once with all buffered inputs keyed by step run ID.
+
+        The handler must return a dict mapping each step run ID to its output, or use `broadcast_output` to return the same result to all callsites.
+        """
+
+        def inner(
+            func: Callable[
+                Concatenate[dict[BatchMemberId, TWorkflowInput], Context, P],
+                dict[BatchMemberId, R]
+                | R
+                | CoroutineLike[dict[BatchMemberId, R]]
+                | CoroutineLike[R],
+            ],
+        ) -> Standalone[TWorkflowInput, R]:
+            inferred_name = name or func.__name__
+
+            workflow = Workflow[TWorkflowInput](
+                WorkflowConfig(
+                    name=inferred_name,
+                    version=version,
+                    description=description,
+                    sticky=sticky,
+                    default_priority=default_priority,
+                    input_validator=TypeAdapter(normalize_validator(input_validator)),
+                    default_filters=default_filters or [],
+                ),
+                self,
+            )
+
+            # Split on `broadcast_output` (rather than forwarding the plain `bool`) so each
+            # branch matches one of `Workflow.batch_task`'s `Literal[True]`/`Literal[False]`
+            # overloads and the decorated function's return type is checked accordingly.
+            if broadcast_output:
+                broadcast_task_wrapper = workflow.batch_task(
+                    name=inferred_name,
+                    schedule_timeout=schedule_timeout,
+                    execution_timeout=execution_timeout,
+                    parents=[],
+                    rate_limits=rate_limits or [],
+                    desired_worker_labels=desired_worker_labels or {},
+                    backoff_factor=backoff_factor,
+                    backoff_max_seconds=backoff_max_seconds,
+                    batch_max_size=batch_max_size,
+                    batch_max_interval=batch_max_interval,
+                    batch_group_key=batch_group_key,
+                    batch_group_max_runs=batch_group_max_runs,
+                    broadcast_output=True,
+                )
+                created_task = broadcast_task_wrapper(
+                    cast(
+                        Callable[
+                            Concatenate[
+                                dict[BatchMemberId, TWorkflowInput], Context, P
+                            ],
+                            R | CoroutineLike[R],
+                        ],
+                        func,
+                    )
+                )
+            else:
+                dict_task_wrapper = workflow.batch_task(
+                    name=inferred_name,
+                    schedule_timeout=schedule_timeout,
+                    execution_timeout=execution_timeout,
+                    parents=[],
+                    rate_limits=rate_limits or [],
+                    desired_worker_labels=desired_worker_labels or {},
+                    backoff_factor=backoff_factor,
+                    backoff_max_seconds=backoff_max_seconds,
+                    batch_max_size=batch_max_size,
+                    batch_max_interval=batch_max_interval,
+                    batch_group_key=batch_group_key,
+                    batch_group_max_runs=batch_group_max_runs,
+                    broadcast_output=False,
+                )
+                created_task = dict_task_wrapper(
+                    cast(
+                        Callable[
+                            Concatenate[
+                                dict[BatchMemberId, TWorkflowInput], Context, P
+                            ],
+                            dict[BatchMemberId, R]
+                            | CoroutineLike[dict[BatchMemberId, R]],
+                        ],
+                        func,
+                    )
+                )
 
             return Standalone[TWorkflowInput, R](
                 workflow=workflow,

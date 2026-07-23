@@ -69,6 +69,11 @@ class DispatcherStub(object):
                 request_serializer=dispatcher__pb2.StepActionEvent.SerializeToString,
                 response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
                 _registered_method=True)
+        self.SendBatchActionEvent = channel.unary_unary(
+                '/Dispatcher/SendBatchActionEvent',
+                request_serializer=dispatcher__pb2.BatchActionEvent.SerializeToString,
+                response_deserializer=dispatcher__pb2.ActionEventResponse.FromString,
+                _registered_method=True)
         self.SendGroupKeyActionEvent = channel.unary_unary(
                 '/Dispatcher/SendGroupKeyActionEvent',
                 request_serializer=dispatcher__pb2.GroupKeyActionEvent.SerializeToString,
@@ -155,6 +160,14 @@ class DispatcherServicer(object):
 
     def SendStepActionEvent(self, request, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendBatchActionEvent(self, request, context):
+        """SendBatchActionEvent reports a single lifecycle event (STARTED, FAILED, or CANCELLED)
+        for every task in a batch in one call, instead of one SendStepActionEvent call per task.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -246,6 +259,11 @@ def add_DispatcherServicer_to_server(servicer, server):
             'SendStepActionEvent': grpc.unary_unary_rpc_method_handler(
                     servicer.SendStepActionEvent,
                     request_deserializer=dispatcher__pb2.StepActionEvent.FromString,
+                    response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
+            ),
+            'SendBatchActionEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendBatchActionEvent,
+                    request_deserializer=dispatcher__pb2.BatchActionEvent.FromString,
                     response_serializer=dispatcher__pb2.ActionEventResponse.SerializeToString,
             ),
             'SendGroupKeyActionEvent': grpc.unary_unary_rpc_method_handler(
@@ -477,6 +495,33 @@ class Dispatcher(object):
             target,
             '/Dispatcher/SendStepActionEvent',
             dispatcher__pb2.StepActionEvent.SerializeToString,
+            dispatcher__pb2.ActionEventResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendBatchActionEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/Dispatcher/SendBatchActionEvent',
+            dispatcher__pb2.BatchActionEvent.SerializeToString,
             dispatcher__pb2.ActionEventResponse.FromString,
             options,
             channel_credentials,

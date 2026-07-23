@@ -620,6 +620,9 @@ func registerAllWorkflows(client *hatchet.Client) {
 		hatchet.WithWaitFor(hatchet.SleepCondition(1*time.Second)),
 		hatchet.WithExecutionTimeout(2*time.Minute),
 	)
+
+	// --- Batch task test workflows ---
+	registerBatchAssignWorkflows(client)
 }
 
 func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, error) {
@@ -652,6 +655,18 @@ func startTestWorker(client *hatchet.Client) (*hatchet.Worker, func() error, err
 			testEvictionBulkChildTask,
 			testErrorRaisingTask,
 			testErrorRaisingDurableParent,
+			testBatchSimple,
+			testBatchKeyed,
+			testBatchKeyedFailable,
+			testBatchKeyedInterval,
+			testBatchLarge,
+			testBatchSingle,
+			testBatchOrdered,
+			testBatchBroadcast,
+			testBatchChild,
+			testBatchChildBatch,
+			testBatchChildSpawn,
+			testBatchChildBatchSpawn,
 		),
 		hatchet.WithDurableSlots(10),
 	)
