@@ -1,11 +1,13 @@
 import json
 from dataclasses import field
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hatchet_sdk.config import ClientConfig
+from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.types.priority import Priority
 from hatchet_sdk.utils.opentelemetry import OTelAttribute
 from hatchet_sdk.utils.typing import JSONSerializableMapping
@@ -48,6 +50,26 @@ class ActionPayload(BaseModel):
 class ActionType(str, Enum):
     START_STEP_RUN = "START_STEP_RUN"
     CANCEL_STEP_RUN = "CANCEL_STEP_RUN"
+    START_BATCH = "START_BATCH"
+
+
+class BatchStartPayload(BaseModel):
+    expected_size: int
+    trigger_reason: str
+    trigger_time: datetime
+
+
+class BatchItemData(BaseModel):
+    payload: ActionPayload
+    workflow_run_id: str
+
+
+class BatchEventItem(BaseModel):
+    """A single task's contribution to a batched STARTED/FAILED/CANCELLED action event."""
+
+    task_run_external_id: BatchMemberId
+    payload: str | None = None
+    should_not_retry: bool = False
 
 
 class Action(BaseModel):
@@ -69,6 +91,13 @@ class Action(BaseModel):
     retry_count: int
     action_payload: ActionPayload
     additional_metadata: JSONSerializableMapping = field(default_factory=dict)
+
+    # Batch metadata
+    batch_id: str | None = None
+    batch_key: str | None = None
+    batch_start: BatchStartPayload | None = None
+    # Populated for START_BATCH: maps task_run_external_id -> item data (payload + workflow_run_id)
+    batch_items: dict[BatchMemberId, BatchItemData] | None = None
 
     child_workflow_index: int | None = None
     child_workflow_key: str | None = None
@@ -124,4 +153,8 @@ class Action(BaseModel):
         if self.durable_task_invocation_count is not None:
             return f"{self.step_run_id}/{self.retry_count}/{self.durable_task_invocation_count}"
 
+        if self.action_type == ActionType.START_BATCH:
+            # START_BATCH does not correspond to a unique step_run_id; key it by batch id.
+            batch_key = self.batch_id or self.action_id or "unknown"
+            return f"{batch_key}/{self.retry_count or 0}"
         return f"{self.step_run_id}/{self.retry_count}"

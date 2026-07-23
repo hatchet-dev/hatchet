@@ -453,7 +453,16 @@ func (q *Queries) GetWorkerActionsByWorkerId(ctx context.Context, db DBTX, arg G
 
 const getWorkerById = `-- name: GetWorkerById :one
 SELECT
-    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash"
+    w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w."lastHeartbeatAt", w.name, w."dispatcherId", w."maxRuns", w."isActive", w."lastListenerEstablished", w."isPaused", w.type, w."webhookId", w.language, w."languageVersion", w.os, w."runtimeExtra", w."sdkVersion", w."durableTaskDispatcherId", w."actionHash",
+    w."maxRuns" - (
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
+        FROM v1_task_runtime runtime
+        WHERE
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" w
 WHERE
@@ -461,7 +470,8 @@ WHERE
 `
 
 type GetWorkerByIdRow struct {
-	Worker Worker `json:"worker"`
+	Worker         Worker `json:"worker"`
+	RemainingSlots int32  `json:"remainingSlots"`
 }
 
 func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*GetWorkerByIdRow, error) {
@@ -489,6 +499,7 @@ func (q *Queries) GetWorkerById(ctx context.Context, db DBTX, id uuid.UUID) (*Ge
 		&i.Worker.SdkVersion,
 		&i.Worker.DurableTaskDispatcherId,
 		&i.Worker.ActionHash,
+		&i.RemainingSlots,
 	)
 	return &i, err
 }
@@ -774,16 +785,22 @@ WITH worker_capacities AS (
         AND slot_type = $3::text
 ), worker_used_slots AS (
     SELECT
-        worker_id,
-        SUM(units) AS used_units
+        runtime.worker_id,
+        (
+            COALESCE(SUM(CASE WHEN tr.batch_id IS NULL THEN runtime.units ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT tr.batch_id)::integer
+        ) AS used_units
     FROM
-        v1_task_runtime_slot
+        v1_task_runtime_slot runtime
+    LEFT JOIN v1_task_runtime tr ON tr.task_id = runtime.task_id
+        AND tr.task_inserted_at = runtime.task_inserted_at
+        AND tr.retry_count = runtime.retry_count
     WHERE
-        tenant_id = $1::uuid
-        AND worker_id = ANY($2::uuid[])
-        AND slot_type = $3::text
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id = ANY($2::uuid[])
+        AND runtime.slot_type = $3::text
     GROUP BY
-        worker_id
+        runtime.worker_id
 )
 SELECT
     wc.worker_id AS "id",
@@ -839,18 +856,24 @@ WITH worker_capacities AS (
         AND slot_type = ANY($3::text[])
 ), worker_used_slots AS (
     SELECT
-        worker_id,
-        slot_type,
-        SUM(units) AS used_units
+        runtime.worker_id,
+        runtime.slot_type,
+        (
+            COALESCE(SUM(CASE WHEN tr.batch_id IS NULL THEN runtime.units ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT tr.batch_id)::integer
+        ) AS used_units
     FROM
-        v1_task_runtime_slot
+        v1_task_runtime_slot runtime
+    LEFT JOIN v1_task_runtime tr ON tr.task_id = runtime.task_id
+        AND tr.task_inserted_at = runtime.task_inserted_at
+        AND tr.retry_count = runtime.retry_count
     WHERE
-        tenant_id = $1::uuid
-        AND worker_id = ANY($2::uuid[])
-        AND slot_type = ANY($3::text[])
+        runtime.tenant_id = $1::uuid
+        AND runtime.worker_id = ANY($2::uuid[])
+        AND runtime.slot_type = ANY($3::text[])
     GROUP BY
-        worker_id,
-        slot_type
+        runtime.worker_id,
+        runtime.slot_type
 )
 SELECT
     wc.worker_id AS "id",
@@ -943,7 +966,7 @@ WITH tasks AS (
 )
 
 SELECT
-    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.tenant_id, rt.timeout_at, rt.evicted_at,
+    rt.task_id, rt.task_inserted_at, rt.retry_count, rt.worker_id, rt.batch_id, rt.batch_size, rt.batch_index, rt.batch_key, rt.tenant_id, rt.timeout_at, rt.evicted_at,
     w."durableTaskDispatcherId"
 FROM v1_task_runtime rt
 LEFT JOIN "Worker" w ON rt.worker_id = w.id
@@ -966,6 +989,10 @@ type ListDurableTaskDispatcherIdsForTasksRow struct {
 	TaskInsertedAt          pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount              int32              `json:"retry_count"`
 	WorkerID                *uuid.UUID         `json:"worker_id"`
+	BatchID                 *uuid.UUID         `json:"batch_id"`
+	BatchSize               pgtype.Int4        `json:"batch_size"`
+	BatchIndex              pgtype.Int4        `json:"batch_index"`
+	BatchKey                pgtype.Text        `json:"batch_key"`
 	TenantID                uuid.UUID          `json:"tenant_id"`
 	TimeoutAt               pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt               pgtype.Timestamptz `json:"evicted_at"`
@@ -986,6 +1013,10 @@ func (q *Queries) ListDurableTaskDispatcherIdsForTasks(ctx context.Context, db D
 			&i.TaskInsertedAt,
 			&i.RetryCount,
 			&i.WorkerID,
+			&i.BatchID,
+			&i.BatchSize,
+			&i.BatchIndex,
+			&i.BatchKey,
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.EvictedAt,
@@ -1054,7 +1085,7 @@ func (q *Queries) ListManyWorkerLabels(ctx context.Context, db DBTX, workerids [
 
 const listSemaphoreSlotsWithStateForWorker = `-- name: ListSemaphoreSlotsWithStateForWorker :many
 SELECT
-    task_id, task_inserted_at, runtime.retry_count, worker_id, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key
+    task_id, task_inserted_at, runtime.retry_count, worker_id, batch_id, batch_size, batch_index, runtime.batch_key, runtime.tenant_id, timeout_at, evicted_at, id, inserted_at, v1_task.tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, workflow_version_id, workflow_run_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, v1_task.retry_count, internal_retry_count, app_retry_count, step_index, additional_metadata, dag_id, dag_inserted_at, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, initial_state, initial_state_reason, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, v1_task.batch_key, retry_backoff_factor, retry_max_backoff, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key
 FROM
     v1_task_runtime runtime
 JOIN
@@ -1077,6 +1108,10 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	TaskInsertedAt               pgtype.Timestamptz `json:"task_inserted_at"`
 	RetryCount                   int32              `json:"retry_count"`
 	WorkerID                     *uuid.UUID         `json:"worker_id"`
+	BatchID                      *uuid.UUID         `json:"batch_id"`
+	BatchSize                    pgtype.Int4        `json:"batch_size"`
+	BatchIndex                   pgtype.Int4        `json:"batch_index"`
+	BatchKey                     pgtype.Text        `json:"batch_key"`
 	TenantID                     uuid.UUID          `json:"tenant_id"`
 	TimeoutAt                    pgtype.Timestamp   `json:"timeout_at"`
 	EvictedAt                    pgtype.Timestamptz `json:"evicted_at"`
@@ -1115,6 +1150,7 @@ type ListSemaphoreSlotsWithStateForWorkerRow struct {
 	ConcurrencyParentStrategyIds []pgtype.Int8      `json:"concurrency_parent_strategy_ids"`
 	ConcurrencyStrategyIds       []int64            `json:"concurrency_strategy_ids"`
 	ConcurrencyKeys              []string           `json:"concurrency_keys"`
+	BatchKey_2                   pgtype.Text        `json:"batch_key_2"`
 	RetryBackoffFactor           pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff              pgtype.Int4        `json:"retry_max_backoff"`
 	IsDurable                    pgtype.Bool        `json:"is_durable"`
@@ -1138,6 +1174,10 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.TaskInsertedAt,
 			&i.RetryCount,
 			&i.WorkerID,
+			&i.BatchID,
+			&i.BatchSize,
+			&i.BatchIndex,
+			&i.BatchKey,
 			&i.TenantID,
 			&i.TimeoutAt,
 			&i.EvictedAt,
@@ -1176,6 +1216,7 @@ func (q *Queries) ListSemaphoreSlotsWithStateForWorker(ctx context.Context, db D
 			&i.ConcurrencyParentStrategyIds,
 			&i.ConcurrencyStrategyIds,
 			&i.ConcurrencyKeys,
+			&i.BatchKey_2,
 			&i.RetryBackoffFactor,
 			&i.RetryMaxBackoff,
 			&i.IsDurable,

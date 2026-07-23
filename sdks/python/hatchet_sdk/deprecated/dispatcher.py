@@ -42,7 +42,7 @@ async def legacy_get_action_listener(
 
     response = cast(
         WorkerRegisterResponse,
-        await aio_client.Register(  # type: ignore[misc]
+        await aio_client.Register(
             WorkerRegisterRequest(
                 worker_name=worker_name,
                 actions=actions,

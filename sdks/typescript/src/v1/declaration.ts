@@ -7,6 +7,7 @@
  */
 
 import WorkflowRunRef from '@hatchet/util/workflow-run-ref';
+import HatchetError from '@util/errors/hatchet-error';
 import {
   CronWorkflows,
   ScheduledWorkflows,
@@ -26,6 +27,8 @@ import {
   DurableTaskFn,
   WorkerLabelComparator,
   IdempotencyConfig,
+  BatchTaskConfig,
+  BatchTaskFn,
 } from './task';
 import { Duration } from './client/duration';
 import { MetricsClient } from './client/features/metrics';
@@ -221,6 +224,21 @@ export type CreateTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
   O extends OutputType = void,
 > = CreateBaseWorkflowOpts & CreateBaseTaskOpts<I, O, TaskFn<I, O>>;
+
+/**
+ * Options for creating a batch task workflow. Batch tasks buffer concurrent runs and
+ * dispatch them together as a single execution; fn receives a Record keyed by each
+ * buffered run's task-run external id.
+ *
+ * Preview: batch tasks are in beta and may change in future releases.
+ */
+export type CreateBatchTaskWorkflowOpts<
+  I extends InputType = UnknownInputType,
+  O extends OutputType = void,
+> = CreateBaseWorkflowOpts &
+  CreateBaseTaskOpts<I, O, BatchTaskFn<I, O>> & {
+    batch: BatchTaskConfig;
+  };
 
 export type CreateDurableTaskWorkflowOpts<
   I extends InputType = UnknownInputType,
@@ -945,6 +963,49 @@ export class WorkflowDeclaration<
   }
 
   /**
+   * Adds a batch task to the workflow. Batch tasks buffer concurrent runs until Hatchet
+   * flushes the batch (size reached or flush interval), then invoke the handler once with
+   * all buffered inputs keyed by each run's task-run external id. The handler must return
+   * a Record mapping each id to its output, or set `batch.broadcastOutput` to return the
+   * same result to all callers. retries is always forced to 0 for batch tasks.
+   *
+   * Preview: batch tasks are in beta and may change in future releases.
+   * @template Fn The type of the batch task function.
+   * @param options The batch task configuration options.
+   * @returns The task options that were added.
+   */
+  batchTask<
+    Fn extends BatchTaskFn<TI, TO>,
+    TI extends InputType = Parameters<Fn>[0] extends Record<string, infer II>
+      ? II extends InputType
+        ? II
+        : UnknownInputType
+      : UnknownInputType,
+    TO extends OutputType = ReturnType<Fn> extends Promise<infer P>
+      ? P extends OutputType
+        ? P
+        : void
+      : ReturnType<Fn> extends OutputType
+        ? ReturnType<Fn>
+        : void,
+  >(
+    options: {
+      fn: Fn;
+      batch: BatchTaskConfig;
+    } & Omit<CreateBatchTaskWorkflowOpts<TI, TO>, 'fn' | 'batch' | 'name'> & { name: string }
+  ): CreateWorkflowTaskOpts<TI, TO> {
+    const { fn, batch, ...rest } = options;
+    const wrappedFn = wrapBatchFn(fn, !!batch.broadcastOutput);
+    const typedOptions = { ...rest, fn: wrappedFn, batch } as unknown as CreateWorkflowTaskOpts<
+      TI,
+      TO
+    >;
+
+    this.definition._tasks.push(typedOptions);
+    return typedOptions;
+  }
+
+  /**
    * Adds an onFailure task to the workflow.
    * This will only run if any task in the workflow fails.
    * @template Name The literal string name of the task.
@@ -1039,7 +1100,7 @@ export class WorkflowDeclaration<
         ? FnReturn
         : never,
   >(
-    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn' | 'slotCost'> & {
+    options: Omit<CreateWorkflowTaskOpts<I, TO>, 'fn' | 'slotCost' | 'batch'> & {
       name: Name;
       fn: Fn;
     }
@@ -1288,6 +1349,131 @@ export function CreateTaskWorkflow<
   client?: IHatchetClient
 ): TaskWorkflowDeclaration<I, O> {
   return new TaskWorkflowDeclaration<I, O>(options as any, client);
+}
+
+/**
+ * Wraps a user-provided batch task handler so it always resolves to a Record keyed by
+ * batch member id, regardless of whether the handler itself uses broadcastOutput. When
+ * broadcastOutput is set, the handler's single return value is copied to every member id
+ * present in the input. Otherwise, the handler's returned Record must have exactly the
+ * same key set as the input; a mismatch throws, which fails every member of the batch
+ * uniformly (matching the behavior of an uncaught error from the handler itself).
+ */
+function wrapBatchFn(
+  fn: BatchTaskFn<any, any>,
+  broadcastOutput: boolean
+): (input: Record<string, any>, ctx: Context<any>) => Promise<Record<string, any>> {
+  return async (input: Record<string, any>, ctx: Context<any>) => {
+    const result = await fn(input, ctx);
+
+    if (broadcastOutput) {
+      return Object.fromEntries(Object.keys(input).map((id) => [id, result]));
+    }
+
+    if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+      throw new HatchetError(
+        'batch task handler must return an object keyed by batch member id when broadcastOutput is false'
+      );
+    }
+
+    const inputKeys = Object.keys(input);
+    const resultKeys = Object.keys(result as Record<string, any>);
+    const missing = inputKeys.filter((k) => !resultKeys.includes(k));
+    const extra = resultKeys.filter((k) => !inputKeys.includes(k));
+
+    if (missing.length > 0 || extra.length > 0) {
+      throw new HatchetError(
+        `batch task handler result keys do not match batch member ids (missing=${missing.join(', ')}, extra=${extra.join(', ')})`
+      );
+    }
+
+    return result as Record<string, any>;
+  };
+}
+
+/**
+ * Creates a new batch task workflow declaration, with the handler's single return value
+ * broadcast to every member of the batch.
+ * @template Fn The type of the batch task function
+ * @param options The batch task configuration options.
+ * @param client Optional Hatchet client instance.
+ * @returns A new TaskWorkflowDeclaration with inferred types.
+ *
+ * Preview: batch tasks are in beta and may change in future releases.
+ */
+export function CreateBatchTaskWorkflow<
+  Fn extends (input: Record<string, I>, ctx: Context<Record<string, I>>) => O | Promise<O>,
+  I extends InputType = Parameters<Fn>[0] extends Record<string, infer II>
+    ? II extends InputType
+      ? II
+      : UnknownInputType
+    : UnknownInputType,
+  O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+    ? P extends OutputType
+      ? P
+      : void
+    : ReturnType<Fn> extends OutputType
+      ? ReturnType<Fn>
+      : void,
+>(
+  options: {
+    fn: Fn;
+    batch: BatchTaskConfig & { broadcastOutput: true };
+  } & Omit<CreateBatchTaskWorkflowOpts<I, O>, 'fn' | 'batch'>,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<I, O>;
+/**
+ * Creates a new batch task workflow declaration. The handler receives a Record keyed by
+ * batch member id and must return a Record with the exact same key set.
+ * @template Fn The type of the batch task function
+ * @param options The batch task configuration options.
+ * @param client Optional Hatchet client instance.
+ * @returns A new TaskWorkflowDeclaration with inferred types.
+ *
+ * Preview: batch tasks are in beta and may change in future releases.
+ */
+export function CreateBatchTaskWorkflow<
+  Fn extends (
+    input: Record<string, I>,
+    ctx: Context<Record<string, I>>
+  ) => Record<string, O> | Promise<Record<string, O>>,
+  I extends InputType = Parameters<Fn>[0] extends Record<string, infer II>
+    ? II extends InputType
+      ? II
+      : UnknownInputType
+    : UnknownInputType,
+  O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+    ? P extends Record<string, infer OO>
+      ? OO extends OutputType
+        ? OO
+        : void
+      : void
+    : ReturnType<Fn> extends Record<string, infer OO>
+      ? OO extends OutputType
+        ? OO
+        : void
+      : void,
+>(
+  options: {
+    fn: Fn;
+    batch: BatchTaskConfig & { broadcastOutput?: false };
+  } & Omit<CreateBatchTaskWorkflowOpts<I, O>, 'fn' | 'batch'>,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<I, O>;
+export function CreateBatchTaskWorkflow(
+  options: { fn: BatchTaskFn<any, any>; batch: BatchTaskConfig } & Omit<
+    CreateBatchTaskWorkflowOpts<any, any>,
+    'fn' | 'batch'
+  >,
+  client?: IHatchetClient
+): TaskWorkflowDeclaration<any, any> {
+  const { fn, batch, ...rest } = options;
+  const wrappedFn = wrapBatchFn(fn, !!batch.broadcastOutput);
+
+  return new TaskWorkflowDeclaration<any, any>(
+    { ...rest, fn: wrappedFn, batch, retries: 0 } as any,
+    client
+  );
 }
 
 /**

@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
@@ -662,6 +663,8 @@ func (w *Worker) executeAction(ctx context.Context, assignedAction *client.Actio
 		return w.cancelStepRun(ctx, assignedAction)
 	case client.ActionTypeStartGetGroupKey:
 		return w.startGetGroupKey(ctx, assignedAction)
+	case client.ActionTypeStartBatch:
+		return w.startBatch(ctx, assignedAction)
 	default:
 		return fmt.Errorf("unknown action type: %s", assignedAction.ActionType)
 	}
@@ -851,6 +854,190 @@ func (w *Worker) startGetGroupKey(ctx context.Context, assignedAction *client.Ac
 	}
 
 	return nil
+}
+
+// startBatch handles a START_BATCH action: it invokes the registered batch task handler
+// once with every buffered item, then reports completion/failure back per-member (or, for
+// broadcast batch tasks, the same result for every member) via SendBatchActionEvent.
+func (w *Worker) startBatch(ctx context.Context, assignedAction *client.Action) error {
+	memberIDs := make([]string, 0, len(assignedAction.BatchItems))
+	for id := range assignedAction.BatchItems {
+		memberIDs = append(memberIDs, id)
+	}
+
+	startedItems := make([]*client.BatchActionEventItem, len(memberIDs))
+	for i, id := range memberIDs {
+		startedItems[i] = &client.BatchActionEventItem{TaskRunExternalId: id}
+	}
+
+	go func() { // #nosec G118 -- intentionally decoupled from request context so the event send survives, bounded by its own timeout
+		eventCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+
+		defer cancel()
+
+		_, err := w.client.Dispatcher().SendBatchActionEvent(
+			eventCtx,
+			w.getBatchActionEvent(assignedAction, client.ActionEventTypeStarted, startedItems),
+		)
+
+		if err != nil {
+			w.l.Error().Err(err).Msgf("could not send batch started event")
+		}
+	}()
+
+	action, ok := w.actions[assignedAction.ActionId]
+
+	if !ok {
+		return fmt.Errorf("job not found")
+	}
+
+	runContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	hCtx, err := newHatchetContext(runContext, assignedAction, w.client, w.l, w)
+
+	if err != nil {
+		return fmt.Errorf("could not create hatchet context: %w", err)
+	}
+
+	svcAny, ok := w.services.Load(action.Service())
+
+	if !ok {
+		return fmt.Errorf("could not load service %s", action.Service())
+	}
+
+	svc := svcAny.(*Service)
+
+	return w.middlewares.runAll(hCtx, func(ctx HatchetContext) error {
+		return svc.mws.runAll(ctx, func(ctx HatchetContext) error {
+			defer cancel()
+
+			runResults := action.Run(ctx)
+
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+			}
+
+			var result any
+			var runErr error
+
+			if len(runResults) == 2 {
+				result = runResults[0]
+			}
+
+			if runResults[len(runResults)-1] != nil {
+				runErr = runResults[len(runResults)-1].(error)
+			}
+
+			if runErr != nil {
+				return w.sendBatchFailureEventForAll(ctx, assignedAction, memberIDs, runErr)
+			}
+
+			return w.sendBatchCompletedEvent(ctx, assignedAction, result)
+		})
+	})
+}
+
+// getBatchActionEvent builds a BatchActionEvent covering the given items.
+func (w *Worker) getBatchActionEvent(action *client.Action, eventType client.ActionEventType, items []*client.BatchActionEventItem) *client.BatchActionEvent {
+	timestamp := time.Now().UTC()
+
+	return &client.BatchActionEvent{
+		WorkerId:       action.WorkerId,
+		JobId:          action.JobId,
+		ActionId:       action.ActionId,
+		BatchId:        action.BatchId,
+		EventTimestamp: &timestamp,
+		EventType:      eventType,
+		Items:          items,
+	}
+}
+
+// sendBatchCompletedEvent reports the result of a successful batch handler invocation.
+// result is expected to be a map[string]interface{} keyed by batch member id; each
+// member's output is serialized independently so that one member's serialization failure
+// does not fail the whole batch.
+func (w *Worker) sendBatchCompletedEvent(ctx context.Context, assignedAction *client.Action, result any) error {
+	resultMap, ok := result.(map[string]interface{})
+
+	if !ok {
+		return w.sendBatchFailureEventForAllIDs(ctx, assignedAction, batchItemIDs(assignedAction), fmt.Errorf("batch task handler did not return a valid per-member result map"))
+	}
+
+	completedItems := make([]*client.BatchActionEventItem, 0, len(resultMap))
+	failedItems := make([]*client.BatchActionEventItem, 0)
+
+	for id, output := range resultMap {
+		if _, err := json.Marshal(output); err != nil {
+			failedItems = append(failedItems, &client.BatchActionEventItem{
+				TaskRunExternalId: id,
+				EventPayload:      err.Error(),
+			})
+			continue
+		}
+
+		completedItems = append(completedItems, &client.BatchActionEventItem{
+			TaskRunExternalId: id,
+			EventPayload:      output,
+		})
+	}
+
+	if len(completedItems) > 0 {
+		if _, err := w.client.Dispatcher().SendBatchActionEvent(ctx, w.getBatchActionEvent(assignedAction, client.ActionEventTypeCompleted, completedItems)); err != nil {
+			return fmt.Errorf("could not send batch completed event: %w", err)
+		}
+	}
+
+	if len(failedItems) > 0 {
+		if _, err := w.client.Dispatcher().SendBatchActionEvent(ctx, w.getBatchActionEvent(assignedAction, client.ActionEventTypeFailed, failedItems)); err != nil {
+			return fmt.Errorf("could not send batch failed event: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// sendBatchFailureEventForAll fails every member of the batch uniformly with the same
+// error, e.g. when the handler itself returns an error.
+func (w *Worker) sendBatchFailureEventForAll(ctx HatchetContext, assignedAction *client.Action, memberIDs []string, taskErr error) error {
+	w.alerter.SendAlert(context.Background(), taskErr, map[string]interface{}{
+		"actionId":   assignedAction.ActionId,
+		"workerId":   assignedAction.WorkerId,
+		"jobName":    assignedAction.JobName,
+		"actionType": assignedAction.ActionType,
+	})
+
+	return w.sendBatchFailureEventForAllIDs(ctx, assignedAction, memberIDs, taskErr)
+}
+
+func (w *Worker) sendBatchFailureEventForAllIDs(ctx context.Context, assignedAction *client.Action, memberIDs []string, taskErr error) error {
+	items := make([]*client.BatchActionEventItem, len(memberIDs))
+
+	for i, id := range memberIDs {
+		items[i] = &client.BatchActionEventItem{
+			TaskRunExternalId: id,
+			EventPayload:      taskErr.Error(),
+		}
+	}
+
+	innerCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if _, err := w.client.Dispatcher().SendBatchActionEvent(innerCtx, w.getBatchActionEvent(assignedAction, client.ActionEventTypeFailed, items)); err != nil {
+		return fmt.Errorf("could not send batch action event: %w", err)
+	}
+
+	return taskErr
+}
+
+func batchItemIDs(assignedAction *client.Action) []string {
+	ids := make([]string, 0, len(assignedAction.BatchItems))
+	for id := range assignedAction.BatchItems {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 func (w *Worker) cancelStepRun(ctx context.Context, assignedAction *client.Action) error {
