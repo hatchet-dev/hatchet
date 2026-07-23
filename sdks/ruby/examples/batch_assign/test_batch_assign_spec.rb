@@ -7,7 +7,8 @@ require_relative "worker"
 RSpec.describe "BatchAssign" do
   around do |example|
     HatchetWorkerFixture.with_worker(
-      ["bundle", "exec", "ruby", File.expand_path("worker.rb", __dir__)]
+      ["bundle", "exec", "ruby", File.expand_path("worker.rb", __dir__)],
+      healthcheck_port: 8006
     ) do
       example.run
     end
