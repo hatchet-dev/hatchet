@@ -1514,6 +1514,7 @@ func (d *DispatcherImpl) CancelTaskEvent(ctx context.Context, request *contracts
 		WorkerId: request.WorkerId,
 	}, nil
 }
+
 // sendBatchActionEventV1 reports a single lifecycle event (STARTED, COMPLETED, FAILED, or CANCELLED)
 // for every task in a batch in one call. It resolves all task external ids in bulk and then feeds the
 // same per-kind message payloads/queues that the single-task handlers (handleTaskStarted,
