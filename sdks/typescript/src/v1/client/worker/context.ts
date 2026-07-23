@@ -26,6 +26,7 @@ import { CreateWorkflowDurableTaskOpts, CreateWorkflowTaskOpts } from '@hatchet/
 import { JsonObject, OutputType } from '@hatchet/v1/types';
 import { Action as ConditionAction } from '@hatchet/protoc/v1/shared/condition';
 import { HatchetClient } from '@hatchet/v1';
+import { StepActionEventType } from '@hatchet/protoc/dispatcher';
 import { applyNamespace } from '@hatchet/util/apply-namespace';
 import { createAbortError, rethrowIfAborted } from '@hatchet/util/abort-error';
 import { WorkerLabels } from '@hatchet/clients/dispatcher/dispatcher-client';
@@ -194,9 +195,26 @@ export class Context<T, K = {}> {
   }
 
   async cancel() {
-    await this.v1.runs.cancel({
-      ids: [this.action.taskRunExternalId],
-    });
+    if (this.action.batchId) {
+      // Batch tasks share one context across every buffered member, so there is no single
+      // task-run id to cancel — cancel every member of the batch instead. `this.data` is
+      // the raw batch-items map for a START_BATCH action, keyed by each member's
+      // task-run external id.
+      const memberIds = Object.keys(this.data ?? {});
+      await this.v1.dispatcher.sendBatchActionEvent({
+        workerId: this.worker.id() ?? '',
+        jobId: this.action.jobId,
+        actionId: this.action.actionId,
+        batchId: this.action.batchId,
+        eventTimestamp: new Date(),
+        eventType: StepActionEventType.STEP_EVENT_TYPE_CANCELLED,
+        items: memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: '' })),
+      });
+    } else {
+      await this.v1.runs.cancel({
+        ids: [this.action.taskRunExternalId],
+      });
+    }
 
     // optimistically abort the run
     this.controller.abort();

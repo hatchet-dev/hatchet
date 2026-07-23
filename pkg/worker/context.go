@@ -61,6 +61,11 @@ type HatchetContext interface {
 
 	WorkflowInput(target interface{}) error
 
+	// BatchInputInto decodes the buffered items of a batch task's START_BATCH action into
+	// target, which must be a pointer. The decoded value is a map keyed by each buffered
+	// item's task run external id.
+	BatchInputInto(target interface{}) error
+
 	UserData(target interface{}) error
 
 	AdditionalMetadata() map[string]string
@@ -351,6 +356,19 @@ func (h *hatchetContext) TriggeredByEvent() bool {
 // Use the new Go SDK at github.com/hatchet-dev/hatchet/sdks/go instead of using this directly. Migration guide: https://docs.hatchet.run/home/migration-guide-go
 func (h *hatchetContext) WorkflowInput(target interface{}) error {
 	return toTarget(h.stepData.Input, target)
+}
+
+// BatchInputInto decodes the buffered items of a batch task's START_BATCH action into
+// target, which must be a pointer. The decoded value is a map keyed by each buffered
+// item's task run external id.
+func (h *hatchetContext) BatchInputInto(target interface{}) error {
+	inputMap := make(map[string]interface{}, len(h.a.BatchItems))
+
+	for id, item := range h.a.BatchItems {
+		inputMap[id] = item.Payload.Input
+	}
+
+	return toTarget(inputMap, target)
 }
 
 // Deprecated: StepRunErrors is an internal method used by the new Go SDK.

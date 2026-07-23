@@ -32,6 +32,10 @@ type DispatcherClient interface {
 
 	SendGroupKeyActionEvent(ctx context.Context, in *ActionEvent) (*ActionEventResponse, error)
 
+	// SendBatchActionEvent reports a lifecycle event (STARTED, COMPLETED, or FAILED) covering
+	// one or more members of a batch task's execution.
+	SendBatchActionEvent(ctx context.Context, in *BatchActionEvent) (*ActionEventResponse, error)
+
 	ReleaseSlot(ctx context.Context, stepRunId string) error
 
 	RefreshTimeout(ctx context.Context, stepRunId string, incrementTimeoutBy string) error
@@ -79,6 +83,47 @@ type BatchStart struct {
 	TriggerTime   time.Time
 	TriggerReason string
 	ExpectedSize  int32
+}
+
+// BatchItemPayload mirrors the per-member "payload" object carried in a START_BATCH
+// action's ActionPayload.
+type BatchItemPayload struct {
+	Input map[string]interface{} `json:"input"`
+}
+
+// BatchItemData is a single buffered item within a START_BATCH action's payload, keyed by
+// the item's task run external id (see Action.BatchItems).
+type BatchItemData struct {
+	Payload       BatchItemPayload `json:"payload"`
+	WorkflowRunId string           `json:"workflow_run_id"`
+}
+
+// BatchActionEventItem is a single batch member's contribution to a batched
+// STARTED/COMPLETED/FAILED action event.
+type BatchActionEventItem struct {
+	// the task external run id
+	TaskRunExternalId string
+
+	// the event payload. This must be JSON-compatible as it gets marshalled to a JSON string.
+	EventPayload interface{}
+
+	// the retry count (falls back to the task's current retry count if unset)
+	RetryCount *int32
+
+	// a flag indicating if the task should _not_ be retried (FAILED only)
+	ShouldNotRetry *bool
+}
+
+// BatchActionEvent reports a single lifecycle event covering one or more members of a
+// batch task's execution.
+type BatchActionEvent struct {
+	WorkerId       string
+	JobId          string
+	ActionId       string
+	BatchId        *string
+	EventTimestamp *time.Time
+	EventType      ActionEventType
+	Items          []*BatchActionEventItem
 }
 
 type Action struct {
@@ -153,6 +198,10 @@ type Action struct {
 	BatchIndex *int32      `json:"batchIndex,omitempty"`
 	BatchKey   *string     `json:"batchKey,omitempty"`
 	BatchStart *BatchStart `json:"batchStart,omitempty"`
+
+	// BatchItems holds the buffered items for a START_BATCH action, keyed by each item's
+	// task run external id. nil for non-batch actions.
+	BatchItems map[string]BatchItemData `json:"batchItems,omitempty"`
 }
 
 type WorkerActionListener interface {
@@ -363,6 +412,57 @@ func (d *dispatcherClientImpl) SendStepActionEvent(ctx context.Context, in *Acti
 		EventPayload:      string(payloadBytes),
 		RetryCount:        &in.RetryCount,
 		ShouldNotRetry:    in.ShouldNotRetry,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ActionEventResponse{
+		TenantId: resp.TenantId,
+		WorkerId: resp.WorkerId,
+	}, nil
+}
+
+func (d *dispatcherClientImpl) SendBatchActionEvent(ctx context.Context, in *BatchActionEvent) (*ActionEventResponse, error) {
+	var actionEventType dispatchercontracts.StepActionEventType
+
+	switch in.EventType {
+	case ActionEventTypeStarted:
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_STARTED
+	case ActionEventTypeCompleted:
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_COMPLETED
+	case ActionEventTypeFailed:
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_FAILED
+	default:
+		actionEventType = dispatchercontracts.StepActionEventType_STEP_EVENT_TYPE_UNKNOWN
+	}
+
+	items := make([]*dispatchercontracts.BatchActionEventItem, len(in.Items))
+
+	for i, item := range in.Items {
+		payloadBytes, err := json.Marshal(item.EventPayload)
+
+		if err != nil {
+			return nil, err
+		}
+
+		items[i] = &dispatchercontracts.BatchActionEventItem{
+			TaskRunExternalId: item.TaskRunExternalId,
+			EventPayload:      string(payloadBytes),
+			RetryCount:        item.RetryCount,
+			ShouldNotRetry:    item.ShouldNotRetry,
+		}
+	}
+
+	resp, err := d.client.SendBatchActionEvent(d.ctx.newContext(ctx), &dispatchercontracts.BatchActionEvent{
+		WorkerId:       in.WorkerId,
+		JobId:          in.JobId,
+		ActionId:       in.ActionId,
+		BatchId:        in.BatchId,
+		EventTimestamp: timestamppb.New(*in.EventTimestamp),
+		EventType:      actionEventType,
+		Items:          items,
 	})
 
 	if err != nil {
