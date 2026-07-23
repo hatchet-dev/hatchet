@@ -72,11 +72,10 @@ func (m *mockMQ) SendMessage(_ context.Context, _ msgqueue.Queue, _ *msgqueue.Me
 }
 func (m *mockMQ) Clone() (func() error, msgqueue.MessageQueue, error) { return nil, nil, nil }
 func (m *mockMQ) SetQOS(_ int)                                        {}
-func (m *mockMQ) Subscribe(_ msgqueue.Queue, _, _ msgqueue.AckHook) (func() error, error) {
+func (m *mockMQ) Subscribe(_ msgqueue.Queue, _, _ msgqueue.MsgHandler) (func() error, error) {
 	return nil, nil
 }
-func (m *mockMQ) RegisterTenant(_ context.Context, _ uuid.UUID) error { return nil }
-func (m *mockMQ) IsReady() bool                                       { return true }
+func (m *mockMQ) IsReady() bool { return true }
 
 type mockRepo struct {
 	v1.Repository

@@ -468,14 +468,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 				if err != nil {
 					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
 				} else {
-					err = s.mqv1.SendMessage(
+					err = s.pubsub.Pub(
 						notifyCtx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 						msg,
 					)
 
 					if err != nil {
-						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 					}
 				}
 			}()
@@ -1347,7 +1347,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
@@ -1407,7 +1407,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err

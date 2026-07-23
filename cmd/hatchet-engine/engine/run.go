@@ -160,7 +160,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	var healthCleanup func() error
 	healthProbes := sc.HasService("health")
 	if healthProbes {
-		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
+		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.PubSubV1, sc.Version, l)
 		cleanupHealth, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
@@ -197,6 +197,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
 			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithPubSub(sc.PubSubV1),
 			schedulerv1.WithRepository(sc.V1),
 			schedulerv1.WithLogger(sc.Logger),
 			schedulerv1.WithPartition(p),
@@ -249,6 +250,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		tasks, err := task.New(
 			task.WithAlerter(sc.Alerter),
 			task.WithMessageQueue(sc.MessageQueueV1),
+			task.WithPubSub(sc.PubSubV1),
 			task.WithV1Repository(sc.V1),
 			task.WithLogger(sc.Logger),
 			task.WithPartition(p),
@@ -281,6 +283,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		olap, err := olap.New(
 			olap.WithAlerter(sc.Alerter),
 			olap.WithMessageQueue(sc.MessageQueueV1),
+			olap.WithPubSub(sc.PubSubV1),
 			olap.WithRepository(sc.V1),
 			olap.WithLogger(sc.Logger),
 			olap.WithPartition(p),
@@ -343,6 +346,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
+			dispatcher.WithPubSub(sc.PubSubV1),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithCache(cacheInstance),
@@ -367,6 +371,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
+			ingestor.WithPubSub(sc.PubSubV1),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 			ingestor.WithLocalScheduler(localScheduler),
@@ -385,6 +390,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
+			admin.WithPubSub(sc.PubSubV1),
 			admin.WithLocalScheduler(localScheduler),
 			admin.WithLocalDispatcher(d),
 			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
@@ -400,6 +406,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		adminv1Svc, err := adminv1.NewAdminService(
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
+			adminv1.WithPubSub(sc.PubSubV1),
 			adminv1.WithAnalytics(sc.Analytics),
 			adminv1.WithLocalScheduler(localScheduler),
 			adminv1.WithLocalDispatcher(d),
@@ -565,7 +572,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	var healthCleanup func() error
 
 	if healthProbes {
-		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
+		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.PubSubV1, sc.Version, l)
 
 		clean, err := h.Start(sc.Runtime.HealthcheckPort)
 
@@ -631,6 +638,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			tasks, err := task.New(
 				task.WithAlerter(sc.Alerter),
 				task.WithMessageQueue(sc.MessageQueueV1),
+				task.WithPubSub(sc.PubSubV1),
 				task.WithV1Repository(sc.V1),
 				task.WithLogger(sc.Logger),
 				task.WithPartition(p),
@@ -666,6 +674,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 			olap, err := olap.New(
 				olap.WithAlerter(sc.Alerter),
 				olap.WithMessageQueue(sc.MessageQueueV1),
+				olap.WithPubSub(sc.PubSubV1),
 				olap.WithRepository(sc.V1),
 				olap.WithLogger(sc.Logger),
 				olap.WithPartition(p),
@@ -748,6 +757,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		sv1, err := schedulerv1.New(
 			schedulerv1.WithAlerter(sc.Alerter),
 			schedulerv1.WithMessageQueue(sc.MessageQueueV1),
+			schedulerv1.WithPubSub(sc.PubSubV1),
 			schedulerv1.WithRepository(sc.V1),
 			schedulerv1.WithLogger(sc.Logger),
 			schedulerv1.WithPartition(p),
@@ -781,6 +791,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		d, err := dispatcher.New(
 			dispatcher.WithAlerter(sc.Alerter),
 			dispatcher.WithMessageQueueV1(sc.MessageQueueV1),
+			dispatcher.WithPubSub(sc.PubSubV1),
 			dispatcher.WithRepositoryV1(sc.V1),
 			dispatcher.WithLogger(sc.Logger),
 			dispatcher.WithCache(cacheInstance),
@@ -806,6 +817,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		// create the event ingestor
 		ei, err := ingestor.NewIngestor(
 			ingestor.WithMessageQueueV1(sc.MessageQueueV1),
+			ingestor.WithPubSub(sc.PubSubV1),
 			ingestor.WithRepositoryV1(sc.V1),
 			ingestor.WithLogIngestionEnabled(sc.Runtime.LogIngestionEnabled),
 			ingestor.WithLocalScheduler(localScheduler),
@@ -824,6 +836,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		adminSvc, err := admin.NewAdminService(
 			admin.WithRepositoryV1(sc.V1),
 			admin.WithMessageQueueV1(sc.MessageQueueV1),
+			admin.WithPubSub(sc.PubSubV1),
 			admin.WithLocalScheduler(localScheduler),
 			admin.WithLocalDispatcher(d),
 			admin.WithOptimisticSchedulingEnabled(sc.Runtime.OptimisticSchedulingEnabled),
@@ -840,6 +853,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 		adminv1Svc, err := adminv1.NewAdminService(
 			adminv1.WithRepository(sc.V1),
 			adminv1.WithMessageQueue(sc.MessageQueueV1),
+			adminv1.WithPubSub(sc.PubSubV1),
 			adminv1.WithAnalytics(sc.Analytics),
 			adminv1.WithLocalScheduler(localScheduler),
 			adminv1.WithLocalDispatcher(d),

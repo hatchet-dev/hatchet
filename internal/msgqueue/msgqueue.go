@@ -22,13 +22,6 @@ type Queue interface {
 	// Exclusive returns true if this queue should only be accessed by the current connection.
 	Exclusive() bool
 
-	// FanoutExchangeKey returns which exchange the queue should be subscribed to. This is only currently relevant
-	// to tenant pub/sub queues.
-	//
-	// In RabbitMQ terminology, the existence of a subscriber key means that the queue is bound to a fanout
-	// exchange, and a new random queue is generated for each connection when connections are retried.
-	FanoutExchangeKey() string
-
 	// DLQ returns the queue's dead letter queue, if it exists.
 	DLQ() Queue
 
@@ -67,10 +60,6 @@ func (s staticQueue) AutoDeleted() bool {
 
 func (s staticQueue) Exclusive() bool {
 	return false
-}
-
-func (s staticQueue) FanoutExchangeKey() string {
-	return ""
 }
 
 func (s staticQueue) DLQ() Queue {
@@ -138,10 +127,6 @@ func (d dispatcherQueue) Exclusive() bool {
 	return true
 }
 
-func (d dispatcherQueue) FanoutExchangeKey() string {
-	return ""
-}
-
 func (d dispatcherQueue) DLQ() Queue {
 	return dlq{
 		staticQueue: DISPATCHER_DEAD_LETTER_QUEUE,
@@ -166,74 +151,10 @@ func QueueTypeFromDispatcherID(d uuid.UUID) dispatcherQueue {
 	return dispatcherQueue(d.String() + "_dispatcher_v1")
 }
 
-type consumerQueue string
-
-func (s consumerQueue) Name() string {
-	return string(s)
-}
-
-func (n consumerQueue) Durable() bool {
-	return false
-}
-
-func (n consumerQueue) AutoDeleted() bool {
-	return true
-}
-
-func (n consumerQueue) Exclusive() bool {
-	return true
-}
-
-func (n consumerQueue) FanoutExchangeKey() string {
-	return ""
-}
-
-func (n consumerQueue) DLQ() Queue {
-	return nil
-}
-
-func (n consumerQueue) IsDLQ() bool {
-	return false
-}
-
-func (n consumerQueue) IsAutoDLQ() bool {
-	return false
-}
-
-func (n consumerQueue) IsExpirable() bool {
-	// since exclusive and auto-deleted, it's not expirable
-	return false
-}
-
-const (
-	Scheduler = "scheduler"
-)
-
-func QueueTypeFromPartitionIDAndController(p, controller string) consumerQueue {
-	return consumerQueue(fmt.Sprintf("%s_%s_v1", p, controller))
-}
-
-type fanoutQueue struct {
-	consumerQueue
-}
-
-// The fanout exchange key for a consumer is the name of the consumer queue.
-func (f fanoutQueue) FanoutExchangeKey() string {
-	return f.Name()
-}
-
-func TenantEventConsumerQueue(t uuid.UUID) fanoutQueue {
-	// generate a unique queue name for the tenant
-	return fanoutQueue{
-		consumerQueue: consumerQueue(GetTenantExchangeName(t)),
-	}
-}
-
-func GetTenantExchangeName(t uuid.UUID) string {
-	return t.String() + "_v1"
-}
-
-type AckHook func(task *Message) error
+// MsgHandler processes a received message. On the durable MessageQueue it is
+// invoked as a pre-ack or post-ack hook; on the best-effort PubSub it is the
+// sole handler with no ack semantics.
+type MsgHandler func(task *Message) error
 
 type MessageQueue interface {
 	// Clone copies the message queue with a new instance.
@@ -247,13 +168,7 @@ type MessageQueue interface {
 
 	// Subscribe subscribes to the task queue. It returns a cleanup function that should be called when the
 	// subscription is no longer needed.
-	Subscribe(queue Queue, preAck AckHook, postAck AckHook) (func() error, error)
-
-	// RegisterTenant registers a new pub/sub mechanism for a tenant. This should be called when a
-	// new tenant is created. If this is not called, implementors should ensure that there's a check
-	// on the first message to a tenant to ensure that the tenant is registered, and store the tenant
-	// in an LRU cache which lives in-memory.
-	RegisterTenant(ctx context.Context, tenantId uuid.UUID) error
+	Subscribe(queue Queue, preAck MsgHandler, postAck MsgHandler) (func() error, error)
 
 	// IsReady returns true if the task queue is ready to accept tasks.
 	IsReady() bool

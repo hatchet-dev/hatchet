@@ -68,6 +68,7 @@ func (tc *OLAPControllerImpl) logRepublish(ctx context.Context, entity string, c
 
 type OLAPControllerImpl struct {
 	mq                           msgqueue.MessageQueue
+	pubsub                       msgqueue.PubSub
 	l                            *zerolog.Logger
 	repo                         v1.Repository
 	dv                           datautils.DataDecoderValidator
@@ -96,6 +97,7 @@ type OLAPControllerOpt func(*OLAPControllerOpts)
 
 type OLAPControllerOpts struct {
 	mq                          msgqueue.MessageQueue
+	pubsub                      msgqueue.PubSub
 	l                           *zerolog.Logger
 	repo                        v1.Repository
 	dv                          datautils.DataDecoderValidator
@@ -129,6 +131,12 @@ func defaultOLAPControllerOpts() *OLAPControllerOpts {
 func WithMessageQueue(mq msgqueue.MessageQueue) OLAPControllerOpt {
 	return func(opts *OLAPControllerOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) OLAPControllerOpt {
+	return func(opts *OLAPControllerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -236,6 +244,10 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repo == nil {
 		return nil, fmt.Errorf("repository is required. use WithRepository")
 	}
@@ -270,6 +282,7 @@ func New(fs ...OLAPControllerOpt) (*OLAPControllerImpl, error) {
 
 	o := &OLAPControllerImpl{
 		mq:                          opts.mq,
+		pubsub:                      opts.pubsub,
 		l:                           opts.l,
 		s:                           s,
 		p:                           opts.p,
@@ -1160,7 +1173,7 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 		if err != nil {
 			return err
 		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
+		if err := msgqueue.PubTenantMessage(ctx, tc.l, tc.mq, tc.pubsub, msgqueue.OLAP_QUEUE, msg); err != nil {
 			return err
 		}
 	}

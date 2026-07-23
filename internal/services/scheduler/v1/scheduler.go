@@ -33,6 +33,7 @@ type SchedulerOpt func(*SchedulerOpts)
 
 type SchedulerOpts struct {
 	mq          msgqueue.MessageQueue
+	pubsub      msgqueue.PubSub
 	l           *zerolog.Logger
 	repov1      repov1.Repository
 	dv          datautils.DataDecoderValidator
@@ -60,6 +61,12 @@ func defaultSchedulerOpts() *SchedulerOpts {
 func WithMessageQueue(mq msgqueue.MessageQueue) SchedulerOpt {
 	return func(opts *SchedulerOpts) {
 		opts.mq = mq
+	}
+}
+
+func WithPubSub(pubsub msgqueue.PubSub) SchedulerOpt {
+	return func(opts *SchedulerOpts) {
+		opts.pubsub = pubsub
 	}
 }
 
@@ -114,6 +121,7 @@ func WithPrometheusGate(gate *prometheus.Gate) SchedulerOpt {
 
 type Scheduler struct {
 	mq        msgqueue.MessageQueue
+	pubsub    msgqueue.PubSub
 	pubBuffer *msgqueue.MQPubBuffer
 	l         *zerolog.Logger
 	repov1    repov1.Repository
@@ -145,6 +153,10 @@ func New(
 		return nil, fmt.Errorf("task queue is required. use WithMessageQueue")
 	}
 
+	if opts.pubsub == nil {
+		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
+	}
+
 	if opts.repov1 == nil {
 		return nil, fmt.Errorf("v2 repository is required. use WithV2Repository")
 	}
@@ -171,10 +183,11 @@ func New(
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.repov1, opts.l, pubBuffer, opts.promGate)
+	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
 
 	q := &Scheduler{
 		mq:                     opts.mq,
+		pubsub:                 opts.pubsub,
 		pubBuffer:              pubBuffer,
 		l:                      opts.l,
 		repov1:                 opts.repov1,
@@ -230,9 +243,8 @@ func (s *Scheduler) Start() (func() error, error) {
 		return nil
 	}
 
-	cleanupQueue, err := s.mq.Subscribe(
-		msgqueue.QueueTypeFromPartitionIDAndController(s.p.GetSchedulerPartitionId(), msgqueue.Scheduler),
-		msgqueue.NoOpHook, // the only handler is to check the queue, so we acknowledge immediately with the NoOpHook
+	cleanupQueue, err := s.pubsub.Sub(
+		msgqueue.SchedulerPartitionTopic(s.p.GetSchedulerPartitionId()),
 		postAck,
 	)
 
@@ -605,11 +617,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			err = s.mq.SendMessage(
-				ctx,
-				msgqueue.TASK_PROCESSING_QUEUE,
-				msg,
-			)
+			err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 			if err != nil {
 				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
@@ -681,11 +689,7 @@ func (s *Scheduler) internalRetry(ctx context.Context, tenantId uuid.UUID, assig
 			continue
 		}
 
-		err = s.mq.SendMessage(
-			ctx,
-			msgqueue.TASK_PROCESSING_QUEUE,
-			msg,
-		)
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("could not send failed task")
@@ -759,11 +763,7 @@ func (s *Scheduler) notifyAfterConcurrency(ctx context.Context, tenantId uuid.UU
 			continue
 		}
 
-		err = s.mq.SendMessage(
-			ctx,
-			msgqueue.TASK_PROCESSING_QUEUE,
-			msg,
-		)
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			s.l.Error().Ctx(ctx).Err(err).Msg("could not send cancelled task")
@@ -918,7 +918,7 @@ func (s *Scheduler) handleDeadLetteredTaskBulkAssigned(ctx context.Context, msg 
 			return fmt.Errorf("could not create failed task message: %w", err)
 		}
 
-		err = s.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+		err = msgqueue.PubTenantMessage(ctx, s.l, s.mq, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 		if err != nil {
 			// NOTE: failure to send on the MQ is likely not transient; ideally we could only retry individual

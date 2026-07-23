@@ -39,11 +39,14 @@ const (
 	PreAck  SubBufferKind = "preAck"
 )
 
+// SubscribeFunc subscribes to a message source with pre-ack and post-ack
+// hooks, returning a cleanup function.
+type SubscribeFunc func(preAck MsgHandler, postAck MsgHandler) (func() error, error)
+
 // MQSubBuffer buffers messages coming out of the task queue, groups them by tenantId and msgId, and then flushes them
 // to the task handler as necessary.
 type MQSubBuffer struct {
-	queue Queue
-	mq    MessageQueue
+	sub SubscribeFunc
 
 	// buffers is keyed on a composite (tenantId, msgId) and contains a buffer of messages for that tenantId and msgId.
 	buffers syncx.Map[string, *msgIdBuffer]
@@ -100,13 +103,21 @@ func defaultMQSubBufferOpts() *mqSubBufferOpts {
 }
 
 func NewMQSubBuffer(queue Queue, mq MessageQueue, dst DstFunc, fs ...mqSubBufferOptFunc) *MQSubBuffer {
+	return NewSubBufferFromSubscribe(func(preAck MsgHandler, postAck MsgHandler) (func() error, error) {
+		return mq.Subscribe(queue, preAck, postAck)
+	}, dst, fs...)
+}
+
+// NewSubBufferFromSubscribe creates a sub buffer over an arbitrary subscribe
+// function, so the buffer can sit on top of either the durable MessageQueue
+// or a best-effort PubSub subscription.
+func NewSubBufferFromSubscribe(sub SubscribeFunc, dst DstFunc, fs ...mqSubBufferOptFunc) *MQSubBuffer {
 	opts := defaultMQSubBufferOpts()
 	for _, f := range fs {
 		f(opts)
 	}
 	return &MQSubBuffer{
-		queue:                 queue,
-		mq:                    mq,
+		sub:                   sub,
 		dst:                   dst,
 		kind:                  opts.kind,
 		flushInterval:         opts.flushInterval,
@@ -128,9 +139,9 @@ func (m *MQSubBuffer) Start() (func() error, error) {
 
 	switch m.kind {
 	case PreAck:
-		cleanupQueue, err = m.mq.Subscribe(m.queue, f, NoOpHook)
+		cleanupQueue, err = m.sub(f, NoOpHook)
 	case PostAck:
-		cleanupQueue, err = m.mq.Subscribe(m.queue, NoOpHook, f)
+		cleanupQueue, err = m.sub(NoOpHook, f)
 	}
 
 	if err != nil {

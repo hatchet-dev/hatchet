@@ -21,14 +21,16 @@ type Health struct {
 
 	repository v1.HealthRepository
 	queue      msgqueue.MessageQueue
+	pubsub     msgqueue.PubSub
 	l          *zerolog.Logger
 }
 
-func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
+func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, pubsub msgqueue.PubSub, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,
 		repository: repo,
 		queue:      queue,
+		pubsub:     pubsub,
 		l:          l,
 	}
 }
@@ -44,7 +46,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		queueReady := h.queue.IsReady()
+		queueReady := h.queue.IsReady() && h.pubsub.IsReady()
 		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if !queueReady || !repositoryReady {
@@ -60,7 +62,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		queueReady := h.queue.IsReady()
+		queueReady := h.queue.IsReady() && h.pubsub.IsReady()
 		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if h.shuttingDown || !queueReady || !repositoryReady {
