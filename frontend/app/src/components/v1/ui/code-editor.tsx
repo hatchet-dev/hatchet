@@ -1,6 +1,5 @@
 import CopyToClipboard from './copy-to-clipboard';
 import { useTheme } from '@/components/hooks/use-theme';
-import '@/lib/monaco-environment';
 import { cn } from '@/lib/utils';
 import Editor, { Monaco, OnMount } from '@monaco-editor/react';
 import { useCallback, useEffect, useId, useRef } from 'react';
@@ -50,8 +49,7 @@ export function CodeEditor({
       const existingSchemas = existingOptions.schemas || [];
 
       const otherSchemas = existingSchemas.filter(
-        (s: (typeof existingSchemas)[number]) =>
-          !s.fileMatch?.includes(modelPath),
+        (s) => !s.fileMatch?.includes(modelPath),
       );
 
       const newSchemas = hasJsonSchema
