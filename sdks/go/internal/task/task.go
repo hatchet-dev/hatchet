@@ -60,6 +60,10 @@ type TaskShared struct {
 	// Durable tasks ignore it.
 	SlotCost *int32
 
+	// Batch configures the task as a batch task. When set, the engine buffers concurrent
+	// runs of this task and dispatches them together; retries is always forced to 0.
+	Batch *types.BatchConfig
+
 	// The function to execute when the task runs
 	// must be a function that takes an input and a Hatchet context and returns an output and an error
 	Fn interface{}
@@ -219,9 +223,43 @@ func makeContractTaskOpts(t *TaskShared, taskDefaults *create.TaskDefaults) *con
 		taskOpts.BackoffMaxSeconds = t.RetryMaxBackoffSeconds
 	}
 
+	if t.Batch != nil {
+		batchProto := &contracts.TaskBatchConfig{
+			BatchMaxSize: t.Batch.MaxSize,
+		}
+
+		if t.Batch.MaxInterval != nil {
+			intervalMs := int32(t.Batch.MaxInterval.Milliseconds()) // #nosec G115 -- developer-configured interval, not attacker-controlled
+			if intervalMs <= 0 {
+				panic("batch_max_interval must be positive when provided")
+			}
+			batchProto.BatchMaxIntervalMs = &intervalMs
+		}
+
+		if t.Batch.GroupKey != nil {
+			batchProto.BatchGroupKey = t.Batch.GroupKey
+		}
+
+		if t.Batch.GroupMaxRuns != nil {
+			batchProto.BatchGroupMaxRuns = t.Batch.GroupMaxRuns
+		}
+
+		if t.Batch.BroadcastOutput {
+			broadcastOutput := true
+			batchProto.BroadcastOutput = &broadcastOutput
+		}
+
+		taskOpts.Batch = batchProto
+
+		// Batch tasks buffer many concurrent runs into a single execution; per-item retry
+		// semantics don't apply, so retries is always forced to 0.
+		zeroRetries := int32(0)
+		taskOpts.Retries = zeroRetries
+	}
+
 	// Apply workflow task defaults if they are not set
 	if taskDefaults != nil {
-		if t.Retries == nil && taskDefaults.Retries != 0 {
+		if t.Retries == nil && t.Batch == nil && taskDefaults.Retries != 0 {
 			taskOpts.Retries = taskDefaults.Retries
 		}
 

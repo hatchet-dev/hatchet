@@ -770,6 +770,21 @@ type assignSingleResult struct {
 	succeeded bool
 
 	rateLimitResult *scheduleRateLimitResult
+
+	// toBatch indicates this queue item should be moved into the v1 batched queue table,
+	// rather than scheduled to a worker slot.
+	toBatch bool
+
+	// rateLimitAck/Nack are used for non-slot outcomes (like moving to the batched queue table).
+	// For slot-assigned outcomes, these are wired into the slot and invoked by slot.ack()/slot.nack().
+	rateLimitAck  func()
+	rateLimitNack func()
+}
+
+type batchedQueueItemResult struct {
+	qi            *sqlcv1.V1QueueItem
+	rateLimitAck  func()
+	rateLimitNack func()
 }
 
 func (s *Scheduler) tryAssignBatch(
@@ -784,6 +799,7 @@ func (s *Scheduler) tryAssignBatch(
 	stepIdsToLabels map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow,
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
+	stepIdsToBatchConfig map[string]bool,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
 ) (
 	res []*assignSingleResult, newRingOffset int, err error,
@@ -859,6 +875,25 @@ func (s *Scheduler) tryAssignBatch(
 
 		rlAcks[i] = rateLimitAck
 		rlNacks[i] = rateLimitNack
+
+		// store for non-slot outcomes (e.g. moving to batched queue table)
+		r.rateLimitAck = rateLimitAck
+		r.rateLimitNack = rateLimitNack
+	}
+
+	// After rate limits are evaluated, mark batch candidates to be moved to the batched queue table.
+	// This replaces the old DB trigger-based redirect.
+	for i := range res {
+		qi := res[i].qi
+		if qi == nil {
+			continue
+		}
+
+		if stepIdsToBatchConfig == nil || !stepIdsToBatchConfig[qi.StepID.String()] {
+			continue
+		}
+
+		res[i].toBatch = true
 	}
 	rateLimitSpan.End()
 
@@ -877,9 +912,16 @@ func (s *Scheduler) tryAssignBatch(
 		telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.missing", Value: true})
 		s.l.Debug().Ctx(ctx).Msgf("no action %s", actionId)
 
-		// Treat missing action as "no slots" for any non-rate-limited queue item.
+		// Treat missing action as "no slots" for non-rate-limited, non-batch queue items.
+		// Batch-eligible items (toBatch=true) do NOT need a worker slot here — they are
+		// moved to v1_batched_queue_item and the batch scheduler handles worker assignment.
+		// Clearing toBatch here would strand them in v1_queue_item indefinitely if the
+		// action isn't yet present in s.actions (e.g. replenish hasn't fired yet).
 		for i := range res {
 			if res[i].rateLimitResult != nil {
+				continue
+			}
+			if res[i].toBatch {
 				continue
 			}
 			res[i].noSlots = true
@@ -921,6 +963,12 @@ func (s *Scheduler) tryAssignBatch(
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "action.slot_count", Value: len(candidateSlots)})
 
 	for i := range res {
+		// Batch candidates are moved to v1_batched_queue_item in the queuer flush path.
+		// They should not consume a worker slot here.
+		if res[i].toBatch {
+			continue
+		}
+
 		if res[i].rateLimitResult != nil {
 			continue
 		}
@@ -986,6 +1034,77 @@ func (s *Scheduler) tryAssignBatch(
 	}
 
 	return res, newRingOffset, nil
+}
+
+// tryAssignBatchQueueItem assigns a single representative queue item to obtain one worker slot
+// for an entire batch flush (v1_batched_queue_item). This is intentionally separate from the
+// regular chunk assignment flow.
+func (s *Scheduler) tryAssignBatchQueueItem(
+	ctx context.Context,
+	qi *sqlcv1.V1QueueItem,
+	labels []*sqlcv1.GetDesiredLabelsRow,
+) (
+	res assignSingleResult, err error,
+) {
+	spanCtx, span := telemetry.NewSpan(ctx, "try-assign-batch-queue-item")
+	defer span.End()
+
+	if qi == nil {
+		return res, nil
+	}
+
+	if err := spanCtx.Err(); err != nil {
+		return res, err
+	}
+
+	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: qi.TenantID.String()})
+
+	if isTimedOut(qi) {
+		res.qi = qi
+		res.noSlots = true
+		res.succeeded = false
+		return res, nil
+	}
+
+	// NOTE: batch flush scheduling should not re-evaluate rate limits. Rate limits are evaluated per
+	// task before redirecting into the batched queue table.
+	noop := func() {}
+
+	// lock the actions map and try to assign a single slot.
+	// NOTE: keep lock ordering consistent with replenish().
+	s.actionsMu.RLock()
+	action, ok := s.actions[qi.ActionID]
+	if !ok || action == nil || len(action.slots) == 0 {
+		s.actionsMu.RUnlock()
+		res.qi = qi
+		res.noSlots = true
+		res.succeeded = false
+		return res, nil
+	}
+	s.actionsMu.RUnlock()
+
+	action.mu.Lock()
+	defer action.mu.Unlock()
+
+	candidateSlots := action.slots
+	if len(candidateSlots) == 0 {
+		res.qi = qi
+		res.noSlots = true
+		res.succeeded = false
+		return res, nil
+	}
+
+	// Default to 1 standard slot — same fallback as tryAssignBatch — since batch flush
+	// scheduling skips the regular slot-request lookup path.
+	requests := map[string]int32{v1.SlotTypeDefault: 1}
+
+	singleRes, err := s.tryAssignSingleton(ctx, qi, action, candidateSlots, 0, labels, requests, noop, noop)
+	if err != nil {
+		return singleRes, err
+	}
+
+	singleRes.qi = qi
+	return singleRes, nil
 }
 
 func findAssignableSlots(
@@ -1178,6 +1297,8 @@ type assignedQueueItem struct {
 
 type assignResults struct {
 	assigned           []*assignedQueueItem
+	buffered           []*assignedQueueItem
+	batched            []*batchedQueueItemResult
 	unassigned         []*sqlcv1.V1QueueItem
 	schedulingTimedOut []*sqlcv1.V1QueueItem
 	rateLimited        []*scheduleRateLimitResult
@@ -1191,6 +1312,7 @@ func (s *Scheduler) tryAssign(
 	stepIdsToRequests map[uuid.UUID]map[string]int32,
 	taskIdsToRateLimits map[int64]map[string]int32,
 	taskIdsToLabelOverrides map[int64][]*sqlcv1.GetDesiredLabelsRow,
+	stepIdsToBatchConfig map[string]bool,
 ) <-chan *assignResults {
 	ctx, span := telemetry.NewSpan(ctx, "try-assign")
 
@@ -1262,13 +1384,16 @@ func (s *Scheduler) tryAssign(
 
 				err := queueutils.BatchLinear(50, batched, func(batchQis []*sqlcv1.V1QueueItem) error {
 					batchAssigned := make([]*assignedQueueItem, 0, len(batchQis))
+					batchBuffered := make([]*assignedQueueItem, 0, len(batchQis))
+					batchBatched := make([]*batchedQueueItemResult, 0, len(batchQis))
+
 					batchRateLimited := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchRateLimitedToMove := make([]*scheduleRateLimitResult, 0, len(batchQis))
 					batchUnassigned := make([]*sqlcv1.V1QueueItem, 0, len(batchQis))
 
 					batchStart := time.Now()
 
-					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, taskIdsToLabelOverrides)
+					results, newRingOffset, err := s.tryAssignBatch(ctx, actionId, batchQis, ringOffset, stepIdsToLabels, stepIdsToRequests, taskIdsToRateLimits, stepIdsToBatchConfig, taskIdsToLabelOverrides)
 
 					if err != nil {
 						return err
@@ -1277,6 +1402,15 @@ func (s *Scheduler) tryAssign(
 					ringOffset = newRingOffset
 
 					for _, singleRes := range results {
+						if singleRes.toBatch {
+							batchBatched = append(batchBatched, &batchedQueueItemResult{
+								qi:            singleRes.qi,
+								rateLimitAck:  singleRes.rateLimitAck,
+								rateLimitNack: singleRes.rateLimitNack,
+							})
+							continue
+						}
+
 						if !singleRes.succeeded {
 							if singleRes.rateLimitResult != nil {
 								if singleRes.rateLimitResult.shouldRemoveFromQueue() {
@@ -1296,11 +1430,13 @@ func (s *Scheduler) tryAssign(
 							continue
 						}
 
-						batchAssigned = append(batchAssigned, &assignedQueueItem{
+						assignedItem := &assignedQueueItem{
 							WorkerId:  singleRes.workerId,
 							QueueItem: singleRes.qi,
 							AckId:     singleRes.ackId,
-						})
+						}
+
+						batchAssigned = append(batchAssigned, assignedItem)
 					}
 
 					if sinceStart := time.Since(batchStart); sinceStart > 100*time.Millisecond {
@@ -1309,6 +1445,8 @@ func (s *Scheduler) tryAssign(
 
 					r := &assignResults{
 						assigned:          batchAssigned,
+						buffered:          batchBuffered,
+						batched:           batchBatched,
 						rateLimited:       batchRateLimited,
 						rateLimitedToMove: batchRateLimitedToMove,
 						unassigned:        batchUnassigned,

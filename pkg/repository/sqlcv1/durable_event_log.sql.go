@@ -252,8 +252,7 @@ INSERT INTO v1_durable_event_log_branch_point (
     durable_task_inserted_at,
     first_node_id_in_new_branch,
     parent_branch_id,
-    next_branch_id,
-    replay_child_external_ids
+    next_branch_id
 )
 VALUES (
     $1::UUID,
@@ -261,10 +260,9 @@ VALUES (
     $3::TIMESTAMPTZ,
     $4::BIGINT,
     $5::BIGINT,
-    $6::BIGINT,
-    $7::UUID[]
+    $6::BIGINT
 )
-RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, replay_child_external_ids
+RETURNING tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
 `
 
 type CreateDurableEventLogBranchPointParams struct {
@@ -274,7 +272,6 @@ type CreateDurableEventLogBranchPointParams struct {
 	Firstnodeidinnewbranch int64              `json:"firstnodeidinnewbranch"`
 	Parentbranchid         int64              `json:"parentbranchid"`
 	Nextbranchid           int64              `json:"nextbranchid"`
-	ReplayChildExternalIds []uuid.UUID        `json:"replayChildExternalIds"`
 }
 
 func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX, arg CreateDurableEventLogBranchPointParams) error {
@@ -285,7 +282,6 @@ func (q *Queries) CreateDurableEventLogBranchPoint(ctx context.Context, db DBTX,
 		arg.Firstnodeidinnewbranch,
 		arg.Parentbranchid,
 		arg.Nextbranchid,
-		arg.ReplayChildExternalIds,
 	)
 	return err
 }
@@ -565,7 +561,7 @@ func (q *Queries) IncrementLogFileInvocationCounts(ctx context.Context, db DBTX,
 }
 
 const listDurableEventLogBranchPoints = `-- name: ListDurableEventLogBranchPoints :many
-SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id, replay_child_external_ids
+SELECT tenant_id, id, inserted_at, durable_task_id, durable_task_inserted_at, first_node_id_in_new_branch, parent_branch_id, next_branch_id
 FROM v1_durable_event_log_branch_point
 WHERE
     durable_task_id = $1::BIGINT
@@ -598,7 +594,6 @@ func (q *Queries) ListDurableEventLogBranchPoints(ctx context.Context, db DBTX, 
 			&i.FirstNodeIDInNewBranch,
 			&i.ParentBranchID,
 			&i.NextBranchID,
-			&i.ReplayChildExternalIds,
 		); err != nil {
 			return nil, err
 		}
@@ -707,7 +702,7 @@ WITH inputs AS (
         UNNEST($2::BIGINT[]) AS node_id,
         UNNEST($3::BIGINT[]) AS branch_id
 ), tasks_with_nodes AS (
-    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, t.is_dag_orchestrator, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
+    SELECT t.id, t.inserted_at, t.tenant_id, t.queue, t.action_id, t.step_id, t.step_readable_id, t.workflow_id, t.workflow_version_id, t.workflow_run_id, t.schedule_timeout, t.step_timeout, t.priority, t.sticky, t.desired_worker_id, t.external_id, t.display_name, t.input, t.retry_count, t.internal_retry_count, t.app_retry_count, t.step_index, t.additional_metadata, t.dag_id, t.dag_inserted_at, t.parent_task_external_id, t.parent_task_id, t.parent_task_inserted_at, t.child_index, t.child_key, t.initial_state, t.initial_state_reason, t.concurrency_parent_strategy_ids, t.concurrency_strategy_ids, t.concurrency_keys, t.batch_key, t.retry_backoff_factor, t.retry_max_backoff, t.is_durable, t.desired_worker_label, t.triggering_event_external_id, t.triggering_event_key, t.idempotency_key, i.node_id AS requested_node_id, i.branch_id AS requested_branch_id
     FROM inputs i
     JOIN v1_lookup_table lt ON lt.external_id = i.external_id
     JOIN v1_task t ON (t.id, t.inserted_at) = (lt.task_id, lt.inserted_at)

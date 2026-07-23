@@ -141,6 +141,12 @@ V1WebhookGetDeleteReceiveUpdate:
             schema:
               $ref: "../../../components/schemas/_index.yaml#/APIErrors"
         description: Forbidden
+      "429":
+        content:
+          application/json:
+            schema:
+              $ref: "../../../components/schemas/_index.yaml#/APIErrors"
+        description: Resource limit exceeded for the tenant
     summary: Post a webhook message
     tags:
       - Webhook

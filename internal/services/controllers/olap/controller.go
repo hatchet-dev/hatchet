@@ -797,7 +797,6 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 		Externalids:            externalIds,
 		Seenats:                seenAts,
 		Keys:                   keys,
-		Payloads:               payloadstoInsert,
 		Additionalmetadatas:    additionalMetadatas,
 		Scopes:                 scopes,
 		TriggeringWebhookNames: triggeringWebhookNames,
@@ -805,7 +804,10 @@ func (tc *OLAPControllerImpl) handleCreateEventTriggers(ctx context.Context, ten
 
 	if err := tc.repo.OLAP().BulkCreateEventsAndTriggers(
 		ctx,
-		bulkCreateEventParams,
+		v1.BulkCreateEventsAndTriggersParams{
+			BulkCreateEventsOLAPParams: &bulkCreateEventParams,
+			Payloads:                   payloadstoInsert,
+		},
 		bulkCreateTriggersParams,
 	); err != nil {
 		return err
@@ -1071,6 +1073,16 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapEVICTED)
 		case sqlcv1.V1EventTypeOlapDURABLERESTORING:
 			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+		case sqlcv1.V1EventTypeOlapBATCHBUFFERED:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
+		case sqlcv1.V1EventTypeOlapWAITINGFORBATCH:
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
+		case sqlcv1.V1EventTypeOlapBATCHFLUSHED:
+			// Running until the individual tasks are completed
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapRUNNING)
+		default:
+			// Treat unknown or informational events as queued to keep array lengths aligned.
+			readableStatuses = append(readableStatuses, sqlcv1.V1ReadableStatusOlapQUEUED)
 		}
 	}
 

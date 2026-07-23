@@ -369,6 +369,7 @@ CREATE TABLE v1_task (
     concurrency_parent_strategy_ids BIGINT[],
     concurrency_strategy_ids BIGINT[],
     concurrency_keys TEXT[],
+    batch_key TEXT,
     retry_backoff_factor DOUBLE PRECISION,
     retry_max_backoff INTEGER,
     is_durable BOOLEAN,
@@ -457,6 +458,7 @@ CREATE TABLE v1_queue_item (
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
     desired_worker_label JSONB,
+    batch_key TEXT,
     CONSTRAINT v1_queue_item_pkey PRIMARY KEY (id)
 );
 
@@ -488,6 +490,10 @@ CREATE TABLE v1_task_runtime (
     task_inserted_at TIMESTAMPTZ NOT NULL,
     retry_count INTEGER NOT NULL,
     worker_id UUID,
+    batch_id UUID,
+    batch_size INTEGER,
+    batch_index INTEGER,
+    batch_key TEXT,
     tenant_id UUID NOT NULL,
     timeout_at TIMESTAMP(3) NOT NULL,
     evicted_at TIMESTAMPTZ DEFAULT NULL,
@@ -500,6 +506,79 @@ CREATE INDEX v1_task_runtime_tenantId_workerId_idx ON v1_task_runtime (tenant_id
 CREATE INDEX v1_task_runtime_tenantId_timeoutAt_idx ON v1_task_runtime (tenant_id ASC, timeout_at ASC);
 
 CREATE INDEX v1_task_runtime_tenant_worker_not_evicted_idx ON v1_task_runtime (tenant_id, worker_id) WHERE evicted_at IS NULL;
+
+CREATE INDEX v1_task_runtime_batch_id_idx ON v1_task_runtime (batch_id) WHERE batch_id IS NOT NULL;
+
+-- Cleanup v1_batch_runtime reservations when the last v1_task_runtime row for a batch_id is deleted.
+CREATE OR REPLACE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn()
+RETURNS trigger AS
+$$
+BEGIN
+    WITH deleted_batches AS (
+        SELECT DISTINCT
+            d.tenant_id,
+            d.batch_id
+        FROM
+            deleted_rows d
+        WHERE
+            d.batch_id IS NOT NULL
+    ), deletable AS (
+        SELECT
+            br.tenant_id,
+            br.batch_id
+        FROM
+            v1_batch_runtime br
+        JOIN
+            deleted_batches db ON db.tenant_id = br.tenant_id AND db.batch_id = br.batch_id
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM v1_task_runtime tr
+            WHERE tr.tenant_id = br.tenant_id
+              AND tr.batch_id = br.batch_id
+        )
+        ORDER BY br.batch_id
+        FOR UPDATE
+    )
+    DELETE FROM
+        v1_batch_runtime br
+    WHERE
+        (br.tenant_id, br.batch_id) IN (SELECT tenant_id, batch_id FROM deletable);
+
+    RETURN NULL;
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE TRIGGER after_v1_task_runtime_delete_cleanup_batch_runtime
+AFTER DELETE ON v1_task_runtime
+REFERENCING OLD TABLE AS deleted_rows
+FOR EACH STATEMENT
+EXECUTE FUNCTION after_v1_task_runtime_delete_cleanup_batch_runtime_fn();
+
+CREATE TABLE v1_batch_runtime (
+    tenant_id UUID NOT NULL,
+    step_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    batch_key TEXT NOT NULL,
+    batch_id UUID NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT v1_batch_runtime_pkey PRIMARY KEY (tenant_id, batch_id)
+);
+
+CREATE INDEX v1_batch_runtime_key_idx
+    ON v1_batch_runtime (tenant_id, step_id, batch_key);
+
+-- Per-step batching configuration
+CREATE TABLE v1_step_batch_config (
+    step_id UUID NOT NULL,
+    batch_max_size INTEGER NOT NULL,
+    batch_max_interval INTEGER,
+    batch_group_key TEXT,
+    batch_group_max_runs INTEGER,
+    broadcast_output BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT v1_step_batch_config_pkey PRIMARY KEY (step_id)
+);
 
 alter table v1_task_runtime set (
     autovacuum_vacuum_scale_factor = '0.1',
@@ -574,6 +653,7 @@ CREATE TABLE v1_rate_limited_queue_items (
     desired_worker_id UUID,
     retry_count INTEGER NOT NULL DEFAULT 0,
     desired_worker_label JSONB,
+    batch_key TEXT,
 
     CONSTRAINT v1_rate_limited_queue_items_pkey PRIMARY KEY (task_id, task_inserted_at, retry_count)
 );
@@ -591,6 +671,47 @@ alter table v1_rate_limited_queue_items set (
     autovacuum_analyze_threshold='25',
     autovacuum_vacuum_cost_delay='10',
     autovacuum_vacuum_cost_limit='1000'
+);
+
+CREATE TABLE v1_batched_queue_item (
+    id BIGINT GENERATED ALWAYS AS IDENTITY,
+    tenant_id UUID NOT NULL,
+    queue TEXT NOT NULL,
+    task_id BIGINT NOT NULL,
+    task_inserted_at TIMESTAMPTZ NOT NULL,
+    external_id UUID NOT NULL,
+    action_id TEXT NOT NULL,
+    step_id UUID NOT NULL,
+    workflow_id UUID NOT NULL,
+    workflow_run_id UUID NOT NULL,
+    schedule_timeout_at TIMESTAMP(3),
+    step_timeout TEXT,
+    priority INTEGER NOT NULL DEFAULT 1,
+    sticky v1_sticky_strategy NOT NULL,
+    desired_worker_id UUID,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    batch_key TEXT NOT NULL,
+    inserted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payload_size INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT v1_batched_queue_item_pkey PRIMARY KEY (id),
+    CONSTRAINT v1_batched_queue_item_task_key UNIQUE (task_id, task_inserted_at, retry_count)
+);
+
+alter table v1_batched_queue_item set (
+    autovacuum_vacuum_scale_factor = '0.1',
+    autovacuum_analyze_scale_factor='0.05',
+    autovacuum_vacuum_threshold='25',
+    autovacuum_analyze_threshold='25',
+    autovacuum_vacuum_cost_delay='10',
+    autovacuum_vacuum_cost_limit='1000'
+);
+
+
+CREATE INDEX v1_batched_queue_item_step_batch_id_idx ON v1_batched_queue_item (
+    tenant_id ASC,
+    step_id ASC,
+    batch_key ASC,
+    id ASC
 );
 
 CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
@@ -1190,7 +1311,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1208,7 +1330,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM new_table
     WHERE initial_state = 'QUEUED' AND concurrency_strategy_ids[1] IS NULL
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
@@ -1405,7 +1528,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         nt.tenant_id,
@@ -1423,7 +1547,8 @@ BEGIN
         nt.sticky,
         nt.desired_worker_id,
         nt.retry_count,
-        nt.desired_worker_label
+        nt.desired_worker_label,
+        nt.batch_key
     FROM new_table nt
     JOIN old_table ot ON ot.id = nt.id
     WHERE nt.initial_state = 'QUEUED'
@@ -1550,7 +1675,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1568,7 +1694,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM tasks
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;
@@ -1693,7 +1820,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     )
     SELECT
         tenant_id,
@@ -1711,7 +1839,8 @@ BEGIN
         sticky,
         desired_worker_id,
         retry_count,
-        desired_worker_label
+        desired_worker_label,
+        batch_key
     FROM tasks
     ON CONFLICT (task_id, task_inserted_at, retry_count) DO NOTHING
     ;

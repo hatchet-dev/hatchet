@@ -10,13 +10,14 @@ import {
   ActionType,
   GroupKeyActionEvent,
   GroupKeyActionEventType,
+  BatchActionEvent,
   actionTypeFromJSON,
 } from '@hatchet/protoc/dispatcher';
 import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatchet-promise';
 import { CreateStepRateLimit, StickyStrategy } from '@hatchet/protoc/workflows';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
-import { CreateTaskOpts, IdempotencyMethod } from '@hatchet/protoc/v1/workflows';
+import { CreateTaskOpts, IdempotencyMethod, TaskBatchConfig } from '@hatchet/protoc/v1/workflows';
 import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
@@ -32,7 +33,7 @@ import { applyNamespace } from '@hatchet/util/apply-namespace';
 import sleep from '@hatchet/util/sleep';
 import { throwIfAborted } from '@hatchet/util/abort-error';
 import { DesiredWorkerLabels } from '@hatchet-dev/typescript-sdk/protoc/v1/shared/trigger';
-import { Duration, durationToString } from '../duration';
+import { Duration, durationToString, durationToMs } from '../duration';
 import { Context, DurableContext } from './context';
 import { parentRunContextManager } from '../../parent-run-context-vars';
 import { HealthServer, workerStatus, type WorkerStatus } from './health-server';
@@ -196,8 +197,15 @@ export class InternalWorker {
     const newActions = workflow._tasks
       .filter((task) => !!task.fn)
       .reduce<ActionRegistry>((acc, task) => {
-        acc[`${workflow.name}:${task.name.toLowerCase()}`] = (ctx: Context<any, any>) =>
-          task.fn!(ctx.input, ctx);
+        const actionId = `${workflow.name}:${task.name.toLowerCase()}`;
+
+        if (task.batch) {
+          acc[actionId] = (ctx: Context<any, any>) =>
+            task.fn!(decodeBatchItems(ctx.action.actionPayload), ctx);
+        } else {
+          acc[actionId] = (ctx: Context<any, any>) => task.fn!(ctx.input, ctx);
+        }
+
         return acc;
       }, {});
 
@@ -393,7 +401,9 @@ export class InternalWorker {
           inputs: '{}',
           parents: task.parents?.map((p) => p.name) ?? [],
           userData: '{}',
-          retries: task.retries || workflow.taskDefaults?.retries || 0,
+          // Batch tasks buffer many concurrent runs into a single execution; per-item retry
+          // semantics don't apply, so retries is always forced to 0.
+          retries: batchOf(task) ? 0 : task.retries || workflow.taskDefaults?.retries || 0,
           rateLimits: mapRateLimitPb(task.rateLimits || workflow.taskDefaults?.rateLimits),
           workerLabels: mapWorkerLabelPb(
             task.desiredWorkerLabels || workflow.taskDefaults?.workerLabels
@@ -403,6 +413,7 @@ export class InternalWorker {
           conditions: taskConditionsToPb(task, this.client.config.namespace),
           isDurable: durableTaskSet.has(task),
           slotRequests: mapSlotRequestsPb(task, durableTaskSet.has(task)),
+          batch: mapBatchConfigPb(batchOf(task)),
           concurrency: task.concurrency
             ? Array.isArray(task.concurrency)
               ? task.concurrency
@@ -759,6 +770,141 @@ export class InternalWorker {
     };
   }
 
+  /**
+   * Handles a START_BATCH action: invokes the registered batch task handler once with
+   * every buffered item, then reports completion/failure back per-member (or, for
+   * broadcast batch tasks, the same result for every member) via sendBatchActionEvent.
+   */
+  async handleStartBatch(action: Action): Promise<Error | undefined> {
+    const { actionId, taskName } = action;
+    const memberIds = batchMemberIds(action.actionPayload);
+
+    this.client.dispatcher
+      .sendBatchActionEvent(
+        this.getBatchActionEvent(
+          action,
+          StepActionEventType.STEP_EVENT_TYPE_STARTED,
+          memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: '' }))
+        )
+      )
+      .catch((e) => {
+        this.logger.error(`Could not send batch started event: ${e.message}`);
+      });
+
+    const step = this.action_registry[actionId];
+
+    if (!step) {
+      this.logger.error(`Registered actions: '${Object.keys(this.action_registry).join(', ')}'`);
+      this.logger.error(`Could not find step '${actionId}'`);
+      return;
+    }
+
+    try {
+      const context = new Context(action, this.client, this);
+      const result = await step(context);
+
+      // If the handler cancelled the batch (ctx.cancel()), a CANCELLED batch event
+      // covering every member was already sent from within cancel() itself. Don't also
+      // send a COMPLETED event for the same members afterward — matches the Python SDK's
+      // `if context.is_cancelled: return` guard in its batch runner.
+      if (context.cancelled) {
+        return undefined;
+      }
+
+      await this.sendBatchCompleted(action, result);
+      return undefined;
+    } catch (e: any) {
+      this.logger.error(taskRunLog(taskName, actionId, `batch failed: ${e.message}`));
+      if (e.stack) {
+        this.logger.error(e.stack);
+      }
+
+      await this.sendBatchFailureForAll(action, memberIds, e);
+      return e instanceof Error ? e : new Error(String(e));
+    }
+  }
+
+  /**
+   * Reports the result of a successful batch handler invocation. result is expected to be
+   * a Record<string, any> keyed by batch member id; each member's output is serialized
+   * independently so that one member's serialization failure does not fail the whole
+   * batch.
+   */
+  private async sendBatchCompleted(action: Action, result: any): Promise<void> {
+    if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+      await this.sendBatchFailureForAll(
+        action,
+        Object.keys(result ?? {}),
+        new Error('batch task handler did not return a valid per-member result map')
+      );
+      return;
+    }
+
+    const completedItems: { taskRunExternalId: string; eventPayload: string }[] = [];
+    const failedItems: { taskRunExternalId: string; eventPayload: string }[] = [];
+
+    Object.entries(result).forEach(([id, output]) => {
+      try {
+        completedItems.push({ taskRunExternalId: id, eventPayload: JSON.stringify(output) });
+      } catch (e: any) {
+        failedItems.push({
+          taskRunExternalId: id,
+          eventPayload: JSON.stringify({ message: e.message }),
+        });
+      }
+    });
+
+    if (completedItems.length > 0) {
+      await this.client.dispatcher.sendBatchActionEvent(
+        this.getBatchActionEvent(
+          action,
+          StepActionEventType.STEP_EVENT_TYPE_COMPLETED,
+          completedItems
+        )
+      );
+    }
+
+    if (failedItems.length > 0) {
+      await this.client.dispatcher.sendBatchActionEvent(
+        this.getBatchActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_FAILED, failedItems)
+      );
+    }
+  }
+
+  /** Fails every member of the batch uniformly, e.g. when the handler itself throws. */
+  private async sendBatchFailureForAll(
+    action: Action,
+    memberIds: string[],
+    error: any
+  ): Promise<void> {
+    const payload = JSON.stringify({ message: error?.message, stack: error?.stack });
+    const items = memberIds.map((id) => ({ taskRunExternalId: id, eventPayload: payload }));
+
+    try {
+      await this.client.dispatcher.sendBatchActionEvent(
+        this.getBatchActionEvent(action, StepActionEventType.STEP_EVENT_TYPE_FAILED, items)
+      );
+    } catch (e: any) {
+      this.logger.error(`Could not send batch failed event: ${e.message}`);
+    }
+  }
+
+  getBatchActionEvent(
+    action: Action,
+    eventType: StepActionEventType,
+    items: { taskRunExternalId: string; eventPayload: string }[]
+  ): BatchActionEvent {
+    return {
+      workerId: this.name,
+      jobId: action.jobId,
+      actionId: action.actionId,
+      batchId: action.batchId,
+      eventTimestamp: new Date(),
+      eventType,
+      items,
+    };
+  }
+
   getGroupKeyActionEvent(
     action: Action,
     eventType: GroupKeyActionEventType,
@@ -988,6 +1134,8 @@ export class InternalWorker {
     switch (type) {
       case ActionType.START_STEP_RUN:
         return this.handleStartStepRun(action);
+      case ActionType.START_BATCH:
+        return this.handleStartBatch(action);
       case ActionType.CANCEL_STEP_RUN:
         return this.handleCancelStepRun(action);
       case ActionType.START_GET_GROUP_KEY:
@@ -1186,6 +1334,81 @@ export function mapRateLimitPb(
       duration: l.duration,
     };
   });
+}
+
+/**
+ * Decodes the buffered items of a batch task's START_BATCH action into a Record keyed by
+ * each buffered item's task-run external id, mapping to that item's input. The wire shape
+ * of actionPayload for a START_BATCH action is
+ * `{ "<taskRunExternalId>": { "payload": { "input": {...}, ... }, "workflow_run_id": "..." }, ... }`,
+ * distinct from the flat single-input shape used by START_STEP_RUN actions.
+ */
+function decodeBatchItems(actionPayload: string): Record<string, any> {
+  const parsed = parseBatchPayload(actionPayload);
+
+  return Object.fromEntries(
+    Object.entries(parsed).map(([id, item]) => [id, item?.payload?.input ?? {}])
+  );
+}
+
+function batchMemberIds(actionPayload: string): string[] {
+  return Object.keys(parseBatchPayload(actionPayload));
+}
+
+function parseBatchPayload(actionPayload: string): Record<string, any> {
+  if (!actionPayload) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(actionPayload);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Batch tasks are only available on non-durable tasks; durable tasks never carry `batch`. */
+function batchOf(
+  task: CreateWorkflowTaskOpts<any, any> | CreateWorkflowDurableTaskOpts<any, any>
+): CreateWorkflowTaskOpts<any, any>['batch'] {
+  return 'batch' in task ? task.batch : undefined;
+}
+
+export function mapBatchConfigPb(
+  batch: CreateWorkflowTaskOpts<any, any>['batch']
+): TaskBatchConfig | undefined {
+  if (!batch) {
+    return undefined;
+  }
+
+  if (!Number.isInteger(batch.maxSize) || batch.maxSize <= 0) {
+    throw new Error(`batch.maxSize must be a positive integer, got: ${batch.maxSize}`);
+  }
+
+  const batchMaxIntervalMs =
+    batch.maxInterval !== undefined ? durationToMs(batch.maxInterval) : undefined;
+
+  if (batchMaxIntervalMs !== undefined && batchMaxIntervalMs <= 0) {
+    throw new Error('batch.maxInterval must be positive when provided');
+  }
+
+  if (
+    batch.groupMaxRuns !== undefined &&
+    (!Number.isInteger(batch.groupMaxRuns) || batch.groupMaxRuns <= 0)
+  ) {
+    throw new Error(
+      `batch.groupMaxRuns must be a positive integer when provided, got: ${batch.groupMaxRuns}`
+    );
+  }
+
+  return {
+    batchMaxSize: batch.maxSize,
+    batchMaxIntervalMs,
+    batchGroupKey: batch.groupKey,
+    batchGroupMaxRuns: batch.groupMaxRuns,
+    broadcastOutput: batch.broadcastOutput,
+  };
 }
 
 // Helper function to validate CEL expressions

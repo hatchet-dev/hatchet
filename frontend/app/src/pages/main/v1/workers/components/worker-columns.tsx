@@ -28,7 +28,7 @@ const startedAtKey: WorkerColumnKeys = 'startedAt';
 const slotsKey: WorkerColumnKeys = 'slots';
 const lastHeartbeatAtKey: WorkerColumnKeys = 'lastHeartbeatAt';
 const runtimeKey: WorkerColumnKeys = 'runtime';
-const labelsKey: WorkerColumnKeys = 'labels';
+export const labelsKey: WorkerColumnKeys = 'labels';
 
 interface WorkerStatusBadgeProps extends BadgeProps {
   status?: string;

@@ -315,7 +315,7 @@ type OLAPRepository interface {
 	GetTaskTimings(ctx context.Context, tenantId, workflowRunId uuid.UUID, depth int32) ([]*sqlcv1.PopulateTaskRunDataRow, map[uuid.UUID]int32, error)
 
 	// Events queries
-	BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error
+	BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error
 	ListEvents(ctx context.Context, opts sqlcv1.ListEventsParams) ([]*EventWithPayload, *int64, error)
 	GetEvent(ctx context.Context, externalId uuid.UUID) (*sqlcv1.V1EventsOlap, error)
 	GetEventWithPayload(ctx context.Context, externalId, tenantId uuid.UUID) (*EventWithPayload, error)
@@ -2379,8 +2379,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 			payload = task.Input
 		}
 
-		payloadToWriteToTask := []byte("{}")
-
 		params.Tenantids = append(params.Tenantids, task.TenantID)
 		params.Ids = append(params.Ids, task.ID)
 		params.Insertedats = append(params.Insertedats, task.InsertedAt)
@@ -2401,7 +2399,6 @@ func (r *OLAPRepositoryImpl) writeTaskBatch(ctx context.Context, tenantId uuid.U
 		params.Daginsertedats = append(params.Daginsertedats, task.DagInsertedAt)
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, task.ParentTaskExternalID)
 		params.Workflowrunids = append(params.Workflowrunids, task.WorkflowRunID)
-		params.Inputs = append(params.Inputs, payloadToWriteToTask)
 		params.Isdurables = append(params.Isdurables, task.IsDurable.Bool)
 		params.IdempotencyKeys = append(params.IdempotencyKeys, task.IdempotencyKey)
 
@@ -2517,8 +2514,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 			selfMappingParams.Daginsertedats = append(selfMappingParams.Daginsertedats, dag.InsertedAt)
 		}
 
-		input := []byte("{}")
-
 		params.Tenantids = append(params.Tenantids, dag.TenantID)
 		params.Ids = append(params.Ids, dag.ID)
 		params.Insertedats = append(params.Insertedats, dag.InsertedAt)
@@ -2526,7 +2521,6 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 		params.Displaynames = append(params.Displaynames, dag.DisplayName)
 		params.Workflowids = append(params.Workflowids, dag.WorkflowID)
 		params.Workflowversionids = append(params.Workflowversionids, dag.WorkflowVersionID)
-		params.Inputs = append(params.Inputs, input)
 		params.Additionalmetadatas = append(params.Additionalmetadatas, dag.AdditionalMetadata)
 		params.Parenttaskexternalids = append(params.Parenttaskexternalids, dag.ParentTaskExternalID)
 		params.Totaltasks = append(params.Totaltasks, int32(dag.TotalTasks)) // nolint: gosec
@@ -2759,7 +2753,12 @@ type EventTriggersFromExternalId struct {
 	FilterId        *uuid.UUID         `json:"filter_id"`
 }
 
-func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events sqlcv1.BulkCreateEventsOLAPParams, triggers []EventTriggersFromExternalId) error {
+type BulkCreateEventsAndTriggersParams struct {
+	*sqlcv1.BulkCreateEventsOLAPParams
+	Payloads [][]byte
+}
+
+func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, events BulkCreateEventsAndTriggersParams, triggers []EventTriggersFromExternalId) error {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 
 	if err != nil {
@@ -2775,15 +2774,7 @@ func (r *OLAPRepositoryImpl) BulkCreateEventsAndTriggers(ctx context.Context, ev
 		eventExternalIdToPayload[eventsToInsert.Externalids[i]] = payload
 	}
 
-	payloads := make([][]byte, len(eventsToInsert.Payloads))
-
-	for i := range eventsToInsert.Payloads {
-		payloads[i] = []byte("{}")
-	}
-
-	eventsToInsert.Payloads = payloads
-
-	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, eventsToInsert)
+	insertedEvents, err := r.queries.BulkCreateEventsOLAP(ctx, tx, *eventsToInsert.BulkCreateEventsOLAPParams)
 
 	if err != nil {
 		return fmt.Errorf("error creating events: %v", err)
