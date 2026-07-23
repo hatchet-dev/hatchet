@@ -1,4 +1,9 @@
-import { columns, statusKey, WorkerColumn } from './components/worker-columns';
+import {
+  columns,
+  labelsKey,
+  statusKey,
+  WorkerColumn,
+} from './components/worker-columns';
 import { ToolbarType } from '@/components/v1/molecules/data-table/data-table-toolbar';
 import { DataTable } from '@/components/v1/molecules/data-table/data-table.tsx';
 import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
@@ -21,10 +26,12 @@ import { z } from 'zod';
 const workersQuerySchema = z
   .object({
     s: z.array(z.enum(['ACTIVE', 'INACTIVE', 'PAUSED'])).optional(), // status
+    l: z.array(z.string()).optional(), // labels
   })
   .default({})
   .transform((data) => ({
     s: data.s ?? ['ACTIVE', 'PAUSED'],
+    l: data.l ?? [],
   }));
 
 export default function Workers() {
@@ -52,16 +59,19 @@ function WorkersTable() {
   );
 
   const {
-    state: { s: statuses },
+    state: { s: statuses, l: labels },
     columnFilters,
     setColumnFilters,
     resetFilters,
-  } = useZodColumnFilters(workersQuerySchema, paramKey, { s: statusKey });
+  } = useZodColumnFilters(workersQuerySchema, paramKey, {
+    s: statusKey,
+    l: labelsKey,
+  });
 
   const { pagination, setPagination, limit, offset, setPageSize } =
     usePagination({
       key: paramKey,
-      resetPageOnChange: [statuses],
+      resetPageOnChange: [statuses, labels],
     });
 
   const [columnVisibility, setColumnVisibility] =
@@ -82,6 +92,7 @@ function WorkersTable() {
       offset,
       limit,
       statuses: statuses as WorkerStatus[],
+      labels: labels.length > 0 ? labels : undefined,
     }),
     refetchInterval,
   });
@@ -109,6 +120,11 @@ function WorkersTable() {
             { value: 'PAUSED', label: 'Paused' },
             { value: 'INACTIVE', label: 'Inactive' },
           ],
+        },
+        {
+          columnId: labelsKey,
+          title: 'Labels',
+          type: ToolbarType.KeyValue,
         },
       ]}
       emptyState={

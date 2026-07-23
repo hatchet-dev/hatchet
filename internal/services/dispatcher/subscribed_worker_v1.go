@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -36,7 +37,7 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 		inputBytes = task.Payload
 	}
 
-	action := populateAssignedAction(tenantId, task.V1Task, task.RetryCount, durableInvocationCount)
+	action := populateAssignedAction(tenantId, task.V1Task, task.Runtime, task.RetryCount, durableInvocationCount)
 
 	action.ActionType = contracts.ActionType_START_STEP_RUN
 	action.ActionPayload = string(inputBytes)
@@ -55,6 +56,14 @@ func (worker *subscribedWorker) StartTaskFromBulk(
 	}
 
 	return nil
+}
+
+func (worker *subscribedWorker) StartBatch(ctx context.Context, action *contracts.AssignedAction) error {
+	if ctx.Err() != nil {
+		return fmt.Errorf("context done before starting batch: %w", ctx.Err())
+	}
+
+	return worker.sendToWorker(ctx, action)
 }
 
 func (worker *subscribedWorker) sendToWorker(
@@ -113,7 +122,6 @@ func (worker *subscribedWorker) sendToWorkerWithStream(
 
 	msg := &grpc.PreparedMsg{}
 	err := msg.Encode(worker.stream, action)
-
 	if err != nil {
 		encodeSpan.RecordError(err)
 		encodeSpan.End()
@@ -185,7 +193,7 @@ func (worker *subscribedWorker) CancelTask(
 	ctx, span := telemetry.NewSpan(ctx, "cancel-task") // nolint:ineffassign
 	defer span.End()
 
-	action := populateAssignedAction(tenantId, task, retryCount, nil)
+	action := populateAssignedAction(tenantId, task, nil, retryCount, nil)
 
 	action.ActionType = contracts.ActionType_CANCEL_STEP_RUN
 
@@ -252,7 +260,7 @@ func (worker *subscribedWorker) CancelTask(
 	// return nil
 }
 
-func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount int32, invocationCount *int32) *contracts.AssignedAction {
+func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, runtime *sqlcv1.V1TaskRuntime, retryCount int32, invocationCount *int32) *contracts.AssignedAction {
 	workflowId := task.WorkflowID.String()
 	workflowVersionId := task.WorkflowVersionID.String()
 
@@ -291,6 +299,37 @@ func populateAssignedAction(tenantID uuid.UUID, task *sqlcv1.V1Task, retryCount 
 	if task.ChildKey.Valid {
 		key := task.ChildKey.String
 		action.ChildWorkflowKey = &key
+	}
+
+	if runtime != nil {
+		if runtime.BatchID != nil {
+			batchID := runtime.BatchID.String()
+			action.BatchId = &batchID
+		}
+
+		if runtime.BatchSize.Valid {
+			size := runtime.BatchSize.Int32
+			action.BatchSize = &size
+		}
+
+		if runtime.BatchIndex.Valid {
+			index := runtime.BatchIndex.Int32
+			action.BatchIndex = &index
+		}
+
+		if runtime.BatchKey.Valid {
+			key := strings.TrimSpace(runtime.BatchKey.String)
+			if key != "" {
+				action.BatchKey = &key
+			}
+		}
+	}
+
+	if action.BatchKey == nil && task.BatchKey.Valid {
+		key := strings.TrimSpace(task.BatchKey.String)
+		if key != "" {
+			action.BatchKey = &key
+		}
 	}
 
 	if task.TriggeringEventExternalID != nil {

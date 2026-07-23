@@ -3,11 +3,13 @@ package workers
 import (
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 
+	"github.com/hatchet-dev/hatchet/api/v1/server/oas/apierrors"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/gen"
 	"github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers"
 	transformersv1 "github.com/hatchet-dev/hatchet/api/v1/server/oas/transformers/v1"
@@ -28,6 +30,25 @@ func (t *WorkerService) WorkerList(ctx echo.Context, request gen.WorkerListReque
 		err := fmt.Errorf("unsupported tenant version: %s", string(tenant.Version))
 		return nil, err
 	}
+}
+
+func parseLabelFilters(labels *[]string) (keys []string, values []string, err error) {
+	if labels == nil {
+		return nil, nil, nil
+	}
+
+	for _, l := range *labels {
+		split := strings.SplitN(l, ":", 2)
+
+		if len(split) != 2 || split[0] == "" || split[1] == "" {
+			return nil, nil, fmt.Errorf("invalid label filter format: %s, expected key:value", l)
+		}
+
+		keys = append(keys, split[0])
+		values = append(values, split[1])
+	}
+
+	return keys, values, nil
 }
 
 func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, request gen.WorkerListRequestObject) (gen.WorkerListResponseObject, error) {
@@ -62,6 +83,13 @@ func (t *WorkerService) workerListV0(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		}
 		opts.Statuses = statuses
 	}
+
+	labelKeys, labelValues, err := parseLabelFilters(request.Params.Labels)
+	if err != nil {
+		return gen.WorkerList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+	opts.LabelKeys = labelKeys
+	opts.LabelValues = labelValues
 
 	_, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v0.list-workers")
 	defer listSpan.End()
@@ -151,6 +179,13 @@ func (t *WorkerService) workerListV1(ctx echo.Context, tenant *sqlcv1.Tenant, re
 		}
 		opts.Statuses = statuses
 	}
+
+	labelKeys, labelValues, err := parseLabelFilters(request.Params.Labels)
+	if err != nil {
+		return gen.WorkerList400JSONResponse(apierrors.NewAPIErrors(err.Error())), nil
+	}
+	opts.LabelKeys = labelKeys
+	opts.LabelValues = labelValues
 
 	listCtx, listSpan := telemetry.NewSpan(reqCtx, "worker-service.v1.list-workers")
 	defer listSpan.End()

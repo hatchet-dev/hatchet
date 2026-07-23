@@ -24,32 +24,32 @@ WITH input AS (
         unnest($11::uuid[]) AS desired_worker_id,
         unnest($12::uuid[]) AS external_id,
         unnest($13::text[]) AS display_name,
-        unnest($14::jsonb[]) AS input,
-        unnest($15::integer[]) AS retry_count,
-        unnest($16::jsonb[]) AS additional_metadata,
-        unnest(cast($17::text[] as v1_task_initial_state[])) AS initial_state,
+        unnest($14::integer[]) AS retry_count,
+        unnest($15::jsonb[]) AS additional_metadata,
+        unnest(cast($16::text[] as v1_task_initial_state[])) AS initial_state,
         -- NOTE: these are nullable, so sqlc doesn't support casting to a type
-        unnest($18::bigint[]) AS dag_id,
-        unnest($19::timestamptz[]) AS dag_inserted_at,
-        unnest_nd_1d($20::bigint[][]) AS concurrency_parent_strategy_ids,
-        unnest_nd_1d($21::bigint[][]) AS concurrency_strategy_ids,
-        unnest_nd_1d($22::text[][]) AS concurrency_keys,
-        unnest($23::text[]) AS initial_state_reason,
-        unnest($24::uuid[]) AS parent_task_external_id,
-        unnest($25::bigint[]) AS parent_task_id,
-        unnest($26::timestamptz[]) AS parent_task_inserted_at,
-        unnest($27::integer[]) AS child_index,
-        unnest($28::text[]) AS child_key,
-        unnest($29::bigint[]) AS step_index,
-        unnest($30::double precision[]) AS retry_backoff_factor,
-        unnest($31::integer[]) AS retry_max_backoff,
-        unnest($32::uuid[]) AS workflow_version_id,
-        unnest($33::uuid[]) AS workflow_run_id,
-        unnest($34::boolean[]) AS is_durable,
-		unnest($35::jsonb[]) AS desired_worker_label,
-		unnest($36::uuid[]) AS triggering_event_external_id,
-		unnest($37::text[]) AS triggering_event_key,
-		unnest($38::text[]) AS idempotency_key
+        unnest($17::bigint[]) AS dag_id,
+        unnest($18::timestamptz[]) AS dag_inserted_at,
+        unnest_nd_1d($19::bigint[][]) AS concurrency_parent_strategy_ids,
+        unnest_nd_1d($20::bigint[][]) AS concurrency_strategy_ids,
+        unnest_nd_1d($21::text[][]) AS concurrency_keys,
+        unnest($22::text[]) AS initial_state_reason,
+        unnest($23::uuid[]) AS parent_task_external_id,
+        unnest($24::bigint[]) AS parent_task_id,
+        unnest($25::timestamptz[]) AS parent_task_inserted_at,
+        unnest($26::integer[]) AS child_index,
+        unnest($27::text[]) AS child_key,
+        unnest($28::bigint[]) AS step_index,
+        unnest($29::double precision[]) AS retry_backoff_factor,
+        unnest($30::integer[]) AS retry_max_backoff,
+        unnest($31::uuid[]) AS workflow_version_id,
+        unnest($32::uuid[]) AS workflow_run_id,
+        unnest($33::boolean[]) AS is_durable,
+		unnest($34::jsonb[]) AS desired_worker_label,
+		unnest($35::uuid[]) AS triggering_event_external_id,
+		unnest($36::text[]) AS triggering_event_key,
+		unnest($37::text[]) AS idempotency_key,
+		unnest($38::text[]) AS batch_key
 )
 INSERT INTO v1_task (
     tenant_id,
@@ -89,7 +89,8 @@ INSERT INTO v1_task (
 	desired_worker_label,
 	triggering_event_external_id,
 	triggering_event_key,
-	idempotency_key
+	idempotency_key,
+	batch_key
 )
 SELECT
     i.tenant_id,
@@ -105,7 +106,7 @@ SELECT
     i.desired_worker_id,
     i.external_id,
     i.display_name,
-    i.input,
+    '{}'::JSONB AS input,
     i.retry_count,
     i.additional_metadata,
 	i.initial_state,
@@ -129,11 +130,17 @@ SELECT
 	i.desired_worker_label,
 	i.triggering_event_external_id,
 	i.triggering_event_key,
-	i.idempotency_key
+	i.idempotency_key,
+	CASE
+		WHEN sbc.batch_max_size IS NOT NULL AND sbc.batch_max_size >= 1 THEN COALESCE(NULLIF(BTRIM(i.batch_key), ''), 'default')
+		ELSE NULLIF(BTRIM(i.batch_key), '')
+	END
 FROM
     input i
+LEFT JOIN
+	v1_step_batch_config sbc ON sbc.step_id = i.step_id
 RETURNING
-    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key
+    id, inserted_at, tenant_id, queue, action_id, step_id, step_readable_id, workflow_id, schedule_timeout, step_timeout, priority, sticky, desired_worker_id, external_id, display_name, input, retry_count, internal_retry_count, app_retry_count, additional_metadata, initial_state, dag_id, dag_inserted_at, concurrency_parent_strategy_ids, concurrency_strategy_ids, concurrency_keys, initial_state_reason, parent_task_external_id, parent_task_id, parent_task_inserted_at, child_index, child_key, step_index, retry_backoff_factor, retry_max_backoff, workflow_version_id, workflow_run_id, is_durable, desired_worker_label, triggering_event_external_id, triggering_event_key, idempotency_key, batch_key
 `
 
 type CreateTasksParams struct {
@@ -150,7 +157,6 @@ type CreateTasksParams struct {
 	Desiredworkerids    []*uuid.UUID         `json:"desiredworkerids"`
 	Externalids         []uuid.UUID          `json:"externalids"`
 	Displaynames        []string             `json:"displaynames"`
-	Inputs              [][]byte             `json:"inputs"`
 	Retrycounts         []int32              `json:"retrycounts"`
 	Additionalmetadatas [][]byte             `json:"additionalmetadatas"`
 	InitialStates       []string             `json:"initialstates"`
@@ -178,6 +184,7 @@ type CreateTasksParams struct {
 	TriggeringEventExternalIds   []*uuid.UUID         `json:"triggeringEventExternalIds"`
 	TriggeringEventKeys          []pgtype.Text        `json:"triggeringEventKeys"`
 	IdempotencyKeys              []pgtype.Text        `json:"idempotencyKeys"`
+	BatchKeys                    []string             `json:"batchKeys"`
 }
 
 func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParams) ([]*V1Task, error) {
@@ -208,7 +215,6 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.Desiredworkerids,
 		arg.Externalids,
 		arg.Displaynames,
-		arg.Inputs,
 		arg.Retrycounts,
 		arg.Additionalmetadatas,
 		arg.InitialStates,
@@ -233,6 +239,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 		arg.TriggeringEventExternalIds,
 		arg.TriggeringEventKeys,
 		arg.IdempotencyKeys,
+		arg.BatchKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -284,6 +291,7 @@ func (q *Queries) CreateTasks(ctx context.Context, db DBTX, arg CreateTasksParam
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
 			&i.IdempotencyKey,
+			&i.BatchKey,
 		); err != nil {
 			return nil, err
 		}
@@ -427,7 +435,8 @@ WITH input AS (
         unnest($6::text[]) AS initial_state_reason,
         unnest($7::jsonb[]) AS desired_worker_label,
         unnest($8::uuid[]) AS triggering_event_external_id,
-        unnest($9::text[]) AS triggering_event_key
+        unnest($9::text[]) AS triggering_event_key,
+		unnest($10::text[]) AS batch_key
 )
 UPDATE
     v1_task
@@ -441,13 +450,14 @@ SET
     initial_state_reason = i.initial_state_reason,
     desired_worker_label = COALESCE(i.desired_worker_label, v1_task.desired_worker_label),
     triggering_event_external_id = COALESCE(i.triggering_event_external_id, v1_task.triggering_event_external_id),
-    triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key)
+    triggering_event_key = COALESCE(i.triggering_event_key, v1_task.triggering_event_key),
+    batch_key = COALESCE(NULLIF(BTRIM(i.batch_key), ''), v1_task.batch_key)
 FROM
     input i
 WHERE
 	(v1_task.id, v1_task.inserted_at) = (i.task_id, i.task_inserted_at)
 RETURNING
-    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key
+    v1_task.id, v1_task.inserted_at, v1_task.tenant_id, v1_task.queue, v1_task.action_id, v1_task.step_id, v1_task.step_readable_id, v1_task.workflow_id, v1_task.schedule_timeout, v1_task.step_timeout, v1_task.priority, v1_task.sticky, v1_task.desired_worker_id, v1_task.external_id, v1_task.display_name, v1_task.input, v1_task.retry_count, v1_task.internal_retry_count, v1_task.app_retry_count, v1_task.additional_metadata, v1_task.dag_id, v1_task.dag_inserted_at, v1_task.parent_task_id, v1_task.child_index, v1_task.child_key, v1_task.initial_state, v1_task.initial_state_reason, v1_task.concurrency_parent_strategy_ids, v1_task.concurrency_strategy_ids, v1_task.concurrency_keys, v1_task.retry_backoff_factor, v1_task.retry_max_backoff, v1_task.desired_worker_label, v1_task.triggering_event_external_id, v1_task.triggering_event_key, v1_task.batch_key
 `
 
 type ReplayTasksParams struct {
@@ -463,6 +473,7 @@ type ReplayTasksParams struct {
 	DesiredWorkerLabels        [][]byte      `json:"desiredWorkerLabels"`
 	TriggeringEventExternalIds []*uuid.UUID  `json:"triggeringEventExternalIds"`
 	TriggeringEventKeys        []pgtype.Text `json:"triggeringEventKeys"`
+	BatchKeys                  []string      `json:"batchKeys"`
 }
 
 // NOTE: at this point, we assume we have a lock on tasks and therefor we can update the tasks
@@ -477,6 +488,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 		arg.DesiredWorkerLabels,
 		arg.TriggeringEventExternalIds,
 		arg.TriggeringEventKeys,
+		arg.BatchKeys,
 	)
 	if err != nil {
 		return nil, err
@@ -521,6 +533,7 @@ func (q *Queries) ReplayTasks(ctx context.Context, db DBTX, arg ReplayTasksParam
 			&i.DesiredWorkerLabel,
 			&i.TriggeringEventExternalID,
 			&i.TriggeringEventKey,
+			&i.BatchKey,
 		); err != nil {
 			return nil, err
 		}
@@ -659,6 +672,65 @@ WHERE
     (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM queue_items_to_delete)
 `
 
+const releaseBatchedQueueItems = `-- name: ReleaseBatchedQueueItems :batchexec
+WITH input AS (
+    SELECT
+        task_id, task_inserted_at, retry_count
+    FROM
+        (
+            SELECT
+                unnest($1::bigint[]) AS task_id,
+                unnest($2::timestamptz[]) AS task_inserted_at,
+                unnest($3::integer[]) AS retry_count
+        ) AS subquery
+), batched_items_to_delete AS (
+    SELECT
+        tenant_id, step_id, batch_key, task_id, task_inserted_at, retry_count
+    FROM
+        v1_batched_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM input)
+    ORDER BY
+        task_id, task_inserted_at, retry_count
+    FOR UPDATE
+), deleted_batched_items AS (
+    DELETE FROM
+        v1_batched_queue_item
+    WHERE
+        (task_id, task_inserted_at, retry_count) IN (SELECT task_id, task_inserted_at, retry_count FROM batched_items_to_delete)
+    RETURNING
+        tenant_id,
+        step_id,
+        batch_key
+), orphaned_batch_runs AS (
+    SELECT
+        br.tenant_id,
+        br.batch_id
+    FROM
+        v1_batch_runtime br
+    JOIN
+        deleted_batched_items dbi ON
+            dbi.tenant_id = br.tenant_id
+            AND dbi.step_id = br.step_id
+            AND dbi.batch_key = br.batch_key
+    WHERE NOT EXISTS (
+        SELECT
+            1
+        FROM
+            v1_batched_queue_item bqi
+        WHERE
+            bqi.tenant_id = br.tenant_id
+            AND bqi.step_id = br.step_id
+            AND bqi.batch_key = br.batch_key
+    )
+    FOR UPDATE
+)
+DELETE FROM
+    v1_batch_runtime br
+WHERE
+    (br.tenant_id, br.batch_id) IN (SELECT tenant_id, batch_id FROM orphaned_batch_runs)
+`
+
 const releaseRateLimitedQueueItems = `-- name: ReleaseRateLimitedQueueItems :batchexec
 WITH input AS (
     SELECT
@@ -721,7 +793,9 @@ WITH input AS (
         task_id,
         task_inserted_at,
         retry_count,
-        worker_id
+        worker_id,
+        batch_id,
+        batch_key
     FROM
         v1_task_runtime
     WHERE
@@ -748,6 +822,8 @@ SELECT
     t.step_readable_id,
     t.workflow_run_id,
     r.worker_id,
+    r.batch_id,
+    r.batch_key,
     i.retry_count::int AS retry_count,
     t.retry_count = i.retry_count AS is_current_retry,
     t.concurrency_strategy_ids,
@@ -757,7 +833,7 @@ FROM
 JOIN
     input i ON i.task_id = t.id AND i.task_inserted_at = t.inserted_at
 LEFT JOIN
-    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = t.retry_count
+    runtimes_to_delete r ON r.task_id = t.id AND r.retry_count = i.retry_count
 `
 
 type ReleaseTasksParams struct {
@@ -774,6 +850,8 @@ type ReleaseTasksRow struct {
 	StepReadableID         string             `json:"step_readable_id"`
 	WorkflowRunID          uuid.UUID          `json:"workflow_run_id"`
 	WorkerID               uuid.UUID          `json:"worker_id"`
+	BatchID                pgtype.UUID        `json:"batch_id"`
+	BatchKey               pgtype.Text        `json:"batch_key"`
 	RetryCount             int32              `json:"retry_count"`
 	IsCurrentRetry         bool               `json:"is_current_retry"`
 	ConcurrencyStrategyIds []int64            `json:"concurrency_strategy_ids"`
@@ -804,6 +882,8 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 				&i.StepReadableID,
 				&i.WorkflowRunID,
 				&i.WorkerID,
+				&i.BatchID,
+				&i.BatchKey,
 				&i.RetryCount,
 				&i.IsCurrentRetry,
 				&i.ConcurrencyStrategyIds,
@@ -824,6 +904,7 @@ func (q *Queries) ReleaseTasks(ctx context.Context, db DBTX, arg ReleaseTasksPar
 
 	batch.Queue(releaseRetryQueueItems, vals...)
 	batch.Queue(releaseQueueItems, vals...)
+	batch.Queue(releaseBatchedQueueItems, vals...)
 	batch.Queue(lockParentConcurrencySlots, vals...)
 	batch.Queue(releaseConcurrencySlots, vals...)
 	batch.Queue(releaseRateLimitedQueueItems, vals...)

@@ -130,6 +130,25 @@ module Hatchet
       task(name, durable: true, eviction_policy: eviction_policy, **opts, &)
     end
 
+    # Define a batch task within this workflow.
+    #
+    # Batch tasks buffer concurrent runs until Hatchet flushes the batch (size reached or
+    # flush interval), then invoke the block once with all buffered inputs keyed by each
+    # run's task-run external id. The block must return a Hash mapping each id to its
+    # output, or use +broadcast_output+ on the batch config to return the same result to
+    # all callers. retries is always forced to 0 for batch tasks.
+    #
+    # Preview: batch tasks are in beta and may change in future releases.
+    #
+    # @param name [Symbol, String] Task name
+    # @param batch [Hatchet::BatchTaskConfig] Batch configuration
+    # @param opts [Hash] Other Task options forwarded to {#task}.
+    # @yield [inputs, ctx] The batch execution block, receiving a Hash of task-run external id => input
+    # @return [Task] The created batch task
+    def batch_task(name, batch:, **opts, &)
+      task(name, batch: batch, **opts, &)
+    end
+
     # Define an on_failure task for this workflow
     #
     # @param opts [Hash] Task options

@@ -310,7 +310,7 @@ type ConfigFileRuntime struct {
 	SchedulerAdvisoryLockTimeout time.Duration `mapstructure:"schedulerAdvisoryLockTimeout" json:"schedulerAdvisoryLockTimeout,omitempty" default:"5s"`
 
 	// ConcurrencyInMemoryIndexEnabled controls whether the in-memory index + outbox approach is used for concurrency strategies
-	ConcurrencyInMemoryIndexEnabled bool `mapstructure:"concurrencyInMemoryIndexEnabled" json:"concurrencyInMemoryIndexEnabled,omitempty" default:"false"`
+	ConcurrencyInMemoryIndexEnabled bool `mapstructure:"concurrencyInMemoryIndexEnabled" json:"concurrencyInMemoryIndexEnabled,omitempty" default:"true"`
 
 	// LogIngestionEnabled controls whether the server enables log ingestion for tasks
 	LogIngestionEnabled bool `mapstructure:"logIngestionEnabled" json:"logIngestionEnabled,omitempty" default:"true"`

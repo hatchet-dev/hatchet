@@ -113,11 +113,13 @@ export default class WorkflowRunRef<T> {
         const signal = this.defaultSignal;
         for await (const event of streamable.stream({ signal })) {
           if (event.eventType === WorkflowRunEventType.WORKFLOW_RUN_EVENT_TYPE_FINISHED) {
-            if (event.results.some((r) => r.error !== undefined)) {
-              // HACK: this might replace intentional empty errors but this is the more common case
-              const errors = event.results.map((r) =>
-                r.error !== '' ? r.error : 'task was cancelled'
-              );
+            // A present-but-empty error field is ambiguous (e.g. a batch member that was
+            // explicitly cancelled via ctx.cancel() and resolved with no further error);
+            // only a non-empty message is treated as a genuine failure here.
+            if (event.results.some((r) => r.error !== undefined && r.error !== '')) {
+              const errors = event.results
+                .filter((r) => r.error !== undefined && r.error !== '')
+                .map((r) => r.error);
 
               reject(errors);
               return;
@@ -133,6 +135,22 @@ export default class WorkflowRunRef<T> {
 
               if (!mostRecentJobRun) {
                 reject(new Error('No job runs found'));
+                return;
+              }
+
+              // A task run that fails before ever being dispatched (e.g. a batch group-key
+              // CEL expression that fails to parse) never gets a StepRunResult in the
+              // WORKFLOW_RUN_EVENT_TYPE_FINISHED event, so `event.results` above is empty.
+              // Check step statuses here too, or this codepath would resolve as if the run
+              // had succeeded.
+              const failedStepRun = mostRecentJobRun.stepRuns?.find(
+                (stepRun) => stepRun.status === 'FAILED' || stepRun.status === 'CANCELLED'
+              );
+
+              if (failedStepRun) {
+                reject(
+                  new Error(failedStepRun.error || failedStepRun.cancelledReason || 'task failed')
+                );
                 return;
               }
 

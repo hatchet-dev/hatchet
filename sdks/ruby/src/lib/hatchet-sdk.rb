@@ -31,6 +31,7 @@ module Hatchet
   require_relative "hatchet/conditions"
   require_relative "hatchet/condition_converter"
   require_relative "hatchet/rate_limit"
+  require_relative "hatchet/batch"
   require_relative "hatchet/labels"
   require_relative "hatchet/trigger_options"
   require_relative "hatchet/default_filter"
@@ -212,6 +213,30 @@ module Hatchet
                         default_filters: opts.delete(:default_filters) || [],
                         idempotency: opts.delete(:idempotency),)
       wf.task(name, **opts, &block)
+    end
+
+    # Create a standalone batch task (auto-wraps in a single-task workflow).
+    #
+    # Batch tasks buffer concurrent runs until Hatchet flushes the batch (size reached or
+    # flush interval), then invoke the block once with all buffered inputs keyed by each
+    # run's task-run external id. The block must return a Hash mapping each id to its
+    # output, or use +broadcast_output+ on the batch config to return the same result to
+    # all callers. retries is always forced to 0 for batch tasks.
+    #
+    # Preview: batch tasks are in beta and may change in future releases.
+    #
+    # @param name [String] Task name
+    # @param batch [Hatchet::BatchTaskConfig] Batch configuration
+    # @param opts [Hash] Task options (on_events:, idempotency:, etc.)
+    # @yield [inputs, ctx] The batch execution block, receiving a Hash of task-run external id => input
+    # @return [Hatchet::Task]
+    #
+    # @example
+    #   batch = hatchet.batch_task(name: "my_batch", batch: Hatchet::BatchTaskConfig.new(max_size: 3)) do |inputs, ctx|
+    #     inputs.transform_values { |input| { "result" => input["message"].upcase } }
+    #   end
+    def batch_task(name:, batch:, **opts, &block)
+      task(name: name, batch: batch, **opts, &block)
     end
 
     # Create a standalone durable task.

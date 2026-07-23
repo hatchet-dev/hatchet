@@ -38,7 +38,10 @@ import {
   TaskWorkflowDeclaration,
   CreateDurableTaskWorkflow,
   CreateDurableTaskWorkflowOpts,
+  CreateBatchTaskWorkflow,
+  CreateBatchTaskWorkflowOpts,
 } from '../declaration';
+import { BatchTaskFn } from '../task';
 import type { LegacyWorkflow } from '../../legacy/legacy-transformer';
 import { getWorkflowName } from '../../legacy/legacy-transformer';
 import { IHatchetClient } from './client.interface';
@@ -324,6 +327,60 @@ export class HatchetClient<
    */
   task(options: any): TaskWorkflowDeclaration<any, any> {
     return CreateTaskWorkflow(options, this);
+  }
+
+  /**
+   * Creates a new batch task workflow. Batch tasks buffer concurrent runs until Hatchet
+   * flushes the batch (size reached or flush interval), then invoke the handler once with
+   * all buffered inputs keyed by each run's task-run external id. The handler must return
+   * a Record mapping each id to its output, or set `batch.broadcastOutput` to return the
+   * same result to all callers. retries is always forced to 0 for batch tasks.
+   *
+   * Preview: batch tasks are in beta and may change in future releases.
+   * @template I The input type for the batch task
+   * @template O The output type of the batch task
+   * @param options Batch task configuration options
+   * @returns A TaskWorkflowDeclaration instance
+   */
+  batchTask<I extends InputType = UnknownInputType, O extends OutputType = void>(
+    options: CreateBatchTaskWorkflowOpts<
+      I & Resolved<GlobalInput, MiddlewareBefore>,
+      MergeIfNonEmpty<O, GlobalOutput>
+    >
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
+
+  /**
+   * Creates a new batch task workflow with types inferred from the function parameter.
+   * @template Fn The type of the batch task function
+   * @param options Batch task configuration options with function that defines types
+   * @returns A TaskWorkflowDeclaration instance with inferred types
+   */
+  batchTask<
+    Fn extends BatchTaskFn<I, O>,
+    I extends InputType = Parameters<Fn>[0] extends Record<string, infer II>
+      ? II extends InputType
+        ? II
+        : UnknownInputType
+      : UnknownInputType,
+    O extends OutputType = ReturnType<Fn> extends Promise<infer P>
+      ? P extends OutputType
+        ? P
+        : void
+      : ReturnType<Fn> extends OutputType
+        ? ReturnType<Fn>
+        : void,
+  >(
+    options: {
+      fn: Fn;
+      batch: CreateBatchTaskWorkflowOpts<I, O>['batch'];
+    } & Omit<CreateBatchTaskWorkflowOpts<I, O>, 'fn' | 'batch'>
+  ): TaskWorkflowDeclaration<I, O, GlobalInput, GlobalOutput, MiddlewareBefore, MiddlewareAfter>;
+
+  /**
+   * Implementation of the batchTask method.
+   */
+  batchTask(options: any): TaskWorkflowDeclaration<any, any> {
+    return CreateBatchTaskWorkflow(options, this);
   }
 
   /**
