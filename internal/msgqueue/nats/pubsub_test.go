@@ -122,6 +122,8 @@ func TestPubSubLargePayload(t *testing.T) {
 	tenantId := uuid.New()
 	topic := msgqueue.TenantTopic(tenantId)
 
+	// TODO: Avoid double base64 encoding: NewTenantMessage encodes []byte once,
+	// then marshaling Message for transport encodes it again.
 	payload := make([]byte, 8*1024*1024)
 	_, err := rand.Read(payload)
 	require.NoError(t, err)
