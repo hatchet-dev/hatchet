@@ -77,6 +77,29 @@ WHERE
             ELSE 'ACTIVE'
         END = ANY($5::text[])
     )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR (
+            SELECT BOOL_AND(
+                EXISTS (
+                    SELECT 1
+                    FROM "WorkerLabel" wl
+                    WHERE wl."workerId" = workers."id"
+                        AND wl."key" = lf.k
+                        AND (
+                            wl."strValue" = lf.v
+                            OR wl."intValue"::text = lf.v
+                        )
+                )
+            )
+            FROM (
+                SELECT
+                    UNNEST($6::text[]) AS k,
+                    UNNEST($7::text[]) AS v
+            ) AS lf
+        )
+    )
 `
 
 type CountWorkersParams struct {
@@ -85,6 +108,8 @@ type CountWorkersParams struct {
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
 	Statuses           []string         `json:"statuses"`
+	LabelKeys          []string         `json:"labelKeys"`
+	LabelValues        []string         `json:"labelValues"`
 }
 
 func (q *Queries) CountWorkers(ctx context.Context, db DBTX, arg CountWorkersParams) (int64, error) {
@@ -94,6 +119,8 @@ func (q *Queries) CountWorkers(ctx context.Context, db DBTX, arg CountWorkersPar
 		arg.LastHeartbeatAfter,
 		arg.Assignable,
 		arg.Statuses,
+		arg.LabelKeys,
+		arg.LabelValues,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1381,12 +1408,35 @@ WHERE
             ELSE 'ACTIVE'
         END = ANY($5::text[])
     )
+    AND (
+        $6::text[] IS NULL
+        OR $7::text[] IS NULL
+        OR (
+            SELECT BOOL_AND(
+                EXISTS (
+                    SELECT 1
+                    FROM "WorkerLabel" wl
+                    WHERE wl."workerId" = workers."id"
+                        AND wl."key" = lf.k
+                        AND (
+                            wl."strValue" = lf.v
+                            OR wl."intValue"::text = lf.v
+                        )
+                )
+            )
+            FROM (
+                SELECT
+                    UNNEST($6::text[]) AS k,
+                    UNNEST($7::text[]) AS v
+            ) AS lf
+        )
+    )
 ORDER BY
     workers."createdAt" DESC
 OFFSET
-    COALESCE($6, 0)
+    COALESCE($8, 0)
 LIMIT
-    COALESCE($7, 10000)
+    COALESCE($9, 10000)
 `
 
 type ListWorkersParams struct {
@@ -1395,6 +1445,8 @@ type ListWorkersParams struct {
 	LastHeartbeatAfter pgtype.Timestamp `json:"lastHeartbeatAfter"`
 	Assignable         pgtype.Bool      `json:"assignable"`
 	Statuses           []string         `json:"statuses"`
+	LabelKeys          []string         `json:"labelKeys"`
+	LabelValues        []string         `json:"labelValues"`
 	Offset             interface{}      `json:"offset"`
 	Limit              interface{}      `json:"limit"`
 }
@@ -1410,6 +1462,8 @@ func (q *Queries) ListWorkers(ctx context.Context, db DBTX, arg ListWorkersParam
 		arg.LastHeartbeatAfter,
 		arg.Assignable,
 		arg.Statuses,
+		arg.LabelKeys,
+		arg.LabelValues,
 		arg.Offset,
 		arg.Limit,
 	)

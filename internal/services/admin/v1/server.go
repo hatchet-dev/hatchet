@@ -1296,6 +1296,7 @@ func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[st
 		"has_task_durable", hasTaskDurable,
 		"has_task_slot_requests", hasTaskSlotRequests,
 		"has_task_schedule_timeout", hasTaskScheduleTimeout,
+		"has_idempotency_key", req.Idempotency != nil,
 	)
 }
 

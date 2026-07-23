@@ -162,6 +162,29 @@ WHERE
             ELSE 'ACTIVE'
         END = ANY(sqlc.narg('statuses')::text[])
     )
+    AND (
+        sqlc.narg('labelKeys')::text[] IS NULL
+        OR sqlc.narg('labelValues')::text[] IS NULL
+        OR (
+            SELECT BOOL_AND(
+                EXISTS (
+                    SELECT 1
+                    FROM "WorkerLabel" wl
+                    WHERE wl."workerId" = workers."id"
+                        AND wl."key" = lf.k
+                        AND (
+                            wl."strValue" = lf.v
+                            OR wl."intValue"::text = lf.v
+                        )
+                )
+            )
+            FROM (
+                SELECT
+                    UNNEST(sqlc.narg('labelKeys')::text[]) AS k,
+                    UNNEST(sqlc.narg('labelValues')::text[]) AS v
+            ) AS lf
+        )
+    )
 ORDER BY
     workers."createdAt" DESC
 OFFSET
@@ -207,6 +230,29 @@ WHERE
             WHEN workers."isPaused" = true THEN 'PAUSED'
             ELSE 'ACTIVE'
         END = ANY(sqlc.narg('statuses')::text[])
+    )
+    AND (
+        sqlc.narg('labelKeys')::text[] IS NULL
+        OR sqlc.narg('labelValues')::text[] IS NULL
+        OR (
+            SELECT BOOL_AND(
+                EXISTS (
+                    SELECT 1
+                    FROM "WorkerLabel" wl
+                    WHERE wl."workerId" = workers."id"
+                        AND wl."key" = lf.k
+                        AND (
+                            wl."strValue" = lf.v
+                            OR wl."intValue"::text = lf.v
+                        )
+                )
+            )
+            FROM (
+                SELECT
+                    UNNEST(sqlc.narg('labelKeys')::text[]) AS k,
+                    UNNEST(sqlc.narg('labelValues')::text[]) AS v
+            ) AS lf
+        )
     );
 
 -- name: GetWorkerById :one
