@@ -66,9 +66,23 @@ export type TTLBasedIdempotencyConfig = BaseIdempotencyConfig & {
 };
 
 /**
+ * Status-based idempotency: keeps the idempotency key alive until the associated run
+ * reaches a terminal status. `fallbackTtlMs` caps how long the key can live before it's evicted.
+ */
+export type StatusBasedIdempotencyConfig = BaseIdempotencyConfig & {
+  strategy: 'status';
+
+  /**
+   * Fallback time-to-live (in milliseconds): the longest the idempotency key can live
+   * before it's evicted, even if the run has not reached a terminal status.
+   */
+  fallbackTtlMs: number;
+};
+
+/**
  * Union of all supported idempotency configurations.
  */
-export type IdempotencyConfig = TTLBasedIdempotencyConfig;
+export type IdempotencyConfig = TTLBasedIdempotencyConfig | StatusBasedIdempotencyConfig;
 
 export class NonRetryableError extends Error {
   constructor(message?: string) {

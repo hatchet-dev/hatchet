@@ -1072,6 +1072,8 @@ CREATE TABLE
         CONSTRAINT "WorkflowTriggers_pkey" PRIMARY KEY ("id")
     );
 
+CREATE TYPE idempotency_method AS ENUM ('TTL', 'STATUS');
+
 -- CreateTable
 CREATE TABLE
     "WorkflowVersion" (
@@ -1094,6 +1096,7 @@ CREATE TABLE
         "idempotencyKeyTtlMs" BIGINT,
         -- a CEL expression evaluated against run input to derive the run's display name
         "displayName" TEXT,
+        "idempotencyMethod" idempotency_method,
         CONSTRAINT "WorkflowVersion_pkey" PRIMARY KEY ("id")
     );
 

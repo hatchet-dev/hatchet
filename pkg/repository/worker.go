@@ -76,6 +76,11 @@ type ListWorkersOpts struct {
 	Offset *int
 
 	Statuses []string
+
+	// LabelKeys and LabelValues are positionally paired label filters. A worker
+	// must have a label matching every key/value pair to be included.
+	LabelKeys   []string
+	LabelValues []string
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -187,6 +192,17 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	if opts.Statuses != nil {
 		queryParams.Statuses = opts.Statuses
 		countParams.Statuses = opts.Statuses
+	}
+
+	if len(opts.LabelKeys) > 0 || len(opts.LabelValues) > 0 {
+		if len(opts.LabelKeys) != len(opts.LabelValues) {
+			return nil, 0, fmt.Errorf("label filter keys/values must be paired: got %d keys and %d values", len(opts.LabelKeys), len(opts.LabelValues))
+		}
+
+		queryParams.LabelKeys = opts.LabelKeys
+		queryParams.LabelValues = opts.LabelValues
+		countParams.LabelKeys = opts.LabelKeys
+		countParams.LabelValues = opts.LabelValues
 	}
 
 	if opts.Limit != nil {

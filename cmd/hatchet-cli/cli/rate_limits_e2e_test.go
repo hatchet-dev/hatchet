@@ -38,6 +38,68 @@ func TestRateLimitsListJSON(t *testing.T) {
 	}
 }
 
+func TestRateLimitsCreateGetDeleteJSON(t *testing.T) {
+	h := testharness.New(t)
+
+	key := "e2e-test-rate-limit"
+
+	// Create (upsert) a rate limit over the gRPC admin API
+	createOut := h.RunJSON("rate-limits", "create",
+		"--key", key,
+		"--limit", "100",
+		"--duration", "minute",
+	)
+
+	var created struct {
+		Key      string `json:"key"`
+		Limit    int    `json:"limit"`
+		Duration string `json:"duration"`
+	}
+	if err := json.Unmarshal(createOut, &created); err != nil {
+		t.Fatalf("failed to unmarshal rate-limits create output: %v\nOutput: %s", err, createOut)
+	}
+	if created.Key != key {
+		t.Errorf("expected key %q, got %q", key, created.Key)
+	}
+	if created.Limit != 100 {
+		t.Errorf("expected limit 100, got %d", created.Limit)
+	}
+	if created.Duration != "minute" {
+		t.Errorf("expected duration minute, got %q", created.Duration)
+	}
+
+	// Get the rate limit by key
+	getOut := h.RunJSON("rate-limits", "get", key)
+
+	var got struct {
+		Key        string `json:"key"`
+		LimitValue int    `json:"limitValue"`
+	}
+	if err := json.Unmarshal(getOut, &got); err != nil {
+		t.Fatalf("failed to unmarshal rate-limits get output: %v\nOutput: %s", err, getOut)
+	}
+	if got.Key != key {
+		t.Errorf("expected key %q, got %q", key, got.Key)
+	}
+
+	// Delete the rate limit
+	deleteOut := h.RunJSON("rate-limits", "delete", "--yes", key)
+
+	var deleted struct {
+		Deleted bool   `json:"deleted"`
+		Key     string `json:"key"`
+	}
+	if err := json.Unmarshal(deleteOut, &deleted); err != nil {
+		t.Fatalf("failed to unmarshal rate-limits delete output: %v\nOutput: %s", err, deleteOut)
+	}
+	if !deleted.Deleted {
+		t.Errorf("expected deleted=true, got: %s", deleteOut)
+	}
+	if deleted.Key != key {
+		t.Errorf("expected deleted key %q, got %q", key, deleted.Key)
+	}
+}
+
 func TestRateLimitsTUI(t *testing.T) {
 	h := testharness.New(t)
 	tui := testharness.NewTUI(t, h)

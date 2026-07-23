@@ -16,7 +16,7 @@ import HatchetPromise, { CancellationReason } from '@util/hatchet-promise/hatche
 import { CreateStepRateLimit, StickyStrategy } from '@hatchet/protoc/workflows';
 import { actionMap, Logger, taskRunLog } from '@hatchet/util/logger';
 import { BaseWorkflowDeclaration, WorkflowDefinition, HatchetClient } from '@hatchet/v1';
-import { CreateTaskOpts } from '@hatchet/protoc/v1/workflows';
+import { CreateTaskOpts, IdempotencyMethod } from '@hatchet/protoc/v1/workflows';
 import {
   CreateOnFailureTaskOpts,
   CreateOnSuccessTaskOpts,
@@ -425,7 +425,14 @@ export class InternalWorker {
         idempotency: workflow.idempotency
           ? {
               expression: workflow.idempotency.expression,
-              ttlMs: workflow.idempotency.ttlMs,
+              ttlMs:
+                workflow.idempotency.strategy === 'status'
+                  ? workflow.idempotency.fallbackTtlMs
+                  : workflow.idempotency.ttlMs,
+              method:
+                workflow.idempotency.strategy === 'status'
+                  ? IdempotencyMethod.STATUS
+                  : IdempotencyMethod.TTL,
             }
           : undefined,
       });

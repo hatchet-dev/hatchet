@@ -913,9 +913,16 @@ func getCreateWorkflowOpts(req *contracts.CreateWorkflowVersionRequest) (*v1.Cre
 	var idempotency *v1.IdempotencyConfig
 
 	if req.Idempotency != nil {
+		method := sqlcv1.IdempotencyMethodTTL
+
+		if req.Idempotency.Method != nil {
+			method = sqlcv1.IdempotencyMethod(req.Idempotency.Method.String())
+		}
+
 		idempotency = &v1.IdempotencyConfig{
 			Expression: req.Idempotency.Expression,
 			TTLMs:      req.Idempotency.TtlMs,
+			Method:     method,
 		}
 	}
 
@@ -1260,6 +1267,7 @@ func putWorkflowFeatureFlags(req *contracts.CreateWorkflowVersionRequest) map[st
 		"has_task_durable", hasTaskDurable,
 		"has_task_slot_requests", hasTaskSlotRequests,
 		"has_task_schedule_timeout", hasTaskScheduleTimeout,
+		"has_idempotency_key", req.Idempotency != nil,
 	)
 }
 

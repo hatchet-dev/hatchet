@@ -937,12 +937,11 @@ WITH to_insert AS (
         UNNEST($2::UUID[]) AS external_id,
         UNNEST($3::TIMESTAMPTZ[]) AS seen_at,
         UNNEST($4::TEXT[]) AS key,
-        UNNEST($5::JSONB[]) AS payload,
-        UNNEST($6::JSONB[]) AS additional_metadata,
+        UNNEST($5::JSONB[]) AS additional_metadata,
         -- Scopes are nullable
-        UNNEST($7::TEXT[]) AS scope,
+        UNNEST($6::TEXT[]) AS scope,
         -- Webhook names are nullable
-        UNNEST($8::TEXT[]) AS triggering_webhook_name
+        UNNEST($7::TEXT[]) AS triggering_webhook_name
 
 )
 INSERT INTO v1_events_olap (
@@ -955,7 +954,7 @@ INSERT INTO v1_events_olap (
     scope,
 	triggering_webhook_name
 )
-SELECT tenant_id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
+SELECT tenant_id, external_id, seen_at, key, '{}'::JSONB AS payload, additional_metadata, scope, triggering_webhook_name
 FROM to_insert
 RETURNING tenant_id, id, external_id, seen_at, key, payload, additional_metadata, scope, triggering_webhook_name
 `
@@ -965,7 +964,6 @@ type BulkCreateEventsOLAPParams struct {
 	Externalids            []uuid.UUID          `json:"externalids"`
 	Seenats                []pgtype.Timestamptz `json:"seenats"`
 	Keys                   []string             `json:"keys"`
-	Payloads               [][]byte             `json:"payloads"`
 	Additionalmetadatas    [][]byte             `json:"additionalmetadatas"`
 	Scopes                 []pgtype.Text        `json:"scopes"`
 	TriggeringWebhookNames []pgtype.Text        `json:"triggeringWebhookName"`
@@ -977,7 +975,6 @@ func (q *Queries) BulkCreateEventsOLAP(ctx context.Context, db DBTX, arg BulkCre
 		arg.Externalids,
 		arg.Seenats,
 		arg.Keys,
-		arg.Payloads,
 		arg.Additionalmetadatas,
 		arg.Scopes,
 		arg.TriggeringWebhookNames,
@@ -1079,13 +1076,12 @@ WITH inputs AS (
         UNNEST($14::UUID[]) AS desired_worker_id,
         UNNEST($15::UUID[]) AS external_id,
         UNNEST($16::TEXT[]) AS display_name,
-        UNNEST($17::JSONB[]) AS input,
-        UNNEST($18::JSONB[]) AS additional_metadata,
-        UNNEST($19::BIGINT[]) AS dag_id,
-        UNNEST($20::TIMESTAMPTZ[]) AS dag_inserted_at,
-        UNNEST($21::UUID[]) AS parent_task_external_id,
-        UNNEST($22::BOOLEAN[]) AS is_durable,
-		UNNEST($23::TEXT[]) AS idempotency_key
+        UNNEST($17::JSONB[]) AS additional_metadata,
+        UNNEST($18::BIGINT[]) AS dag_id,
+        UNNEST($19::TIMESTAMPTZ[]) AS dag_inserted_at,
+        UNNEST($20::UUID[]) AS parent_task_external_id,
+        UNNEST($21::BOOLEAN[]) AS is_durable,
+		UNNEST($22::TEXT[]) AS idempotency_key
 )
 INSERT INTO v1_tasks_olap (
     tenant_id,
@@ -1129,7 +1125,7 @@ SELECT
     desired_worker_id,
     external_id,
     display_name,
-    input,
+    '{}'::JSONB AS input,
     additional_metadata,
     dag_id,
     dag_inserted_at,
@@ -1157,7 +1153,6 @@ type CreateTasksOLAPParams struct {
 	Desiredworkerids      []*uuid.UUID         `json:"desiredworkerids"`
 	Externalids           []uuid.UUID          `json:"externalids"`
 	Displaynames          []string             `json:"displaynames"`
-	Inputs                [][]byte             `json:"inputs"`
 	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
 	Dagids                []pgtype.Int8        `json:"dagids"`
 	Daginsertedats        []pgtype.Timestamptz `json:"daginsertedats"`
@@ -1184,7 +1179,6 @@ func (q *Queries) CreateTasksOLAP(ctx context.Context, db DBTX, arg CreateTasksO
 		arg.Desiredworkerids,
 		arg.Externalids,
 		arg.Displaynames,
-		arg.Inputs,
 		arg.Additionalmetadatas,
 		arg.Dagids,
 		arg.Daginsertedats,
@@ -1205,11 +1199,10 @@ WITH inputs AS (
         UNNEST($5::TEXT[]) AS display_name,
         UNNEST($6::UUID[]) AS workflow_id,
         UNNEST($7::UUID[]) AS workflow_version_id,
-        UNNEST($8::JSONB[]) AS input,
-        UNNEST($9::JSONB[]) AS additional_metadata,
-        UNNEST($10::UUID[]) AS parent_task_external_id,
-        UNNEST($11::INTEGER[]) AS total_tasks,
-		UNNEST($12::TEXT[]) AS idempotency_key
+        UNNEST($8::JSONB[]) AS additional_metadata,
+        UNNEST($9::UUID[]) AS parent_task_external_id,
+        UNNEST($10::INTEGER[]) AS total_tasks,
+		UNNEST($11::TEXT[]) AS idempotency_key
 ), dag_task_counts AS (
     SELECT
         i.id,
@@ -1265,7 +1258,7 @@ SELECT
     i.display_name,
     i.workflow_id,
     i.workflow_version_id,
-    i.input,
+    '{}'::JSONB AS input,
     i.additional_metadata,
     i.parent_task_external_id,
     i.total_tasks,
@@ -1289,7 +1282,6 @@ type CreateDAGsOLAPOverwriteParams struct {
 	Displaynames          []string             `json:"displaynames"`
 	Workflowids           []uuid.UUID          `json:"workflowids"`
 	Workflowversionids    []uuid.UUID          `json:"workflowversionids"`
-	Inputs                [][]byte             `json:"inputs"`
 	Additionalmetadatas   [][]byte             `json:"additionalmetadatas"`
 	Parenttaskexternalids []*uuid.UUID         `json:"parenttaskexternalids"`
 	Totaltasks            []int32              `json:"totaltasks"`
@@ -1305,7 +1297,6 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 		arg.Displaynames,
 		arg.Workflowids,
 		arg.Workflowversionids,
-		arg.Inputs,
 		arg.Additionalmetadatas,
 		arg.Parenttaskexternalids,
 		arg.Totaltasks,

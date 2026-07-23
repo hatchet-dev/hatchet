@@ -2317,7 +2317,6 @@ func (r *sharedRepository) insertTasks(
 				RetryMaxBackoff:              make([]pgtype.Int4, 0),
 				WorkflowVersionIds:           make([]uuid.UUID, 0),
 				WorkflowRunIds:               make([]uuid.UUID, 0),
-				Inputs:                       make([][]byte, 0),
 				IsDurables:                   make([]bool, 0),
 				DesiredWorkerLabels:          make([][]byte, 0),
 				TriggeringEventExternalIds:   make([]*uuid.UUID, 0),
@@ -2382,8 +2381,6 @@ func (r *sharedRepository) insertTasks(
 		}
 
 		params.IdempotencyKeys = append(params.IdempotencyKeys, idempotencyKey)
-
-		params.Inputs = append(params.Inputs, []byte("{}"))
 
 		stepIdsToParams[task.StepId] = params
 	}
@@ -2995,6 +2992,35 @@ func (r *sharedRepository) createTaskEventsAfterRelease(
 	)
 }
 
+type ReleaseIdempotencyKeysOpt struct {
+	*TaskIdInsertedAtRetryCount
+	EventType sqlcv1.V1TaskEventType
+}
+
+func (r *sharedRepository) releaseIdempotencyKeysForStatusPolicies(
+	ctx context.Context,
+	dbtx sqlcv1.DBTX,
+	opts []ReleaseIdempotencyKeysOpt,
+) error {
+	// !! IMPORTANT: this only gets called when a task reaches a terminal state (exhausted all retries, completed, etc.)
+	// which means we want to evict any idempotency keys that still are live and tied to the task at this point
+	taskIds := make([]int64, len(opts))
+	taskInsertedAts := make([]pgtype.Timestamptz, len(opts))
+	taskRetryCounts := make([]int32, len(opts))
+
+	for i, opt := range opts {
+		taskIds[i] = opt.Id
+		taskInsertedAts[i] = opt.InsertedAt
+		taskRetryCounts[i] = opt.RetryCount
+	}
+
+	return r.queries.ReleaseIdempotencyKeys(ctx, dbtx, sqlcv1.ReleaseIdempotencyKeysParams{
+		Taskids:         taskIds,
+		Taskinsertedats: taskInsertedAts,
+		Taskretrycounts: taskRetryCounts,
+	})
+}
+
 func (r *sharedRepository) createTaskEvents(
 	ctx context.Context,
 	dbtx sqlcv1.DBTX,
@@ -3020,6 +3046,7 @@ func (r *sharedRepository) createTaskEvents(
 	internalTaskEvents := make([]InternalTaskEvent, len(tasks))
 
 	externalIdToData := make(map[uuid.UUID][]byte, len(tasks))
+	releaseIdempotencyKeysOpts := make([]ReleaseIdempotencyKeysOpt, len(tasks))
 
 	for i, task := range tasks {
 		taskIds[i] = task.Id
@@ -3051,6 +3078,15 @@ func (r *sharedRepository) createTaskEvents(
 			EventKey:       eventKeys[i],
 			Data:           eventDatas[i],
 		}
+
+		releaseIdempotencyKeysOpts[i] = ReleaseIdempotencyKeysOpt{
+			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
+				Id:         task.Id,
+				InsertedAt: task.InsertedAt,
+				RetryCount: task.RetryCount,
+			},
+			EventType: eventTypes[i],
+		}
 	}
 
 	taskEvents, err := r.queries.CreateTaskEvents(ctx, dbtx, sqlcv1.CreateTaskEventsParams{
@@ -3066,6 +3102,10 @@ func (r *sharedRepository) createTaskEvents(
 
 	if err != nil {
 		return nil, err
+	}
+
+	if err := r.releaseIdempotencyKeysForStatusPolicies(ctx, dbtx, releaseIdempotencyKeysOpts); err != nil {
+		return nil, fmt.Errorf("failed to release idempotency keys: %w", err)
 	}
 
 	storePayloadOpts := make([]StorePayloadOpts, len(taskEvents))
