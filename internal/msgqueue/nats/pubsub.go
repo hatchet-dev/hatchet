@@ -31,8 +31,10 @@ type PubSub struct {
 type PubSubOpt func(*PubSubOpts)
 
 type PubSubOpts struct {
-	l   *zerolog.Logger
-	url string
+	l        *zerolog.Logger
+	url      string
+	username string
+	password string
 }
 
 func defaultPubSubOpts() *PubSubOpts {
@@ -43,12 +45,28 @@ func defaultPubSubOpts() *PubSubOpts {
 	}
 }
 
-// WithPubSubURL sets the NATS server URL(s). Comma-separated lists are passed
-// through to nats.go. Credentials/token embed in the URL; use the tls:// scheme
-// for TLS. No other auth options are supported.
+// WithPubSubURL sets the NATS seed URL(s). Comma-separated lists are passed
+// through to nats.go. Prefer bare hosts and set Username/Password so
+// rediscovered cluster peers authenticate; URL-embedded user:pass still works
+// for single-server/dev. Use the tls:// scheme for TLS.
 func WithPubSubURL(url string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.url = url
+	}
+}
+
+// WithPubSubUsername sets the NATS username for nats.UserInfo. Use with
+// WithPubSubPassword so auth applies on reconnect to gossiped cluster peers.
+func WithPubSubUsername(username string) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.username = username
+	}
+}
+
+// WithPubSubPassword sets the NATS password for nats.UserInfo.
+func WithPubSubPassword(password string) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.password = password
 	}
 }
 
@@ -73,7 +91,7 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 
 	l := opts.l
 
-	nc, err := natsgo.Connect(opts.url,
+	connectOpts := []natsgo.Option{
 		natsgo.MaxReconnects(-1),
 		natsgo.ReconnectBufSize(-1), // publishes fail during disconnect — no stale buffering
 		natsgo.DisconnectErrHandler(func(_ *natsgo.Conn, err error) {
@@ -96,7 +114,13 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 			}
 			l.Error().Err(err).Str("subject", subject).Msg("nats pubsub async error")
 		}),
-	)
+	}
+
+	if opts.username != "" || opts.password != "" {
+		connectOpts = append(connectOpts, natsgo.UserInfo(opts.username, opts.password))
+	}
+
+	nc, err := natsgo.Connect(opts.url, connectOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not connect to nats at %q: %w", opts.url, err)
 	}

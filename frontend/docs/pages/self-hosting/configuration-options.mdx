@@ -308,7 +308,9 @@ Variables marked with ⚠️ are conditionally required when specific features a
 | `SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS`     | Pub/sub RabbitMQ max subscribe channels                                                                    | `20`          |
 | `SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS`         | Pub/sub Postgres pool max connections (pool is built from the direct `DATABASE_URL`)                       | `5`           |
 | `SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS`         | Pub/sub Postgres pool min connections                                                                      | `1`           |
-| `SERVER_MSGQUEUE_PUBSUB_NATS_URL`                   | Pub/sub NATS URL (comma-separated for a cluster; core NATS only, best-effort at-most-once). Server must set `max_payload: 16777216` (1MiB default is insufficient). Publishes fail while disconnected; polling covers gaps. |               |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_URL`                   | Pub/sub NATS seed URL(s), comma-separated for a cluster (core NATS only, best-effort at-most-once). Prefer bare hosts and set username/password separately so rediscovered peers authenticate. Server must set `max_payload` to at least `16777216`. |               |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME`              | Pub/sub NATS username (passed as connect options; recommended for clusters)                                |               |
+| `SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD`              | Pub/sub NATS password (passed as connect options; recommended for clusters)                                |               |
 | `SERVER_SINGLE_QUEUE_LIMIT`                         | Single queue limit                                                                                         | `100`         |
 
 ### Message Queue Buffers
