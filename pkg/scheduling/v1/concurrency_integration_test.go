@@ -120,6 +120,7 @@ func createConcurrencyTasks(t *testing.T, ctx context.Context, conf *database.La
 		taskParams.ConcurrencyKeys[i] = []string{"test-key"}
 		taskParams.WorkflowVersionIds[i] = s.workflowVersionId
 		taskParams.WorkflowRunIds[i] = uuid.New()
+		taskParams.IsDagOrchestrators[i] = false
 	}
 
 	tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
@@ -422,6 +423,7 @@ func TestConcurrency_ChainedStrategiesDoNotContaminate(t *testing.T) {
 			taskParams.ConcurrencyKeys[i] = []string{"test-key", "test-key"}
 			taskParams.WorkflowVersionIds[i] = workflowVersionId
 			taskParams.WorkflowRunIds[i] = uuid.New()
+			taskParams.IsDagOrchestrators[i] = false
 		}
 
 		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
@@ -688,6 +690,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		taskParams.ConcurrencyKeys[0] = []string{"thread-1"}
 		taskParams.WorkflowVersionIds[0] = workflowVersionId
 		taskParams.WorkflowRunIds[0] = uuid.New()
+		taskParams.IsDagOrchestrators[0] = false
 
 		tasks, err := queries.CreateTasks(ctx, conf.Pool, taskParams)
 		require.NoError(t, err)
