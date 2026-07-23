@@ -214,6 +214,8 @@ func (a *actionListenerImpl) actionFromAssigned(ctx context.Context, assignedAct
 		actionType = ActionTypeCancelStepRun
 	case dispatchercontracts.ActionType_START_GET_GROUP_KEY:
 		actionType = ActionTypeStartGetGroupKey
+	case dispatchercontracts.ActionType_START_BATCH:
+		actionType = ActionTypeStartBatch
 	default:
 		a.l.Error().Ctx(ctx).Str("action_type", string(assignedAction.ActionType)).Msg("unknown action type")
 		return nil, false
@@ -225,8 +227,7 @@ func (a *actionListenerImpl) actionFromAssigned(ctx context.Context, assignedAct
 	if !ok {
 		return nil, false
 	}
-
-	return &Action{
+	act := &Action{
 		TenantId:                   assignedAction.TenantId,
 		WorkflowRunId:              assignedAction.WorkflowRunId,
 		GetGroupKeyRunId:           assignedAction.GetGroupKeyRunId,
@@ -251,7 +252,32 @@ func (a *actionListenerImpl) actionFromAssigned(ctx context.Context, assignedAct
 		TriggeringEventExternalId:  assignedAction.TriggeringEventExternalId,
 		TriggeringEventKey:         assignedAction.TriggeringEventKey,
 		DurableTaskInvocationCount: assignedAction.DurableTaskInvocationCount,
-	}, true
+		BatchId:                    assignedAction.BatchId,
+		BatchIndex:                 assignedAction.BatchIndex,
+		BatchKey:                   assignedAction.BatchKey,
+	}
+	if assignedAction.BatchStartPayload != nil {
+		bs := assignedAction.BatchStartPayload
+		batchStart := &BatchStart{
+			ExpectedSize: bs.GetExpectedSize(),
+		}
+		if bs.TriggerReason != "" {
+			batchStart.TriggerReason = bs.TriggerReason
+		}
+		if bs.TriggerTime != nil {
+			batchStart.TriggerTime = bs.TriggerTime.AsTime()
+		}
+		act.BatchStart = batchStart
+	}
+	if actionType == ActionTypeStartBatch && assignedAction.ActionPayload != "" {
+		var items map[string]BatchItemData
+		if err := json.Unmarshal([]byte(assignedAction.ActionPayload), &items); err != nil {
+			a.l.Error().Ctx(ctx).Err(err).Msg("could not unmarshal batch items payload")
+		} else {
+			act.BatchItems = items
+		}
+	}
+	return act, true
 }
 
 func (a *actionListenerImpl) parseAdditionalMetadata(ctx context.Context, assignedAction *dispatchercontracts.AssignedAction) (map[string]string, bool) {

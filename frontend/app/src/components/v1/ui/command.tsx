@@ -60,13 +60,23 @@ CommandInput.displayName = CommandPrimitive.Input.displayName;
 const CommandList = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.List>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
->(({ className, ...props }, ref) => (
+>(({ className, onWheel, ...props }, ref) => (
   <CommandPrimitive.List
     ref={ref}
     className={cn(
       'max-h-[300px] overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]',
       className,
     )}
+    // Popovers (e.g. the trigger workflow modal -> select workflow dropdown) render their content in a portal outside
+    // of any enclosing modal Dialog's content. Radix Dialog's scroll lock
+    // (react-remove-scroll) installs a document-level wheel listener that calls
+    // preventDefault() on wheel events outside the dialog's content/shards, which
+    // blocks trackpad/wheel scrolling here (scrollbar drag still works since that
+    // doesn't dispatch wheel events). Stop the event from bubbling to that listener.
+    onWheel={(e) => {
+      e.stopPropagation();
+      onWheel?.(e);
+    }}
     {...props}
   />
 ));

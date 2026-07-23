@@ -55,16 +55,22 @@ WITH worker_capacities AS (
         AND slot_type = @slotType::text
 ), worker_used_slots AS (
     SELECT
-        worker_id,
-        SUM(units) AS used_units
+        runtime.worker_id,
+        (
+            COALESCE(SUM(CASE WHEN tr.batch_id IS NULL THEN runtime.units ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT tr.batch_id)::integer
+        ) AS used_units
     FROM
-        v1_task_runtime_slot
+        v1_task_runtime_slot runtime
+    LEFT JOIN v1_task_runtime tr ON tr.task_id = runtime.task_id
+        AND tr.task_inserted_at = runtime.task_inserted_at
+        AND tr.retry_count = runtime.retry_count
     WHERE
-        tenant_id = @tenantId::uuid
-        AND worker_id = ANY(@workerIds::uuid[])
-        AND slot_type = @slotType::text
+        runtime.tenant_id = @tenantId::uuid
+        AND runtime.worker_id = ANY(@workerIds::uuid[])
+        AND runtime.slot_type = @slotType::text
     GROUP BY
-        worker_id
+        runtime.worker_id
 )
 SELECT
     wc.worker_id AS "id",
@@ -88,18 +94,24 @@ WITH worker_capacities AS (
         AND slot_type = ANY(@slotTypes::text[])
 ), worker_used_slots AS (
     SELECT
-        worker_id,
-        slot_type,
-        SUM(units) AS used_units
+        runtime.worker_id,
+        runtime.slot_type,
+        (
+            COALESCE(SUM(CASE WHEN tr.batch_id IS NULL THEN runtime.units ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT tr.batch_id)::integer
+        ) AS used_units
     FROM
-        v1_task_runtime_slot
+        v1_task_runtime_slot runtime
+    LEFT JOIN v1_task_runtime tr ON tr.task_id = runtime.task_id
+        AND tr.task_inserted_at = runtime.task_inserted_at
+        AND tr.retry_count = runtime.retry_count
     WHERE
-        tenant_id = @tenantId::uuid
-        AND worker_id = ANY(@workerIds::uuid[])
-        AND slot_type = ANY(@slotTypes::text[])
+        runtime.tenant_id = @tenantId::uuid
+        AND runtime.worker_id = ANY(@workerIds::uuid[])
+        AND runtime.slot_type = ANY(@slotTypes::text[])
     GROUP BY
-        worker_id,
-        slot_type
+        runtime.worker_id,
+        runtime.slot_type
 )
 SELECT
     wc.worker_id AS "id",
@@ -150,6 +162,29 @@ WHERE
             ELSE 'ACTIVE'
         END = ANY(sqlc.narg('statuses')::text[])
     )
+    AND (
+        sqlc.narg('labelKeys')::text[] IS NULL
+        OR sqlc.narg('labelValues')::text[] IS NULL
+        OR (
+            SELECT BOOL_AND(
+                EXISTS (
+                    SELECT 1
+                    FROM "WorkerLabel" wl
+                    WHERE wl."workerId" = workers."id"
+                        AND wl."key" = lf.k
+                        AND (
+                            wl."strValue" = lf.v
+                            OR wl."intValue"::text = lf.v
+                        )
+                )
+            )
+            FROM (
+                SELECT
+                    UNNEST(sqlc.narg('labelKeys')::text[]) AS k,
+                    UNNEST(sqlc.narg('labelValues')::text[]) AS v
+            ) AS lf
+        )
+    )
 ORDER BY
     workers."createdAt" DESC
 OFFSET
@@ -195,11 +230,43 @@ WHERE
             WHEN workers."isPaused" = true THEN 'PAUSED'
             ELSE 'ACTIVE'
         END = ANY(sqlc.narg('statuses')::text[])
+    )
+    AND (
+        sqlc.narg('labelKeys')::text[] IS NULL
+        OR sqlc.narg('labelValues')::text[] IS NULL
+        OR (
+            SELECT BOOL_AND(
+                EXISTS (
+                    SELECT 1
+                    FROM "WorkerLabel" wl
+                    WHERE wl."workerId" = workers."id"
+                        AND wl."key" = lf.k
+                        AND (
+                            wl."strValue" = lf.v
+                            OR wl."intValue"::text = lf.v
+                        )
+                )
+            )
+            FROM (
+                SELECT
+                    UNNEST(sqlc.narg('labelKeys')::text[]) AS k,
+                    UNNEST(sqlc.narg('labelValues')::text[]) AS v
+            ) AS lf
+        )
     );
 
 -- name: GetWorkerById :one
 SELECT
-    sqlc.embed(w)
+    sqlc.embed(w),
+    w."maxRuns" - (
+        SELECT
+            COALESCE(SUM(CASE WHEN runtime.batch_id IS NULL THEN 1 ELSE 0 END), 0)::integer
+            + COUNT(DISTINCT runtime.batch_id)::integer
+        FROM v1_task_runtime runtime
+        WHERE
+            runtime.tenant_id = w."tenantId" AND
+            runtime.worker_id = w."id"
+    ) AS "remainingSlots"
 FROM
     "Worker" w
 WHERE

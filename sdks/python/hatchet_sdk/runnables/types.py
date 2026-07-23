@@ -1,10 +1,12 @@
 import inspect
 import json
 from collections.abc import Callable, Mapping
+from datetime import timedelta
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
+    NewType,
     ParamSpec,
     TypeAlias,
     TypeGuard,
@@ -114,6 +116,18 @@ class WorkflowConfig(BaseModel):
     task_defaults: TaskDefaults = TaskDefaults()
     default_filters: list[DefaultFilter] = Field(default_factory=list)
     default_additional_metadata: JSONSerializableMapping = Field(default_factory=dict)
+
+
+class BatchTaskConfig(BaseModel):
+    batch_max_size: int
+    batch_max_interval: timedelta | None = None
+    batch_group_key: str | None = None
+    batch_group_max_runs: int | None = None
+    broadcast_output: bool = False
+
+
+BatchMemberId = NewType("BatchMemberId", str)
+"""The key identifying a single item within a batch task's input/output dict (its task run external id)."""
 
 
 class StepType(str, Enum):

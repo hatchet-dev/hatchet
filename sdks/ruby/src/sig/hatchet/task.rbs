@@ -14,6 +14,7 @@ module Hatchet
     attr_reader skip_if: Array[untyped]
     attr_reader durable: bool
     attr_reader eviction_policy: EvictionPolicy?
+    attr_reader batch: BatchTaskConfig?
     attr_reader fn: Proc?
     attr_reader workflow: Workflow?
     attr_reader client: Client?
@@ -34,6 +35,7 @@ module Hatchet
       ?skip_if: Array[untyped],
       ?durable: bool,
       ?eviction_policy: EvictionPolicy?,
+      ?batch: BatchTaskConfig?,
       ?workflow: Workflow?,
       ?client: Client?,
       ?deps: Hash[Symbol, Proc]?
