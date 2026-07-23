@@ -123,13 +123,14 @@ func TestRegisterDurableTaskBridgesResponsesAndCleansUp(t *testing.T) {
 	t.Cleanup(cancel)
 
 	externalId := uuid.New()
+	tenantId := ctx.Value("tenant").(*sqlcv1.Tenant).ID
 
 	_, respCh, err := d.RegisterDurableTask(ctx, externalId)
 	if err != nil {
 		t.Fatalf("RegisterDurableTask returned error: %v", err)
 	}
 
-	inv, ok := d.durableInvocations.Load(externalId)
+	inv, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId, externalId})
 	if !ok {
 		t.Fatal("expected invocation to be registered for externalId up front")
 	}
@@ -171,7 +172,7 @@ func TestRegisterDurableTaskBridgesResponsesAndCleansUp(t *testing.T) {
 	}
 
 	// The close happens after the deregister in the same teardown, so by now it's gone.
-	if _, ok := d.durableInvocations.Load(externalId); ok {
+	if _, ok := d.durableInvocations.Load(durableInvocationsKey{tenantId, externalId}); ok {
 		t.Fatal("expected invocation to be deregistered after cancel")
 	}
 
