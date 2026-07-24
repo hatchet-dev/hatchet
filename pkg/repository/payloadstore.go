@@ -89,6 +89,42 @@ type PayloadLocation string
 type ExternalPayloadLocationKey string
 type ExternalIndexFileLocationKey string
 
+var ErrExternalPayloadNotFound = errors.New("external payload not found")
+
+type ExternalPayloadNotFoundKind string
+
+const (
+	ExternalPayloadNotFoundKindIndexFile ExternalPayloadNotFoundKind = "index_file"
+)
+
+type ExternalPayloadNotFoundError struct {
+	Err  error
+	Kind ExternalPayloadNotFoundKind
+	Key  string
+}
+
+func (e *ExternalPayloadNotFoundError) Error() string {
+	msg := ErrExternalPayloadNotFound.Error()
+	if e.Kind != "" {
+		msg = fmt.Sprintf("%s: %s", msg, e.Kind)
+	}
+	if e.Key != "" {
+		msg = fmt.Sprintf("%s %s", msg, e.Key)
+	}
+	if e.Err != nil {
+		msg = fmt.Sprintf("%s: %v", msg, e.Err)
+	}
+	return msg
+}
+
+func (e *ExternalPayloadNotFoundError) Unwrap() error {
+	return e.Err
+}
+
+func (e *ExternalPayloadNotFoundError) Is(target error) bool {
+	return target == ErrExternalPayloadNotFound
+}
+
 type CreateIndexBlockOpts struct {
 	PartitionDate             PartitionDate
 	BlockLowerExternalIdBound uuid.UUID
