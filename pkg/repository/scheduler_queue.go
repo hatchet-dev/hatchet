@@ -135,6 +135,10 @@ type queueRepository struct {
 	updateMinIdMu sync.Mutex
 
 	cachedStepIdHasRateLimit *cache.Cache
+
+	// tracks the last (limitValue, window) written per dynamic rate limit key, so we can skip
+	// re-upserting unchanged definitions on every queue loop iteration
+	cachedUpsertedRateLimits *cache.Cache
 }
 
 func newQueueRepository(shared *sharedRepository, tenantId uuid.UUID, queueName string) *queueRepository {
@@ -145,11 +149,13 @@ func newQueueRepository(shared *sharedRepository, tenantId uuid.UUID, queueName 
 		tenantId:                 tenantId,
 		queueName:                queueName,
 		cachedStepIdHasRateLimit: c,
+		cachedUpsertedRateLimits: cache.New(5 * time.Minute),
 	}
 }
 
 func (d *queueRepository) Cleanup() {
 	d.cachedStepIdHasRateLimit.Stop()
+	d.cachedUpsertedRateLimits.Stop()
 }
 
 func (d *queueRepository) setMinId(id int64) {
@@ -739,7 +745,7 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 
 	if len(upsertRateLimitBulkParams.Keys) > 0 {
 		// upsert all rate limits based on the keys, limit values, and durations
-		err = d.queries.UpsertRateLimitsBulk(ctx, queryTx, upsertRateLimitBulkParams)
+		err = d.upsertDynamicRateLimits(ctx, tx, upsertRateLimitBulkParams)
 
 		if err != nil {
 			return nil, fmt.Errorf("could not bulk upsert dynamic rate limits: %w", err)
@@ -783,6 +789,84 @@ func (d *queueRepository) GetTaskRateLimits(ctx context.Context, tx *OptimisticT
 	}
 
 	return taskIdToKeyToUnits, nil
+}
+
+// upsertDynamicRateLimits writes dynamic rate limit definitions to the "RateLimit" table,
+// skipping keys whose (limitValue, window) we recently wrote.
+//
+// NOTE: all writers of "RateLimit" must take the per-tenant advisory lock before acquiring any
+// row locks on the table (see UpdateRateLimits), otherwise concurrent writers can deadlock
+// (40P01). When called inside an optimistic transaction we take the advisory lock on that
+// transaction instead of opening a new one: acquiring a second pool connection while already
+// holding one can starve the pool and deadlock the process under saturation.
+func (d *queueRepository) upsertDynamicRateLimits(ctx context.Context, optimisticTx *OptimisticTx, params sqlcv1.UpsertRateLimitsBulkParams) error {
+	filtered := sqlcv1.UpsertRateLimitsBulkParams{
+		Tenantid: params.Tenantid,
+	}
+
+	cacheValues := make(map[string]string, len(params.Keys))
+
+	for i, key := range params.Keys {
+		cacheValue := fmt.Sprintf("%d|%s", params.Limitvalues[i], params.Windows[i])
+		cacheValues[key] = cacheValue
+
+		if cached, ok := d.cachedUpsertedRateLimits.Get(key); ok && cached.(string) == cacheValue {
+			continue
+		}
+
+		filtered.Keys = append(filtered.Keys, key)
+		filtered.Limitvalues = append(filtered.Limitvalues, params.Limitvalues[i])
+		filtered.Windows = append(filtered.Windows, params.Windows[i])
+	}
+
+	if len(filtered.Keys) == 0 {
+		return nil
+	}
+
+	setCache := func() {
+		for _, key := range filtered.Keys {
+			d.cachedUpsertedRateLimits.Set(key, cacheValues[key])
+		}
+	}
+
+	lockAndUpsert := func(tx sqlcv1.DBTX) error {
+		if err := d.queries.AdvisoryLock(ctx, tx, tenantAdvisoryInt(d.tenantId)); err != nil {
+			return err
+		}
+
+		return d.queries.UpsertRateLimitsBulk(ctx, tx, filtered)
+	}
+
+	if optimisticTx != nil {
+		if err := lockAndUpsert(optimisticTx.tx); err != nil {
+			return err
+		}
+
+		// only mark definitions as written once the caller's transaction commits
+		optimisticTx.AddPostCommit(setCache)
+
+		return nil
+	}
+
+	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
+
+	if err != nil {
+		return err
+	}
+
+	defer rollback()
+
+	if err := lockAndUpsert(tx); err != nil {
+		return err
+	}
+
+	if err := commit(ctx); err != nil {
+		return err
+	}
+
+	setCache()
+
+	return nil
 }
 
 func (d *queueRepository) GetDesiredLabels(ctx context.Context, tx *OptimisticTx, stepIds []uuid.UUID) (map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow, error) {
