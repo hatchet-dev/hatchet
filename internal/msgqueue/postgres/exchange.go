@@ -25,17 +25,19 @@ func (p *PostgresMessageQueue) addTenantExchangeMessage(ctx context.Context, q m
 		return err
 	}
 
-	queueName := msgqueue.GetTenantExchangeName(tenantId)
+	tenantQueue := msgqueue.TenantEventConsumerQueue(tenantId)
 
 	// if the queue name does not equal the tenant exchange name, publish the message to the queue
-	if queueName != q.Name() {
-		return p.pubNonDurableMessages(ctx, queueName, msg)
+	if tenantQueue.Name() != q.Name() {
+		return p.pubNonDurableMessages(ctx, tenantQueue, msg)
 	}
 
 	return nil
 }
 
-func (p *PostgresMessageQueue) pubNonDurableMessages(ctx context.Context, queueName string, msg *msgqueue.Message) error {
+func (p *PostgresMessageQueue) pubNonDurableMessages(ctx context.Context, queue msgqueue.Queue, msg *msgqueue.Message) error {
+	durable, autoDeleted, exclusive := bindAttrs(queue)
+
 	eg := errgroup.Group{}
 
 	for _, payload := range msg.Payloads {
@@ -48,7 +50,7 @@ func (p *PostgresMessageQueue) pubNonDurableMessages(ctx context.Context, queueN
 			eg.Go(func() error {
 				// Notify will automatically fall back to database storage if the
 				// wrapped message exceeds pg_notify's 8KB limit
-				return p.repo.Notify(ctx, queueName, string(msgBytes))
+				return p.repo.Notify(ctx, queue.Name(), string(msgBytes), durable, autoDeleted, exclusive)
 			})
 		} else {
 			p.l.Error().Ctx(ctx).Err(err).Msg("error marshalling message")
