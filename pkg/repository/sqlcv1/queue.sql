@@ -755,7 +755,7 @@ WITH locked_qis AS (
         AND sbc.batch_max_size >= 1
     ORDER BY
         qi.id ASC
-    FOR UPDATE
+    FOR UPDATE OF qi
 ), inserted AS (
     INSERT INTO v1_batched_queue_item (
         tenant_id,
