@@ -56,7 +56,7 @@ WITH filled_parent_slots AS (
         )
         AND cs.is_filled = FALSE
     ORDER BY
-        task_id, task_inserted_at
+        cs.priority DESC, cs.sort_id ASC
     FOR UPDATE
 ), updated_slots AS (
     UPDATE
