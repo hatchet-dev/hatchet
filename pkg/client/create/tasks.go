@@ -8,13 +8,29 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client/types"
 )
 
+// IdempotencyMethod determines how the lifetime of an idempotency key is managed.
+type IdempotencyMethod string
+
+const (
+	// IdempotencyMethodTTL evicts the idempotency key after a fixed time-to-live window.
+	IdempotencyMethodTTL IdempotencyMethod = "TTL"
+
+	// IdempotencyMethodStatus keeps the idempotency key alive until the associated run
+	// reaches a terminal status. TTL acts as a fallback that caps how long the key can live.
+	IdempotencyMethodStatus IdempotencyMethod = "STATUS"
+)
+
 // IdempotencyConfig configures idempotency behavior for a workflow.
 type IdempotencyConfig struct {
 	// Expression is a CEL expression evaluated against the workflow input to produce an idempotency key.
 	Expression string
 
 	// TTL is the duration during which duplicate runs with the same key are rejected.
+	// When Method is STATUS, this acts as a fallback: the longest the key can live before it's evicted.
 	TTL time.Duration
+
+	// Method determines how the idempotency key's lifetime is managed. Defaults to TTL.
+	Method IdempotencyMethod
 }
 
 // TaskDefaults defines default configuration values for tasks within a workflow.

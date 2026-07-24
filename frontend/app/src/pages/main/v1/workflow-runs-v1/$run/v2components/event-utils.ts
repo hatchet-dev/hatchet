@@ -1,4 +1,4 @@
-import { V1TaskEventType, StepRunEventSeverity } from '@/lib/api';
+import { StepRunEventSeverity, V1TaskEventType } from '@/lib/api';
 
 type EventSeverity = StepRunEventSeverity | 'EVICTION';
 
@@ -76,6 +76,10 @@ export function mapEventTypeToTitle(
       return 'Durable task evicted';
     case V1TaskEventType.DURABLE_RESTORING:
       return 'Durable task restoring';
+    case V1TaskEventType.BATCH_FLUSHED:
+      return 'Batch flushed';
+    case V1TaskEventType.WAITING_FOR_BATCH:
+      return 'Waiting for batch';
     case undefined:
       return 'Unknown';
     default:

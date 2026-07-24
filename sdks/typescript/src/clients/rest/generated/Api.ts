@@ -3339,6 +3339,8 @@ export class Api<SecurityDataType = unknown> extends HttpClient<SecurityDataType
       limit?: number;
       /** Filter by worker status */
       statuses?: WorkerStatus[];
+      /** Filter by worker labels */
+      labels?: string[];
     },
     params: RequestParams = {}
   ) =>

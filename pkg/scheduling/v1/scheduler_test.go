@@ -96,6 +96,11 @@ type mockSchedulerRepo struct {
 	assignment repo.AssignmentRepository
 }
 
+func (m *mockSchedulerRepo) BatchQueue() repo.BatchQueueFactoryRepository {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *mockSchedulerRepo) Concurrency() repo.ConcurrencyRepository {
 	panic("unexpected call: Concurrency")
 }
@@ -408,7 +413,7 @@ func TestScheduler_TryAssignBatch_NoActionSlots(t *testing.T) {
 		testQI(tenantId, "missing", 2),
 	}
 
-	res, _, err := s.tryAssignBatch(context.Background(), "missing", qis, 0, nil, nil, nil, nil)
+	res, _, err := s.tryAssignBatch(context.Background(), "missing", qis, 0, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, res, 2)
 	for _, r := range res {
@@ -606,7 +611,7 @@ func TestScheduler_TryAssign_NotStarvedByRepeatedReplenishTimeouts(t *testing.T)
 			defer wg.Done()
 			for probeCtx.Err() == nil {
 				start := time.Now()
-				_, _, _ = s.tryAssignBatch(context.Background(), "missing", qis, 0, nil, nil, nil, nil)
+				_, _, _ = s.tryAssignBatch(context.Background(), "missing", qis, 0, nil, nil, nil, nil, nil)
 				d := time.Since(start)
 
 				mu.Lock()
@@ -648,7 +653,7 @@ func TestScheduler_TryAssignBatch_AssignsUntilExhausted(t *testing.T) {
 		testQI(tenantId, "A", 3),
 	}
 
-	res, newOffset, err := s.tryAssignBatch(context.Background(), "A", qis, 0, map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, map[uuid.UUID]map[string]int32{}, nil, nil)
+	res, newOffset, err := s.tryAssignBatch(context.Background(), "A", qis, 0, map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{}, map[uuid.UUID]map[string]int32{}, nil, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, 3, newOffset)
 
@@ -693,7 +698,7 @@ func TestScheduler_TryAssignBatch_RateLimitedSkipsAssignment(t *testing.T) {
 		qi.TaskID: {"k": 1},
 	}
 
-	res, _, err := s.tryAssignBatch(context.Background(), "A", qis, 0, nil, map[uuid.UUID]map[string]int32{}, rls, nil)
+	res, _, err := s.tryAssignBatch(context.Background(), "A", qis, 0, nil, map[uuid.UUID]map[string]int32{}, rls, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	require.False(t, res[0].succeeded)
@@ -728,6 +733,7 @@ func TestScheduler_TryAssign_GroupsAndFiltersTimedOut(t *testing.T) {
 		[]*sqlcv1.V1QueueItem{timeoutQI, a1, a2, b1},
 		map[uuid.UUID][]*sqlcv1.GetDesiredLabelsRow{},
 		map[uuid.UUID]map[string]int32{},
+		nil,
 		nil,
 		nil,
 	)

@@ -321,6 +321,16 @@ func (w *V1WebhooksService) V1WebhookReceive(ctx echo.Context, request gen.V1Web
 	)
 
 	if err != nil {
+		if errors.Is(err, repository.ErrResourceExhausted) {
+			return gen.V1WebhookReceive429JSONResponse{
+				Errors: []gen.APIError{
+					{
+						Description: "resource limit exceeded: task run or event limit reached for tenant",
+					},
+				},
+			}, nil
+		}
+
 		return nil, fmt.Errorf("failed to ingest event")
 	}
 
@@ -461,7 +471,10 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if username != webhook.AuthBasicUsername.String || password != string(decryptedPassword) {
+			usernameMatch := hmac.Equal([]byte(username), []byte(webhook.AuthBasicUsername.String))
+			passwordMatch := hmac.Equal([]byte(password), decryptedPassword)
+
+			if !usernameMatch || !passwordMatch {
 				return false, &ValidationError{
 					Code:      http.StatusForbidden,
 					ErrorText: "invalid basic auth credentials",
@@ -486,7 +499,7 @@ func (w *V1WebhooksService) validateWebhook(webhookPayload []byte, webhook sqlcv
 				}
 			}
 
-			if apiKey != string(decryptedApiKey) {
+			if !hmac.Equal([]byte(apiKey), decryptedApiKey) {
 				return false, &ValidationError{
 					Code:      http.StatusForbidden,
 					ErrorText: fmt.Sprintf("invalid api key: %s", webhook.AuthApiKeyHeaderName.String),

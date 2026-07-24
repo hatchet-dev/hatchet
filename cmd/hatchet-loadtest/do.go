@@ -81,15 +81,15 @@ type avgResult struct {
 // worker is expected to have registered, matching the exact naming scheme
 // run.go itself would use for the same config (see run.go's EventFanout
 // loop: "load-test-0", "load-test-1", ...).
-func expectedWorkflowNames(config LoadTestConfig) []string {
-	fanout := config.EventFanout
+
+func expectedWorkflowNames(namespace string, fanout int) []string {
 	if fanout <= 0 {
 		fanout = 1
 	}
 
 	names := make([]string, 0, fanout)
 	for i := 0; i < fanout; i++ {
-		names = append(names, applyNamespace(fmt.Sprintf("load-test-%d", i), config.Namespace))
+		names = append(names, applyNamespace(fmt.Sprintf("load-test-%d", i), namespace))
 	}
 	return names
 }
@@ -198,7 +198,7 @@ func do(config LoadTestConfig) error {
 			}
 			timingClient = hc
 
-			names := expectedWorkflowNames(config)
+			names := expectedWorkflowNames(hc.V0().Namespace(), config.EventFanout)
 
 			l.Info().Msgf("externalWorker: resolving workflow(s) %v (make sure a separately-running SDK worker, e.g. cmd/hatchet-loadtest/go, is already up and has registered them)...", names)
 
@@ -299,7 +299,7 @@ func do(config LoadTestConfig) error {
 		)
 
 		if phases.execution.count == 0 {
-			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(config))
+			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
 		}
 
 		if expected != phases.execution.count {

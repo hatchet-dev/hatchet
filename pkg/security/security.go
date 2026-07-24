@@ -33,6 +33,7 @@ type DefaultSecurityCheck struct {
 
 	MQKind         string
 	OAuthProviders []string
+	AuthDisabled   bool
 
 	startTime time.Time
 }
@@ -46,6 +47,7 @@ func NewSecurityCheck(opts *DefaultSecurityCheck, repo v1.SecurityCheckRepositor
 		Repo:           repo,
 		MQKind:         opts.MQKind,
 		OAuthProviders: opts.OAuthProviders,
+		AuthDisabled:   opts.AuthDisabled,
 		startTime:      time.Now(),
 	}
 }
@@ -130,6 +132,9 @@ func (a DefaultSecurityCheck) report(timeout time.Duration) {
 	}
 	if len(a.OAuthProviders) > 0 {
 		params.Set("oauth_providers", strings.Join(a.OAuthProviders, ","))
+	}
+	if a.AuthDisabled {
+		params.Set("auth_disabled", "true")
 	}
 
 	reqURL := fmt.Sprintf("%s/check?%s", a.Endpoint, params.Encode())

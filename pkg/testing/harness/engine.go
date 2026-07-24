@@ -173,9 +173,13 @@ func startEngine() func() {
 
 	// Run migrations
 	if migrateStrategy == "penultimate" {
-		migrate.RunMigrations(ctx, migrate.WithUpToPenultimate())
+		if migrateErr := migrate.RunMigrations(ctx, migrate.WithUpToPenultimate()); migrateErr != nil {
+			log.Fatalf("failed to run migrations: %v", migrateErr)
+		}
 	} else {
-		migrate.RunMigrations(ctx)
+		if migrateErr := migrate.RunMigrations(ctx); migrateErr != nil {
+			log.Fatalf("failed to run migrations: %v", migrateErr)
+		}
 	}
 
 	// Set higher rate limit for load tests

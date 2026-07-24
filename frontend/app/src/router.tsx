@@ -613,7 +613,7 @@ const tenantRunsRoute = createRoute({
 });
 
 const runSearchSchema = z.object({
-  wasRedirectedFromTrigger: z.enum(['true', 'false']).optional(), // hack to preserve typing elsewhere
+  wasRedirectedFromTrigger: z.boolean().optional(),
 });
 
 export const tenantRunRoute = createRoute({

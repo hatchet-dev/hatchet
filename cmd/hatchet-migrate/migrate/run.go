@@ -39,13 +39,7 @@ func WithUpToPenultimate() RunMigrationsOpt {
 	}
 }
 
-func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) {
-	if err := runMigrationsImpl(ctx, opts...); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func runMigrationsImpl(ctx context.Context, opts ...RunMigrationsOpt) error {
+func RunMigrations(ctx context.Context, opts ...RunMigrationsOpt) error {
 	// Set default options
 	options := &runMigrationsOpt{}
 

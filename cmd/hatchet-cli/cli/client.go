@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net"
+
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/rs/zerolog"
@@ -11,12 +13,18 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/client" //nolint:staticcheck
 	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 	clientconfig "github.com/hatchet-dev/hatchet/pkg/config/client"
+	"github.com/hatchet-dev/hatchet/pkg/config/loader/loaderutils"
 	"github.com/hatchet-dev/hatchet/pkg/config/shared"
 )
 
 // NewClientFromProfile creates a new Hatchet client from a profile configuration.
 // It properly handles TLS settings, host/port, and authentication based on the profile.
 func NewClientFromProfile(profile *profileconfig.Profile, logger *zerolog.Logger) (client.Client, error) { //nolint:staticcheck
+	tlsStrategy := profile.TLSStrategy
+	if tlsStrategy == "" {
+		tlsStrategy = "tls"
+	}
+
 	// Construct a ClientConfigFile from the profile
 	configFile := &clientconfig.ClientConfigFile{
 		TenantId:  profile.TenantId,
@@ -25,15 +33,29 @@ func NewClientFromProfile(profile *profileconfig.Profile, logger *zerolog.Logger
 		ServerURL: profile.ApiServerURL,
 		TLS: clientconfig.ClientTLSConfigFile{
 			Base: shared.TLSConfigFile{
-				TLSStrategy: profile.TLSStrategy,
+				TLSStrategy: tlsStrategy,
 			},
 		},
+	}
+
+	// Build the gRPC TLS config from the profile alone. The profile is the
+	// source of truth for a CLI connection, so we inject this explicitly to keep
+	// ambient HATCHET_CLIENT_TLS_* env vars (e.g. a local mkcert root CA) from
+	// silently overriding it and breaking TLS against unrelated endpoints.
+	tlsServerName := profile.GrpcHostPort
+	if host, _, err := net.SplitHostPort(profile.GrpcHostPort); err == nil {
+		tlsServerName = host
+	}
+	tlsConfig, err := loaderutils.LoadClientTLSConfig(&configFile.TLS, tlsServerName)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create client with the config file and logger
 	return client.NewFromConfigFile( //nolint:staticcheck
 		configFile,
-		client.WithLogger(logger), //nolint:staticcheck
+		client.WithLogger(logger),       //nolint:staticcheck
+		client.WithTLSConfig(tlsConfig), //nolint:staticcheck
 		client.WithGRPCHeaders(map[string]string{
 			analytics.SourceMetadataKey: string(analytics.SourceCLI),
 		}),

@@ -28,6 +28,8 @@ import (
 type Client struct {
 	legacyClient v0Client.Client
 
+	embeddedShutdown func(context.Context) error
+
 	// Feature clients (lazy loaded)
 	metrics    *features.MetricsClient
 	rateLimits *features.RateLimitsClient
@@ -45,14 +47,47 @@ type Client struct {
 // NewClient creates a new Hatchet client.
 // Configuration options can be provided to customize the client behavior.
 func NewClient(opts ...v0Client.ClientOpt) (*Client, error) {
-	legacyClient, err := v0Client.New(opts...)
+	probe := &v0Client.ClientOpts{} //nolint:staticcheck // SA1019
+	for _, o := range opts {
+		o(probe)
+	}
+
+	embeddedCfg, err := resolveEmbeddedConfig(probe)
 	if err != nil {
 		return nil, err
 	}
 
+	var shutdown func(context.Context) error
+	if embeddedCfg != nil {
+		if embeddedBackend == nil {
+			return nil, errors.New("embedded mode requires a blank import of github.com/hatchet-dev/hatchet/embed")
+		}
+		sd, err := embeddedBackend(context.Background(), *embeddedCfg)
+		if err != nil {
+			return nil, err
+		}
+		shutdown = sd
+	}
+
+	legacyClient, err := v0Client.New(opts...)
+	if err != nil {
+		if shutdown != nil {
+			_ = shutdown(context.Background())
+		}
+		return nil, err
+	}
+
 	return &Client{
-		legacyClient: legacyClient,
+		legacyClient:     legacyClient,
+		embeddedShutdown: shutdown,
 	}, nil
+}
+
+func (c *Client) Close(ctx context.Context) error {
+	if c.embeddedShutdown != nil {
+		return c.embeddedShutdown(ctx)
+	}
+	return nil
 }
 
 // Worker represents a worker that can execute workflows.
@@ -651,6 +686,57 @@ func (c *Client) NewStandaloneTask(name string, fn any, options ...StandaloneTas
 
 	// Create the single task within the workflow
 	task := workflow.NewTask(name, fn, taskOptions...)
+
+	return &StandaloneTask{
+		workflow: workflow,
+		task:     task,
+	}
+}
+
+// NewStandaloneBatchTask creates a standalone batch task that can be triggered independently.
+// This is a specialized workflow containing only one batch task, making it easier to create
+// simple single-task workflows without the workflow boilerplate.
+//
+// The function parameter must have the signature:
+//
+//	func(ctx hatchet.Context, input map[string]T) (map[string]R, error)
+//
+// or, when batch.BroadcastOutput is true:
+//
+//	func(ctx hatchet.Context, input map[string]T) (R, error)
+//
+// Function signatures are validated at runtime using reflection.
+//
+// Options can be any combination of WorkflowOption and TaskOption.
+//
+// Preview: batch tasks are in beta and may change in future releases.
+func (c *Client) NewStandaloneBatchTask(name string, fn any, batch BatchConfig, options ...StandaloneTaskOption) *StandaloneTask {
+	if name == "" {
+		panic("standalone task name cannot be empty")
+	}
+
+	// Separate workflow and task options
+	var workflowOptions []WorkflowOption
+	var taskOptions []TaskOption
+
+	for _, opt := range options {
+		switch o := opt.(type) {
+		case WorkflowOption:
+			workflowOptions = append(workflowOptions, o)
+		case TaskOption:
+			taskOptions = append(taskOptions, o)
+		default:
+			panic("invalid option type for standalone batch task - must be WorkflowOption or TaskOption")
+		}
+	}
+
+	workflowOptions = promoteTaskTriggers(taskOptions, workflowOptions)
+
+	// Create a workflow with the same name as the task
+	workflow := c.NewWorkflow(name, workflowOptions...)
+
+	// Create the single batch task within the workflow
+	task := workflow.NewBatchTask(name, fn, batch, taskOptions...)
 
 	return &StandaloneTask{
 		workflow: workflow,

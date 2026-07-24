@@ -62,6 +62,8 @@ func init() {
 		log.Fatalf("could not load cli config file: %v\n", err)
 	}
 
+	CLIConfig = cliConfig
+
 	var logFormatter = log.TextFormatter
 
 	if cliConfig.Logger.Format == "json" {

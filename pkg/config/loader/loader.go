@@ -573,6 +573,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:        version,
 			MQKind:         cf.MessageQueue.Kind,
 			OAuthProviders: oauthProviders,
+			AuthDisabled:   authmode.IsDisabled,
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())
@@ -817,6 +818,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		dc.V1.Tasks(),
 		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,

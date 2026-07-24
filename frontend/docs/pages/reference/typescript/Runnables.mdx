@@ -307,6 +307,30 @@ Tasks within workflows can be defined with `workflow.task()` or
 
 #### Methods
 
+<a id="batchtask"></a>
+
+##### `batchTask()`
+
+Adds a batch task to the workflow. Batch tasks buffer concurrent runs until Hatchet
+flushes the batch (size reached or flush interval), then invoke the handler once with
+all buffered inputs keyed by each run's task-run external id. The handler must return
+a Record mapping each id to its output, or set `batch.broadcastOutput` to return the
+same result to all callers. retries is always forced to 0 for batch tasks.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+Parameters
+
+| Parameter | Type                                                                                                                                         | Description                           |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](#createbatchtaskworkflowopts)\<`TI`, `TO`\>, `"name"` \| `"batch"` \| `"fn"`\> & `object` | The batch task configuration options. |
+
+Returns
+
+`CreateWorkflowTaskOpts`\<`TI`, `TO`\>
+
+The task options that were added.
+
 <a id="durabletask"></a>
 
 ##### `durableTask()`
@@ -317,9 +341,9 @@ or if there is no matching property, the inferred return type of the function.
 
 Parameters
 
-| Parameter | Type                                                                               | Description                     |
-| --------- | ---------------------------------------------------------------------------------- | ------------------------------- |
-| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"slotCost"` \| `"fn"`\> & `object` | The task configuration options. |
+| Parameter | Type                                                                                            | Description                     |
+| --------- | ----------------------------------------------------------------------------------------------- | ------------------------------- |
+| `options` | `Omit`\<`CreateWorkflowTaskOpts`\<`I`, `TO`\>, `"batch"` \| `"slotCost"` \| `"fn"`\> & `object` | The task configuration options. |
 
 Returns
 
@@ -385,7 +409,73 @@ Returns
 
 The task options that were added.
 
+## Type Aliases
+
+<a id="createbatchtaskworkflowopts"></a>
+
+### CreateBatchTaskWorkflowOpts
+
+```ts
+type CreateBatchTaskWorkflowOpts<I, O> = CreateBaseWorkflowOpts &
+  CreateBaseTaskOpts<I, O, BatchTaskFn<I, O>> &
+  object;
+```
+
+Options for creating a batch task workflow. Batch tasks buffer concurrent runs and
+dispatch them together as a single execution; fn receives a Record keyed by each
+buffered run's task-run external id.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+#### Type Declaration
+
+| Name    | Type              |
+| ------- | ----------------- |
+| `batch` | `BatchTaskConfig` |
+
 ## Functions
+
+<a id="createbatchtaskworkflow"></a>
+
+### `CreateBatchTaskWorkflow()`
+
+Creates a new batch task workflow declaration, with the handler's single return value
+broadcast to every member of the batch.
+
+Parameters
+
+| Parameter | Type                                                                                                                | Description                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | The batch task configuration options. |
+| `client?` | `IHatchetClient`                                                                                                    | Optional Hatchet client instance.     |
+
+Returns
+
+[`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
+
+A new TaskWorkflowDeclaration with inferred types.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+Creates a new batch task workflow declaration. The handler receives a Record keyed by
+batch member id and must return a Record with the exact same key set.
+
+Parameters
+
+| Parameter | Type                                                                                                                | Description                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | The batch task configuration options. |
+| `client?` | `IHatchetClient`                                                                                                    | Optional Hatchet client instance.     |
+
+Returns
+
+[`TaskWorkflowDeclaration`](#taskworkflowdeclaration)\<`I`, `O`\>
+
+A new TaskWorkflowDeclaration with inferred types.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+---
 
 <a id="createdurabletaskworkflow"></a>
 

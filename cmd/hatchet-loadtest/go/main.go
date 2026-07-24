@@ -50,6 +50,10 @@ func envFloat(key string, fallback float64) float64 {
 	return fallback
 }
 
+func durationPtr(d time.Duration) *time.Duration {
+	return &d
+}
+
 func run() error {
 	client, err := hatchet.NewClient()
 	if err != nil {
@@ -61,6 +65,7 @@ func run() error {
 	delayMs := envInt("HATCHET_LOADTEST_DELAY_MS", 0)
 	failureRate := envFloat("HATCHET_LOADTEST_FAILURE_RATE", 0)
 	workerName := envOr("HATCHET_LOADTEST_WORKER_NAME", "load-test-worker")
+	batchTaskName := envOr("HATCHET_LOADTEST_BATCH_WORKFLOW_NAME", "load-test-batch")
 
 	task := client.NewStandaloneTask(taskName, func(ctx hatchet.Context, input LoadTestInput) (LoadTestOutput, error) {
 		took := time.Since(input.CreatedAt)
@@ -81,9 +86,33 @@ func run() error {
 		hatchet.WithWorkflowEvents(eventKey),
 	)
 
+	// Preview: batch tasks are in beta and may change in future releases.
+	//
+	// batchTask subscribes to the same event as the standalone task above, so every load
+	// test run also exercises the batch scheduler side by side with normal task scheduling
+	// - a canary for scheduling interference, not a benchmarked workflow. Its name
+	// deliberately doesn't match the "load-test-%d" pattern that cmd/hatchet-loadtest's
+	// expectedWorkflowNames() (do.go) resolves, so the benchmark's TimingCollector never
+	// discovers or polls it and its timings never affect the pass/fail thresholds.
+	batchTask := client.NewStandaloneBatchTask(batchTaskName, func(ctx hatchet.Context, tasks map[string]LoadTestInput) (map[string]LoadTestOutput, error) {
+		out := make(map[string]LoadTestOutput, len(tasks))
+		for id := range tasks {
+			out[id] = LoadTestOutput{
+				Message: "This ran at: " + time.Now().Format(time.RFC3339Nano),
+			}
+		}
+		return out, nil
+	},
+		hatchet.BatchConfig{
+			MaxSize:     10,
+			MaxInterval: durationPtr(500 * time.Millisecond),
+		},
+		hatchet.WithWorkflowEvents(eventKey),
+	)
+
 	worker, err := client.NewWorker(
 		workerName,
-		hatchet.WithWorkflows(task),
+		hatchet.WithWorkflows(task, batchTask),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create worker: %w", err)
