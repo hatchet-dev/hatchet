@@ -1514,6 +1514,9 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	}
 
 	if len(toReassign) == 0 {
+		r.l.Error().
+			Str("tenant_id", tenantId.String()).
+			Msg("could not find any tasks to reassign")
 		return &FailTasksResponse{
 			FinalizedTaskResponse: &FinalizedTaskResponse{
 				ReleasedTasks:  make([]*sqlcv1.ReleaseTasksRow, 0),
@@ -1527,6 +1530,11 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 	failOpts := make([]FailTaskOpts, 0, len(toReassign))
 
 	for _, task := range toReassign {
+		r.l.Warn().
+			Int64("task_id", task.ID).
+			Int32("retry_count", task.RetryCount).
+			Str("tenant_id", tenantId.String()).
+			Msg("found task to reassign")
 		failOpts = append(failOpts, FailTaskOpts{
 			TaskIdInsertedAtRetryCount: &TaskIdInsertedAtRetryCount{
 				Id:         task.ID,
