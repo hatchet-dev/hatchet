@@ -429,7 +429,7 @@ SELECT
     v1_task.step_id,
     v1_task.external_id,
     v1_task.workflow_run_id,
-    v1_task.step_timeout,
+    COALESCE(v1_task.step_timeout, '60s') AS step_timeout,
     v1_task.app_retry_count,
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff,

@@ -16,3 +16,14 @@ func Sign(data string, secret string) (string, error) {
 
 	return hmacHex, nil
 }
+
+// Verify reports whether signature is a valid HMAC-SHA256 hex signature of data under
+// secret. The comparison is constant-time to avoid leaking timing information.
+func Verify(data string, secret string, signature string) bool {
+	expected, err := Sign(data, secret)
+	if err != nil {
+		return false
+	}
+
+	return hmac.Equal([]byte(expected), []byte(signature))
+}

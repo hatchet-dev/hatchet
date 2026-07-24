@@ -2355,7 +2355,7 @@ SELECT
     v1_task.step_id,
     v1_task.external_id,
     v1_task.workflow_run_id,
-    v1_task.step_timeout,
+    COALESCE(v1_task.step_timeout, '60s') AS step_timeout,
     v1_task.app_retry_count,
     v1_task.retry_backoff_factor,
     v1_task.retry_max_backoff,
@@ -2380,7 +2380,7 @@ type ListTasksToTimeoutRow struct {
 	StepID             uuid.UUID          `json:"step_id"`
 	ExternalID         uuid.UUID          `json:"external_id"`
 	WorkflowRunID      uuid.UUID          `json:"workflow_run_id"`
-	StepTimeout        pgtype.Text        `json:"step_timeout"`
+	StepTimeout        string             `json:"step_timeout"`
 	AppRetryCount      int32              `json:"app_retry_count"`
 	RetryBackoffFactor pgtype.Float8      `json:"retry_backoff_factor"`
 	RetryMaxBackoff    pgtype.Int4        `json:"retry_max_backoff"`

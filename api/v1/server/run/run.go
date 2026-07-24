@@ -36,6 +36,7 @@ import (
 	filtersv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/filters"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/logs"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/observability"
+	operatorsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/operators"
 	"github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/tasks"
 	webhooksv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/webhooks"
 	workflowrunsv1 "github.com/hatchet-dev/hatchet/api/v1/server/handlers/v1/workflow-runs"
@@ -76,6 +77,7 @@ type apiService struct {
 	*workflowrunsv1.V1WorkflowRunsService
 	*eventsv1.V1EventsService
 	*filtersv1.V1FiltersService
+	*operatorsv1.V1OperatorsService
 	*webhooksv1.V1WebhooksService
 	*celv1.V1CELService
 	*observability.V1ObservabilityService
@@ -105,6 +107,7 @@ func newAPIService(config *server.ServerConfig) *apiService {
 		V1WorkflowRunsService:  workflowrunsv1.NewV1WorkflowRunsService(config),
 		V1EventsService:        eventsv1.NewV1EventsService(config),
 		V1FiltersService:       filtersv1.NewV1FiltersService(config),
+		V1OperatorsService:     operatorsv1.NewV1OperatorsService(config),
 		V1WebhooksService:      webhooksv1.NewV1WebhooksService(config),
 		V1CELService:           celv1.NewV1CELService(config),
 		V1ObservabilityService: observability.NewV1ObservabilityService(config),
@@ -681,6 +684,25 @@ func (t *APIServer) registerSpec(g *echo.Group, spec *openapi3.T) (*populator.Po
 		}
 
 		return webhook, webhook.TenantID.String(), nil
+	})
+
+	populatorMW.RegisterGetter("v1-http-operator", func(config *server.ServerConfig, parentId, id string) (result interface{}, uniqueParentId string, err error) {
+		idUuid, err := uuid.Parse(id)
+
+		if err != nil {
+			return nil, "", echo.NewHTTPError(http.StatusBadRequest, "invalid operator id")
+		}
+
+		operator, err := t.config.V1.Operators().GetOperatorById(
+			context.Background(),
+			idUuid,
+		)
+
+		if err != nil {
+			return nil, "", err
+		}
+
+		return operator, operator.TenantID.String(), nil
 	})
 
 	authnMW := authn.NewAuthN(t.config)

@@ -81,6 +81,10 @@ paths:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookListCreate"
   /api/v1/stable/tenants/{tenant}/webhooks/{v1-webhook}:
     $ref: "./paths/v1/webhooks/webhook.yaml#/V1WebhookGetDeleteReceiveUpdate"
+  /api/v1/stable/tenants/{tenant}/operators/http:
+    $ref: "./paths/v1/operators/http.yaml#/V1HTTPOperatorListCreate"
+  /api/v1/stable/operators/http/{v1-http-operator}:
+    $ref: "./paths/v1/operators/http.yaml#/V1HTTPOperatorGetUpdateDelete"
   /api/v1/stable/tenants/{tenant}/cel/debug:
     $ref: "./paths/v1/cel/cel.yaml#/V1CELDebug"
   /api/ready:
