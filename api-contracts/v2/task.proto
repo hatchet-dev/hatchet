@@ -1,0 +1,197 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "v2/shared/conditions.proto";
+import "v2/shared/task_config.proto";
+
+// TaskService is the client-facing surface for task definition registration,
+// task triggering, run admin and run subscriptions. Tasks are the top-level
+// primitive: DAGs are expressed as relationships between tasks (parents +
+// conditions), not a separate workflow resource. Workers separately register
+// which registered task names they can run through WorkerService.RegisterTasks,
+// and report run state over the worker session stream (see WorkerService.Session
+// in worker.proto).
+service TaskService {
+    // RegisterTasks validates and persists tasks. Registration is idempotent:
+    // re-registering a task with changed fields returns the same task_id with
+    // an updated task_version_id.
+    rpc RegisterTasks(RegisterTasksRequest) returns (RegisterTasksResponse) {}
+
+    rpc TriggerTasks(TriggerTasksRequest) returns (TriggerTasksResponse) {}
+
+    rpc CancelTaskRuns(CancelTaskRunsRequest) returns (CancelTaskRunsResponse) {}
+
+    rpc ReplayTaskRuns(ReplayTaskRunsRequest) returns (ReplayTaskRunsResponse) {}
+
+    rpc GetTaskRun(GetTaskRunRequest) returns (GetTaskRunResponse) {}
+
+    rpc SubscribeTaskRuns(stream SubscribeTaskRunsRequest) returns (stream TaskRunEvent) {}
+}
+
+enum TaskRunStatus {
+    TASK_RUN_STATUS_UNSPECIFIED = 0;
+    TASK_RUN_STATUS_QUEUED = 1;
+    TASK_RUN_STATUS_RUNNING = 2;
+    TASK_RUN_STATUS_COMPLETED = 3;
+    TASK_RUN_STATUS_FAILED = 4;
+    TASK_RUN_STATUS_CANCELLED = 5;
+    TASK_RUN_STATUS_EVICTED = 6;
+}
+
+message DefaultFilter {
+    string expression = 1; // (required) the CEL expression for the filter
+    string scope = 2; // (required) the scope of the filter
+    optional bytes payload = 3; // (optional) a JSON payload for the filter
+}
+
+// Task declares a named, versioned task. A task either stands alone or
+// participates in a DAG via parents/conditions on tasks registered in the same
+// RegisterTasks request.
+message Task {
+    string name = 1; // (required) the unique task name
+    string queue = 2; // (required) the queue this task is routed to
+    optional string description = 3; // (optional) a human-readable description
+    optional string version = 4; // (optional) the task version
+    optional google.protobuf.Duration execution_timeout = 5; // (optional) the maximum run duration once started
+    optional google.protobuf.Duration schedule_timeout = 6; // (optional) the maximum time a run may wait to be scheduled
+    optional RetryPolicy retry_policy = 7; // (optional) retry behavior, default no retries
+    repeated RateLimit rate_limits = 8; // (optional) the rate limits for the task
+    repeated Concurrency concurrency = 9; // (optional) the concurrency limits for the task
+    optional TaskConditions conditions = 10; // (optional) conditions gating run creation
+    repeated string parents = 11; // (optional) names of parent tasks in the same registration; if empty, this is a root task
+    optional WorkerPinning worker_pinning = 12; // (optional) keeps runs of this task and its children on the same worker
+    optional int32 default_priority = 13; // (optional) the default priority for runs of this task
+    map<string, int32> slot_requests = 14; // (optional) slot requests (slot_type -> units)
+    map<string, DesiredWorkerLabel> desired_worker_labels = 15; // (optional) desired worker label affinities
+    optional bytes input_schema = 16; // (optional) the JSON schema for the task input
+    bool is_durable = 17; // (optional) whether the task is durable
+    repeated string event_triggers = 18; // (optional) event keys that trigger runs of this task
+    repeated string cron_triggers = 19; // (optional) cron expressions that trigger runs of this task
+    repeated DefaultFilter default_filters = 20; // (optional) default filters applied to event triggers
+    optional bytes default_additional_metadata = 21; // (optional) JSON metadata applied to task runs by default
+}
+
+message RegisterTasksRequest {
+    repeated Task tasks = 1; // (required) tasks to register; tasks may reference each other as parents
+}
+
+message RegisterTasksResponse {
+    map<string, RegisteredTask> tasks = 1; // the registered task versions, keyed by task name
+}
+
+// RegisteredTask is returned from RegisterTasks and worker task updates,
+// keyed by task name.
+message RegisteredTask {
+    string task_id = 1; // the stable id of the task
+    string task_version_id = 2; // the id of the registered version
+}
+
+// TaskTrigger triggers a single run of a task. Reused by the durable task
+// session for spawning child runs.
+message TaskTrigger {
+    string task_name = 1; // (required) the name of the task to trigger
+    bytes input = 2; // (optional) the input payload for the run
+    optional bytes extra = 3; // (optional) extra user metadata for the run
+    optional int32 priority = 4; // (optional) overrides the task's default priority
+    optional string parent_task_run_external_id = 5; // (optional) the parent task run, if spawning a child run
+    optional int32 child_index = 6; // (optional) the index of the child; with the parent run, matches an existing child run for idempotent spawning
+    optional string child_key = 7; // (optional) the key of the child; with the parent run, matches an existing child run for idempotent spawning
+    optional string pinned_worker_id = 8; // (optional) the worker to pin the run to, requires worker_pinning on the task
+    map<string, DesiredWorkerLabel> desired_worker_labels = 9; // (optional) desired worker label affinities for the run
+}
+
+message TriggerTasksRequest {
+    repeated TaskTrigger triggers = 1;
+}
+
+message TriggerTasksResponse {
+    repeated string task_run_external_ids = 1; // external ids of the created runs, in request order
+}
+
+enum TaskRunEventType {
+    TASK_RUN_EVENT_TYPE_UNSPECIFIED = 0;
+    TASK_RUN_EVENT_TYPE_STARTED = 1;
+    TASK_RUN_EVENT_TYPE_COMPLETED = 2;
+    TASK_RUN_EVENT_TYPE_FAILED = 3;
+    TASK_RUN_EVENT_TYPE_CANCELLED = 4;
+    TASK_RUN_EVENT_TYPE_TIMED_OUT = 5;
+    TASK_RUN_EVENT_TYPE_STREAM = 6;
+}
+
+message TaskRunsFilter {
+    repeated TaskRunStatus statuses = 1;
+    google.protobuf.Timestamp since = 2; // (required) only match runs created after this time
+    optional google.protobuf.Timestamp until = 3;
+    repeated string task_names = 4;
+    repeated ExtraFilter extra = 5; // key-value pairs that must all match
+}
+
+message CancelTaskRunsRequest {
+    repeated string task_run_external_ids = 1; // external ids of runs to cancel
+    optional TaskRunsFilter filter = 2; // (optional) cancels all runs matching the filter instead
+}
+
+message CancelTaskRunsResponse {
+    repeated string cancelled_task_run_external_ids = 1;
+}
+
+message ReplayTaskRunsRequest {
+    repeated string task_run_external_ids = 1; // external ids of runs to replay
+    optional TaskRunsFilter filter = 2; // (optional) replays all runs matching the filter instead
+}
+
+message ReplayTaskRunsResponse {
+    repeated string replayed_task_run_external_ids = 1;
+}
+
+message GetTaskRunRequest {
+    string task_run_external_id = 1; // (required) the external id of the task run
+}
+
+message TaskRunSummary {
+    string task_run_external_id = 1;
+    string task_name = 2;
+    TaskRunStatus status = 3;
+    optional string error = 4; // (optional) the error message, if the run failed
+    optional bytes output = 5; // (optional) the output payload, if the run completed
+    bool is_evicted = 6; // whether the run has been evicted from a worker (status will be RUNNING)
+}
+
+message GetTaskRunResponse {
+    TaskRunSummary task_run = 1;
+    bytes input = 2; // the input payload for the run
+    optional bytes extra = 3;
+    bool done = 4; // whether the run and all of its descendants are finished
+    repeated TaskRunSummary child_task_runs = 5; // direct child runs of this run
+}
+
+// SubscribeTaskRunsRequest adds a subscription to the stream; clients may send
+// multiple subscriptions over the lifetime of one stream.
+message SubscribeTaskRunsRequest {
+    oneof target {
+        string task_run_external_id = 1; // subscribe to a single run and its descendants
+        ExtraFilter extra = 2; // subscribe to all runs matching an extra key/value
+    }
+}
+
+message ExtraFilter {
+    string key = 1;
+    string value = 2;
+}
+
+message TaskRunEvent {
+    string task_run_external_id = 1;
+    string task_name = 2;
+    TaskRunEventType event_type = 3;
+    google.protobuf.Timestamp seen_at = 4;
+    optional bytes payload = 5; // (optional) the output on COMPLETED, the error on FAILED, the chunk on STREAM
+    bool hangup = 6; // whether this is the last event for the subscription; the server will close the stream
+    optional int32 retry_count = 7; // (optional) the retry attempt of the run for this event
+    optional int32 max_retries = 8; // (optional) the maximum retries configured for the task
+    optional int64 event_index = 9; // (optional) ordering index for STREAM events
+}

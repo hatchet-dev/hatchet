@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "v2/task.proto";
+
+// WorkerService manages the worker lifecycle. Registration and the session
+// are deliberately separate: Register establishes the worker and returns a
+// worker_id, while Session governs whether the worker is connected. Task
+// definitions are registered independently through TaskService; workers register
+// the registered task names they can run through RegisterTasks. Heartbeats,
+// assignment delivery and run state reporting all happen over the single
+// bidirectional session stream, so there is one ordered channel between a
+// connected worker and the server, and reconnects only require a lightweight
+// Attach.
+service WorkerService {
+    // Register validates and persists the worker metadata and returns a
+    // worker_id. It does not make the worker available for assignments; the
+    // worker is assignable only while a session is attached and has task names
+    // registered via RegisterTasks. Registrations that are never attached expire
+    // after a server-side TTL.
+    rpc Register(RegisterWorkerRequest) returns (RegisterWorkerResponse) {}
+
+    // RegisterTasks replaces the set of registered task names this worker can
+    // run. The server should reject unknown task names; clients can register or
+    // update tasks independently through TaskService.RegisterTasks.
+    rpc RegisterTasks(RegisterWorkerTasksRequest) returns (RegisterWorkerTasksResponse) {}
+
+    // Session must begin with an AttachWorker message referencing a registered
+    // worker_id. Attaching with an unknown or expired worker_id fails the
+    // stream with NOT_FOUND, in which case the worker should Register again
+    // before reattaching.
+    rpc Session(stream WorkerSessionRequest) returns (stream WorkerSessionResponse) {}
+
+    rpc UpsertLabels(UpsertLabelsRequest) returns (UpsertLabelsResponse) {}
+
+    rpc Deregister(DeregisterRequest) returns (DeregisterResponse) {}
+}
+
+message WorkerLabel {
+    optional string str_value = 1;
+    optional int32 int_value = 2;
+}
+
+enum SdkLanguage {
+    SDK_LANGUAGE_UNSPECIFIED = 0;
+    SDK_LANGUAGE_GO = 1;
+    SDK_LANGUAGE_PYTHON = 2;
+    SDK_LANGUAGE_TYPESCRIPT = 3;
+    SDK_LANGUAGE_RUBY = 4;
+}
+
+message RuntimeInfo {
+    optional string sdk_version = 1;
+    optional SdkLanguage language = 2;
+    optional string language_version = 3;
+    optional string os = 4;
+    optional string extra = 5;
+}
+
+// RegisterWorkerRequest establishes the worker. Registration is idempotent for
+// a stable worker name, but it does not register task definitions or declare
+// which tasks this worker can run.
+message RegisterWorkerRequest {
+    string name = 1; // (required) the name of the worker
+    map<string, int32> slot_config = 2; // (required) slot capacity for this worker (slot_type -> units)
+    map<string, WorkerLabel> labels = 3; // (optional) worker labels (i.e. state or other metadata)
+    optional RuntimeInfo runtime_info = 4; // (optional) information about the worker's runtime environment
+}
+
+message RegisterWorkerResponse {
+    string worker_id = 1;
+    string tenant_id = 2;
+}
+
+message RegisterWorkerTasksRequest {
+    string worker_id = 1; // (required) the id of the worker
+    repeated string task_names = 2; // (required) the complete set of registered task names this worker can run
+}
+
+message RegisterWorkerTasksResponse {
+    map<string, RegisteredTask> tasks = 1; // the task versions currently served by this worker, keyed by task name
+}
+
+// AttachWorker must be the first message sent on a session stream. It binds
+// the stream to a registered worker; assignment delivery begins once the
+// server responds with AttachWorkerAck.
+message AttachWorker {
+    string worker_id = 1; // (required) the worker_id from RegisterWorkerResponse
+}
+
+message Heartbeat {
+    google.protobuf.Timestamp sent_at = 1; // (required) the time the worker sent the heartbeat
+}
+
+// TaskRunInvocationAck acknowledges receipt of a task run invocation
+// instruction. SDKs should send it promptly after accepting the invocation, but
+// do not need to block starting execution on the ack write.
+message TaskRunInvocationAck {
+    string task_run_external_id = 1; // (required) the external id of the acknowledged task run
+    int32 retry_count = 2; // (required) the retry count of the acknowledged invocation
+}
+
+// CancelTaskRunAck acknowledges receipt of a cancel instruction. SDKs should
+// send it promptly after accepting the cancellation request.
+message CancelTaskRunAck {
+    string task_run_external_id = 1; // (required) the external id of the acknowledged task run
+    int32 retry_count = 2; // (required) the retry attempt being cancelled
+}
+
+// TaskRunEventReport reports run progress. Workers only send STARTED,
+// COMPLETED and FAILED; the remaining event types are server-derived. The
+// reporting worker is implied by the session. The server confirms persistence
+// with a TaskRunEventReportAck.
+message TaskRunEventReport {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    int32 retry_count = 2; // (required) the retry attempt being reported
+    TaskRunEventType event_type = 3; // (required) the event type
+    google.protobuf.Timestamp seen_at = 4; // (required) when the event was seen
+    optional bytes payload = 5; // (optional) the output on COMPLETED, the error on FAILED
+    optional bool should_not_retry = 6; // (optional) if true on FAILED, the run will not be retried
+}
+
+message RefreshTimeout {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    int32 retry_count = 2; // (required) the retry attempt holding the timeout
+    google.protobuf.Duration increment_by = 3; // (required) how much to extend the timeout
+}
+
+// ReleaseSlot releases the run's worker slots without completing the run,
+// freeing capacity for other runs while the current run keeps executing.
+message ReleaseSlot {
+    string task_run_external_id = 1; // (required) the external id of the task run
+    int32 retry_count = 2; // (required) the retry attempt holding the slots
+}
+
+message WorkerSessionRequest {
+    oneof message {
+        AttachWorker attach = 1;
+        Heartbeat heartbeat = 2;
+        TaskRunInvocationAck task_run_invocation_ack = 3;
+        TaskRunEventReport report = 4;
+        RefreshTimeout refresh_timeout = 5;
+        ReleaseSlot release_slot = 6;
+        CancelTaskRunAck cancel_task_run_ack = 7;
+    }
+}
+
+message AttachWorkerAck {
+    string worker_id = 1;
+}
+
+// TaskRunInvocationInstruction instructs the worker to run a task.
+message TaskRunInvocationInstruction {
+    message ParentRun {
+        string parent_task_run_external_id = 1; // (required) the parent task run
+        optional int32 child_index = 2; // (optional) the index of this child run within the parent
+        optional string child_key = 3; // (optional) the key of this child run within the parent
+    }
+
+    message Event {
+        string external_id = 1; // (required) the external id of the event that triggered this run
+        string key = 2; // (required) the key of the event that triggered this run
+    }
+
+    string task_run_external_id = 1; // the external id of the task run
+    string task_name = 2; // the name of the task
+    string queue = 3; // the queue this assignment was routed through // TODO: we used to have this as action so this might have side effects on how we route internally
+    bytes input = 4; // the input payload for the run
+    optional bytes extra = 5; // (optional) extra user metadata set on the run
+    int32 priority = 6; // the priority of the run
+    int32 retry_count = 7; // the retry attempt for this assignment, 0 for the first attempt
+    optional int32 durable_task_invocation_count = 8; // (optional) the invocation count, required for durable task runs
+    optional google.protobuf.Timestamp timeout_at = 9; // (optional) when the server will time out the run, so workers can enforce it locally
+
+    oneof triggered_by {
+        // TODO: cron/schedule/webhook?
+
+        ParentRun parent_run = 10; // (optional) the parent run that triggered this task run
+        Event event = 11; // (optional) the event that triggered this task run
+    }
+}
+
+// CancelTaskRunInstruction instructs the worker to cancel a task run.
+message CancelTaskRunInstruction {
+    string task_run_external_id = 1; // the external id of the task run to cancel
+    int32 retry_count = 2; // the retry attempt being cancelled
+}
+
+// TaskRunEventReportAck confirms a report has been durably recorded; workers
+// may discard local state for the attempt once the terminal event is acked.
+message TaskRunEventReportAck {
+    string task_run_external_id = 1;
+    int32 retry_count = 2;
+    TaskRunEventType event_type = 3;
+}
+
+message RefreshTimeoutAck {
+    string task_run_external_id = 1;
+    int32 retry_count = 2;
+    google.protobuf.Timestamp timeout_at = 3; // the new timeout deadline
+}
+
+message WorkerSessionResponse {
+    oneof message {
+        AttachWorkerAck attach_ack = 1;
+        TaskRunInvocationInstruction assignment = 2;
+        CancelTaskRunInstruction cancel_task_run = 3;
+        TaskRunEventReportAck report_ack = 4;
+        RefreshTimeoutAck refresh_timeout_ack = 5;
+    }
+}
+
+message UpsertLabelsRequest {
+    string worker_id = 1; // (required) the id of the worker
+    map<string, WorkerLabel> labels = 2; // (required) the labels to upsert
+}
+
+message UpsertLabelsResponse {}
+
+message DeregisterRequest {
+    string worker_id = 1; // (required) the id of the worker
+}
+
+message DeregisterResponse {}

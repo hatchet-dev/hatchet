@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+option go_package = "github.com/hatchet-dev/hatchet/internal/services/shared/proto/v2";
+
+package v2;
+
+import "google/protobuf/timestamp.proto";
+
+// EventService ingests user events that trigger task runs via event triggers
+// and filters.
+service EventService {
+    // Both RPCs are bulk-first; a single event is a one-element batch.
+    rpc PutEvents(PutEventsRequest) returns (PutEventsResponse) {}
+
+    rpc ReplayEvents(ReplayEventsRequest) returns (ReplayEventsResponse) {}
+}
+
+message EventInput {
+    string key = 1; // (required) the key for the event
+    bytes payload = 2; // (optional) the payload for the event
+    google.protobuf.Timestamp seen_at = 3; // (optional) when the event was seen, defaults to receipt time
+    optional bytes extra = 4; // (optional) extra user metadata for the event
+    optional int32 priority = 5; // (optional) the priority for runs triggered by this event
+    optional string scope = 6; // (optional) the filter scope, used for subsetting candidate filters at evaluation time
+}
+
+message PutEventsRequest {
+    repeated EventInput events = 1;
+}
+
+message Event {
+    string event_external_id = 1; // the external id of the event
+    string key = 2;
+    bytes payload = 3;
+    google.protobuf.Timestamp seen_at = 4;
+    optional bytes extra = 5;
+    optional string scope = 6;
+}
+
+message PutEventsResponse {
+    repeated Event events = 1; // the created events, in request order
+}
+
+message ReplayEventsRequest {
+    repeated string event_external_ids = 1; // (required) the external ids of the events to replay
+}
+
+message ReplayEventsResponse {
+    repeated Event events = 1; // the new events created by the replay, in request order
+}
