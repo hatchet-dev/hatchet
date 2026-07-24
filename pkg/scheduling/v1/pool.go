@@ -19,7 +19,8 @@ import (
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
-	outbox pgoutbox.Outbox
+	outbox   pgoutbox.Outbox
+	taskRepo v1.TaskRepository
 
 	l *zerolog.Logger
 
@@ -61,6 +62,7 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	taskRepo v1.TaskRepository,
 	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
 	singleQueueLimit int,
@@ -94,6 +96,7 @@ func NewSchedulingPool(
 			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
 			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
+			taskRepo:                               taskRepo,
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,

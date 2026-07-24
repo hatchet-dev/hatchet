@@ -52,6 +52,21 @@ def _skip_unless_observability(supports_observability: bool) -> None:
         )
 
 
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def supports_batching(engine_version: str | None) -> bool:
+    if not engine_version:
+        return False
+    return not semver_less_than(engine_version, MinEngineVersion.BATCHING)
+
+
+@pytest.fixture()
+def _skip_unless_batching(supports_batching: bool) -> None:
+    if not supports_batching:
+        pytest.skip(
+            f"Engine does not support batch tasks (requires >= {MinEngineVersion.BATCHING})"
+        )
+
+
 @pytest.fixture(scope="session", autouse=True)
 def worker() -> Generator[Popen[bytes], None, None]:
     command = ["poetry", "run", "python", "examples/worker.py"]

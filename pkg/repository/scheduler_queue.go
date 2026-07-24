@@ -2,11 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/hatchet-dev/hatchet/internal/listutils"
@@ -15,6 +18,17 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
+)
+
+type BatchFlushReason string
+
+const (
+	FlushReasonBatchSizeReached        BatchFlushReason = "batch_size_reached"
+	FlushReasonWorkerChanged           BatchFlushReason = "worker_changed"
+	FlushReasonDispatcherChanged       BatchFlushReason = "dispatcher_changed"
+	FlushReasonIntervalElapsed         BatchFlushReason = "interval_elapsed"
+	FlushReasonBufferDrained           BatchFlushReason = "buffer_drained"
+	FlushReasonBufferMemorySizeReached BatchFlushReason = "memory_size_reached"
 )
 
 type RateLimitResult struct {
@@ -39,10 +53,39 @@ type AssignedItem struct {
 	IsAssignedLocally bool
 
 	IsDurable bool
+
+	Batch *BatchAssignmentMetadata
+}
+
+type BatchAssignmentMetadata struct {
+	State string
+
+	Reason BatchFlushReason
+
+	TriggeredAt time.Time
+
+	ConfiguredBatchMaxSize int32
+
+	// ConfiguredBatchMaxIntervalMs is stored in milliseconds.
+	ConfiguredBatchMaxIntervalMs int32
+
+	ConfiguredBatchGroupMaxRuns int32
+
+	Pending int32
+
+	NextFlushAt *time.Time
+
+	BatchID string
+
+	StepID        string
+	ActionID      string
+	BatchGroupKey string
 }
 
 type AssignResults struct {
 	Assigned           []*AssignedItem
+	Buffered           []*AssignedItem
+	Batched            []*sqlcv1.V1QueueItem
 	Unassigned         []*sqlcv1.V1QueueItem
 	SchedulingTimedOut []*sqlcv1.V1QueueItem
 	RateLimited        []*RateLimitResult
@@ -61,6 +104,23 @@ func newQueueFactoryRepository(shared *sharedRepository) *queueFactoryRepository
 
 func (q *queueFactoryRepository) NewQueue(tenantId uuid.UUID, queueName string) QueueRepository {
 	return newQueueRepository(q.sharedRepository, tenantId, queueName)
+}
+
+type batchQueueFactoryRepository struct {
+	*sharedRepository
+}
+
+func newBatchQueueFactoryRepository(shared *sharedRepository) *batchQueueFactoryRepository {
+	return &batchQueueFactoryRepository{
+		sharedRepository: shared,
+	}
+}
+
+func (b *batchQueueFactoryRepository) NewBatchQueue(tenantId uuid.UUID) BatchQueueRepository {
+	return &batchQueueRepository{
+		sharedRepository: b.sharedRepository,
+		tenantId:         tenantId,
+	}
 }
 
 type queueRepository struct {
@@ -229,7 +289,7 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 	start := time.Now()
 	checkpoint := start
 
-	idsToUnqueue := make([]int64, 0, len(r.Assigned))
+	idsToUnqueue := make([]int64, 0, len(r.Assigned)+len(r.Buffered))
 	queueItemIdsToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
 	taskIdToAssignedItem := make(map[int64]*AssignedItem, len(r.Assigned))
 
@@ -248,6 +308,41 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 			InsertedAt: id.TaskInsertedAt,
 			RetryCount: id.RetryCount,
 		})
+	}
+
+	bufferedQueueItemIDs := make([]int64, 0, len(r.Buffered))
+	bufferedTaskIds := make([]int64, 0, len(r.Buffered))
+	bufferedTaskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Buffered))
+	bufferedRetryCounts := make([]int32, 0, len(r.Buffered))
+
+	for _, buffered := range r.Buffered {
+		if buffered == nil || buffered.QueueItem == nil {
+			continue
+		}
+
+		idsToUnqueue = append(idsToUnqueue, buffered.QueueItem.ID)
+		bufferedQueueItemIDs = append(bufferedQueueItemIDs, buffered.QueueItem.ID)
+		bufferedTaskIds = append(bufferedTaskIds, buffered.QueueItem.TaskID)
+		bufferedTaskInsertedAts = append(bufferedTaskInsertedAts, buffered.QueueItem.TaskInsertedAt)
+		bufferedRetryCounts = append(bufferedRetryCounts, buffered.QueueItem.RetryCount)
+	}
+
+	// move batch queue items from v1_queue_item -> v1_batched_queue_item (replaces trigger-based redirect)
+	batchedQueueItemIDs := make([]int64, 0, len(r.Batched))
+
+	for _, batched := range r.Batched {
+		if batched == nil {
+			continue
+		}
+
+		batchedQueueItemIDs = append(batchedQueueItemIDs, batched.ID)
+	}
+
+	if len(batchedQueueItemIDs) > 0 {
+		_, err = d.queries.MoveQueueItemsToBatchedQueue(ctx, tx, batchedQueueItemIDs)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// remove rate limited queue items from the queue and place them in the v1_rate_limited_queue_items table
@@ -297,6 +392,24 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 		queuedItemsMap[id] = struct{}{}
 	}
 
+	validBufferedTaskIds := make([]int64, 0, len(bufferedTaskIds))
+	validBufferedInsertedAts := make([]pgtype.Timestamptz, 0, len(bufferedTaskInsertedAts))
+	validBufferedRetryCounts := make([]int32, 0, len(bufferedRetryCounts))
+
+	for idx, queueItemID := range bufferedQueueItemIDs {
+		if _, ok := queuedItemsMap[queueItemID]; !ok {
+			continue
+		}
+
+		if idx >= len(bufferedTaskIds) || idx >= len(bufferedTaskInsertedAts) || idx >= len(bufferedRetryCounts) {
+			continue
+		}
+
+		validBufferedTaskIds = append(validBufferedTaskIds, bufferedTaskIds[idx])
+		validBufferedInsertedAts = append(validBufferedInsertedAts, bufferedTaskInsertedAts[idx])
+		validBufferedRetryCounts = append(validBufferedRetryCounts, bufferedRetryCounts[idx])
+	}
+
 	taskIds := make([]int64, 0, len(r.Assigned))
 	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(r.Assigned))
 	workerIds := make([]uuid.UUID, 0, len(r.Assigned))
@@ -319,6 +432,23 @@ func (d *sharedRepository) markQueueItemsProcessed(ctx context.Context, tenantId
 
 	timeAfterBulkQueueItems := time.Since(checkpoint)
 	checkpoint = time.Now()
+
+	if len(validBufferedTaskIds) > 0 {
+		err = d.queries.InsertBufferedTaskRuntimes(ctx, tx, sqlcv1.InsertBufferedTaskRuntimesParams{
+			Tenantid:        tenantId,
+			Taskids:         validBufferedTaskIds,
+			Taskinsertedats: validBufferedInsertedAts,
+			Taskretrycounts: validBufferedRetryCounts,
+		})
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		validBufferedTaskIds = nil
+		validBufferedInsertedAts = nil
+		validBufferedRetryCounts = nil
+	}
 
 	updatedTasks, err := d.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
 		Taskids:           taskIds,
@@ -764,6 +894,29 @@ func (d *queueRepository) GetStepSlotRequests(ctx context.Context, tx *Optimisti
 	return stepIdToRequests, nil
 }
 
+func (d *queueRepository) GetStepBatchConfigs(ctx context.Context, stepIds []uuid.UUID) (map[string]bool, error) {
+	ctx, span := telemetry.NewSpan(ctx, "get-step-batch-configs")
+	defer span.End()
+
+	uniqueStepIds := listutils.Uniq(stepIds)
+	res := make(map[string]bool, len(uniqueStepIds))
+
+	for _, stepID := range uniqueStepIds {
+		res[stepID.String()] = false
+	}
+
+	steps, err := d.queries.ListStepsWithBatchConfig(ctx, d.pool, uniqueStepIds)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, step := range steps {
+		res[step.String()] = true
+	}
+
+	return res, nil
+}
+
 func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId uuid.UUID, queueName string) ([]*sqlcv1.RequeueRateLimitedQueueItemsRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, d.pool, d.l)
 
@@ -797,6 +950,308 @@ func (d *queueRepository) RequeueRateLimitedItems(ctx context.Context, tenantId 
 	saveQueues()
 
 	return rows, nil
+}
+
+type batchQueueRepository struct {
+	*sharedRepository
+	tenantId uuid.UUID
+}
+
+func (b *batchQueueRepository) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListDistinctBatchResourcesRow, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-batch-resources")
+	defer span.End()
+
+	rows, err := b.queries.ListDistinctBatchResources(ctx, b.pool, b.tenantId)
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	ctx, span := telemetry.NewSpan(ctx, "list-batched-queue-items")
+	defer span.End()
+
+	params := sqlcv1.ListBatchedQueueItemsForStepParams{
+		Tenantid: b.tenantId,
+		Stepid:   stepId,
+	}
+
+	if limit > 0 {
+		params.Limit = pgtype.Int4{
+			Int32: limit,
+			Valid: true,
+		}
+	}
+
+	return b.queries.ListBatchedQueueItemsForStep(ctx, b.pool, params)
+}
+
+func (b *batchQueueRepository) DeleteBatchedQueueItems(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	return b.queries.DeleteBatchedQueueItems(ctx, b.pool, ids)
+}
+
+func (b *batchQueueRepository) ListExistingBatchedQueueItemIds(ctx context.Context, ids []int64) (map[int64]struct{}, error) {
+	if len(ids) == 0 {
+		return map[int64]struct{}{}, nil
+	}
+
+	rows, err := b.queries.ListExistingBatchedQueueItemIds(ctx, b.pool, sqlcv1.ListExistingBatchedQueueItemIdsParams{
+		Tenantid: b.tenantId,
+		Ids:      ids,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[int64]struct{}, len(rows))
+	for _, id := range rows {
+		res[id] = struct{}{}
+	}
+
+	return res, nil
+}
+
+func (b *batchQueueRepository) GetBatchedQueueItemsByIds(ctx context.Context, ids []int64) ([]*sqlcv1.V1BatchedQueueItem, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "get-batched-queue-items-by-ids")
+	defer span.End()
+
+	return b.queries.GetBatchedQueueItemsByIds(ctx, b.pool, sqlcv1.GetBatchedQueueItemsByIdsParams{
+		Tenantid: b.tenantId,
+		Ids:      ids,
+	})
+}
+
+func (b *batchQueueRepository) MoveBatchedQueueItems(ctx context.Context, ids []int64) ([]*sqlcv1.MoveBatchedQueueItemsRow, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	return b.queries.MoveBatchedQueueItems(ctx, b.pool, ids)
+}
+
+func (b *batchQueueRepository) CommitAssignments(ctx context.Context, assignments []*BatchAssignment) ([]*BatchAssignment, error) {
+	if len(assignments) == 0 {
+		return nil, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "commit-batch-assignments")
+	defer span.End()
+
+	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil && !errors.Is(rollbackErr, pgx.ErrTxClosed) {
+			b.l.Error().Err(rollbackErr).Msg("rollback failed after commit assignments")
+		}
+	}()
+
+	succeeded, err := b.commitAssignmentsTx(ctx, tx, assignments)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("could not commit batch assignment transaction: %w", err)
+	}
+
+	return succeeded, nil
+}
+
+// commitAssignmentsTx holds CommitAssignments' dedup-and-write logic, factored out so
+// ReserveAndCommitBatchRun can run it inside the same transaction as the reservation itself,
+// instead of opening a second, separate transaction the way CommitAssignments does on its own.
+func (b *batchQueueRepository) commitAssignmentsTx(ctx context.Context, tx pgx.Tx, assignments []*BatchAssignment) ([]*BatchAssignment, error) {
+
+	b.l.Debug().
+		Int("incoming_assignment_count", len(assignments)).
+		Msg("prepared batch assignments for commit")
+
+	ids := make([]int64, 0, len(assignments))
+	taskIds := make([]int64, 0, len(assignments))
+	taskInsertedAts := make([]pgtype.Timestamptz, 0, len(assignments))
+	workerIds := make([]uuid.UUID, 0, len(assignments))
+
+	var minTaskInsertedAt pgtype.Timestamptz
+
+	for _, assignment := range assignments {
+		if assignment == nil {
+			continue
+		}
+
+		ids = append(ids, assignment.BatchQueueItemID)
+		taskIds = append(taskIds, assignment.TaskID)
+		taskInsertedAts = append(taskInsertedAts, assignment.TaskInsertedAt)
+		workerIds = append(workerIds, assignment.WorkerID)
+
+		if assignment.TaskInsertedAt.Valid && (!minTaskInsertedAt.Valid || assignment.TaskInsertedAt.Time.Before(minTaskInsertedAt.Time)) {
+			minTaskInsertedAt = assignment.TaskInsertedAt
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	if err := b.queries.DeleteBatchedQueueItems(ctx, tx, ids); err != nil {
+		return nil, fmt.Errorf("could not delete batched queue items: %w", err)
+	}
+
+	updated, err := b.queries.UpdateTasksToAssigned(ctx, tx, sqlcv1.UpdateTasksToAssignedParams{
+		Taskids:           taskIds,
+		Taskinsertedats:   taskInsertedAts,
+		Workerids:         workerIds,
+		Mintaskinsertedat: minTaskInsertedAt,
+		Tenantid:          b.tenantId,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not update tasks to assigned: %w", err)
+	}
+
+	updatedTaskIDs := make(map[int64]struct{}, len(updated))
+	for _, row := range updated {
+		if row != nil {
+			updatedTaskIDs[row.TaskID] = struct{}{}
+		}
+	}
+
+	succeeded := make([]*BatchAssignment, 0, len(assignments))
+	for _, a := range assignments {
+		if a == nil {
+			continue
+		}
+		if _, ok := updatedTaskIDs[a.TaskID]; ok {
+			succeeded = append(succeeded, a)
+		}
+	}
+
+	if err := b.applyBatchMetadataTx(ctx, tx, succeeded); err != nil {
+		return nil, err
+	}
+
+	return succeeded, nil
+}
+
+// applyBatchMetadataTx sets batch_id/batch_size/batch_index/batch_key/worker_id using the same transaction used for
+// reserving and committing the batch
+func (b *batchQueueRepository) applyBatchMetadataTx(ctx context.Context, tx pgx.Tx, assignments []*BatchAssignment) error {
+	groups := make(map[string][]*BatchAssignment)
+	order := make([]string, 0, 1)
+
+	for _, a := range assignments {
+		if a == nil || strings.TrimSpace(a.BatchID) == "" {
+			continue
+		}
+
+		if _, ok := groups[a.BatchID]; !ok {
+			order = append(order, a.BatchID)
+		}
+
+		groups[a.BatchID] = append(groups[a.BatchID], a)
+	}
+
+	for _, batchID := range order {
+		group := groups[batchID]
+
+		taskIds := make([]int64, len(group))
+		taskInsertedAts := make([]pgtype.Timestamptz, len(group))
+		batchIndexes := make([]int32, len(group))
+
+		for i, a := range group {
+			taskIds[i] = a.TaskID
+			taskInsertedAts[i] = a.TaskInsertedAt
+			batchIndexes[i] = int32(i) // nolint: gosec
+		}
+
+		if err := b.queries.UpdateTaskBatchMetadata(ctx, tx, sqlcv1.UpdateTaskBatchMetadataParams{
+			Batchid:         uuid.MustParse(batchID),
+			Batchsize:       int32(len(group)), // nolint: gosec
+			Workerid:        group[0].WorkerID,
+			Batchkey:        group[0].BatchKey,
+			Tenantid:        b.tenantId,
+			Taskids:         taskIds,
+			Taskinsertedats: taskInsertedAts,
+			Batchindexes:    batchIndexes,
+		}); err != nil {
+			return fmt.Errorf("could not update task batch metadata: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (b *batchQueueRepository) ReserveAndCommitBatchRun(
+	ctx context.Context,
+	tenantId, stepId uuid.UUID,
+	actionId, batchKey, batchId string,
+	maxRuns int,
+	assignments []*BatchAssignment,
+) (bool, []*BatchAssignment, error) {
+	if maxRuns <= 0 || strings.TrimSpace(batchKey) == "" {
+		succeeded, err := b.CommitAssignments(ctx, assignments)
+		return true, succeeded, err
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "reserve-and-commit-batch-run")
+	defer span.End()
+
+	tx, err := b.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return false, nil, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer func() {
+		if txErr := tx.Rollback(ctx); txErr != nil && !errors.Is(txErr, pgx.ErrTxClosed) {
+			b.l.Error().Err(txErr).Msg("rollback failed after reserve and commit batch run")
+		}
+	}()
+
+	// Serializes concurrent reservation attempts for the same (tenant, step, batch_key) group
+	// across the whole reserve-then-activate sequence.
+	if advisoryLockErr := b.queries.AdvisoryLock(ctx, tx, sqlchelpers.AdvisoryLockKey(tenantId.String()+":"+stepId.String())); advisoryLockErr != nil {
+		return false, nil, fmt.Errorf("could not acquire batch reservation lock: %w", advisoryLockErr)
+	}
+
+	reserved, err := b.queries.ReserveTaskBatchRun(ctx, tx, sqlcv1.ReserveTaskBatchRunParams{
+		Tenantid: tenantId,
+		Stepid:   stepId,
+		Batchkey: batchKey,
+		Actionid: actionId,
+		Batchid:  uuid.MustParse(batchId),
+		Maxruns:  int32(maxRuns), // nolint: gosec
+	})
+	if err != nil {
+		return false, nil, err
+	}
+
+	if !reserved {
+		if commitErr := tx.Commit(ctx); commitErr != nil {
+			return false, nil, fmt.Errorf("could not commit batch reservation transaction: %w", commitErr)
+		}
+
+		return false, nil, nil
+	}
+
+	succeeded, err := b.commitAssignmentsTx(ctx, tx, assignments)
+	if err != nil {
+		return true, nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return true, nil, fmt.Errorf("could not commit batch reservation transaction: %w", err)
+	}
+
+	return true, succeeded, nil
 }
 
 func getLargerDuration(s1, s2 string) (string, error) {

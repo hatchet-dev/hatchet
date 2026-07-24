@@ -81,15 +81,15 @@ type avgResult struct {
 // worker is expected to have registered, matching the exact naming scheme
 // run.go itself would use for the same config (see run.go's EventFanout
 // loop: "load-test-0", "load-test-1", ...).
-func expectedWorkflowNames(config LoadTestConfig) []string {
-	fanout := config.EventFanout
+
+func expectedWorkflowNames(namespace string, fanout int) []string {
 	if fanout <= 0 {
 		fanout = 1
 	}
 
 	names := make([]string, 0, fanout)
 	for i := 0; i < fanout; i++ {
-		names = append(names, applyNamespace(fmt.Sprintf("load-test-%d", i), config.Namespace))
+		names = append(names, applyNamespace(fmt.Sprintf("load-test-%d", i), namespace))
 	}
 	return names
 }
@@ -198,7 +198,7 @@ func do(config LoadTestConfig) error {
 			}
 			timingClient = hc
 
-			names := expectedWorkflowNames(config)
+			names := expectedWorkflowNames(hc.V0().Namespace(), config.EventFanout)
 
 			l.Info().Msgf("externalWorker: resolving workflow(s) %v (make sure a separately-running SDK worker, e.g. cmd/hatchet-loadtest/go, is already up and has registered them)...", names)
 
@@ -275,7 +275,7 @@ func do(config LoadTestConfig) error {
 		}()
 	}
 
-	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
+	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers)
 	close(scheduled)
 
 	executed := <-ch
@@ -286,6 +286,16 @@ func do(config LoadTestConfig) error {
 
 	var phases phaseAccumulator
 	if config.ExternalWorker {
+		// Give the engine config.Wait to finish (and the collector to observe) runs that
+		// were still in flight when emission stopped, before tearing down collection -
+		// cancelling immediately here would abort the collector mid-sweep for any run that
+		// completes right around this instant, silently dropping its timing sample instead
+		// of just not counting it (see the "context canceled" warnings this produces).
+		if config.Wait > 0 {
+			l.Info().Msgf("externalWorker: waiting %s for in-flight runs to complete before stopping timing collection...", config.Wait)
+			time.Sleep(config.Wait)
+		}
+
 		cancelTiming()
 		phases = <-phaseResultCh
 	}
@@ -299,7 +309,7 @@ func do(config LoadTestConfig) error {
 		)
 
 		if phases.execution.count == 0 {
-			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(config))
+			return fmt.Errorf("❌ no timing samples observed - check that the external SDK worker actually executed tasks for workflow(s) %v", expectedWorkflowNames(timingClient.V0().Namespace(), config.EventFanout))
 		}
 
 		if expected != phases.execution.count {

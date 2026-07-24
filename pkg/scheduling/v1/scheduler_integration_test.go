@@ -264,6 +264,7 @@ func TestScheduler_ReplenishIntegration_SingleActionUtilizationEqualsMaxRuns(t *
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			conf.V1.Tasks(),
 			newTestOutbox(t, conf),
 			&l,
 			100,                  // singleQueueLimit
@@ -315,6 +316,7 @@ func TestScheduler_ReplenishIntegration_MultipleActionsDoesNotMultiplySlots(t *t
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			conf.V1.Tasks(),
 			newTestOutbox(t, conf),
 			&l,
 			100,
@@ -362,6 +364,7 @@ func TestScheduler_ReplenishIntegration_IsSafeUnderConcurrentSnapshots(t *testin
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			conf.V1.Tasks(),
 			newTestOutbox(t, conf),
 			&l,
 			100,
@@ -423,6 +426,7 @@ func TestScheduler_PoolIntegration_RemovingTenantStopsSnapshots(t *testing.T) {
 		l := zerolog.Nop()
 		pool, cleanup, err := schedv1.NewSchedulingPool(
 			conf.V1.Scheduler(),
+			conf.V1.Tasks(),
 			newTestOutbox(t, conf),
 			&l,
 			100,

@@ -483,6 +483,7 @@ func TestConcurrency_MultipleStrategiesContention(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			outbox,
 			&l,
 			100,
@@ -644,6 +645,7 @@ func TestConcurrency_ColdStrategyScheduledPromptly(t *testing.T) {
 		require.NoError(t, err)
 		schedulingPool, cleanup, err := v1.NewSchedulingPool(
 			r.Scheduler(),
+			r.Tasks(),
 			outbox,
 			&l,
 			100,
