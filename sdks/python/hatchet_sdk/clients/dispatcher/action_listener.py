@@ -27,7 +27,14 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action, ActionPayload, ActionType
+from hatchet_sdk.runnables.action import (
+    Action,
+    ActionPayload,
+    ActionType,
+    BatchItemData,
+    BatchStartPayload,
+)
+from hatchet_sdk.runnables.types import BatchMemberId
 from hatchet_sdk.utils.api_auth import create_authorization_header
 from hatchet_sdk.utils.backoff import exp_backoff_sleep
 from hatchet_sdk.utils.proto_enums import convert_proto_enum_to_python
@@ -79,7 +86,7 @@ class ActionListener:
             try:
                 logger.debug("sending heartbeat")
                 # fixme: figure out how to get typing right here
-                await self.aio_client.Heartbeat(  # type: ignore[misc]
+                await self.aio_client.Heartbeat(
                     HeartbeatRequest(
                         worker_id=self.worker_id,
                         heartbeat_at=proto_timestamp_now(),
@@ -186,19 +193,46 @@ class ActionListener:
 
                     assigned_action = result.data
 
-                    try:
-                        action_payload = (
-                            ActionPayload()
-                            if not assigned_action.action_payload
-                            else ActionPayload.model_validate_json(
-                                assigned_action.action_payload
-                            )
-                        )
-                    except (ValueError, json.JSONDecodeError):
-                        logger.exception("error decoding payload")
+                    action_type = convert_proto_enum_to_python(
+                        assigned_action.action_type,
+                        ActionType,
+                        ActionTypeProto,
+                    )
 
+                    batch_items: dict[BatchMemberId, BatchItemData] | None = None
+                    if (
+                        action_type == ActionType.START_BATCH
+                        and assigned_action.action_payload
+                    ):
+                        try:
+                            raw_items = json.loads(assigned_action.action_payload)
+                            batch_items = {
+                                k: BatchItemData.model_validate(v)
+                                for k, v in raw_items.items()
+                            }
+                        except Exception:
+                            logger.exception("error decoding batch items payload")
                         action_payload = ActionPayload()
+                    else:
+                        try:
+                            action_payload = (
+                                ActionPayload()
+                                if not assigned_action.action_payload
+                                else ActionPayload.model_validate_json(
+                                    assigned_action.action_payload
+                                )
+                            )
+                        except (ValueError, json.JSONDecodeError):
+                            logger.exception("error decoding payload")
+                            action_payload = ActionPayload()
 
+                    batch_start_payload: BatchStartPayload | None = None
+                    if assigned_action.batchStartPayload is not None:
+                        batch_start_payload = BatchStartPayload(
+                            expected_size=assigned_action.batchStartPayload.expectedSize,
+                            trigger_reason=assigned_action.batchStartPayload.triggerReason,
+                            trigger_time=assigned_action.batchStartPayload.triggerTime.ToDatetime(),
+                        )
                     action = Action(
                         tenant_id=assigned_action.tenant_id,
                         worker_id=self.worker_id,
@@ -211,11 +245,7 @@ class ActionListener:
                         action_id=assigned_action.action_id,
                         step_name=assigned_action.task_name,
                         action_payload=action_payload,
-                        action_type=convert_proto_enum_to_python(
-                            assigned_action.action_type,
-                            ActionType,
-                            ActionTypeProto,
-                        ),
+                        action_type=action_type,
                         retry_count=assigned_action.retry_count,
                         additional_metadata=parse_additional_metadata(
                             assigned_action.additional_metadata
@@ -230,6 +260,18 @@ class ActionListener:
                         or None,
                         triggering_event_external_id=assigned_action.triggering_event_external_id,
                         triggering_event_key=assigned_action.triggering_event_key,
+                        batch_items=batch_items,
+                        batch_id=(
+                            assigned_action.batchId
+                            if assigned_action.HasField("batchId")
+                            else None
+                        ),
+                        batch_key=(
+                            assigned_action.batchKey
+                            if assigned_action.batchKey
+                            else None
+                        ),
+                        batch_start=batch_start_payload,
                     )
 
                     yield action

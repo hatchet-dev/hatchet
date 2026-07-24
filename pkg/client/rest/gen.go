@@ -269,6 +269,7 @@ const (
 const (
 	V1TaskEventTypeACKNOWLEDGED         V1TaskEventType = "ACKNOWLEDGED"
 	V1TaskEventTypeASSIGNED             V1TaskEventType = "ASSIGNED"
+	V1TaskEventTypeBATCHFLUSHED         V1TaskEventType = "BATCH_FLUSHED"
 	V1TaskEventTypeCANCELLED            V1TaskEventType = "CANCELLED"
 	V1TaskEventTypeCOULDNOTSENDTOWORKER V1TaskEventType = "COULD_NOT_SEND_TO_WORKER"
 	V1TaskEventTypeCREATED              V1TaskEventType = "CREATED"
@@ -290,6 +291,7 @@ const (
 	V1TaskEventTypeSTARTED              V1TaskEventType = "STARTED"
 	V1TaskEventTypeTIMEDOUT             V1TaskEventType = "TIMED_OUT"
 	V1TaskEventTypeTIMEOUTREFRESHED     V1TaskEventType = "TIMEOUT_REFRESHED"
+	V1TaskEventTypeWAITINGFORBATCH      V1TaskEventType = "WAITING_FOR_BATCH"
 )
 
 // Defines values for V1TaskStatus.
@@ -3087,6 +3089,9 @@ type WorkerListParams struct {
 
 	// Statuses Filter by worker status
 	Statuses *[]WorkerStatus `form:"statuses,omitempty" json:"statuses,omitempty"`
+
+	// Labels Filter by worker labels
+	Labels *[]string `form:"labels,omitempty" json:"labels,omitempty"`
 }
 
 // WorkflowRunListStepRunEventsParams defines parameters for WorkflowRunListStepRunEvents.
@@ -11753,6 +11758,22 @@ func NewWorkerListRequest(server string, tenant openapi_types.UUID, params *Work
 
 		}
 
+		if params.Labels != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "labels", runtime.ParamLocationQuery, *params.Labels); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
 		queryURL.RawQuery = queryValues.Encode()
 	}
 
@@ -16021,6 +16042,7 @@ type V1WebhookReceiveResponse struct {
 	JSON200      *V1WebhookResponse
 	JSON400      *APIErrors
 	JSON403      *APIErrors
+	JSON429      *APIErrors
 }
 
 // Status returns HTTPResponse.Status
@@ -21865,6 +21887,13 @@ func ParseV1WebhookReceiveResponse(rsp *http.Response) (*V1WebhookReceiveRespons
 			return nil, err
 		}
 		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest APIErrors
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	}
 

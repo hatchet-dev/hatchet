@@ -307,6 +307,46 @@ IHatchetClient.workflows;
 
 #### Methods
 
+<a id="batchtask"></a>
+
+##### `batchTask()`
+
+Implementation of the batchTask method.
+
+Creates a new batch task workflow. Batch tasks buffer concurrent runs until Hatchet
+flushes the batch (size reached or flush interval), then invoke the handler once with
+all buffered inputs keyed by each run's task-run external id. The handler must return
+a Record mapping each id to its output, or set `batch.broadcastOutput` to return the
+same result to all callers. retries is always forced to 0 for batch tasks.
+
+Preview: batch tasks are in beta and may change in future releases.
+
+Parameters
+
+| Parameter | Type                                                                                                                                                                          | Description                      |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `options` | [`CreateBatchTaskWorkflowOpts`](Runnables.mdx#createbatchtaskworkflowopts)\<`I` & `Resolved`\<`GlobalInput`, `MiddlewareBefore`\>, `MergeIfNonEmpty`\<`O`, `GlobalOutput`\>\> | Batch task configuration options |
+
+Returns
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance
+
+Creates a new batch task workflow with types inferred from the function parameter.
+
+Parameters
+
+| Parameter | Type                                                                                                                             | Description                                                       |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `options` | `object` & `Omit`\<[`CreateBatchTaskWorkflowOpts`](Runnables.mdx#createbatchtaskworkflowopts)\<`I`, `O`\>, `"batch"` \| `"fn"`\> | Batch task configuration options with function that defines types |
+
+Returns
+
+[`TaskWorkflowDeclaration`](Runnables.mdx#taskworkflowdeclaration)\<`I`, `O`, `GlobalInput`, `GlobalOutput`, `MiddlewareBefore`, `MiddlewareAfter`\>
+
+A TaskWorkflowDeclaration instance with inferred types
+
 <a id="durabletask"></a>
 
 ##### `durableTask()`

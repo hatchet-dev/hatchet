@@ -62,7 +62,10 @@ func (m *multiplexedListener) startListening() {
 			if err != nil {
 				return nil, err
 			}
-			return poolConn.Conn(), nil
+			// Hijack removes the connection from the pool's accounting: pgxlisten
+			// owns it and closes it when the listener exits, so the pool can be
+			// closed cleanly and slots aren't leaked across listener reconnects.
+			return poolConn.Hijack(), nil
 		},
 		LogError: func(innerCtx context.Context, err error) {
 			m.l.Warn().Err(err).Msg("error in listener")

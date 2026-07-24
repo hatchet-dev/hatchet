@@ -32,6 +32,9 @@ type DispatcherClient interface {
 	SubscribeToWorkflowEvents(ctx context.Context, in *SubscribeToWorkflowEventsRequest, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowEventsClient, error)
 	SubscribeToWorkflowRuns(ctx context.Context, opts ...grpc.CallOption) (Dispatcher_SubscribeToWorkflowRunsClient, error)
 	SendStepActionEvent(ctx context.Context, in *StepActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
+	// SendBatchActionEvent reports a single lifecycle event (STARTED, FAILED, or CANCELLED)
+	// for every task in a batch in one call, instead of one SendStepActionEvent call per task.
+	SendBatchActionEvent(ctx context.Context, in *BatchActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error)
 	PutOverridesData(ctx context.Context, in *OverridesData, opts ...grpc.CallOption) (*OverridesDataResponse, error)
 	Unsubscribe(ctx context.Context, in *WorkerUnsubscribeRequest, opts ...grpc.CallOption) (*WorkerUnsubscribeResponse, error)
@@ -207,6 +210,15 @@ func (c *dispatcherClient) SendStepActionEvent(ctx context.Context, in *StepActi
 	return out, nil
 }
 
+func (c *dispatcherClient) SendBatchActionEvent(ctx context.Context, in *BatchActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
+	out := new(ActionEventResponse)
+	err := c.cc.Invoke(ctx, "/Dispatcher/SendBatchActionEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *dispatcherClient) SendGroupKeyActionEvent(ctx context.Context, in *GroupKeyActionEvent, opts ...grpc.CallOption) (*ActionEventResponse, error) {
 	out := new(ActionEventResponse)
 	err := c.cc.Invoke(ctx, "/Dispatcher/SendGroupKeyActionEvent", in, out, opts...)
@@ -293,6 +305,9 @@ type DispatcherServer interface {
 	SubscribeToWorkflowEvents(*SubscribeToWorkflowEventsRequest, Dispatcher_SubscribeToWorkflowEventsServer) error
 	SubscribeToWorkflowRuns(Dispatcher_SubscribeToWorkflowRunsServer) error
 	SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error)
+	// SendBatchActionEvent reports a single lifecycle event (STARTED, FAILED, or CANCELLED)
+	// for every task in a batch in one call, instead of one SendStepActionEvent call per task.
+	SendBatchActionEvent(context.Context, *BatchActionEvent) (*ActionEventResponse, error)
 	SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error)
 	PutOverridesData(context.Context, *OverridesData) (*OverridesDataResponse, error)
 	Unsubscribe(context.Context, *WorkerUnsubscribeRequest) (*WorkerUnsubscribeResponse, error)
@@ -331,6 +346,9 @@ func (UnimplementedDispatcherServer) SubscribeToWorkflowRuns(Dispatcher_Subscrib
 }
 func (UnimplementedDispatcherServer) SendStepActionEvent(context.Context, *StepActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendStepActionEvent not implemented")
+}
+func (UnimplementedDispatcherServer) SendBatchActionEvent(context.Context, *BatchActionEvent) (*ActionEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendBatchActionEvent not implemented")
 }
 func (UnimplementedDispatcherServer) SendGroupKeyActionEvent(context.Context, *GroupKeyActionEvent) (*ActionEventResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendGroupKeyActionEvent not implemented")
@@ -512,6 +530,24 @@ func _Dispatcher_SendStepActionEvent_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dispatcher_SendBatchActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchActionEvent)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DispatcherServer).SendBatchActionEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/Dispatcher/SendBatchActionEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DispatcherServer).SendBatchActionEvent(ctx, req.(*BatchActionEvent))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Dispatcher_SendGroupKeyActionEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GroupKeyActionEvent)
 	if err := dec(in); err != nil {
@@ -674,6 +710,10 @@ var Dispatcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendStepActionEvent",
 			Handler:    _Dispatcher_SendStepActionEvent_Handler,
+		},
+		{
+			MethodName: "SendBatchActionEvent",
+			Handler:    _Dispatcher_SendBatchActionEvent_Handler,
 		},
 		{
 			MethodName: "SendGroupKeyActionEvent",

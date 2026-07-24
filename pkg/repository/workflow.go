@@ -61,8 +61,9 @@ type CreateWorkflowVersionOpts struct {
 }
 
 type IdempotencyConfig struct {
-	Expression string `json:"expression" validate:"required,celworkflowrunstr"`
-	TTLMs      int64  `json:"ttlMs" validate:"required,min=1"`
+	Expression string                   `json:"expression" validate:"required,celworkflowrunstr"`
+	TTLMs      int64                    `json:"ttlMs" validate:"required,min=1"`
+	Method     sqlcv1.IdempotencyMethod `json:"method" validate:"required,oneof=TTL STATUS"`
 }
 
 type CreateConcurrencyOpts struct {
@@ -118,6 +119,17 @@ type CreateStepOpts struct {
 
 	// (optional) the step concurrency options
 	Concurrency []CreateConcurrencyOpts `json:"concurrency,omitempty" validate:"omitempty,dive"`
+
+	// (optional) batch execution configuration
+	BatchConfig *StepBatchConfig `json:"batchConfig,omitempty"`
+}
+
+type StepBatchConfig struct {
+	BatchMaxSize      int32   `json:"batchMaxSize" validate:"required,min=1,max=100000"`
+	BatchMaxInterval  *int32  `json:"batchMaxInterval,omitempty" validate:"omitempty,min=1,max=86400000"`
+	BatchGroupKey     *string `json:"batchGroupKey,omitempty"`
+	BatchGroupMaxRuns *int32  `json:"batchGroupMaxRuns,omitempty" validate:"omitempty,min=1,max=10000"`
+	BroadcastOutput   bool    `json:"broadcastOutput,omitempty"`
 }
 
 type CreateStepMatchConditionOpt struct {
@@ -436,11 +448,16 @@ func (r *workflowRepository) createWorkflowVersionTxs(ctx context.Context, tx sq
 
 	if opts.Idempotency != nil {
 		idempotency := *opts.Idempotency
+
 		createParams.IdempotencyKeyExpression = pgtype.Text{
 			String: idempotency.Expression,
 			Valid:  true,
 		}
 		createParams.IdempotencyKeyTtlMs = sqlchelpers.ToBigInt(&idempotency.TTLMs)
+		createParams.IdempotencyMethod = sqlcv1.NullIdempotencyMethod{
+			IdempotencyMethod: idempotency.Method,
+			Valid:             true,
+		}
 	}
 
 	if opts.DefaultPriority != nil {
@@ -787,6 +804,35 @@ func (r *workflowRepository) createJobTx(ctx context.Context, tx sqlcv1.DBTX, te
 
 		if err != nil {
 			return nil, err
+		}
+
+		if stepOpts.BatchConfig != nil {
+			batchCfgParams := sqlcv1.CreateStepBatchConfigParams{
+				Stepid:          stepId,
+				Batchmaxsize:    stepOpts.BatchConfig.BatchMaxSize,
+				Broadcastoutput: stepOpts.BatchConfig.BroadcastOutput,
+			}
+			if stepOpts.BatchConfig.BatchMaxInterval != nil {
+				batchCfgParams.BatchMaxInterval = pgtype.Int4{
+					Int32: *stepOpts.BatchConfig.BatchMaxInterval,
+					Valid: true,
+				}
+			}
+			if stepOpts.BatchConfig.BatchGroupKey != nil {
+				batchCfgParams.BatchGroupKey = pgtype.Text{
+					String: *stepOpts.BatchConfig.BatchGroupKey,
+					Valid:  true,
+				}
+			}
+			if stepOpts.BatchConfig.BatchGroupMaxRuns != nil {
+				batchCfgParams.BatchGroupMaxRuns = pgtype.Int4{
+					Int32: *stepOpts.BatchConfig.BatchGroupMaxRuns,
+					Valid: true,
+				}
+			}
+			if err = r.queries.CreateStepBatchConfig(ctx, tx, batchCfgParams); err != nil {
+				return nil, err
+			}
 		}
 
 		slotRequests := stepOpts.SlotRequests

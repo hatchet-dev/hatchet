@@ -23,6 +23,9 @@ module Dispatcher
     rpc :SubscribeToWorkflowEvents, ::SubscribeToWorkflowEventsRequest, stream(::WorkflowEvent)
     rpc :SubscribeToWorkflowRuns, stream(::SubscribeToWorkflowRunsRequest), stream(::WorkflowRunEvent)
     rpc :SendStepActionEvent, ::StepActionEvent, ::ActionEventResponse
+    # SendBatchActionEvent reports a single lifecycle event (STARTED, FAILED, or CANCELLED)
+    # for every task in a batch in one call, instead of one SendStepActionEvent call per task.
+    rpc :SendBatchActionEvent, ::BatchActionEvent, ::ActionEventResponse
     rpc :SendGroupKeyActionEvent, ::GroupKeyActionEvent, ::ActionEventResponse
     rpc :PutOverridesData, ::OverridesData, ::OverridesDataResponse
     rpc :Unsubscribe, ::WorkerUnsubscribeRequest, ::WorkerUnsubscribeResponse

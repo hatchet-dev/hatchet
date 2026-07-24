@@ -378,10 +378,6 @@ func (c *ConfigLoader) InitDataLayer() (res *database.Layer, err error) {
 	inlineStoreTTL := time.Duration(inlineStoreTTLDays) * 24 * time.Hour
 
 	payloadStoreOpts := repov1.PayloadStoreRepositoryOpts{
-		EnablePayloadDualWrites:              scf.PayloadStore.EnablePayloadDualWrites,
-		EnableTaskEventPayloadDualWrites:     scf.PayloadStore.EnableTaskEventPayloadDualWrites,
-		EnableOLAPPayloadDualWrites:          scf.PayloadStore.EnableOLAPPayloadDualWrites,
-		EnableDagDataPayloadDualWrites:       scf.PayloadStore.EnableDagDataPayloadDualWrites,
 		ExternalCutoverProcessInterval:       scf.PayloadStore.ExternalCutoverProcessInterval,
 		ExternalCutoverBatchSize:             scf.PayloadStore.ExternalCutoverBatchSize,
 		ExternalCutoverNumConcurrentOffloads: scf.PayloadStore.ExternalCutoverNumConcurrentOffloads,
@@ -577,6 +573,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			Version:        version,
 			MQKind:         cf.MessageQueue.Kind,
 			OAuthProviders: oauthProviders,
+			AuthDisabled:   authmode.IsDisabled,
 		}, dc.V1.SecurityCheck())
 
 		securityCheckCtx, cancel := context.WithCancel(context.Background())
@@ -821,6 +818,7 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	schedulingPoolV1, cleanupSchedulingPoolV1, err := v1.NewSchedulingPool(
 		dc.V1.Scheduler(),
+		dc.V1.Tasks(),
 		concurrencyOutbox,
 		&queueLogger,
 		cf.Runtime.SingleQueueLimit,

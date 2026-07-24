@@ -1554,7 +1554,8 @@ type DAGWithData struct {
 
 type V1TaskWithPayload struct {
 	*sqlcv1.V1Task
-	Payload []byte `json:"payload"`
+	Runtime *sqlcv1.V1TaskRuntime `json:"runtime,omitempty"`
+	Payload []byte                `json:"payload"`
 }
 
 type V1TaskEventWithPayload struct {
@@ -1646,14 +1647,6 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 			input = []byte("{}")
 		}
 
-		// todo: remove this logic when we remove the need for dual writes
-		// in the meantime, basically just passes the dag data through this function
-		// back to the caller without writing it
-		inputToWrite := input
-		if !r.payloadStore.DagDataDualWritesEnabled() {
-			inputToWrite = []byte("{}")
-		}
-
 		additionalMeta := opt.AdditionalMetadata
 
 		if len(additionalMeta) == 0 {
@@ -1663,7 +1656,7 @@ func (r *sharedRepository) createDAGs(ctx context.Context, tx sqlcv1.DBTX, tenan
 		dagDataParams = append(dagDataParams, sqlcv1.CreateDAGDataParams{
 			DagID:              dag.ID,
 			DagInsertedAt:      dag.InsertedAt,
-			Input:              inputToWrite,
+			Input:              []byte("{}"),
 			AdditionalMetadata: additionalMeta,
 		})
 

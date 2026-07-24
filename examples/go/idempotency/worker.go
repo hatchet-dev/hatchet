@@ -30,3 +30,20 @@ func IdempotentTask(client *hatchet.Client) *hatchet.StandaloneTask {
 		}),
 	)
 }
+
+// > status-based-idempotency
+func IdempotentStatusBasedTask(client *hatchet.Client) *hatchet.StandaloneTask {
+	return client.NewStandaloneTask(
+		"idempotent-status-based-task",
+		func(ctx hatchet.Context, input IdempotencyInput) (*IdempotencyOutput, error) {
+			return &IdempotencyOutput{
+				Result: fmt.Sprintf("Hello, world from task %s", input.ID),
+			}, nil
+		},
+		hatchet.WithWorkflowIdempotency(hatchet.IdempotencyConfig{
+			Expression: "input.id",
+			Method:     hatchet.IdempotencyMethodStatus,
+			TTL:        10 * time.Second,
+		}),
+	)
+}

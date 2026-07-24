@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed heartbeat worker logging to ignore Node watch-mode worker reload messages that don’t match the heartbeat message protocol.
 
+## [1.28.0] - 2026-07-23
+
+### Changed
+
+- Adds beta `batchTask` methods to both tasks and workflows, allowing for dynamic batching based on either time or batch size.
+
+
+## [1.27.0] - 2026-07-22
+
+### Added
+
+- Adds support for terminal status-based idempotency keys, which are released when the task holding the key reaches a terminal state (either completed, cancelled, or having failed and exhausted all retries).
+
+
+## [1.26.2] - 2026-07-21
+
+### Added
+
+- Added a `retrier` config option to `ClientConfig` (and corresponding `HATCHET_CLIENT_RETRIER_MAX_ATTEMPTS`, `HATCHET_CLIENT_RETRIER_INITIAL_INTERVAL`, `HATCHET_CLIENT_RETRIER_MAX_JITTER` env vars) to control retry behavior for user-facing gRPC calls — event pushes and workflow triggers. Internal engine communications (action events, stream events, workflow registration) are unaffected and continue using hardcoded defaults.
+
 ## [1.26.1] - 2026-07-20
 
 ### Added
