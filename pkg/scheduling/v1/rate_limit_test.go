@@ -218,6 +218,72 @@ func TestRateLimiter_FlushToDatabase(t *testing.T) {
 	assert.Empty(t, rateLimiter.unflushed)
 }
 
+func TestRateLimiter_ShouldRefill(t *testing.T) {
+	l := zerolog.Nop()
+
+	t.Run("nil nextRefillAt returns false", func(t *testing.T) {
+		r := &rateLimiter{
+			dbRateLimits: make(rateLimitSet),
+			unacked:      make(map[int64]rateLimitSet),
+			unflushed:    make(rateLimitSet),
+			l:            &l,
+		}
+		assert.False(t, r.shouldRefill())
+	})
+
+	t.Run("future nextRefillAt returns false", func(t *testing.T) {
+		future := time.Now().Add(time.Hour)
+		r := &rateLimiter{
+			nextRefillAt: &future,
+			dbRateLimits: make(rateLimitSet),
+			unacked:      make(map[int64]rateLimitSet),
+			unflushed:    make(rateLimitSet),
+			l:            &l,
+		}
+		assert.False(t, r.shouldRefill())
+	})
+
+	t.Run("past nextRefillAt returns true", func(t *testing.T) {
+		past := time.Now().Add(-time.Hour)
+		r := &rateLimiter{
+			nextRefillAt: &past,
+			dbRateLimits: make(rateLimitSet),
+			unacked:      make(map[int64]rateLimitSet),
+			unflushed:    make(rateLimitSet),
+			l:            &l,
+		}
+		assert.True(t, r.shouldRefill())
+	})
+}
+
+func TestRateLimiter_UseRefreshesFromDbOnExpiredWindow(t *testing.T) {
+	l := zerolog.Nop()
+
+	mockRateLimitRepo := &mockRateLimitRepo{}
+	mockRows := []*sqlcv1.ListRateLimitsForTenantWithMutateRow{
+		{Key: "key1", Value: 10},
+	}
+	past := time.Now().Add(-time.Second)
+	mockRateLimitRepo.On("UpdateRateLimits", context.Background(), mock.Anything, mock.Anything).Return(mockRows, &past, nil)
+
+	rateLimiter := &rateLimiter{
+		dbRateLimits: rateLimitSet{
+			"key1": {key: "key1", val: 0, nextRefillAt: &past},
+		},
+		nextRefillAt:   &past,
+		unacked:        make(map[int64]rateLimitSet),
+		unflushed:      make(rateLimitSet),
+		l:              &l,
+		rateLimitRepo:  mockRateLimitRepo,
+	}
+
+	// use() detects the expired window via shouldRefill(), triggers flushToDatabase,
+	// and the refreshed limits (val: 10) should allow the request
+	res := rateLimiter.use(context.Background(), 1, map[string]int32{"key1": 5})
+	assert.True(t, res.succeeded)
+	mockRateLimitRepo.AssertExpectations(t)
+}
+
 func BenchmarkRateLimiter(b *testing.B) {
 	l := zerolog.Nop()
 

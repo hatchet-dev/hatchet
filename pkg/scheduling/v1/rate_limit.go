@@ -179,7 +179,7 @@ func (r *rateLimiter) shouldRefill() bool {
 		return false
 	}
 
-	return r.nextRefillAt.After(time.Now().UTC())
+	return !r.nextRefillAt.After(time.Now().UTC())
 }
 
 func (r *rateLimiter) copyDbRateLimits() rateLimitSet {
