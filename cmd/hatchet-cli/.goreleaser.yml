@@ -2,6 +2,10 @@ version: 2
 
 project_name: hatchet
 
+before:
+  hooks:
+    - bash ../../hack/build/embed-ui.sh
+
 builds:
   - id: hatchet
     main: ./main.go

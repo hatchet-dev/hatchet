@@ -13,6 +13,11 @@ export default {
   quickstarts: "Generating Quickstart Projects",
   "running-workers-locally": "Running Workers Locally",
   "triggering-workflows": "Triggering Workflows",
+  "--dashboard": {
+    title: "Dashboard",
+    type: "separator",
+  },
+  ui: "Serving the Dashboard UI",
   "--tui": {
     title: "TUI",
     type: "separator",

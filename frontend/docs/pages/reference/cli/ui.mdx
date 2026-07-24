@@ -1,0 +1,31 @@
+# Serving the Dashboard UI
+
+The Hatchet CLI can serve the Hatchet dashboard UI locally, pointed at an existing Hatchet deployment. The frontend assets are bundled into the CLI binary and served on your machine, while API requests are proxied to the deployment configured in your selected profile:
+
+```sh
+hatchet ui
+```
+
+This opens a browser to the locally served dashboard. It is especially useful for API-only or self-hosted deployments that don't serve a frontend of their own, letting you browse a deployment without actually deploying the dashboard separately.
+
+## Choosing a target
+
+By default, `hatchet ui` uses the API server of your default profile (or prompts you to select one). You can target a specific profile or an explicit API server:
+
+```sh
+# Serve the UI for a specific profile
+hatchet ui --profile production
+
+# Point the UI at an explicit API server, skipping profile resolution
+hatchet ui --api-url http://localhost:8080
+```
+
+## Flags
+
+| Flag        | Description                                                                |
+| ----------- | -------------------------------------------------------------------------- |
+| `--profile` | Profile whose API server the UI targets (defaults to the default profile). |
+| `--api-url` | API server URL to proxy to, overriding the profile's API server URL.       |
+| `--port`    | Port to serve the UI on (defaults to auto-detecting from `8080`).          |
+| `--host`    | Host interface to bind the UI server to (defaults to `localhost`).         |
+| `--no-open` | Do not automatically open a browser.                                       |

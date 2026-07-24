@@ -164,6 +164,15 @@ tasks:
   start-frontend:
     cmds:
       - bash ./hack/dev/start-frontend.sh
+  embed-cli-ui:
+    desc: Build the dashboard UI and embed it into the hatchet CLI binary assets.
+    cmds:
+      - bash ./hack/build/embed-ui.sh
+  build-cli:
+    desc: Build the hatchet CLI with the dashboard UI embedded.
+    deps: [embed-cli-ui]
+    cmds:
+      - go build -o bin/hatchet ./cmd/hatchet-cli
   write-e2e-env:
     cmds:
       - bash ./hack/ci/write-e2e-env.sh
