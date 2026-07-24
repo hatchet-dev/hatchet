@@ -18,20 +18,26 @@ import (
 // path allows 16MiB, so the NATS server must match.
 const requiredMaxPayload = 16 * 1024 * 1024
 
+// defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
+const defaultSubjectPrefix = "hatchet.pubsub"
+
 // PubSub implements msgqueue.PubSub over core NATS (no JetStream). Subjects are
-// "hatchet.pubsub." + topic.Name(); delivery is best-effort at-most-once.
+// subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"); delivery
+// is best-effort at-most-once.
 type PubSub struct {
-	nc *natsgo.Conn
-	l  *zerolog.Logger
+	nc            *natsgo.Conn
+	l             *zerolog.Logger
+	subjectPrefix string
 }
 
 type PubSubOpt func(*PubSubOpts)
 
 type PubSubOpts struct {
-	l        *zerolog.Logger
-	url      string
-	username string
-	password string
+	l             *zerolog.Logger
+	url           string
+	username      string
+	password      string
+	subjectPrefix string
 }
 
 func defaultPubSubOpts() *PubSubOpts {
@@ -64,6 +70,15 @@ func WithPubSubUsername(username string) PubSubOpt {
 func WithPubSubPassword(password string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.password = password
+	}
+}
+
+// WithPubSubSubjectPrefix sets the NATS subject prefix (default
+// "hatchet.pubsub"). Empty falls back to the default. No trimming or
+// validation: a bad prefix fails loudly via nats ErrBadSubject at startup.
+func WithPubSubSubjectPrefix(prefix string) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.subjectPrefix = prefix
 	}
 }
 
@@ -130,9 +145,15 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		)
 	}
 
+	prefix := opts.subjectPrefix
+	if prefix == "" {
+		prefix = defaultSubjectPrefix
+	}
+
 	p := &PubSub{
-		nc: nc,
-		l:  l,
+		nc:            nc,
+		l:             l,
+		subjectPrefix: prefix,
 	}
 
 	return func() error {
@@ -145,6 +166,10 @@ func (p *PubSub) IsReady() bool {
 	return p.nc.IsConnected()
 }
 
+func (p *PubSub) subject(topic msgqueue.Topic) string {
+	return p.subjectPrefix + "." + topic.Name()
+}
+
 // Pub publishes a message to the topic. Delivery is best-effort: if no
 // subscriber is listening, the message is dropped. No flush per message.
 // Oversized multi-payload messages are chunked like rabbitmq/pubsub.go.
@@ -153,7 +178,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
-	subject := "hatchet.pubsub." + topic.Name()
+	subject := p.subject(topic)
 
 	body, err := json.Marshal(msg)
 	if err != nil {
@@ -205,7 +230,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 // Sub subscribes to a topic with plain Subscribe (fan-out to every subscriber).
 // Delivery is at-most-once: handler errors are logged, never redelivered.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
-	subject := "hatchet.pubsub." + topic.Name()
+	subject := p.subject(topic)
 
 	sub, err := p.nc.Subscribe(subject, func(natsMsg *natsgo.Msg) {
 		msg := &msgqueue.Message{}

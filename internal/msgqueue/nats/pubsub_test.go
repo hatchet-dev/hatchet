@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,10 +20,11 @@ import (
 
 const testNATSURL = "nats://127.0.0.1:4222"
 
-func newTestPubSub(t *testing.T) *PubSub {
+func newTestPubSub(t *testing.T, opts ...PubSubOpt) *PubSub {
 	t.Helper()
 
-	cleanup, ps, err := NewPubSub(WithPubSubURL(testNATSURL))
+	opts = append([]PubSubOpt{WithPubSubURL(testNATSURL)}, opts...)
+	cleanup, ps, err := NewPubSub(opts...)
 	require.NoError(t, err)
 	require.NotNil(t, ps)
 
@@ -191,4 +193,50 @@ func TestPubSubCompressedRoundtrip(t *testing.T) {
 	assert.Equal(t, plain, got[0].Payloads[0], "payload should be transparently decompressed")
 
 	require.NoError(t, cleanupSub())
+}
+
+func TestPubSubCustomSubjectPrefix(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	prefix := "custom.prefix"
+	ps := newTestPubSub(t, WithPubSubSubjectPrefix(prefix))
+
+	tenantId := uuid.New()
+	topic := msgqueue.TenantTopic(tenantId)
+	expectedSubject := prefix + "." + topic.Name()
+
+	msg, err := msgqueue.NewTenantMessage(tenantId, "task-completed", true, false, map[string]interface{}{"key": "value"})
+	require.NoError(t, err)
+
+	receivedPS := make(chan *msgqueue.Message, 1)
+	cleanupSub, err := ps.Sub(topic, func(m *msgqueue.Message) error {
+		receivedPS <- m
+		return nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = cleanupSub() })
+
+	nc, err := natsgo.Connect(testNATSURL)
+	require.NoError(t, err)
+	t.Cleanup(nc.Close)
+
+	rawReceived := make(chan *natsgo.Msg, 1)
+	rawSub, err := nc.Subscribe(expectedSubject, func(m *natsgo.Msg) {
+		rawReceived <- m
+	})
+	require.NoError(t, err)
+	require.NoError(t, nc.Flush())
+	t.Cleanup(func() { _ = rawSub.Unsubscribe() })
+
+	require.NoError(t, ps.Pub(ctx, topic, msg))
+
+	got := receiveN(t, ctx, receivedPS, 1)
+	assert.Equal(t, msg.ID, got[0].ID)
+
+	select {
+	case <-rawReceived:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for raw NATS delivery on custom prefix subject")
+	}
 }
