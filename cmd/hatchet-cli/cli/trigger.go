@@ -334,9 +334,9 @@ func runManualInteractive(profile *profileconfig.Profile, hatchetClient client.C
 
 	// Fetch workflows
 	limit := 100
-response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
-    Limit: &limit,
-})
+	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+		Limit: &limit,
+	})
 	if err != nil {
 		cli.Logger.Fatalf("could not fetch workflows: %v", err)
 	}
@@ -414,9 +414,9 @@ func runManualNonInteractive(profile *profileconfig.Profile, hatchetClient clien
 
 	// Fetch workflows
 	limit := 100
-response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
-    Limit: &limit,
-})
+	response, err := hatchetClient.API().WorkflowListWithResponse(ctx, tenantUUID, &rest.WorkflowListParams{
+		Limit: &limit,
+	})
 	if err != nil {
 		cli.Logger.Fatalf("could not fetch workflows: %v", err)
 	}
