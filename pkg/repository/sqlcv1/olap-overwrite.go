@@ -1304,3 +1304,21 @@ func (q *Queries) CreateDAGsOLAP(ctx context.Context, db DBTX, arg CreateDAGsOLA
 	)
 	return err
 }
+
+type TaskEventParams struct {
+	TenantID               uuid.UUID
+	TaskID                 int64
+	TaskInsertedAt         pgtype.Timestamptz
+	EventType              V1EventTypeOlap 
+	WorkflowID             uuid.UUID
+	EventTimestamp         pgtype.Timestamptz
+	ReadableStatus         V1ReadableStatusOlap
+	RetryCount             int32
+	ErrorMessage           pgtype.Text
+	Output                 []byte
+	WorkerID               *uuid.UUID
+	AdditionalEventData    pgtype.Text
+	AdditionalEventMessage pgtype.Text
+	ExternalID             uuid.UUID
+	DurableInvocationCount int32
+}

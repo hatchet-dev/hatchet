@@ -296,7 +296,7 @@ type OLAPRepository interface {
 	ListWorkflowRunDisplayNames(ctx context.Context, tenantId uuid.UUID, externalIds []uuid.UUID) ([]*sqlcv1.ListWorkflowRunDisplayNamesRow, error)
 	ReadTaskRunMetrics(ctx context.Context, tenantId uuid.UUID, opts ReadTaskRunMetricsOpts) ([]TaskRunMetric, error)
 	CreateTasks(ctx context.Context, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
-	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
+	CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.TaskEventParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error)
 	CreateDAGs(ctx context.Context, tenantId uuid.UUID, dags []*DAGWithData) (map[uuid.UUID]struct{}, error)
 	GetTaskPointMetrics(ctx context.Context, tenantId uuid.UUID, startTimestamp *time.Time, endTimestamp *time.Time, bucketInterval time.Duration) ([]*sqlcv1.GetTaskPointMetricsRow, error)
 	UpdateTaskStatuses(ctx context.Context, tenantIds []uuid.UUID) (bool, []UpdateTaskStatusRow, error)
@@ -1735,18 +1735,18 @@ func (r *OLAPRepositoryImpl) ReadTaskRunMetrics(ctx context.Context, tenantId uu
 	return metrics, nil
 }
 
-func (r *OLAPRepositoryImpl) saveEventsToCache(events []sqlcv1.CreateTaskEventsOLAPParams) {
+func (r *OLAPRepositoryImpl) saveEventsToCache(events []sqlcv1.TaskEventParams) {
 	for _, event := range events {
 		key := getCacheKey(event)
 		r.eventCache.Add(key, true)
 	}
 }
 
-func getCacheKey(event sqlcv1.CreateTaskEventsOLAPParams) string {
+func getCacheKey(event sqlcv1.TaskEventParams) string {
 	return fmt.Sprintf("%d-%s-%d-%d", event.TaskID, event.EventType, event.RetryCount, event.DurableInvocationCount)
 }
 
-func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams) sqlcv1.UpdateTaskStatusesFromMQParams {
+func (r *OLAPRepositoryImpl) prepareStatusUpdateBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.TaskEventParams) sqlcv1.UpdateTaskStatusesFromMQParams {
 	type statusRetryCountWorkerIdTuple struct {
 		Status     sqlcv1.V1ReadableStatusOlap
 		RetryCount int32
@@ -1908,7 +1908,7 @@ func (r *OLAPRepositoryImpl) tryAcquireAdvisoryLocksForWorkflowRuns(ctx context.
 	return locksNotAcquired, nil
 }
 
-func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.TaskEventParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
 		return nil, nil, err
@@ -1926,8 +1926,8 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 		return nil, nil, err
 	}
 
-	eventsToWrite := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
-	eventsForStatusUpdate := make([]sqlcv1.CreateTaskEventsOLAPParams, 0, len(events))
+	eventsToWrite := make([]sqlcv1.TaskEventParams, 0)
+	eventsForStatusUpdate := make([]sqlcv1.TaskEventParams, 0, len(events))
 	payloadsToWrite := make([]StoreOLAPPayloadOpts, 0)
 
 	for _, event := range events {
@@ -1969,7 +1969,34 @@ func (r *OLAPRepositoryImpl) writeTaskEventBatch(ctx context.Context, tenantId u
 	}
 
 	if len(eventsToWrite) > 0 {
-		_, err = r.queries.CreateTaskEventsOLAP(ctx, tx, eventsToWrite)
+		
+		params := sqlcv1.CreateTaskEventsOLAPParams{}
+		for _, event := range eventsToWrite {
+			params.Tenantids = append(params.Tenantids, event.TenantID)
+			params.Taskids = append(params.Taskids, event.TaskID)
+			params.Taskinsertedats = append(params.Taskinsertedats, event.TaskInsertedAt)
+			params.Eventtypes = append(params.Eventtypes, event.EventType)
+			params.Workflowids = append(params.Workflowids, event.WorkflowID)
+			params.Eventtimestamps = append(params.Eventtimestamps, event.EventTimestamp)
+			params.Readablestatuses = append(params.Readablestatuses, event.ReadableStatus)
+			params.Retrycounts = append(params.Retrycounts, event.RetryCount)
+			params.Errormessages = append(params.Errormessages, event.ErrorMessage.String)
+			params.Outputs = append(params.Outputs, event.Output)
+            
+			if event.WorkerID != nil {
+				params.Workerids = append(params.Workerids, *event.WorkerID)
+			} else {
+				params.Workerids = append(params.Workerids, uuid.Nil)
+			}
+
+			params.Additionaleventdatas = append(params.Additionaleventdatas, event.AdditionalEventData.String)
+			params.Additionaleventmessages = append(params.Additionaleventmessages, event.AdditionalEventMessage.String)
+			params.Externalids = append(params.Externalids, event.ExternalID)
+			params.Durableinvocationcounts = append(params.Durableinvocationcounts, event.DurableInvocationCount)
+		}
+
+		err = r.queries.CreateTaskEventsOLAP(ctx, tx, params)
+
 		if err != nil {
 			return nil, nil, err
 		}
@@ -2475,7 +2502,7 @@ func (r *OLAPRepositoryImpl) writeDAGBatch(ctx context.Context, tenantId uuid.UU
 	return workflowRunIdsOfLocksNotAcquired, nil
 }
 
-func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.CreateTaskEventsOLAPParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
+func (r *OLAPRepositoryImpl) CreateTaskEvents(ctx context.Context, tenantId uuid.UUID, events []sqlcv1.TaskEventParams, eventExternalIdToWorkflowRunId map[uuid.UUID]uuid.UUID) (*StatusUpdateResult, map[uuid.UUID]struct{}, error) {
 	return r.writeTaskEventBatch(ctx, tenantId, events, eventExternalIdToWorkflowRunId)
 }
 

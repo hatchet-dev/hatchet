@@ -1031,7 +1031,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 	}
 
-	opts := make([]sqlcv1.CreateTaskEventsOLAPParams, 0)
+	opts := make([]sqlcv1.TaskEventParams, 0)
 
 	for i, taskId := range taskIds {
 		var workerId *uuid.UUID
@@ -1040,7 +1040,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 			workerId = &workerIds[i]
 		}
 
-		event := sqlcv1.CreateTaskEventsOLAPParams{
+		event := sqlcv1.TaskEventParams{
 			TenantID:               tenantId,
 			TaskID:                 taskId,
 			TaskInsertedAt:         taskInsertedAts[i],
@@ -1099,7 +1099,7 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 		}
 
 		var spanEventsForSuccessfullyLockedRuns []engineSpanEvent
-		var remainingOpts []sqlcv1.CreateTaskEventsOLAPParams
+		var remainingOpts []sqlcv1.TaskEventParams
 
 		justProcessed := make(map[uuid.UUID]bool)
 
@@ -1196,7 +1196,7 @@ func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId
 	return nil
 }
 
-func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, tenantId uuid.UUID, opts []sqlcv1.CreateTaskEventsOLAPParams, externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload) error {
+func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, tenantId uuid.UUID, opts []sqlcv1.TaskEventParams, externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload) error {
 	for _, opt := range opts {
 		payload, ok := externalIdToMsg[opt.ExternalID]
 		if !ok {

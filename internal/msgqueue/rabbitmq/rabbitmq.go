@@ -86,7 +86,7 @@ func defaultMessageQueueImplOpts() *MessageQueueImplOpts {
 		l:                         &l,
 		disableTenantExchangePubs: false,
 		deadLetterBackoff:         5 * time.Second,
-		enableMessageRejection:    false,
+		enableMessageRejection:    true,
 		maxDeathCount:             5,
 	}
 }

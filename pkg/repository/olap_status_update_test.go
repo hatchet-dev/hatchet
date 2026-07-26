@@ -143,8 +143,8 @@ func createReplayTask(t *testing.T, ctx context.Context, repo *OLAPRepositoryImp
 	require.Empty(t, locksNotAcquired)
 }
 
-func (f replayStatusFixture) event(eventType sqlcv1.V1EventTypeOlap, status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.CreateTaskEventsOLAPParams {
-	e := sqlcv1.CreateTaskEventsOLAPParams{
+func (f replayStatusFixture) event(eventType sqlcv1.V1EventTypeOlap, status sqlcv1.V1ReadableStatusOlap, retryCount int32) sqlcv1.TaskEventParams {
+	e := sqlcv1.TaskEventParams{
 		TenantID:       f.tenantId,
 		TaskID:         f.taskId,
 		TaskInsertedAt: f.insertedAt,
@@ -204,8 +204,8 @@ func assertOLAPRunStatus(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 // succeeds at retry 1, and is then replayed by the user (retry 2). Because
 // OLAP ingestion is asynchronous, the replay's completion events can arrive
 // in a batch before its queued/assigned events.
-func replayEventBatches(f replayStatusFixture) [3][]sqlcv1.CreateTaskEventsOLAPParams {
-	initialLifecycle := []sqlcv1.CreateTaskEventsOLAPParams{
+func replayEventBatches(f replayStatusFixture) [3][]sqlcv1.TaskEventParams {
+	initialLifecycle := []sqlcv1.TaskEventParams{
 		f.event(sqlcv1.V1EventTypeOlapQUEUED, sqlcv1.V1ReadableStatusOlapQUEUED, 0),
 		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
 		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 0),
@@ -216,19 +216,19 @@ func replayEventBatches(f replayStatusFixture) [3][]sqlcv1.CreateTaskEventsOLAPP
 		f.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 1),
 	}
 
-	replayCompletion := []sqlcv1.CreateTaskEventsOLAPParams{
+	replayCompletion := []sqlcv1.TaskEventParams{
 		f.event(sqlcv1.V1EventTypeOlapSENTTOWORKER, sqlcv1.V1ReadableStatusOlapRUNNING, 2),
 		f.event(sqlcv1.V1EventTypeOlapSTARTED, sqlcv1.V1ReadableStatusOlapRUNNING, 2),
 		f.event(sqlcv1.V1EventTypeOlapFINISHED, sqlcv1.V1ReadableStatusOlapCOMPLETED, 2),
 	}
 
-	replayQueueing := []sqlcv1.CreateTaskEventsOLAPParams{
+	replayQueueing := []sqlcv1.TaskEventParams{
 		f.event(sqlcv1.V1EventTypeOlapRETRIEDBYUSER, sqlcv1.V1ReadableStatusOlapQUEUED, 2),
 		f.event(sqlcv1.V1EventTypeOlapQUEUED, sqlcv1.V1ReadableStatusOlapQUEUED, 2),
 		f.event(sqlcv1.V1EventTypeOlapASSIGNED, sqlcv1.V1ReadableStatusOlapRUNNING, 2),
 	}
 
-	return [3][]sqlcv1.CreateTaskEventsOLAPParams{initialLifecycle, replayCompletion, replayQueueing}
+	return [3][]sqlcv1.TaskEventParams{initialLifecycle, replayCompletion, replayQueueing}
 }
 
 func runReplayStatusScenario(
@@ -236,7 +236,7 @@ func runReplayStatusScenario(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	f replayStatusFixture,
-	applyBatch func(t *testing.T, events []sqlcv1.CreateTaskEventsOLAPParams),
+	applyBatch func(t *testing.T, events []sqlcv1.TaskEventParams),
 ) {
 	batches := replayEventBatches(f)
 
@@ -278,7 +278,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 	t.Run("mq_path", func(t *testing.T) {
 		f := seedReplayTask(t, ctx, repo, 1)
 
-		applyBatch := func(t *testing.T, events []sqlcv1.CreateTaskEventsOLAPParams) {
+		applyBatch := func(t *testing.T, events []sqlcv1.TaskEventParams) {
 			t.Helper()
 
 			eventExternalIdToWorkflowRunId := map[uuid.UUID]uuid.UUID{f.externalId: f.externalId}
@@ -294,7 +294,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 	t.Run("tmp_table_path", func(t *testing.T) {
 		f := seedReplayTask(t, ctx, repo, 2)
 
-		applyBatch := func(t *testing.T, events []sqlcv1.CreateTaskEventsOLAPParams) {
+		applyBatch := func(t *testing.T, events []sqlcv1.TaskEventParams) {
 			t.Helper()
 
 			for _, e := range events {
@@ -329,7 +329,7 @@ func TestOLAPStatusUpdate_ReplayOfCompletedTask(t *testing.T) {
 		// Write the replay's events (retry 2) into the events table without
 		// going through a status-update path, mimicking events whose inline
 		// status update did not reach this row.
-		for _, batch := range [][]sqlcv1.CreateTaskEventsOLAPParams{batches[1], batches[2]} {
+		for _, batch := range [][]sqlcv1.TaskEventParams{batches[1], batches[2]} {
 			for _, e := range batch {
 				_, err := pool.Exec(ctx, `
 					INSERT INTO v1_task_events_olap (

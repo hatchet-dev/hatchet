@@ -155,7 +155,25 @@ WHERE
     END
 ;
 
--- name: CreateTaskEventsOLAP :copyfrom
+-- name: CreateTaskEventsOLAP :exec
+WITH inputs AS (
+    SELECT
+        UNNEST(@tenantIds::UUID[]) AS tenant_id,
+        UNNEST(@taskIds::BIGINT[]) AS task_id,
+        UNNEST(@taskInsertedAts::TIMESTAMPTZ[]) AS task_inserted_at,
+        UNNEST(@eventTypes::v1_task_event_type_olap[]) AS event_type,
+        UNNEST(@workflowIds::UUID[]) AS workflow_id,
+        UNNEST(@eventTimestamps::TIMESTAMPTZ[]) AS event_timestamp,
+        UNNEST(@readableStatuses::v1_readable_status_olap[]) AS readable_status,
+        UNNEST(@retryCounts::INTEGER[]) AS retry_count,
+        UNNEST(@errorMessages::TEXT[]) AS error_message,
+        UNNEST(@outputs::JSONB[]) AS output,
+        UNNEST(@workerIds::UUID[]) AS worker_id,
+        UNNEST(@additionalEventDatas::TEXT[]) AS additional__event_data,
+        UNNEST(@additionalEventMessages::TEXT[]) AS additional__event_message,
+        UNNEST(@externalIds::UUID[]) AS external_id,
+        UNNEST(@durableInvocationCounts::INTEGER[]) AS durable_invocation_count
+)
 INSERT INTO v1_task_events_olap (
     tenant_id,
     task_id,
@@ -172,23 +190,25 @@ INSERT INTO v1_task_events_olap (
     additional__event_message,
     external_id,
     durable_invocation_count
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9,
-    $10,
-    $11,
-    $12,
-    $13,
-    $14,
-    $15
-);
+)
+SELECT
+    tenant_id,
+    task_id,
+    task_inserted_at,
+    event_type,
+    workflow_id,
+    event_timestamp,
+    readable_status,
+    retry_count,
+    error_message,
+    output,
+    worker_id,
+    additional__event_data,
+    additional__event_message,
+    external_id,
+    durable_invocation_count
+FROM inputs
+ON CONFLICT (task_id, task_inserted_at, id) DO NOTHING;
 
 -- name: ReadTaskByExternalID :one
 WITH lookup_task AS (
