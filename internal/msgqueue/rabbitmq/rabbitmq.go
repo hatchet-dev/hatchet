@@ -29,6 +29,14 @@ const MAX_RETRY_COUNT = 15
 const RETRY_INTERVAL = 2 * time.Second
 const RETRY_RESET_INTERVAL = 30 * time.Second
 
+// maxPayloadSize is the maximum size of a single published AMQP message body;
+// larger messages are recursively split into payload chunks.
+const maxPayloadSize = 16 * 1024 * 1024 // 16 MB
+
+// consumerTimeout is the x-consumer-timeout applied to declared queues: the
+// broker requeues a delivery if it isn't acked within this window.
+const consumerTimeout = 5 * time.Minute
+
 // MessageQueueImpl implements MessageQueue interface using AMQP.
 type MessageQueueImpl struct {
 	ctx      context.Context
@@ -44,9 +52,8 @@ type MessageQueueImpl struct {
 
 	deadLetterBackoff time.Duration
 
-	compressor
+	compressor msgqueue.Compressor
 
-	maxPayloadSize         int
 	enableMessageRejection bool
 	maxDeathCount          int
 }
@@ -122,7 +129,7 @@ func WithGzipCompression(enabled bool, threshold int) MessageQueueImplOpt {
 		opts.compressionEnabled = enabled
 
 		if threshold <= 0 {
-			threshold = 5 * 1024 // default to 5KB
+			threshold = msgqueue.DefaultCompressionThreshold
 		}
 
 		opts.compressionThreshold = threshold
@@ -190,13 +197,12 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 		pubChannels:       pubChannelPool,
 		subChannels:       subChannelPool,
 		deadLetterBackoff: opts.deadLetterBackoff,
-		compressor: compressor{
-			compressionEnabled:   opts.compressionEnabled,
-			compressionThreshold: opts.compressionThreshold,
+		compressor: msgqueue.Compressor{
+			Enabled:   opts.compressionEnabled,
+			Threshold: opts.compressionThreshold,
 		},
 		enableMessageRejection: opts.enableMessageRejection,
 		maxDeathCount:          opts.maxDeathCount,
-		maxPayloadSize:         16 * 1024 * 1024, // 16 MB
 	}
 
 	// init the queues in a blocking fashion
@@ -280,7 +286,7 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	msg.SetOtelCarrier(otelCarrier)
 
-	var compressionResult *CompressionResult
+	var compressionResult *msgqueue.CompressionResult
 
 	// don't re-compress if the message was already compressed. We work on a
 	// shallow copy rather than mutating in place: callers may hand the same
@@ -288,17 +294,17 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 	// and compression is a rabbitmq wire concern
 	if len(msg.Payloads) > 0 && !msg.Compressed {
 		var err error
-		compressionResult, err = t.compressPayloads(msg.Payloads)
+		compressionResult, err = t.compressor.CompressPayloads(msg.Payloads)
 		if err != nil {
 			t.l.Error().Msgf("error compressing payloads: %v", err)
 			return fmt.Errorf("failed to compress payloads: %w", err)
 		}
 
 		if compressionResult.WasCompressed {
-			msgCp := *msg
+			msgCp := msg.Clone()
 			msgCp.Payloads = compressionResult.Payloads
 			msgCp.Compressed = true
-			msg = &msgCp
+			msg = msgCp
 
 			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
 				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
@@ -353,9 +359,9 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	bodySize := len(body)
 
-	if bodySize > t.maxPayloadSize {
+	if bodySize > maxPayloadSize {
 		if len(msg.Payloads) == 1 {
-			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, t.maxPayloadSize)
+			err := fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", bodySize, maxPayloadSize)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "message size exceeds maximum allowed size")
 			return err
@@ -378,16 +384,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 			// recursively call pubMessage with the chunked payloads
 			// if the payload chunks are still too large, this will continue to split them
 			// until they are under the max size.
-			err := t.pubMessage(ctx, q, &msgqueue.Message{
-				ID:                msg.ID,
-				Payloads:          chunk,
-				TenantID:          msg.TenantID,
-				ImmediatelyExpire: msg.ImmediatelyExpire,
-				Persistent:        msg.Persistent,
-				OtelCarrier:       msg.OtelCarrier,
-				Retries:           msg.Retries,
-				Compressed:        msg.Compressed,
-			})
+			msgCp := msg.Clone()
+			msgCp.Payloads = chunk
+
+			err := t.pubMessage(ctx, q, msgCp)
 
 			if err != nil {
 				return err
@@ -521,7 +521,7 @@ func (t *MessageQueueImpl) initQueue(ch *amqp.Channel, q msgqueue.Queue) (string
 	}
 
 	args := make(amqp.Table)
-	args["x-consumer-timeout"] = 300000 // 5 minutes
+	args["x-consumer-timeout"] = consumerTimeout.Milliseconds()
 	name := q.Name()
 
 	if !q.IsDLQ() && q.DLQ() != nil && q.DLQ().IsAutoDLQ() {

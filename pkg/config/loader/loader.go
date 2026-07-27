@@ -982,6 +982,7 @@ func createPubSubV1(dc *database.Layer, cf *server.ServerConfigFile, l *zerolog.
 		cleanupPg, pgps, err := pgmq.NewPubSub(
 			pubsubRepo,
 			pgmq.WithPubSubLogger(l),
+			pgmq.WithPubSubPool(pubsubPool),
 		)
 
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 
@@ -18,18 +19,15 @@ import (
 // fallbackPollBatchSize is the max number of >8KB fallback rows drained per poll.
 const fallbackPollBatchSize = 100
 
-// PubSub implements msgqueue.PubSub over Postgres LISTEN/NOTIFY. Topic names
-// match the legacy non-durable queue / NOTIFY names, and all traffic
-// multiplexes over the single "hatchet_listener" channel, so mixed-version
-// fleets interoperate.
-//
-// INVARIANT: the repo passed to NewPubSub must be built on a dedicated pool
-// from the direct (non-pgbouncer) database URL — never the shared repository
-// pool. Pub can be called from within durable-write paths, and LISTEN does not
-// survive transaction pooling.
+// PubSub implements msgqueue.PubSub in Postgres, using LISTEN/NOTIFY for
+// messages less than 8KB and the "MessageQueueItem" table for messages
+// greater than 8KB.
 type PubSub struct {
 	repo v1.MessageQueueRepository
 	l    *zerolog.Logger
+
+	// pool is the dedicated pool backing repo; used only for readiness checks
+	pool *pgxpool.Pool
 
 	// ttlCache dedupes queue-row upserts, which are needed so >8KB payloads can
 	// fall back to durable rows
@@ -39,7 +37,8 @@ type PubSub struct {
 type PubSubOpt func(*PubSubOpts)
 
 type PubSubOpts struct {
-	l *zerolog.Logger
+	l    *zerolog.Logger
+	pool *pgxpool.Pool
 }
 
 func defaultPubSubOpts() *PubSubOpts {
@@ -56,8 +55,21 @@ func WithPubSubLogger(l *zerolog.Logger) PubSubOpt {
 	}
 }
 
+// WithPubSubPool provides the pool backing the repository so IsReady can ping
+// the database; without it, IsReady always reports true.
+func WithPubSubPool(pool *pgxpool.Pool) PubSubOpt {
+	return func(opts *PubSubOpts) {
+		opts.pool = pool
+	}
+}
+
 // NewPubSub creates a new Postgres-backed PubSub over the given message queue
 // repository.
+//
+// The repo must be built on a dedicated pool from the direct (non-pgbouncer)
+// database URL — never the shared repository pool or the pgbouncer URL. Pub
+// can be called from within durable-write paths (so sharing pools is a
+// deadlock risk), and LISTEN does not survive transaction pooling.
 func NewPubSub(repo v1.MessageQueueRepository, fs ...PubSubOpt) (func() error, *PubSub, error) {
 	opts := defaultPubSubOpts()
 
@@ -70,6 +82,7 @@ func NewPubSub(repo v1.MessageQueueRepository, fs ...PubSubOpt) (func() error, *
 	p := &PubSub{
 		repo:     repo,
 		l:        opts.l,
+		pool:     opts.pool,
 		ttlCache: c,
 	}
 
@@ -79,8 +92,18 @@ func NewPubSub(repo v1.MessageQueueRepository, fs ...PubSubOpt) (func() error, *
 	}, p, nil
 }
 
+// IsReady reports whether the database backing the pub/sub is reachable. Note
+// that this is informational: it is deliberately not wired into the health
+// probes, since a degraded pub/sub shouldn't fail liveness or readiness.
 func (p *PubSub) IsReady() bool {
-	return true
+	if p.pool == nil {
+		return true
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	return p.pool.Ping(ctx) == nil
 }
 
 // Pub publishes a message to the topic via NOTIFY. Payloads whose wrapped

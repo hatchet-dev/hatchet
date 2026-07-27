@@ -24,10 +24,6 @@ type Health struct {
 	l          *zerolog.Logger
 }
 
-// New creates a health service over the durable message queue and repository.
-// The best-effort PubSub is deliberately NOT part of the probes: a disconnected
-// pub/sub degrades stream notifications but the pod can still serve traffic,
-// and restarting it on a broker disconnect would make things worse.
 func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,

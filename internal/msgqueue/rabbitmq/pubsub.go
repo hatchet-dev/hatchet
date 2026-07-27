@@ -37,9 +37,7 @@ type PubSub struct {
 	// lru cache of tenant exchanges we've already declared
 	exchangeCache *lru.Cache[string, bool]
 
-	compressor
-
-	maxPayloadSize int
+	compressor msgqueue.Compressor
 }
 
 type PubSubOpt func(*PubSubOpts)
@@ -99,7 +97,7 @@ func WithPubSubGzip(enabled bool, threshold int) PubSubOpt {
 		opts.compressionEnabled = enabled
 
 		if threshold <= 0 {
-			threshold = 5 * 1024 // default to 5KB
+			threshold = msgqueue.DefaultCompressionThreshold
 		}
 
 		opts.compressionThreshold = threshold
@@ -141,11 +139,10 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		l:           opts.l,
 		pubChannels: pubChannelPool,
 		subChannels: subChannelPool,
-		compressor: compressor{
-			compressionEnabled:   opts.compressionEnabled,
-			compressionThreshold: opts.compressionThreshold,
+		compressor: msgqueue.Compressor{
+			Enabled:   opts.compressionEnabled,
+			Threshold: opts.compressionThreshold,
 		},
-		maxPayloadSize: 16 * 1024 * 1024, // 16 MB
 	}
 
 	p.exchangeCache, _ = lru.New[string, bool](2000) //nolint:errcheck // this only returns an error if the size is less than 0
@@ -171,7 +168,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	// on a shallow copy: callers dual-publish the same *Message they hand to
 	// the durable queue, which may not have serialized it yet.
 	if len(msg.Payloads) > 0 && !msg.Compressed {
-		compressionResult, err := p.compressPayloads(msg.Payloads)
+		compressionResult, err := p.compressor.CompressPayloads(msg.Payloads)
 
 		if err != nil {
 			p.l.Error().Msgf("error compressing payloads: %v", err)
@@ -179,10 +176,10 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		}
 
 		if compressionResult.WasCompressed {
-			msgCp := *msg
+			msgCp := msg.Clone()
 			msgCp.Payloads = compressionResult.Payloads
 			msgCp.Compressed = true
-			msg = &msgCp
+			msg = msgCp
 		}
 	}
 
@@ -223,9 +220,9 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
-	if len(body) > p.maxPayloadSize {
+	if len(body) > maxPayloadSize {
 		if len(msg.Payloads) == 1 {
-			return fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", len(body), p.maxPayloadSize)
+			return fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", len(body), maxPayloadSize)
 		}
 
 		// split the payloads in half and publish recursively until each chunk is
@@ -233,16 +230,10 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		payloadsPerChunk := max(len(msg.Payloads)/2, 1)
 
 		for chunk := range slices.Chunk(msg.Payloads, payloadsPerChunk) {
-			err := p.Pub(ctx, topic, &msgqueue.Message{
-				ID:                msg.ID,
-				Payloads:          chunk,
-				TenantID:          msg.TenantID,
-				ImmediatelyExpire: msg.ImmediatelyExpire,
-				Persistent:        msg.Persistent,
-				OtelCarrier:       msg.OtelCarrier,
-				Retries:           msg.Retries, // nolint: staticcheck
-				Compressed:        msg.Compressed,
-			})
+			msgCp := msg.Clone()
+			msgCp.Payloads = chunk
+
+			err := p.Pub(ctx, topic, msgCp)
 
 			if err != nil {
 				return err
@@ -421,7 +412,7 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 // the default exchange.
 func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string, error) {
 	args := make(amqp.Table)
-	args["x-consumer-timeout"] = 300000 // 5 minutes
+	args["x-consumer-timeout"] = consumerTimeout.Milliseconds()
 
 	name := topic.Name()
 

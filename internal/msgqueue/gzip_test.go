@@ -1,4 +1,4 @@
-package rabbitmq
+package msgqueue
 
 import (
 	"bytes"
@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 func generatePayloads(count, size int) [][]byte {
@@ -27,23 +25,23 @@ func generatePayloads(count, size int) [][]byte {
 	return payloads
 }
 
-func newMQ() compressor {
-	return compressor{
-		compressionEnabled:   true,
-		compressionThreshold: 0,
+func newCompressor() Compressor {
+	return Compressor{
+		Enabled:   true,
+		Threshold: 0,
 	}
 }
 
 func TestCompressDecompressRoundtrip(t *testing.T) {
-	mq := newMQ()
+	mq := newCompressor()
 	payloads := generatePayloads(5, 10*1024)
-	result, err := mq.compressPayloads(payloads)
+	result, err := mq.CompressPayloads(payloads)
 
 	assert.NoError(t, err)
 	assert.True(t, result.WasCompressed, "expected WasCompressed to be true")
 	assert.Equal(t, len(payloads), len(result.Payloads), "expected %d payloads, got %d", len(payloads), len(result.Payloads))
 
-	decompressed, err := msgqueue.DecompressPayloads(result.Payloads)
+	decompressed, err := DecompressPayloads(result.Payloads)
 
 	assert.NoError(t, err)
 
@@ -54,69 +52,69 @@ func TestCompressDecompressRoundtrip(t *testing.T) {
 }
 
 func TestCompressPayloadsDisabled(t *testing.T) {
-	mq := compressor{
-		compressionEnabled:   false,
-		compressionThreshold: 0,
+	mq := Compressor{
+		Enabled:   false,
+		Threshold: 0,
 	}
 
 	payloads := generatePayloads(3, 1024)
-	result, err := mq.compressPayloads(payloads)
+	result, err := mq.CompressPayloads(payloads)
 
 	assert.NoError(t, err)
 	assert.False(t, result.WasCompressed, "expected WasCompressed to be false when compression is disabled")
 }
 
 func TestCompressPayloadsBelowThreshold(t *testing.T) {
-	mq := compressor{
-		compressionEnabled:   true,
-		compressionThreshold: 100 * 1024,
+	mq := Compressor{
+		Enabled:   true,
+		Threshold: 100 * 1024,
 	}
 
 	payloads := generatePayloads(1, 1024)
-	result, err := mq.compressPayloads(payloads)
+	result, err := mq.CompressPayloads(payloads)
 
 	assert.NoError(t, err)
 	assert.False(t, result.WasCompressed, "expected WasCompressed to be false when below threshold")
 }
 
 func BenchmarkCompressPayloads_1x10KiB(b *testing.B) {
-	mq := newMQ()
+	mq := newCompressor()
 	payloads := generatePayloads(1, 10*1024)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = mq.compressPayloads(payloads)
+		_, _ = mq.CompressPayloads(payloads)
 	}
 }
 
 func BenchmarkCompressPayloads_10x10KiB(b *testing.B) {
-	mq := newMQ()
+	mq := newCompressor()
 	payloads := generatePayloads(10, 10*1024)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = mq.compressPayloads(payloads)
+		_, _ = mq.CompressPayloads(payloads)
 	}
 }
 
 func BenchmarkCompressPayloads_10x100KiB(b *testing.B) {
-	mq := newMQ()
+	mq := newCompressor()
 	payloads := generatePayloads(10, 100*1024)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, _ = mq.compressPayloads(payloads)
+		_, _ = mq.CompressPayloads(payloads)
 	}
 }
 
 func BenchmarkCompressPayloads_Concurrent(b *testing.B) {
-	mq := newMQ()
+	mq := newCompressor()
 	payloads := generatePayloads(5, 10*1024)
 	b.ResetTimer()
 	b.ReportAllocs()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = mq.compressPayloads(payloads)
+			_, _ = mq.CompressPayloads(payloads)
 		}
 	})
 }
