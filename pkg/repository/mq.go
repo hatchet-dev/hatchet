@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
@@ -24,7 +24,7 @@ type PubSubMessage struct {
 type MessageQueueRepository interface {
 	// PubSub
 	Listen(ctx context.Context, name string, f func(ctx context.Context, notification *PubSubMessage) error) error
-	Notify(ctx context.Context, name string, payload string) error
+	Notify(ctx context.Context, name string, payload string, durable, autoDeleted, exclusive bool) error
 
 	// Queues
 	BindQueue(ctx context.Context, queue string, durable, autoDeleted, exclusive bool, exclusiveConsumer *string) error
@@ -33,6 +33,7 @@ type MessageQueueRepository interface {
 
 	// Messages
 	AddMessage(ctx context.Context, queue string, payload []byte) error
+	AddMessageEnsuringQueue(ctx context.Context, queue string, payload []byte, durable, autoDeleted, exclusive bool) error
 	ReadMessages(ctx context.Context, queue string, qos int) ([]*sqlcv1.ReadMessagesRow, error)
 	AckMessage(ctx context.Context, id int64) error
 	CleanupMessageQueueItems(ctx context.Context) error
@@ -60,7 +61,7 @@ func (m *messageQueueRepository) Listen(ctx context.Context, name string, f func
 	return m.m.listen(ctx, name, f)
 }
 
-func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string) error {
+func (m *messageQueueRepository) Notify(ctx context.Context, name string, payload string, durable, autoDeleted, exclusive bool) error {
 	wrappedPayload, err := m.m.wrapMessage(name, payload)
 	if err != nil {
 		m.l.Error().Ctx(ctx).Err(err).Msg("error wrapping message")
@@ -70,6 +71,16 @@ func (m *messageQueueRepository) Notify(ctx context.Context, name string, payloa
 	// PostgreSQL's pg_notify has an 8000 byte limit
 	// If the wrapped message exceeds this, fall back to database storage
 	if len(wrappedPayload) > 8000 {
+		// An auto-deleted queue can be reaped by CleanupMessageQueue in the window
+		// between the producer's 15s existence-cache hit and this insert, so route
+		// through the self-healing path. This covers EXCLUSIVE auto-deleted queues
+		// too — the dispatcher queue (expirable ⇒ autoDeleted, exclusive) and
+		// controller consumer queues — which the reaper deletes regardless of
+		// exclusivity.
+		if autoDeleted {
+			return m.AddMessageEnsuringQueue(ctx, name, []byte(payload), durable, autoDeleted, exclusive)
+		}
+
 		return m.AddMessage(ctx, name, []byte(payload))
 	}
 
@@ -77,21 +88,50 @@ func (m *messageQueueRepository) Notify(ctx context.Context, name string, payloa
 }
 
 func (m *messageQueueRepository) AddMessage(ctx context.Context, queue string, payload []byte) error {
-	p := []sqlcv1.BulkAddMessageParams{}
-
-	p = append(p, sqlcv1.BulkAddMessageParams{
-		QueueId: pgtype.Text{
-			String: queue,
-			Valid:  true,
-		},
-		Payload:   payload,
-		ExpiresAt: sqlchelpers.TimestampFromTime(time.Now().UTC().Add(5 * time.Minute)),
-		ReadAfter: sqlchelpers.TimestampFromTime(time.Now().UTC()),
+	return m.queries.AddMessage(ctx, m.pool, sqlcv1.AddMessageParams{
+		Queueid: queue,
+		Payload: payload,
 	})
+}
 
-	_, err := m.queries.BulkAddMessage(ctx, m.pool, p)
+func (m *messageQueueRepository) AddMessageEnsuringQueue(ctx context.Context, queue string, payload []byte, durable, autoDeleted, exclusive bool) error {
+	// The plain insert's FK check takes only a KEY SHARE lock on the parent
+	// MessageQueue row, so concurrent publishers to the same queue do not
+	// serialize on it (an unconditional ON CONFLICT DO UPDATE here takes a
+	// row-exclusive tuple lock per publish, convoying every publisher on one
+	// row). It fails with a foreign-key violation exactly when the parent has
+	// been reaped, which is the only case that needs the self-heal.
+	err := m.AddMessage(ctx, queue, payload)
 
-	return err
+	if err == nil || !autoDeleted || !isForeignKeyViolation(err) {
+		return err
+	}
+
+	// The parent queue was reaped by CleanupMessageQueue (auto-deleted queues
+	// are reap-eligible after 1h idle). Healing is expected at most once per
+	// queue per reap: the producer's queue-bind cache expires every 15s and
+	// each re-bind refreshes lastActive, so an actively-published queue can
+	// never accrue the 1h of staleness the reaper requires (15s ≪ 1h). A
+	// sustained heal rate therefore means something else is deleting
+	// MessageQueue rows out-of-band.
+	m.l.Warn().Ctx(ctx).Str("queue", queue).Msg("parent queue row missing on publish; self-healing by recreating it")
+
+	// Recreate the queue and insert the item in a single atomic statement.
+	// The upsert sets lastActive = NOW(), so the healed queue is not
+	// reap-eligible for another hour and subsequent publishes take the plain
+	// insert above.
+	return m.queries.AddMessageEnsuringQueue(ctx, m.pool, sqlcv1.AddMessageEnsuringQueueParams{
+		Queueid:     queue,
+		Payload:     payload,
+		Durable:     durable,
+		Autodeleted: autoDeleted,
+		Exclusive:   exclusive,
+	})
+}
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation
 }
 
 func (m *messageQueueRepository) BindQueue(ctx context.Context, queue string, durable, autoDeleted, exclusive bool, exclusiveConsumer *string) error {

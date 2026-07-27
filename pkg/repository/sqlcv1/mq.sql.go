@@ -39,6 +39,60 @@ func (q *Queries) AddMessage(ctx context.Context, db DBTX, arg AddMessageParams)
 	return err
 }
 
+const addMessageEnsuringQueue = `-- name: AddMessageEnsuringQueue :exec
+WITH ensure_queue AS (
+    INSERT INTO "MessageQueue" (
+        "name",
+        "lastActive",
+        "durable",
+        "autoDeleted",
+        "exclusive"
+    )
+    VALUES (
+        $2::text,
+        NOW(),
+        $3::boolean,
+        $4::boolean,
+        $5::boolean
+    )
+    ON CONFLICT ("name") DO UPDATE
+    SET "lastActive" = NOW()
+    RETURNING "name"
+)
+INSERT INTO
+    "MessageQueueItem" (
+        "payload",
+        "queueId",
+        "readAfter",
+        "expiresAt"
+    )
+SELECT
+    $1::jsonb,
+    "name",
+    NOW(),
+    NOW() + INTERVAL '5 minutes'
+FROM ensure_queue
+`
+
+type AddMessageEnsuringQueueParams struct {
+	Payload     []byte `json:"payload"`
+	Queueid     string `json:"queueid"`
+	Durable     bool   `json:"durable"`
+	Autodeleted bool   `json:"autodeleted"`
+	Exclusive   bool   `json:"exclusive"`
+}
+
+func (q *Queries) AddMessageEnsuringQueue(ctx context.Context, db DBTX, arg AddMessageEnsuringQueueParams) error {
+	_, err := db.Exec(ctx, addMessageEnsuringQueue,
+		arg.Payload,
+		arg.Queueid,
+		arg.Durable,
+		arg.Autodeleted,
+		arg.Exclusive,
+	)
+	return err
+}
+
 const bulkAckMessages = `-- name: BulkAckMessages :exec
 DELETE FROM
     "MessageQueueItem"
@@ -227,7 +281,8 @@ SET
     "durable" = $2::boolean,
     "autoDeleted" = $3::boolean,
     "exclusive" = $4::boolean,
-    "exclusiveConsumerId" = CASE WHEN $5::uuid IS NOT NULL THEN $5::uuid ELSE NULL END
+    "exclusiveConsumerId" = CASE WHEN $5::uuid IS NOT NULL THEN $5::uuid ELSE NULL END,
+    "lastActive" = NOW()
 RETURNING name, "lastActive", durable, "autoDeleted", exclusive, "exclusiveConsumerId"
 `
 
