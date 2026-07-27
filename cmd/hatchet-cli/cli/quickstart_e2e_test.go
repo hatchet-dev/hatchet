@@ -43,6 +43,13 @@ var templateTests = []templateTestCase{
 	{"simple", "go", "go", "simple"},
 
 	// Use cases
+	{"scheduled", "python", "poetry", "manual-run"},
+	{"scheduled", "python", "uv", "manual-run"},
+	{"scheduled", "python", "pip", "manual-run"},
+	{"scheduled", "typescript", "npm", "manual-run"},
+	{"scheduled", "typescript", "pnpm", "manual-run"},
+	{"scheduled", "typescript", "yarn", "manual-run"},
+	{"scheduled", "typescript", "bun", "manual-run"},
 	{"scheduled", "go", "go", "manual-run"},
 }
 
@@ -232,11 +239,16 @@ func verifyProjectStructure(t *testing.T, projectDir string, tt templateTestCase
 	// Language-specific files
 	switch tt.language {
 	case "python":
+		pythonWorkflowFile := "src/workflows/first_workflow.py"
+		if tt.useCase == "scheduled" {
+			pythonWorkflowFile = "src/workflows/scheduled_workflow.py"
+		}
+
 		pythonFiles := []string{
 			"src/hatchet_client.py",
 			"src/run.py",
 			"src/worker.py",
-			"src/workflows/first_workflow.py",
+			pythonWorkflowFile,
 		}
 		for _, file := range pythonFiles {
 			path := filepath.Join(projectDir, file)
@@ -262,11 +274,16 @@ func verifyProjectStructure(t *testing.T, projectDir string, tt templateTestCase
 		}
 
 	case "typescript":
+		tsWorkflowFile := "src/workflows/first-workflow.ts"
+		if tt.useCase == "scheduled" {
+			tsWorkflowFile = "src/workflows/scheduled-workflow.ts"
+		}
+
 		tsFiles := []string{
 			"src/hatchet-client.ts",
 			"src/run.ts",
 			"src/worker.ts",
-			"src/workflows/first-workflow.ts",
+			tsWorkflowFile,
 			"tsconfig.json",
 			"package.json",
 		}

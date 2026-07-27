@@ -172,12 +172,6 @@ export function LearnWorkflowSection({
               </RadioGroupCardItem>
             ))}
           </RadioGroup>
-          {useCase === availableUseCases.scheduled.value && (
-            <p className="text-xs text-muted-foreground">
-              The scheduled template is currently Go only, so the language is
-              set to Go.
-            </p>
-          )}
           <Button
             variant="outline"
             size="default"

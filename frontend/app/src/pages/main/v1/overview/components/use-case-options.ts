@@ -26,7 +26,11 @@ export const availableUseCases = {
     label: 'Scheduled CRON job',
     description:
       'A workflow on a cron schedule that can also be run on demand.',
-    languages: [workflowLanguageOptions.go.value],
+    languages: [
+      workflowLanguageOptions.python.value,
+      workflowLanguageOptions.typescript.value,
+      workflowLanguageOptions.go.value,
+    ],
     trigger: 'manual-run',
   },
 } as const;

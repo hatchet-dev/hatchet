@@ -83,17 +83,6 @@ test('an unknown stored language resets the selection', () => {
   assert.equal(state.hidden, true);
 });
 
-test('a stored language the use case does not support resets the selection', () => {
-  const state = normalizeOnboardingState(
-    storedState({ useCase: 'scheduled', language: 'python' }),
-  );
-
-  assert.equal(state.useCase, 'scheduled');
-  assert.equal(state.language, 'go');
-  assert.equal(state.tab, 'chooseUseCase');
-  assert.equal(state.selectionConfirmedAt, null);
-});
-
 test('an unknown tab falls back to Choose use case', () => {
   const state = normalizeOnboardingState(
     storedState({ tab: 'removedTab' as never }),
@@ -130,11 +119,11 @@ test('completion is never part of the persisted state', () => {
   ]);
 });
 
-test('changing use case clears the confirmation timestamp and resolves the language', () => {
+test('changing use case clears the confirmation timestamp and preserves the language', () => {
   const next = applyUseCaseChange(storedState(), 'scheduled');
 
   assert.equal(next.useCase, 'scheduled');
-  assert.equal(next.language, 'go');
+  assert.equal(next.language, 'python');
   assert.equal(next.selectionConfirmedAt, null);
   // The user is re-choosing, so the current tab stays where it is.
   assert.equal(next.tab, 'runTask');
@@ -153,14 +142,10 @@ test('changing language clears the confirmation timestamp', () => {
   assert.equal(next.selectionConfirmedAt, null);
 });
 
-test('a language selection that resolves to the current language changes nothing', () => {
+test('re-selecting the current language changes nothing', () => {
   const state = storedState();
-  assert.equal(applyLanguageChange(state, 'python'), state);
 
-  // Unsupported languages resolve to the use case's only language, so a
-  // scheduled selection keeps its timestamp when the resolution is a no-op.
-  const scheduled = storedState({ useCase: 'scheduled', language: 'go' });
-  assert.equal(applyLanguageChange(scheduled, 'typescript'), scheduled);
+  assert.equal(applyLanguageChange(state, 'python'), state);
 });
 
 test('leaving Choose use case records the confirmation timestamp when none exists', () => {

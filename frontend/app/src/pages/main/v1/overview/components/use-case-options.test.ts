@@ -22,14 +22,15 @@ test('scaffoldCommand derives the CLI command from the selection', () => {
     'hatchet quickstart --use-case simple --language go',
   );
   assert.equal(
-    scaffoldCommand({ useCase: 'scheduled', language: 'go' }),
-    'hatchet quickstart --use-case scheduled --language go',
-  );
-});
-
-test('scaffoldCommand resolves an unsupported language to a supported one', () => {
-  assert.equal(
     scaffoldCommand({ useCase: 'scheduled', language: 'python' }),
+    'hatchet quickstart --use-case scheduled --language python',
+  );
+  assert.equal(
+    scaffoldCommand({ useCase: 'scheduled', language: 'typescript' }),
+    'hatchet quickstart --use-case scheduled --language typescript',
+  );
+  assert.equal(
+    scaffoldCommand({ useCase: 'scheduled', language: 'go' }),
     'hatchet quickstart --use-case scheduled --language go',
   );
 });
@@ -40,15 +41,12 @@ test('triggerCommand uses the trigger name registered by each template', () => {
 });
 
 test('language compatibility matches the published templates', () => {
-  assert.equal(isLanguageSupported('simple', 'python'), true);
-  assert.equal(isLanguageSupported('simple', 'typescript'), true);
-  assert.equal(isLanguageSupported('simple', 'go'), true);
-  assert.equal(isLanguageSupported('scheduled', 'go'), true);
-  assert.equal(isLanguageSupported('scheduled', 'python'), false);
-  assert.equal(isLanguageSupported('scheduled', 'typescript'), false);
-
-  assert.equal(resolveLanguage('simple', 'typescript'), 'typescript');
-  assert.equal(resolveLanguage('scheduled', 'typescript'), 'go');
+  for (const useCase of ['simple', 'scheduled'] as const) {
+    assert.equal(isLanguageSupported(useCase, 'python'), true);
+    assert.equal(isLanguageSupported(useCase, 'typescript'), true);
+    assert.equal(isLanguageSupported(useCase, 'go'), true);
+    assert.equal(resolveLanguage(useCase, 'typescript'), 'typescript');
+  }
 });
 
 test('only the shippable use cases are selectable', () => {
