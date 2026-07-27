@@ -28,6 +28,7 @@ export const ATTR = {
   WORKFLOW_NAME: 'hatchet.workflow_name',
   WORKFLOW_RUN_ID: 'hatchet.workflow_run_id',
   TASK_NAME: 'hatchet.task_name',
+  RETRY_COUNT: 'hatchet.retry_count',
   INSTRUMENTOR: 'instrumentor',
   EVENT_KEY: 'hatchet.event_key',
   EVENT_ID: 'hatchet.event_id',

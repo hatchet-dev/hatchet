@@ -39,6 +39,7 @@ export default {
   concurrency: "Concurrency",
   "rate-limits": "Rate Limits",
   priority: "Priority",
+  idempotency: "Idempotency",
   "--durable-workflows-section": {
     title: "Durable Execution",
     type: "separator",
@@ -102,9 +103,6 @@ export default {
     type: "separator",
   },
   faq: "Frequently Asked Questions",
-  _setup: {
-    display: "hidden",
-  },
   compute: {
     title: "Managed Compute",
     type: "page",

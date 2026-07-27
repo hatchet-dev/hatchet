@@ -38,12 +38,15 @@ def step1(input: WorkflowInput, ctx: Context) -> dict[str, Any]:
     return {"run": input.run}
 
 
+# > Slots
 def main() -> None:
     worker = hatchet.worker(
         "concurrency-demo-worker", slots=10, workflows=[concurrency_limit_workflow]
     )
 
     worker.start()
+
+
 
 
 if __name__ == "__main__":

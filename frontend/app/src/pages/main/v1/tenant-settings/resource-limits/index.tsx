@@ -12,7 +12,7 @@ export default function ResourceLimits() {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="Resource limit settings"
+          title="Resource Limits"
           description="Review the resource limits currently applied to this tenant."
         />
 

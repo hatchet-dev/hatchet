@@ -129,6 +129,10 @@ class TenacityConfig(BaseSettings):
         default=False,
         description="Enable retries for HTTP 429 Too Many Requests responses. Default: off.",
     )
+    retry_not_found: bool = Field(
+        default=False,
+        description="Enable retries for NOT_FOUND gRPC responses. For resources that may not yet exist due to async creation. Default: off.",
+    )
     retry_transport_errors: bool = Field(
         default=False,
         description="Enable retries for REST transport errors (timeout, connection, TLS). Default: off.",
@@ -179,7 +183,6 @@ class ClientConfig(BaseSettings):
     terminate_worker_after_num_tasks: int | None = None
     disable_log_capture: bool = False
     log_queue_size: int = 1000
-    grpc_enable_fork_support: bool = False
     force_shutdown_on_shutdown_signal: bool = False
     tenacity: TenacityConfig = TenacityConfig()
 

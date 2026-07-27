@@ -8,17 +8,16 @@ import tenacity
 from google.protobuf.timestamp_pb2 import Timestamp
 
 from hatchet_sdk.clients.dispatcher.action_listener import ActionListener
-from hatchet_sdk.clients.rest.tenacity_utils import (
-    tenacity_retry,
-    tenacity_should_retry,
-)
-from hatchet_sdk.config import ClientConfig, TenacityConfig, tenacity_before_sleep
+from hatchet_sdk.clients.rest.tenacity_utils import tenacity_should_retry
+from hatchet_sdk.config import ClientConfig, tenacity_before_sleep
 from hatchet_sdk.connection import new_conn
 from hatchet_sdk.contracts.dispatcher_pb2 import (
     SDKS,
     STEP_EVENT_TYPE_COMPLETED,
     STEP_EVENT_TYPE_FAILED,
     ActionEventResponse,
+    BatchActionEvent,
+    BatchActionEventItem,
     GetVersionRequest,
     GetVersionResponse,
     OverridesData,
@@ -34,7 +33,7 @@ from hatchet_sdk.contracts.dispatcher_pb2 import (
 )
 from hatchet_sdk.contracts.dispatcher_pb2_grpc import DispatcherStub
 from hatchet_sdk.logger import logger
-from hatchet_sdk.runnables.action import Action
+from hatchet_sdk.runnables.action import Action, BatchEventItem
 from hatchet_sdk.types.labels import WorkerLabel
 from hatchet_sdk.utils.api_auth import create_authorization_header
 
@@ -49,6 +48,7 @@ class DispatcherClient:
         ## IMPORTANT: This needs to be created lazily so we don't require
         ## an event loop to instantiate the client.
         self.aio_client: DispatcherStub | None = None
+        self.aio_channel: grpc.aio.Channel | None = None
         self.client: DispatcherStub | None = None
 
     def _get_or_create_client(self) -> DispatcherStub:
@@ -58,6 +58,13 @@ class DispatcherClient:
 
         return self.client
 
+    def _get_or_create_aio_client(self) -> DispatcherStub:
+        if self.aio_client is None:
+            self.aio_channel = new_conn(self.config, True)
+            self.aio_client = DispatcherStub(self.aio_channel)
+
+        return self.aio_client
+
     async def get_action_listener(
         self,
         worker_name: str,
@@ -66,9 +73,7 @@ class DispatcherClient:
         slot_config: dict[str, int],
         labels: list[WorkerLabel],
     ) -> ActionListener:
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+        aio_client = self._get_or_create_aio_client()
 
         proto_labels: dict[str, WorkerLabels] = {
             label.key: label.to_proto() for label in labels if label.key is not None
@@ -79,7 +84,7 @@ class DispatcherClient:
         response = cast(
             WorkerRegisterResponse,
             # fixme: figure out how to get typing right here
-            await self.aio_client.Register(  # type: ignore[misc]
+            await aio_client.Register(
                 WorkerRegisterRequest(
                     worker_name=worker_name,
                     actions=actions,
@@ -113,14 +118,12 @@ class DispatcherClient:
 
         Retries transient gRPC errors up to 3 times with exponential backoff.
         """
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+        aio_client = self._get_or_create_aio_client()
 
         try:
             response = cast(
                 GetVersionResponse,
-                await self.aio_client.GetVersion(  # type: ignore[misc]
+                await aio_client.GetVersion(  # type: ignore
                     GetVersionRequest(),
                     timeout=DEFAULT_REGISTER_TIMEOUT,
                     metadata=create_authorization_header(self.token),
@@ -139,7 +142,7 @@ class DispatcherClient:
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
-    ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse] | None:
+    ) -> ActionEventResponse | None:
         try:
             return await self._try_send_step_action_event(
                 action, event_type, payload, should_not_retry
@@ -162,16 +165,21 @@ class DispatcherClient:
             logger.exception(message)
             return None
 
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        stop=tenacity.stop_after_attempt(20),
+        before_sleep=tenacity_before_sleep,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
     async def _try_send_step_action_event(
         self,
         action: Action,
         event_type: StepActionEventType,
         payload: str | None,
         should_not_retry: bool,
-    ) -> grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse]:
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+    ) -> ActionEventResponse:
+        aio_client = self._get_or_create_aio_client()
 
         event_timestamp = Timestamp()
         event_timestamp.GetCurrentTime()
@@ -190,21 +198,125 @@ class DispatcherClient:
             should_not_retry=should_not_retry,
         )
 
-        send = tenacity_retry(
-            self.aio_client.SendStepActionEvent,
-            TenacityConfig(
-                max_attempts=10,
-            ),
+        try:
+            return cast(
+                ActionEventResponse,
+                await aio_client.SendStepActionEvent(
+                    event,
+                    metadata=create_authorization_header(self.token),
+                ),
+            )
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.UNAVAILABLE:
+                # resetting the client if we get `UNAVAILABLE` to try making
+                # a new connection on the next retry, to see if that helps recover
+                old_channel, self.aio_channel = self.aio_channel, None
+                self.aio_client = None
+                if old_channel is not None:
+                    await old_channel.close()
+            raise
+
+    def _build_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> BatchActionEvent:
+        event_timestamp = Timestamp()
+        event_timestamp.GetCurrentTime()
+
+        return BatchActionEvent(
+            worker_id=action.worker_id,
+            job_id=action.job_id,
+            action_id=action.action_id,
+            batch_id=action.batch_id,
+            event_timestamp=event_timestamp,
+            event_type=event_type,
+            items=[
+                BatchActionEventItem(
+                    task_run_external_id=item.task_run_external_id,
+                    event_payload=item.payload or "",
+                    retry_count=action.retry_count,
+                    should_not_retry=item.should_not_retry,
+                )
+                for item in items
+            ],
         )
 
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        stop=tenacity.stop_after_attempt(20),
+        before_sleep=tenacity_before_sleep,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
+    def send_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> ActionEventResponse:
+        client = self._get_or_create_client()
+        event = self._build_batch_action_event(action, event_type, items)
+
         return cast(
-            grpc.aio.UnaryUnaryCall[StepActionEvent, ActionEventResponse],
-            # fixme: figure out how to get typing right here
-            await send(  # type: ignore[misc]
+            ActionEventResponse,
+            client.SendBatchActionEvent(  # type: ignore[attr-defined]
                 event,
                 metadata=create_authorization_header(self.token),
             ),
         )
+
+    async def aio_send_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> ActionEventResponse | None:
+        try:
+            return await self._try_aio_send_batch_action_event(
+                action, event_type, items
+            )
+        except Exception:
+            message = f"failed to send batch action event {event_type} for action {action.action_id}."
+
+            if event_type == STEP_EVENT_TYPE_FAILED:
+                message += "**IMPORTANT**: the batch failed, but the engine failed to receive the failed event. the engine will eventually consider the tasks timed out, and invoke any retries configured on the task."
+
+            logger.exception(message)
+            return None
+
+    @tenacity.retry(
+        reraise=True,
+        wait=tenacity.wait_exponential_jitter(initial=0.5, max=10),
+        stop=tenacity.stop_after_attempt(20),
+        before_sleep=tenacity_before_sleep,
+        retry=tenacity.retry_if_exception(tenacity_should_retry),
+    )
+    async def _try_aio_send_batch_action_event(
+        self,
+        action: Action,
+        event_type: StepActionEventType,
+        items: list[BatchEventItem],
+    ) -> ActionEventResponse:
+        aio_client = self._get_or_create_aio_client()
+        event = self._build_batch_action_event(action, event_type, items)
+
+        try:
+            return cast(
+                ActionEventResponse,
+                await aio_client.SendBatchActionEvent(  # type: ignore[attr-defined]
+                    event,
+                    metadata=create_authorization_header(self.token),
+                ),
+            )
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.UNAVAILABLE:
+                old_channel, self.aio_channel = self.aio_channel, None
+                self.aio_client = None
+                if old_channel is not None:
+                    await old_channel.close()
+            raise
 
     def put_overrides_data(self, data: OverridesData) -> ActionEventResponse:
         client = self._get_or_create_client()
@@ -261,9 +373,7 @@ class DispatcherClient:
         worker_id: str | None,
         labels: dict[str, str | int],
     ) -> None:
-        if not self.aio_client:
-            aio_conn = new_conn(self.config, True)
-            self.aio_client = DispatcherStub(aio_conn)
+        aio_client = self._get_or_create_aio_client()
 
         worker_labels = {}
 
@@ -274,7 +384,7 @@ class DispatcherClient:
                 worker_labels[key] = WorkerLabels(str_value=str(value))
 
         # fixme: figure out how to get typing right here
-        await self.aio_client.UpsertWorkerLabels(  # type: ignore[misc]
+        await aio_client.UpsertWorkerLabels(
             UpsertWorkerLabelsRequest(worker_id=worker_id, labels=worker_labels),
             timeout=DEFAULT_REGISTER_TIMEOUT,
             metadata=create_authorization_header(self.token),

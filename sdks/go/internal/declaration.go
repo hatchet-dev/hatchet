@@ -68,6 +68,12 @@ type WorkflowDeclaration[I, O any] interface {
 	// Task registers a task that will be executed as part of the workflow
 	Task(opts create.WorkflowTask[I, O], fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I]
 
+	// BatchTask registers a batch task that will be executed as part of the workflow.
+	// Batch tasks buffer concurrent runs and dispatch them together as a single execution;
+	// fn receives a map keyed by each buffered run's external id and (unless
+	// batch.BroadcastOutput is set) must return a map with the exact same key set.
+	BatchTask(opts create.WorkflowTask[I, O], batch *types.BatchConfig, fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I]
+
 	// DurableTask registers a durable task that will be executed as part of the workflow.
 	// Durable tasks can be paused and resumed across workflow runs, making them suitable
 	// for long-running operations or tasks that require human intervention.
@@ -142,6 +148,7 @@ type workflowDeclarationImpl[I any, O any] struct {
 
 	DefaultPriority *int32
 	DefaultFilters  []types.DefaultFilter
+	Idempotency     *create.IdempotencyConfig
 }
 
 // NewWorkflowDeclaration creates a new workflow declaration with the specified options and client.
@@ -197,6 +204,7 @@ func NewWorkflowDeclaration[I any, O any](opts create.WorkflowCreateOpts[I], v0 
 		outputSetters:    make(map[string]func(*O, interface{})),
 		DefaultPriority:  opts.DefaultPriority,
 		DefaultFilters:   opts.DefaultFilters,
+		Idempotency:      opts.Idempotency,
 	}
 
 	if opts.Version != "" {
@@ -316,6 +324,115 @@ func (w *workflowDeclarationImpl[I, O]) Task(opts create.WorkflowTask[I, O], fn 
 			RateLimits:             opts.RateLimits,
 			WorkerLabels:           opts.WorkerLabels,
 			Concurrency:            opts.Concurrency,
+			SlotCost:               opts.SlotCost,
+		},
+	}
+
+	w.tasks = append(w.tasks, taskDecl)
+	w.taskFuncs[name] = fn
+
+	return taskDecl
+}
+
+// BatchTask registers a batch task with the workflow
+func (w *workflowDeclarationImpl[I, O]) BatchTask(opts create.WorkflowTask[I, O], batch *types.BatchConfig, fn func(ctx worker.HatchetContext, input I) (interface{}, error)) *task.TaskDeclaration[I] {
+	name := opts.Name
+
+	// Use reflection to validate the function type
+	fnType := reflect.TypeOf(fn)
+	if fnType.Kind() != reflect.Func ||
+		fnType.NumIn() != 2 ||
+		fnType.NumOut() != 2 ||
+		!fnType.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+		panic("Invalid function type for batch task " + name + ": must be func(worker.HatchetContext, I) (*T, error)")
+	}
+
+	// Create a setter function that can set this specific output type to the corresponding field in O
+	w.outputSetters[name] = func(result *O, output interface{}) {
+		resultValue := reflect.ValueOf(result).Elem()
+		field := resultValue.FieldByName(name)
+
+		resultType := resultValue.Type()
+		for i := 0; i < resultType.NumField(); i++ {
+			fieldType := resultType.Field(i)
+			jsonTag := fieldType.Tag.Get("json")
+			if commaIdx := strings.Index(jsonTag, ","); commaIdx > 0 {
+				jsonTag = jsonTag[:commaIdx]
+			}
+			if jsonTag == name || strings.EqualFold(fieldType.Name, name) {
+				field = resultValue.Field(i)
+				break
+			}
+		}
+
+		if field.IsValid() && field.CanSet() {
+			outputValue := reflect.ValueOf(output).Elem()
+			field.Set(outputValue)
+		}
+	}
+
+	// Create a generic task function that wraps the specific one
+	genericFn := func(ctx worker.HatchetContext, input I) (*any, error) {
+		fnValue := reflect.ValueOf(fn)
+		inputs := []reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(input)}
+		results := fnValue.Call(inputs)
+
+		if !results[1].IsNil() {
+			return nil, results[1].Interface().(error)
+		}
+
+		output := results[0].Interface()
+		return &output, nil
+	}
+
+	// Initialize pointers only for non-zero values
+	var retryBackoffFactor *float32
+	var retryMaxBackoffSeconds *int32
+	var executionTimeout *time.Duration
+	var scheduleTimeout *time.Duration
+
+	if opts.RetryBackoffFactor != 0 {
+		retryBackoffFactor = &opts.RetryBackoffFactor
+	}
+	if opts.RetryMaxBackoffSeconds != 0 {
+		retryMaxBackoffSeconds = &opts.RetryMaxBackoffSeconds
+	}
+	if opts.ExecutionTimeout != 0 {
+		executionTimeout = &opts.ExecutionTimeout
+	}
+	if opts.ScheduleTimeout != 0 {
+		scheduleTimeout = &opts.ScheduleTimeout
+	}
+
+	// Batch tasks buffer many concurrent runs into a single execution; per-item retry
+	// semantics don't apply, so retries is always forced to 0, regardless of any retries
+	// option the caller may have supplied.
+	zeroRetries := int32(0)
+
+	// Convert parent task declarations to parent task names
+	parentNames := make([]string, len(opts.Parents))
+	for i, parent := range opts.Parents {
+		parentNames[i] = parent.GetName()
+	}
+
+	taskDecl := &task.TaskDeclaration[I]{
+		Name:     opts.Name,
+		Fn:       genericFn,
+		Parents:  parentNames,
+		WaitFor:  opts.WaitFor,
+		SkipIf:   opts.SkipIf,
+		CancelIf: opts.CancelIf,
+		TaskShared: task.TaskShared{
+			ExecutionTimeout:       executionTimeout,
+			ScheduleTimeout:        scheduleTimeout,
+			Retries:                &zeroRetries,
+			RetryBackoffFactor:     retryBackoffFactor,
+			RetryMaxBackoffSeconds: retryMaxBackoffSeconds,
+			RateLimits:             opts.RateLimits,
+			WorkerLabels:           opts.WorkerLabels,
+			Concurrency:            opts.Concurrency,
+			SlotCost:               opts.SlotCost,
+			Batch:                  batch,
 		},
 	}
 
@@ -521,7 +638,9 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	if runOpts.Priority != nil {
@@ -530,7 +649,9 @@ func (w *workflowDeclarationImpl[I, O]) Cron(ctx context.Context, name string, c
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMeta := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMeta); err != nil {
+			return nil, err
+		}
 		cronTriggerOpts.AdditionalMetadata = additionalMeta
 	}
 
@@ -561,12 +682,16 @@ func (w *workflowDeclarationImpl[I, O]) Schedule(ctx context.Context, triggerAt 
 	runOpts := &contracts.TriggerWorkflowRequest{}
 
 	for _, opt := range opts {
-		opt(runOpts)
+		if err := opt(runOpts); err != nil {
+			return nil, err
+		}
 	}
 
 	if runOpts.AdditionalMetadata != nil {
 		additionalMetadata := make(map[string]interface{})
-		json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata)
+		if err := json.Unmarshal([]byte(*runOpts.AdditionalMetadata), &additionalMetadata); err != nil {
+			return nil, err
+		}
 
 		triggerOpts.AdditionalMetadata = additionalMetadata
 	}
@@ -598,7 +723,9 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		durableOpts[i] = task.Dump(w.name, w.TaskDefaults)
 	}
 
-	tasksToRegister := append(taskOpts, durableOpts...)
+	tasksToRegister := make([]*contracts.CreateTaskOpts, 0, len(taskOpts)+len(durableOpts))
+	tasksToRegister = append(tasksToRegister, taskOpts...)
+	tasksToRegister = append(tasksToRegister, durableOpts...)
 
 	filters := make([]*contracts.DefaultFilter, 0, len(w.DefaultFilters))
 
@@ -658,18 +785,36 @@ func (w *workflowDeclarationImpl[I, O]) Dump() (*contracts.CreateWorkflowVersion
 		req.Sticky = &stickyStrategy
 	}
 
+	if w.Idempotency != nil {
+		method := contracts.IdempotencyMethod_TTL
+		if w.Idempotency.Method == create.IdempotencyMethodStatus {
+			method = contracts.IdempotencyMethod_STATUS
+		}
+
+		req.Idempotency = &contracts.IdempotencyConfig{
+			Expression: w.Idempotency.Expression,
+			TtlMs:      w.Idempotency.TTL.Milliseconds(),
+			Method:     &method,
+		}
+	}
+
 	// Create named function objects for regular tasks
 	regularNamedFns := make([]NamedFunction, len(w.tasks))
 	for i, task := range w.tasks {
 		taskName := task.Name
 		originalFn := w.taskFuncs[taskName]
+		isBatch := task.Batch != nil
 
 		regularNamedFns[i] = NamedFunction{
 			ActionID: taskOpts[i].Action,
 			Fn: func(ctx worker.HatchetContext) (interface{}, error) {
 				var input I
-				err := ctx.WorkflowInput(&input)
-				if err != nil {
+
+				if isBatch {
+					if err := ctx.BatchInputInto(&input); err != nil {
+						return nil, err
+					}
+				} else if err := ctx.WorkflowInput(&input); err != nil {
 					return nil, err
 				}
 

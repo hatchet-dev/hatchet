@@ -12,6 +12,7 @@ export type WorkflowOutput = {
   step2: EmptyTaskOutput;
 };
 
+// > Cancel Newest
 export const concurrencyCancelNewestWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
   name: 'concurrencycancelnewest',
   concurrency: {

@@ -12,6 +12,7 @@ export type WorkflowOutput = {
   step2: EmptyTaskOutput;
 };
 
+// > Cancel In Progress
 export const concurrencyCancelInProgressWorkflow = hatchet.workflow<WorkflowInput, WorkflowOutput>({
   name: 'concurrencycancelinprogress',
   concurrency: {
@@ -20,6 +21,7 @@ export const concurrencyCancelInProgressWorkflow = hatchet.workflow<WorkflowInpu
     limitStrategy: ConcurrencyLimitStrategy.CANCEL_IN_PROGRESS,
   },
 });
+// !!
 
 const step1 = concurrencyCancelInProgressWorkflow.task({
   name: 'step1',

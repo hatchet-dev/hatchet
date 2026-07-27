@@ -1,6 +1,6 @@
 import { useSearchParams } from '@/lib/router-helpers';
 import { PaginationState, Updater } from '@tanstack/react-table';
-import { useCallback, useMemo } from 'react';
+import { DependencyList, useCallback, useEffect, useMemo, useRef } from 'react';
 
 type PaginationQueryShape = {
   i: number; // index
@@ -9,6 +9,9 @@ type PaginationQueryShape = {
 
 type UsePaginationProps = {
   key: string;
+  // if any dependency changes, we reset pagination to 0 so users don't get
+  // stuck on a page that no longer has results.
+  resetPageOnChange?: DependencyList;
 };
 
 const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
@@ -43,7 +46,37 @@ const parsePaginationParam = (searchParams: URLSearchParams, key: string) => {
   };
 };
 
-export const usePagination = ({ key }: UsePaginationProps) => {
+// Builds the updated search params for setting the `i` (pageIndex) and `s`
+// (pageSize) of the pagination param at `paramKey`, preserving all other params.
+const buildPaginationSearchParams = (
+  prev: URLSearchParams,
+  paramKey: string,
+  i: number,
+  s: number,
+) => ({
+  ...Object.fromEntries(prev.entries()),
+  [paramKey]: { i, s },
+});
+
+// JSON.stringify throws on values a DependencyList can legally contain but
+// JSON can't represent (BigInt, circular references). Fall back to a
+// best-effort string so a bad dependency value can't crash render.
+const serializeDeps = (deps?: DependencyList): string => {
+  if (!deps) {
+    return '';
+  }
+
+  try {
+    return JSON.stringify(deps);
+  } catch {
+    return deps.map((dep) => String(dep)).join('|');
+  }
+};
+
+export const usePagination = ({
+  key,
+  resetPageOnChange,
+}: UsePaginationProps) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramKey = `pagination-${key}`;
 
@@ -51,6 +84,32 @@ export const usePagination = ({ key }: UsePaginationProps) => {
     () => parsePaginationParam(searchParams, paramKey),
     [searchParams, paramKey],
   );
+
+  const resetPageOnChangeKey = serializeDeps(resetPageOnChange);
+  const prevResetPageOnChangeKey = useRef(resetPageOnChangeKey);
+
+  useEffect(() => {
+    if (prevResetPageOnChangeKey.current === resetPageOnChangeKey) {
+      return;
+    }
+
+    prevResetPageOnChangeKey.current = resetPageOnChangeKey;
+
+    if (pagination.pageIndex === 0) {
+      return;
+    }
+
+    setSearchParams((prev) => {
+      const currentPagination = parsePaginationParam(prev, paramKey);
+
+      return buildPaginationSearchParams(
+        prev,
+        paramKey,
+        0,
+        currentPagination.pageSize,
+      );
+    });
+  }, [resetPageOnChangeKey, pagination.pageIndex, setSearchParams, paramKey]);
 
   const offset = useMemo(() => {
     if (!pagination) {
@@ -72,18 +131,12 @@ export const usePagination = ({ key }: UsePaginationProps) => {
     setSearchParams((prev) => {
       const currentPagination = parsePaginationParam(prev, paramKey);
 
-      const nextPagination = {
-        ...currentPagination,
-        pageIndex: currentPagination.pageIndex + 1,
-      };
-
-      return {
-        ...Object.fromEntries(prev.entries()),
-        [paramKey]: {
-          i: nextPagination.pageIndex,
-          s: nextPagination.pageSize,
-        },
-      };
+      return buildPaginationSearchParams(
+        prev,
+        paramKey,
+        currentPagination.pageIndex + 1,
+        currentPagination.pageSize,
+      );
     });
   }, [setSearchParams, paramKey]);
 
@@ -91,39 +144,21 @@ export const usePagination = ({ key }: UsePaginationProps) => {
     setSearchParams((prev) => {
       const currentPagination = parsePaginationParam(prev, paramKey);
 
-      const prevPagination = {
-        ...currentPagination,
-        pageIndex: Math.max(0, currentPagination.pageIndex - 1),
-      };
-
-      return {
-        ...Object.fromEntries(prev.entries()),
-        [paramKey]: {
-          i: prevPagination.pageIndex,
-          s: prevPagination.pageSize,
-        },
-      };
+      return buildPaginationSearchParams(
+        prev,
+        paramKey,
+        Math.max(0, currentPagination.pageIndex - 1),
+        currentPagination.pageSize,
+      );
     });
   }, [setSearchParams, paramKey]);
 
   const setPageSize = useCallback(
     (pageSize: number) => {
-      setSearchParams((prev) => {
-        const currentPagination = parsePaginationParam(prev, paramKey);
-        const nextPagination = {
-          ...currentPagination,
-          pageIndex: 0, // Reset to first page when page size changes
-          pageSize,
-        };
-
-        return {
-          ...Object.fromEntries(prev.entries()),
-          [paramKey]: {
-            i: nextPagination.pageIndex,
-            s: nextPagination.pageSize,
-          },
-        };
-      });
+      setSearchParams((prev) =>
+        // Reset to first page when page size changes
+        buildPaginationSearchParams(prev, paramKey, 0, pageSize),
+      );
     },
     [setSearchParams, paramKey],
   );
@@ -136,13 +171,12 @@ export const usePagination = ({ key }: UsePaginationProps) => {
         const newPagination =
           typeof updater === 'function' ? updater(currentPagination) : updater;
 
-        return {
-          ...Object.fromEntries(prev.entries()),
-          [paramKey]: {
-            i: newPagination.pageIndex,
-            s: newPagination.pageSize,
-          },
-        };
+        return buildPaginationSearchParams(
+          prev,
+          paramKey,
+          newPagination.pageIndex,
+          newPagination.pageSize,
+        );
       });
     },
     offset,

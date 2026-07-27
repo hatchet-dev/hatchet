@@ -1,3 +1,16 @@
+# ruff: noqa: E402
+
+import os
+
+# Must be set before grpc is imported anywhere — the C extension reads this at load
+# time and won't re-read it after. Disable by default; opt in via env var for
+# setups that genuinely need fork support (e.g. Gunicorn prefork).
+_fork_env = os.environ.get("HATCHET_CLIENT_GRPC_ENABLE_FORK_SUPPORT", "false").lower()
+_grpc_fork = _fork_env in ("true", "1", "yes")
+os.environ.setdefault("GRPC_ENABLE_FORK_SUPPORT", "true" if _grpc_fork else "false")
+if _grpc_fork:
+    os.environ.setdefault("GRPC_POLL_STRATEGY", "poll")
+
 from hatchet_sdk.clients.admin import (
     RunStatus,
 )
@@ -131,9 +144,11 @@ from hatchet_sdk.context.context import Context, DurableContext
 from hatchet_sdk.context.worker_context import WorkerContext
 from hatchet_sdk.contracts.workflows_pb2 import CreateWorkflowVersionOpts
 from hatchet_sdk.exceptions import (
+    BulkTriggerIdempotencyCollisionError,
     DedupeViolationError,
     EvictionNotSupportedError,
     FailedTaskRunExceptionGroup,
+    IdempotencyCollisionError,
     NonDeterminismError,
     NonRetryableException,
     TaskRunError,
@@ -153,6 +168,10 @@ from hatchet_sdk.serde import is_in_hatchet_serialization_context
 from hatchet_sdk.types.concurrency import (
     ConcurrencyExpression,
     ConcurrencyLimitStrategy,
+)
+from hatchet_sdk.types.idempotency import (
+    StatusBasedIdempotencyConfig,
+    TTLBasedIdempotencyConfig,
 )
 from hatchet_sdk.types.labels import (
     DesiredWorkerLabel,
@@ -188,6 +207,7 @@ __all__ = [
     "BulkCancelReplayOpts",
     "BulkPushEventOptions",
     "BulkPushEventWithMetadata",
+    "BulkTriggerIdempotencyCollisionError",
     "CELEvaluationResult",
     "CELFailure",
     "CELSuccess",
@@ -223,6 +243,7 @@ __all__ = [
     "GithubBranch",
     "GithubRepo",
     "Hatchet",
+    "IdempotencyCollisionError",
     "Job",
     "JobRun",
     "JobRunStatus",
@@ -259,11 +280,13 @@ __all__ = [
     "ScheduleTriggerWorkflowOptions",
     "SleepCondition",
     "SlotType",
+    "StatusBasedIdempotencyConfig",
     "StepRun",
     "StepRunDiff",
     "StepRunEventType",
     "StepRunStatus",
     "StickyStrategy",
+    "TTLBasedIdempotencyConfig",
     "Task",
     "TaskDefaults",
     "TaskRunError",

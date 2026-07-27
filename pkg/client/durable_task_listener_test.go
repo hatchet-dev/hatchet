@@ -119,6 +119,18 @@ func (h *testHarness) getCallCount() int {
 	return h.callCount
 }
 
+func awaitRequest(t *testing.T, stream *mockDurableTaskStream) *v1.DurableTaskRequest {
+	t.Helper()
+
+	select {
+	case req := <-stream.sendCh:
+		return req
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for durable task request")
+		return nil
+	}
+}
+
 // --- Reconnection on stream EOF ---
 
 func TestOpensNewStreamAfterEOF(t *testing.T) {
@@ -247,6 +259,72 @@ func TestFailPendingAcksClearsEventAcks(t *testing.T) {
 	assert.Equal(t, 0, h.listener.PendingEventAckCount())
 }
 
+func TestConnectFailurePreservesPendingAcksAndQueuedRequests(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	l := zerolog.Nop()
+	stream := newMockStream(ctx)
+	firstDialFailed := make(chan struct{})
+	attempts := 0
+	listener := NewDurableTaskListener(
+		"test-worker",
+		func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+			attempts++
+			if attempts == 1 {
+				close(firstDialFailed)
+				return nil, status.Error(codes.Unavailable, "down")
+			}
+			return stream, nil
+		},
+		&l,
+		WithReconnectInterval(100*time.Millisecond),
+	)
+
+	key := PendingAckKey{TaskID: "task1", SignalKey: 1}
+	ackCh := listener.AddPendingEventAck(key)
+	listener.SendRequest(&v1.DurableTaskRequest{
+		Message: &v1.DurableTaskRequest_TriggerRuns{
+			TriggerRuns: &v1.DurableTaskTriggerRunsRequest{
+				DurableTaskExternalId: key.TaskID,
+				InvocationCount:       int32(key.SignalKey),
+			},
+		},
+	})
+
+	listener.Start(ctx)
+	defer listener.Stop()
+	<-firstDialFailed
+
+	select {
+	case result := <-ackCh:
+		t.Fatalf("pending ack failed before its request was sent: %v", result.Err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	require.NotNil(t, awaitRequest(t, stream).GetRegisterWorker())
+	sent := awaitRequest(t, stream).GetTriggerRuns()
+	require.NotNil(t, sent)
+	assert.Equal(t, key.TaskID, sent.GetDurableTaskExternalId())
+	assert.Equal(t, int32(key.SignalKey), sent.GetInvocationCount())
+
+	stream.recvCh <- &v1.DurableTaskResponse{
+		Message: &v1.DurableTaskResponse_TriggerRunsAck{
+			TriggerRunsAck: &v1.DurableTaskEventTriggerRunsAckResponse{
+				DurableTaskExternalId: key.TaskID,
+				InvocationCount:       int32(key.SignalKey),
+			},
+		},
+	}
+
+	select {
+	case result := <-ackCh:
+		require.NoError(t, result.Err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for ack after reconnect")
+	}
+}
+
 // --- Pending callbacks survive disconnect ---
 
 func TestPendingCallbacksSurviveDisconnect(t *testing.T) {
@@ -273,6 +351,59 @@ func TestPendingCallbacksSurviveDisconnect(t *testing.T) {
 	}
 
 	assert.Equal(t, 1, h.listener.PendingCallbackCount())
+}
+
+func TestPendingCallbackRecoveredFromWorkerStatusAfterReconnect(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	h := newTestHarness()
+	first := h.addHangingStream(ctx)
+	second := h.addHangingStream(ctx)
+	key := PendingCallbackKey{TaskID: "task1", SignalKey: 2, BranchID: 3, NodeID: 4}
+	// Pending callbacks must survive stream generation so waits can be reconciled after reconnect.
+	callbackCh := h.listener.AddPendingCallback(key)
+
+	h.listener.Start(ctx)
+	defer h.listener.Stop()
+
+	require.NotNil(t, awaitRequest(t, first).GetRegisterWorker())
+	// EOF drops the old stream's direct-delivery mapping; the wait must not be lost with it.
+	close(first.recvCh)
+
+	require.NotNil(t, awaitRequest(t, second).GetRegisterWorker())
+	// Replacement stream reports the exact wait key so the engine can replay a persisted completion.
+	statusReq := awaitRequest(t, second).GetWorkerStatus()
+	require.NotNil(t, statusReq)
+	require.Len(t, statusReq.GetWaitingEntries(), 1)
+	waiting := statusReq.GetWaitingEntries()[0]
+	assert.Equal(t, key.TaskID, waiting.GetDurableTaskExternalId())
+	assert.Equal(t, int32(key.SignalKey), waiting.GetInvocationCount())
+	assert.Equal(t, key.BranchID, waiting.GetBranchId())
+	assert.Equal(t, key.NodeID, waiting.GetNodeId())
+
+	// Injected EntryCompleted models the engine recovery path after WorkerStatus reconciliation.
+	second.recvCh <- &v1.DurableTaskResponse{
+		Message: &v1.DurableTaskResponse_EntryCompleted{
+			EntryCompleted: &v1.DurableTaskEventLogEntryCompletedResponse{
+				Ref: &v1.DurableEventLogEntryRef{
+					DurableTaskExternalId: waiting.GetDurableTaskExternalId(),
+					InvocationCount:       waiting.GetInvocationCount(),
+					BranchId:              waiting.GetBranchId(),
+					NodeId:                waiting.GetNodeId(),
+				},
+				Payload: []byte("recovered"),
+			},
+		},
+	}
+
+	select {
+	case result := <-callbackCh:
+		require.NoError(t, result.Err)
+		assert.Equal(t, []byte("recovered"), result.Resp.GetEntryCompleted().GetPayload())
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for completion recovered after reconnect")
+	}
 }
 
 // --- Pending eviction acks cleared on disconnect ---
@@ -490,4 +621,37 @@ func TestBufferedCompletionDeliveredToLateConsumer(t *testing.T) {
 	}
 
 	assert.Equal(t, 0, listener.BufferedCompletionCount())
+}
+
+func TestDurableTaskListenerCancellationDuringSleep(t *testing.T) {
+	l := zerolog.Nop()
+	connectCh := make(chan struct{})
+
+	listener := NewDurableTaskListener(
+		"test-worker",
+		func(ctx context.Context) (v1.V1Dispatcher_DurableTaskClient, error) {
+			close(connectCh)
+			return nil, status.Error(codes.Unavailable, "down")
+		},
+		&l,
+		WithReconnectInterval(time.Second),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	listener.Start(ctx)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-connectCh:
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 10*time.Millisecond)
+
+	cancel()
+
+	require.Eventually(t, func() bool {
+		return !listener.IsRunning()
+	}, 2*time.Second, 10*time.Millisecond)
 }

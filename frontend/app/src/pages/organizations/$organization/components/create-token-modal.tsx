@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/v1/ui/dialog';
+import { InlineError } from '@/components/v1/ui/inline-error';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
 import {
@@ -18,7 +19,12 @@ import {
 } from '@/components/v1/ui/select';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { ManagementTokenDuration } from '@/lib/api/generated/cloud/data-contracts';
-import { KeyIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useApiError } from '@/lib/hooks';
+import {
+  KeyIcon,
+  ExclamationTriangleIcon,
+  XMarkIcon,
+} from '@heroicons/react/24/outline';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
@@ -38,6 +44,7 @@ interface CreateTokenModalProps {
   organizationId: string;
   organizationName: string;
   onSuccess: () => void;
+  allTenantTags: string[];
 }
 
 export function CreateTokenModal({
@@ -46,9 +53,13 @@ export function CreateTokenModal({
   organizationId,
   organizationName,
   onSuccess,
+  allTenantTags,
 }: CreateTokenModalProps) {
   const DURATION_NEVER = 'never';
   const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const { handleApiError } = useApiError({ setErrors: setFormErrors });
   const { handleCreateToken, createTokenLoading } = useOrganizations();
 
   const {
@@ -68,20 +79,35 @@ export function CreateTokenModal({
 
   const handleClose = useCallback(() => {
     setCreatedToken(null);
+    setTags([]);
     reset();
     onOpenChange(false);
   }, [reset, onOpenChange]);
 
+  const addTag = (tag: string) => setTags((prev) => [...prev, tag]);
+  const removeTag = (tag: string) =>
+    setTags((prev) => prev.filter((t) => t !== tag));
+  const availableTagsToAdd = allTenantTags.filter((t) => !tags.includes(t));
+
   const handleTokenCreate = useCallback(
     (data: z.infer<typeof schema>) => {
+      setFormErrors([]);
       const duration: ManagementTokenDuration | undefined =
         data.duration === DURATION_NEVER ? undefined : data.duration;
-      handleCreateToken(organizationId, data.name, duration, (tokenData) => {
-        setCreatedToken(tokenData.token);
-        onSuccess();
-      });
+      handleCreateToken(
+        organizationId,
+        data.name,
+        duration,
+        (tokenData) => {
+          setCreatedToken(tokenData.token);
+          onSuccess();
+        },
+        tags.length > 0 ? tags : undefined,
+        (error) =>
+          handleApiError(error as Parameters<typeof handleApiError>[0]),
+      );
     },
-    [organizationId, handleCreateToken, onSuccess],
+    [organizationId, handleCreateToken, onSuccess, tags, handleApiError],
   );
 
   // Reset form when modal closes
@@ -148,6 +174,7 @@ export function CreateTokenModal({
             onSubmit={handleSubmit(handleTokenCreate)}
             className="space-y-4"
           >
+            <InlineError errors={formErrors} />
             <div className="space-y-2">
               <Label htmlFor="name">Token Name</Label>
               <Input
@@ -199,6 +226,59 @@ export function CreateTokenModal({
                   </span>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Tag Scope (optional)</Label>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1 text-sm text-secondary-foreground"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        disabled={createTokenLoading}
+                        className="ml-0.5 rounded hover:text-destructive disabled:opacity-50"
+                        aria-label={`Remove ${tag}`}
+                      >
+                        <XMarkIcon className="size-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {availableTagsToAdd.length > 0 ? (
+                <Select
+                  onValueChange={addTag}
+                  disabled={createTokenLoading}
+                  value=""
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Add a tag…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTagsToAdd.map((tag) => (
+                      <SelectItem key={tag} value={tag}>
+                        {tag}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {allTenantTags.length === 0
+                    ? 'No tags exist on any tenant yet.'
+                    : 'All available tags have been added.'}
+                </p>
+              )}
+              <p className="text-sm text-muted-foreground">
+                When set, the token can only access or create tenants whose tags
+                are a subset of these tags.
+              </p>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-4">

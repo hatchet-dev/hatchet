@@ -27,6 +27,12 @@ export default {
       toc: true,
     },
   },
+  opentelemetry: {
+    title: "Internal OpenTelemetry Traces",
+    theme: {
+      toc: true,
+    },
+  },
   "worker-configuration-options": "Worker Configuration Options",
   "upgrading-downgrading": "Upgrading and Downgrading",
   "downgrading-db-schema-manually": "Downgrading DB Schema Manually",

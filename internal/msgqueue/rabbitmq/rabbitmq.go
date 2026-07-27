@@ -215,7 +215,7 @@ func New(fs ...MessageQueueImplOpt) (func() error, *MessageQueueImpl, error) {
 	}
 
 	// create a new lru cache for tenant ids
-	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) // nolint: errcheck - this only returns an error if the size is less than 0
+	t.tenantIdCache, _ = lru.New[uuid.UUID, bool](2000) //nolint:errcheck // this only returns an error if the size is less than 0
 
 	// init the queues in a blocking fashion
 	poolCh, err := subChannelPool.Acquire(ctx)
@@ -469,12 +469,9 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	pubSpan.End()
 
-	// if this is a tenant msg, publish to the tenant exchange
 	if (!t.disableTenantExchangePubs || msg.ID == "task-stream-event") && msg.TenantID != uuid.Nil {
-		// determine if the tenant exchange exists
 		if _, ok := t.tenantIdCache.Get(msg.TenantID); !ok {
-			// register the tenant exchange
-			err = t.RegisterTenant(ctx, msg.TenantID)
+			err = t.declareTenantExchange(ctx, pub, msg.TenantID)
 
 			if err != nil {
 				t.l.Error().Ctx(ctx).Str("tenant_id", msg.TenantID.String()).Msgf("error registering tenant exchange: %v", err)
@@ -554,7 +551,6 @@ func (t *MessageQueueImpl) Subscribe(
 }
 
 func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUID) error {
-	// create a new fanout exchange for the tenant
 	poolCh, err := t.pubChannels.Acquire(ctx)
 
 	if err != nil {
@@ -562,20 +558,26 @@ func (t *MessageQueueImpl) RegisterTenant(ctx context.Context, tenantId uuid.UUI
 		return err
 	}
 
-	sub := poolCh.Value()
+	ch := poolCh.Value()
 
-	if sub.IsClosed() {
+	if ch.IsClosed() {
 		poolCh.Destroy()
 		return fmt.Errorf("channel is closed")
 	}
 
 	defer poolCh.Release()
 
+	return t.declareTenantExchange(ctx, ch, tenantId)
+}
+
+// declareTenantExchange creates the tenant fanout exchange on an already-held channel
+// and records the tenant in the local cache. Callers that already hold a pub channel
+// (e.g. pubMessage) must use this instead of RegisterTenant to avoid a nested Acquire.
+func (t *MessageQueueImpl) declareTenantExchange(ctx context.Context, ch *amqp.Channel, tenantId uuid.UUID) error {
 	t.l.Debug().Ctx(ctx).Str("tenant_id", tenantId.String()).Msgf("registering tenant exchange: %s", tenantId)
 
-	// create a fanout exchange for the tenant. each consumer of the fanout exchange will get notified
-	// with the tenant events.
-	err = sub.ExchangeDeclare(
+	// each consumer of the fanout exchange will get notified with the tenant events
+	err := ch.ExchangeDeclare(
 		msgqueue.GetTenantExchangeName(tenantId),
 		"fanout",
 		true,  // durable

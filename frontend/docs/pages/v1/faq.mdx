@@ -16,6 +16,8 @@ If your workers are resource starved, there are basically two options:
 1. Reduce the slot count, so the worker runs less work concurrently. This is a blunt instrument, in the sense that it doesn't let you _tune_ resources to the needs of the workload running on the worker. For instance, if you're using 100% of your memory but only 10% of your CPU, reducing the slot count will likely help the worker stay online, but you'll be significantly under-utilizing CPU. In this case, you can:
 2. Reconfigure the specs of the machine the worker is running on. For instance, in the example above, you might be able to migrate from a CPU-optimized machine to a memory-optimized one, which will give you more efficient resource utilization across the board.
 
+If only some of your tasks are heavy, [task slot cost](/v1/advanced-assignment/slot-cost) lets those tasks consume more than one slot, so the slot count can stay tuned for the light ones.
+
 On the other hand, if your workers are underutilizing resources, your options are:
 
 1. Increase the number of slots on them so they can pick up more work. This is especially helpful for heavily I/O bound tasks, which generally are spending most of their time waiting.

@@ -1,3 +1,4 @@
+import { RunsEmptyGraphic } from '../workflow-runs-v1/components/runs-empty-graphic';
 import { LogsChart } from './components/logs-chart';
 import { useTenantLogs } from './hooks/use-tenant-logs';
 import type { TimeWindow } from './hooks/use-tenant-logs';
@@ -9,6 +10,8 @@ import {
 import type { LogAutocompleteContext } from '@/components/v1/cloud/logging/log-search/autocomplete';
 import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-search/types';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { DateTimePicker } from '@/components/v1/molecules/time-picker/date-time-picker';
 import { Button } from '@/components/v1/ui/button';
@@ -20,10 +23,26 @@ import {
   SelectValue,
 } from '@/components/v1/ui/select';
 import { useSidePanel } from '@/hooks/use-side-panel';
+import { docsPages } from '@/lib/generated/docs';
 import { XCircleIcon } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 
 export default function TenantLogsPage() {
+  return (
+    <WorkflowsGuard
+      title="No logs found"
+      description="Logs are emitted by your workers as they execute tasks. Run a task to see its logs appear here."
+      docs={{
+        href: docsPages.v1.logging.href,
+        description: 'Learn about logging',
+      }}
+    >
+      <TenantLogs />
+    </WorkflowsGuard>
+  );
+}
+
+function TenantLogs() {
   const {
     logs,
     isLoading,
@@ -45,6 +64,9 @@ export default function TenantLogsPage() {
     setCustomSince,
     setCustomUntil,
     workflowNames,
+    hasActiveFilters,
+    isDefaultOneDayWindow,
+    resetFilters,
   } = useTenantLogs();
 
   const sidePanel = useSidePanel();
@@ -165,7 +187,37 @@ export default function TenantLogsPage() {
         onViewRun={handleViewRun}
         showAttempt={false}
         showTaskName
-        emptyMessage="No logs found for this time window."
+        emptyComponent={
+          hasActiveFilters ? (
+            <EmptyState
+              graphic={<RunsEmptyGraphic />}
+              title="No logs matching your filters"
+              buttons={[{ label: 'Clear filters', onClick: resetFilters }]}
+            />
+          ) : (
+            <EmptyState
+              title="No logs found"
+              description="Logs are emitted by your workers as they execute tasks."
+              links={[
+                {
+                  href: docsPages.v1.logging.href,
+                  label: 'Learn about logging',
+                  external: true,
+                },
+              ]}
+              buttons={
+                isDefaultOneDayWindow
+                  ? [
+                      {
+                        label: 'Search past 7 days',
+                        onClick: () => setTimeWindow('7d'),
+                      },
+                    ]
+                  : undefined
+              }
+            />
+          )
+        }
       />
     </div>
   );

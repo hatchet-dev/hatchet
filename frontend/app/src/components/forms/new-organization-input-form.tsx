@@ -2,6 +2,7 @@ import { RegionSelect } from '@/components/forms/region-select';
 import { Button } from '@/components/v1/ui/button';
 import { Input } from '@/components/v1/ui/input';
 import { Label } from '@/components/v1/ui/label';
+import { Spinner } from '@/components/v1/ui/loading';
 import { OrganizationAvailableShard } from '@/lib/api/generated/control-plane/data-contracts';
 import { shardDeploymentKey } from '@/lib/shard-deployment-key';
 import { ArrowRightIcon } from '@radix-ui/react-icons';
@@ -107,13 +108,10 @@ export function NewOrganizationInputForm({
       )}
 
       <div className="grid gap-2">
-        <Label htmlFor="tenant-name">Name of First Tenant</Label>
+        <Label htmlFor="tenant-name">First Tenant Name</Label>
         <p className="text-sm text-muted-foreground">
-          An isolated environment for your tasks, workflows, workers, and
-          events.
-          <br />
-          Most teams start with development and add a tenant for each engineer,
-          staging, or production environment later.
+          A tenant is an isolated environment for your tasks, workflows,
+          workers, and events.
         </p>
         <Input
           id="tenant-name"
@@ -134,8 +132,17 @@ export function NewOrganizationInputForm({
         className="w-full"
         disabled={isSaving || cannotSubmitRegion}
       >
-        {isSaving ? 'Getting started...' : 'Get started'}
-        {!isSaving && <ArrowRightIcon className="ml-2 size-4" />}
+        {isSaving ? (
+          <>
+            <Spinner />
+            Getting started...
+          </>
+        ) : (
+          <>
+            Get started
+            <ArrowRightIcon className="ml-2 size-4" />
+          </>
+        )}
       </Button>
     </form>
   );

@@ -13,6 +13,7 @@ import (
 	"github.com/hatchet-dev/hatchet/internal/services/ingestor/contracts"
 	"github.com/hatchet-dev/hatchet/internal/services/scheduler/v1"
 	"github.com/hatchet-dev/hatchet/pkg/analytics"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -46,6 +47,8 @@ type IngestorOpts struct {
 
 	grpcTriggersEnabled bool
 	grpcTriggerSlots    int
+
+	promGate *prometheus.Gate
 }
 
 func WithMessageQueueV1(mq msgqueue.MessageQueue) IngestorOptFunc {
@@ -118,6 +121,12 @@ func WithAnalytics(a analytics.Analytics) IngestorOptFunc {
 	}
 }
 
+func WithPrometheusGate(gate *prometheus.Gate) IngestorOptFunc {
+	return func(opts *IngestorOpts) {
+		opts.promGate = gate
+	}
+}
+
 type IngestorImpl struct {
 	contracts.UnimplementedEventsServiceServer
 
@@ -166,7 +175,7 @@ func NewIngestor(fs ...IngestorOptFunc) (Ingestor, error) {
 	if opts.grpcTriggersEnabled {
 		pubBuffer = msgqueue.NewMQPubBuffer(opts.mqv1)
 
-		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots)
+		tw = trigger.NewTriggerWriter(opts.mqv1, opts.repov1, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
 	}
 
 	var localScheduler *scheduler.Scheduler

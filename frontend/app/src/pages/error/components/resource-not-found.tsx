@@ -4,8 +4,8 @@ import { Button } from '@/components/v1/ui/button';
 import { appRoutes } from '@/router';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import type { NavigateOptions } from '@tanstack/react-router';
-import { FileQuestion, Home, Undo2 } from 'lucide-react';
-import { ReactNode } from 'react';
+import { FileQuestion, Home, LucideIcon, Undo2 } from 'lucide-react';
+import { ReactNode, useState } from 'react';
 
 export function ResourceNotFound({
   resource,
@@ -16,11 +16,47 @@ export function ResourceNotFound({
   description?: ReactNode;
   primaryAction?: {
     label: string;
-    navigate: NavigateOptions;
+    navigate?: NavigateOptions;
+    icon?: LucideIcon;
+    actionOverride?: () => void;
   };
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const Icon = primaryAction?.icon ?? Home;
+  const [spinning, setSpinning] = useState(false);
+
+  const handleButtonClick = () => {
+    if (!primaryAction) {
+      navigate({
+        to: appRoutes.authenticatedRoute.to,
+        replace: true,
+      });
+      return;
+    }
+
+    const override = primaryAction.actionOverride;
+    if (override) {
+      setSpinning(true);
+      override();
+      return;
+    }
+
+    if (primaryAction.navigate) {
+      navigate({
+        ...primaryAction.navigate,
+        replace: primaryAction.navigate.replace ?? true,
+      });
+
+      return;
+    }
+
+    navigate({
+      to: appRoutes.authenticatedRoute.to,
+      replace: true,
+    });
+    return;
+  };
 
   return (
     <ErrorPageLayout
@@ -28,23 +64,21 @@ export function ResourceNotFound({
       title={`${resource} not found`}
       description={
         description ??
-        `The ${resource.toLowerCase()} you're looking for doesn’t exist.`
+        `The ${resource.toLowerCase()} you're looking for doesn't exist.`
       }
       actions={
         <>
           <Button
-            leftIcon={<Home className="h-4 w-4" />}
-            onClick={() =>
-              primaryAction
-                ? navigate({
-                    ...primaryAction.navigate,
-                    replace: primaryAction.navigate.replace ?? true,
-                  })
-                : navigate({
-                    to: appRoutes.authenticatedRoute.to,
-                    replace: true,
-                  })
+            leftIcon={
+              <Icon
+                className="h-4 w-4"
+                style={
+                  spinning ? { animation: 'spin 0.5s linear 1' } : undefined
+                }
+                onAnimationEnd={() => setSpinning(false)}
+              />
             }
+            onClick={handleButtonClick}
           >
             {primaryAction?.label ?? 'Dashboard'}
           </Button>

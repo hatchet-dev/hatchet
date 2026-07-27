@@ -1,0 +1,12 @@
+module Hatchet
+  class BatchTaskConfig
+    attr_reader max_size: Integer
+    attr_reader max_interval_ms: Integer?
+    attr_reader group_key: String?
+    attr_reader group_max_runs: Integer?
+    attr_reader broadcast_output: bool
+
+    def initialize: (max_size: Integer, ?max_interval_ms: Integer?, ?group_key: String?, ?group_max_runs: Integer?, ?broadcast_output: bool) -> void
+    def to_proto: () -> untyped
+  end
+end

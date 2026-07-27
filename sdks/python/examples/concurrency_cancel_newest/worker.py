@@ -12,6 +12,7 @@ from hatchet_sdk import (
 hatchet = Hatchet()
 
 
+# > Cancel Newest
 class WorkflowInput(BaseModel):
     group: str
 
@@ -25,6 +26,7 @@ concurrency_cancel_newest_workflow = hatchet.workflow(
     ),
     input_validator=WorkflowInput,
 )
+# !!
 
 
 @concurrency_cancel_newest_workflow.task()

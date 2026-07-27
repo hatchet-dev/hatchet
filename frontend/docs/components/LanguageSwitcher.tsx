@@ -71,7 +71,7 @@ export default function LanguageSwitcher() {
               transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]
               ${
                 isSelected
-                  ? "bg-[hsl(var(--background))] text-[hsl(var(--foreground))] shadow-sm"
+                  ? "bg-[hsl(var(--background))] dark:bg-[hsl(var(--muted-foreground)/0.25)] text-[hsl(var(--foreground))] shadow-sm"
                   : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
               }
             `}

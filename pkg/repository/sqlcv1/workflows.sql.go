@@ -245,6 +245,50 @@ func (q *Queries) CreateStep(ctx context.Context, db DBTX, arg CreateStepParams)
 	return &i, err
 }
 
+const createStepBatchConfig = `-- name: CreateStepBatchConfig :exec
+INSERT INTO v1_step_batch_config (
+    step_id,
+    batch_max_size,
+    batch_max_interval,
+    batch_group_key,
+    batch_group_max_runs,
+    broadcast_output
+) VALUES (
+    $1::uuid,
+    $2::integer,
+    $3::integer,
+    $4::text,
+    $5::integer,
+    $6::boolean
+) ON CONFLICT (step_id) DO UPDATE SET
+    batch_max_size = EXCLUDED.batch_max_size,
+    batch_max_interval = EXCLUDED.batch_max_interval,
+    batch_group_key = EXCLUDED.batch_group_key,
+    batch_group_max_runs = EXCLUDED.batch_group_max_runs,
+    broadcast_output = EXCLUDED.broadcast_output
+`
+
+type CreateStepBatchConfigParams struct {
+	Stepid            uuid.UUID   `json:"stepid"`
+	Batchmaxsize      int32       `json:"batchmaxsize"`
+	BatchMaxInterval  pgtype.Int4 `json:"batchMaxInterval"`
+	BatchGroupKey     pgtype.Text `json:"batchGroupKey"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batchGroupMaxRuns"`
+	Broadcastoutput   bool        `json:"broadcastoutput"`
+}
+
+func (q *Queries) CreateStepBatchConfig(ctx context.Context, db DBTX, arg CreateStepBatchConfigParams) error {
+	_, err := db.Exec(ctx, createStepBatchConfig,
+		arg.Stepid,
+		arg.Batchmaxsize,
+		arg.BatchMaxInterval,
+		arg.BatchGroupKey,
+		arg.BatchGroupMaxRuns,
+		arg.Broadcastoutput,
+	)
+	return err
+}
+
 const createStepConcurrency = `-- name: CreateStepConcurrency :one
 INSERT INTO v1_step_concurrency (
     workflow_id,
@@ -263,7 +307,7 @@ VALUES (
     $5::text,
     $6::uuid,
     $7::integer
-) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+) RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 `
 
 type CreateStepConcurrencyParams struct {
@@ -294,6 +338,7 @@ func (q *Queries) CreateStepConcurrency(ctx context.Context, db DBTX, arg Create
 		&i.WorkflowVersionID,
 		&i.StepID,
 		&i.IsActive,
+		&i.LastActiveAt,
 		&i.Strategy,
 		&i.Expression,
 		&i.TenantID,
@@ -464,7 +509,8 @@ SELECT
     unnest($4::integer[]),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
-ON CONFLICT (tenant_id, step_id, slot_type) DO NOTHING
+ON CONFLICT (tenant_id, step_id, slot_type) DO UPDATE
+    SET units = EXCLUDED.units, updated_at = CURRENT_TIMESTAMP
 `
 
 type CreateStepSlotRequestsParams struct {
@@ -474,7 +520,9 @@ type CreateStepSlotRequestsParams struct {
 	Units     []int32   `json:"units"`
 }
 
-// NOTE: ON CONFLICT can be removed after the 0_76_d migration is run to remove insert triggers added in 0_76
+// The trigger v1_step_slot_request_insert_trigger writes a {default: 1} (or {durable: 1}) row on
+// Step insert, so DO UPDATE overwrites it with the requested units instead of leaving the default.
+// The conflict handling is only here because of that trigger.
 func (q *Queries) CreateStepSlotRequests(ctx context.Context, db DBTX, arg CreateStepSlotRequestsParams) error {
 	_, err := db.Exec(ctx, createStepSlotRequests,
 		arg.Tenantid,
@@ -648,7 +696,7 @@ WITH inserted_wcs AS (
           wv."id" = $2::uuid
           AND j."kind" = 'DEFAULT'
     ) s, inserted_wcs wcs
-    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, strategy, expression, tenant_id, max_concurrency
+    RETURNING id, parent_strategy_id, workflow_id, workflow_version_id, step_id, is_active, last_active_at, strategy, expression, tenant_id, max_concurrency
 )
 SELECT
     wcs.id,
@@ -770,6 +818,7 @@ const createWorkflowTriggerCronRefForWorkflow = `-- name: CreateWorkflowTriggerC
 WITH latest_version AS (
     SELECT "id" FROM "WorkflowVersion"
     WHERE "workflowId" = $7::uuid
+        AND "deletedAt" IS NULL
     ORDER BY "order" DESC
     LIMIT 1
 ),
@@ -913,7 +962,10 @@ INSERT INTO "WorkflowVersion" (
     "kind",
     "defaultPriority",
     "createWorkflowVersionOpts",
-    "inputJsonSchema"
+    "inputJsonSchema",
+    "idempotencyKeyExpression",
+    "idempotencyKeyTtlMs",
+    "idempotencyMethod"
 ) VALUES (
     $1::uuid,
     coalesce($2::timestamp, CURRENT_TIMESTAMP),
@@ -928,23 +980,29 @@ INSERT INTO "WorkflowVersion" (
     coalesce($9::"WorkflowKind", 'DAG'),
     $10 :: integer,
     $11::jsonb,
-    $12::jsonb
-) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema"
+    $12::jsonb,
+    $13::text,
+    $14::bigint,
+    $15::idempotency_method
+) RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod"
 `
 
 type CreateWorkflowVersionParams struct {
-	ID                        uuid.UUID          `json:"id"`
-	CreatedAt                 pgtype.Timestamp   `json:"createdAt"`
-	UpdatedAt                 pgtype.Timestamp   `json:"updatedAt"`
-	Deletedat                 pgtype.Timestamp   `json:"deletedat"`
-	Checksum                  string             `json:"checksum"`
-	Version                   pgtype.Text        `json:"version"`
-	Workflowid                uuid.UUID          `json:"workflowid"`
-	Sticky                    NullStickyStrategy `json:"sticky"`
-	Kind                      NullWorkflowKind   `json:"kind"`
-	DefaultPriority           pgtype.Int4        `json:"defaultPriority"`
-	CreateWorkflowVersionOpts []byte             `json:"createWorkflowVersionOpts"`
-	InputJsonSchema           []byte             `json:"inputJsonSchema"`
+	ID                        uuid.UUID             `json:"id"`
+	CreatedAt                 pgtype.Timestamp      `json:"createdAt"`
+	UpdatedAt                 pgtype.Timestamp      `json:"updatedAt"`
+	Deletedat                 pgtype.Timestamp      `json:"deletedat"`
+	Checksum                  string                `json:"checksum"`
+	Version                   pgtype.Text           `json:"version"`
+	Workflowid                uuid.UUID             `json:"workflowid"`
+	Sticky                    NullStickyStrategy    `json:"sticky"`
+	Kind                      NullWorkflowKind      `json:"kind"`
+	DefaultPriority           pgtype.Int4           `json:"defaultPriority"`
+	CreateWorkflowVersionOpts []byte                `json:"createWorkflowVersionOpts"`
+	InputJsonSchema           []byte                `json:"inputJsonSchema"`
+	IdempotencyKeyExpression  pgtype.Text           `json:"idempotencyKeyExpression"`
+	IdempotencyKeyTtlMs       pgtype.Int8           `json:"idempotencyKeyTtlMs"`
+	IdempotencyMethod         NullIdempotencyMethod `json:"idempotencyMethod"`
 }
 
 func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg CreateWorkflowVersionParams) (*WorkflowVersion, error) {
@@ -961,6 +1019,9 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		arg.DefaultPriority,
 		arg.CreateWorkflowVersionOpts,
 		arg.InputJsonSchema,
+		arg.IdempotencyKeyExpression,
+		arg.IdempotencyKeyTtlMs,
+		arg.IdempotencyMethod,
 	)
 	var i WorkflowVersion
 	err := row.Scan(
@@ -979,6 +1040,9 @@ func (q *Queries) CreateWorkflowVersion(ctx context.Context, db DBTX, arg Create
 		&i.DefaultPriority,
 		&i.CreateWorkflowVersionOpts,
 		&i.InputJsonSchema,
+		&i.IdempotencyKeyExpression,
+		&i.IdempotencyKeyTtlMs,
+		&i.IdempotencyMethod,
 	)
 	return &i, err
 }
@@ -1232,7 +1296,7 @@ func (q *Queries) GetWorkflowShape(ctx context.Context, db DBTX, workflowversion
 
 const getWorkflowVersionById = `-- name: GetWorkflowVersionById :one
 SELECT
-    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema",
+    wv.id, wv."createdAt", wv."updatedAt", wv."deletedAt", wv.version, wv."order", wv."workflowId", wv.checksum, wv."scheduleTimeout", wv."onFailureJobId", wv.sticky, wv.kind, wv."defaultPriority", wv."createWorkflowVersionOpts", wv."inputJsonSchema", wv."idempotencyKeyExpression", wv."idempotencyKeyTtlMs", wv."idempotencyMethod",
     w.id, w."createdAt", w."updatedAt", w."deletedAt", w."tenantId", w.name, w.description, w."isPaused"
 FROM
     "WorkflowVersion" as wv
@@ -1267,6 +1331,9 @@ func (q *Queries) GetWorkflowVersionById(ctx context.Context, db DBTX, id uuid.U
 		&i.WorkflowVersion.DefaultPriority,
 		&i.WorkflowVersion.CreateWorkflowVersionOpts,
 		&i.WorkflowVersion.InputJsonSchema,
+		&i.WorkflowVersion.IdempotencyKeyExpression,
+		&i.WorkflowVersion.IdempotencyKeyTtlMs,
+		&i.WorkflowVersion.IdempotencyMethod,
 		&i.Workflow.ID,
 		&i.Workflow.CreatedAt,
 		&i.Workflow.UpdatedAt,
@@ -1355,7 +1422,7 @@ func (q *Queries) GetWorkflowVersionEventTriggerRefs(ctx context.Context, db DBT
 
 const getWorkflowVersionForEngine = `-- name: GetWorkflowVersionForEngine :many
 SELECT
-    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema",
+    workflowversions.id, workflowversions."createdAt", workflowversions."updatedAt", workflowversions."deletedAt", workflowversions.version, workflowversions."order", workflowversions."workflowId", workflowversions.checksum, workflowversions."scheduleTimeout", workflowversions."onFailureJobId", workflowversions.sticky, workflowversions.kind, workflowversions."defaultPriority", workflowversions."createWorkflowVersionOpts", workflowversions."inputJsonSchema", workflowversions."idempotencyKeyExpression", workflowversions."idempotencyKeyTtlMs", workflowversions."idempotencyMethod",
     w."name" as "workflowName",
     wc."limitStrategy" as "concurrencyLimitStrategy",
     wc."maxRuns" as "concurrencyMaxRuns",
@@ -1413,6 +1480,9 @@ func (q *Queries) GetWorkflowVersionForEngine(ctx context.Context, db DBTX, arg 
 			&i.WorkflowVersion.DefaultPriority,
 			&i.WorkflowVersion.CreateWorkflowVersionOpts,
 			&i.WorkflowVersion.InputJsonSchema,
+			&i.WorkflowVersion.IdempotencyKeyExpression,
+			&i.WorkflowVersion.IdempotencyKeyTtlMs,
+			&i.WorkflowVersion.IdempotencyMethod,
 			&i.WorkflowName,
 			&i.ConcurrencyLimitStrategy,
 			&i.ConcurrencyMaxRuns,
@@ -1479,7 +1549,7 @@ const linkOnFailureJob = `-- name: LinkOnFailureJob :one
 UPDATE "WorkflowVersion"
 SET "onFailureJobId" = $1::uuid
 WHERE "id" = $2::uuid
-RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema"
+RETURNING id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod"
 `
 
 type LinkOnFailureJobParams struct {
@@ -1506,6 +1576,9 @@ func (q *Queries) LinkOnFailureJob(ctx context.Context, db DBTX, arg LinkOnFailu
 		&i.DefaultPriority,
 		&i.CreateWorkflowVersionOpts,
 		&i.InputJsonSchema,
+		&i.IdempotencyKeyExpression,
+		&i.IdempotencyKeyTtlMs,
+		&i.IdempotencyMethod,
 	)
 	return &i, err
 }
@@ -1600,7 +1673,8 @@ SELECT
     w."id" as "workflowId",
     COALESCE(wv."defaultPriority", 1) AS "defaultPriority",
     COUNT(se."stepId") as "exprCount",
-    COUNT(sc.id) as "concurrencyCount"
+    COUNT(sc.id) as "concurrencyCount",
+    sbc.batch_group_key AS "batchGroupKey"
 FROM
     "Step" s
 JOIN
@@ -1613,13 +1687,15 @@ LEFT JOIN
     v1_step_concurrency sc ON sc.workflow_id = w."id" AND sc.step_id = s."id"
 LEFT JOIN
     "StepExpression" se ON se."stepId" = s."id"
+LEFT JOIN
+    v1_step_batch_config sbc ON sbc.step_id = s."id"
 WHERE
     s."id" = ANY($1::uuid[])
     AND w."tenantId" = $2::uuid
     AND w."deletedAt" IS NULL
     AND wv."deletedAt" IS NULL
 GROUP BY
-    s."id", wv."id", w."name", w."id", wv."sticky"
+    s."id", wv."id", w."name", w."id", wv."sticky", sbc.batch_group_key
 `
 
 type ListStepsByIdsParams struct {
@@ -1650,6 +1726,7 @@ type ListStepsByIdsRow struct {
 	DefaultPriority       int32              `json:"defaultPriority"`
 	ExprCount             int64              `json:"exprCount"`
 	ConcurrencyCount      int64              `json:"concurrencyCount"`
+	BatchGroupKey         pgtype.Text        `json:"batchGroupKey"`
 }
 
 func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsByIdsParams) ([]*ListStepsByIdsRow, error) {
@@ -1684,6 +1761,7 @@ func (q *Queries) ListStepsByIds(ctx context.Context, db DBTX, arg ListStepsById
 			&i.DefaultPriority,
 			&i.ExprCount,
 			&i.ConcurrencyCount,
+			&i.BatchGroupKey,
 		); err != nil {
 			return nil, err
 		}

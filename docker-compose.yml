@@ -28,7 +28,7 @@ services:
     depends_on:
       - postgres
   rabbitmq:
-    image: "rabbitmq:4-management"
+    image: "rabbitmq:4.2.8-management"
     hostname: "rabbitmq"
     ports:
       - "5672:5672" # RabbitMQ

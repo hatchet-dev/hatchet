@@ -13,47 +13,63 @@ import (
 
 	cliconfig "github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/cli"
 	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/config/worker"
+	"github.com/hatchet-dev/hatchet/cmd/hatchet-cli/cli/internal/templater"
 	profileconfig "github.com/hatchet-dev/hatchet/pkg/config/cli"
 )
 
-// Test matrix of all language and package manager combinations
-var templateTests = []struct {
+type templateTestCase struct {
+	useCase        string
 	language       string
 	packageManager string
-}{
+	// trigger is the hatchet.yaml trigger name the test runs once the worker
+	// is up
+	trigger string
+}
+
+// Test matrix of all use case, language, and package manager combinations
+var templateTests = []templateTestCase{
 	// Python
-	{"python", "poetry"},
-	{"python", "uv"},
-	{"python", "pip"},
+	{"simple", "python", "poetry", "simple"},
+	{"simple", "python", "uv", "simple"},
+	{"simple", "python", "pip", "simple"},
 
 	// TypeScript
-	{"typescript", "npm"},
-	{"typescript", "pnpm"},
-	{"typescript", "yarn"},
-	{"typescript", "bun"},
+	{"simple", "typescript", "npm", "simple"},
+	{"simple", "typescript", "pnpm", "simple"},
+	{"simple", "typescript", "yarn", "simple"},
+	{"simple", "typescript", "bun", "simple"},
 
 	// Go
-	{"go", "go"},
+	{"simple", "go", "go", "simple"},
+
+	// Use cases
+	{"scheduled", "go", "go", "manual-run"},
 }
 
 func TestQuickstartTemplates(t *testing.T) {
 	for _, tt := range templateTests {
-		t.Run(fmt.Sprintf("%s_%s", tt.language, tt.packageManager), func(t *testing.T) {
-			testTemplate(t, tt.language, tt.packageManager)
+		t.Run(fmt.Sprintf("%s_%s_%s", tt.useCase, tt.language, tt.packageManager), func(t *testing.T) {
+			testTemplate(t, tt)
 		})
 	}
 }
 
-func testTemplate(t *testing.T, language, packageManager string) {
+func testTemplate(t *testing.T, tt templateTestCase) {
 	// 1. Create temp directory
 	tmpDir := t.TempDir()
 	projectDir := filepath.Join(tmpDir, "test-project")
 	projectName := "test-project"
 
-	t.Logf("Testing %s with %s in %s", language, packageManager, projectDir)
+	t.Logf("Testing %s %s with %s in %s", tt.useCase, tt.language, tt.packageManager, projectDir)
 
 	// 2. Generate quickstart project using the CLI implementation
-	_, err := GenerateQuickstart(language, packageManager, projectName, projectDir)
+	selection := templater.Selection{
+		UseCase:        tt.useCase,
+		Language:       tt.language,
+		PackageManager: tt.packageManager,
+	}
+
+	_, err := GenerateQuickstart(selection, projectName, projectDir)
 	if err != nil {
 		t.Fatalf("quickstart generation failed: %v", err)
 	}
@@ -61,7 +77,7 @@ func testTemplate(t *testing.T, language, packageManager string) {
 	t.Logf("Project generated successfully")
 
 	// 3. Verify project structure
-	if err := verifyProjectStructure(t, projectDir, language, packageManager); err != nil {
+	if err := verifyProjectStructure(t, projectDir, tt); err != nil {
 		t.Fatalf("Project structure verification failed: %v", err)
 	}
 
@@ -93,20 +109,20 @@ func testTemplate(t *testing.T, language, packageManager string) {
 
 	// 6. Start worker in dev mode using the CLI implementation and ensure it runs for 15 seconds without error
 	t.Log("Starting worker dev mode...")
-	if err := testWorkerDev(t, workerConfig, profile); err != nil {
+	if err := testWorkerDev(t, workerConfig, profile, tt.trigger); err != nil {
 		t.Fatalf("Worker dev test failed: %v", err)
 	}
 
 	// 7. Verify Dockerfile builds
 	t.Log("Verifying Dockerfile builds...")
-	if err := testDockerfileBuild(t, projectDir, language, packageManager); err != nil {
+	if err := testDockerfileBuild(t, projectDir, tt); err != nil {
 		t.Fatalf("Dockerfile build test failed: %v", err)
 	}
 
-	t.Logf("Successfully tested %s with %s", language, packageManager)
+	t.Logf("Successfully tested %s %s with %s", tt.useCase, tt.language, tt.packageManager)
 }
 
-func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *profileconfig.Profile) error {
+func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *profileconfig.Profile, triggerName string) error {
 	// Create a context with timeout (safety net)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
@@ -156,20 +172,20 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 	default:
 	}
 
-	// Trigger the "simple" workflow if it exists in the config
+	// Trigger the named workflow if it exists in the config
 	if len(workerConfig.Triggers) > 0 {
-		var simpleTrigger *worker.Trigger
+		var trigger *worker.Trigger
 		for i := range workerConfig.Triggers {
-			if workerConfig.Triggers[i].Name == "simple" {
-				simpleTrigger = &workerConfig.Triggers[i]
+			if workerConfig.Triggers[i].Name == triggerName {
+				trigger = &workerConfig.Triggers[i]
 				break
 			}
 		}
 
-		if simpleTrigger != nil {
-			t.Logf("Triggering workflow using command: %s", simpleTrigger.Command)
+		if trigger != nil {
+			t.Logf("Triggering workflow using command: %s", trigger.Command)
 			triggerCtx, triggerCancel := context.WithTimeout(ctx, 30*time.Second)
-			err := executeTriggerCommand(triggerCtx, simpleTrigger.Command, profile)
+			err := executeTriggerCommand(triggerCtx, trigger.Command, profile)
 			triggerCancel()
 			if err != nil {
 				return fmt.Errorf("failed to trigger workflow: %w", err)
@@ -196,8 +212,8 @@ func testWorkerDev(t *testing.T, workerConfig *worker.WorkerConfig, profile *pro
 	return nil
 }
 
-func verifyProjectStructure(t *testing.T, projectDir, language, packageManager string) error {
-	t.Logf("Verifying project structure for %s/%s", language, packageManager)
+func verifyProjectStructure(t *testing.T, projectDir string, tt templateTestCase) error {
+	t.Logf("Verifying project structure for %s %s with %s", tt.useCase, tt.language, tt.packageManager)
 
 	// Common files that should exist
 	commonFiles := []string{
@@ -214,7 +230,7 @@ func verifyProjectStructure(t *testing.T, projectDir, language, packageManager s
 	}
 
 	// Language-specific files
-	switch language {
+	switch tt.language {
 	case "python":
 		pythonFiles := []string{
 			"src/hatchet_client.py",
@@ -230,7 +246,7 @@ func verifyProjectStructure(t *testing.T, projectDir, language, packageManager s
 		}
 
 		// Check for package manager specific files
-		switch packageManager {
+		switch tt.packageManager {
 		case "poetry":
 			if _, err := os.Stat(filepath.Join(projectDir, "pyproject.toml")); os.IsNotExist(err) {
 				return fmt.Errorf("expected pyproject.toml for poetry")
@@ -262,11 +278,16 @@ func verifyProjectStructure(t *testing.T, projectDir, language, packageManager s
 		}
 
 	case "go":
+		workflowFile := "workflows/first_workflow.go"
+		if tt.useCase == "scheduled" {
+			workflowFile = "workflows/scheduled_workflow.go"
+		}
+
 		goFiles := []string{
 			"cmd/worker/main.go",
 			"cmd/run/main.go",
 			"client/client.go",
-			"workflows/first_workflow.go",
+			workflowFile,
 			"go.mod",
 		}
 		for _, file := range goFiles {
@@ -280,18 +301,18 @@ func verifyProjectStructure(t *testing.T, projectDir, language, packageManager s
 	return nil
 }
 
-func testDockerfileBuild(t *testing.T, projectDir, language, packageManager string) error {
+func testDockerfileBuild(t *testing.T, projectDir string, tt templateTestCase) error {
 	// Verify Dockerfile exists
 	dockerfilePath := filepath.Join(projectDir, "Dockerfile")
 	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
 		return fmt.Errorf("Dockerfile does not exist at %s", dockerfilePath)
 	}
 
-	t.Logf("Building Dockerfile for %s/%s...", language, packageManager)
+	t.Logf("Building Dockerfile for %s %s with %s...", tt.useCase, tt.language, tt.packageManager)
 
 	// Build the Docker image
 	// Use a unique tag for each test to avoid conflicts
-	imageName := fmt.Sprintf("hatchet-test-%s-%s:latest", language, packageManager)
+	imageName := fmt.Sprintf("hatchet-test-%s-%s-%s:latest", tt.useCase, tt.language, tt.packageManager)
 
 	cmd := exec.Command("docker", "build", "-t", imageName, ".")
 	cmd.Dir = projectDir

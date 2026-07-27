@@ -42,6 +42,13 @@ export interface FilterSearchConfig {
   onSearch: (term: string) => void;
 }
 
+// Optional AND/OR toggle for KeyValue filters, controlling whether rows must
+// match all pairs (AND) or any pair (OR).
+export interface FilterOperatorConfig {
+  value: 'AND' | 'OR';
+  onChange: (operator: 'AND' | 'OR') => void;
+}
+
 export type ToolbarFilters = {
   columnId: string;
   title: string;
@@ -49,6 +56,7 @@ export type ToolbarFilters = {
   options?: FilterOption[];
   timeRangeConfig?: TimeRangeConfig;
   searchConfig?: FilterSearchConfig;
+  operatorConfig?: FilterOperatorConfig;
 }[];
 
 type RefetchProps = {
@@ -111,7 +119,7 @@ export function DataTableToolbar<TData>({
 
   return (
     <div className="flex items-center justify-between">
-      <div className="flex w-full flex-row items-center gap-2">
+      <div className="flex w-full flex-row items-center gap-2 overflow-x-auto">
         <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
           {!leftActions && isLoading && <Spinner />}
           {leftActions}

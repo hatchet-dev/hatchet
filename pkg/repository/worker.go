@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/hatchet-dev/hatchet/internal/listutils"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlchelpers"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -75,6 +76,11 @@ type ListWorkersOpts struct {
 	Offset *int
 
 	Statuses []string
+
+	// LabelKeys and LabelValues are positionally paired label filters. A worker
+	// must have a label matching every key/value pair to be included.
+	LabelKeys   []string
+	LabelValues []string
 }
 
 type UpsertWorkerLabelOpts struct {
@@ -186,6 +192,17 @@ func (w *workerRepository) ListWorkers(ctx context.Context, tenantId uuid.UUID, 
 	if opts.Statuses != nil {
 		queryParams.Statuses = opts.Statuses
 		countParams.Statuses = opts.Statuses
+	}
+
+	if len(opts.LabelKeys) > 0 || len(opts.LabelValues) > 0 {
+		if len(opts.LabelKeys) != len(opts.LabelValues) {
+			return nil, 0, fmt.Errorf("label filter keys/values must be paired: got %d keys and %d values", len(opts.LabelKeys), len(opts.LabelValues))
+		}
+
+		queryParams.LabelKeys = opts.LabelKeys
+		queryParams.LabelValues = opts.LabelValues
+		countParams.LabelKeys = opts.LabelKeys
+		countParams.LabelValues = opts.LabelValues
 	}
 
 	if opts.Limit != nil {
@@ -358,13 +375,13 @@ func (w *workerRepository) GetWorkerActionsForWorkers(ctx context.Context, tenan
 
 	if len(recordsFromActionHashes) > 0 {
 		for _, record := range recordsFromActionHashes {
-			workerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
+			actionWorkerIds, ok := actionHashToWorkerIds[string(record.ActionHash)]
 
 			if !ok {
 				continue
 			}
 
-			for _, workerIdUuid := range workerIds {
+			for _, workerIdUuid := range actionWorkerIds {
 				workerId := workerIdUuid.String()
 				if _, ok := workerIdToActionIds[workerId]; !ok {
 					workerIdToActionIds[workerId] = make([]string, 0)
@@ -507,7 +524,7 @@ func hashActions(actions []string) []byte {
 }
 
 func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UUID, opts *CreateWorkerOpts) (*sqlcv1.Worker, error) {
-	preWorker, postWorker := w.m.Meter(ctx, sqlcv1.LimitResourceWORKER, tenantId, 1)
+	preWorker, postWorker := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKER, tenantId, 1)
 
 	if err := preWorker(); err != nil {
 		return nil, err
@@ -520,7 +537,7 @@ func (w *workerRepository) CreateNewWorker(ctx context.Context, tenantId uuid.UU
 		slots += units
 	}
 
-	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
+	preWorkerSlot, postWorkerSlot := w.m.Meter(ctx, nil, sqlcv1.LimitResourceWORKERSLOT, tenantId, slots)
 
 	if err := preWorkerSlot(); err != nil {
 		return nil, err
@@ -866,7 +883,7 @@ func (w *workerRepository) CleanupOldWorkers(ctx context.Context, tenantId uuid.
 func (w *workerRepository) GetDispatcherIdsForWorkers(ctx context.Context, tenantId uuid.UUID, workerIds []uuid.UUID) (map[uuid.UUID]uuid.UUID, map[uuid.UUID]struct{}, error) {
 	rows, err := w.queries.ListDispatcherIdsForWorkers(ctx, w.pool, sqlcv1.ListDispatcherIdsForWorkersParams{
 		Tenantid:  tenantId,
-		Workerids: sqlchelpers.UniqueSet(workerIds),
+		Workerids: listutils.Uniq(workerIds),
 	})
 
 	if err != nil {

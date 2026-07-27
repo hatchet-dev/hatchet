@@ -46,6 +46,9 @@ module Hatchet
     # @return [Task, nil] The on_success task
     attr_reader :on_success
 
+    # @return [Hatchet::TTLBasedIdempotencyConfig, Hatchet::StatusBasedIdempotencyConfig, nil] Idempotency configuration
+    attr_reader :idempotency
+
     # @return [String, nil] The workflow ID writer (set after registration)
     attr_writer :id
 
@@ -57,6 +60,7 @@ module Hatchet
     # @param task_defaults [Hash, nil] Default task settings
     # @param default_filters [Array<DefaultFilter>] Default filters
     # @param sticky [Symbol, nil] Sticky strategy
+    # @param idempotency [Hatchet::TTLBasedIdempotencyConfig, Hatchet::StatusBasedIdempotencyConfig, nil] Idempotency configuration
     # @param client [Hatchet::Client, nil] The client
     def initialize(
       name:,
@@ -67,6 +71,7 @@ module Hatchet
       task_defaults: nil,
       default_filters: [],
       sticky: nil,
+      idempotency: nil,
       client: nil
     )
       @name = name
@@ -78,6 +83,7 @@ module Hatchet
       @task_defaults = task_defaults
       @default_filters = default_filters
       @sticky = sticky
+      @idempotency = idempotency
       @client = client
       @on_failure = nil
       @on_success = nil
@@ -122,6 +128,25 @@ module Hatchet
     # @return [Task] The created durable task
     def durable_task(name, eviction_policy: Hatchet::DEFAULT_DURABLE_TASK_EVICTION_POLICY, **opts, &)
       task(name, durable: true, eviction_policy: eviction_policy, **opts, &)
+    end
+
+    # Define a batch task within this workflow.
+    #
+    # Batch tasks buffer concurrent runs until Hatchet flushes the batch (size reached or
+    # flush interval), then invoke the block once with all buffered inputs keyed by each
+    # run's task-run external id. The block must return a Hash mapping each id to its
+    # output, or use +broadcast_output+ on the batch config to return the same result to
+    # all callers. retries is always forced to 0 for batch tasks.
+    #
+    # Preview: batch tasks are in beta and may change in future releases.
+    #
+    # @param name [Symbol, String] Task name
+    # @param batch [Hatchet::BatchTaskConfig] Batch configuration
+    # @param opts [Hash] Other Task options forwarded to {#task}.
+    # @yield [inputs, ctx] The batch execution block, receiving a Hash of task-run external id => input
+    # @return [Task] The created batch task
+    def batch_task(name, batch:, **opts, &)
+      task(name, batch: batch, **opts, &)
     end
 
     # Define an on_failure task for this workflow
@@ -207,6 +232,8 @@ module Hatchet
       args[:sticky] = sticky_proto if sticky_proto
       args[:default_priority] = @default_priority if @default_priority
       args[:default_filters] = filter_protos unless filter_protos.empty?
+
+      args[:idempotency] = @idempotency.to_proto if @idempotency
 
       ::V1::CreateWorkflowVersionRequest.new(**args)
     end

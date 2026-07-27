@@ -7,19 +7,11 @@
 /* ========================= */
 @layer base {
   @font-face {
-    font-family: "JudgeMedium";
+    font-family: "JudgeExtended";
     font-style: normal;
     font-weight: 400;
     font-display: swap;
     src: url(./fonts/F37Judge-MediumExtended.woff2) format("woff2");
-  }
-
-  @font-face {
-    font-family: "JudgeRegular";
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-    src: url(./fonts/F37Judge-Regular.woff2) format("woff2");
   }
 
   :root {
@@ -319,16 +311,29 @@ pre.shiki {
 /* Miscellaneous Fixes       */
 /* ========================= */
 
-h1 {
-  font-family: "JudgeMedium", sans-serif;
-  font-weight: normal !important;
+/* Slightly smaller default body text (paragraphs/lists inherit from body) */
+body {
+  font-size: 0.9375rem;
 }
 
+/* More breathing room between the main content column and the sidebar */
+@media (min-width: 768px) {
+  article.nextra-content {
+    padding-left: max(env(safe-area-inset-left), 2.5rem);
+    padding-right: max(env(safe-area-inset-right), 2.5rem);
+  }
+}
+
+h1,
 h2,
 h3 {
-  font-family: "JudgeRegular", sans-serif;
+  font-family: "JudgeExtended", sans-serif;
   font-weight: normal !important;
   letter-spacing: 0 !important;
+}
+
+h2 {
+  font-size: 1.625rem !important;
 }
 
 .nextra-steps h3::before {

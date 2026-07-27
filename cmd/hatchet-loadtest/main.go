@@ -21,6 +21,7 @@ var l zerolog.Logger
 type LoadTestConfig struct {
 	Namespace                string
 	Events                   int
+	EmitWorkers              int
 	Concurrency              int
 	Duration                 time.Duration
 	Wait                     time.Duration
@@ -37,6 +38,13 @@ type LoadTestConfig struct {
 	RlDurationUnit           string
 	AverageDurationThreshold time.Duration
 	PlotDir                  string
+
+	// ExternalWorker, if set, skips registering a workflow and starting an
+	// in-process worker altogether - it assumes a separately-running SDK
+	// worker (e.g. cmd/hatchet-loadtest/go) has already registered a
+	// compatible workflow named "load-test-0" (or "load-test-{i}" for
+	// i<EventFanout).
+	ExternalWorker bool
 }
 
 func main() {
@@ -70,6 +78,7 @@ func main() {
 	}
 
 	loadtest.Flags().IntVarP(&config.Events, "events", "e", 10, "events per second")
+	loadtest.Flags().IntVar(&config.EmitWorkers, "emitWorkers", 0, "emitWorkers specifies how many concurrent goroutines push events to the engine; each push is a blocking call, so this bounds sustained throughput regardless of --events. 0 auto-scales from --events (see emit.go's defaultEmitWorkers)")
 	loadtest.Flags().IntVarP(&config.Concurrency, "concurrency", "c", 0, "concurrency specifies the maximum events to run at the same time")
 	loadtest.Flags().DurationVarP(&config.Duration, "duration", "d", 10*time.Second, "duration specifies the total time to run the load test")
 	loadtest.Flags().DurationVarP(&config.Delay, "delay", "D", 0, "delay specifies the time to wait in each event to simulate slow tasks")
@@ -88,6 +97,7 @@ func main() {
 	loadtest.Flags().StringVarP(&logLevel, "level", "l", "info", "logLevel specifies the log level (debug, info, warn, error)")
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
+	loadtest.Flags().BoolVar(&config.ExternalWorker, "externalWorker", false, "externalWorker skips registering a workflow and starting an in-process worker, assuming a separately-running SDK worker (e.g. cmd/hatchet-loadtest/go) has already registered a compatible workflow; worker/workflow flags (slots, dagSteps, eventFanout, rlKeys, workerDelay, failureRate, delay) are ignored in this mode")
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)
 	if err := cmd.Execute(); err != nil {

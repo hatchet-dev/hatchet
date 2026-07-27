@@ -123,6 +123,26 @@ def wait_for_event(input: EmptyModel, ctx: Context) -> StepOutput:
 # !!
 
 
+# > Add multiple or groups
+@task_condition_workflow.task(
+    parents=[start],
+    wait_for=[
+        or_(
+            SleepCondition(duration=timedelta(seconds=30), readable_data_key="first"),
+        ),
+        or_(
+            SleepCondition(duration=timedelta(seconds=30), readable_data_key="second"),
+            UserEventCondition(event_key="payment:processed"),
+        ),
+    ],
+)
+def wait_for_or_groups(input: EmptyModel, ctx: Context) -> StepOutput:
+    return StepOutput(random_number=random.randint(1, 100))
+
+
+# !!
+
+
 # > Add sum
 @task_condition_workflow.task(
     parents=[

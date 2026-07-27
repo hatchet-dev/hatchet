@@ -277,6 +277,9 @@ from hatchet_sdk.clients.rest.models.user_tenant_memberships_list import (
     UserTenantMembershipsList,
 )
 from hatchet_sdk.clients.rest.models.user_tenant_public import UserTenantPublic
+from hatchet_sdk.clients.rest.models.v1_additional_metadata_operator import (
+    V1AdditionalMetadataOperator,
+)
 from hatchet_sdk.clients.rest.models.v1_branch_durable_task_request import (
     V1BranchDurableTaskRequest,
 )

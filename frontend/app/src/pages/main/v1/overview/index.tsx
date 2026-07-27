@@ -11,10 +11,12 @@ import {
 import { SupportSection } from './components/support-section';
 import { TokenSuccessDialog } from './components/token-success-dialog';
 import { useAnalytics } from '@/hooks/use-analytics';
+import useAuthDisabled from '@/hooks/use-auth-disabled';
 import { useCurrentUser } from '@/hooks/use-current-user';
 import { useTenantDetails } from '@/hooks/use-tenant';
 import api, { CreateAPITokenRequest, queries } from '@/lib/api';
 import { useApiError } from '@/lib/hooks';
+import useApiMeta from '@/pages/auth/hooks/use-api-meta';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -28,6 +30,10 @@ const EXPIRES_IN_OPTIONS = {
 export default function Overview() {
   const { tenant, tenantId } = useTenantDetails();
   const { currentUser } = useCurrentUser();
+  const authDisabled = useAuthDisabled();
+  const { meta } = useApiMeta();
+  const authDisabledToken =
+    meta && 'authDisabledToken' in meta ? meta.authDisabledToken : undefined;
   const navigate = useNavigate();
   const { capture } = useAnalytics();
   const [tokenName, setTokenName] = useState('');
@@ -189,6 +195,8 @@ export default function Overview() {
         onLanguageChange={setLanguage}
         installMethod={installMethod}
         onInstallMethodChange={setInstallMethod}
+        authDisabled={authDisabled}
+        authDisabledToken={authDisabledToken}
         profileToken={profileToken}
         isGeneratingProfileToken={createProfileTokenMutation.isPending}
         profileTokenError={profileTokenError}
@@ -220,27 +228,29 @@ export default function Overview() {
         }}
       />
 
-      <CreateApiTokenSection
-        tokenName={tokenName}
-        onTokenNameChange={(value) => {
-          setHasEditedTokenName(true);
-          setTokenName(value);
-          setFieldErrors({});
-        }}
-        expiresIn={expiresIn}
-        expiresInOptions={EXPIRES_IN_OPTIONS}
-        onExpiresInChange={setExpiresIn}
-        onExpiresInSelected={(label) => {
-          capture('onboarding_token_expiration_selected', {
-            tenant_id: tenantId,
-            user_email: currentUser?.email,
-            expiration: label,
-          });
-        }}
-        fieldErrors={fieldErrors}
-        isGenerating={createTokenMutation.isPending}
-        onGenerateToken={handleGenerateToken}
-      />
+      {!authDisabled && (
+        <CreateApiTokenSection
+          tokenName={tokenName}
+          onTokenNameChange={(value) => {
+            setHasEditedTokenName(true);
+            setTokenName(value);
+            setFieldErrors({});
+          }}
+          expiresIn={expiresIn}
+          expiresInOptions={EXPIRES_IN_OPTIONS}
+          onExpiresInChange={setExpiresIn}
+          onExpiresInSelected={(label) => {
+            capture('onboarding_token_expiration_selected', {
+              tenant_id: tenantId,
+              user_email: currentUser?.email,
+              expiration: label,
+            });
+          }}
+          fieldErrors={fieldErrors}
+          isGenerating={createTokenMutation.isPending}
+          onGenerateToken={handleGenerateToken}
+        />
+      )}
 
       <SupportSection />
 

@@ -131,9 +131,7 @@ export interface DurableTaskEventWaitForAck {
 }
 
 export type DurableTaskEventAck =
-  | DurableTaskEventRunAck
-  | DurableTaskEventMemoAck
-  | DurableTaskEventWaitForAck;
+  DurableTaskEventRunAck | DurableTaskEventMemoAck | DurableTaskEventWaitForAck;
 
 export interface DurableTaskEventLogEntryResult {
   durableTaskExternalId: string;

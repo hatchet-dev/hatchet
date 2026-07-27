@@ -12,6 +12,7 @@ from hatchet_sdk import (
 hatchet = Hatchet()
 
 
+# > Cancel Newest
 class WorkflowInput(BaseModel):
     group: str
 

@@ -3,6 +3,7 @@ import {
   scanFileForWorkflowAnnotations,
   type WorkflowFactoryAnnotation,
 } from '../parser/jsdoc-annotations';
+import { parseWorkflows } from '../parser/workflow-parser';
 
 // Paths containing these segments are ignored by the file-system watcher,
 // matching the exclusion applied to the initial findFiles scan.
@@ -11,6 +12,29 @@ const IGNORED_PATH_SEGMENTS = ['node_modules', '.git'];
 function isIgnoredUri(uri: vscode.Uri): boolean {
   const p = uri.fsPath;
   return IGNORED_PATH_SEGMENTS.some((seg) => p.includes(seg));
+}
+
+/**
+ * For each `@hatchet-workflow` factory, capture the DAG built *inside* its body
+ * so a usage of the factory can render it. Parsing with no annotations surfaces
+ * the inner `*.workflow(...)` declaration (incl. dynamically-named ones); we
+ * match it to a factory by line range.
+ */
+function enrichWithFactoryTasks(
+  annotations: WorkflowFactoryAnnotation[],
+  text: string,
+  fileName: string,
+): void {
+  if (!annotations.some((a) => a.range)) return;
+  const innerWorkflows = parseWorkflows(text, fileName);
+  for (const ann of annotations) {
+    const range = ann.range;
+    if (!range) continue;
+    const inner = innerWorkflows.find(
+      (w) => w.declarationLine >= range.startLine && w.declarationLine <= range.endLine,
+    );
+    if (inner && inner.tasks.length > 0) ann.tasks = inner.tasks;
+  }
 }
 
 /**
@@ -73,6 +97,7 @@ export class WorkflowAnnotationCache {
         const text = new TextDecoder().decode(bytes);
         const found = scanFileForWorkflowAnnotations(text, uri.fsPath);
         if (found.length > 0) {
+          enrichWithFactoryTasks(found, text, uri.fsPath);
           this._byFile.set(
             fileKey,
             new Map(found.map((ann) => [ann.functionName, ann])),

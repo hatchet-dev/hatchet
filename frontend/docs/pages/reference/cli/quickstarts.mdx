@@ -1,0 +1,69 @@
+# Generating Quickstart Projects
+
+The `hatchet quickstart` command generates a worker project with boilerplate code. Run it with no flags for an interactive setup, or pass flags to script it.
+
+```sh
+hatchet quickstart
+```
+
+The generated project contains a worker, a workflow, a trigger script, and a `hatchet.yaml` for [`hatchet worker dev`](/cli/running-workers-locally). The worker runs in your environment and connects to your Hatchet instance using the profile you have configured.
+
+## Use-case templates
+
+Templates are organized by use case. The default use case is `simple`, a worker with one workflow. Selecting a different one generates a project for that use case:
+
+```sh
+hatchet quickstart --use-case scheduled --language go
+```
+
+The `scheduled` use case is a Go project whose workflow runs on a cron schedule. With the worker running, its `manual-run` trigger runs the workflow once on demand:
+
+```sh
+hatchet trigger manual-run
+```
+
+The interactive flow only offers languages the selected use case supports, and commands that pass `--language` or `--package-manager` without `--use-case` generate the `simple` template.
+
+## Reference
+
+#### `hatchet quickstart`
+
+```txt
+Generate a quickstart Hatchet worker project with boilerplate code in your language of choice.
+
+Supports multiple package managers:
+  Python: poetry, uv, pip
+  TypeScript: npm, pnpm, yarn, bun
+  Go: go modules
+
+Use-case templates are selected with --use-case. The default, simple, is a
+minimal worker with one workflow. Other use cases, such as scheduled, may
+support a subset of languages.
+
+Usage:
+  hatchet quickstart [flags]
+
+Examples:
+  # Generate a project interactively (prompts for use case, language, package manager, name, and directory)
+  hatchet quickstart
+
+  # Generate a Python project with Poetry
+  hatchet quickstart --language python --package-manager poetry
+
+  # Generate a TypeScript project with pnpm
+  hatchet quickstart --language typescript --package-manager pnpm --project-name my-worker
+
+  # Generate the scheduled use case in Go
+  hatchet quickstart --use-case scheduled --language go
+
+  # Generate a Python project with uv using short flags
+  hatchet quickstart -l python -m uv -p my-worker -d ./my-worker
+
+Flags:
+  -d, --directory string         Directory to create the project in (default: ./{project-name})
+  -h, --help                     help for quickstart
+  -l, --language string          Programming language (python, typescript, go)
+  -m, --package-manager string   Package manager (poetry, uv, pip for Python; npm, pnpm, yarn, bun for TypeScript)
+  -p, --project-name string      Name of the project (default: hatchet-worker)
+  -u, --use-case string          Use case template (default: simple)
+```

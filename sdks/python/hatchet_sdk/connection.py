@@ -1,4 +1,3 @@
-import os
 from typing import Literal, cast, overload
 
 import grpc
@@ -64,15 +63,6 @@ def new_conn(config: ClientConfig, aio: bool) -> grpc.Channel | grpc.aio.Channel
         ("grpc.keepalive_permit_without_calls", 1),
         ("grpc.default_compression_algorithm", grpc.Compression.Gzip),
     ]
-
-    # Set environment variable to disable fork support. Reference: https://github.com/grpc/grpc/issues/28557
-    # When steps execute via os.fork, we see `TSI_DATA_CORRUPTED` errors.
-    # needs to be the string "True" or "False"
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = str(config.grpc_enable_fork_support)
-
-    if config.grpc_enable_fork_support:
-        # See discussion: https://github.com/hatchet-dev/hatchet/pull/2057#discussion_r2243233357
-        os.environ["GRPC_POLL_STRATEGY"] = "poll"
 
     if not credentials:
         conn = start.insecure_channel(

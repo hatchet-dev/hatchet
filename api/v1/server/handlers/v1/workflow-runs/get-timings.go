@@ -22,16 +22,16 @@ func (t *V1WorkflowRunsService) V1WorkflowRunGetTimings(ctx echo.Context, reques
 
 	workflowRun := rawWorkflowRun.WorkflowRun
 
-	var depth int32 = 0
+	var depth int32
 
 	if request.Params.Depth != nil {
-		depth = int32(*request.Params.Depth)
-	}
+		if *request.Params.Depth < 0 || *request.Params.Depth > 10 {
+			return gen.V1WorkflowRunGetTimings400JSONResponse(
+				apierrors.NewAPIErrors("depth must be less than or equal to 10"),
+			), nil
+		}
 
-	if depth > 10 {
-		return gen.V1WorkflowRunGetTimings400JSONResponse(
-			apierrors.NewAPIErrors("depth must be less than or equal to 10"),
-		), nil
+		depth = int32(*request.Params.Depth)
 	}
 
 	taskTimings, idsToDepths, err := t.config.V1.OLAP().GetTaskTimings(
@@ -78,13 +78,14 @@ func DFSOrder(tasks []gen.V1TaskTiming) []gen.V1TaskTiming {
 	// sort roots by queuedAt, then taskId
 	sort.SliceStable(roots, func(i, j int) bool {
 		qi, qj := roots[i].QueuedAt, roots[j].QueuedAt
-		if qi != nil && qj != nil {
+		switch {
+		case qi != nil && qj != nil:
 			if !qi.Equal(*qj) {
 				return qi.Before(*qj)
 			}
-		} else if qi != nil {
+		case qi != nil:
 			return true
-		} else if qj != nil {
+		case qj != nil:
 			return false
 		}
 		return roots[i].TaskId < roots[j].TaskId
@@ -94,13 +95,14 @@ func DFSOrder(tasks []gen.V1TaskTiming) []gen.V1TaskTiming {
 	for parent, childs := range children {
 		sort.SliceStable(childs, func(i, j int) bool {
 			qi, qj := childs[i].QueuedAt, childs[j].QueuedAt
-			if qi != nil && qj != nil {
+			switch {
+			case qi != nil && qj != nil:
 				if !qi.Equal(*qj) {
 					return qi.Before(*qj)
 				}
-			} else if qi != nil {
+			case qi != nil:
 				return true
-			} else if qj != nil {
+			case qj != nil:
 				return false
 			}
 			return childs[i].TaskId < childs[j].TaskId

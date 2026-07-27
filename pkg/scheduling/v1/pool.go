@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hatchet-dev/pgoutbox"
 	"github.com/rs/zerolog"
 
 	"github.com/hatchet-dev/hatchet/internal/syncx"
+	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
@@ -17,7 +19,12 @@ import (
 type sharedConfig struct {
 	repo v1.SchedulerRepository
 
+	outbox   pgoutbox.Outbox
+	taskRepo v1.TaskRepository
+
 	l *zerolog.Logger
+
+	promGate *prometheus.Gate
 
 	singleQueueLimit int
 
@@ -32,6 +39,8 @@ type sharedConfig struct {
 	schedulerCheckActiveMaxInterval time.Duration
 
 	schedulerAdvisoryLockTimeout time.Duration
+
+	concurrencyInMemoryIndexEnabled bool
 }
 
 // SchedulingPool is responsible for managing a pool of tenantManagers.
@@ -53,6 +62,8 @@ type SchedulingPool struct {
 
 func NewSchedulingPool(
 	repo v1.SchedulerRepository,
+	taskRepo v1.TaskRepository,
+	outbox pgoutbox.Outbox,
 	l *zerolog.Logger,
 	singleQueueLimit int,
 	schedulerConcurrencyRateLimit int,
@@ -63,6 +74,8 @@ func NewSchedulingPool(
 	schedulerAdvisoryLockTimeout time.Duration,
 	optimisticSchedulingEnabled bool,
 	optimisticSlots int,
+	concurrencyInMemoryIndexEnabled bool,
+	promGate *prometheus.Gate,
 ) (*SchedulingPool, func() error, error) {
 	resultsCh := make(chan *QueueResults, 1000)
 	concurrencyResultsCh := make(chan *ConcurrencyResults, 1000)
@@ -72,7 +85,9 @@ func NewSchedulingPool(
 		Extensions: &Extensions{},
 		cf: &sharedConfig{
 			repo:                                   repo,
+			outbox:                                 outbox,
 			l:                                      l,
+			promGate:                               promGate,
 			singleQueueLimit:                       singleQueueLimit,
 			schedulerConcurrencyRateLimit:          schedulerConcurrencyRateLimit,
 			schedulerConcurrencyPollingMinInterval: schedulerConcurrencyPollingMinInterval,
@@ -80,6 +95,8 @@ func NewSchedulingPool(
 			schedulerCheckActiveMinInterval:        schedulerCheckActiveMinInterval,
 			schedulerCheckActiveMaxInterval:        schedulerCheckActiveMaxInterval,
 			schedulerAdvisoryLockTimeout:           schedulerAdvisoryLockTimeout,
+			concurrencyInMemoryIndexEnabled:        concurrencyInMemoryIndexEnabled,
+			taskRepo:                               taskRepo,
 		},
 		resultsCh:                   resultsCh,
 		concurrencyResultsCh:        concurrencyResultsCh,
@@ -236,9 +253,9 @@ func (p *SchedulingPool) getTenantManager(tenantId uuid.UUID, storeIfNotFound bo
 var ErrTenantNotFound = fmt.Errorf("tenant not found in pool")
 var ErrNoOptimisticSlots = fmt.Errorf("no optimistic slots for scheduling")
 
-func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, error) {
+func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId uuid.UUID, opts []*v1.WorkflowNameTriggerOpts, localWorkerIds map[uuid.UUID]struct{}) (map[uuid.UUID][]*AssignedItemWithTask, []*v1.V1TaskWithPayload, []*v1.DAGWithData, []v1.IdempotencyCollision, error) {
 	if !p.optimisticSchedulingEnabled {
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	// attempt to acquire a slot in the semaphore
@@ -250,13 +267,13 @@ func (p *SchedulingPool) RunOptimisticScheduling(ctx context.Context, tenantId u
 		}()
 	default:
 		// no slots available
-		return nil, nil, nil, ErrNoOptimisticSlots
+		return nil, nil, nil, nil, ErrNoOptimisticSlots
 	}
 
 	tm := p.getTenantManager(tenantId, false)
 
 	if tm == nil {
-		return nil, nil, nil, ErrTenantNotFound
+		return nil, nil, nil, nil, ErrTenantNotFound
 	}
 
 	return tm.runOptimisticScheduling(ctx, opts, localWorkerIds)

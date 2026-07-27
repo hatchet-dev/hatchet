@@ -9,7 +9,8 @@ import {
   WebhookUpdateFormData,
   webhookUpdateFormSchema,
 } from './hooks/use-webhooks';
-import { DocsButton } from '@/components/v1/docs/docs-button';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
+import { WorkflowsGuard } from '@/components/v1/molecules/empty-state/workflows-guard';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
 import {
@@ -45,7 +46,22 @@ import { AlertTriangle, Check, Copy, Lightbulb, Webhook } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-export default function Webhooks() {
+export default function WebhooksPage() {
+  return (
+    <WorkflowsGuard
+      title="No webhooks found"
+      description="Webhooks allow external services to trigger your workflows via HTTP requests."
+      docs={{
+        href: docsPages.v1.webhooks.href,
+        description: 'Learn about webhooks',
+      }}
+    >
+      <Webhooks />
+    </WorkflowsGuard>
+  );
+}
+
+function Webhooks() {
   const { data, isLoading } = useWebhooks();
 
   const webhookColumns = useMemo(
@@ -114,8 +130,8 @@ export default function Webhooks() {
   }
 
   return (
-    <div>
-      <div className="mb-4 flex w-full flex-row justify-end">
+    <div className="flex h-full flex-col">
+      <div className="mb-4 flex w-full shrink-0 flex-row justify-end">
         <CreateWebhookModal />
       </div>
       {data && data.length > 0 ? (
@@ -125,14 +141,13 @@ export default function Webhooks() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-y-4 py-8 text-foreground">
-          <p className="text-lg font-semibold">No webhooks found</p>
-          <div className="w-fit">
-            <DocsButton
-              doc={docsPages.v1.webhooks}
-              label="Learn about triggering runs from webhooks"
-            />
-          </div>
+        <div className="flex flex-1 items-center justify-center">
+          <EmptyState
+            title="No webhooks found"
+            description="Webhooks allow external services to trigger your workflows via HTTP requests."
+            docPage={docsPages.v1.webhooks}
+            docLabel="Learn about webhooks"
+          />
         </div>
       )}
     </div>
@@ -357,6 +372,22 @@ const createSourceInlineDescription = (sourceName: V1WebhookSourceName) => {
   }
 };
 
+const createEventKeyPlaceholder = (sourceName: V1WebhookSourceName) => {
+  switch (sourceName) {
+    case V1WebhookSourceName.SLACK:
+      return 'input.type';
+    case V1WebhookSourceName.GENERIC:
+    case V1WebhookSourceName.GITHUB:
+    case V1WebhookSourceName.LINEAR:
+    case V1WebhookSourceName.STRIPE:
+    case V1WebhookSourceName.SVIX:
+      return 'input.id';
+    default:
+      const exhaustiveCheck: never = sourceName;
+      throw new Error(`Unhandled source name: ${exhaustiveCheck}`);
+  }
+};
+
 const SourceCaption = ({ sourceName }: { sourceName: V1WebhookSourceName }) => {
   switch (sourceName) {
     case V1WebhookSourceName.GITHUB:
@@ -400,7 +431,7 @@ const CreateWebhookModal = () => {
       sourceName: V1WebhookSourceName.GENERIC,
       authType: V1WebhookAuthType.BASIC,
       name: '',
-      eventKeyExpression: 'input.id',
+      eventKeyExpression: '',
       username: '',
       password: '',
       returnEventAsResponsePayload: true,
@@ -410,20 +441,7 @@ const CreateWebhookModal = () => {
   const sourceName = watch('sourceName');
   const authType = watch('authType');
   const webhookName = watch('name');
-  const eventKeyExpression = watch('eventKeyExpression');
   const returnEventAsResponsePayload = watch('returnEventAsResponsePayload');
-
-  /* Update default event key expression when source changes */
-  useEffect(() => {
-    if (sourceName === V1WebhookSourceName.SLACK && !eventKeyExpression) {
-      setValue('eventKeyExpression', 'input.type');
-    } else if (
-      sourceName === V1WebhookSourceName.GENERIC &&
-      !eventKeyExpression
-    ) {
-      setValue('eventKeyExpression', 'input.id');
-    }
-  }, [sourceName, eventKeyExpression, setValue]);
 
   const copyToClipboard = useCallback(async () => {
     if (webhookName) {
@@ -568,7 +586,7 @@ const CreateWebhookModal = () => {
             </Label>
             <Input
               id="eventKeyExpression"
-              placeholder="input.id"
+              placeholder={createEventKeyPlaceholder(sourceName)}
               {...register('eventKeyExpression')}
               className="h-10"
             />

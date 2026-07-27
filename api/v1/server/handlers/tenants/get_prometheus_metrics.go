@@ -16,6 +16,19 @@ func (t *TenantService) TenantGetPrometheusMetrics(ctx echo.Context, request gen
 	tenant := ctx.Get("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
+	if t.config.Prometheus.TenantScoped {
+		enabled, err := t.config.V1.TenantEntitlement().IsPrometheusMetricsEnabled(ctx.Request().Context(), tenantId)
+		if err != nil {
+			return nil, err
+		}
+
+		if !enabled {
+			return gen.TenantGetPrometheusMetrics403JSONResponse(
+				apierrors.NewAPIErrors("Prometheus metrics are not enabled for this tenant."),
+			), nil
+		}
+	}
+
 	var response string
 
 	// connect to the prometheus server

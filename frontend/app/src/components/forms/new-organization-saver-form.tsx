@@ -19,10 +19,12 @@ import invariant from 'tiny-invariant';
 interface NewOrganizationSaverFormProps {
   defaultOrganizationName?: string;
   defaultTenantName?: string;
+  // May return the navigation promise so the mutation stays pending (and the
+  // form stays in its saving state) until the destination page commits.
   afterSave: (data: {
     organization: Organization;
     tenant: OrganizationTenant;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 const useSaveOrganization = ({
@@ -68,7 +70,10 @@ const useSaveOrganization = ({
         tenant_type: 'cloud',
         is_cloud: true,
       });
-      afterSave(data);
+      // Keep the mutation pending until any navigation in afterSave commits;
+      // otherwise the form flashes back to its idle state while the target
+      // route's loader is still running.
+      await afterSave(data);
     },
     onError: handleApiError,
   });
@@ -103,7 +108,11 @@ export function NewOrganizationSaverForm({
     <NewOrganizationInputForm
       defaultOrganizationName={defaultOrganizationName}
       defaultTenantName={defaultTenantName}
-      isSaving={saveOrganizationMutation.isPending}
+      isSaving={
+        // Stay in the saving state after success too: the component only
+        // unmounts once the post-save navigation commits.
+        saveOrganizationMutation.isPending || saveOrganizationMutation.isSuccess
+      }
       onSubmit={saveOrganizationMutation.mutate}
       showRegionSelect={isControlPlaneEnabled}
       availableShards={shardsQuery.data?.rows}

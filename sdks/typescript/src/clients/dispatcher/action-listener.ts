@@ -23,6 +23,13 @@ export type ActionKey = `${string}/${number}`;
 
 export type Action = AssignedAction & { readonly key: ActionKey };
 
+export function workflowNameFromAction(
+  action: Pick<AssignedAction, 'actionId' | 'jobName'>
+): string {
+  const separatorIndex = action.actionId.lastIndexOf(':');
+  return separatorIndex === -1 ? action.jobName : action.actionId.substring(0, separatorIndex);
+}
+
 export function createAction(assignedAction: AssignedAction): Action {
   const action = assignedAction as Action;
   Object.defineProperty(action, 'key', {

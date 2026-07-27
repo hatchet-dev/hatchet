@@ -26,6 +26,7 @@ from hatchet_sdk.contracts.events_pb2 import (
     PushEventRequest,
     PutLogRequest,
     PutStreamEventRequest,
+    PutStreamEventResponse,
 )
 from hatchet_sdk.contracts.events_pb2 import Event as EventProto
 from hatchet_sdk.contracts.events_pb2 import Events as EventsProto
@@ -115,11 +116,14 @@ class EventClient(BaseRestClient):
     def __init__(self, config: ClientConfig):
         super().__init__(config)
 
-        conn = new_conn(config, False)
-        self.events_service_client = EventsServiceStub(conn)
+        self._client: EventsServiceStub | None = None
+        self._aio_client: EventsServiceStub | None = None
 
         self.token = config.token
         self.namespace = config.namespace
+        self._retrying_aio_put_stream_event = tenacity_retry(
+            self._put_stream_event, self.client_config.tenacity
+        )
 
     def _wra(self, client: ApiClient) -> WorkflowRunsApi:
         return WorkflowRunsApi(client)
@@ -127,18 +131,76 @@ class EventClient(BaseRestClient):
     def _ea(self, client: ApiClient) -> EventApi:
         return EventApi(client)
 
+    def _get_or_create_aio_client(self) -> EventsServiceStub:
+        if self._aio_client is None:
+            self._aio_client = EventsServiceStub(new_conn(self.client_config, True))
+
+        return self._aio_client
+
+    def _get_or_create_client(self) -> EventsServiceStub:
+        if self._client is None:
+            self._client = EventsServiceStub(new_conn(self.client_config, False))
+
+        return self._client
+
+    def _prepare_push_event_request(
+        self,
+        key: str,
+        payload: JSONSerializableMapping,
+        options: PushEventOptions,
+        additional_metadata: JSONSerializableMapping | None = None,
+        priority: Priority | None = None,
+        scope: str | None = None,
+        namespace_override: str | None = None,
+    ) -> PushEventRequest:
+        namespace = namespace_override or options.namespace or self.namespace
+        namespaced_key = self.client_config.apply_namespace(key, namespace)
+
+        try:
+            meta = _inject_source_info(
+                additional_metadata or options.additional_metadata
+            )
+            meta_bytes = json.dumps(meta)
+        except Exception as e:
+            raise ValueError("Error encoding meta") from e
+
+        try:
+            payload_str = json.dumps(payload)
+        except (TypeError, ValueError) as e:
+            raise ValueError("Error encoding payload") from e
+
+        return PushEventRequest(
+            key=namespaced_key,
+            payload=payload_str,
+            event_timestamp=proto_timestamp_now(),
+            additional_metadata=meta_bytes,
+            priority=priority or options.priority,
+            scope=scope or options.scope,
+        )
+
     async def aio_push(
         self,
         event_key: str,
         payload: JSONSerializableMapping,
-        options: PushEventOptions = PushEventOptions(),
+        options: PushEventOptions | None = None,
         additional_metadata: JSONSerializableMapping | None = None,
         priority: Priority | None = None,
         scope: str | None = None,
     ) -> Event:
-        return await asyncio.to_thread(
-            self.push,
-            event_key=event_key,
+        if options is not None:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = PushEventOptions()
+
+        aio_client = self._get_or_create_aio_client()
+        push_event = tenacity_retry(aio_client.Push, self.client_config.tenacity)
+
+        request = self._prepare_push_event_request(
+            key=event_key,
             payload=payload,
             options=options,
             additional_metadata=additional_metadata,
@@ -146,12 +208,12 @@ class EventClient(BaseRestClient):
             scope=scope,
         )
 
-    async def aio_bulk_push(
-        self,
-        events: list[BulkPushEventWithMetadata],
-        options: BulkPushEventOptions | None = None,
-    ) -> list[Event]:
-        return await asyncio.to_thread(self.bulk_push, events=events, options=options)
+        response = cast(
+            EventProto,
+            await push_event(request, metadata=create_authorization_header(self.token)),  # type: ignore[misc]
+        )
+
+        return Event.from_proto(response)
 
     def push(
         self,
@@ -171,68 +233,73 @@ class EventClient(BaseRestClient):
         else:
             options = PushEventOptions()
 
-        namespace = options.namespace or self.namespace
-        namespaced_event_key = self.client_config.apply_namespace(event_key, namespace)
-        push_event = tenacity_retry(
-            self.events_service_client.Push, self.client_config.tenacity
-        )
+        client = self._get_or_create_client()
+        push_event = tenacity_retry(client.Push, self.client_config.tenacity)
 
-        try:
-            meta = _inject_source_info(
-                additional_metadata or options.additional_metadata
-            )
-            meta_bytes = json.dumps(meta)
-        except Exception as e:
-            raise ValueError("Error encoding meta") from e
-
-        try:
-            payload_str = json.dumps(payload)
-        except (TypeError, ValueError) as e:
-            raise ValueError("Error encoding payload") from e
-
-        request = PushEventRequest(
-            key=namespaced_event_key,
-            payload=payload_str,
-            event_timestamp=proto_timestamp_now(),
-            additional_metadata=meta_bytes,
-            priority=priority or options.priority,
-            scope=scope or options.scope,
+        request = self._prepare_push_event_request(
+            key=event_key,
+            payload=payload,
+            options=options,
+            additional_metadata=additional_metadata,
+            priority=priority,
+            scope=scope,
         )
 
         response = cast(
             EventProto,
             push_event(request, metadata=create_authorization_header(self.token)),
         )
+
         return Event.from_proto(response)
 
-    def _create_push_event_request(
+    async def aio_bulk_push(
         self,
-        event: BulkPushEventWithMetadata,
-        namespace: str,
-    ) -> PushEventRequest:
-        event_key = self.client_config.apply_namespace(event.key, namespace)
-        payload = event.payload
+        events: list[BulkPushEventWithMetadata],
+        options: BulkPushEventOptions | None = None,
+    ) -> list[Event]:
+        if options:
+            warnings.warn(
+                "The `options` parameter is deprecated and will be removed in v2.0.0. The namespace should be set on the `ClientConfig`",
+                stacklevel=2,
+                category=DeprecationWarning,
+            )
+        else:
+            options = BulkPushEventOptions()
 
-        meta = _inject_source_info(event.additional_metadata)
+        namespace = options.namespace or self.namespace
 
-        try:
-            meta_str = json.dumps(meta)
-        except Exception as e:
-            raise ValueError("Error encoding meta") from e
-
-        try:
-            serialized_payload = json.dumps(payload)
-        except (TypeError, ValueError) as e:
-            raise ValueError("Error serializing payload") from e
-
-        return PushEventRequest(
-            key=event_key,
-            payload=serialized_payload,
-            event_timestamp=proto_timestamp_now(),
-            additional_metadata=meta_str,
-            priority=event.priority,
-            scope=event.scope,
+        bulk_request = BulkPushEventRequest(
+            events=[
+                self._prepare_push_event_request(
+                    key=event.key,
+                    payload=event.payload,
+                    additional_metadata=event.additional_metadata,
+                    options=PushEventOptions(),
+                    priority=(
+                        Priority(event.priority)
+                        if isinstance(event.priority, int)
+                        else event.priority
+                    ),
+                    scope=event.scope,
+                    namespace_override=namespace,
+                )
+                for event in events
+            ]
         )
+
+        client = self._get_or_create_aio_client()
+
+        bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
+
+        response = cast(
+            EventsProto,
+            await bulk_push(  # type: ignore[misc]
+                bulk_request,
+                metadata=create_authorization_header(self.token),
+            ),
+        )
+
+        return [Event.from_proto(event) for event in response.events]
 
     def bulk_push(
         self,
@@ -249,20 +316,35 @@ class EventClient(BaseRestClient):
             options = BulkPushEventOptions()
 
         namespace = options.namespace or self.namespace
-        bulk_push = tenacity_retry(
-            self.events_service_client.BulkPush, self.client_config.tenacity
-        )
 
         bulk_request = BulkPushEventRequest(
             events=[
-                self._create_push_event_request(event, namespace) for event in events
+                self._prepare_push_event_request(
+                    key=event.key,
+                    payload=event.payload,
+                    additional_metadata=event.additional_metadata,
+                    options=PushEventOptions(),
+                    priority=(
+                        Priority(event.priority)
+                        if isinstance(event.priority, int)
+                        else event.priority
+                    ),
+                    scope=event.scope,
+                    namespace_override=namespace,
+                )
+                for event in events
             ]
         )
+
+        client = self._get_or_create_client()
+
+        bulk_push = tenacity_retry(client.BulkPush, self.client_config.tenacity)
 
         response = cast(
             EventsProto,
             bulk_push(bulk_request, metadata=create_authorization_header(self.token)),
         )
+
         return [Event.from_proto(event) for event in response.events]
 
     def log(
@@ -276,9 +358,8 @@ class EventClient(BaseRestClient):
             logger.warning("truncating log message to 10,000 characters")
             message = message[:10_000]
 
-        put_log = tenacity_retry(
-            self.events_service_client.PutLog, self.client_config.tenacity
-        )
+        client = self._get_or_create_client()
+        put_log = tenacity_retry(client.PutLog, self.client_config.tenacity)
         request = PutLogRequest(
             task_run_external_id=step_run_id,
             created_at=proto_timestamp_now(),
@@ -289,10 +370,9 @@ class EventClient(BaseRestClient):
 
         put_log(request, metadata=create_authorization_header(self.token))
 
-    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
-        put_stream_event = tenacity_retry(
-            self.events_service_client.PutStreamEvent, self.client_config.tenacity
-        )
+    def _create_put_stream_event_request(
+        self, data: str | bytes, step_run_id: str, index: int
+    ) -> PutStreamEventRequest:
         if isinstance(data, str):
             data_bytes = data.encode("utf-8")
         elif isinstance(data, bytes):
@@ -300,17 +380,44 @@ class EventClient(BaseRestClient):
         else:
             raise ValueError("Invalid data type. Expected str, bytes, or file.")
 
-        request = PutStreamEventRequest(
+        return PutStreamEventRequest(
             task_run_external_id=step_run_id,
             created_at=proto_timestamp_now(),
             message=data_bytes,
             event_index=index,
         )
 
+    def stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+        client = self._get_or_create_client()
+        put_stream_event = tenacity_retry(
+            client.PutStreamEvent, self.client_config.tenacity
+        )
+        request = self._create_put_stream_event_request(data, step_run_id, index)
+
         try:
             put_stream_event(request, metadata=create_authorization_header(self.token))
         except Exception:
             raise
+
+    async def _put_stream_event(
+        self,
+        request: PutStreamEventRequest,
+        metadata: tuple[tuple[str, str]],
+    ) -> PutStreamEventResponse:
+        client = self._get_or_create_aio_client()
+        return cast(
+            PutStreamEventResponse,
+            await client.PutStreamEvent(  # type: ignore[misc]
+                request, metadata=metadata
+            ),
+        )
+
+    async def aio_stream(self, data: str | bytes, step_run_id: str, index: int) -> None:
+        request = self._create_put_stream_event_request(data, step_run_id, index)
+
+        await self._retrying_aio_put_stream_event(
+            request, create_authorization_header(self.token)
+        )
 
     async def aio_list(
         self,

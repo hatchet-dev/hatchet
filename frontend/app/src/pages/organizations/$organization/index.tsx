@@ -7,5 +7,5 @@ export default function OrganizationPage() {
     from: appRoutes.organizationsRoute.to,
   });
 
-  return <CloudOrganizationSettings orgId={organization} />;
+  return <CloudOrganizationSettings orgId={organization} section="general" />;
 }

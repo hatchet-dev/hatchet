@@ -61,6 +61,21 @@ class APIMeta(BaseModel):
         description="whether or not observability (trace collection) is enabled on this instance",
         alias="observabilityEnabled",
     )
+    prometheus_server_enabled: Optional[StrictBool] = Field(
+        default=None,
+        description="whether or not a Prometheus federation server is configured (SERVER_PROMETHEUS_SERVER_URL) on this instance",
+        alias="prometheusServerEnabled",
+    )
+    auth_disabled: Optional[StrictBool] = Field(
+        default=None,
+        description="whether or not authentication is disabled (authdisabled build) on this instance",
+        alias="authDisabled",
+    )
+    auth_disabled_token: Optional[StrictStr] = Field(
+        default=None,
+        description="the embedded worker API token, only set on authdisabled builds",
+        alias="authDisabledToken",
+    )
     __properties: ClassVar[List[str]] = [
         "auth",
         "pylonAppId",
@@ -70,6 +85,9 @@ class APIMeta(BaseModel):
         "allowCreateTenant",
         "allowChangePassword",
         "observabilityEnabled",
+        "prometheusServerEnabled",
+        "authDisabled",
+        "authDisabledToken",
     ]
 
     model_config = ConfigDict(
@@ -144,6 +162,9 @@ class APIMeta(BaseModel):
                 "allowCreateTenant": obj.get("allowCreateTenant"),
                 "allowChangePassword": obj.get("allowChangePassword"),
                 "observabilityEnabled": obj.get("observabilityEnabled"),
+                "prometheusServerEnabled": obj.get("prometheusServerEnabled"),
+                "authDisabled": obj.get("authDisabled"),
+                "authDisabledToken": obj.get("authDisabledToken"),
             }
         )
         return _obj

@@ -27,12 +27,12 @@ export default function OrganizationsNew() {
 
         <div className="flex justify-center">
           <NewOrganizationSaverForm
-            afterSave={({ organization, tenant }) => {
+            afterSave={({ tenant }) =>
               navigate({
                 to: appRoutes.tenantOverviewRoute.to,
                 params: { tenant: tenant.id },
-              });
-            }}
+              })
+            }
           />
         </div>
       </div>

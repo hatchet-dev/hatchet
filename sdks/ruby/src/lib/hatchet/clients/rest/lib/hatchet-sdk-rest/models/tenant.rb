@@ -35,6 +35,12 @@ module HatchetSdkRest
     # The environment type of the tenant.
     attr_accessor :environment
 
+    # The server URL for the tenant (includes scheme)
+    attr_accessor :server_url
+
+    # Control-plane shard region for the tenant (e.g. aws:us-west-2).
+    attr_accessor :region
+
     class EnumAttributeValidator
       attr_reader :datatype
       attr_reader :allowable_values
@@ -66,7 +72,9 @@ module HatchetSdkRest
         :'version' => :'version',
         :'analytics_opt_out' => :'analyticsOptOut',
         :'alert_member_emails' => :'alertMemberEmails',
-        :'environment' => :'environment'
+        :'environment' => :'environment',
+        :'server_url' => :'serverUrl',
+        :'region' => :'region'
       }
     end
 
@@ -89,7 +97,9 @@ module HatchetSdkRest
         :'version' => :'TenantVersion',
         :'analytics_opt_out' => :'Boolean',
         :'alert_member_emails' => :'Boolean',
-        :'environment' => :'TenantEnvironment'
+        :'environment' => :'TenantEnvironment',
+        :'server_url' => :'String',
+        :'region' => :'String'
       }
     end
 
@@ -149,6 +159,14 @@ module HatchetSdkRest
 
       if attributes.key?(:'environment')
         self.environment = attributes[:'environment']
+      end
+
+      if attributes.key?(:'server_url')
+        self.server_url = attributes[:'server_url']
+      end
+
+      if attributes.key?(:'region')
+        self.region = attributes[:'region']
       end
     end
 
@@ -238,7 +256,9 @@ module HatchetSdkRest
           version == o.version &&
           analytics_opt_out == o.analytics_opt_out &&
           alert_member_emails == o.alert_member_emails &&
-          environment == o.environment
+          environment == o.environment &&
+          server_url == o.server_url &&
+          region == o.region
     end
 
     # @see the `==` method
@@ -250,7 +270,7 @@ module HatchetSdkRest
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [metadata, name, slug, version, analytics_opt_out, alert_member_emails, environment].hash
+      [metadata, name, slug, version, analytics_opt_out, alert_member_emails, environment, server_url, region].hash
     end
 
     # Builds the object from hash

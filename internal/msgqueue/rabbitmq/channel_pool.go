@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+	"net/url"
 	"sync"
 	"time"
 
@@ -23,11 +24,22 @@ type channelPool struct {
 	connMu sync.Mutex
 }
 
+// redactURL masks the password in a connection URL (as url.URL.Redacted does).
+// If the URL cannot be parsed, a placeholder is returned instead.
+func redactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || (raw != "" && u.Host == "") {
+		return "<unparseable url>"
+	}
+
+	return u.Redacted()
+}
+
 func (p *channelPool) newConnection() error {
 	conn, err := amqp.Dial(p.url)
 
 	if err != nil {
-		p.l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
+		p.l.Error().Msgf("cannot (re)dial: %v: %q", err, redactURL(p.url))
 		return err
 	}
 
@@ -104,7 +116,7 @@ func newChannelPool(ctx context.Context, l *zerolog.Logger, url string, maxChann
 				err := p.newConnection()
 
 				if err != nil {
-					l.Error().Msgf("cannot (re)dial: %v: %q", err, p.url)
+					l.Error().Msgf("cannot (re)dial: %v: %q", err, redactURL(p.url))
 					queueutils.SleepWithExponentialBackoff(10*time.Millisecond, 5*time.Second, retries)
 					retries++
 					continue

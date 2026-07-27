@@ -20,7 +20,9 @@ import {
   CopyIngestURL,
   SNSActions,
 } from '../ingestors/components/sns-integrations-columns';
+import { PrometheusMetricsSettings } from './components/prometheus-metrics-settings';
 import { ConfirmDialog } from '@/components/v1/molecules/confirm-dialog';
+import { EmptyState } from '@/components/v1/molecules/empty-state/empty-state';
 import RelativeDate from '@/components/v1/molecules/relative-date';
 import { SimpleTable } from '@/components/v1/molecules/simple-table/simple-table';
 import { Button } from '@/components/v1/ui/button';
@@ -65,7 +67,7 @@ export default function Integrations() {
     <div className="h-full w-full flex-grow">
       <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <SettingsPageHeader
-          title="Integration settings"
+          title="Integrations"
           description="Configure alerting, ingestors, and connected services available for this tenant."
         />
 
@@ -76,6 +78,9 @@ export default function Integrations() {
             </TabsTrigger>
             <TabsTrigger value="ingestors" variant="underlined">
               Ingestors
+            </TabsTrigger>
+            <TabsTrigger value="metrics" variant="underlined">
+              Metrics
             </TabsTrigger>
             {hasGithubIntegration && managedWorkerEnabled && (
               <TabsTrigger value="github" variant="underlined">
@@ -94,6 +99,10 @@ export default function Integrations() {
 
           <TabsContent value="ingestors">
             <SNSIntegrationsList />
+          </TabsContent>
+
+          <TabsContent value="metrics">
+            <PrometheusMetricsSettings />
           </TabsContent>
 
           {hasGithubIntegration && (
@@ -282,9 +291,10 @@ function EmailGroupsList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No email groups found. Create a group to receive alerts via email.
-        </div>
+        <EmptyState
+          title="No email groups found"
+          description="Email groups receive alert notifications when your workflows encounter errors."
+        />
       )}
       {showGroupsDialog && (
         <CreateEmailGroup
@@ -448,9 +458,10 @@ function SlackWebhooksList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No Slack webhooks found. Add a webhook to receive alerts in Slack.
-        </div>
+        <EmptyState
+          title="No Slack webhooks found"
+          description="Slack webhooks send workflow status updates and alerts to your Slack channels."
+        />
       )}
       {deleteSlack && (
         <DeleteSlackWebhook
@@ -562,10 +573,10 @@ function SNSIntegrationsList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No SNS integrations found. Create an endpoint to receive events from
-          AWS SNS.
-        </div>
+        <EmptyState
+          title="No SNS integrations found"
+          description="SNS integrations publish Hatchet workflow events to your AWS Simple Notification Service topics."
+        />
       )}
       {showSNSDialog && (
         <CreateSNSIntegration
@@ -755,8 +766,11 @@ function GithubInstallationsList() {
           rowKey={(row) => row.metadata.id}
         />
       ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">
-          No GitHub accounts linked. Link an account to integrate with CI/CD.
+        <div className="py-8">
+          <EmptyState
+            title="No GitHub accounts linked"
+            description="Link a GitHub account to integrate Hatchet with your CI/CD workflows."
+          />
         </div>
       )}
       <ConfirmDialog

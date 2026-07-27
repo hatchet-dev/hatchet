@@ -7,15 +7,19 @@ import {
 } from './providers/codelens-provider';
 import type { WorkflowDeclaration, ParsedWorkflow } from './parser/workflow-parser';
 import { WorkflowAnnotationCache } from './analysis/annotation-cache';
+import { WorkflowTypeAnalyzer } from './analysis/workflow-type-analyzer';
 
 const SUPPORTED_LANGUAGES = ['typescript', 'typescriptreact', 'python', 'ruby', 'go'];
 
 let codeLensProvider: HatchetCodeLensProvider | undefined;
 let annotationCache: WorkflowAnnotationCache | undefined;
+let typeAnalyzer: WorkflowTypeAnalyzer | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   annotationCache = new WorkflowAnnotationCache();
-  codeLensProvider = new HatchetCodeLensProvider(annotationCache);
+  typeAnalyzer = new WorkflowTypeAnalyzer();
+  codeLensProvider = new HatchetCodeLensProvider(annotationCache, typeAnalyzer);
+  context.subscriptions.push({ dispose: () => typeAnalyzer?.dispose() });
 
   context.subscriptions.push(
     annotationCache.onDidChange(() => codeLensProvider?.refresh()),

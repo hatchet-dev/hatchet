@@ -4,6 +4,7 @@ require "hatchet-sdk"
 
 HATCHET = Hatchet::Client.new(debug: true) unless defined?(HATCHET)
 
+# > Cancel In Progress
 CONCURRENCY_CANCEL_IN_PROGRESS_WORKFLOW = HATCHET.workflow(
   name: "ConcurrencyCancelInProgress",
   concurrency: Hatchet::ConcurrencyExpression.new(

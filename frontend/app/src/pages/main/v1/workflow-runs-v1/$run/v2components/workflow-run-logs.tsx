@@ -9,7 +9,6 @@ import type { AutocompleteSuggestion } from '@/components/v1/cloud/logging/log-s
 import { LOG_LEVEL_TO_API } from '@/components/v1/cloud/logging/log-search/types';
 import { LogLine } from '@/components/v1/cloud/logging/log-search/use-logs';
 import { LogViewer } from '@/components/v1/cloud/logging/log-viewer';
-import { DocsButton } from '@/components/v1/docs/docs-button';
 import { SearchBarWithFilters } from '@/components/v1/molecules/search-bar-with-filters/search-bar-with-filters';
 import { OnboardingCard } from '@/components/v1/ui/onboarding-card';
 import { useSidePanel } from '@/hooks/use-side-panel';
@@ -18,7 +17,7 @@ import { V1LogLine, V1LogLineOrderByDirection } from '@/lib/api';
 import api from '@/lib/api/api';
 import { docsPages } from '@/lib/generated/docs';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { ScrollText } from 'lucide-react';
+import { ExternalLink, ScrollText } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 const LOGS_PER_PAGE = 100;
@@ -151,11 +150,15 @@ export function WorkflowRunLogs({ taskExternalIds }: WorkflowRunLogsProps) {
           dismissKey="hatchet:dismiss-logs-onboarding-hint"
           description="Configure Hatchet as a log sink to view your task logs for this run."
           actions={
-            <DocsButton
-              doc={docsPages.v1.logging}
-              label="View logging docs"
-              variant="text"
-            />
+            <a
+              href={docsPages.v1.logging.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-blue-500 hover:underline"
+            >
+              View logging docs
+              <ExternalLink className="size-3" />
+            </a>
           }
         />
       )}

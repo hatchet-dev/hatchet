@@ -681,6 +681,7 @@ module HatchetSdkRest
     # Get task stats for tenant
     # @param tenant [String] The tenant ID
     # @param [Hash] opts the optional parameters
+    # @option opts [Array<String>] :task_names Task names that must appear in the response. Missing tasks are zero-filled so KEDA&#39;s metrics-api JSONPath always resolves.
     # @return [Hash<String, TaskStat>]
     def tenant_get_task_stats(tenant, opts = {})
       data, _status_code, _headers = tenant_get_task_stats_with_http_info(tenant, opts)
@@ -691,6 +692,7 @@ module HatchetSdkRest
     # Get task stats for tenant
     # @param tenant [String] The tenant ID
     # @param [Hash] opts the optional parameters
+    # @option opts [Array<String>] :task_names Task names that must appear in the response. Missing tasks are zero-filled so KEDA&#39;s metrics-api JSONPath always resolves.
     # @return [Array<(Hash<String, TaskStat>, Integer, Hash)>] Hash<String, TaskStat> data, response status code and response headers
     def tenant_get_task_stats_with_http_info(tenant, opts = {})
       if @api_client.config.debugging
@@ -713,6 +715,7 @@ module HatchetSdkRest
 
       # query parameters
       query_params = opts[:query_params] || {}
+      query_params[:'taskNames'] = @api_client.build_collection_param(opts[:'task_names'], :multi) if !opts[:'task_names'].nil?
 
       # header parameters
       header_params = opts[:header_params] || {}

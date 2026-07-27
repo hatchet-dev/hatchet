@@ -8,23 +8,26 @@ import (
 type TenantHatchetMetric string
 
 const (
-	TenantWorkflowDurationMilliseconds TenantHatchetMetric = "hatchet_tenant_workflow_duration_milliseconds"
-	TenantAssignedTasksTotal           TenantHatchetMetric = "hatchet_tenant_assigned_tasks"
-	TenantSchedulingTimedOutTotal      TenantHatchetMetric = "hatchet_tenant_scheduling_timed_out"
-	TenantRateLimitedTotal             TenantHatchetMetric = "hatchet_tenant_rate_limited"
-	TenantQueuedToAssignedTotal        TenantHatchetMetric = "hatchet_tenant_queued_to_assigned"
-	TenantQueuedToAssignedTimeSeconds  TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds"
-	TenantQueueInvocationsTotal        TenantHatchetMetric = "hatchet_tenant_queue_invocations"
-	TenantCreatedTasksTotal            TenantHatchetMetric = "hatchet_tenant_created_tasks"
-	TenantRetriedTasksTotal            TenantHatchetMetric = "hatchet_tenant_retried_tasks"
-	TenantSucceededTasksTotal          TenantHatchetMetric = "hatchet_tenant_succeeded_tasks"
-	TenantFailedTasksTotal             TenantHatchetMetric = "hatchet_tenant_failed_tasks"
-	TenantSkippedTasksTotal            TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
-	TenantCancelledTasksTotal          TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
-	TenantReassignedTasksTotal         TenantHatchetMetric = "hatchet_tenant_reassigned_tasks"
-	TenantUsedWorkerSlotsTotal         TenantHatchetMetric = "hatchet_tenant_used_worker_slots"
-	TenantAvailableWorkerSlotsTotal    TenantHatchetMetric = "hatchet_tenant_available_worker_slots"
-	TenantWorkerSlotsTotal             TenantHatchetMetric = "hatchet_tenant_worker_slots"
+	TenantWorkflowDurationMilliseconds   TenantHatchetMetric = "hatchet_tenant_workflow_duration_milliseconds"
+	TenantAssignedTasksTotal             TenantHatchetMetric = "hatchet_tenant_assigned_tasks"
+	TenantSchedulingTimedOutTotal        TenantHatchetMetric = "hatchet_tenant_scheduling_timed_out"
+	TenantRateLimitedTotal               TenantHatchetMetric = "hatchet_tenant_rate_limited"
+	TenantQueuedToAssignedTotal          TenantHatchetMetric = "hatchet_tenant_queued_to_assigned"
+	TenantQueuedToAssignedTimeSeconds    TenantHatchetMetric = "hatchet_tenant_queued_to_assigned_time_seconds"
+	TenantQueueInvocationsTotal          TenantHatchetMetric = "hatchet_tenant_queue_invocations"
+	TenantCreatedTasksTotal              TenantHatchetMetric = "hatchet_tenant_created_tasks"
+	TenantRetriedTasksTotal              TenantHatchetMetric = "hatchet_tenant_retried_tasks"
+	TenantSucceededTasksTotal            TenantHatchetMetric = "hatchet_tenant_succeeded_tasks"
+	TenantFailedTasksTotal               TenantHatchetMetric = "hatchet_tenant_failed_tasks"
+	TenantSkippedTasksTotal              TenantHatchetMetric = "hatchet_tenant_skipped_tasks"
+	TenantCancelledTasksTotal            TenantHatchetMetric = "hatchet_tenant_cancelled_tasks"
+	TenantReassignedTasksTotal           TenantHatchetMetric = "hatchet_tenant_reassigned_tasks"
+	TenantUsedWorkerSlotsTotal           TenantHatchetMetric = "hatchet_tenant_used_worker_slots"
+	TenantAvailableWorkerSlotsTotal      TenantHatchetMetric = "hatchet_tenant_available_worker_slots"
+	TenantWorkerSlotsTotal               TenantHatchetMetric = "hatchet_tenant_worker_slots"
+	TenantUsedWorkerLabelSlotsTotal      TenantHatchetMetric = "hatchet_tenant_used_worker_label_slots"
+	TenantAvailableWorkerLabelSlotsTotal TenantHatchetMetric = "hatchet_tenant_available_worker_label_slots"
+	TenantWorkerLabelSlotsTotal          TenantHatchetMetric = "hatchet_tenant_worker_label_slots"
 )
 
 var (
@@ -152,5 +155,29 @@ var (
 			Help: "Number of available slots per worker pool",
 		},
 		[]string{"tenant_id", "worker_id", "worker_name"},
+	)
+
+	TenantWorkerLabelSlots = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantWorkerLabelSlotsTotal),
+			Help: "Total number of slots of the given slot type across workers with the given worker label pair",
+		},
+		[]string{"tenant_id", "label_key", "label_value", "slot_type"},
+	)
+
+	TenantUsedWorkerLabelSlots = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantUsedWorkerLabelSlotsTotal),
+			Help: "Number of used slots of the given slot type across workers with the given worker label pair",
+		},
+		[]string{"tenant_id", "label_key", "label_value", "slot_type"},
+	)
+
+	TenantAvailableWorkerLabelSlots = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: string(TenantAvailableWorkerLabelSlotsTotal),
+			Help: "Number of available slots of the given slot type across workers with the given worker label pair",
+		},
+		[]string{"tenant_id", "label_key", "label_value", "slot_type"},
 	)
 )
