@@ -18,7 +18,7 @@ import (
 )
 
 const defaultBatchPollInterval = 200 * time.Millisecond
-const batchFetchLimit int32 = 256
+const batchFetchLimit int32 = 20000 // ~72byte batch queue item size -> 1.44 mb worst case
 const defaultBatchIdleTTL = 30 * time.Second
 const maxBufferedPayloadBytes int32 = 4_000_000
 
