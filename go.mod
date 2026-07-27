@@ -241,7 +241,7 @@ require (
 	github.com/getsentry/sentry-go v0.45.1
 	github.com/go-chi/chi v1.5.5
 	github.com/go-playground/validator/v10 v10.30.2
-	github.com/google/cel-go v0.28.0
+	github.com/google/cel-go v0.29.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/schema v1.4.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
