@@ -121,7 +121,7 @@ export default class WorkflowRunRef<T> {
                 .filter((r) => r.error !== undefined && r.error !== '')
                 .map((r) => r.error);
 
-              reject(errors);
+              reject(new Error(errors.join('; ')));
               return;
             }
 
