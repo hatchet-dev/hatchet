@@ -256,15 +256,22 @@ func do(config LoadTestConfig) error {
 	var phaseSamples chan PhaseSample
 	var phaseResultCh <-chan phaseAccumulator
 	var cancelTiming context.CancelFunc
+	var collector *TimingCollector
 
 	if config.ExternalWorker {
 		workflowIDs := <-resolvedWorkflowIDs
 
+		// Deliberately not derived from `ctx`: `ctx`'s deadline is sized for
+		// registration + emission + config.Wait, with no slack for however
+		// long the collector needs to drain its backlog below. Tying the
+		// collector to it would silently truncate that drain once the
+		// overall test deadline hit, which is exactly the kind of premature
+		// cutoff we're trying to avoid.
 		var timingCtx context.Context
-		timingCtx, cancelTiming = context.WithCancel(ctx)
+		timingCtx, cancelTiming = context.WithCancel(context.Background())
 		defer cancelTiming() // safe to call more than once; guards every return path below
 
-		collector := NewTimingCollector(timingClient, workflowIDs, 2*time.Second)
+		collector = NewTimingCollector(timingClient, workflowIDs, timingPollInterval)
 
 		phaseSamples = make(chan PhaseSample, 256)
 		phaseResultCh = accumulatePhases(phaseSamples)
@@ -286,15 +293,49 @@ func do(config LoadTestConfig) error {
 
 	var phases phaseAccumulator
 	if config.ExternalWorker {
-		// Give the engine config.Wait to finish (and the collector to observe) runs that
-		// were still in flight when emission stopped, before tearing down collection -
-		// cancelling immediately here would abort the collector mid-sweep for any run that
-		// completes right around this instant, silently dropping its timing sample instead
-		// of just not counting it (see the "context canceled" warnings this produces).
+		// Give the engine config.Wait to finish runs that were still in flight
+		// when emission stopped.
 		if config.Wait > 0 {
 			l.Info().Msgf("externalWorker: waiting %s for in-flight runs to complete before stopping timing collection...", config.Wait)
 			time.Sleep(config.Wait)
 		}
+
+		// Then keep the collector running until it has actually fetched
+		// every run it has discovered - cancelling on a fixed timer instead
+		// aborts whatever's still queued (however much that is) and
+		// permanently drops those samples. A run only ever leaves the
+		// collector's backlog by being successfully fetched or by aging out
+		// after timingSeenTTL (logged when that happens), so this loop is
+		// guaranteed to terminate on its own.
+		//
+		// Pending() hitting 0 isn't enough by itself: it can be a brief gap
+		// between sweeps, right before the next list pass turns up more
+		// newly-completed runs. Require it to stay at 0 across a full poll
+		// cycle (long enough for at least one more list pass to confirm
+		// there's really nothing left) before calling it drained.
+		l.Info().Msg("externalWorker: waiting for timing collector to fetch all discovered runs...")
+		logTicker := time.NewTicker(5 * time.Second)
+		var zeroSince time.Time
+		for {
+			pending := collector.Pending()
+
+			if pending == 0 {
+				if zeroSince.IsZero() {
+					zeroSince = time.Now()
+				} else if time.Since(zeroSince) >= 2*timingPollInterval {
+					break
+				}
+			} else {
+				zeroSince = time.Time{}
+			}
+
+			select {
+			case <-logTicker.C:
+				l.Info().Msgf("externalWorker: still waiting on %d run(s)...", pending)
+			case <-time.After(200 * time.Millisecond):
+			}
+		}
+		logTicker.Stop()
 
 		cancelTiming()
 		phases = <-phaseResultCh

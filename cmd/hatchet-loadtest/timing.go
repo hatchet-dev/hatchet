@@ -31,6 +31,10 @@ const timingSeenTTL = 5 * time.Minute
 // the backlog instead of piling it up until it's abandoned at shutdown.
 const timingFetchConcurrency = 50
 
+// timingPollInterval is how often the collector re-lists for newly
+// completed workflow runs.
+const timingPollInterval = 2 * time.Second
+
 // timingPageLimit is the page size used when listing workflow runs.
 const timingPageLimit int64 = 100
 
@@ -138,6 +142,17 @@ func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, pollI
 		seen:     make(map[uuid.UUID]time.Time),
 		pending:  make(map[uuid.UUID]time.Time),
 	}
+}
+
+// Pending reports how many discovered runs are still awaiting a successful
+// fetch (in flight or queued for retry). Callers that need every result -
+// rather than whatever happened to be fetched before some fixed deadline -
+// can poll this and only tear the collector down once it's been 0 for a
+// full poll cycle (see do.go).
+func (c *TimingCollector) Pending() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.pending)
 }
 
 // Run polls until ctx is done, sending a PhaseSample on out for every task
