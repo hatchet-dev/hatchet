@@ -103,9 +103,6 @@ export default {
     type: "separator",
   },
   faq: "Frequently Asked Questions",
-  _setup: {
-    display: "hidden",
-  },
   compute: {
     title: "Managed Compute",
     type: "page",
