@@ -116,7 +116,12 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	// Create a buffer
 	buf := newMsgIDBuffer(ctx, testTenantID, "test-msg", dst, 10*time.Millisecond, testBufSize, 10, false)
 
-	// Force GC and get baseline
+	// Force GC twice and get baseline: earlier tests in this package leave heap
+	// state behind (notably sync.Pool contents, which survive one GC in the
+	// victim cache and are only freed by a second). A single GC would count
+	// that memory in the baseline and release it before the after-measurement,
+	// systematically biasing the growth negative.
+	runtime.GC()
 	runtime.GC()
 	time.Sleep(50 * time.Millisecond)
 	var baselineMemStats runtime.MemStats
@@ -172,7 +177,9 @@ func TestMsgIdBufferMemoryLeak(t *testing.T) {
 	// Verify memory didn't grow excessively
 	// With 1000 flushes, if we were creating goroutines+timers for each,
 	// we'd see significant memory growth (multiple MB)
-	memGrowthMB := float64(afterMemStats.Alloc-baselineMemStats.Alloc) / 1024 / 1024
+	// subtract as floats: Alloc is a uint64, and the heap can legitimately be
+	// smaller than the baseline after the final GC, which would underflow
+	memGrowthMB := (float64(afterMemStats.Alloc) - float64(baselineMemStats.Alloc)) / 1024 / 1024
 	if memGrowthMB > 5 {
 		t.Errorf("Excessive memory growth: %.2f MB (expected <5MB)", memGrowthMB)
 	}
