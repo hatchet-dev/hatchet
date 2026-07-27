@@ -10,11 +10,9 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-type CheckTenantQueuesPayload struct {
-	SlotsReleased bool     `json:"slots_released"`
-	QueueNames    []string `json:"queue_name"`
-	StrategyIds   []int64  `json:"strategy_ids"`
-}
+// CheckTenantQueuesPayload lives in pkg/repository so the OLAP signaler can notify
+// scheduler partitions post-commit.
+type CheckTenantQueuesPayload = v1.CheckTenantQueuesPayload
 
 func NotifyTaskReleased(tenantId uuid.UUID, tasks []*sqlcv1.ReleaseTasksRow) (*msgqueue.Message, error) {
 	uniqueQueueNames := make(map[string]struct{})
@@ -32,40 +30,6 @@ func NotifyTaskReleased(tenantId uuid.UUID, tasks []*sqlcv1.ReleaseTasksRow) (*m
 		QueueNames:    make([]string, 0, len(uniqueQueueNames)),
 		StrategyIds:   make([]int64, 0, len(uniqueStrategies)),
 		SlotsReleased: true,
-	}
-
-	for queueName := range uniqueQueueNames {
-		payload.QueueNames = append(payload.QueueNames, queueName)
-	}
-
-	for strategyId := range uniqueStrategies {
-		payload.StrategyIds = append(payload.StrategyIds, strategyId)
-	}
-
-	return msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDCheckTenantQueue,
-		true,
-		false,
-		payload,
-	)
-}
-
-func NotifyTaskCreated(tenantId uuid.UUID, tasks []*v1.V1TaskWithPayload) (*msgqueue.Message, error) {
-	uniqueQueueNames := make(map[string]struct{})
-	uniqueStrategies := make(map[int64]struct{})
-
-	for _, task := range tasks {
-		uniqueQueueNames[task.Queue] = struct{}{}
-
-		for _, strategyId := range task.ConcurrencyStrategyIds {
-			uniqueStrategies[strategyId] = struct{}{}
-		}
-	}
-
-	payload := CheckTenantQueuesPayload{
-		QueueNames:  make([]string, 0, len(uniqueQueueNames)),
-		StrategyIds: make([]int64, 0, len(uniqueStrategies)),
 	}
 
 	for queueName := range uniqueQueueNames {

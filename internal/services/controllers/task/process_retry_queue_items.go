@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -31,36 +30,19 @@ func (tc *TasksControllerImpl) processTaskRetryQueueItems(ctx context.Context, t
 		tc.l.Info().Ctx(ctx).Msgf("reassigning %d step runs", num)
 	}
 
-	for _, task := range retryQueueItems {
-		taskId := task.TaskID
+	queuedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(retryQueueItems))
 
-		monitoringEvent := tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskId,
+	for _, task := range retryQueueItems {
+		queuedPayloads = append(queuedPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         task.TaskID,
 			RetryCount:     task.TaskRetryCount,
 			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
 			EventTimestamp: time.Now(),
-		}
+		})
+	}
 
-		olapMsg, innerErr := tasktypes.MonitoringEventMessageFromInternal(
-			tenantIdUUID,
-			monitoringEvent,
-		)
-
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not create monitoring event message: %w", err))
-			continue
-		}
-
-		innerErr = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-			false,
-		)
-
-		if innerErr != nil {
-			err = multierror.Append(err, fmt.Errorf("could not publish monitoring event message: %w", err))
-		}
+	if innerErr := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantIdUUID, queuedPayloads...); innerErr != nil {
+		err = multierror.Append(err, fmt.Errorf("could not publish monitoring event message: %w", innerErr))
 	}
 
 	if err != nil {

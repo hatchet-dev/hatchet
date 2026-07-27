@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -37,6 +36,7 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 	}
 
 	cancellationSignals := make([]tasktypes.SignalTaskCancelledPayload, 0, len(res.TimeoutTasks))
+	timedOutPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(res.TimeoutTasks))
 
 	for _, task := range res.TimeoutTasks {
 		var workerId uuid.UUID
@@ -51,29 +51,18 @@ func (tc *TasksControllerImpl) processTaskTimeouts(ctx context.Context, tenantId
 			WorkerId:   workerId,
 		})
 
-		// send failed tasks to the olap repository
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantIdUUID,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
-				EventTimestamp: time.Now(),
-				EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
-			},
-		)
+		timedOutPayloads = append(timedOutPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
+			EventTimestamp: time.Now(),
+			EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+		})
+	}
 
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-			continue
-		}
+	// send timed-out tasks to the olap repository
+	if pubErr := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantIdUUID, timedOutPayloads...); pubErr != nil {
+		tc.l.Error().Ctx(ctx).Err(pubErr).Msg("could not publish monitoring event message")
 	}
 
 	if len(cancellationSignals) > 0 {

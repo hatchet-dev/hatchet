@@ -525,30 +525,9 @@ func (tc *OLAPControllerImpl) handleBufferedMsgs(tenantId uuid.UUID, msgId strin
 		return tc.handleFailedWebhookValidation(ctx, tenantId, payloads)
 	case "cel-evaluation-failure":
 		return tc.handleCelEvaluationFailure(ctx, tenantId, payloads)
-	case "offload-payload":
-		return tc.handlePayloadOffload(ctx, tenantId, payloads)
 	}
 
 	return fmt.Errorf("unknown message id: %s", msgId)
-}
-
-func (tc *OLAPControllerImpl) handlePayloadOffload(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
-	offloads := make([]v1.OffloadPayloadOpts, 0)
-
-	msgs := msgqueue.JSONConvert[v1.OLAPPayloadsToOffload](payloads)
-
-	for _, msg := range msgs {
-		for _, payload := range msg.Payloads {
-			if !tc.sample(payload.ExternalId.String()) {
-				tc.l.Debug().Ctx(ctx).Msgf("skipping payload offload external id %s", payload.ExternalId)
-				continue
-			}
-
-			offloads = append(offloads, v1.OffloadPayloadOpts(payload))
-		}
-	}
-
-	return tc.repo.OLAP().OffloadPayloads(ctx, tenantId, offloads)
 }
 
 func (tc *OLAPControllerImpl) handleCelEvaluationFailure(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -1172,6 +1151,8 @@ func (tc *OLAPControllerImpl) handleCreateMonitoringEvent(ctx context.Context, t
 }
 
 func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantId uuid.UUID, tasks []*tasktypes.CreatedTaskPayload) error {
+	requeued := make([]tasktypes.CreatedTaskPayload, 0, len(tasks))
+
 	for _, task := range tasks {
 		updated := *task
 		updated.RequeueCount++
@@ -1179,18 +1160,15 @@ func (tc *OLAPControllerImpl) republishCreatedTasks(ctx context.Context, tenantI
 			tc.l.Error().Ctx(ctx).Msgf("dropping task %s after %d requeue attempts", task.ExternalID.String(), tc.maxRequeueCount)
 			continue
 		}
-		msg, err := tasktypes.CreatedTaskMessage(tenantId, updated)
-		if err != nil {
-			return err
-		}
-		if err := msgqueue.PubTenantMessage(ctx, tc.l, tc.mq, tc.pubsub, msgqueue.OLAP_QUEUE, msg); err != nil {
-			return err
-		}
+		requeued = append(requeued, updated)
 	}
-	return nil
+
+	return tc.repo.OLAPOutbox().CreatedTasks(ctx, tenantId, requeued...)
 }
 
 func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId uuid.UUID, dags []*tasktypes.CreatedDAGPayload) error {
+	requeued := make([]tasktypes.CreatedDAGPayload, 0, len(dags))
+
 	for _, dag := range dags {
 		updated := *dag
 		updated.RequeueCount++
@@ -1198,18 +1176,15 @@ func (tc *OLAPControllerImpl) republishCreatedDAGs(ctx context.Context, tenantId
 			tc.l.Error().Ctx(ctx).Msgf("dropping dag %s after %d requeue attempts", dag.ExternalID.String(), tc.maxRequeueCount)
 			continue
 		}
-		msg, err := tasktypes.CreatedDAGMessage(tenantId, updated)
-		if err != nil {
-			return err
-		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
-			return err
-		}
+		requeued = append(requeued, updated)
 	}
-	return nil
+
+	return tc.repo.OLAPOutbox().CreatedDAGs(ctx, tenantId, requeued...)
 }
 
 func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, tenantId uuid.UUID, opts []sqlcv1.CreateTaskEventsOLAPParams, externalIdToMsg map[uuid.UUID]*tasktypes.CreateMonitoringEventPayload) error {
+	requeued := make([]tasktypes.CreateMonitoringEventPayload, 0, len(opts))
+
 	for _, opt := range opts {
 		payload, ok := externalIdToMsg[opt.ExternalID]
 		if !ok {
@@ -1221,15 +1196,10 @@ func (tc *OLAPControllerImpl) republishMonitoringEvents(ctx context.Context, ten
 			tc.l.Error().Ctx(ctx).Msgf("dropping monitoring event for task %d after %d requeue attempts", payload.TaskId, tc.maxRequeueCount)
 			continue
 		}
-		msg, err := tasktypes.MonitoringEventMessageFromInternal(tenantId, updated)
-		if err != nil {
-			return err
-		}
-		if err := tc.mq.SendMessage(ctx, msgqueue.OLAP_QUEUE, msg); err != nil {
-			return err
-		}
+		requeued = append(requeued, updated)
 	}
-	return nil
+
+	return tc.repo.OLAPOutbox().MonitoringEvents(ctx, tenantId, requeued...)
 }
 
 func (tc *OLAPControllerImpl) handleFailedWebhookValidation(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {

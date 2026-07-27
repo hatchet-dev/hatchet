@@ -224,7 +224,7 @@ func (s *DispatcherImpl) Listen(request *contracts.WorkerListenRequest, stream c
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.repov1.OLAPOutbox()))
 
 	defer func() {
 		// non-blocking send
@@ -352,7 +352,7 @@ func (s *DispatcherImpl) ListenV2(request *contracts.WorkerListenRequest, stream
 
 	fin := make(chan bool)
 
-	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.pubBuffer))
+	s.workers.Add(workerId, sessionId, newSubscribedWorker(stream, fin, workerId, s.defaultMaxWorkerLockAcquisitionTime, s.repov1.OLAPOutbox()))
 
 	defer func() {
 		// non-blocking send
@@ -1304,8 +1304,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 	tenant := inputCtx.Value("tenant").(*sqlcv1.Tenant)
 	tenantId := tenant.ID
 
-	msg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-		tenantId,
+	payload, err := tasktypes.MonitoringEventPayloadFromActionEvent(
 		task.ID,
 		retryCount,
 		durableInvocationCount,
@@ -1316,7 +1315,7 @@ func (s *DispatcherImpl) handleTaskStarted(inputCtx context.Context, task *sqlcv
 		return nil, err
 	}
 
-	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false)
+	err = s.repov1.OLAPOutbox().MonitoringEvents(inputCtx, tenantId, payload)
 
 	if err != nil {
 		return nil, err
@@ -1362,8 +1361,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		WorkerId: request.WorkerId,
 	}
 
-	olapMsg, err := tasktypes.MonitoringEventMessageFromActionEvent(
-		tenantId,
+	olapPayload, err := tasktypes.MonitoringEventPayloadFromActionEvent(
 		task.ID,
 		retryCount,
 		durableInvocationCount,
@@ -1371,11 +1369,11 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 	)
 
 	if err != nil {
-		s.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
+		s.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event payload")
 		return resp, nil
 	}
 
-	err = s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, olapMsg, false)
+	err = s.repov1.OLAPOutbox().MonitoringEvents(inputCtx, tenantId, olapPayload)
 
 	if err != nil {
 		s.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
@@ -1540,19 +1538,7 @@ func (s *DispatcherImpl) handleBatchTaskStarted(
 		return resp, nil
 	}
 
-	msg, err := msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDCreateMonitoringEvent,
-		false,
-		true,
-		payloads...,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+	if err := s.repov1.OLAPOutbox().MonitoringEvents(inputCtx, tenantId, payloads...); err != nil {
 		return nil, err
 	}
 
@@ -1692,19 +1678,7 @@ func (s *DispatcherImpl) handleBatchTaskCompleted(
 	}
 
 	if len(olapPayloads) > 0 {
-		msg, err := msgqueue.NewTenantMessage(
-			tenantId,
-			msgqueue.MsgIDCreateMonitoringEvent,
-			false,
-			true,
-			olapPayloads...,
-		)
-
-		if err != nil {
-			return nil, err
-		}
-
-		if err := s.pubBuffer.Pub(inputCtx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+		if err := s.repov1.OLAPOutbox().MonitoringEvents(inputCtx, tenantId, olapPayloads...); err != nil {
 			return nil, err
 		}
 	}
@@ -1857,23 +1831,14 @@ func (d *DispatcherImpl) refreshTimeoutV1(ctx context.Context, tenant *sqlcv1.Te
 	workerId := taskRuntime.WorkerID
 
 	// send to the OLAP repository
-	msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		tenantId,
-		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskRuntime.TaskID,
-			RetryCount:     taskRuntime.RetryCount,
-			WorkerId:       workerId,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
-			EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
-		},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = d.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, v1.CreateMonitoringEventPayload{
+		TaskId:         taskRuntime.TaskID,
+		RetryCount:     taskRuntime.RetryCount,
+		WorkerId:       workerId,
+		EventTimestamp: time.Now(),
+		EventType:      sqlcv1.V1EventTypeOlapTIMEOUTREFRESHED,
+		EventMessage:   fmt.Sprintf("Timeout refreshed by %s", request.IncrementTimeoutBy),
+	})
 
 	if err != nil {
 		return nil, err
@@ -1900,22 +1865,13 @@ func (d *DispatcherImpl) releaseSlot(ctx context.Context, tenant *sqlcv1.Tenant,
 	workerId := releasedSlot.WorkerID
 
 	// send to the OLAP repository
-	msg, err := tasktypes.MonitoringEventMessageFromInternal(
-		tenantId,
-		tasktypes.CreateMonitoringEventPayload{
-			TaskId:         releasedSlot.TaskID,
-			RetryCount:     releasedSlot.RetryCount,
-			WorkerId:       workerId,
-			EventTimestamp: time.Now(),
-			EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
-		},
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = d.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+	err = d.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, v1.CreateMonitoringEventPayload{
+		TaskId:         releasedSlot.TaskID,
+		RetryCount:     releasedSlot.RetryCount,
+		WorkerId:       workerId,
+		EventTimestamp: time.Now(),
+		EventType:      sqlcv1.V1EventTypeOlapSLOTRELEASED,
+	})
 
 	if err != nil {
 		return nil, err

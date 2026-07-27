@@ -67,6 +67,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 	}
 
 	queues := make(map[string]struct{})
+	restoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(flatTasks))
 
 	for _, t := range flatTasks {
 		restored, ok := restoredByTaskId[t.ID]
@@ -82,28 +83,24 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 
 		reason := reasonByExternalId[t.ExternalID]
 
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:                 t.ID,
-				RetryCount:             t.RetryCount,
-				DurableInvocationCount: durableInvCount,
-				EventTimestamp:         time.Now(),
-				EventType:              sqlcv1.V1EventTypeOlapDURABLERESTORING,
-				EventMessage:           fmt.Sprintf("Restoring evicted task: %s", reason),
-			},
-		)
-		if err == nil {
-			if pubErr := tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false); pubErr != nil {
-				tc.l.Warn().Err(pubErr).Msg("failed to publish DURABLE_RESTORING to OLAP")
-			}
-		}
+		restoringPayloads = append(restoringPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:                 t.ID,
+			RetryCount:             t.RetryCount,
+			DurableInvocationCount: durableInvCount,
+			EventTimestamp:         time.Now(),
+			EventType:              sqlcv1.V1EventTypeOlapDURABLERESTORING,
+			EventMessage:           fmt.Sprintf("Restoring evicted task: %s", reason),
+		})
 
 		if restored.Queue != "" {
 			queues[restored.Queue] = struct{}{}
 		} else {
 			tc.l.Warn().Str("task_id", t.ExternalID.String()).Msg("restored task has empty queue, skipping scheduler notification")
 		}
+	}
+
+	if err := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, restoringPayloads...); err != nil {
+		tc.l.Warn().Err(err).Msg("failed to publish DURABLE_RESTORING to OLAP")
 	}
 
 	if len(queues) > 0 {

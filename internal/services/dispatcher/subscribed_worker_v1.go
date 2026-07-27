@@ -12,9 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/services/dispatcher/contracts"
-	tasktypesv1 "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 	"github.com/hatchet-dev/hatchet/pkg/telemetry"
@@ -173,22 +171,14 @@ func (worker *subscribedWorker) CancelTask(
 	sentCh := make(chan error, 1)
 	acquiredLock := worker.sendLock.Acquire()
 	if !acquiredLock {
-		msg, err := tasktypesv1.MonitoringEventMessageFromInternal(
-			task.TenantID,
-			tasktypesv1.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				WorkerId:       &worker.workerId,
-				EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
-				EventTimestamp: time.Now().UTC(),
-				EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.Timeout),
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("could not create monitoring event for task %d: %w", task.ID, err)
-		}
-
-		err = worker.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false)
+		err := worker.olapOutbox.MonitoringEvents(ctx, task.TenantID, v1.CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			WorkerId:       &worker.workerId,
+			EventType:      sqlcv1.V1EventTypeOlapCOULDNOTSENDTOWORKER,
+			EventTimestamp: time.Now().UTC(),
+			EventMessage:   fmt.Sprintf("Could not acquire send lock before timeout of %s ", worker.sendLock.Timeout),
+		})
 		if err != nil {
 			return fmt.Errorf("could not publish monitoring event for task %d: %w", task.ID, err)
 		}

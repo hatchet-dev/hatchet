@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	tasktypes "github.com/hatchet-dev/hatchet/internal/services/shared/tasktypes/v1"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
@@ -38,6 +37,8 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 		prometheus.TenantReassignedTasks.WithLabelValues(tenantId).Add(float64(len(res.RetriedTasks)))
 	}
 
+	reassignedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(res.ReleasedTasks))
+
 	for _, task := range res.ReleasedTasks {
 		var workerId *uuid.UUID
 
@@ -45,59 +46,32 @@ func (tc *TasksControllerImpl) processTaskReassignments(ctx context.Context, ten
 			workerId = &task.WorkerID
 		}
 
-		// send failed tasks to the olap repository
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantIdUUID,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         task.ID,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapREASSIGNED,
-				EventTimestamp: time.Now(),
-				EventMessage:   "Worker did not send a heartbeat for 30 seconds",
-				WorkerId:       workerId,
-			},
-		)
-
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-			continue
-		}
+		reassignedPayloads = append(reassignedPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapREASSIGNED,
+			EventTimestamp: time.Now(),
+			EventMessage:   "Worker did not send a heartbeat for 30 seconds",
+			WorkerId:       workerId,
+		})
 
 		if _, ok := retriedTasks[task.ID]; !ok {
 			// if the task was not retried, we should fail it
-			// send failed tasks to the olap repository
-			olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-				tenantIdUUID,
-				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         task.ID,
-					RetryCount:     task.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapFAILED,
-					EventTimestamp: time.Now(),
-					EventMessage:   "Task reached its maximum reassignment count",
-					EventPayload:   "Task reached its maximum reassignment count",
-					WorkerId:       workerId,
-				},
-			)
-
-			if err != nil {
-				tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-				continue
-			}
-
-			err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-			if err != nil {
-				tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-				continue
-			}
+			reassignedPayloads = append(reassignedPayloads, tasktypes.CreateMonitoringEventPayload{
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapFAILED,
+				EventTimestamp: time.Now(),
+				EventMessage:   "Task reached its maximum reassignment count",
+				EventPayload:   "Task reached its maximum reassignment count",
+				WorkerId:       workerId,
+			})
 		}
+	}
+
+	// send reassigned/failed tasks to the olap repository
+	if pubErr := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantIdUUID, reassignedPayloads...); pubErr != nil {
+		tc.l.Error().Ctx(ctx).Err(pubErr).Msg("could not publish monitoring event message")
 	}
 
 	err = tc.processFailTasksResponse(ctx, tenantIdUUID, res)

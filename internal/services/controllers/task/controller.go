@@ -12,14 +12,12 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/codes"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/hatchet-dev/hatchet/internal/cel"
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/internal/operation"
 	"github.com/hatchet-dev/hatchet/internal/queueutils"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/controllers/task/trigger"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
@@ -44,7 +42,6 @@ type TasksController interface {
 type TasksControllerImpl struct {
 	mq                                       msgqueue.MessageQueue
 	pubsub                                   msgqueue.PubSub
-	pubBuffer                                *msgqueue.MQPubBuffer
 	l                                        *zerolog.Logger
 	queueLogger                              *zerolog.Logger
 	pgxStatsLogger                           *zerolog.Logger
@@ -65,7 +62,6 @@ type TasksControllerImpl struct {
 
 	replayEnabled       bool
 	analyzeCronInterval time.Duration
-	signaler            *signal.OLAPSignaler
 	tw                  *trigger.TriggerWriter
 	promGate            *prometheus.Gate
 }
@@ -225,15 +221,11 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "tasks-controller"})
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
-
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, 0, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.repov1, opts.l, 0)
 
 	t := &TasksControllerImpl{
 		mq:                  opts.mq,
 		pubsub:              opts.pubsub,
-		pubBuffer:           pubBuffer,
 		l:                   opts.l,
 		queueLogger:         opts.queueLogger,
 		pgxStatsLogger:      opts.pgxStatsLogger,
@@ -247,7 +239,6 @@ func New(fs ...TasksControllerOpt) (*TasksControllerImpl, error) {
 		opsPoolPollInterval: opts.opsPoolPollInterval,
 		replayEnabled:       opts.replayEnabled,
 		analyzeCronInterval: opts.analyzeCronInterval,
-		signaler:            signaler,
 		tw:                  tw,
 		promGate:            opts.promGate,
 	}
@@ -426,8 +417,6 @@ func (tc *TasksControllerImpl) Start() (func() error, error) {
 		tc.evictExpiredIdempotencyKeysOperations.Cleanup()
 		tc.deactivateStaleStepConcurrencyOperations.Cleanup()
 
-		tc.pubBuffer.Stop()
-
 		if err := tc.s.Shutdown(); err != nil {
 			err := fmt.Errorf("could not shutdown scheduler: %w", err)
 
@@ -526,7 +515,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	return tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
+	return tc.repov1.Signaler().SendInternalEvents(ctx, tenantId, res.InternalEvents)
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -539,6 +528,7 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 
 	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
 	idsToErrorMsg := make(map[int64]string)
+	failedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(msgs))
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.FailTaskOpts{
@@ -556,35 +546,21 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
 		}
 
-		// send failed tasks to the olap repository
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         msg.TaskId,
-				RetryCount:     msg.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapFAILED,
-				EventTimestamp: time.Now().UTC(),
-				EventPayload:   msg.ErrorMsg,
-			},
-		)
+		failedPayloads = append(failedPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         msg.TaskId,
+			RetryCount:     msg.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapFAILED,
+			EventTimestamp: time.Now().UTC(),
+			EventPayload:   msg.ErrorMsg,
+		})
+	}
 
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-			err = fmt.Errorf("could not create monitoring event message: %w", err)
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not create monitoring event message")
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, olapMsg, false)
-
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
-			err = fmt.Errorf("could not publish monitoring event message: %w", err)
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not publish monitoring event message")
-			continue
-		}
+	// send failed tasks to the olap repository
+	if err := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, failedPayloads...); err != nil {
+		tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
+		err = fmt.Errorf("could not publish monitoring event message: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "could not publish monitoring event message")
 	}
 
 	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
@@ -644,7 +620,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err := tc.signaler.SendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
+	err := tc.repov1.Signaler().SendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
 
 	if err != nil {
 		err = fmt.Errorf("could not send internal events: %w", err)
@@ -727,7 +703,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
 	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.signaler.SendInternalEvents(ctx, tenantId, res.InternalEvents)
+	err = tc.repov1.Signaler().SendInternalEvents(ctx, tenantId, res.InternalEvents)
 
 	if err != nil {
 		err = fmt.Errorf("could not send internal events: %w", err)
@@ -736,45 +712,23 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		return err
 	}
 
-	var outerErr error
+	cancelledPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(msgs))
 
 	for _, msg := range msgs {
-		taskId := msg.TaskId
+		cancelledPayloads = append(cancelledPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         msg.TaskId,
+			RetryCount:     msg.RetryCount,
+			EventType:      msg.EventType,
+			EventTimestamp: time.Now(),
+			EventMessage:   msg.EventMessage,
+		})
+	}
 
-		olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     msg.RetryCount,
-				EventType:      msg.EventType,
-				EventTimestamp: time.Now(),
-				EventMessage:   msg.EventMessage,
-			},
-		)
-
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not create monitoring event message")
-			err = fmt.Errorf("could not create monitoring event message: %w", err)
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not create monitoring event message")
-			outerErr = multierror.Append(outerErr, err)
-			continue
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-			false,
-		)
-
-		if err != nil {
-			tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
-			err = fmt.Errorf("could not publish monitoring event message: %w", err)
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "could not publish monitoring event message")
-			outerErr = multierror.Append(outerErr, err)
-		}
+	if pubErr := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, cancelledPayloads...); pubErr != nil {
+		pubErr = fmt.Errorf("could not publish monitoring event message: %w", pubErr)
+		tc.l.Error().Ctx(ctx).Err(pubErr).Msg("could not publish monitoring event message")
+		span.RecordError(pubErr)
+		span.SetStatus(codes.Error, "could not publish monitoring event message")
 	}
 
 	// instrumentation
@@ -889,53 +843,17 @@ func (tc *TasksControllerImpl) handleReplayTasks(ctx context.Context, tenantId u
 		}
 	}
 
-	eg := &errgroup.Group{}
-
+	// the replay repository stages all OLAP messages on the replay transaction and
+	// runs the non-transactional signaling side effects post-commit
 	for _, tasks := range workflowRunIdToTasks {
-		replayRes, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
+		_, err := tc.repov1.Tasks().ReplayTasks(ctx, tenantId, tasks)
 
 		if err != nil {
 			return fmt.Errorf("failed to replay task: %w", err)
 		}
-
-		if len(replayRes.ReplayedTasks) > 0 {
-			eg.Go(func() error {
-				err := tc.signaler.SignalTasksReplayed(ctx, tenantId, replayRes.ReplayedTasks)
-
-				if err != nil {
-					return fmt.Errorf("could not signal replayed tasks: %w", err)
-				}
-
-				return nil
-			})
-		}
-
-		if len(replayRes.UpsertedTasks) > 0 {
-			eg.Go(func() error {
-				err := tc.signaler.SignalTasksUpdated(ctx, tenantId, replayRes.UpsertedTasks)
-
-				if err != nil {
-					return fmt.Errorf("could not signal queued tasks: %w", err)
-				}
-
-				return nil
-			})
-		}
-
-		if len(replayRes.InternalEventResults.CreatedTasks) > 0 {
-			eg.Go(func() error {
-				err := tc.signaler.SignalTasksCreated(ctx, tenantId, replayRes.InternalEventResults.CreatedTasks)
-
-				if err != nil {
-					return fmt.Errorf("could not signal created tasks: %w", err)
-				}
-
-				return nil
-			})
-		}
 	}
 
-	return eg.Wait()
+	return nil
 }
 
 func (tc *TasksControllerImpl) sendTaskCancellationsToDispatcher(ctx context.Context, tenantId uuid.UUID, releasedTasks []tasktypes.SignalTaskCancelledPayload) error {
@@ -1129,18 +1047,12 @@ func (tc *TasksControllerImpl) processUserEventMatches(ctx context.Context, tena
 		})
 	}
 
+	// the match repository stages all OLAP messages on the match transaction and runs
+	// the non-transactional signaling side effects post-commit
 	matchResult, err := tc.repov1.Matches().ProcessUserEventMatches(ctx, tenantId, candidateMatches)
 
 	if err != nil {
 		return fmt.Errorf("could not process user event matches: %w", err)
-	}
-
-	if len(matchResult.CreatedTasks) > 0 {
-		err = tc.signaler.SignalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
-
-		if err != nil {
-			return fmt.Errorf("could not signal created tasks: %w", err)
-		}
 	}
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
@@ -1167,26 +1079,12 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 		})
 	}
 
+	// the match repository stages all OLAP messages on the match transaction and runs
+	// the non-transactional signaling side effects post-commit
 	matchResult, err := tc.repov1.Matches().ProcessInternalEventMatches(ctx, tenantId, candidateMatches)
 
 	if err != nil {
 		return fmt.Errorf("could not process internal event matches: %w", err)
-	}
-
-	if len(matchResult.CreatedTasks) > 0 {
-		err = tc.signaler.SignalTasksCreated(ctx, tenantId, matchResult.CreatedTasks)
-
-		if err != nil {
-			return fmt.Errorf("could not signal created tasks: %w", err)
-		}
-	}
-
-	if len(matchResult.ReplayedTasks) > 0 {
-		err = tc.signaler.SignalTasksReplayedFromMatch(ctx, tenantId, matchResult.ReplayedTasks)
-
-		if err != nil {
-			return fmt.Errorf("could not signal replayed tasks: %w", err)
-		}
 	}
 
 	if len(matchResult.SatisfiedDurableEventLogEntries) > 0 {
@@ -1215,57 +1113,27 @@ func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.
 		retryMsg = fmt.Sprintf("%s Retrying in %s (%s).", retryMsg, retryDur.String(), retryTime.Format(time.RFC3339))
 	}
 
-	olapMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-		tenantId,
-		tasktypes.CreateMonitoringEventPayload{
+	retryPayloads := []tasktypes.CreateMonitoringEventPayload{
+		{
 			TaskId:         taskId,
 			RetryCount:     task.RetryCount,
 			EventType:      sqlcv1.V1EventTypeOlapRETRYING,
 			EventTimestamp: time.Now(),
 			EventMessage:   retryMsg,
 		},
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create monitoring event message: %w", err)
-	}
-
-	err = tc.pubBuffer.Pub(
-		ctx,
-		msgqueue.OLAP_QUEUE,
-		olapMsg,
-		false,
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
 
 	if !task.RetryBackoffFactor.Valid {
-		olapMsg, err = tasktypes.MonitoringEventMessageFromInternal(
-			tenantId,
-			tasktypes.CreateMonitoringEventPayload{
-				TaskId:         taskId,
-				RetryCount:     task.RetryCount,
-				EventType:      sqlcv1.V1EventTypeOlapQUEUED,
-				EventTimestamp: time.Now(),
-			},
-		)
+		retryPayloads = append(retryPayloads, tasktypes.CreateMonitoringEventPayload{
+			TaskId:         taskId,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			EventTimestamp: time.Now(),
+		})
+	}
 
-		if err != nil {
-			return fmt.Errorf("could not create monitoring event message: %w", err)
-		}
-
-		err = tc.pubBuffer.Pub(
-			ctx,
-			msgqueue.OLAP_QUEUE,
-			olapMsg,
-			false,
-		)
-
-		if err != nil {
-			return fmt.Errorf("could not publish monitoring event message: %w", err)
-		}
+	if err := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, retryPayloads...); err != nil {
+		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
 
 	return nil

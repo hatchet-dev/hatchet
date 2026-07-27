@@ -35,8 +35,7 @@ type AdminServiceImpl struct {
 	localDispatcher *dispatcher.DispatcherImpl
 	l               *zerolog.Logger
 
-	tw        *trigger.TriggerWriter
-	pubBuffer *msgqueue.MQPubBuffer
+	tw *trigger.TriggerWriter
 }
 
 type AdminServiceOpt func(*AdminServiceOpts)
@@ -161,8 +160,7 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		return nil, fmt.Errorf("pubsub is required. use WithPubSub")
 	}
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
-	tw := trigger.NewTriggerWriter(opts.mq, opts.pubsub, opts.repo, opts.l, pubBuffer, opts.grpcTriggerSlots, opts.promGate)
+	tw := trigger.NewTriggerWriter(opts.repo, opts.l, opts.grpcTriggerSlots)
 
 	var localScheduler *scheduler.Scheduler
 
@@ -180,14 +178,9 @@ func NewAdminService(fs ...AdminServiceOpt) (AdminService, error) {
 		localDispatcher: opts.localDispatcher,
 		l:               opts.l,
 		tw:              tw,
-		pubBuffer:       pubBuffer,
 	}, nil
 }
 
-// Cleanup stops the pubBuffer goroutines if they exist
 func (a *AdminServiceImpl) Cleanup() error {
-	if a.pubBuffer != nil {
-		a.pubBuffer.Stop()
-	}
 	return nil
 }

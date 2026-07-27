@@ -1655,9 +1655,18 @@ func (r *TaskRepositoryImpl) ProcessDurableSleeps(ctx context.Context, tenantId 
 		}
 	}
 
+	// stage the OLAP messages for created tasks on the same tx
+	postCreated, err := r.signaler.tasksCreated(ctx, tx, tenantId, results.CreatedTasks, nil)
+
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to stage created task messages: %w", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, false, err
 	}
+
+	postCreated()
 
 	return results, len(emitted) == limit, nil
 }
@@ -3822,9 +3831,28 @@ func (r *TaskRepositoryImpl) ReplayTasks(ctx context.Context, tenantId uuid.UUID
 		return nil, fmt.Errorf("failed to process internal event matches: %w", err)
 	}
 
+	// stage the OLAP messages for replayed/upserted/created tasks on the same tx
+	if stageErr := r.signaler.tasksReplayed(ctx, tx, tenantId, replayedTasks); stageErr != nil {
+		return nil, fmt.Errorf("failed to stage replayed task messages: %w", stageErr)
+	}
+
+	postUpdated, err := r.signaler.tasksUpdated(ctx, tx, tenantId, upsertedTasks)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to stage upserted task messages: %w", err)
+	}
+
+	postCreated, err := r.signaler.tasksCreated(ctx, tx, tenantId, internalMatchResults.CreatedTasks, nil)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to stage created task messages: %w", err)
+	}
+
 	if err := commit(ctx); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	composePostCommit(postUpdated, postCreated)()
 
 	return &ReplayTasksResult{
 		ReplayedTasks:        replayedTasks,

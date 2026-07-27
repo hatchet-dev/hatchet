@@ -246,7 +246,7 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 	exchange := ""
 	routingKey := topic.Name()
 
-	if topic.Kind() == msgqueue.TopicKindTenantStream {
+	if usesFanoutExchange(topic) {
 		// tenant streams ride the per-tenant fanout exchange; declare it lazily
 		if _, ok := p.exchangeCache.Get(topic.Name()); !ok {
 			if err := p.declareExchange(pub, topic.Name()); err != nil {
@@ -417,7 +417,7 @@ func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string
 
 	name := topic.Name()
 
-	if topic.Kind() == msgqueue.TopicKindTenantStream {
+	if usesFanoutExchange(topic) {
 		if err := p.declareExchange(ch, topic.Name()); err != nil {
 			return "", err
 		}
@@ -437,7 +437,7 @@ func (p *PubSub) declareSubQueue(ch *amqp.Channel, topic msgqueue.Topic) (string
 		return "", err
 	}
 
-	if topic.Kind() == msgqueue.TopicKindTenantStream {
+	if usesFanoutExchange(topic) {
 		p.l.Debug().Msgf("binding queue: %s to exchange: %s", name, topic.Name())
 
 		if err := ch.QueueBind(name, "", topic.Name(), false, nil); err != nil {
@@ -462,4 +462,11 @@ func (p *PubSub) declareExchange(ch *amqp.Channel, name string) error {
 		false, // no-wait
 		nil,   // arguments
 	)
+}
+
+// usesFanoutExchange reports whether the topic rides a fanout exchange (every
+// subscriber gets its own exclusive queue bound to the exchange) as opposed to
+// a single well-known queue on the default exchange.
+func usesFanoutExchange(topic msgqueue.Topic) bool {
+	return topic.Kind() == msgqueue.TopicKindTenantStream || topic.Kind() == msgqueue.TopicKindOutbox
 }

@@ -16,7 +16,6 @@ import (
 
 	"github.com/hatchet-dev/hatchet/internal/datautils"
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
-	"github.com/hatchet-dev/hatchet/internal/services/controllers/olap/signal"
 	"github.com/hatchet-dev/hatchet/internal/services/partition"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/durable"
 	"github.com/hatchet-dev/hatchet/internal/services/shared/recoveryutils"
@@ -127,11 +126,10 @@ func WithPrometheusGate(gate *prometheus.Gate) SchedulerOpt {
 }
 
 type Scheduler struct {
-	mq        msgqueue.MessageQueue
-	pubsub    msgqueue.PubSub
-	pubBuffer *msgqueue.MQPubBuffer
-	l         *zerolog.Logger
-	repov1    repov1.Repository
+	mq     msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
+	l      *zerolog.Logger
+	repov1 repov1.Repository
 	dv        datautils.DataDecoderValidator
 	s         gocron.Scheduler
 	a         *hatcheterrors.Wrapped
@@ -141,8 +139,6 @@ type Scheduler struct {
 	ql *zerolog.Logger
 
 	pool *v1.SchedulingPool
-
-	signaler *signal.OLAPSignaler
 
 	tasksWithNoWorkerCache *expirable.LRU[string, struct{}]
 }
@@ -185,17 +181,13 @@ func New(
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "scheduler"})
 
-	pubBuffer := msgqueue.NewMQPubBuffer(opts.mq)
 
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
 
-	signaler := signal.NewOLAPSignaler(opts.mq, opts.pubsub, opts.repov1, opts.l, pubBuffer, opts.promGate)
-
 	q := &Scheduler{
 		mq:                     opts.mq,
 		pubsub:                 opts.pubsub,
-		pubBuffer:              pubBuffer,
 		l:                      opts.l,
 		repov1:                 opts.repov1,
 		dv:                     opts.dv,
@@ -205,7 +197,6 @@ func New(
 		ql:                     opts.queueLogger,
 		pool:                   opts.pool,
 		tasksWithNoWorkerCache: tasksWithNoWorkerCache,
-		signaler:               signaler,
 	}
 
 	return q, nil
@@ -320,8 +311,6 @@ func (s *Scheduler) Start() (func() error, error) {
 		}
 
 		wg.Wait()
-
-		s.pubBuffer.Stop()
 
 		return nil
 	}
@@ -462,7 +451,7 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			return fmt.Errorf("could not list dispatcher ids for workers: %w. attempting internal retry", err)
 		}
 
-		assignedMsgs := make([]*msgqueue.Message, 0)
+		assignedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0)
 		batchAssignments := make([]*repov1.AssignedItem, 0)
 
 		invCountOpts := make([]repov1.IdInsertedAt, 0, len(res.Assigned))
@@ -525,24 +514,14 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				durableInvCount = *count
 			}
 
-			assignedMsg, err := tasktypes.MonitoringEventMessageFromInternal(
-				tenantId,
-				tasktypes.CreateMonitoringEventPayload{
-					TaskId:                 taskId,
-					RetryCount:             bulkAssigned.QueueItem.RetryCount,
-					DurableInvocationCount: durableInvCount,
-					WorkerId:               &workerId,
-					EventType:              sqlcv1.V1EventTypeOlapASSIGNED,
-					EventTimestamp:         time.Now(),
-				},
-			)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create monitoring event message: %w", err))
-				continue
-			}
-
-			assignedMsgs = append(assignedMsgs, assignedMsg)
+			assignedPayloads = append(assignedPayloads, tasktypes.CreateMonitoringEventPayload{
+				TaskId:                 taskId,
+				RetryCount:             bulkAssigned.QueueItem.RetryCount,
+				DurableInvocationCount: durableInvCount,
+				WorkerId:               &workerId,
+				EventType:              sqlcv1.V1EventTypeOlapASSIGNED,
+				EventTimestamp:         time.Now(),
+			})
 		}
 
 		if len(batchAssignments) > 0 {
@@ -571,21 +550,14 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 			}
 		}
 
-		for _, assignedMsg := range assignedMsgs {
-			err = s.pubBuffer.Pub(
-				ctx,
-				msgqueue.OLAP_QUEUE,
-				assignedMsg,
-				false,
-			)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send monitoring event message: %w", err))
-			}
+		if err := s.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, assignedPayloads...); err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not send monitoring event message: %w", err))
 		}
 	}
 
 	if len(res.RateLimited) > 0 {
+		rateLimitedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(res.RateLimited))
+
 		for _, rateLimited := range res.RateLimited {
 			message := fmt.Sprintf(
 				"Rate limit exceeded for key %s, attempting to consume %d units, but only had %d remaining",
@@ -594,32 +566,17 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				rateLimited.ExceededVal,
 			)
 
-			msg, err := tasktypes.MonitoringEventMessageFromInternal(
-				tenantId,
-				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         rateLimited.TaskId,
-					RetryCount:     rateLimited.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
-					EventTimestamp: time.Now(),
-					EventMessage:   message,
-				},
-			)
+			rateLimitedPayloads = append(rateLimitedPayloads, tasktypes.CreateMonitoringEventPayload{
+				TaskId:         rateLimited.TaskId,
+				RetryCount:     rateLimited.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapREQUEUEDRATELIMIT,
+				EventTimestamp: time.Now(),
+				EventMessage:   message,
+			})
+		}
 
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
-				continue
-			}
-
-			err = s.pubBuffer.Pub(
-				ctx,
-				msgqueue.OLAP_QUEUE,
-				msg,
-				false,
-			)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
-			}
+		if err := s.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, rateLimitedPayloads...); err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not send rate limited monitoring events: %w", err))
 		}
 	}
 
@@ -651,6 +608,8 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 	}
 
 	if len(res.Unassigned) > 0 {
+		unassignedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(res.Unassigned))
+
 		for _, unassigned := range res.Unassigned {
 			taskExternalId := unassigned.ExternalID.String()
 
@@ -660,35 +619,18 @@ func (s *Scheduler) scheduleStepRuns(ctx context.Context, tenantId uuid.UUID, re
 				continue
 			}
 
-			taskId := unassigned.TaskID
-
-			msg, err := tasktypes.MonitoringEventMessageFromInternal(
-				tenantId,
-				tasktypes.CreateMonitoringEventPayload{
-					TaskId:         taskId,
-					RetryCount:     unassigned.RetryCount,
-					EventType:      sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
-					EventTimestamp: time.Now(),
-				},
-			)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not create cancelled task: %w", err))
-				continue
-			}
-
-			err = s.pubBuffer.Pub(
-				ctx,
-				msgqueue.OLAP_QUEUE,
-				msg,
-				false,
-			)
-
-			if err != nil {
-				outerErr = multierror.Append(outerErr, fmt.Errorf("could not send cancelled task: %w", err))
-			}
+			unassignedPayloads = append(unassignedPayloads, tasktypes.CreateMonitoringEventPayload{
+				TaskId:         unassigned.TaskID,
+				RetryCount:     unassigned.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapREQUEUEDNOWORKER,
+				EventTimestamp: time.Now(),
+			})
 
 			s.tasksWithNoWorkerCache.Add(taskExternalId, struct{}{})
+		}
+
+		if err := s.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, unassignedPayloads...); err != nil {
+			outerErr = multierror.Append(outerErr, fmt.Errorf("could not send unassigned monitoring events: %w", err))
 		}
 	}
 
@@ -784,19 +726,7 @@ func (s *Scheduler) emitBatchWaitingEvents(ctx context.Context, tenantId uuid.UU
 		return nil
 	}
 
-	msg, err := msgqueue.NewTenantMessage(
-		tenantId,
-		msgqueue.MsgIDCreateMonitoringEvent,
-		false,
-		true,
-		payloads...,
-	)
-
-	if err != nil {
-		return fmt.Errorf("could not create waiting-for-batch monitoring events: %w", err)
-	}
-
-	if err := s.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, msg, false); err != nil {
+	if err := s.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, payloads...); err != nil {
 		return fmt.Errorf("could not send waiting-for-batch monitoring events: %w", err)
 	}
 
@@ -1210,17 +1140,7 @@ func (s *Scheduler) handleBatchAssignments(ctx context.Context, tenantId uuid.UU
 		}
 
 		if len(monitoringPayloads) > 0 {
-			flushMsg, err := msgqueue.NewTenantMessage(
-				tenantId,
-				"create-monitoring-event",
-				false,
-				true,
-				monitoringPayloads...,
-			)
-
-			if err != nil {
-				result = multierror.Append(result, fmt.Errorf("could not create batch flushed monitoring events: %w", err))
-			} else if err := s.pubBuffer.Pub(ctx, msgqueue.OLAP_QUEUE, flushMsg, false); err != nil {
+			if err := s.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, monitoringPayloads...); err != nil {
 				result = multierror.Append(result, fmt.Errorf("could not send batch flushed monitoring events: %w", err))
 			}
 		}

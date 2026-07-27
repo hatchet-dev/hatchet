@@ -1,6 +1,7 @@
 package v1
 
-type FailedWebhookValidationPayload struct {
-	WebhookName string `json:"webhook_name" validate:"required"`
-	ErrorText   string `json:"error_text" validate:"required"`
-}
+import (
+	v1 "github.com/hatchet-dev/hatchet/pkg/repository"
+)
+
+type FailedWebhookValidationPayload = v1.FailedWebhookValidationPayload

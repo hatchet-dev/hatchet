@@ -642,6 +642,15 @@ type createCoreUserEventOpts struct {
 	externalIdToEventIdAndFilterId map[uuid.UUID]EventExternalIdFilterId
 	externalIdsToPayloads          map[uuid.UUID][]byte
 	params                         sqlcv1.BulkCreateEventsParams
+
+	// opts are the original event trigger opts, threaded through so triggerWorkflows
+	// can stage the created-event-trigger message on its transaction.
+	opts []EventTriggerOpts
+
+	// celEvaluationFailures are the failures from the event-preparation phase (filter
+	// evaluation), staged on the trigger transaction alongside the failures from the
+	// workflow-triggering phase.
+	celEvaluationFailures []CELEvaluationFailure
 }
 
 const internalIdempotencyKeyPrefix = "hatchet_internal_"
@@ -1522,6 +1531,16 @@ func (r *sharedRepository) triggerWorkflows(
 		return nil, nil, nil, nil, fmt.Errorf("failed to store payloads: %w", err)
 	}
 
+	// stage the OLAP messages (created-task/created-dag, initial-state monitoring
+	// events, created-event-trigger, cel-evaluation-failures) on the same tx so they
+	// commit atomically with the inserts; postSignal covers the non-transactional
+	// side effects and runs after commit
+	postSignal, err := r.stageTriggerSignals(ctx, tx, tenantId, tasks, dags, coreEvents, celEvaluationFailures)
+
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to stage olap messages: %w", err)
+	}
+
 	// commit if we started the transaction
 	if existingTx == nil {
 		if err := commit(ctx); err != nil {
@@ -1529,9 +1548,11 @@ func (r *sharedRepository) triggerWorkflows(
 		}
 
 		postTask()
+		postSignal()
 
 	} else {
 		existingTx.AddPostCommit(postTask)
+		existingTx.AddPostCommit(postSignal)
 	}
 
 	return tasks, dags, idempotencyKeyCollisions, celEvaluationFailures, nil
@@ -2452,6 +2473,8 @@ func (r *sharedRepository) prepareTriggerFromEvents(ctx context.Context, tx sqlc
 		},
 		externalIdToEventIdAndFilterId: externalIdToEventIdAndFilterId,
 		externalIdsToPayloads:          eventExternalIdsToPayloads,
+		opts:                           opts,
+		celEvaluationFailures:          celEvaluationFailures,
 	}
 
 	return triggerOpts, createCoreEventOpts, externalIdToEventIdAndFilterId, celEvaluationFailures, nil
