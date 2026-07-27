@@ -282,7 +282,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 
 	var compressionResult *CompressionResult
 
-	// don't re-compress if the message was already compressed
+	// don't re-compress if the message was already compressed. We work on a
+	// shallow copy rather than mutating in place: callers may hand the same
+	// *Message to a pub/sub on a different backend afterwards (PubTenantMessage),
+	// and compression is a rabbitmq wire concern
 	if len(msg.Payloads) > 0 && !msg.Compressed {
 		var err error
 		compressionResult, err = t.compressPayloads(msg.Payloads)
@@ -292,8 +295,10 @@ func (t *MessageQueueImpl) pubMessage(ctx context.Context, q msgqueue.Queue, msg
 		}
 
 		if compressionResult.WasCompressed {
-			msg.Payloads = compressionResult.Payloads
-			msg.Compressed = true
+			msgCp := *msg
+			msgCp.Payloads = compressionResult.Payloads
+			msgCp.Compressed = true
+			msg = &msgCp
 
 			t.l.Debug().Msgf("compressed payloads for message %s: original=%d bytes, compressed=%d bytes, ratio=%.2f%%",
 				msg.ID, compressionResult.OriginalSize, compressionResult.CompressedSize, compressionResult.CompressionRatio*100)
@@ -679,7 +684,7 @@ func (t *MessageQueueImpl) subscribe(
 				}
 
 				if msg.Compressed {
-					decompressedPayloads, err := t.decompressPayloads(msg.Payloads)
+					decompressedPayloads, err := msgqueue.DecompressPayloads(msg.Payloads)
 					if err != nil {
 						t.l.Error().Msgf("error decompressing payloads: %v", err)
 						// reject this message

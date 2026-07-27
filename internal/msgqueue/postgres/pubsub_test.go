@@ -3,6 +3,8 @@
 package postgres
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -186,6 +188,59 @@ func TestPostgresPubSubTwoSubscribers(t *testing.T) {
 
 	require.NoError(t, cleanupSub1())
 	require.NoError(t, cleanupSub2())
+}
+
+// TestPostgresPubSubCompressedPayload simulates the cross-backend case: a
+// producer whose durable queue is RabbitMQ with compression enabled publishes
+// a message that already carries gzip payloads (Compressed=true). The postgres
+// subscriber must transparently decompress before invoking the handler.
+func TestPostgresPubSubCompressedPayload(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	ps, _ := newTestPubSub(t)
+
+	tenantId := uuid.New()
+	topic := msgqueue.TenantTopic(tenantId)
+
+	original := []byte(`{"key":"value"}`)
+
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	_, err := w.Write(original)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	msg := &msgqueue.Message{
+		ID:                "task-completed",
+		TenantID:          tenantId,
+		Payloads:          [][]byte{buf.Bytes()},
+		ImmediatelyExpire: true,
+		Compressed:        true,
+	}
+
+	received := make(chan *msgqueue.Message, 1)
+
+	cleanupSub, err := ps.Sub(topic, func(m *msgqueue.Message) error {
+		received <- m
+		return nil
+	})
+	require.NoError(t, err)
+
+	time.Sleep(1 * time.Second)
+
+	require.NoError(t, ps.Pub(ctx, topic, msg))
+
+	select {
+	case m := <-received:
+		require.Len(t, m.Payloads, 1)
+		assert.Equal(t, original, m.Payloads[0], "payload should be transparently decompressed")
+		assert.False(t, m.Compressed)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for compressed message delivery")
+	}
+
+	require.NoError(t, cleanupSub())
 }
 
 // TestPostgresPubSubDisjointPools asserts the core invariant: a full pub/sub

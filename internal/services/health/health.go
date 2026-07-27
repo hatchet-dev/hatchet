@@ -21,16 +21,18 @@ type Health struct {
 
 	repository v1.HealthRepository
 	queue      msgqueue.MessageQueue
-	pubsub     msgqueue.PubSub
 	l          *zerolog.Logger
 }
 
-func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, pubsub msgqueue.PubSub, version string, l *zerolog.Logger) *Health {
+// New creates a health service over the durable message queue and repository.
+// The best-effort PubSub is deliberately NOT part of the probes: a disconnected
+// pub/sub degrades stream notifications but the pod can still serve traffic,
+// and restarting it on a broker disconnect would make things worse.
+func New(repo v1.HealthRepository, queue msgqueue.MessageQueue, version string, l *zerolog.Logger) *Health {
 	return &Health{
 		version:    version,
 		repository: repo,
 		queue:      queue,
-		pubsub:     pubsub,
 		l:          l,
 	}
 }
@@ -46,7 +48,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		queueReady := h.queue.IsReady() && h.pubsub.IsReady()
+		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if !queueReady || !repositoryReady {
@@ -62,7 +64,7 @@ func (h *Health) Start(port int) (func() error, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		queueReady := h.queue.IsReady() && h.pubsub.IsReady()
+		queueReady := h.queue.IsReady()
 		repositoryReady := h.repository.IsHealthy(ctx)
 
 		if h.shuttingDown || !queueReady || !repositoryReady {

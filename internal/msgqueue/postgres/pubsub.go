@@ -157,6 +157,20 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 			}
 		}
 
+		// compressed messages can cross backends: a producer whose durable queue
+		// is rabbitmq with compression enabled publishes here with gzip payloads
+		if task.Compressed {
+			decompressedPayloads, err := msgqueue.DecompressPayloads(task.Payloads)
+
+			if err != nil {
+				p.l.Error().Err(err).Msgf("error decompressing payloads for pubsub message %s", task.ID)
+				return
+			}
+
+			task.Payloads = decompressedPayloads
+			task.Compressed = false
+		}
+
 		if err := handler(task); err != nil {
 			p.l.Error().Err(err).Msgf("error handling pubsub message %s", task.ID)
 		}

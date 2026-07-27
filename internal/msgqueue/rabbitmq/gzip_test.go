@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 )
 
 func generatePayloads(count, size int) [][]byte {
@@ -41,7 +43,7 @@ func TestCompressDecompressRoundtrip(t *testing.T) {
 	assert.True(t, result.WasCompressed, "expected WasCompressed to be true")
 	assert.Equal(t, len(payloads), len(result.Payloads), "expected %d payloads, got %d", len(payloads), len(result.Payloads))
 
-	decompressed, err := mq.decompressPayloads(result.Payloads)
+	decompressed, err := msgqueue.DecompressPayloads(result.Payloads)
 
 	assert.NoError(t, err)
 

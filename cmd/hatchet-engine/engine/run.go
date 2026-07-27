@@ -160,7 +160,7 @@ func runV0Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	var healthCleanup func() error
 	healthProbes := sc.HasService("health")
 	if healthProbes {
-		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.PubSubV1, sc.Version, l)
+		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
 		cleanupHealth, err := h.Start(sc.Runtime.HealthcheckPort)
 		if err != nil {
 			return fmt.Errorf("could not start health: %w", err)
@@ -572,7 +572,7 @@ func runV1Config(ctx context.Context, sc *server.ServerConfig, cleanup *cleanup.
 	var healthCleanup func() error
 
 	if healthProbes {
-		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.PubSubV1, sc.Version, l)
+		h = health.New(sc.V1.Health(), sc.MessageQueueV1, sc.Version, l)
 
 		clean, err := h.Start(sc.Runtime.HealthcheckPort)
 
