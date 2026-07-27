@@ -45,6 +45,13 @@ type LoadTestConfig struct {
 	// compatible workflow named "load-test-0" (or "load-test-{i}" for
 	// i<EventFanout).
 	ExternalWorker bool
+
+	// TimingSampleRate, in --externalWorker mode, only fetches full task
+	// timings for 1 out of every TimingSampleRate completed runs, rather
+	// than every one - the reported average converges from a uniform sample
+	// just as well as from the full set, at a fraction of the REST load on
+	// the engine. 1 (or less) fetches every run.
+	TimingSampleRate int
 }
 
 func main() {
@@ -98,6 +105,7 @@ func main() {
 	loadtest.Flags().DurationVar(&config.AverageDurationThreshold, "averageDurationThreshold", 100*time.Millisecond, "averageDurationThreshold specifies the threshold for the average duration per executed event to be considered a success")
 	loadtest.Flags().StringVar(&config.PlotDir, "plotDirectory", "", "plotDirectory specifies where to put the generated plots for latency and task duration")
 	loadtest.Flags().BoolVar(&config.ExternalWorker, "externalWorker", false, "externalWorker skips registering a workflow and starting an in-process worker, assuming a separately-running SDK worker (e.g. cmd/hatchet-loadtest/go) has already registered a compatible workflow; worker/workflow flags (slots, dagSteps, eventFanout, rlKeys, workerDelay, failureRate, delay) are ignored in this mode")
+	loadtest.Flags().IntVar(&config.TimingSampleRate, "timingSampleRate", 10, "in --externalWorker mode, fetch full task timings for 1 out of every N completed runs instead of every one - the average still converges, at a fraction of the REST load on the engine; 1 fetches every run")
 	cmd := &cobra.Command{Use: "app"}
 	cmd.AddCommand(loadtest)
 	if err := cmd.Execute(); err != nil {

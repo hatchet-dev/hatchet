@@ -121,21 +121,32 @@ func tryResolveWorkflowIDs(ctx context.Context, api *rest.ClientWithResponses, t
 type TimingCollector struct {
 	lastSeen     time.Time
 	api          *rest.ClientWithResponses
-	seen         map[uuid.UUID]time.Time // successfully fetched; value is fetch time
-	pending      map[uuid.UUID]time.Time // discovered but not yet successfully fetched; value is first-discovered time
+	seen         map[uuid.UUID]time.Time // successfully fetched, or deliberately skipped by sampling; value is decision time
+	pending      map[uuid.UUID]time.Time // sampled-in and awaiting a successful fetch; value is first-discovered time
 	workflowIds  []uuid.UUID
 	pollInterval time.Duration
+	sampleRate   int   // fetch full timings for 1 out of every sampleRate discovered runs; 1 = every run
+	discovered   int64 // count of runs discovered so far, used to pick the 1-in-sampleRate subset
 	mu           sync.Mutex
 	tenantId     uuid.UUID
 }
 
 // NewTimingCollector builds a collector for already-resolved workflow ids.
-func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, pollInterval time.Duration) *TimingCollector { //nolint:staticcheck // SA1019
+// sampleRate < 2 fetches full timings for every discovered run; sampleRate
+// of N fetches roughly 1 out of every N - an average over a uniform sample
+// converges to the same value much faster than one over every run, at a
+// fraction of the REST load on the engine.
+func NewTimingCollector(hatchet v1.HatchetClient, workflowIds []uuid.UUID, pollInterval time.Duration, sampleRate int) *TimingCollector { //nolint:staticcheck // SA1019
+	if sampleRate < 1 {
+		sampleRate = 1
+	}
+
 	return &TimingCollector{
 		api:          hatchet.V0().API(),
 		tenantId:     uuid.MustParse(hatchet.V0().TenantId()),
 		workflowIds:  workflowIds,
 		pollInterval: pollInterval,
+		sampleRate:   sampleRate,
 		// Start the window slightly in the past so the first sweep can pick
 		// up runs that finished just before the collector started.
 		lastSeen: time.Now().Add(-pollInterval),
@@ -216,9 +227,9 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 		for _, row := range rows {
 			runId := row.WorkflowRunExternalId
 
-			// Already fetched, or already queued/in-flight from an earlier
-			// sweep (including one still being retried after a prior
-			// failure) - don't queue it again.
+			// Already fetched (or skipped by sampling), or already
+			// queued/in-flight from an earlier sweep (including one still
+			// being retried after a prior failure) - don't reconsider it.
 			if _, ok := c.seen[runId]; ok {
 				continue
 			}
@@ -226,7 +237,19 @@ func (c *TimingCollector) sweep(ctx context.Context, out chan<- PhaseSample) {
 				continue
 			}
 
-			c.pending[runId] = now
+			c.discovered++
+
+			// Keep 1 out of every sampleRate discovered runs - always
+			// including the first, so a short test still gets at least one
+			// sample instead of a spurious "no timing samples observed"
+			// error. Runs that aren't selected are marked seen immediately
+			// (not fetched, never retried) so they don't keep costing a
+			// List-window reconsideration every sweep.
+			if (c.discovered-1)%int64(c.sampleRate) == 0 {
+				c.pending[runId] = now
+			} else {
+				c.seen[runId] = now
+			}
 		}
 		c.mu.Unlock()
 
