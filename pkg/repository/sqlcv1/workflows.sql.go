@@ -2014,6 +2014,55 @@ func (q *Queries) ListWorkflowNamesByIds(ctx context.Context, db DBTX, ids []uui
 	return items, nil
 }
 
+const listWorkflowVersionsByIds = `-- name: ListWorkflowVersionsByIds :many
+SELECT id, "createdAt", "updatedAt", "deletedAt", version, "order", "workflowId", checksum, "scheduleTimeout", "onFailureJobId", sticky, kind, "defaultPriority", "createWorkflowVersionOpts", "inputJsonSchema", "idempotencyKeyExpression", "idempotencyKeyTtlMs", "idempotencyMethod", "isUsingDagOperator", "dagShape"
+FROM "WorkflowVersion"
+WHERE
+    "id" = ANY($1::uuid[])
+    AND "deletedAt" IS NULL
+`
+
+func (q *Queries) ListWorkflowVersionsByIds(ctx context.Context, db DBTX, ids []uuid.UUID) ([]*WorkflowVersion, error) {
+	rows, err := db.Query(ctx, listWorkflowVersionsByIds, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []*WorkflowVersion
+	for rows.Next() {
+		var i WorkflowVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.Order,
+			&i.WorkflowId,
+			&i.Checksum,
+			&i.ScheduleTimeout,
+			&i.OnFailureJobId,
+			&i.Sticky,
+			&i.Kind,
+			&i.DefaultPriority,
+			&i.CreateWorkflowVersionOpts,
+			&i.InputJsonSchema,
+			&i.IdempotencyKeyExpression,
+			&i.IdempotencyKeyTtlMs,
+			&i.IdempotencyMethod,
+			&i.IsUsingDagOperator,
+			&i.DagShape,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkflows = `-- name: ListWorkflows :many
 SELECT
     workflows.id, workflows."createdAt", workflows."updatedAt", workflows."deletedAt", workflows."tenantId", workflows.name, workflows.description, workflows."isPaused"

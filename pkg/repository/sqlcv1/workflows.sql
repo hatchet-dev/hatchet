@@ -900,3 +900,11 @@ WHERE
 ORDER BY
     workflowVersions."order" DESC
 LIMIT 1;
+
+-- name: ListWorkflowVersionsByIds :many
+SELECT *
+FROM "WorkflowVersion"
+WHERE
+    "id" = ANY(@ids::uuid[])
+    AND "deletedAt" IS NULL
+;

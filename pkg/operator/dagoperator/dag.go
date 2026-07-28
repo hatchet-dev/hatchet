@@ -54,6 +54,10 @@ type dag struct {
 
 	tasks []*task
 
+	// onFailureTask has no parents to gate on (see evaluateOnFailure) and is nil if the workflow
+	// has none; once resolved it's appended to tasks so isDone/end-of-run scanning cover it too.
+	onFailureTask *task
+
 	pendingTasks    []*task
 	externalId      uuid.UUID
 	invocationCount int32
@@ -61,6 +65,10 @@ type dag struct {
 	err             error
 
 	pendingWaitAcks []*pendingWaitAck
+
+	// pendingEntryCompletions buffers EntryCompleted refs that raced ahead of their WaitForAck
+	// (its condition is committed to the DB before the ack is sent); rechecked on each ack.
+	pendingEntryCompletions []pendingEntryCompletion
 
 	// responses received while blocked sending on requestCh (see dag.send); drained by the
 	// main loop before it blocks on responseCh
@@ -78,6 +86,16 @@ const (
 	conditionKindSkip
 	conditionKindCancel
 )
+
+// pendingEntryCompletion is a buffered EntryCompleted that didn't match any known node/branch id
+// at the time it arrived.
+type pendingEntryCompletion struct {
+	nodeId       int64
+	branchId     int64
+	isFailure    bool
+	errorMessage string
+	payload      []byte
+}
 
 type pendingWaitAck struct {
 	task *task
@@ -128,6 +146,7 @@ type task struct {
 func dagDurableTask(
 	ctx context.Context,
 	tasks []*task,
+	onFailureTask *task,
 	externalId uuid.UUID,
 	invocationCount int32,
 	input string,
@@ -143,10 +162,12 @@ func dagDurableTask(
 		attribute.String("dag.external_id", externalId.String()),
 		attribute.Int("dag.invocation_count", int(invocationCount)),
 		attribute.Int("dag.task_count", len(tasks)),
+		attribute.Bool("dag.has_on_failure", onFailureTask != nil),
 	)
 
 	d := &dag{
 		tasks:            tasks,
+		onFailureTask:    onFailureTask,
 		pendingTasks:     append([]*task{}, tasks...),
 		requestCh:        requestCh,
 		responseCh:       responseCh,
@@ -161,6 +182,12 @@ func dagDurableTask(
 	for !d.isDone() {
 		if err := d.taskEmitter(ctx); err != nil {
 			return err
+		}
+
+		if triggered, err := d.evaluateOnFailure(ctx); err != nil {
+			return err
+		} else if triggered {
+			continue
 		}
 
 		if len(d.queuedResponses) > 0 {
@@ -405,42 +432,80 @@ func (d *dag) taskConsumer(ctx context.Context, resp *v1contracts.DurableTaskRes
 			ack.task.waitBranchId = ref.GetBranchId()
 		}
 
+		// Its completion may already be buffered as unmatched (see pendingEntryCompletions).
+		d.drainPendingEntryCompletions(ctx)
+
 	case *v1contracts.DurableTaskResponse_EntryCompleted:
 		ref := m.EntryCompleted.GetRef()
 		if ref == nil {
 			return
 		}
 
-		nodeId := ref.GetNodeId()
-		branchId := ref.GetBranchId()
+		entry := pendingEntryCompletion{
+			nodeId:       ref.GetNodeId(),
+			branchId:     ref.GetBranchId(),
+			isFailure:    m.EntryCompleted.GetIsFailure(),
+			errorMessage: m.EntryCompleted.GetErrorMessage(),
+			payload:      m.EntryCompleted.GetPayload(),
+		}
 
-		for _, t := range d.tasks {
-			if t.skipWatchRegistered && !t.skipWatchFired && t.skipWatchNodeId == nodeId && t.skipWatchBranchId == branchId {
-				t.skipWatchFired = true
-				return
-			}
-
-			if t.cancelWatchRegistered && !t.cancelWatchFired && t.cancelWatchNodeId == nodeId && t.cancelWatchBranchId == branchId {
-				t.cancelWatchFired = true
-				return
-			}
-
-			if t.isWaiting && !t.isWaitSatisfied && t.waitNodeId == nodeId && t.waitBranchId == branchId {
-				t.isWaitSatisfied = true
-				return
-			}
-
-			if t.nodeId != nodeId || t.branchId != branchId {
-				continue
-			}
-
-			if err := d.applyCompletion(ctx, t, m.EntryCompleted.GetIsFailure(), m.EntryCompleted.GetErrorMessage(), m.EntryCompleted.GetPayload()); err != nil {
-				d.err = err
-			}
-
-			return
+		if !d.tryApplyEntryCompletion(ctx, entry) {
+			// Raced ahead of its own WaitForAck; retry once that ack lands.
+			d.pendingEntryCompletions = append(d.pendingEntryCompletions, entry)
 		}
 	}
+}
+
+// tryApplyEntryCompletion attempts to match a completion against a registered skip/cancel/wait
+// watch or a triggered task's node/branch id, applying it if found. Returns false if nothing
+// currently known matches.
+func (d *dag) tryApplyEntryCompletion(ctx context.Context, entry pendingEntryCompletion) bool {
+	for _, t := range d.tasks {
+		if t.skipWatchRegistered && !t.skipWatchFired && t.skipWatchNodeId == entry.nodeId && t.skipWatchBranchId == entry.branchId {
+			t.skipWatchFired = true
+			return true
+		}
+
+		if t.cancelWatchRegistered && !t.cancelWatchFired && t.cancelWatchNodeId == entry.nodeId && t.cancelWatchBranchId == entry.branchId {
+			t.cancelWatchFired = true
+			return true
+		}
+
+		if t.isWaiting && !t.isWaitSatisfied && t.waitNodeId == entry.nodeId && t.waitBranchId == entry.branchId {
+			t.isWaitSatisfied = true
+			return true
+		}
+
+		if t.nodeId != entry.nodeId || t.branchId != entry.branchId {
+			continue
+		}
+
+		if err := d.applyCompletion(ctx, t, entry.isFailure, entry.errorMessage, entry.payload); err != nil {
+			d.err = err
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// drainPendingEntryCompletions retries buffered completions that couldn't be matched when they
+// first arrived, keeping any that still don't match.
+func (d *dag) drainPendingEntryCompletions(ctx context.Context) {
+	if len(d.pendingEntryCompletions) == 0 {
+		return
+	}
+
+	remaining := d.pendingEntryCompletions[:0]
+
+	for _, entry := range d.pendingEntryCompletions {
+		if !d.tryApplyEntryCompletion(ctx, entry) {
+			remaining = append(remaining, entry)
+		}
+	}
+
+	d.pendingEntryCompletions = remaining
 }
 
 func (d *dag) applyCompletion(ctx context.Context, t *task, isFailure bool, errorMessage string, payload []byte) error {
@@ -536,7 +601,84 @@ func (d *dag) isDone() bool {
 		}
 	}
 
+	// Not yet in d.tasks until evaluateOnFailure resolves it.
+	if d.onFailureTask != nil && !d.onFailureTask.isCompleted {
+		return false
+	}
+
 	return true
+}
+
+func (d *dag) evaluateOnFailure(ctx context.Context) (bool, error) {
+	if d.onFailureTask == nil || d.onFailureTask.isTriggered {
+		return false, nil
+	}
+
+	anyFailed := false
+	allOthersDone := true
+
+	for _, t := range d.tasks {
+		if t.isFailed {
+			anyFailed = true
+		}
+		if !t.isCompleted {
+			allOthersDone = false
+		}
+	}
+
+	if !anyFailed && !allOthersDone {
+		return false, nil
+	}
+
+	ctx, span := telemetry.NewSpan(ctx, "dag.evaluateOnFailure")
+	defer span.End()
+
+	skip := !anyFailed
+
+	span.SetAttributes(
+		attribute.String("dag.on_failure_action_id", d.onFailureTask.actionId),
+		attribute.Bool("dag.on_failure_skipped", skip),
+	)
+
+	var parentTaskRunIds []uuid.UUID
+	for _, p := range d.tasks {
+		if p.isCompleted && !p.isFailed && p.workflowRunExternalId != nil {
+			parentTaskRunIds = append(parentTaskRunIds, *p.workflowRunExternalId)
+		}
+	}
+
+	result, err := d.triggerStep(ctx, d.onFailureTask.actionId, d.onFailureTask.workflowName, d.onFailureTask.index, parentTaskRunIds, skip, false, false)
+	if err != nil {
+		d.err = fmt.Errorf("failed to trigger on-failure step %q: %w", d.onFailureTask.actionId, err)
+		return false, d.err
+	}
+
+	d.onFailureTask.reExecuted = result.ReExecuted
+	d.onFailureTask.nodeId = result.NodeId
+	d.onFailureTask.branchId = result.BranchId
+	d.onFailureTask.workflowRunExternalId = &result.WorkflowRunExternalId
+	d.onFailureTask.isTriggered = true
+
+	if skip {
+		d.onFailureTask.isSkipped = true
+		d.onFailureTask.isCompleted = true
+		d.onFailureTask.output = map[string]interface{}{"skipped": true}
+	}
+
+	d.tasks = append(d.tasks, d.onFailureTask)
+
+	if result.IsSatisfied {
+		errorMessage := ""
+		if result.ErrorMessage != nil {
+			errorMessage = *result.ErrorMessage
+		}
+		if err := d.applyCompletion(ctx, d.onFailureTask, result.IsFailure, errorMessage, result.ResultPayload); err != nil {
+			d.err = err
+			return true, d.err
+		}
+	}
+
+	return true, nil
 }
 
 func (d *dag) evaluateParentConditions(ctx context.Context, t *task) (skip bool, cancel bool) {

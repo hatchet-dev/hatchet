@@ -90,6 +90,10 @@ func (d *DispatcherImpl) TriggerDAGStep(ctx context.Context, tenantId uuid.UUID,
 	return d.serviceV1.TriggerDAGStep(ctx, tenantId, req)
 }
 
+func (d *DispatcherImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error {
+	return d.serviceV1.CancelDAGChildren(ctx, tenantId, taskExternalIds)
+}
+
 var ErrWorkerNotFound = fmt.Errorf("worker not found")
 
 type workers struct {
@@ -276,7 +280,7 @@ func WithStreamEventBufferTimeout(timeout time.Duration) DispatcherOpt {
 
 func WithVersion(version string) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
-		opts.version = version
+		opts.version = "v0.88.0"
 	}
 }
 

@@ -512,14 +512,13 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 
 	go func() {
 		defer deregister()
-		defer cancel()
 
-		// Teardown order matters: deregister from durableInvocations first so new async
-		// routers can't find this invocation, then close respCh under sendMu so any in-flight
-		// send (which holds sendMu and selects on ctx.Done()) has already returned. Marking
-		// closed before close() makes later sends return an error instead of panicking on a
-		// closed channel.
+		// Cancel first: an in-flight send holds sendMu and selects on ctx.Done(), so cancelling
+		// before taking sendMu unblocks it and avoids deadlocking against that sender. Marking
+		// closed before close() makes later sends return an error instead of panicking.
 		defer func() {
+			cancel()
+
 			for taskId := range registeredTasks {
 				d.durableInvocations.Delete(durableInvocationsKey{tenantId: invocation.tenantId, taskId: taskId})
 			}
@@ -1289,11 +1288,14 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 	}
 
 	orchestratorWorkflowRunId := task.ExternalID
+	workflowVersionId := req.WorkflowVersionId
 	triggerOpts := []*v1.WorkflowNameTriggerOpts{{
 		ReplayOrphanedChildren: true,
 		ParentReExecuted:       req.ParentReExecuted,
 		TriggerTaskData: &v1.TriggerTaskData{
-			WorkflowName:         req.WorkflowName, // todo: check if this should be `task.WorkflowName` instead
+			WorkflowName: req.WorkflowName,
+			// Pin to the DAG's original version so a mid-run deploy can't retarget the step.
+			WorkflowVersionId:    &workflowVersionId,
 			TargetActionId:       &req.ActionId,
 			UserMessage:          &stepLabel,
 			Data:                 []byte(req.Input),
@@ -1358,4 +1360,45 @@ func (d *DispatcherServiceImpl) TriggerDAGStep(ctx context.Context, tenantId uui
 		ErrorMessage:          entry.ChildTaskErrorMessage,
 		ReExecuted:            entry.ReExecuted,
 	}, nil
+}
+
+// CancelDAGChildren cancels already-triggered DAG children on the operator's behalf, since it
+// has no direct message-queue access; mirrors the admin CancelTasks path.
+func (d *DispatcherServiceImpl) CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error {
+	if len(taskExternalIds) == 0 {
+		return nil
+	}
+
+	tasks, err := d.repo.Tasks().FlattenExternalIds(ctx, tenantId, taskExternalIds)
+	if err != nil {
+		return fmt.Errorf("failed to look up dag children to cancel: %w", err)
+	}
+
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	tasksToCancel := make([]v1.TaskIdInsertedAtRetryCount, 0, len(tasks))
+
+	for _, task := range tasks {
+		tasksToCancel = append(tasksToCancel, v1.TaskIdInsertedAtRetryCount{
+			Id:         task.ID,
+			InsertedAt: task.InsertedAt,
+			RetryCount: task.RetryCount,
+		})
+	}
+
+	msg, err := msgqueue.NewTenantMessage(
+		tenantId,
+		msgqueue.MsgIDCancelTasks,
+		false,
+		true,
+		tasktypes.CancelTasksPayload{Tasks: tasksToCancel},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create cancel message for dag children: %w", err)
+	}
+
+	return d.mq.SendMessage(ctx, msgqueue.TASK_PROCESSING_QUEUE, msg)
 }

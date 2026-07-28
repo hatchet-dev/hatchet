@@ -80,6 +80,9 @@ type TriggerTaskData struct {
 	// (optional) when set, only trigger this specific step by action ID (used by DAG operator)
 	TargetActionId *string `json:"target_action_id,omitempty"`
 
+	// (optional) when set, resolve to this exact workflow version instead of latest by name
+	WorkflowVersionId *uuid.UUID `json:"workflow_version_id,omitempty"`
+
 	// (optional) a human-readable label shown in the activity log for this durable event entry
 	UserMessage *string `json:"user_message,omitempty"`
 
@@ -1010,6 +1013,11 @@ func (r *sharedRepository) triggerWorkflows(
 		regularSteps := regularUserSteps(steps)
 		if tuple.targetActionId != nil {
 			regularSteps = filterStepsByActionId(regularSteps, *tuple.targetActionId)
+
+			if len(regularSteps) == 0 {
+				// Matching no step would silently hang the caller's durable log entry forever.
+				return nil, nil, nil, nil, fmt.Errorf("no step with action id %q found in workflow version %s", *tuple.targetActionId, tuple.workflowVersionId)
+			}
 		}
 		isDag := len(regularSteps) > 1
 
@@ -2640,11 +2648,79 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	[]triggerTuple,
 	error,
 ) {
+	// each (workflowVersionId, opt) is a separate workflow that we need to create
+	triggerOpts := make([]triggerTuple, 0, len(opts))
+
 	workflowNames := make([]string, 0, len(opts))
 	uniqueNames := make(map[string]struct{})
 	namesToOpts := make(map[string][]*WorkflowNameTriggerOpts)
 
+	workflowVersionIds := make([]uuid.UUID, 0, len(opts))
 	for _, opt := range opts {
+		if opt.WorkflowVersionId != nil {
+			workflowVersionIds = append(workflowVersionIds, *opt.WorkflowVersionId)
+		}
+	}
+
+	workflowVersionIdToWorkflowVersion := make(map[uuid.UUID]*sqlcv1.WorkflowVersion)
+
+	if len(workflowVersionIds) > 0 {
+		pinnedWorkflowVersions, err := r.queries.ListWorkflowVersionsByIds(ctx, tx, workflowVersionIds)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to list pinned workflow versions: %w", err)
+		}
+
+		for _, pinned := range pinnedWorkflowVersions {
+			workflowVersionIdToWorkflowVersion[pinned.ID] = pinned
+		}
+	}
+
+	for _, opt := range opts {
+		// Pinned-version opts (DAG operator) bypass the by-name/latest-version lookup below.
+		if opt.WorkflowVersionId != nil {
+			pinned, ok := workflowVersionIdToWorkflowVersion[*opt.WorkflowVersionId]
+
+			if !ok {
+				return nil, fmt.Errorf("failed to get pinned workflow version %s", *opt.WorkflowVersionId)
+			}
+
+			var idempotency *IdempotencyConfig
+			if pinned.IdempotencyKeyExpression.Valid && pinned.IdempotencyKeyTtlMs.Valid {
+				idempotency = &IdempotencyConfig{
+					Expression: pinned.IdempotencyKeyExpression.String,
+					TTLMs:      pinned.IdempotencyKeyTtlMs.Int64,
+				}
+			}
+
+			triggerOpts = append(triggerOpts, triggerTuple{
+				workflowVersionId:    pinned.ID,
+				workflowId:           pinned.WorkflowId,
+				workflowName:         opt.WorkflowName,
+				externalId:           opt.ExternalId,
+				input:                opt.Data,
+				additionalMetadata:   opt.AdditionalMetadata,
+				desiredWorkerId:      opt.DesiredWorkerId,
+				parentExternalId:     opt.ParentExternalId,
+				parentTaskId:         opt.ParentTaskId,
+				parentTaskInsertedAt: opt.ParentTaskInsertedAt,
+				childIndex:           opt.ChildIndex,
+				childKey:             opt.ChildKey,
+				priority:             opt.Priority,
+				desiredWorkerLabels:  opt.DesiredWorkerLabels,
+				idempotency:          idempotency,
+				dagParentTaskRunIds:  opt.DagParentTaskRunIds,
+				targetActionId:       opt.TargetActionId,
+				isSkipped:            opt.IsSkipped,
+				isCancelled:          opt.IsCancelled,
+				workflowRunId:        opt.WorkflowRunId,
+				olapDagId:            opt.OlapDagId,
+				olapDagInsertedAt:    opt.OlapDagInsertedAt,
+			})
+
+			continue
+		}
+
 		namesToOpts[opt.WorkflowName] = append(namesToOpts[opt.WorkflowName], opt)
 
 		if _, ok := uniqueNames[opt.WorkflowName]; ok {
@@ -2660,9 +2736,6 @@ func (r *sharedRepository) prepareTriggerFromWorkflowNames(ctx context.Context, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list workflows for names: %w", err)
 	}
-
-	// each (workflowVersionId, opt) is a separate workflow that we need to create
-	triggerOpts := make([]triggerTuple, 0, len(opts))
 
 	for _, workflowVersion := range workflowVersionsByNames {
 		opts, ok := namesToOpts[workflowVersion.WorkflowName]
@@ -2790,9 +2863,13 @@ func (r *sharedRepository) NewTriggerTaskData(
 	}
 
 	if parentTask != nil {
-		// Use WorkflowRunID (not ExternalID) so child workflows are queryable by
-		// ref.workflow_run_id when the parent is a step within a DAG.
-		parentExternalId := parentTask.WorkflowRunID
+		// Native DAG steps (DagID set) keep ExternalID: OLAP consumers resolve parent refs
+		// against v1_tasks_olap.external_id. Operator/durable parents use WorkflowRunID instead
+		// so children are queryable by the orchestrator run.
+		parentExternalId := parentTask.ExternalID
+		if !parentTask.DagID.Valid {
+			parentExternalId = parentTask.WorkflowRunID
+		}
 
 		t.ParentExternalId = &parentExternalId
 		t.ParentTaskId = &parentTask.ID

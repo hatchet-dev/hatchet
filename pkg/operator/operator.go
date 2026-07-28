@@ -47,7 +47,9 @@ type DAGStepTriggerRequest struct {
 	ParentTaskExternalId uuid.UUID
 	InvocationCount      int32
 	WorkflowName         string
-	ActionId             string
+	// WorkflowVersionId pins triggering to the DAG's original version.
+	WorkflowVersionId uuid.UUID
+	ActionId          string
 	ChildIndex           int32
 	Input                string
 	AdditionalMetadata   []byte
@@ -86,6 +88,9 @@ type TaskEventWriter interface {
 	RegisterDurableTask(ctx context.Context, externalId uuid.UUID) (chan<- *v1contracts.DurableTaskRequest, <-chan *v1contracts.DurableTaskResponse, error)
 
 	TriggerDAGStep(ctx context.Context, tenantId uuid.UUID, req *DAGStepTriggerRequest) (*DAGStepTriggerResult, error)
+
+	// CancelDAGChildren cancels already-triggered children when the orchestrator is cancelled.
+	CancelDAGChildren(ctx context.Context, tenantId uuid.UUID, taskExternalIds []uuid.UUID) error
 }
 
 type SharedOperator[T any] struct {
@@ -146,6 +151,16 @@ func (s *SharedOperator[T]) TriggerDAGStep(ctx context.Context, req *DAGStepTrig
 	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId})
 
 	return s.taskEventWriter.TriggerDAGStep(ctx, s.tenantId, req)
+}
+
+func (s *SharedOperator[T]) CancelDAGChildren(ctx context.Context, taskExternalIds []uuid.UUID) error {
+	if s.taskEventWriter == nil {
+		return fmt.Errorf("operator has no task event writer configured")
+	}
+
+	ctx = context.WithValue(ctx, tenantContextKey, &sqlcv1.Tenant{ID: s.tenantId})
+
+	return s.taskEventWriter.CancelDAGChildren(ctx, s.tenantId, taskExternalIds)
 }
 
 // RegisterDurableTask opens a channel-based durable-task session through the dispatcher,
