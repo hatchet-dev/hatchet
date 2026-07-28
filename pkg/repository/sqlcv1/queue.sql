@@ -721,26 +721,22 @@ LIMIT
     COALESCE(sqlc.narg('limit')::integer, 1000);
 
 -- name: ListDistinctBatchResources :many
+-- short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
+-- batched queue item rows
 SELECT
-    b.step_id,
+    sbc.step_id,
     b.batch_key,
-    MIN(b.inserted_at)::timestamptz AS oldest_item_at,
-    COUNT(*) AS pending_count,
     sbc.batch_max_size AS batch_max_size,
     sbc.batch_max_interval AS batch_max_interval,
     sbc.batch_group_max_runs AS batch_group_max_runs
 FROM
-    v1_batched_queue_item b
-JOIN
-    v1_step_batch_config sbc ON sbc.step_id = b.step_id
-WHERE
-    b.tenant_id = @tenantId::uuid
-GROUP BY
-    b.step_id,
-    b.batch_key,
-    sbc.step_id
-ORDER BY
-    oldest_item_at ASC;
+    v1_step_batch_config sbc
+JOIN LATERAL (
+    SELECT batch_key
+    FROM v1_batched_queue_item
+    WHERE tenant_id = @tenantId::uuid AND step_id = sbc.step_id
+    LIMIT 1
+) b ON true;
 
 -- name: MoveQueueItemsToBatchedQueue :many
 WITH locked_qis AS (
@@ -755,7 +751,7 @@ WITH locked_qis AS (
         AND sbc.batch_max_size >= 1
     ORDER BY
         qi.id ASC
-    FOR UPDATE
+    FOR UPDATE OF qi
 ), inserted AS (
     INSERT INTO v1_batched_queue_item (
         tenant_id,

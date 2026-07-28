@@ -275,7 +275,7 @@ func do(config LoadTestConfig) error {
 		}()
 	}
 
-	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize)
+	emitted := emit(ctx, config.Namespace, config.Events, config.Duration, scheduled, config.PayloadSize, config.EmitWorkers)
 	close(scheduled)
 
 	executed := <-ch
@@ -286,6 +286,16 @@ func do(config LoadTestConfig) error {
 
 	var phases phaseAccumulator
 	if config.ExternalWorker {
+		// Give the engine config.Wait to finish (and the collector to observe) runs that
+		// were still in flight when emission stopped, before tearing down collection -
+		// cancelling immediately here would abort the collector mid-sweep for any run that
+		// completes right around this instant, silently dropping its timing sample instead
+		// of just not counting it (see the "context canceled" warnings this produces).
+		if config.Wait > 0 {
+			l.Info().Msgf("externalWorker: waiting %s for in-flight runs to complete before stopping timing collection...", config.Wait)
+			time.Sleep(config.Wait)
+		}
+
 		cancelTiming()
 		phases = <-phaseResultCh
 	}
