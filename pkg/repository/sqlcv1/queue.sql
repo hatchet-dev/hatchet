@@ -714,6 +714,7 @@ FROM
 WHERE
     tenant_id = @tenantId::uuid
     AND step_id = @stepId::uuid
+    AND id != ALL(@excludeIds::bigint[])
 ORDER BY
     priority DESC,
     id ASC

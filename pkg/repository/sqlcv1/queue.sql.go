@@ -613,21 +613,28 @@ FROM
 WHERE
     tenant_id = $1::uuid
     AND step_id = $2::uuid
+    AND id != ALL($3::bigint[])
 ORDER BY
     priority DESC,
     id ASC
 LIMIT
-    COALESCE($3::integer, 1000)
+    COALESCE($4::integer, 1000)
 `
 
 type ListBatchedQueueItemsForStepParams struct {
-	Tenantid uuid.UUID   `json:"tenantid"`
-	Stepid   uuid.UUID   `json:"stepid"`
-	Limit    pgtype.Int4 `json:"limit"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Stepid     uuid.UUID   `json:"stepid"`
+	Excludeids []int64     `json:"excludeids"`
+	Limit      pgtype.Int4 `json:"limit"`
 }
 
 func (q *Queries) ListBatchedQueueItemsForStep(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForStepParams) ([]*V1BatchedQueueItem, error) {
-	rows, err := db.Query(ctx, listBatchedQueueItemsForStep, arg.Tenantid, arg.Stepid, arg.Limit)
+	rows, err := db.Query(ctx, listBatchedQueueItemsForStep,
+		arg.Tenantid,
+		arg.Stepid,
+		arg.Excludeids,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
