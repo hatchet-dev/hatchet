@@ -266,12 +266,12 @@ jobs:
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build loadtest
-        run: docker build -f ./build/package/loadtest.dockerfile -t ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:testing .
+        run: docker build -f ./build/package/loadtest.dockerfile -t ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:testing-no-batch .
       # Mutable "testing" tag for pulling into a staging k8s cluster without a
       # release - every PR that touches this job overwrites it, so it always
       # reflects whichever PR pushed most recently, not any one branch.
       - name: Push loadtest (testing tag)
-        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:testing
+        run: docker push ghcr.io/hatchet-dev/hatchet/hatchet-loadtest:testing-no-batch
 
   loadtest-arm:
     runs-on: hatchet-arm64-2
