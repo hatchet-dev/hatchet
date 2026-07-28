@@ -130,10 +130,10 @@ type Scheduler struct {
 	pubsub msgqueue.PubSub
 	l      *zerolog.Logger
 	repov1 repov1.Repository
-	dv        datautils.DataDecoderValidator
-	s         gocron.Scheduler
-	a         *hatcheterrors.Wrapped
-	p         *partition.Partition
+	dv     datautils.DataDecoderValidator
+	s      gocron.Scheduler
+	a      *hatcheterrors.Wrapped
+	p      *partition.Partition
 
 	// a custom queue logger
 	ql *zerolog.Logger
@@ -180,7 +180,6 @@ func New(
 
 	a := hatcheterrors.NewWrapped(opts.alerter)
 	a.WithData(map[string]interface{}{"service": "scheduler"})
-
 
 	// TODO: replace with config or pull into a constant
 	tasksWithNoWorkerCache := expirable.NewLRU(10000, func(string, struct{}) {}, 5*time.Minute)
