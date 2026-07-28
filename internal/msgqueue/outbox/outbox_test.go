@@ -110,9 +110,9 @@ func TestRelayFlusherPublishesToMQ(t *testing.T) {
 	mq := &fakeMQ{}
 
 	f := &relayFlusher{
-		mq: mq,
-		queue:    msgqueue.OLAP_QUEUE,
-		l:        zerologNop(),
+		mq:    mq,
+		queue: msgqueue.OLAP_QUEUE,
+		l:     zerologNop(),
 	}
 
 	msg := newTestMessage(t)
@@ -135,9 +135,9 @@ func TestRelayFlusherReturnsMQError(t *testing.T) {
 	mq := &fakeMQ{err: fmt.Errorf("publish failed")}
 
 	f := &relayFlusher{
-		mq: mq,
-		queue:    msgqueue.OLAP_QUEUE,
-		l:        zerologNop(),
+		mq:    mq,
+		queue: msgqueue.OLAP_QUEUE,
+		l:     zerologNop(),
 	}
 
 	err := f.Flush(fakeFlushContext{Context: context.Background()}, []*outboxsqlc.Message{
