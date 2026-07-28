@@ -13,17 +13,16 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
-// requiredMaxPayload is the minimum NATS server max_payload we accept. Task
-// stream events routinely exceed the NATS default of 1MiB; the durable RabbitMQ
-// path allows 16MiB, so the NATS server must match.
+// requiredMaxPayload is the minimum NATS server max_payload we accept.
+// The durable RabbitMQ path allows 16MiB, so the NATS server must match.
 const requiredMaxPayload = 16 * 1024 * 1024
 
 // defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
 const defaultSubjectPrefix = "hatchet.pubsub"
 
-// PubSub implements msgqueue.PubSub over core NATS (no JetStream). Subjects are
-// subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"); delivery
-// is best-effort at-most-once.
+// PubSub implements msgqueue.PubSub over core NATS. Subjects are
+// subjectPrefix + "." + topic.Name() (default prefix "hatchet.pubsub"),
+// delivery is best-effort at-most-once.
 type PubSub struct {
 	nc            *natsgo.Conn
 	l             *zerolog.Logger
@@ -50,16 +49,14 @@ func defaultPubSubOpts() *PubSubOpts {
 
 // WithPubSubURL sets the NATS seed URL(s). Comma-separated lists are passed
 // through to nats.go. Prefer bare hosts and set Username/Password so
-// rediscovered cluster peers authenticate; URL-embedded user:pass still works
-// for single-server/dev. Use the tls:// scheme for TLS.
+// rediscovered cluster peers authenticate.
 func WithPubSubURL(url string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.url = url
 	}
 }
 
-// WithPubSubUsername sets the NATS username for nats.UserInfo. Use with
-// WithPubSubPassword so auth applies on reconnect to gossiped cluster peers.
+// WithPubSubUsername sets the NATS username for nats.UserInfo.
 func WithPubSubUsername(username string) PubSubOpt {
 	return func(opts *PubSubOpts) {
 		opts.username = username
@@ -140,7 +137,7 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	if nc.MaxPayload() < requiredMaxPayload {
 		nc.Close()
 		return nil, nil, fmt.Errorf(
-			"nats server max_payload is %d bytes; set max_payload: 16777216 in the NATS server config (default 1MiB is insufficient for task stream events)",
+			"nats server max_payload is %d bytes; set at least max_payload: 16777216 in the NATS server config)",
 			nc.MaxPayload(),
 		)
 	}
@@ -170,8 +167,7 @@ func (p *PubSub) subject(topic msgqueue.Topic) string {
 	return p.subjectPrefix + "." + topic.Name()
 }
 
-// Pub publishes a message to the topic. Delivery is best-effort: if no
-// subscriber is listening, the message is dropped. No flush per message.
+// Pub publishes a message to the topic.
 // Oversized multi-payload messages are chunked like rabbitmq/pubsub.go.
 func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Message) error {
 	if err := ctx.Err(); err != nil {
@@ -186,7 +182,6 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
-	// Use the server-advertised limit (constructor already requires >= 16MiB).
 	maxPayload := p.nc.MaxPayload()
 
 	if int64(len(body)) > maxPayload {
@@ -203,7 +198,6 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 			msgCp.Payloads = chunk
 
 			err := p.Pub(ctx, topic, msgCp)
-
 			if err != nil {
 				return err
 			}
