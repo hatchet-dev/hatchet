@@ -280,7 +280,7 @@ func WithStreamEventBufferTimeout(timeout time.Duration) DispatcherOpt {
 
 func WithVersion(version string) DispatcherOpt {
 	return func(opts *DispatcherOpts) {
-		opts.version = "v0.88.0"
+		opts.version = version
 	}
 }
 
