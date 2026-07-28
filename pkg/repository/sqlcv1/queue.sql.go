@@ -588,6 +588,38 @@ func (q *Queries) ListActionsForWorkersLegacyFallback(ctx context.Context, db DB
 }
 
 const listBatchedQueueItemsForStep = `-- name: ListBatchedQueueItemsForStep :many
+WITH candidates AS (
+    SELECT
+        id,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key,
+        inserted_at,
+        payload_size
+    FROM
+        v1_batched_queue_item
+    WHERE
+        tenant_id = $3::uuid
+        AND step_id = $4::uuid
+    ORDER BY
+        priority DESC,
+        id ASC
+    LIMIT
+        COALESCE($2::integer, 1000) + COALESCE(array_length($1::bigint[], 1), 0)
+)
 SELECT
     id,
     tenant_id,
@@ -609,39 +641,65 @@ SELECT
     inserted_at,
     payload_size
 FROM
-    v1_batched_queue_item
+    candidates
 WHERE
-    tenant_id = $1::uuid
-    AND step_id = $2::uuid
-    AND id != ALL($3::bigint[])
+    id != ALL($1::bigint[])
 ORDER BY
     priority DESC,
     id ASC
 LIMIT
-    COALESCE($4::integer, 1000)
+    COALESCE($2::integer, 1000)
 `
 
 type ListBatchedQueueItemsForStepParams struct {
-	Tenantid   uuid.UUID   `json:"tenantid"`
-	Stepid     uuid.UUID   `json:"stepid"`
 	Excludeids []int64     `json:"excludeids"`
 	Limit      pgtype.Int4 `json:"limit"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Stepid     uuid.UUID   `json:"stepid"`
 }
 
-func (q *Queries) ListBatchedQueueItemsForStep(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForStepParams) ([]*V1BatchedQueueItem, error) {
+type ListBatchedQueueItemsForStepRow struct {
+	ID                int64              `json:"id"`
+	TenantID          uuid.UUID          `json:"tenant_id"`
+	Queue             string             `json:"queue"`
+	TaskID            int64              `json:"task_id"`
+	TaskInsertedAt    pgtype.Timestamptz `json:"task_inserted_at"`
+	ExternalID        uuid.UUID          `json:"external_id"`
+	ActionID          string             `json:"action_id"`
+	StepID            uuid.UUID          `json:"step_id"`
+	WorkflowID        uuid.UUID          `json:"workflow_id"`
+	WorkflowRunID     uuid.UUID          `json:"workflow_run_id"`
+	ScheduleTimeoutAt pgtype.Timestamp   `json:"schedule_timeout_at"`
+	StepTimeout       pgtype.Text        `json:"step_timeout"`
+	Priority          int32              `json:"priority"`
+	Sticky            V1StickyStrategy   `json:"sticky"`
+	DesiredWorkerID   *uuid.UUID         `json:"desired_worker_id"`
+	RetryCount        int32              `json:"retry_count"`
+	BatchKey          string             `json:"batch_key"`
+	InsertedAt        pgtype.Timestamptz `json:"inserted_at"`
+	PayloadSize       int32              `json:"payload_size"`
+}
+
+// The inner CTE only has sargable predicates (tenant_id/step_id equality) plus an ORDER BY/LIMIT
+// matching the v1_batched_queue_item_step_priority_idx index, so it's guaranteed a plain bounded
+// index scan regardless of how the exclude-id filter below gets planned. The inner LIMIT is
+// oversized by exactly the exclude count so that even in the worst case -- every excluded id
+// sits at the front of the priority/id ordering -- there's still room for a full page of
+// genuinely new rows after filtering, without having to scan past the entire backlog.
+func (q *Queries) ListBatchedQueueItemsForStep(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForStepParams) ([]*ListBatchedQueueItemsForStepRow, error) {
 	rows, err := db.Query(ctx, listBatchedQueueItemsForStep,
-		arg.Tenantid,
-		arg.Stepid,
 		arg.Excludeids,
 		arg.Limit,
+		arg.Tenantid,
+		arg.Stepid,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1BatchedQueueItem
+	var items []*ListBatchedQueueItemsForStepRow
 	for rows.Next() {
-		var i V1BatchedQueueItem
+		var i ListBatchedQueueItemsForStepRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.TenantID,

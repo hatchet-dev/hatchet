@@ -689,6 +689,44 @@ WHERE (task_id, task_inserted_at) IN (
 );
 
 -- name: ListBatchedQueueItemsForStep :many
+-- The inner CTE only has sargable predicates (tenant_id/step_id equality) plus an ORDER BY/LIMIT
+-- matching the v1_batched_queue_item_step_priority_idx index, so it's guaranteed a plain bounded
+-- index scan regardless of how the exclude-id filter below gets planned. The inner LIMIT is
+-- oversized by exactly the exclude count so that even in the worst case -- every excluded id
+-- sits at the front of the priority/id ordering -- there's still room for a full page of
+-- genuinely new rows after filtering, without having to scan past the entire backlog.
+WITH candidates AS (
+    SELECT
+        id,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key,
+        inserted_at,
+        payload_size
+    FROM
+        v1_batched_queue_item
+    WHERE
+        tenant_id = @tenantId::uuid
+        AND step_id = @stepId::uuid
+    ORDER BY
+        priority DESC,
+        id ASC
+    LIMIT
+        COALESCE(sqlc.narg('limit')::integer, 1000) + COALESCE(array_length(@excludeIds::bigint[], 1), 0)
+)
 SELECT
     id,
     tenant_id,
@@ -710,11 +748,9 @@ SELECT
     inserted_at,
     payload_size
 FROM
-    v1_batched_queue_item
+    candidates
 WHERE
-    tenant_id = @tenantId::uuid
-    AND step_id = @stepId::uuid
-    AND id != ALL(@excludeIds::bigint[])
+    id != ALL(@excludeIds::bigint[])
 ORDER BY
     priority DESC,
     id ASC
