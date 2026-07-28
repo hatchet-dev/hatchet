@@ -588,73 +588,105 @@ func (q *Queries) ListActionsForWorkersLegacyFallback(ctx context.Context, db DB
 }
 
 const listBatchedQueueItemsForStep = `-- name: ListBatchedQueueItemsForStep :many
+WITH candidates AS (
+    SELECT
+        id,
+        tenant_id,
+        queue,
+        task_id,
+        task_inserted_at,
+        external_id,
+        action_id,
+        step_id,
+        workflow_id,
+        workflow_run_id,
+        schedule_timeout_at,
+        step_timeout,
+        priority,
+        sticky,
+        desired_worker_id,
+        retry_count,
+        batch_key,
+        inserted_at,
+        payload_size
+    FROM
+        v1_batched_queue_item
+    WHERE
+        tenant_id = $3::uuid
+        AND step_id = $4::uuid
+    ORDER BY
+        priority DESC,
+        id ASC
+    LIMIT
+        COALESCE($2::integer, 1000) + COALESCE(array_length($1::bigint[], 1), 0)
+)
 SELECT
-    id,
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    batch_key,
-    inserted_at,
-    payload_size
+    v1_batched_queue_item.id, v1_batched_queue_item.tenant_id, v1_batched_queue_item.queue, v1_batched_queue_item.task_id, v1_batched_queue_item.task_inserted_at, v1_batched_queue_item.external_id, v1_batched_queue_item.action_id, v1_batched_queue_item.step_id, v1_batched_queue_item.workflow_id, v1_batched_queue_item.workflow_run_id, v1_batched_queue_item.schedule_timeout_at, v1_batched_queue_item.step_timeout, v1_batched_queue_item.priority, v1_batched_queue_item.sticky, v1_batched_queue_item.desired_worker_id, v1_batched_queue_item.retry_count, v1_batched_queue_item.batch_key, v1_batched_queue_item.inserted_at, v1_batched_queue_item.payload_size
 FROM
-    v1_batched_queue_item
+    candidates AS v1_batched_queue_item
 WHERE
-    tenant_id = $1::uuid
-    AND step_id = $2::uuid
+    id != ALL($1::bigint[])
 ORDER BY
     priority DESC,
     id ASC
 LIMIT
-    COALESCE($3::integer, 1000)
+    COALESCE($2::integer, 1000)
 `
 
 type ListBatchedQueueItemsForStepParams struct {
-	Tenantid uuid.UUID   `json:"tenantid"`
-	Stepid   uuid.UUID   `json:"stepid"`
-	Limit    pgtype.Int4 `json:"limit"`
+	Excludeids []int64     `json:"excludeids"`
+	Limit      pgtype.Int4 `json:"limit"`
+	Tenantid   uuid.UUID   `json:"tenantid"`
+	Stepid     uuid.UUID   `json:"stepid"`
 }
 
-func (q *Queries) ListBatchedQueueItemsForStep(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForStepParams) ([]*V1BatchedQueueItem, error) {
-	rows, err := db.Query(ctx, listBatchedQueueItemsForStep, arg.Tenantid, arg.Stepid, arg.Limit)
+type ListBatchedQueueItemsForStepRow struct {
+	V1BatchedQueueItem V1BatchedQueueItem `json:"v1_batched_queue_item"`
+}
+
+// The inner CTE only has sargable predicates (tenant_id/step_id equality) plus an ORDER BY/LIMIT
+// matching the v1_batched_queue_item_step_priority_idx index, so it's guaranteed a plain bounded
+// index scan regardless of how the exclude-id filter below gets planned. The inner LIMIT is
+// oversized by exactly the exclude count so that even in the worst case -- every excluded id
+// sits at the front of the priority/id ordering -- there's still room for a full page of
+// genuinely new rows after filtering, without having to scan past the entire backlog.
+// sqlc.embed() only resolves against a real catalog relation, not a CTE alias, so "candidates" is
+// re-aliased to the table's own name here purely so embed() matches it back to the existing
+// V1BatchedQueueItem model instead of sqlc minting a new, structurally-identical row type.
+func (q *Queries) ListBatchedQueueItemsForStep(ctx context.Context, db DBTX, arg ListBatchedQueueItemsForStepParams) ([]*ListBatchedQueueItemsForStepRow, error) {
+	rows, err := db.Query(ctx, listBatchedQueueItemsForStep,
+		arg.Excludeids,
+		arg.Limit,
+		arg.Tenantid,
+		arg.Stepid,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*V1BatchedQueueItem
+	var items []*ListBatchedQueueItemsForStepRow
 	for rows.Next() {
-		var i V1BatchedQueueItem
+		var i ListBatchedQueueItemsForStepRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.TenantID,
-			&i.Queue,
-			&i.TaskID,
-			&i.TaskInsertedAt,
-			&i.ExternalID,
-			&i.ActionID,
-			&i.StepID,
-			&i.WorkflowID,
-			&i.WorkflowRunID,
-			&i.ScheduleTimeoutAt,
-			&i.StepTimeout,
-			&i.Priority,
-			&i.Sticky,
-			&i.DesiredWorkerID,
-			&i.RetryCount,
-			&i.BatchKey,
-			&i.InsertedAt,
-			&i.PayloadSize,
+			&i.V1BatchedQueueItem.ID,
+			&i.V1BatchedQueueItem.TenantID,
+			&i.V1BatchedQueueItem.Queue,
+			&i.V1BatchedQueueItem.TaskID,
+			&i.V1BatchedQueueItem.TaskInsertedAt,
+			&i.V1BatchedQueueItem.ExternalID,
+			&i.V1BatchedQueueItem.ActionID,
+			&i.V1BatchedQueueItem.StepID,
+			&i.V1BatchedQueueItem.WorkflowID,
+			&i.V1BatchedQueueItem.WorkflowRunID,
+			&i.V1BatchedQueueItem.ScheduleTimeoutAt,
+			&i.V1BatchedQueueItem.StepTimeout,
+			&i.V1BatchedQueueItem.Priority,
+			&i.V1BatchedQueueItem.Sticky,
+			&i.V1BatchedQueueItem.DesiredWorkerID,
+			&i.V1BatchedQueueItem.RetryCount,
+			&i.V1BatchedQueueItem.BatchKey,
+			&i.V1BatchedQueueItem.InsertedAt,
+			&i.V1BatchedQueueItem.PayloadSize,
 		); err != nil {
 			return nil, err
 		}

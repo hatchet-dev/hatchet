@@ -28,6 +28,7 @@ type fakeReserveCall struct {
 type fakeBatchRepo struct {
 	mu               sync.Mutex
 	listResponses    [][]*sqlcv1.V1BatchedQueueItem
+	listExcludeCalls [][]int64
 	itemsById        map[int64]*sqlcv1.V1BatchedQueueItem
 	moveCalls        [][]int64
 	commitCalls      [][]*v1repo.BatchAssignment
@@ -44,9 +45,11 @@ func (f *fakeBatchRepo) ListBatchResources(ctx context.Context) ([]*sqlcv1.ListD
 	return nil, nil
 }
 
-func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
+func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.UUID, excludeIds []int64, limit int32) ([]*sqlcv1.V1BatchedQueueItem, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.listExcludeCalls = append(f.listExcludeCalls, append([]int64(nil), excludeIds...))
 
 	if len(f.listResponses) == 0 {
 		return nil, nil
@@ -66,7 +69,24 @@ func (f *fakeBatchRepo) ListBatchedQueueItems(ctx context.Context, stepId uuid.U
 		}
 	}
 
-	return resp, nil
+	// Mirrors the real query's "AND id != ALL(@excludeIds)" filter.
+	exclude := make(map[int64]struct{}, len(excludeIds))
+	for _, id := range excludeIds {
+		exclude[id] = struct{}{}
+	}
+
+	filtered := make([]*sqlcv1.V1BatchedQueueItem, 0, len(resp))
+	for _, item := range resp {
+		if item == nil {
+			continue
+		}
+		if _, ok := exclude[item.ID]; ok {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	return filtered, nil
 }
 
 func (f *fakeBatchRepo) GetBatchedQueueItemsByIds(ctx context.Context, ids []int64) ([]*sqlcv1.V1BatchedQueueItem, error) {
@@ -841,11 +861,70 @@ func TestBatchSchedulerRespectsBatchSizeWithMultiplePendingItems(t *testing.T) {
 		return assignments, nil, nil
 	}
 
-	// Both items land in the buffer from a single fetch (e.g. two tasks submitted at once), so
-	// the batch-size flush on the very first tick must still only take one of them.
+	// Both items land in the buffer from a single fetch (e.g. two tasks submitted at once). With
+	// batchMaxSize=1, the batch-size flush should drain the whole buffer within the same tick
+	// instead of leaving a full batch's worth of items to wait for the next poll.
 	require.NoError(t, scheduler.tick())
 
-	require.Len(t, repo.commitCalls, 1, "expected exactly one flush on the first tick")
-	require.Len(t, repo.commitCalls[0], 1, "expected the flush to contain exactly one item, matching batchMaxSize=1")
-	require.Len(t, scheduler.groups[""].buffer, 1, "the second item should remain buffered for the next tick")
+	require.Len(t, repo.commitCalls, 2, "expected one flush per buffered item within the same tick")
+	require.Len(t, repo.commitCalls[0], 1, "expected each flush to contain exactly one item, matching batchMaxSize=1")
+	require.Len(t, repo.commitCalls[1], 1, "expected each flush to contain exactly one item, matching batchMaxSize=1")
+	require.Empty(t, scheduler.groups[""].buffer, "both items should have been flushed within the same tick")
+}
+
+// TestBatchSchedulerExcludesBufferedIdsFromRefetch is a regression test for ListBatchedQueueItems
+// having no cursor: every tick re-lists from the top of the (priority, id) order, so without a
+// server-side exclusion of already-buffered ids, a group that doesn't fully drain in one tick
+// would see the same still-pending rows come back on the next poll -- and, with a large enough
+// backlog in one batch_key, could crowd other batch_key groups for the step out of the LIMIT
+// window entirely. This verifies the scheduler passes the currently-buffered ids as the exclusion
+// list, and that a (simulated) DB response reflecting that exclusion doesn't produce duplicates.
+func TestBatchSchedulerExcludesBufferedIdsFromRefetch(t *testing.T) {
+	tenantId := uuid.MustParse("00000000-0000-0000-0000-000000000008")
+	stepId := uuid.MustParse("00000000-0000-0000-0000-000000000080")
+
+	repo := &fakeBatchRepo{
+		listResponses: [][]*sqlcv1.V1BatchedQueueItem{
+			{
+				{ID: 1, TenantID: tenantId, Queue: "default", TaskID: 401, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+				{ID: 2, TenantID: tenantId, Queue: "default", TaskID: 402, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+			},
+			{
+				// Simulates the real DB still holding ids 1 and 2 pending (unflushed) alongside a
+				// genuinely new row 5 -- the fake applies the same exclusion the real query would.
+				{ID: 1, TenantID: tenantId, Queue: "default", TaskID: 401, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+				{ID: 2, TenantID: tenantId, Queue: "default", TaskID: 402, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+				{ID: 5, TenantID: tenantId, Queue: "default", TaskID: 405, TaskInsertedAt: pgtype.Timestamptz{Valid: true}, ActionID: "action", StepID: stepId, BatchKey: "a"},
+			},
+		},
+	}
+
+	resource := &sqlcv1.ListDistinctBatchResourcesRow{
+		StepID:       stepId,
+		BatchKey:     "a",
+		BatchMaxSize: 100, // large enough that nothing flushes during this test
+	}
+
+	scheduler := newBatchScheduler(
+		newTestSharedConfig(repo),
+		tenantId,
+		resource,
+		nil,
+		nil,
+		func(*QueueResults) {},
+	)
+	require.NotNil(t, scheduler)
+	scheduler.ctx = context.Background()
+
+	require.NoError(t, scheduler.tick())
+	require.Len(t, repo.listExcludeCalls, 1)
+	require.Empty(t, repo.listExcludeCalls[0], "first tick has nothing buffered yet, so nothing to exclude")
+	require.Len(t, scheduler.groups["a"].buffer, 2)
+
+	require.NoError(t, scheduler.tick())
+	require.Len(t, repo.listExcludeCalls, 2)
+	require.ElementsMatch(t, []int64{1, 2}, repo.listExcludeCalls[1], "second tick should exclude ids already buffered from the first")
+
+	// Only the genuinely new row (5) should have been added; ids 1 and 2 shouldn't be duplicated.
+	require.ElementsMatch(t, []int64{1, 2, 5}, scheduler.groups["a"].getBufferedIds())
 }
