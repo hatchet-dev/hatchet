@@ -468,14 +468,14 @@ func (s *DispatcherImpl) Heartbeat(ctx context.Context, req *contracts.Heartbeat
 				if err != nil {
 					s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not create message for notifying new worker")
 				} else {
-					err = s.mqv1.SendMessage(
+					err = s.pubsub.Pub(
 						notifyCtx,
-						msgqueue.QueueTypeFromPartitionIDAndController(tenant.SchedulerPartitionId.String, msgqueue.Scheduler),
+						msgqueue.SchedulerPartitionTopic(tenant.SchedulerPartitionId.String),
 						msg,
 					)
 
 					if err != nil {
-						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not add message to scheduler partition queue")
+						s.l.Err(err).Ctx(ctx).Str("scheduler_partition_id", tenant.SchedulerPartitionId.String).Msg("could not publish message to scheduler partition topic")
 					}
 				}
 			}()
@@ -1124,7 +1124,7 @@ func (s *DispatcherImpl) subscribeToWorkflowRunsV1(server contracts.Dispatcher_S
 		wg.Add(1)
 		defer wg.Done()
 
-		if matchedWorkflowRunIds, ok := s.isMatchingWorkflowRunV1(msg, acks); ok {
+		if matchedWorkflowRunIds, ok := isMatchingWorkflowRunV1(msg, acks); ok {
 			if err := iter(matchedWorkflowRunIds); err != nil {
 				s.l.Error().Ctx(ctx).Err(err).Msg("could not iterate over workflow runs")
 			}
@@ -1396,7 +1396,7 @@ func (s *DispatcherImpl) handleTaskCompleted(inputCtx context.Context, task *sql
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
@@ -1456,7 +1456,7 @@ func (s *DispatcherImpl) handleTaskFailed(inputCtx context.Context, task *sqlcv1
 		return nil, err
 	}
 
-	err = s.mqv1.SendMessage(inputCtx, msgqueue.TASK_PROCESSING_QUEUE, msg)
+	err = msgqueue.PubTenantMessage(inputCtx, s.l, s.mqv1, s.pubsub, msgqueue.TASK_PROCESSING_QUEUE, msg)
 
 	if err != nil {
 		return nil, err
@@ -2138,7 +2138,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByWorkflowRunIdV1(workflowRunI
 		wg.Add(1)
 		defer wg.Done()
 
-		events, err := s.msgsToWorkflowEvent(
+		events, err := msgsToWorkflowEvent(
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
@@ -2264,7 +2264,7 @@ func (s *DispatcherImpl) subscribeToWorkflowEventsByAdditionalMetaV1(key string,
 		wg.Add(1)
 		defer wg.Done()
 
-		events, err := s.msgsToWorkflowEvent(
+		events, err := msgsToWorkflowEvent(
 			msgId,
 			payloads,
 			func(events []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error) {
@@ -2437,165 +2437,4 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 	}
 
 	return res, nil
-}
-
-func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
-	workflowEvents := []*contracts.WorkflowEvent{}
-
-	switch msgId {
-	case "created-task":
-		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunID.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalID.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STARTED,
-				EventTimestamp: timestamppb.New(payload.InsertedAt.Time),
-				RetryCount:     &payload.RetryCount,
-			})
-		}
-	case "task-completed":
-		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED,
-				EventTimestamp: timestamppb.New(time.Now()),
-				RetryCount:     &payload.RetryCount,
-				EventPayload:   string(payload.Output),
-			})
-		}
-	case "task-failed":
-		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED,
-				EventTimestamp: timestamppb.New(time.Now()),
-				RetryCount:     &payload.RetryCount,
-				EventPayload:   payload.ErrorMsg,
-			})
-		}
-	case "task-cancelled":
-		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED,
-				EventTimestamp: timestamppb.New(time.Now()),
-				RetryCount:     &payload.RetryCount,
-			})
-		}
-	case "task-stream-event":
-		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
-
-		for _, payload := range payloads {
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.WorkflowRunId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
-				ResourceId:     payload.TaskRunId.String(),
-				EventType:      contracts.ResourceEventType_RESOURCE_EVENT_TYPE_STREAM,
-				EventTimestamp: timestamppb.New(payload.CreatedAt),
-				EventPayload:   string(payload.Payload),
-				EventIndex:     payload.EventIndex,
-			})
-		}
-	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
-
-		for _, payload := range payloads {
-			eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-
-			switch payload.Status {
-			case sqlcv1.V1ReadableStatusOlapCANCELLED:
-				eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_CANCELLED
-			case sqlcv1.V1ReadableStatusOlapFAILED:
-				eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_FAILED
-			case sqlcv1.V1ReadableStatusOlapCOMPLETED:
-				eventType = contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
-			}
-
-			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
-				WorkflowRunId:  payload.ExternalId.String(),
-				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_WORKFLOW_RUN,
-				ResourceId:     payload.ExternalId.String(),
-				EventType:      eventType,
-				EventTimestamp: timestamppb.New(time.Now()),
-			})
-		}
-	}
-
-	matches, err := filter(workflowEvents)
-
-	if err != nil {
-		return nil, err
-	}
-
-	matches, err = hangupFunc(matches)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// order matches
-	slices.SortFunc(matches, func(a, b *contracts.WorkflowEvent) int {
-		// anything with a hangup should be last
-		if a.Hangup && !b.Hangup {
-			return 1
-		} else if !a.Hangup && b.Hangup {
-			return -1
-		}
-
-		return sortByEventIndex(a, b)
-	})
-
-	return matches, nil
-}
-
-func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]uuid.UUID, bool) {
-	switch msg.ID {
-	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
-		res := make([]uuid.UUID, 0)
-
-		for _, payload := range payloads {
-			if acks.hasWorkflowRun(payload.ExternalId) {
-				res = append(res, payload.ExternalId)
-			}
-		}
-
-		if len(res) == 0 {
-			return nil, false
-		}
-
-		return res, true
-	case "workflow-run-finished-candidate":
-		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
-		res := make([]uuid.UUID, 0)
-
-		for _, payload := range payloads {
-			if acks.hasWorkflowRun(payload.WorkflowRunId) {
-				res = append(res, payload.WorkflowRunId)
-			}
-		}
-
-		if len(res) == 0 {
-			return nil, false
-		}
-
-		return res, true
-	default:
-		return nil, false
-	}
 }

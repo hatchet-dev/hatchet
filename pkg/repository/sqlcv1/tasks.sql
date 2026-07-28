@@ -1186,7 +1186,7 @@ WITH locked AS (
         br.tenant_id = @tenantId::uuid
         AND br.step_id = @stepId::uuid
         AND br.batch_key = @batchKey::text
-    FOR UPDATE
+    FOR UPDATE OF br
 ), existing AS (
     SELECT COUNT(DISTINCT batch_id) AS cnt FROM locked
 ), inserted AS (

@@ -21,6 +21,7 @@ var l zerolog.Logger
 type LoadTestConfig struct {
 	Namespace                string
 	Events                   int
+	EmitWorkers              int
 	Concurrency              int
 	Duration                 time.Duration
 	Wait                     time.Duration
@@ -77,6 +78,7 @@ func main() {
 	}
 
 	loadtest.Flags().IntVarP(&config.Events, "events", "e", 10, "events per second")
+	loadtest.Flags().IntVar(&config.EmitWorkers, "emitWorkers", 0, "emitWorkers specifies how many concurrent goroutines push events to the engine; each push is a blocking call, so this bounds sustained throughput regardless of --events. 0 auto-scales from --events (see emit.go's defaultEmitWorkers)")
 	loadtest.Flags().IntVarP(&config.Concurrency, "concurrency", "c", 0, "concurrency specifies the maximum events to run at the same time")
 	loadtest.Flags().DurationVarP(&config.Duration, "duration", "d", 10*time.Second, "duration specifies the total time to run the load test")
 	loadtest.Flags().DurationVarP(&config.Delay, "delay", "D", 0, "delay specifies the time to wait in each event to simulate slow tasks")

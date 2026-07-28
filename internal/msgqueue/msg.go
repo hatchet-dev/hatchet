@@ -68,6 +68,13 @@ func DecodeAndValidateSingleton(dv datautils.DataDecoderValidator, payloads [][]
 	return dv.DecodeAndValidate(payloads[0], target)
 }
 
+// Clone returns a shallow copy of the message. Payloads and OtelCarrier are
+// shared with the original: callers must replace them, never mutate in place.
+func (t *Message) Clone() *Message {
+	c := *t
+	return &c
+}
+
 func (t *Message) Serialize() ([]byte, error) {
 	return json.Marshal(t)
 }

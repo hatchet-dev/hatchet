@@ -768,37 +768,31 @@ func (q *Queries) ListBatchedQueueItemsToTimeout(ctx context.Context, db DBTX, a
 
 const listDistinctBatchResources = `-- name: ListDistinctBatchResources :many
 SELECT
-    b.step_id,
+    sbc.step_id,
     b.batch_key,
-    MIN(b.inserted_at)::timestamptz AS oldest_item_at,
-    COUNT(*) AS pending_count,
     sbc.batch_max_size AS batch_max_size,
     sbc.batch_max_interval AS batch_max_interval,
     sbc.batch_group_max_runs AS batch_group_max_runs
 FROM
-    v1_batched_queue_item b
-JOIN
-    v1_step_batch_config sbc ON sbc.step_id = b.step_id
-WHERE
-    b.tenant_id = $1::uuid
-GROUP BY
-    b.step_id,
-    b.batch_key,
-    sbc.step_id
-ORDER BY
-    oldest_item_at ASC
+    v1_step_batch_config sbc
+JOIN LATERAL (
+    SELECT batch_key
+    FROM v1_batched_queue_item
+    WHERE tenant_id = $1::uuid AND step_id = sbc.step_id
+    LIMIT 1
+) b ON true
 `
 
 type ListDistinctBatchResourcesRow struct {
-	StepID            uuid.UUID          `json:"step_id"`
-	BatchKey          string             `json:"batch_key"`
-	OldestItemAt      pgtype.Timestamptz `json:"oldest_item_at"`
-	PendingCount      int64              `json:"pending_count"`
-	BatchMaxSize      int32              `json:"batch_max_size"`
-	BatchMaxInterval  pgtype.Int4        `json:"batch_max_interval"`
-	BatchGroupMaxRuns pgtype.Int4        `json:"batch_group_max_runs"`
+	StepID            uuid.UUID   `json:"step_id"`
+	BatchKey          string      `json:"batch_key"`
+	BatchMaxSize      int32       `json:"batch_max_size"`
+	BatchMaxInterval  pgtype.Int4 `json:"batch_max_interval"`
+	BatchGroupMaxRuns pgtype.Int4 `json:"batch_group_max_runs"`
 }
 
+// short circuits using lateral join with LIMIT because we only care about the existence of 1 or more
+// batched queue item rows
 func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenantid uuid.UUID) ([]*ListDistinctBatchResourcesRow, error) {
 	rows, err := db.Query(ctx, listDistinctBatchResources, tenantid)
 	if err != nil {
@@ -811,8 +805,6 @@ func (q *Queries) ListDistinctBatchResources(ctx context.Context, db DBTX, tenan
 		if err := rows.Scan(
 			&i.StepID,
 			&i.BatchKey,
-			&i.OldestItemAt,
-			&i.PendingCount,
 			&i.BatchMaxSize,
 			&i.BatchMaxInterval,
 			&i.BatchGroupMaxRuns,
@@ -1277,7 +1269,7 @@ WITH locked_qis AS (
         AND sbc.batch_max_size >= 1
     ORDER BY
         qi.id ASC
-    FOR UPDATE
+    FOR UPDATE OF qi
 ), inserted AS (
     INSERT INTO v1_batched_queue_item (
         tenant_id,

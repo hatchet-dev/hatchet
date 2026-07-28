@@ -200,13 +200,22 @@ func (t *tenantLimitRepository) canCreate(ctx context.Context, dbtx sqlcv1.DBTX,
 	if err != nil && errors.Is(err, pgx.ErrNoRows) {
 		t.l.Warn().Ctx(ctx).Msgf("no %s tenant limit found, creating default limit", string(resource))
 
-		err = t.updateLimits(ctx, dbtx, tenantId, t.DefaultLimits())
-
+		// Insert-only so concurrent first-use and existing paid/custom limits are not overwritten.
+		err = t.insertDefaultLimitsIfMissing(ctx, dbtx, tenantId)
 		if err != nil {
 			return false, 0, err
 		}
 
-		return true, 0, nil
+		limit, err = t.queries.GetTenantResourceLimit(ctx, dbtx, sqlcv1.GetTenantResourceLimitParams{
+			Tenantid: tenantId,
+			Resource: sqlcv1.NullLimitResource{
+				LimitResource: resource,
+				Valid:         true,
+			},
+		})
+		if err != nil {
+			return false, 0, err
+		}
 	} else if err != nil {
 		return false, 0, err
 	}
@@ -389,20 +398,14 @@ func (t *tenantLimitRepository) UpdateLimits(ctx context.Context, tenantId uuid.
 	return t.updateLimits(ctx, nil, tenantId, limits)
 }
 
-func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
-	if len(limits) == 0 {
-		return nil
-	}
-
-	if dbtx == nil {
-		dbtx = t.pool
-	}
-
-	resources := make([]string, len(limits))
-	limitValues := make([]int32, len(limits))
-	alarmValues := make([]int32, len(limits))
-	windows := make([]string, len(limits))
-	customValueMeters := make([]bool, len(limits))
+// prepareTenantResourceLimitParams builds the shared SQL array params used by both
+// overwrite (upsert) and insert-only paths.
+func prepareTenantResourceLimitParams(limits []Limit) (resources []string, limitValues, alarmValues []int32, windows []string, customValueMeters []bool) {
+	resources = make([]string, len(limits))
+	limitValues = make([]int32, len(limits))
+	alarmValues = make([]int32, len(limits))
+	windows = make([]string, len(limits))
+	customValueMeters = make([]bool, len(limits))
 
 	for i, limit := range limits {
 		resources[i] = string(limit.Resource)
@@ -420,7 +423,42 @@ func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DB
 		}
 	}
 
+	return resources, limitValues, alarmValues, windows, customValueMeters
+}
+
+func (t *tenantLimitRepository) updateLimits(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, limits []Limit) error {
+	if len(limits) == 0 {
+		return nil
+	}
+
+	if dbtx == nil {
+		dbtx = t.pool
+	}
+
+	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
+
 	return t.queries.UpsertTenantResourceLimits(ctx, dbtx, sqlcv1.UpsertTenantResourceLimitsParams{
+		Tenantid:          tenantId,
+		Resources:         resources,
+		Limitvalues:       limitValues,
+		Alarmvalues:       alarmValues,
+		Windows:           windows,
+		Customvaluemeters: customValueMeters,
+	})
+}
+
+// insertDefaultLimitsIfMissing inserts DefaultLimits() with ON CONFLICT DO NOTHING so
+// first-use of a missing resource cannot overwrite existing paid/custom limit rows.
+// Caller must pass a non-nil dbtx (canCreate always normalizes nil → pool first).
+func (t *tenantLimitRepository) insertDefaultLimitsIfMissing(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID) error {
+	limits := t.DefaultLimits()
+	if len(limits) == 0 {
+		return nil
+	}
+
+	resources, limitValues, alarmValues, windows, customValueMeters := prepareTenantResourceLimitParams(limits)
+
+	return t.queries.InsertTenantResourceLimitsIfNotExists(ctx, dbtx, sqlcv1.InsertTenantResourceLimitsIfNotExistsParams{
 		Tenantid:          tenantId,
 		Resources:         resources,
 		Limitvalues:       limitValues,

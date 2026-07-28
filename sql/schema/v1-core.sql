@@ -714,6 +714,15 @@ CREATE INDEX v1_batched_queue_item_step_batch_id_idx ON v1_batched_queue_item (
     id ASC
 );
 
+-- covers ListBatchedQueueItemsForStep's WHERE (tenant_id, step_id) + ORDER BY (priority DESC, id ASC),
+-- avoiding a seq scan + sort once a step's backlog grows large
+CREATE INDEX v1_batched_queue_item_step_priority_idx ON v1_batched_queue_item (
+    tenant_id ASC,
+    step_id ASC,
+    priority DESC,
+    id ASC
+);
+
 CREATE TYPE v1_match_kind AS ENUM ('TRIGGER', 'SIGNAL');
 
 CREATE TABLE v1_match (
