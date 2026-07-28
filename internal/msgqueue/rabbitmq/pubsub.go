@@ -352,6 +352,7 @@ func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() 
 					}
 
 					msg.Payloads = decompressedPayloads
+					msg.Compressed = false
 				}
 
 				p.l.Debug().Msgf("(session: %d) got pubsub msg", session)

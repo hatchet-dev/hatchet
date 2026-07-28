@@ -144,6 +144,11 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 // Sub subscribes to a topic. Inline NOTIFY payloads are handled directly;
 // non-JSON notifications and a 1s ticker wake a poll that drains >8KB fallback
 // rows. Delivery is at-most-once: handler errors are logged, never redelivered.
+//
+// Fanout divergence: inline NOTIFY payloads reach every subscriber of the
+// topic, but each >8KB fallback row is read and acked by exactly one
+// subscriber, unlike the rabbitmq fanout, which delivers every message to
+// every subscriber.
 func (p *PubSub) Sub(topic msgqueue.Topic, handler msgqueue.MsgHandler) (func() error, error) {
 	err := p.ensureQueue(context.Background(), topic)
 

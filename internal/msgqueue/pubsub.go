@@ -68,6 +68,11 @@ type PubSub interface {
 	// semantics: handler errors are logged, never redelivered. It returns a
 	// cleanup function that should be called when the subscription is no
 	// longer needed.
+	//
+	// Fanout to multiple subscribers of the same topic is backend-dependent:
+	// rabbitmq delivers every message to every subscriber, while the postgres
+	// implementation delivers messages over 8KB to only one subscriber (see
+	// postgres.PubSub.Sub).
 	Sub(topic Topic, handler MsgHandler) (func() error, error)
 
 	// IsReady returns true if the pub/sub mechanism is ready to accept messages.
