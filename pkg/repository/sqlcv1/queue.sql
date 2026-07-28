@@ -727,28 +727,13 @@ WITH candidates AS (
     LIMIT
         COALESCE(sqlc.narg('limit')::integer, 1000) + COALESCE(array_length(@excludeIds::bigint[], 1), 0)
 )
+-- sqlc.embed() only resolves against a real catalog relation, not a CTE alias, so "candidates" is
+-- re-aliased to the table's own name here purely so embed() matches it back to the existing
+-- V1BatchedQueueItem model instead of sqlc minting a new, structurally-identical row type.
 SELECT
-    id,
-    tenant_id,
-    queue,
-    task_id,
-    task_inserted_at,
-    external_id,
-    action_id,
-    step_id,
-    workflow_id,
-    workflow_run_id,
-    schedule_timeout_at,
-    step_timeout,
-    priority,
-    sticky,
-    desired_worker_id,
-    retry_count,
-    batch_key,
-    inserted_at,
-    payload_size
+    sqlc.embed(v1_batched_queue_item)
 FROM
-    candidates
+    candidates AS v1_batched_queue_item
 WHERE
     id != ALL(@excludeIds::bigint[])
 ORDER BY

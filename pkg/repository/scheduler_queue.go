@@ -997,35 +997,15 @@ func (b *batchQueueRepository) ListBatchedQueueItems(ctx context.Context, stepId
 
 	// ListBatchedQueueItemsForStep selects from a CTE rather than the table directly (to keep the
 	// exclude-id filter from being planned against the priority index -- see the query comment),
-	// so sqlc can't trace its result back to the V1BatchedQueueItem model and generates a
-	// structurally-identical sibling type instead. Convert it back so callers keep using the one
-	// shared model.
+	// so sqlc can't trace it back to the V1BatchedQueueItem model on its own; the query uses
+	// sqlc.embed() (aliasing the CTE to the table's own name) to embed it explicitly instead.
 	items := make([]*sqlcv1.V1BatchedQueueItem, len(rows))
 	for i, row := range rows {
 		if row == nil {
 			continue
 		}
-		items[i] = &sqlcv1.V1BatchedQueueItem{
-			ID:                row.ID,
-			TenantID:          row.TenantID,
-			Queue:             row.Queue,
-			TaskID:            row.TaskID,
-			TaskInsertedAt:    row.TaskInsertedAt,
-			ExternalID:        row.ExternalID,
-			ActionID:          row.ActionID,
-			StepID:            row.StepID,
-			WorkflowID:        row.WorkflowID,
-			WorkflowRunID:     row.WorkflowRunID,
-			ScheduleTimeoutAt: row.ScheduleTimeoutAt,
-			StepTimeout:       row.StepTimeout,
-			Priority:          row.Priority,
-			Sticky:            row.Sticky,
-			DesiredWorkerID:   row.DesiredWorkerID,
-			RetryCount:        row.RetryCount,
-			BatchKey:          row.BatchKey,
-			InsertedAt:        row.InsertedAt,
-			PayloadSize:       row.PayloadSize,
-		}
+		item := row.V1BatchedQueueItem
+		items[i] = &item
 	}
 
 	return items, nil
