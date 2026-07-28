@@ -1,10 +1,6 @@
 name: Release Hatchet CLI
 
 on:
-  push:
-    tags:
-      - "v*" # Trigger on version tags like v0.73.10
-      - "!v*-alpha*" # Do not trigger for alpha releases
   workflow_dispatch:
     inputs:
       tag:
@@ -16,14 +12,14 @@ permissions:
   contents: write
   packages: write
 
+env:
+  GITHUB_TAG: ${{ inputs.tag }}
+
 jobs:
   release-cli:
     name: Release CLI with GoReleaser
     runs-on: ubuntu-latest
     needs: [verify, generate-changelog]
-    env:
-      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
-    if: needs.verify.outputs.should_release == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -88,26 +84,26 @@ jobs:
     name: Verify Release Tag
     runs-on: ubuntu-latest
     env:
-      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
-      # We should only be triggering a release when using an annotated tag type.
-      should_release: ${{ steps.tag_name.outputs.tag_type == 'tag' }}
       prev_tag: ${{ steps.prev.outputs.prev_tag }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-
-      - name: Fetch the tag object
-        run: git fetch --force origin tag "$GITHUB_TAG"
-
-      - name: Check if tag is annotated
-        id: tag_name
+      - name: Check the tag exists
         run: |
-          tag_type=$(git cat-file -t "$GITHUB_TAG")
-          echo "Tag [$GITHUB_TAG] is of type [$tag_type]."
-          echo "tag_type=$tag_type" >> $GITHUB_OUTPUT
+          if ! gh api "repos/{owner}/{repo}/git/ref/tags/$GITHUB_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $GITHUB_TAG does not exist. Push the tag before running this workflow."
+            exit 1
+          fi
+          echo "Tag [$GITHUB_TAG] exists."
+
+      - name: Check no release exists for the tag
+        run: |
+          if gh release view "$GITHUB_TAG" >/dev/null 2>&1; then
+            echo "::error::A release for $GITHUB_TAG already exists (this includes drafts)."
+            exit 1
+          fi
+          echo "No existing release for [$GITHUB_TAG]."
 
       - name: Determine previous release tag
         id: prev
@@ -115,31 +111,25 @@ jobs:
           PREV_TAG=$(gh release view --json tagName --jq .tagName)
           echo "Previous release tag: $PREV_TAG"
           echo "prev_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   generate-changelog:
     name: Generate release_notes.md artifact
     runs-on: ubuntu-latest
     needs: [verify]
-    if: needs.verify.outputs.should_release == 'true'
-    env:
-      GITHUB_TAG: ${{ inputs.tag || github.ref_name }}
-      PREV_TAG: ${{ needs.verify.outputs.prev_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
-      - name: Fetch the tag object
-        run: git fetch --force origin tag "$GITHUB_TAG"
+      - name: Fetch all tags
+        run: git fetch --force --tags
 
       - name: Generate release section
         uses: orhun/git-cliff-action@f50e11560dce63f7c33227798f90b924471a88b5
         with:
           config: cliff.toml
-          args: ${{ env.PREV_TAG }}..${{ env.GITHUB_TAG }}
+          args: ${{ needs.verify.outputs.prev_tag }}..${{ inputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OUTPUT: /tmp/CHANGES.md

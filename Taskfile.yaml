@@ -332,7 +332,7 @@ tasks:
       - go test -count=1 -tags integration $(go list ./... | grep -v "quickstart") -v -failfast
 
   release:
-    desc: Create and push annotated tag, triggering the release pipeline.
+    desc: Push the release tag and dispatch the release pipeline.
     vars:
       CURRENT:
         sh: git tag --points-at HEAD --sort=-v:refname | head -n1
@@ -342,15 +342,12 @@ tasks:
         msg: "No TAG value found"
       - sh: '! gh release view {{.TAG}} >/dev/null 2>&1'
         msg: "{{.TAG}} already has a GitHub Release."
-      - sh: '[ "$(git cat-file -t {{.TAG}})" != "tag" ]'
-        msg: "{{.TAG}} is already an annotated tag."
       - sh: ./hack/ci/release-notes-cli.sh {{.TAG}}
         msg: "CHANGELOG.md must contain an entry for {{.TAG}}."
     prompt: Create new release for tag {{.TAG}}?
     cmds:
-      # cleanup=verbatim: markdown header hashes are otherwise stripped as comments.
-      - ./hack/ci/release-notes-cli.sh {{.TAG}} | git tag --cleanup=verbatim -a -f {{.TAG}} HEAD -F -
-      - git push --force origin {{.TAG}}
+      - gh workflow run release-cli.yaml -f tag={{.TAG}}
+      - gh run list --workflow=release-cli.yaml --limit 1
 
   patch:
     desc: Bump patch version (e.g. v0.83.16 → v0.83.17) and push the tag
