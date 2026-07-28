@@ -86,6 +86,21 @@ Restart your Hatchet server after setting these variables to apply the changes.
 | `hatchet_queued_to_assigned`              | Counter   | The total number of unique tasks that were queued and later assigned to a worker  |
 | `hatchet_queued_to_assigned_time_seconds` | Histogram | Buckets of time (in seconds) spent in the queue before being assigned to a worker |
 | `hatchet_reassigned_tasks`                | Counter   | The total number of tasks that were reassigned to a worker                        |
+| `hatchet_pubsub_publish_duration_seconds` | Histogram | Publisher-side blocking time of a pub/sub `Pub` call                              |
+| `hatchet_pubsub_transit_seconds`          | Histogram | Pub/sub publish-to-delivery latency, from the message's `published_at` stamp      |
+
+The two pub/sub histograms are labelled by `kind` (the pub/sub backend:
+`rabbitmq`, `postgres`, or `nats`) and `topic_kind`;
+`hatchet_pubsub_publish_duration_seconds` is additionally labelled by `result`.
+Two caveats when comparing backends:
+
+- Publish duration is how long `Pub` blocks the caller, not how long the broker
+  took to deliver. NATS buffers the write and returns immediately, while
+  RabbitMQ performs a synchronous channel write, so NATS will look faster here
+  without necessarily delivering any sooner.
+- Transit latency is a difference between two clocks, so it is subject to skew
+  between the publishing and subscribing pods. Messages published by engines
+  that predate the `published_at` stamp are not observed at all.
 
 #### Example PromQL Queries
 
