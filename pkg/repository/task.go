@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -186,6 +187,23 @@ type FailTaskOpts struct {
 	IsNonRetryable bool
 }
 
+type CancelTaskOpts struct {
+	*TaskIdInsertedAtRetryCount
+
+	// the monitoring event describing the cancellation (e.g. CANCELLED, TIMED_OUT),
+	// carried per task from the cancellation source
+	EventType    sqlcv1.V1EventTypeOlap
+	EventMessage string
+}
+
+type RestoreEvictedTaskOpts struct {
+	*TaskIdInsertedAtRetryCount
+
+	// the reason the task is being restored, used in the DURABLE_RESTORING
+	// monitoring event
+	Reason string
+}
+
 type TaskIdEventKeyTuple struct {
 	Id int64 `validate:"required"`
 
@@ -263,7 +281,7 @@ type TaskRepository interface {
 
 	FailTasks(ctx context.Context, tenantId uuid.UUID, tasks []FailTaskOpts) (*FailTasksResponse, error)
 
-	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error)
+	CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []CancelTaskOpts) (*FinalizedTaskResponse, error)
 
 	ListTasks(ctx context.Context, tenantId uuid.UUID, tasks []int64) ([]*sqlcv1.V1Task, error)
 
@@ -297,7 +315,7 @@ type TaskRepository interface {
 
 	EvictTask(ctx context.Context, tenantId uuid.UUID, task TaskIdInsertedAtRetryCount) (WasEvicted, error)
 
-	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error)
+	RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []RestoreEvictedTaskOpts) ([]*sqlcv1.RestoreEvictedTasksRow, error)
 
 	ListSignalCompletedEvents(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtSignalKey) ([]*V1TaskEventWithPayload, error)
 
@@ -792,6 +810,13 @@ func (r *TaskRepositoryImpl) CompleteTasks(ctx context.Context, tenantId uuid.UU
 		return nil, err
 	}
 
+	if err := r.signaler.internalEvents(ctx, tx, tenantId, internalEvents); err != nil {
+		err = fmt.Errorf("failed to stage internal events: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to stage internal events")
+		return nil, err
+	}
+
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		err = fmt.Errorf("failed to commit transaction: %w", err)
@@ -830,6 +855,28 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 		return nil, err
 	}
 
+	// stage the FAILED monitoring events: this is specific to failures reported over
+	// the message queue — the timeout and reassignment paths stage their own primary
+	// events on top of failTasksTx
+	failedPayloads := make([]CreateMonitoringEventPayload, 0, len(failureOpts))
+
+	for _, opt := range failureOpts {
+		failedPayloads = append(failedPayloads, CreateMonitoringEventPayload{
+			TaskId:         opt.Id,
+			RetryCount:     opt.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapFAILED,
+			EventTimestamp: time.Now().UTC(),
+			EventPayload:   opt.ErrorMessage,
+		})
+	}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, failedPayloads...); err != nil {
+		err = fmt.Errorf("failed to stage monitoring events: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to stage monitoring events")
+		return nil, err
+	}
+
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		err = fmt.Errorf("failed to commit transaction: %w", err)
@@ -841,7 +888,7 @@ func (r *TaskRepositoryImpl) FailTasks(ctx context.Context, tenantId uuid.UUID, 
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, tenantId uuid.UUID, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
+func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, failureOpts []FailTaskOpts) (*FailTasksResponse, error) {
 	// TODO: ADD BACK VALIDATION
 	// if err := r.v.Validate(tasks); err != nil {
 	// 	fmt.Println("FAILED VALIDATION HERE!!!")
@@ -982,6 +1029,38 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		return nil, err
 	}
 
+	// stage the retry monitoring events, and internal events for the tasks which are
+	// NOT retried — retried tasks have not reached a terminal state, so they must not
+	// drive downstream event matches
+	retriedTaskIds := make(map[int64]struct{}, len(retriedTasks))
+	retryPayloads := make([]CreateMonitoringEventPayload, 0, len(retriedTasks))
+
+	for _, task := range retriedTasks {
+		retriedTaskIds[task.Id] = struct{}{}
+
+		if task.IsAppError {
+			retryPayloads = append(retryPayloads, retryMonitoringEvents(task)...)
+		}
+	}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, retryPayloads...); err != nil {
+		return nil, err
+	}
+
+	eventsToSignal := make([]InternalTaskEvent, 0, len(internalEvents))
+
+	for _, event := range internalEvents {
+		if _, ok := retriedTaskIds[event.TaskID]; ok {
+			continue
+		}
+
+		eventsToSignal = append(eventsToSignal, event)
+	}
+
+	if err := r.signaler.internalEvents(ctx, tx, tenantId, eventsToSignal); err != nil {
+		return nil, err
+	}
+
 	return &FailTasksResponse{
 		FinalizedTaskResponse: &FinalizedTaskResponse{
 			ReleasedTasks:  releasedTasks,
@@ -989,6 +1068,44 @@ func (r *TaskRepositoryImpl) failTasksTx(ctx context.Context, tx sqlcv1.DBTX, te
 		},
 		RetriedTasks: retriedTasks,
 	}, nil
+}
+
+// retryMonitoringEvents builds the RETRYING monitoring event for a retried app-error
+// task, plus a QUEUED event when the retry is not backed off (backed-off retries are
+// queued later by the retry queue processor).
+func retryMonitoringEvents(task RetriedTask) []CreateMonitoringEventPayload {
+	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
+
+	if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
+		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
+		backoffFactor := task.RetryBackoffFactor.Float64
+
+		// compute the backoff duration
+		durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(task.AppRetryCount)))
+		retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
+		retryTime := time.Now().Add(retryDur)
+
+		retryMsg = fmt.Sprintf("%s Retrying in %s (%s).", retryMsg, retryDur.String(), retryTime.Format(time.RFC3339))
+	}
+
+	events := []CreateMonitoringEventPayload{{
+		TaskId:         task.Id,
+		RetryCount:     task.RetryCount,
+		EventType:      sqlcv1.V1EventTypeOlapRETRYING,
+		EventTimestamp: time.Now(),
+		EventMessage:   retryMsg,
+	}}
+
+	if !task.RetryBackoffFactor.Valid {
+		events = append(events, CreateMonitoringEventPayload{
+			TaskId:         task.Id,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			EventTimestamp: time.Now(),
+		})
+	}
+
+	return events
 }
 
 func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tenantId uuid.UUID, rootExternalIds []uuid.UUID) ([]*ListFinalizedWorkflowRunsResponse, error) {
@@ -1134,7 +1251,7 @@ func (r *TaskRepositoryImpl) ListFinalizedWorkflowRuns(ctx context.Context, tena
 	return res, nil
 }
 
-func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID, tasks []CancelTaskOpts) (*FinalizedTaskResponse, error) {
 	ctx, span := telemetry.NewSpan(ctx, "TaskRepositoryImpl.CancelTasks")
 	defer span.End()
 
@@ -1177,12 +1294,20 @@ func (r *TaskRepositoryImpl) CancelTasks(ctx context.Context, tenantId uuid.UUID
 	return res, nil
 }
 
-func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) (*FinalizedTaskResponse, error) {
+func (r *sharedRepository) cancelTasks(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, opts []CancelTaskOpts) (*FinalizedTaskResponse, error) {
 	// get a unique set of task ids and retry counts
-	tasks = listutils.UniqBy(tasks, createTaskUniqueKey)
+	opts = listutils.UniqBy(opts, func(o CancelTaskOpts) string {
+		return createTaskUniqueKey(*o.TaskIdInsertedAtRetryCount)
+	})
+
+	tasks := make([]TaskIdInsertedAtRetryCount, len(opts))
+
+	for i, opt := range opts {
+		tasks[i] = *opt.TaskIdInsertedAtRetryCount
+	}
 
 	// release queue items
-	releasedTasks, err := r.releaseTasks(ctx, dbtx, tenantId, tasks)
+	releasedTasks, err := r.releaseTasks(ctx, tx, tenantId, tasks)
 
 	if err != nil {
 		return nil, err
@@ -1198,7 +1323,7 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 
 	internalEvents, err := r.createTaskEventsAfterRelease(
 		ctx,
-		dbtx,
+		tx,
 		tenantId,
 		tasks,
 		outputs,
@@ -1207,6 +1332,26 @@ func (r *sharedRepository) cancelTasks(ctx context.Context, dbtx sqlcv1.DBTX, te
 	)
 
 	if err != nil {
+		return nil, err
+	}
+
+	monitoringPayloads := make([]CreateMonitoringEventPayload, len(opts))
+
+	for i, opt := range opts {
+		monitoringPayloads[i] = CreateMonitoringEventPayload{
+			TaskId:         opt.Id,
+			RetryCount:     opt.RetryCount,
+			EventType:      opt.EventType,
+			EventTimestamp: time.Now(),
+			EventMessage:   opt.EventMessage,
+		}
+	}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, monitoringPayloads...); err != nil {
+		return nil, err
+	}
+
+	if err := r.signaler.internalEvents(ctx, tx, tenantId, internalEvents); err != nil {
 		return nil, err
 	}
 
@@ -1479,6 +1624,23 @@ func (r *TaskRepositoryImpl) ProcessTaskTimeouts(ctx context.Context, tenantId u
 		return nil, false, err
 	}
 
+	// stage the TIMED_OUT monitoring events
+	timedOutPayloads := make([]CreateMonitoringEventPayload, len(toTimeout))
+
+	for i, task := range toTimeout {
+		timedOutPayloads[i] = CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapTIMEDOUT,
+			EventTimestamp: time.Now(),
+			EventMessage:   fmt.Sprintf("Task exceeded timeout of %s", task.StepTimeout.String),
+		}
+	}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, timedOutPayloads...); err != nil {
+		return nil, false, err
+	}
+
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		return nil, false, err
@@ -1545,6 +1707,49 @@ func (r *TaskRepositoryImpl) ProcessTaskReassignments(ctx context.Context, tenan
 		return nil, false, err
 	}
 
+	// stage the REASSIGNED monitoring events, plus a terminal FAILED event for tasks
+	// which exhausted their reassignment count and are not retried
+	retriedTaskIds := make(map[int64]struct{}, len(res.RetriedTasks))
+
+	for _, task := range res.RetriedTasks {
+		retriedTaskIds[task.Id] = struct{}{}
+	}
+
+	reassignedPayloads := make([]CreateMonitoringEventPayload, 0, len(res.ReleasedTasks))
+
+	for _, task := range res.ReleasedTasks {
+		var workerId *uuid.UUID
+
+		if task.WorkerID != uuid.Nil {
+			workerId = &task.WorkerID
+		}
+
+		reassignedPayloads = append(reassignedPayloads, CreateMonitoringEventPayload{
+			TaskId:         task.ID,
+			RetryCount:     task.RetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapREASSIGNED,
+			EventTimestamp: time.Now(),
+			EventMessage:   "Worker did not send a heartbeat for 30 seconds",
+			WorkerId:       workerId,
+		})
+
+		if _, ok := retriedTaskIds[task.ID]; !ok {
+			reassignedPayloads = append(reassignedPayloads, CreateMonitoringEventPayload{
+				TaskId:         task.ID,
+				RetryCount:     task.RetryCount,
+				EventType:      sqlcv1.V1EventTypeOlapFAILED,
+				EventTimestamp: time.Now(),
+				EventMessage:   "Task reached its maximum reassignment count",
+				EventPayload:   "Task reached its maximum reassignment count",
+				WorkerId:       workerId,
+			})
+		}
+	}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, reassignedPayloads...); err != nil {
+		return nil, false, err
+	}
+
 	// commit the transaction
 	if err := commit(ctx); err != nil {
 		return nil, false, err
@@ -1574,6 +1779,22 @@ func (r *TaskRepositoryImpl) ProcessTaskRetryQueueItems(ctx context.Context, ten
 	})
 
 	if err != nil {
+		return nil, false, err
+	}
+
+	// stage the QUEUED monitoring events for the retries entering the queue
+	queuedPayloads := make([]CreateMonitoringEventPayload, len(res))
+
+	for i, task := range res {
+		queuedPayloads[i] = CreateMonitoringEventPayload{
+			TaskId:         task.TaskID,
+			RetryCount:     task.TaskRetryCount,
+			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
+			EventTimestamp: time.Now(),
+		}
+	}
+
+	if err := r.signaler.monitoringEvents(ctx, tx, tenantId, queuedPayloads...); err != nil {
 		return nil, false, err
 	}
 
@@ -1830,7 +2051,7 @@ func (r *TaskRepositoryImpl) EvictTask(ctx context.Context, tenantId uuid.UUID, 
 	return WasEvicted(evicted > 0), nil
 }
 
-func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []TaskIdInsertedAtRetryCount) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
+func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId uuid.UUID, tasks []RestoreEvictedTaskOpts) ([]*sqlcv1.RestoreEvictedTasksRow, error) {
 	tx, commit, rollback, err := sqlchelpers.PrepareTx(ctx, r.pool, r.l)
 	if err != nil {
 		return nil, err
@@ -1841,11 +2062,13 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 	taskIds := make([]int64, len(tasks))
 	taskInsertedAts := make([]pgtype.Timestamptz, len(tasks))
 	retryCounts := make([]int32, len(tasks))
+	optByTaskId := make(map[int64]RestoreEvictedTaskOpts, len(tasks))
 
 	for i, t := range tasks {
 		taskIds[i] = t.Id
 		taskInsertedAts[i] = t.InsertedAt
 		retryCounts[i] = t.RetryCount
+		optByTaskId[t.Id] = t
 	}
 
 	rows, err := r.queries.RestoreEvictedTasks(ctx, tx, sqlcv1.RestoreEvictedTasksParams{
@@ -1856,6 +2079,63 @@ func (r *TaskRepositoryImpl) RestoreEvictedTasks(ctx context.Context, tenantId u
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// stage the DURABLE_RESTORING monitoring events for the requeued tasks; the
+	// durable invocation count is read on the same transaction
+	requeued := make([]*sqlcv1.RestoreEvictedTasksRow, 0, len(rows))
+
+	for _, row := range rows {
+		if row.Queued {
+			requeued = append(requeued, row)
+		}
+	}
+
+	if len(requeued) > 0 {
+		invTaskIds := make([]int64, len(requeued))
+		invInsertedAts := make([]pgtype.Timestamptz, len(requeued))
+		invTenantIds := make([]uuid.UUID, len(requeued))
+
+		for i, row := range requeued {
+			invTaskIds[i] = row.TaskID
+			invInsertedAts[i] = optByTaskId[row.TaskID].InsertedAt
+			invTenantIds[i] = tenantId
+		}
+
+		logFiles, err := r.queries.GetDurableTaskLogFiles(ctx, tx, sqlcv1.GetDurableTaskLogFilesParams{
+			Durabletaskids:         invTaskIds,
+			Durabletaskinsertedats: invInsertedAts,
+			Tenantids:              invTenantIds,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get durable task log files: %w", err)
+		}
+
+		invocationCounts := make(map[int64]int32, len(logFiles))
+
+		for _, logFile := range logFiles {
+			invocationCounts[logFile.DurableTaskID] = logFile.LatestInvocationCount
+		}
+
+		restoringPayloads := make([]CreateMonitoringEventPayload, len(requeued))
+
+		for i, row := range requeued {
+			opt := optByTaskId[row.TaskID]
+
+			restoringPayloads[i] = CreateMonitoringEventPayload{
+				TaskId:                 row.TaskID,
+				RetryCount:             opt.RetryCount,
+				DurableInvocationCount: invocationCounts[row.TaskID],
+				EventTimestamp:         time.Now(),
+				EventType:              sqlcv1.V1EventTypeOlapDURABLERESTORING,
+				EventMessage:           fmt.Sprintf("Restoring evicted task: %s", opt.Reason),
+			}
+		}
+
+		if err := r.signaler.monitoringEvents(ctx, tx, tenantId, restoringPayloads...); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := commit(ctx); err != nil {

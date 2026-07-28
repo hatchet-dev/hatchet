@@ -106,11 +106,11 @@ func TestTopic(t *testing.T) {
 	assert.Equal(t, "mq.olap_queue_v2", Topic(msgqueue.OLAP_QUEUE))
 }
 
-func TestRelayFlusherPublishesToDelegate(t *testing.T) {
-	delegate := &fakeMQ{}
+func TestRelayFlusherPublishesToMQ(t *testing.T) {
+	mq := &fakeMQ{}
 
 	f := &relayFlusher{
-		delegate: delegate,
+		mq: mq,
 		queue:    msgqueue.OLAP_QUEUE,
 		l:        zerologNop(),
 	}
@@ -124,18 +124,18 @@ func TestRelayFlusherPublishesToDelegate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	sent := delegate.sentMessages()
+	sent := mq.sentMessages()
 	require.Len(t, sent, 1)
 	assert.Equal(t, msgqueue.OLAP_QUEUE.Name(), sent[0].queue.Name())
 	assert.Equal(t, msg.ID, sent[0].msg.ID)
 	assert.Equal(t, msg.TenantID, sent[0].msg.TenantID)
 }
 
-func TestRelayFlusherReturnsDelegateError(t *testing.T) {
-	delegate := &fakeMQ{err: fmt.Errorf("publish failed")}
+func TestRelayFlusherReturnsMQError(t *testing.T) {
+	mq := &fakeMQ{err: fmt.Errorf("publish failed")}
 
 	f := &relayFlusher{
-		delegate: delegate,
+		mq: mq,
 		queue:    msgqueue.OLAP_QUEUE,
 		l:        zerologNop(),
 	}

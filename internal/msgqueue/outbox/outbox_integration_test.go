@@ -4,6 +4,7 @@ package outbox_test
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"time"
@@ -66,11 +67,11 @@ func (f *recorderMQ) sentMessages() []sentMessage {
 	return append([]sentMessage{}, f.sent...)
 }
 
-func stagedMessageCount(t *testing.T, ctx context.Context, conf *database.Layer) int {
+func stagedMessageCount(t *testing.T, ctx context.Context, conf *database.Layer, topic string) int {
 	t.Helper()
 
 	var count int
-	err := conf.Pool.QueryRow(ctx, "SELECT count(*) FROM outbox.messages WHERE topic = $1", outbox.Topic(msgqueue.OLAP_QUEUE)).Scan(&count)
+	err := conf.Pool.QueryRow(ctx, "SELECT count(*) FROM outbox.messages WHERE topic = $1", topic).Scan(&count)
 	require.NoError(t, err)
 
 	return count
@@ -88,9 +89,9 @@ func TestOLAPOutboxRelayIntegration(t *testing.T) {
 		ob, err := pgoutbox.NewOutbox(t.Context(), conf.Pool, pgoutbox.WithAutoMigrate(false))
 		require.NoError(t, err)
 
-		delegate := &recorderMQ{}
+		mq := &recorderMQ{}
 
-		conf.V1.SetMessagePublisher(delegate, nil, ob, nil)
+		conf.V1.SetMessagePublisher(nil, ob, nil)
 
 		// staging via the repository's OLAP outbox writes durable rows instead of
 		// publishing directly
@@ -108,14 +109,34 @@ func TestOLAPOutboxRelayIntegration(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		assert.Equal(t, 2, stagedMessageCount(t, ctx, conf))
-		assert.Empty(t, delegate.sentMessages())
+		// internal task events are staged under the task processing queue's topic on
+		// a caller transaction (as the repository's signaler does)
+		internalEventMsg, err := v1.NewInternalEventMessage(testTenantUUID, v1.InternalTaskEvent{
+			TenantID:  testTenantUUID,
+			TaskID:    1,
+			EventType: sqlcv1.V1TaskEventTypeFAILED,
+		})
+		require.NoError(t, err)
 
-		// the relay drains staged messages to the delegate queue
+		internalEventBody, err := json.Marshal(internalEventMsg)
+		require.NoError(t, err)
+
+		tx, err := conf.Pool.Begin(ctx)
+		require.NoError(t, err)
+
+		require.NoError(t, ob.AddMessages(ctx, tx, outbox.Topic(msgqueue.TASK_PROCESSING_QUEUE), []pgoutbox.MessageOpts{{Payload: internalEventBody}}))
+		require.NoError(t, tx.Commit(ctx))
+
+		assert.Equal(t, 2, stagedMessageCount(t, ctx, conf, outbox.Topic(msgqueue.OLAP_QUEUE)))
+		assert.Equal(t, 1, stagedMessageCount(t, ctx, conf, outbox.Topic(msgqueue.TASK_PROCESSING_QUEUE)))
+		assert.Empty(t, mq.sentMessages())
+
+		// the relay drains staged messages to the mq queue
 		relay := outbox.NewRelay(
-			delegate,
+			mq,
 			ob,
 			outbox.WithQueue(msgqueue.OLAP_QUEUE),
+			outbox.WithQueue(msgqueue.TASK_PROCESSING_QUEUE),
 			outbox.WithSubscribeConfig(100, 500*time.Millisecond),
 		)
 
@@ -129,18 +150,23 @@ func TestOLAPOutboxRelayIntegration(t *testing.T) {
 		}()
 
 		require.Eventually(t, func() bool {
-			return len(delegate.sentMessages()) == 2 && stagedMessageCount(t, ctx, conf) == 0
-		}, 15*time.Second, 100*time.Millisecond, "relay should republish staged messages to the delegate")
+			return len(mq.sentMessages()) == 3 &&
+				stagedMessageCount(t, ctx, conf, outbox.Topic(msgqueue.OLAP_QUEUE)) == 0 &&
+				stagedMessageCount(t, ctx, conf, outbox.Topic(msgqueue.TASK_PROCESSING_QUEUE)) == 0
+		}, 15*time.Second, 100*time.Millisecond, "relay should republish staged messages to the mq")
 
-		msgIds := make([]string, 0)
+		queueNamesByMsgId := make(map[string]string)
 
-		for _, s := range delegate.sentMessages() {
-			assert.Equal(t, msgqueue.OLAP_QUEUE.Name(), s.queue.Name())
+		for _, s := range mq.sentMessages() {
 			assert.Equal(t, testTenantUUID, s.msg.TenantID)
-			msgIds = append(msgIds, s.msg.ID)
+			queueNamesByMsgId[s.msg.ID] = s.queue.Name()
 		}
 
-		assert.ElementsMatch(t, []string{msgqueue.MsgIDCreateMonitoringEvent, msgqueue.MsgIDCELEvaluationFailure}, msgIds)
+		assert.Equal(t, map[string]string{
+			msgqueue.MsgIDCreateMonitoringEvent: msgqueue.OLAP_QUEUE.Name(),
+			msgqueue.MsgIDCELEvaluationFailure:  msgqueue.OLAP_QUEUE.Name(),
+			msgqueue.MsgIDInternalEvent:         msgqueue.TASK_PROCESSING_QUEUE.Name(),
+		}, queueNamesByMsgId)
 
 		return nil
 	})

@@ -27,13 +27,13 @@ func Topic(q msgqueue.Queue) string {
 
 // Relay drains outbox-staged messages and republishes them to their message queue.
 // Producers stage messages under a queue's topic (see Topic) inside their database
-// transactions; after commit, the relay delivers them through the delegate message
+// transactions; after commit, the relay delivers them through the underlying message
 // queue, so consumers are unaffected by the outbox. Every replica runs a relay —
 // concurrent relays drain disjoint batches.
 type Relay struct {
-	delegate msgqueue.MessageQueue
-	pubsub   msgqueue.PubSub
-	outbox   pgoutbox.Outbox
+	mq     msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
+	outbox pgoutbox.Outbox
 
 	l *zerolog.Logger
 
@@ -78,11 +78,11 @@ func WithPubSub(ps msgqueue.PubSub) Opt {
 	}
 }
 
-func NewRelay(delegate msgqueue.MessageQueue, ob pgoutbox.Outbox, fs ...Opt) *Relay {
+func NewRelay(mq msgqueue.MessageQueue, ob pgoutbox.Outbox, fs ...Opt) *Relay {
 	l := logger.NewDefaultLogger("outbox-relay")
 
 	r := &Relay{
-		delegate:           delegate,
+		mq:                 mq,
 		outbox:             ob,
 		subscribeBatchSize: 100,
 		pollInterval:       5 * time.Second,
@@ -107,10 +107,10 @@ func (r *Relay) Start() (func() error, error) {
 		topic := Topic(q)
 
 		r.outbox.AddFlusher(topic, &relayFlusher{
-			delegate: r.delegate,
-			pubsub:   r.pubsub,
-			queue:    q,
-			l:        r.l,
+			mq:     r.mq,
+			pubsub: r.pubsub,
+			queue:  q,
+			l:      r.l,
 		})
 
 		wg.Add(1)
@@ -149,14 +149,14 @@ func (r *Relay) Start() (func() error, error) {
 	}, nil
 }
 
-// relayFlusher republishes staged messages to the delegate message queue. It must not
-// use the flush transaction (ctx.Tx()): the delegate publish is external I/O, and the
-// delegate may itself open transactions on the same pool.
+// relayFlusher republishes staged messages to the underlying message queue. It must
+// not use the flush transaction (ctx.Tx()): the publish is external I/O, and the
+// message queue may itself open transactions on the same pool.
 type relayFlusher struct {
-	delegate msgqueue.MessageQueue
-	pubsub   msgqueue.PubSub
-	queue    msgqueue.Queue
-	l        *zerolog.Logger
+	mq     msgqueue.MessageQueue
+	pubsub msgqueue.PubSub
+	queue  msgqueue.Queue
+	l      *zerolog.Logger
 }
 
 func (f *relayFlusher) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsqlc.Message) error {
@@ -175,12 +175,12 @@ func (f *relayFlusher) Flush(ctx pgoutbox.FlushContext, msgs []*outboxsqlc.Messa
 			}
 
 			if f.pubsub == nil {
-				return f.delegate.SendMessage(ctx, f.queue, msg)
+				return f.mq.SendMessage(ctx, f.queue, msg)
 			}
 
 			// PubTenantMessage sends durably and mirrors stream-relevant messages
 			// (e.g. created-task) to the tenant topic for the dispatcher's streams
-			return msgqueue.PubTenantMessage(ctx, f.l, f.delegate, f.pubsub, f.queue, msg)
+			return msgqueue.PubTenantMessage(ctx, f.l, f.mq, f.pubsub, f.queue, msg)
 		})
 	}
 

@@ -57,21 +57,24 @@ func (f *fakeOutbox) ReleaseTopic(ctx context.Context, topic string) error {
 	return nil
 }
 
-func (f *fakeOutbox) stagedMessages(t *testing.T) []*msgqueue.Message {
+type stagedMsg struct {
+	topic string
+	msg   *msgqueue.Message
+}
+
+func (f *fakeOutbox) stagedMessages(t *testing.T) []stagedMsg {
 	t.Helper()
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	msgs := make([]*msgqueue.Message, 0)
+	msgs := make([]stagedMsg, 0)
 
 	for _, s := range f.staged {
-		assert.Equal(t, "mq.olap_queue_v2", s.topic)
-
 		for _, opt := range s.msgs {
 			msg := &msgqueue.Message{}
 			require.NoError(t, json.Unmarshal(opt.Payload, msg))
-			msgs = append(msgs, msg)
+			msgs = append(msgs, stagedMsg{topic: s.topic, msg: msg})
 		}
 	}
 
@@ -120,13 +123,14 @@ func TestOLAPOutboxStagesTypedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, o.stage(ctx, fakeTx{}, mustMessage(t, msgqueue.MsgIDCreatedTask, CreatedTaskPayload{}), eventTriggerMsg))
+	require.NoError(t, o.stage(ctx, fakeTx{}, olapOutboxTopic, mustMessage(t, msgqueue.MsgIDCreatedTask, CreatedTaskPayload{}), eventTriggerMsg))
 
 	msgs := fake.stagedMessages(t)
 	require.Len(t, msgs, 2)
-	assert.Equal(t, msgqueue.MsgIDCreatedTask, msgs[0].ID)
-	assert.Equal(t, msgqueue.MsgIDCreatedEventTrigger, msgs[1].ID)
-	assert.Equal(t, testTenantUUID, msgs[1].TenantID)
+	assert.Equal(t, "mq.olap_queue_v2", msgs[0].topic)
+	assert.Equal(t, msgqueue.MsgIDCreatedTask, msgs[0].msg.ID)
+	assert.Equal(t, msgqueue.MsgIDCreatedEventTrigger, msgs[1].msg.ID)
+	assert.Equal(t, testTenantUUID, msgs[1].msg.TenantID)
 }
 
 func mustMessage(t *testing.T, id string, payload any) *msgqueue.Message {
@@ -176,14 +180,20 @@ func TestSignalerTasksCreatedStagesMessagesAndEvents(t *testing.T) {
 	require.NotNil(t, postCommit)
 
 	msgs := fake.stagedMessages(t)
-	require.Len(t, msgs, 3)
-	assert.Equal(t, msgqueue.MsgIDCreatedDAG, msgs[0].ID)
-	assert.Equal(t, msgqueue.MsgIDCreatedTask, msgs[1].ID)
-	require.Len(t, msgs[1].Payloads, 2)
-	assert.Equal(t, msgqueue.MsgIDCreateMonitoringEvent, msgs[2].ID)
-	require.Len(t, msgs[2].Payloads, 2)
+	require.Len(t, msgs, 4)
+	assert.Equal(t, msgqueue.MsgIDCreatedDAG, msgs[0].msg.ID)
+	assert.Equal(t, msgqueue.MsgIDCreatedTask, msgs[1].msg.ID)
+	require.Len(t, msgs[1].msg.Payloads, 2)
+	assert.Equal(t, msgqueue.MsgIDCreateMonitoringEvent, msgs[2].msg.ID)
+	require.Len(t, msgs[2].msg.Payloads, 2)
 
-	// the closure runs without a wired mq/promGate (side effects skipped/logged)
+	// the FAILED-initial-state task drives a terminal internal event, staged in the
+	// same transaction under the task processing topic
+	assert.Equal(t, msgqueue.MsgIDInternalEvent, msgs[3].msg.ID)
+	assert.Equal(t, "mq.task_processing_queue_v2", msgs[3].topic)
+	require.Len(t, msgs[3].msg.Payloads, 1)
+
+	// the closure runs without a wired pubsub/promGate (side effects skipped/logged)
 	postCommit()
 }
 
@@ -199,20 +209,31 @@ func TestSignalerTasksReplayedStagesMonitoringEvents(t *testing.T) {
 
 	msgs := fake.stagedMessages(t)
 	require.Len(t, msgs, 1)
-	assert.Equal(t, msgqueue.MsgIDCreateMonitoringEvent, msgs[0].ID)
-	require.Len(t, msgs[0].Payloads, 2)
+	assert.Equal(t, "mq.olap_queue_v2", msgs[0].topic)
+	assert.Equal(t, msgqueue.MsgIDCreateMonitoringEvent, msgs[0].msg.ID)
+	require.Len(t, msgs[0].msg.Payloads, 2)
 
 	payload := CreateMonitoringEventPayload{}
-	require.NoError(t, json.Unmarshal(msgs[0].Payloads[0], &payload))
+	require.NoError(t, json.Unmarshal(msgs[0].msg.Payloads[0], &payload))
 	assert.Equal(t, sqlcv1.V1EventTypeOlapRETRIEDBYUSER, payload.EventType)
 }
 
-func TestSignalerSendInternalEventsRequiresMQ(t *testing.T) {
-	s := newTestSignaler(&fakeOutbox{})
+func TestSignalerInternalEventsStageToTaskProcessingTopic(t *testing.T) {
+	fake := &fakeOutbox{}
+	s := newTestSignaler(fake)
 
-	err := s.SendInternalEvents(context.Background(), testTenantUUID, []InternalTaskEvent{{TaskID: 1}})
-	require.Error(t, err)
+	// empty events are a no-op
+	require.NoError(t, s.internalEvents(context.Background(), fakeTx{}, testTenantUUID, nil))
+	assert.Empty(t, fake.staged)
 
-	// empty events are a no-op even when unwired
-	require.NoError(t, s.SendInternalEvents(context.Background(), testTenantUUID, nil))
+	err := s.internalEvents(context.Background(), fakeTx{}, testTenantUUID, []InternalTaskEvent{
+		{TenantID: testTenantUUID, TaskID: 1, EventType: sqlcv1.V1TaskEventTypeFAILED},
+	})
+	require.NoError(t, err)
+
+	msgs := fake.stagedMessages(t)
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "mq.task_processing_queue_v2", msgs[0].topic)
+	assert.Equal(t, msgqueue.MsgIDInternalEvent, msgs[0].msg.ID)
+	assert.Equal(t, testTenantUUID, msgs[0].msg.TenantID)
 }

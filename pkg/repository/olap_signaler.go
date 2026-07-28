@@ -7,12 +7,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"go.opentelemetry.io/otel/codes"
 
 	"github.com/hatchet-dev/hatchet/internal/msgqueue"
 	"github.com/hatchet-dev/hatchet/pkg/integrations/metrics/prometheus"
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
-	"github.com/hatchet-dev/hatchet/pkg/telemetry"
 )
 
 type CheckTenantQueuesPayload struct {
@@ -70,11 +68,11 @@ func NewInternalEventMessage(tenantId uuid.UUID, events ...InternalTaskEvent) (*
 const postCommitTimeout = 30 * time.Second
 
 // OLAPSignaler orchestrates the messaging side effects of task lifecycle changes.
-// OLAP messages are staged in the OLAP outbox on the caller's transaction, so they
-// commit atomically with the caller's writes; non-transactional side effects
-// (scheduler-partition notifies, internal events, prometheus counters) are returned
-// as a post-commit closure which repository methods run after their commit — either
-// inline, or async via OptimisticTx.AddPostCommit.
+// Messages — OLAP queue messages and internal task events — are staged in the outbox
+// on the caller's transaction, so they commit atomically with the caller's writes;
+// non-transactional side effects (scheduler-partition notifies, prometheus counters)
+// are returned as a post-commit closure which repository methods run after their
+// commit — either inline, or async via OptimisticTx.AddPostCommit.
 type OLAPSignaler struct {
 	shared *sharedRepository
 
@@ -82,8 +80,7 @@ type OLAPSignaler struct {
 	// after the shared repository).
 	tenant TenantRepository
 
-	// mq, pubsub and promGate are wired at startup via Repository.SetMessagePublisher.
-	mq       msgqueue.MessageQueue
+	// pubsub and promGate are wired at startup via Repository.SetMessagePublisher.
 	pubsub   msgqueue.PubSub
 	promGate *prometheus.Gate
 }
@@ -94,37 +91,35 @@ func newOLAPSignaler(shared *sharedRepository) *OLAPSignaler {
 	}
 }
 
-// SendInternalEvents publishes internal task lifecycle events to the task processing
-// queue. Unlike OLAP staging, this drives workflow progression, so an unwired message
-// queue is an error rather than a no-op.
-func (s *OLAPSignaler) SendInternalEvents(ctx context.Context, tenantId uuid.UUID, events []InternalTaskEvent) error {
-	ctx, span := telemetry.NewSpan(ctx, "OLAPSignaler.SendInternalEvents")
-	defer span.End()
-
-	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
-
+// internalEvents stages internal task lifecycle events on tx under the task
+// processing queue's topic — the transactional enqueue driving workflow progression.
+func (s *OLAPSignaler) internalEvents(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, events []InternalTaskEvent) error {
 	if len(events) == 0 {
 		return nil
-	}
-
-	if s.mq == nil {
-		return fmt.Errorf("cannot send internal events: message queue is not wired")
 	}
 
 	msg, err := NewInternalEventMessage(tenantId, events...)
 
 	if err != nil {
-		err = fmt.Errorf("could not create internal event message: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not create internal event message")
-		return err
+		return fmt.Errorf("could not create internal event message: %w", err)
 	}
 
-	return s.mq.SendMessage(
-		ctx,
-		msgqueue.TASK_PROCESSING_QUEUE,
-		msg,
-	)
+	return s.shared.olapOutbox.stage(ctx, tx, taskProcessingOutboxTopic, msg)
+}
+
+// monitoringEvents stages a single batched monitoring event message on tx.
+func (s *OLAPSignaler) monitoringEvents(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
+	if len(payloads) == 0 {
+		return nil
+	}
+
+	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDCreateMonitoringEvent, false, true, payloads...)
+
+	if err != nil {
+		return fmt.Errorf("could not create monitoring event message: %w", err)
+	}
+
+	return s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msg)
 }
 
 type bucketedTasks struct {
@@ -249,9 +244,9 @@ func (b bucketedTasks) internalEvents(tenantId uuid.UUID) []InternalTaskEvent {
 	return events
 }
 
-// tasksCreated stages created-dag/created-task messages and the initial-state
-// monitoring events on tx, and returns the post-commit closure for the
-// non-transactional side effects.
+// tasksCreated stages created-dag/created-task messages, the initial-state
+// monitoring events, and the terminal-state internal events on tx, and returns the
+// post-commit closure for the non-transactional side effects.
 func (s *OLAPSignaler) tasksCreated(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, tasks []*V1TaskWithPayload, dags []*DAGWithData) (func(), error) {
 	msgs := make([]*msgqueue.Message, 0, 3)
 
@@ -299,29 +294,29 @@ func (s *OLAPSignaler) tasksCreated(ctx context.Context, tx pgx.Tx, tenantId uui
 		msgs = append(msgs, msg)
 	}
 
-	if err := s.shared.olapOutbox.stage(ctx, tx, msgs...); err != nil {
+	if err := s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msgs...); err != nil {
+		return nil, err
+	}
+
+	if err := s.internalEvents(ctx, tx, tenantId, buckets.internalEvents(tenantId)); err != nil {
 		return nil, err
 	}
 
 	return s.postCommitSideEffects(tenantId, buckets), nil
 }
 
-// tasksUpdated stages the initial-state monitoring events for updated tasks (e.g.
-// replays which reset existing tasks) — no created-task messages — and returns the
-// post-commit closure.
+// tasksUpdated stages the initial-state monitoring events and terminal-state
+// internal events for updated tasks (e.g. replays which reset existing tasks) — no
+// created-task messages — and returns the post-commit closure.
 func (s *OLAPSignaler) tasksUpdated(ctx context.Context, tx pgx.Tx, tenantId uuid.UUID, tasks []*V1TaskWithPayload) (func(), error) {
 	buckets := bucketTasksByInitialState(tasks)
 
-	if events := buckets.monitoringEvents(); len(events) > 0 {
-		msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDCreateMonitoringEvent, false, true, events...)
+	if err := s.monitoringEvents(ctx, tx, tenantId, buckets.monitoringEvents()...); err != nil {
+		return nil, err
+	}
 
-		if err != nil {
-			return nil, fmt.Errorf("could not create monitoring event message: %w", err)
-		}
-
-		if err := s.shared.olapOutbox.stage(ctx, tx, msg); err != nil {
-			return nil, err
-		}
+	if err := s.internalEvents(ctx, tx, tenantId, buckets.internalEvents(tenantId)); err != nil {
+		return nil, err
 	}
 
 	return s.postCommitSideEffects(tenantId, buckets), nil
@@ -345,13 +340,7 @@ func (s *OLAPSignaler) tasksReplayed(ctx context.Context, tx pgx.Tx, tenantId uu
 		}
 	}
 
-	msg, err := msgqueue.NewTenantMessage(tenantId, msgqueue.MsgIDCreateMonitoringEvent, false, true, events...)
-
-	if err != nil {
-		return fmt.Errorf("could not create monitoring event message: %w", err)
-	}
-
-	return s.shared.olapOutbox.stage(ctx, tx, msg)
+	return s.monitoringEvents(ctx, tx, tenantId, events...)
 }
 
 // eventsCreated stages the created-event-trigger message linking user events to the
@@ -409,7 +398,7 @@ func (s *OLAPSignaler) eventsCreated(ctx context.Context, tx pgx.Tx, tenantId uu
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
-	return s.shared.olapOutbox.stage(ctx, tx, msg)
+	return s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msg)
 }
 
 // celEvaluationFailures stages a cel-evaluation-failure message.
@@ -424,15 +413,14 @@ func (s *OLAPSignaler) celEvaluationFailures(ctx context.Context, tx pgx.Tx, ten
 		return fmt.Errorf("could not create CEL evaluation failure message: %w", err)
 	}
 
-	return s.shared.olapOutbox.stage(ctx, tx, msg)
+	return s.shared.olapOutbox.stage(ctx, tx, olapOutboxTopic, msg)
 }
 
 // postCommitSideEffects returns the closure covering the side effects which must not
-// run inside the staging transaction: the scheduler-partition notify for queued
-// tasks, internal events for tasks created in a terminal state, and prometheus
-// counters. Errors are logged, not returned — the durable writes have already
-// committed. Depending on the transaction style, repository methods run the closure
-// inline after commit or async via OptimisticTx.AddPostCommit.
+// run inside the staging transaction: the scheduler-partition notify for queued tasks
+// and prometheus counters. Errors are logged, not returned — the durable writes have
+// already committed. Depending on the transaction style, repository methods run the
+// closure inline after commit or async via OptimisticTx.AddPostCommit.
 func (s *OLAPSignaler) postCommitSideEffects(tenantId uuid.UUID, buckets bucketedTasks) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), postCommitTimeout)
@@ -440,12 +428,6 @@ func (s *OLAPSignaler) postCommitSideEffects(tenantId uuid.UUID, buckets buckete
 
 		if len(buckets.queued) > 0 {
 			s.notifyScheduler(ctx, tenantId, buckets.queued)
-		}
-
-		if events := buckets.internalEvents(tenantId); len(events) > 0 {
-			if err := s.SendInternalEvents(ctx, tenantId, events); err != nil {
-				s.shared.l.Err(err).Ctx(ctx).Msg("could not send internal events for created tasks")
-			}
 		}
 
 		s.recordMetrics(ctx, tenantId, buckets)

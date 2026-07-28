@@ -18,9 +18,13 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/repository/sqlcv1"
 )
 
-// olapOutboxTopic is the outbox topic OLAP queue messages are staged under; the
-// message queue relay subscribes to it and republishes to the OLAP queue.
-var olapOutboxTopic = mqoutbox.Topic(msgqueue.OLAP_QUEUE)
+// olapOutboxTopic and taskProcessingOutboxTopic are the outbox topics messages are
+// staged under; the message queue relay subscribes to them and republishes to the
+// corresponding queue.
+var (
+	olapOutboxTopic           = mqoutbox.Topic(msgqueue.OLAP_QUEUE)
+	taskProcessingOutboxTopic = mqoutbox.Topic(msgqueue.TASK_PROCESSING_QUEUE)
+)
 
 type CreatedTaskPayload struct {
 	*V1TaskWithPayload
@@ -163,7 +167,7 @@ func (o *OLAPOutbox) CreatedTasks(ctx context.Context, tenantId uuid.UUID, paylo
 		return fmt.Errorf("could not create created-task message: %w", err)
 	}
 
-	return o.stage(ctx, nil, msg)
+	return o.stage(ctx, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedDAGPayload) error {
@@ -177,7 +181,7 @@ func (o *OLAPOutbox) CreatedDAGs(ctx context.Context, tenantId uuid.UUID, payloa
 		return fmt.Errorf("could not create created-dag message: %w", err)
 	}
 
-	return o.stage(ctx, nil, msg)
+	return o.stage(ctx, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, payloads ...CreateMonitoringEventPayload) error {
@@ -191,7 +195,7 @@ func (o *OLAPOutbox) MonitoringEvents(ctx context.Context, tenantId uuid.UUID, p
 		return fmt.Errorf("could not create monitoring event message: %w", err)
 	}
 
-	return o.stage(ctx, nil, msg)
+	return o.stage(ctx, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) EventTriggers(ctx context.Context, tenantId uuid.UUID, payloads ...CreatedEventTriggerPayloadSingleton) error {
@@ -205,7 +209,7 @@ func (o *OLAPOutbox) EventTriggers(ctx context.Context, tenantId uuid.UUID, payl
 		return fmt.Errorf("could not create event trigger message: %w", err)
 	}
 
-	return o.stage(ctx, nil, msg)
+	return o.stage(ctx, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) CELEvaluationFailures(ctx context.Context, tenantId uuid.UUID, failures ...CELEvaluationFailure) error {
@@ -219,7 +223,7 @@ func (o *OLAPOutbox) CELEvaluationFailures(ctx context.Context, tenantId uuid.UU
 		return fmt.Errorf("could not create cel evaluation failure message: %w", err)
 	}
 
-	return o.stage(ctx, nil, msg)
+	return o.stage(ctx, nil, olapOutboxTopic, msg)
 }
 
 func (o *OLAPOutbox) WebhookValidationFailures(ctx context.Context, tenantId uuid.UUID, payloads ...FailedWebhookValidationPayload) error {
@@ -233,13 +237,13 @@ func (o *OLAPOutbox) WebhookValidationFailures(ctx context.Context, tenantId uui
 		return fmt.Errorf("could not create failed webhook validation message: %w", err)
 	}
 
-	return o.stage(ctx, nil, msg)
+	return o.stage(ctx, nil, olapOutboxTopic, msg)
 }
 
-// stage stages messages on the given transaction, or on a short transaction of its
-// own when tx is nil. Callers publishing many payloads should batch them into a
-// single method call to amortize the transaction.
-func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, msgs ...*msgqueue.Message) error {
+// stage stages messages under the given topic on the given transaction, or on a
+// short transaction of its own when tx is nil. Callers publishing many payloads
+// should batch them into a single method call to amortize the transaction.
+func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, topic string, msgs ...*msgqueue.Message) error {
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -267,7 +271,7 @@ func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, msgs ...*msgqueue.Mes
 	}
 
 	if tx != nil {
-		return o.outbox.AddMessages(ctx, tx, olapOutboxTopic, opts)
+		return o.outbox.AddMessages(ctx, tx, topic, opts)
 	}
 
 	shortTx, err := o.pool.Begin(ctx)
@@ -280,7 +284,7 @@ func (o *OLAPOutbox) stage(ctx context.Context, tx pgx.Tx, msgs ...*msgqueue.Mes
 		_ = shortTx.Rollback(ctx)
 	}()
 
-	if err := o.outbox.AddMessages(ctx, shortTx, olapOutboxTopic, opts); err != nil {
+	if err := o.outbox.AddMessages(ctx, shortTx, topic, opts); err != nil {
 		return err
 	}
 

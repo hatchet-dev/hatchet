@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/codes"
 
@@ -515,7 +513,7 @@ func (tc *TasksControllerImpl) handleTaskCompleted(ctx context.Context, tenantId
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	return tc.repov1.Signaler().SendInternalEvents(ctx, tenantId, res.InternalEvents)
+	return nil
 }
 
 func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -527,8 +525,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 	opts := make([]v1.FailTaskOpts, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
-	idsToErrorMsg := make(map[int64]string)
-	failedPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(msgs))
 
 	for _, msg := range msgs {
 		opts = append(opts, v1.FailTaskOpts{
@@ -541,26 +537,6 @@ func (tc *TasksControllerImpl) handleTaskFailed(ctx context.Context, tenantId uu
 			ErrorMessage:   msg.ErrorMsg,
 			IsNonRetryable: msg.IsNonRetryable,
 		})
-
-		if msg.ErrorMsg != "" {
-			idsToErrorMsg[msg.TaskId] = msg.ErrorMsg
-		}
-
-		failedPayloads = append(failedPayloads, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         msg.TaskId,
-			RetryCount:     msg.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapFAILED,
-			EventTimestamp: time.Now().UTC(),
-			EventPayload:   msg.ErrorMsg,
-		})
-	}
-
-	// send failed tasks to the olap repository
-	if err := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, failedPayloads...); err != nil {
-		tc.l.Error().Ctx(ctx).Err(err).Msg("could not publish monitoring event message")
-		err = fmt.Errorf("could not publish monitoring event message: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not publish monitoring event message")
 	}
 
 	res, err := tc.repov1.Tasks().FailTasks(ctx, tenantId, opts)
@@ -596,12 +572,10 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 		retriedTaskIds[task.Id] = struct{}{}
 	}
 
-	internalEventsWithoutRetries := make([]v1.InternalTaskEvent, 0)
-
+	// instrumentation
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
 	for _, e := range res.InternalEvents {
-		// if the task is retried, don't send a message to the trigger queue
 		if _, ok := retriedTaskIds[e.TaskID]; ok {
 			prometheus.RetriedTasks.Inc()
 			if tenantMetricsEnabled {
@@ -610,7 +584,6 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 			continue
 		}
 
-		internalEventsWithoutRetries = append(internalEventsWithoutRetries, e)
 		prometheus.FailedTasks.Inc()
 		if tenantMetricsEnabled {
 			prometheus.TenantFailedTasks.WithLabelValues(tenantId.String()).Inc()
@@ -619,33 +592,7 @@ func (tc *TasksControllerImpl) processFailTasksResponse(ctx context.Context, ten
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	// TODO: MOVE THIS TO THE DATA LAYER?
-	err := tc.repov1.Signaler().SendInternalEvents(ctx, tenantId, internalEventsWithoutRetries)
-
-	if err != nil {
-		err = fmt.Errorf("could not send internal events: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not send internal events")
-		return err
-	}
-
-	var outerErr error
-
-	// send retried tasks to the olap repository
-	for _, task := range res.RetriedTasks {
-		if task.IsAppError {
-			err = tc.pubRetryEvent(ctx, tenantId, task)
-
-			if err != nil {
-				err = fmt.Errorf("could not publish retry event: %w", err)
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "could not publish retry event")
-				outerErr = multierror.Append(outerErr, err)
-			}
-		}
-	}
-
-	return outerErr
+	return nil
 }
 
 func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -654,16 +601,20 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "tenant.id", Value: tenantId})
 
-	opts := make([]v1.TaskIdInsertedAtRetryCount, 0)
+	opts := make([]v1.CancelTaskOpts, 0)
 
 	msgs := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 	shouldTasksNotify := make(map[int64]bool)
 
 	for _, msg := range msgs {
-		opts = append(opts, v1.TaskIdInsertedAtRetryCount{
-			Id:         msg.TaskId,
-			InsertedAt: msg.InsertedAt,
-			RetryCount: msg.RetryCount,
+		opts = append(opts, v1.CancelTaskOpts{
+			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+				Id:         msg.TaskId,
+				InsertedAt: msg.InsertedAt,
+				RetryCount: msg.RetryCount,
+			},
+			EventType:    msg.EventType,
+			EventMessage: msg.EventMessage,
 		})
 
 		shouldTasksNotify[msg.TaskId] = msg.ShouldNotify
@@ -702,35 +653,6 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 
 	tc.notifyQueuesOnCompletion(ctx, tenantId, res.ReleasedTasks)
 
-	// TODO: MOVE THIS TO THE DATA LAYER?
-	err = tc.repov1.Signaler().SendInternalEvents(ctx, tenantId, res.InternalEvents)
-
-	if err != nil {
-		err = fmt.Errorf("could not send internal events: %w", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "could not send internal events")
-		return err
-	}
-
-	cancelledPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(msgs))
-
-	for _, msg := range msgs {
-		cancelledPayloads = append(cancelledPayloads, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         msg.TaskId,
-			RetryCount:     msg.RetryCount,
-			EventType:      msg.EventType,
-			EventTimestamp: time.Now(),
-			EventMessage:   msg.EventMessage,
-		})
-	}
-
-	if pubErr := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, cancelledPayloads...); pubErr != nil {
-		pubErr = fmt.Errorf("could not publish monitoring event message: %w", pubErr)
-		tc.l.Error().Ctx(ctx).Err(pubErr).Msg("could not publish monitoring event message")
-		span.RecordError(pubErr)
-		span.SetStatus(codes.Error, "could not publish monitoring event message")
-	}
-
 	// instrumentation
 	tenantMetricsEnabled := tc.promGate.Enabled(ctx, tenantId)
 
@@ -741,7 +663,7 @@ func (tc *TasksControllerImpl) handleTaskCancelled(ctx context.Context, tenantId
 		}
 	}
 
-	return err
+	return nil
 }
 
 func (tc *TasksControllerImpl) handleCancelTasks(ctx context.Context, tenantId uuid.UUID, payloads [][]byte) error {
@@ -1091,49 +1013,6 @@ func (tc *TasksControllerImpl) processInternalEvents(ctx context.Context, tenant
 		if err := tc.processSatisfiedEventLogEntry(ctx, tenantId, matchResult.SatisfiedDurableEventLogEntries); err != nil {
 			tc.l.Error().Err(err).Msg("could not process satisfied entries")
 		}
-	}
-
-	return nil
-}
-
-func (tc *TasksControllerImpl) pubRetryEvent(ctx context.Context, tenantId uuid.UUID, task v1.RetriedTask) error {
-	taskId := task.Id
-
-	retryMsg := fmt.Sprintf("This is retry number %d.", task.AppRetryCount)
-
-	if task.RetryBackoffFactor.Valid && task.RetryMaxBackoff.Valid {
-		maxBackoffSeconds := int(task.RetryMaxBackoff.Int32)
-		backoffFactor := task.RetryBackoffFactor.Float64
-
-		// compute the backoff duration
-		durationMilliseconds := 1000 * min(float64(maxBackoffSeconds), math.Pow(backoffFactor, float64(task.AppRetryCount)))
-		retryDur := time.Duration(int(durationMilliseconds)) * time.Millisecond
-		retryTime := time.Now().Add(retryDur)
-
-		retryMsg = fmt.Sprintf("%s Retrying in %s (%s).", retryMsg, retryDur.String(), retryTime.Format(time.RFC3339))
-	}
-
-	retryPayloads := []tasktypes.CreateMonitoringEventPayload{
-		{
-			TaskId:         taskId,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapRETRYING,
-			EventTimestamp: time.Now(),
-			EventMessage:   retryMsg,
-		},
-	}
-
-	if !task.RetryBackoffFactor.Valid {
-		retryPayloads = append(retryPayloads, tasktypes.CreateMonitoringEventPayload{
-			TaskId:         taskId,
-			RetryCount:     task.RetryCount,
-			EventType:      sqlcv1.V1EventTypeOlapQUEUED,
-			EventTimestamp: time.Now(),
-		})
-	}
-
-	if err := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, retryPayloads...); err != nil {
-		return fmt.Errorf("could not publish monitoring event message: %w", err)
 	}
 
 	return nil

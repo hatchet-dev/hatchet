@@ -3,7 +3,6 @@ package task
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -37,12 +36,15 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		return nil
 	}
 
-	tasksToRestore := make([]v1.TaskIdInsertedAtRetryCount, 0, len(flatTasks))
+	tasksToRestore := make([]v1.RestoreEvictedTaskOpts, 0, len(flatTasks))
 	for _, t := range flatTasks {
-		tasksToRestore = append(tasksToRestore, v1.TaskIdInsertedAtRetryCount{
-			Id:         t.ID,
-			InsertedAt: t.InsertedAt,
-			RetryCount: t.RetryCount,
+		tasksToRestore = append(tasksToRestore, v1.RestoreEvictedTaskOpts{
+			TaskIdInsertedAtRetryCount: &v1.TaskIdInsertedAtRetryCount{
+				Id:         t.ID,
+				InsertedAt: t.InsertedAt,
+				RetryCount: t.RetryCount,
+			},
+			Reason: reasonByExternalId[t.ExternalID],
 		})
 	}
 
@@ -56,18 +58,7 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 		restoredByTaskId[r.TaskID] = r
 	}
 
-	invCountOpts := make([]v1.IdInsertedAt, 0, len(flatTasks))
-	for _, t := range flatTasks {
-		invCountOpts = append(invCountOpts, v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt})
-	}
-
-	invocationCounts, err := tc.repov1.DurableEvents().GetDurableTaskInvocationCounts(ctx, tenantId, invCountOpts)
-	if err != nil {
-		return fmt.Errorf("failed to get durable task invocation counts for restoring tasks: %w", err)
-	}
-
 	queues := make(map[string]struct{})
-	restoringPayloads := make([]tasktypes.CreateMonitoringEventPayload, 0, len(flatTasks))
 
 	for _, t := range flatTasks {
 		restored, ok := restoredByTaskId[t.ID]
@@ -76,31 +67,11 @@ func (tc *TasksControllerImpl) handleDurableRestoreTask(ctx context.Context, ten
 			continue
 		}
 
-		var durableInvCount int32
-		if count, ok := invocationCounts[v1.IdInsertedAt{ID: t.ID, InsertedAt: t.InsertedAt}]; ok && count != nil {
-			durableInvCount = *count
-		}
-
-		reason := reasonByExternalId[t.ExternalID]
-
-		restoringPayloads = append(restoringPayloads, tasktypes.CreateMonitoringEventPayload{
-			TaskId:                 t.ID,
-			RetryCount:             t.RetryCount,
-			DurableInvocationCount: durableInvCount,
-			EventTimestamp:         time.Now(),
-			EventType:              sqlcv1.V1EventTypeOlapDURABLERESTORING,
-			EventMessage:           fmt.Sprintf("Restoring evicted task: %s", reason),
-		})
-
 		if restored.Queue != "" {
 			queues[restored.Queue] = struct{}{}
 		} else {
 			tc.l.Warn().Str("task_id", t.ExternalID.String()).Msg("restored task has empty queue, skipping scheduler notification")
 		}
-	}
-
-	if err := tc.repov1.OLAPOutbox().MonitoringEvents(ctx, tenantId, restoringPayloads...); err != nil {
-		tc.l.Warn().Err(err).Msg("failed to publish DURABLE_RESTORING to OLAP")
 	}
 
 	if len(queues) > 0 {

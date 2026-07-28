@@ -536,9 +536,9 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 		}
 
 		cleanupPubSub, pubsubv1, err = createPubSubV1(dc, cf, &l)
-		// OLAP messages are staged in the transactional outbox (by the repository
-		// layer) and the relay republishes them to the underlying OLAP queue, so
-		// consumers are unaffected.
+		// OLAP messages and internal task events are staged in the transactional
+		// outbox (by the repository layer) and the relay republishes them to the
+		// underlying queues, so consumers are unaffected.
 		var cleanupMQOutbox func() error
 
 		mqOutbox, cleanupMQOutbox, err = newMQOutbox(dc.Pool, l, pubsubv1, cf.MessageQueue.Outbox)
@@ -551,8 +551,10 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 			mqv1,
 			mqOutbox,
 			mqoutbox.WithQueue(msgqueue.OLAP_QUEUE),
+			mqoutbox.WithQueue(msgqueue.TASK_PROCESSING_QUEUE),
 			mqoutbox.WithSubscribeConfig(cf.MessageQueue.Outbox.SubscribeBatchSize, cf.MessageQueue.Outbox.PollInterval),
 			mqoutbox.WithLogger(&l),
+			mqoutbox.WithPubSub(pubsubv1),
 		)
 
 		var cleanupRelay func() error
@@ -858,11 +860,11 @@ func createControllerLayer(dc *database.Layer, cf *server.ServerConfigFile, vers
 
 	promGate := prometheus.NewGate(dc.V1.TenantEntitlement(), cf.Prometheus.TenantScoped, &l)
 
-	// wire the message queue and the mq outbox into the repository: the repository
-	// stages OLAP messages in the outbox (on its transactions where possible) and
-	// sends signaling side effects through the message queue
+	// wire the pub/sub notifier and the mq outbox into the repository: the repository
+	// stages OLAP messages and internal task events in the outbox (on its transactions
+	// where possible) and notifies schedulers through the pub/sub
 	if cf.MessageQueue.Enabled {
-		dc.V1.SetMessagePublisher(mqv1, pubsubv1, mqOutbox, promGate)
+		dc.V1.SetMessagePublisher(pubsubv1, mqOutbox, promGate)
 	}
 
 	concurrencyOutbox, cleanupConcurrencyOutbox, err := newConcurrencyOutbox(dc.Pool, l)
@@ -1339,7 +1341,9 @@ func newMQOutbox(pool *pgxpool.Pool, l zerolog.Logger, pubsub msgqueue.PubSub, c
 	ctx, cancel := context.WithCancel(context.Background()) // nolint:govet
 
 	// see the comment on newConcurrencyOutbox: the outbox shares the database connection
-	// pool, so tx-scoped outbox methods must be used inside existing transactions
+	// pool, so tx-scoped outbox methods must be used inside existing transactions.
+	// The task processing topic deliberately has NO expiration: internal task events
+	// drive the workflow state machine and must never be dropped by a TTL.
 	mqOutbox, err := pgoutbox.NewOutbox(
 		ctx,
 		pool,

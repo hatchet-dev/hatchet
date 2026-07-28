@@ -65,11 +65,10 @@ type Repository interface {
 	// Signaler orchestrates the messaging side effects of task lifecycle changes.
 	Signaler() *OLAPSignaler
 
-	// SetMessagePublisher wires the message queue, the pub/sub notifier, the outbox
-	// instance backing the OLAP outbox, and the prometheus gate. It must be called
-	// once at startup, before any controllers run; when unwired, OLAP staging is a
-	// no-op.
-	SetMessagePublisher(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, ob pgoutbox.Outbox, promGate *prometheus.Gate)
+	// SetMessagePublisher wires the pub/sub notifier, the outbox instance backing
+	// message staging, and the prometheus gate. It must be called once at startup,
+	// before any controllers run; when unwired, staging is a no-op.
+	SetMessagePublisher(pubsub msgqueue.PubSub, ob pgoutbox.Outbox, promGate *prometheus.Gate)
 }
 
 type repositoryImpl struct {
@@ -334,9 +333,8 @@ func (r *repositoryImpl) Signaler() *OLAPSignaler {
 	return r.shared.signaler
 }
 
-func (r *repositoryImpl) SetMessagePublisher(mq msgqueue.MessageQueue, pubsub msgqueue.PubSub, ob pgoutbox.Outbox, promGate *prometheus.Gate) {
+func (r *repositoryImpl) SetMessagePublisher(pubsub msgqueue.PubSub, ob pgoutbox.Outbox, promGate *prometheus.Gate) {
 	r.shared.olapOutbox.outbox = ob
-	r.shared.signaler.mq = mq
 	r.shared.signaler.pubsub = pubsub
 	r.shared.signaler.promGate = promGate
 }
