@@ -13,10 +13,6 @@ import (
 	"github.com/hatchet-dev/hatchet/pkg/logger"
 )
 
-// requiredMaxPayload is the minimum NATS server max_payload we accept.
-// The durable RabbitMQ path allows 16MiB, so the NATS server must match.
-const requiredMaxPayload = 16 * 1024 * 1024
-
 // defaultSubjectPrefix is used when WithPubSubSubjectPrefix is unset or empty.
 const defaultSubjectPrefix = "hatchet.pubsub"
 
@@ -86,7 +82,7 @@ func WithPubSubLogger(l *zerolog.Logger) PubSubOpt {
 }
 
 // NewPubSub connects synchronously to NATS and returns a PubSub. Fails if the
-// server is unreachable or if its max_payload is below 16MiB.
+// server is unreachable or if its max_payload is below msgqueue.MaxMessageSize.
 func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	opts := defaultPubSubOpts()
 
@@ -101,8 +97,25 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 	l := opts.l
 
 	connectOpts := []natsgo.Option{
-		natsgo.MaxReconnects(-1),    // reconnect indefinitely
-		natsgo.ReconnectBufSize(-1), // do not buffer pubs during disconnect
+		// Reconnect behavior is deliberately fixed rather than configurable.
+		// MaxReconnects(-1) retries forever: any finite limit permanently
+		// closes the connection once exhausted, leaving the engine without
+		// pub/sub until a process restart (the rabbitmq backend also retries
+		// indefinitely).
+		natsgo.MaxReconnects(-1),
+		// ReconnectBufSize(-1) disables the client-side buffer that would
+		// otherwise queue publishes during a disconnect and flush them on
+		// reconnect. These signals are latency optimizations over their
+		// consumers' polling paths (schedulers poll their queues, the
+		// dispatcher polls for unacked finished runs), so by the time a
+		// buffered publish flushed, polling would already have covered it;
+		// Pub fails fast while disconnected instead.
+		natsgo.ReconnectBufSize(-1),
+		// Empty credentials never reach the wire (the CONNECT payload omits
+		// empty user/pass fields), so UserInfo is safe to set unconditionally.
+		// Whether a username requires a password is the server's decision,
+		// enforced by the synchronous Connect below.
+		natsgo.UserInfo(opts.username, opts.password),
 		natsgo.DisconnectErrHandler(func(_ *natsgo.Conn, err error) {
 			if err != nil {
 				l.Warn().Err(err).Msg("nats pubsub disconnected")
@@ -125,20 +138,22 @@ func NewPubSub(fs ...PubSubOpt) (func() error, *PubSub, error) {
 		}),
 	}
 
-	if opts.username != "" || opts.password != "" {
-		connectOpts = append(connectOpts, natsgo.UserInfo(opts.username, opts.password))
-	}
-
 	nc, err := natsgo.Connect(opts.url, connectOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not connect to nats at %q: %w", opts.url, err)
 	}
 
-	if nc.MaxPayload() < requiredMaxPayload {
+	// The server must accept Hatchet's message-size contract: Pub chunks
+	// multi-payload messages down to the server's max_payload, but a single
+	// payload (e.g. one task stream event) cannot be split and may approach
+	// msgqueue.MaxMessageSize. The NATS default max_payload is 1MiB, so
+	// refuse to start against a misconfigured server rather than dropping
+	// oversized publishes at runtime.
+	if nc.MaxPayload() < msgqueue.MaxMessageSize {
 		nc.Close()
 		return nil, nil, fmt.Errorf(
-			"nats server max_payload is %d bytes; set at least max_payload: 16777216 in the NATS server config)",
-			nc.MaxPayload(),
+			"nats server max_payload is %d bytes but hatchet requires at least %d; raise max_payload in the NATS server config",
+			nc.MaxPayload(), msgqueue.MaxMessageSize,
 		)
 	}
 
