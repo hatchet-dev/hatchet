@@ -11,7 +11,7 @@ import (
 	quickstarts "github.com/hatchet-dev/hatchet-quickstarts"
 )
 
-func TestUseCases(t *testing.T) {
+func TestUseCasesListsDefaultFirstThenDiscovered(t *testing.T) {
 	useCases, err := UseCases(quickstarts.TemplatesFS())
 	if err != nil {
 		t.Fatalf("UseCases returned an error: %v", err)
@@ -94,9 +94,6 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-// TestValidateUnsupportedLanguageForUseCase uses a synthetic tree because
-// every real use case currently supports every language; the branch stays
-// covered for the next use case that constrains its languages.
 func TestValidateUnsupportedLanguageForUseCase(t *testing.T) {
 	fsys := fstest.MapFS{
 		"templates/go/README.md":                   {Data: []byte("simple")},

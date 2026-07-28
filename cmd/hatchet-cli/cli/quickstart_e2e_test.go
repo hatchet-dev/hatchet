@@ -26,35 +26,57 @@ type templateTestCase struct {
 	trigger string
 }
 
-// Test matrix of all use case, language, and package manager combinations
-var templateTests = []templateTestCase{
-	// Python
-	{"simple", "python", "poetry", "simple"},
-	{"simple", "python", "uv", "simple"},
-	{"simple", "python", "pip", "simple"},
+// This suite proves the released CLI end to end against the embedded
+// quickstarts module, from an accepted selection through generation,
+// worker startup, and a completed trigger. The quickstarts repository
+// tests template content but cannot test this CLI integration. Content
+// edits inside a template do not touch this file; adding or removing a
+// supported combination is an intentional contract change made in the two
+// lists below.
 
-	// TypeScript
-	{"simple", "typescript", "npm", "simple"},
-	{"simple", "typescript", "pnpm", "simple"},
-	{"simple", "typescript", "yarn", "simple"},
-	{"simple", "typescript", "bun", "simple"},
+// languagePackageManagers is the supported matrix, shared by every use
+// case the CLI currently ships.
+var languagePackageManagers = []struct {
+	language       string
+	packageManager string
+}{
+	{"python", "poetry"},
+	{"python", "uv"},
+	{"python", "pip"},
+	{"typescript", "npm"},
+	{"typescript", "pnpm"},
+	{"typescript", "yarn"},
+	{"typescript", "bun"},
+	{"go", "go"},
+}
 
-	// Go
-	{"simple", "go", "go", "simple"},
+// useCaseTriggers pairs each use case with the trigger its templates
+// register.
+var useCaseTriggers = []struct {
+	useCase string
+	trigger string
+}{
+	{"simple", "simple"},
+	{"scheduled", "manual-run"},
+}
 
-	// Use cases
-	{"scheduled", "python", "poetry", "manual-run"},
-	{"scheduled", "python", "uv", "manual-run"},
-	{"scheduled", "python", "pip", "manual-run"},
-	{"scheduled", "typescript", "npm", "manual-run"},
-	{"scheduled", "typescript", "pnpm", "manual-run"},
-	{"scheduled", "typescript", "yarn", "manual-run"},
-	{"scheduled", "typescript", "bun", "manual-run"},
-	{"scheduled", "go", "go", "manual-run"},
+func templateTests() []templateTestCase {
+	var tests []templateTestCase
+	for _, uc := range useCaseTriggers {
+		for _, lp := range languagePackageManagers {
+			tests = append(tests, templateTestCase{
+				useCase:        uc.useCase,
+				language:       lp.language,
+				packageManager: lp.packageManager,
+				trigger:        uc.trigger,
+			})
+		}
+	}
+	return tests
 }
 
 func TestQuickstartTemplates(t *testing.T) {
-	for _, tt := range templateTests {
+	for _, tt := range templateTests() {
 		t.Run(fmt.Sprintf("%s_%s_%s", tt.useCase, tt.language, tt.packageManager), func(t *testing.T) {
 			testTemplate(t, tt)
 		})

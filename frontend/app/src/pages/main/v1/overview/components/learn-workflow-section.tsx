@@ -518,7 +518,10 @@ export function LearnWorkflowSection({
         show={showTriggerWorkflow}
         onClose={() => setShowTriggerWorkflow(false)}
       />
-      <SectionHeader title="Setup your local environment" showOnboardingBadge />
+      <SectionHeader
+        title="Set up your local environment"
+        showOnboardingBadge
+      />
       <div className="mb-2 flex justify-end">
         <Button
           variant="ghost"
