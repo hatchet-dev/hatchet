@@ -3,6 +3,8 @@ package msgqueue
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -80,9 +82,12 @@ type PubSub interface {
 }
 
 // tenantStreamMsgIDs enumerates the message IDs the dispatcher's gRPC streams
-// consume from tenant topics (see msgsToWorkflowEvent and
-// isMatchingWorkflowRunV1 in the dispatcher). Publishing any other ID to a
+// consume from tenant topics (see workflowEventConverters and
+// workflowRunMatchers in the dispatcher). Publishing any other ID to a
 // tenant topic is pure waste: the streams are the only consumers.
+//
+// Guarded against drift by TestTenantStreamMsgIDsInSync in the dispatcher
+// package: an ID consumed there but missing here is silently never published.
 var tenantStreamMsgIDs = map[string]struct{}{
 	MsgIDCreatedTask:                  {},
 	MsgIDTaskCompleted:                {},
@@ -91,6 +96,13 @@ var tenantStreamMsgIDs = map[string]struct{}{
 	MsgIDTaskStreamEvent:              {},
 	MsgIDWorkflowRunFinished:          {},
 	MsgIDWorkflowRunFinishedCandidate: {},
+}
+
+// TenantStreamMsgIDs returns the message IDs PubTenantMessage publishes to
+// tenant-stream topics, sorted. It exists so the dispatcher can assert its
+// stream consumers stay in sync with this allowlist.
+func TenantStreamMsgIDs() []string {
+	return slices.Sorted(maps.Keys(tenantStreamMsgIDs))
 }
 
 // PubTenantMessage writes a tenant-scoped message to its destinations: a
