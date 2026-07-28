@@ -2350,14 +2350,17 @@ func (s *DispatcherImpl) listWorkflowRuns(ctx context.Context, tenantId uuid.UUI
 	return res, nil
 }
 
-func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
-	workflowEvents := []*contracts.WorkflowEvent{}
+// workflowEventConverters maps each message ID the dispatcher's workflow event
+// streams consume off the tenant stream to its contracts.WorkflowEvent
+// converter. Together with workflowRunMatchers, its keys are the source of
+// truth for the message IDs the streams consume: msgqueue's tenant-stream
+// publish allowlist is asserted against them in TestTenantStreamMsgIDsInSync.
+var workflowEventConverters = map[string]func(payloads [][]byte) []*contracts.WorkflowEvent{
+	msgqueue.MsgIDCreatedTask: func(payloads [][]byte) []*contracts.WorkflowEvent {
+		converted := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
+		workflowEvents := []*contracts.WorkflowEvent{}
 
-	switch msgId {
-	case "created-task":
-		payloads := msgqueue.JSONConvert[tasktypes.CreatedTaskPayload](payloads)
-
-		for _, payload := range payloads {
+		for _, payload := range converted {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunID.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -2367,10 +2370,14 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				RetryCount:     &payload.RetryCount,
 			})
 		}
-	case "task-completed":
-		payloads := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
 
-		for _, payload := range payloads {
+		return workflowEvents
+	},
+	msgqueue.MsgIDTaskCompleted: func(payloads [][]byte) []*contracts.WorkflowEvent {
+		converted := msgqueue.JSONConvert[tasktypes.CompletedTaskPayload](payloads)
+		workflowEvents := []*contracts.WorkflowEvent{}
+
+		for _, payload := range converted {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -2381,10 +2388,14 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				EventPayload:   string(payload.Output),
 			})
 		}
-	case "task-failed":
-		payloads := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
 
-		for _, payload := range payloads {
+		return workflowEvents
+	},
+	msgqueue.MsgIDTaskFailed: func(payloads [][]byte) []*contracts.WorkflowEvent {
+		converted := msgqueue.JSONConvert[tasktypes.FailedTaskPayload](payloads)
+		workflowEvents := []*contracts.WorkflowEvent{}
+
+		for _, payload := range converted {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -2395,10 +2406,14 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				EventPayload:   payload.ErrorMsg,
 			})
 		}
-	case "task-cancelled":
-		payloads := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
 
-		for _, payload := range payloads {
+		return workflowEvents
+	},
+	msgqueue.MsgIDTaskCancelled: func(payloads [][]byte) []*contracts.WorkflowEvent {
+		converted := msgqueue.JSONConvert[tasktypes.CancelledTaskPayload](payloads)
+		workflowEvents := []*contracts.WorkflowEvent{}
+
+		for _, payload := range converted {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -2408,10 +2423,14 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				RetryCount:     &payload.RetryCount,
 			})
 		}
-	case "task-stream-event":
-		payloads := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
 
-		for _, payload := range payloads {
+		return workflowEvents
+	},
+	msgqueue.MsgIDTaskStreamEvent: func(payloads [][]byte) []*contracts.WorkflowEvent {
+		converted := msgqueue.JSONConvert[tasktypes.StreamEventPayload](payloads)
+		workflowEvents := []*contracts.WorkflowEvent{}
+
+		for _, payload := range converted {
 			workflowEvents = append(workflowEvents, &contracts.WorkflowEvent{
 				WorkflowRunId:  payload.WorkflowRunId.String(),
 				ResourceType:   contracts.ResourceType_RESOURCE_TYPE_STEP_RUN,
@@ -2422,10 +2441,14 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				EventIndex:     payload.EventIndex,
 			})
 		}
-	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
 
-		for _, payload := range payloads {
+		return workflowEvents
+	},
+	msgqueue.MsgIDWorkflowRunFinished: func(payloads [][]byte) []*contracts.WorkflowEvent {
+		converted := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
+		workflowEvents := []*contracts.WorkflowEvent{}
+
+		for _, payload := range converted {
 			eventType := contracts.ResourceEventType_RESOURCE_EVENT_TYPE_COMPLETED
 
 			switch payload.Status {
@@ -2445,6 +2468,16 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 				EventTimestamp: timestamppb.New(time.Now()),
 			})
 		}
+
+		return workflowEvents
+	},
+}
+
+func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, filter func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error), hangupFunc func(tasks []*contracts.WorkflowEvent) ([]*contracts.WorkflowEvent, error)) ([]*contracts.WorkflowEvent, error) {
+	workflowEvents := []*contracts.WorkflowEvent{}
+
+	if convert, ok := workflowEventConverters[msgId]; ok {
+		workflowEvents = convert(payloads)
 	}
 
 	matches, err := filter(workflowEvents)
@@ -2474,39 +2507,51 @@ func (s *DispatcherImpl) msgsToWorkflowEvent(msgId string, payloads [][]byte, fi
 	return matches, nil
 }
 
-func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]uuid.UUID, bool) {
-	switch msg.ID {
-	case "workflow-run-finished":
-		payloads := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](msg.Payloads)
+// workflowRunMatchers maps each message ID the dispatcher's workflow run
+// subscriptions consume off the tenant stream to a matcher returning the
+// subscribed workflow run IDs the message finalizes (or nominates as
+// candidates). See the comment on workflowEventConverters: the keys of both
+// maps together are asserted against msgqueue's tenant-stream publish
+// allowlist in TestTenantStreamMsgIDsInSync.
+var workflowRunMatchers = map[string]func(payloads [][]byte, acks *workflowRunAcks) []uuid.UUID{
+	msgqueue.MsgIDWorkflowRunFinished: func(payloads [][]byte, acks *workflowRunAcks) []uuid.UUID {
+		converted := msgqueue.JSONConvert[tasktypes.NotifyFinalizedPayload](payloads)
 		res := make([]uuid.UUID, 0)
 
-		for _, payload := range payloads {
+		for _, payload := range converted {
 			if acks.hasWorkflowRun(payload.ExternalId) {
 				res = append(res, payload.ExternalId)
 			}
 		}
 
-		if len(res) == 0 {
-			return nil, false
-		}
-
-		return res, true
-	case "workflow-run-finished-candidate":
-		payloads := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](msg.Payloads)
+		return res
+	},
+	msgqueue.MsgIDWorkflowRunFinishedCandidate: func(payloads [][]byte, acks *workflowRunAcks) []uuid.UUID {
+		converted := msgqueue.JSONConvert[tasktypes.CandidateFinalizedPayload](payloads)
 		res := make([]uuid.UUID, 0)
 
-		for _, payload := range payloads {
+		for _, payload := range converted {
 			if acks.hasWorkflowRun(payload.WorkflowRunId) {
 				res = append(res, payload.WorkflowRunId)
 			}
 		}
 
-		if len(res) == 0 {
-			return nil, false
-		}
+		return res
+	},
+}
 
-		return res, true
-	default:
+func (s *DispatcherImpl) isMatchingWorkflowRunV1(msg *msgqueue.Message, acks *workflowRunAcks) ([]uuid.UUID, bool) {
+	match, ok := workflowRunMatchers[msg.ID]
+
+	if !ok {
 		return nil, false
 	}
+
+	res := match(msg.Payloads, acks)
+
+	if len(res) == 0 {
+		return nil, false
+	}
+
+	return res, true
 }
