@@ -475,8 +475,7 @@ func (d *DispatcherServiceImpl) RegisterDurableTask(ctx context.Context, externa
 	ctx, cancel := context.WithCancel(ctx)
 	deregister := d.streamSessions.Register(cancel)
 
-	// fixme / important: this probably can't be hard-coded to 64, but I'm not sure what it should be set to yet
-	requestCh := make(chan *contracts.DurableTaskRequest, 64)
+	requestCh := make(chan *contracts.DurableTaskRequest)
 	respCh := make(chan *contracts.DurableTaskResponse)
 
 	invocation := &durableTaskInvocation{

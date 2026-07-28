@@ -48,6 +48,7 @@ func isDagChildFailedErr(err error) bool {
 
 type dag struct {
 	requestCh    chan<- *v1contracts.DurableTaskRequest
+	responseCh   <-chan *v1contracts.DurableTaskResponse
 	evalBoolExpr func(ctx context.Context, expr string, vars map[string]interface{}) (bool, error)
 	triggerStep  func(ctx context.Context, actionId, workflowName string, childIndex int32, parentTaskRunIds []uuid.UUID, isSkipped, isCancelled, parentReExecuted bool) (*operator.DAGStepTriggerResult, error)
 
@@ -60,6 +61,10 @@ type dag struct {
 	err             error
 
 	pendingWaitAcks []*pendingWaitAck
+
+	// responses received while blocked sending on requestCh (see dag.send); drained by the
+	// main loop before it blocks on responseCh
+	queuedResponses []*v1contracts.DurableTaskResponse
 
 	// cache of the result of each parent override condition, evaluated once when the
 	// referenced parent completes instead of repeatedly on every readiness check
@@ -144,6 +149,7 @@ func dagDurableTask(
 		tasks:            tasks,
 		pendingTasks:     append([]*task{}, tasks...),
 		requestCh:        requestCh,
+		responseCh:       responseCh,
 		evalBoolExpr:     evalBoolExpr,
 		externalId:       externalId,
 		invocationCount:  invocationCount,
@@ -155,6 +161,13 @@ func dagDurableTask(
 	for !d.isDone() {
 		if err := d.taskEmitter(ctx); err != nil {
 			return err
+		}
+
+		if len(d.queuedResponses) > 0 {
+			resp := d.queuedResponses[0]
+			d.queuedResponses = d.queuedResponses[1:]
+			d.taskConsumer(ctx, resp)
+			continue
 		}
 
 		if d.isDone() {
@@ -258,12 +271,18 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 
 			if !skip && !cancelled {
 				if d.hasEventOrSleepConditions(t, conditionKindSkip) && !t.skipWatchRegistered {
-					d.registerCondition(ctx, t, conditionKindSkip)
+					if err := d.registerCondition(ctx, t, conditionKindSkip); err != nil {
+						d.err = err
+						return progressed, d.err
+					}
 					t.skipWatchRegistered = true
 				}
 
 				if d.hasEventOrSleepConditions(t, conditionKindCancel) && !t.cancelWatchRegistered {
-					d.registerCondition(ctx, t, conditionKindCancel)
+					if err := d.registerCondition(ctx, t, conditionKindCancel); err != nil {
+						d.err = err
+						return progressed, d.err
+					}
 					t.cancelWatchRegistered = true
 				}
 
@@ -280,7 +299,10 @@ func (d *dag) emitReadyTasks(ctx context.Context) (bool, error) {
 						if d.allWaitGroupsSatisfied(t, satisfiedGroups) {
 							t.isWaitSatisfied = true
 						} else {
-							d.registerCondition(ctx, t, conditionKindWait, satisfiedGroups)
+							if err := d.registerCondition(ctx, t, conditionKindWait, satisfiedGroups); err != nil {
+								d.err = err
+								return progressed, d.err
+							}
 							t.isWaiting = true
 						}
 					}
@@ -648,7 +670,27 @@ func (d *dag) allWaitGroupsSatisfied(t *task, satisfiedGroups map[uuid.UUID]bool
 	return true
 }
 
-func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) {
+// send writes req to the durable-task session without deadlocking: the dispatcher side is a
+// single goroutine that blocks delivering each response on responseCh before reading the next
+// request, so a plain channel send here while responses are undelivered would leave both sides
+// blocked sending to each other. Responses received while waiting are queued for the main loop.
+func (d *dag) send(ctx context.Context, req *v1contracts.DurableTaskRequest) error {
+	for {
+		select {
+		case d.requestCh <- req:
+			return nil
+		case resp, ok := <-d.responseCh:
+			if !ok {
+				return fmt.Errorf("durable task session closed")
+			}
+			d.queuedResponses = append(d.queuedResponses, resp)
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind, satisfiedGroups ...map[uuid.UUID]bool) error {
 	_, span := telemetry.NewSpan(ctx, "dag.registerCondition")
 	defer span.End()
 
@@ -693,7 +735,7 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 		}
 	}
 
-	d.requestCh <- &v1contracts.DurableTaskRequest{
+	if err := d.send(ctx, &v1contracts.DurableTaskRequest{
 		Message: &v1contracts.DurableTaskRequest_WaitFor{
 			WaitFor: &v1contracts.DurableTaskWaitForRequest{
 				DurableTaskExternalId: d.externalId.String(),
@@ -701,7 +743,11 @@ func (d *dag) registerCondition(ctx context.Context, t *task, kind conditionKind
 				WaitForConditions:     conditions,
 			},
 		},
+	}); err != nil {
+		return err
 	}
 
 	d.pendingWaitAcks = append(d.pendingWaitAcks, &pendingWaitAck{task: t, kind: kind})
+
+	return nil
 }
