@@ -511,6 +511,37 @@ type MessageQueueConfigFile struct {
 	Postgres PostgresMQConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
 
 	RabbitMQ RabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty" validate:"required"`
+
+	PubSub PubSubConfigFile `mapstructure:"pubSub" json:"pubSub,omitempty"`
+}
+
+// PubSubConfigFile configures the best-effort pub/sub mechanism. All settings
+// are optional overrides which inherit from the durable message queue settings
+// when unset, so existing deployments need zero new configuration.
+type PubSubConfigFile struct {
+	// Kind is "rabbitmq" or "postgres"; empty inherits msgQueue.kind
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres"`
+
+	RabbitMQ PubSubRabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty"`
+
+	Postgres PubSubPostgresConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
+}
+
+type PubSubRabbitMQConfigFile struct {
+	// URL is the connection URL; empty inherits msgQueue.rabbitmq.url. The
+	// pub/sub always opens its own connections, even when the durable queue is
+	// also rabbitmq on the same URL.
+	URL string `mapstructure:"url" json:"url,omitempty"`
+
+	MaxPubChans int32 `mapstructure:"maxPubChans" json:"maxPubChans,omitempty" default:"10"`
+	MaxSubChans int32 `mapstructure:"maxSubChans" json:"maxSubChans,omitempty" default:"20"`
+}
+
+type PubSubPostgresConfigFile struct {
+	// The pub/sub uses a small dedicated pool built from the direct DATABASE_URL
+	// (never pgbouncer — LISTEN does not survive transaction pooling).
+	MaxConns int32 `mapstructure:"maxConns" json:"maxConns,omitempty" default:"5"`
+	MinConns int32 `mapstructure:"minConns" json:"minConns,omitempty" default:"1"`
 }
 
 type PostgresMQConfigFile struct {
@@ -644,6 +675,8 @@ type ServerConfig struct {
 	Namespaces []string
 
 	MessageQueueV1 msgqueue.MessageQueue
+
+	PubSubV1 msgqueue.PubSub
 
 	Logger *zerolog.Logger
 
@@ -848,6 +881,14 @@ func BindAllEnv(v *viper.Viper) {
 
 	// throughput options
 	_ = v.BindEnv("msgQueue.rabbitmq.qos", "SERVER_MSGQUEUE_RABBITMQ_QOS")
+
+	// pub/sub (all optional: inherit from the durable msgQueue settings when unset)
+	_ = v.BindEnv("msgQueue.pubSub.kind", "SERVER_MSGQUEUE_PUBSUB_KIND")
+	_ = v.BindEnv("msgQueue.pubSub.rabbitmq.url", "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_URL")
+	_ = v.BindEnv("msgQueue.pubSub.rabbitmq.maxPubChans", "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_PUB_CHANS")
+	_ = v.BindEnv("msgQueue.pubSub.rabbitmq.maxSubChans", "SERVER_MSGQUEUE_PUBSUB_RABBITMQ_MAX_SUB_CHANS")
+	_ = v.BindEnv("msgQueue.pubSub.postgres.maxConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MAX_CONNS")
+	_ = v.BindEnv("msgQueue.pubSub.postgres.minConns", "SERVER_MSGQUEUE_PUBSUB_POSTGRES_MIN_CONNS")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")

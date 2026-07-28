@@ -70,6 +70,11 @@ type Layer struct {
 
 	Pool *pgxpool.Pool
 
+	// DirectDatabaseURL is the resolved direct (non-pgbouncer) connection URL.
+	// LISTEN/NOTIFY does not survive transaction pooling, so consumers that
+	// need LISTEN (e.g. the postgres PubSub) must build their pools from this.
+	DirectDatabaseURL string
+
 	ReadReplicaPool *pgxpool.Pool
 
 	// DDLPool is meant for DDL-modifying operations like DETACH PARTITION CONCURRENTLY, which
