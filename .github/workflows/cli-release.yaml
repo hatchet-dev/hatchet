@@ -89,6 +89,13 @@ jobs:
     outputs:
       prev_tag: ${{ steps.prev.outputs.prev_tag }}
     steps:
+      - name: Check the tag is a release version
+        run: |
+          if [[ ! "$GITHUB_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$GITHUB_TAG is not a release tag. Expected vMAJOR.MINOR.PATCH with no pre-release suffix (e.g. v0.89.0)."
+            exit 1
+          fi
+
       - name: Check the tag exists
         run: |
           if ! gh api "repos/{owner}/{repo}/git/ref/tags/$GITHUB_TAG" >/dev/null 2>&1; then
