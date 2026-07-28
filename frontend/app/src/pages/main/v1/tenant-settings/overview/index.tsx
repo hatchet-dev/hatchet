@@ -6,6 +6,7 @@ import { Button } from '@/components/v1/ui/button';
 import { Spinner } from '@/components/v1/ui/loading';
 import { Switch } from '@/components/v1/ui/switch';
 import useControlPlane from '@/hooks/use-control-plane';
+import { useLocalStorageState } from '@/hooks/use-local-storage-state';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useCurrentTenantId, useTenantDetails } from '@/hooks/use-tenant';
 import api, { UpdateTenantRequest } from '@/lib/api';
@@ -13,10 +14,16 @@ import { useOrganizationApi } from '@/lib/api/organization-wrapper';
 import { useApiError } from '@/lib/hooks';
 import { MembershipsContextType } from '@/lib/outlet';
 import { useOutletContext } from '@/lib/router-helpers';
+import {
+  defaultOnboardingState,
+  normalizeOnboardingState,
+  onboardingStorageKey,
+} from '@/pages/main/v1/overview/components/onboarding-state';
 import { type OrganizationTenantWithRegion } from '@/pages/main/v1/tenant-settings/organization';
 import { TagBadge } from '@/pages/main/v1/tenant-settings/organization/components/tag-badge';
 import { EditTenantTagsModal } from '@/pages/organizations/$organization/components/edit-tenant-tags-modal';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 export default function TenantSettings() {
@@ -45,6 +52,7 @@ export default function TenantSettings() {
           >
             <AnalyticsOptOut />
           </SettingRow>
+          <OnboardingSettingRow />
         </div>
       </div>
     </div>
@@ -275,5 +283,45 @@ const AnalyticsOptOut: React.FC = () => {
           </Button>
         ))}
     </div>
+  );
+};
+
+// A visible onboarding needs no recovery control, and after a restart the
+// row removes itself because hidden returns to false.
+const OnboardingSettingRow: React.FC = () => {
+  const { tenantId } = useCurrentTenantId();
+  const navigate = useNavigate();
+  // The same tenant-scoped key and defaults the Overview onboarding reads,
+  // so restarting here is indistinguishable from a first visit there.
+  const [storedOnboarding, setStoredOnboarding] = useLocalStorageState<unknown>(
+    onboardingStorageKey(tenantId),
+    null,
+  );
+
+  const onboarding = normalizeOnboardingState(storedOnboarding);
+
+  if (!onboarding.hidden) {
+    return null;
+  }
+
+  return (
+    <SettingRow
+      label="Onboarding"
+      description="Restart the onboarding guide on the Overview page. This clears onboarding progress for this tenant in this browser."
+    >
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setStoredOnboarding(defaultOnboardingState());
+          navigate({
+            to: '/tenants/$tenant/overview',
+            params: { tenant: tenantId },
+          });
+        }}
+      >
+        Restart onboarding
+      </Button>
+    </SettingRow>
   );
 };
