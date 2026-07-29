@@ -119,26 +119,27 @@ func (l *DurableTaskListener) deliverCompletion(resp *v1.DurableTaskResponse) bo
 		NodeID:    ref.GetNodeId(),
 	}
 
-	l.pendingCallbacksMu.Lock()
+	l.callbackStateMu.Lock()
+	if l.callbacksTerminal {
+		l.callbackStateMu.Unlock()
+		return false
+	}
+
 	ch, ok := l.pendingCallbacks[key]
 	if ok {
 		delete(l.pendingCallbacks, key)
-	}
-	l.pendingCallbacksMu.Unlock()
-
-	if ok {
+		// Callback channels are buffered, so publishing while locked cannot
+		// block and ensures Stop cannot return before this delivery.
 		select {
 		case ch <- CallbackResult{Resp: resp}:
 		default:
 		}
-		return true
+	} else {
+		l.cacheCompletionLocked(key, resp)
 	}
+	l.callbackStateMu.Unlock()
 
-	l.bufferedCompletionsMu.Lock()
-	l.bufferedCompletions[key] = resp
-	l.bufferedCompletionsMu.Unlock()
-
-	return false
+	return ok
 }
 
 // notifyParked records that a continuation of the given invocation parked
@@ -239,7 +240,7 @@ func (l *DurableTaskListener) sweepGates() {
 // failInvocationWaiters delivers an error to every pending callback and event
 // ack belonging to the given invocation.
 func (l *DurableTaskListener) failInvocationWaiters(key PendingAckKey, err error) {
-	l.pendingCallbacksMu.Lock()
+	l.callbackStateMu.Lock()
 	for k, ch := range l.pendingCallbacks {
 		if k.TaskID == key.TaskID && k.SignalKey == key.SignalKey {
 			delete(l.pendingCallbacks, k)
@@ -249,7 +250,7 @@ func (l *DurableTaskListener) failInvocationWaiters(key PendingAckKey, err error
 			}
 		}
 	}
-	l.pendingCallbacksMu.Unlock()
+	l.callbackStateMu.Unlock()
 
 	l.pendingEventAcksMu.Lock()
 	if ch, ok := l.pendingEventAcks[key]; ok {
