@@ -58,7 +58,7 @@ class DurableTaskEventMemoAckResponse(_message.Message):
     ref: DurableEventLogEntryRef
     memo_already_existed: bool
     memo_result_payload: bytes
-    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., memo_already_existed: _Optional[bool] = ..., memo_result_payload: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., memo_already_existed: bool = ..., memo_result_payload: _Optional[bytes] = ...) -> None: ...
 
 class DurableTaskEventTriggerRunsAckResponse(_message.Message):
     __slots__ = ("durable_task_external_id", "invocation_count", "run_entries")
@@ -88,7 +88,7 @@ class DurableTaskEventLogEntryCompletedResponse(_message.Message):
     is_failure: bool
     error_message: str
     satisfied_order: int
-    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ..., is_failure: _Optional[bool] = ..., error_message: _Optional[str] = ..., satisfied_order: _Optional[int] = ...) -> None: ...
+    def __init__(self, ref: _Optional[_Union[DurableEventLogEntryRef, _Mapping]] = ..., payload: _Optional[bytes] = ..., is_failure: bool = ..., error_message: _Optional[str] = ..., satisfied_order: _Optional[int] = ...) -> None: ...
 
 class DurableTaskEvictInvocationRequest(_message.Message):
     __slots__ = ("invocation_count", "durable_task_external_id", "reason")

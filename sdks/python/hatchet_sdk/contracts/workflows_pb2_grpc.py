@@ -6,7 +6,7 @@ import warnings
 from hatchet_sdk.contracts.v1.shared import trigger_pb2 as v1_dot_shared_dot_trigger__pb2
 from hatchet_sdk.contracts import workflows_pb2 as workflows__pb2
 
-GRPC_GENERATED_VERSION = '1.81.1'
+GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -26,7 +26,7 @@ if _version_not_supported:
     )
 
 
-class WorkflowServiceStub:
+class WorkflowServiceStub(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
 
@@ -63,7 +63,7 @@ class WorkflowServiceStub:
                 _registered_method=True)
 
 
-class WorkflowServiceServicer:
+class WorkflowServiceServicer(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
 
@@ -133,7 +133,7 @@ def add_WorkflowServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class WorkflowService:
+class WorkflowService(object):
     """WorkflowService represents a set of RPCs for managing workflows.
     """
 
