@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Fixed a bug where durable event completions could wake durable task continuations in a non-deterministic order during replay. The engine now stamps a per-task `satisfied_order` on durable event log entries, and the listener releases completions to user code strictly in that order (gated on the previously woken continuation parking again), so replays deterministically reproduce the original wake order instead of raising spurious non-determinism errors.
+- Fixed a bug where durable event completions could wake durable task continuations in a non-deterministic order during replay. The engine now stamps a per-task `satisfied_order` on durable event log entries and delivers completions to the worker strictly in that order, so replays deterministically reproduce the original wake order. The listener consumes completions in receive order, requiring no client-side reordering.
 
 ## v1.37.0 - 2026-07-23
 
