@@ -111,7 +111,9 @@ func newTenantManager(cf *sharedConfig, tenantId uuid.UUID, resultsCh chan *Queu
 }
 
 func (t *tenantManager) Cleanup() error {
-	defer t.cleanup()
+	// cancel the lifecycle context first so the listenFor*Leases goroutines exit before
+	// leaseManager.cleanup closes the lease channels underneath them
+	t.cleanup()
 
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -162,7 +164,11 @@ func (t *tenantManager) listenForWorkerLeases(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case msg := <-t.workersCh:
+		case msg, ok := <-t.workersCh:
+			if !ok {
+				return
+			}
+
 			if msg.isIncremental {
 				for _, worker := range msg.items {
 					t.scheduler.addWorker(worker)
@@ -190,7 +196,11 @@ func (t *tenantManager) listenForQueueLeases(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case msg := <-t.queuesCh:
+		case msg, ok := <-t.queuesCh:
+			if !ok {
+				return
+			}
+
 			if msg.isIncremental {
 				for _, queueName := range msg.items {
 					t.addQueuer(queueName)
@@ -207,7 +217,11 @@ func (t *tenantManager) listenForConcurrencyLeases(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case msg := <-t.concurrencyCh:
+		case msg, ok := <-t.concurrencyCh:
+			if !ok {
+				return
+			}
+
 			if msg.isIncremental {
 				for _, strategy := range msg.items {
 					t.addConcurrencyStrategy(strategy)
