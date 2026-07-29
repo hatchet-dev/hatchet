@@ -16,7 +16,7 @@ Templates are organized by use case. The default use case is `simple`, a worker 
 hatchet quickstart --use-case scheduled --language go
 ```
 
-The `scheduled` use case is a Go project whose workflow runs on a cron schedule. With the worker running, its `manual-run` trigger runs the workflow once on demand:
+The `scheduled` use case generates a workflow that runs on a cron schedule, in Python, TypeScript, or Go. While the worker running, its `manual-run` trigger will run the workflow once on demand:
 
 ```sh
 hatchet trigger manual-run
