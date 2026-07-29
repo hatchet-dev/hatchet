@@ -18,7 +18,7 @@ import (
 )
 
 const defaultBatchPollInterval = 200 * time.Millisecond
-const batchFetchLimit int32 = 256
+const batchFetchLimit int32 = 20000 // ~72byte batch queue item size -> 1.44 mb worst case
 const defaultBatchIdleTTL = 30 * time.Second
 const maxBufferedPayloadBytes int32 = 4_000_000
 
@@ -138,6 +138,16 @@ type BatchScheduler struct {
 	l zerolog.Logger
 }
 
+// allBufferedIds collects the ids currently buffered in memory across every batch_key group for
+// this step, e.g. to exclude them from a re-fetch or to check them for staleness.
+func (b *BatchScheduler) allBufferedIds() []int64 {
+	ids := make([]int64, 0)
+	for _, group := range b.groups {
+		ids = append(ids, group.getBufferedIds()...)
+	}
+	return ids
+}
+
 // reconcileBuffers drops cancelled/deleted items out of every group's buffer, using a single
 // ListExistingBatchedQueueItemIds call across all groups rather than one call per group -- this
 // is the tenant-wide (well, step-wide) analog of what fetchNewItems already does for fetching.
@@ -149,10 +159,7 @@ func (b *BatchScheduler) reconcileBuffers(ctx context.Context) {
 		return
 	}
 
-	ids := make([]int64, 0)
-	for _, group := range b.groups {
-		ids = append(ids, group.getBufferedIds()...)
-	}
+	ids := b.allBufferedIds()
 
 	telemetry.WithAttributes(span, telemetry.AttributeKV{Key: "ids.checked", Value: len(ids)})
 
@@ -386,11 +393,18 @@ func (b *BatchScheduler) tick() error {
 			}
 		}
 
-		// flush for batch size
-		if b.batchSize > 0 && len(group.buffer) >= b.batchSize {
+		// flush for batch size -- loop rather than flushing once, since under sustained load a
+		// single tick can accumulate many multiples of batchSize in the buffer (bounded by
+		// batchFetchLimit). Guard against a tight spin if flush makes no progress, e.g. because
+		// no worker slots are available; the remaining full batches will be retried next tick.
+		for b.batchSize > 0 && len(group.buffer) >= b.batchSize {
+			before := len(group.buffer)
 			if err := b.flush(ctx, group, b.batchSize, v1repo.FlushReasonBatchSizeReached); err != nil {
 				span.RecordError(err)
 				return err
+			}
+			if len(group.buffer) >= before {
+				break
 			}
 		}
 
@@ -420,12 +434,12 @@ func (b *BatchScheduler) fetchNewItems(ctx context.Context) ([]*sqlcv1.V1Batched
 		return nil, ctx.Err()
 	}
 
-	limit := pgtype.Int4{
-		Int32: batchFetchLimit,
-		Valid: true,
-	}
-
-	items, err := b.repo.ListBatchedQueueItems(ctx, b.stepId, limit.Int32)
+	// Excluding ids already buffered lets the LIMIT window advance to rows we haven't seen yet,
+	// instead of re-fetching (and discarding) the same still-pending rows every tick. That
+	// matters most when one batch_key group's backlog alone fills the window -- without the
+	// exclusion, other batch_key groups for this step would never be fetched at all until the
+	// dominant group's rows drop out via flush/delete.
+	items, err := b.repo.ListBatchedQueueItems(ctx, b.stepId, b.allBufferedIds(), batchFetchLimit)
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
@@ -465,23 +479,12 @@ func (b *BatchScheduler) fetchNewItems(ctx context.Context) ([]*sqlcv1.V1Batched
 			b.groups[batchKey] = group
 		}
 
-		// ListBatchedQueueItems has no cursor: it keeps returning the same still-pending rows on
-		// every call until they're actually flushed. Without this check, a group that doesn't flush
-		// on the very next tick (e.g. flushInterval > defaultBatchPollInterval) would have duplicates
-		alreadyBuffered := make(map[int64]struct{}, len(group.buffer))
-		for _, item := range group.buffer {
-			alreadyBuffered[item.ID] = struct{}{}
-		}
-
 		// newItems holds the full rows only long enough to emit "waiting" events and derive the
-		// slim bufferedItem records actually kept in group.buffer.
+		// slim bufferedItem records actually kept in group.buffer. ListBatchedQueueItems already
+		// excludes ids buffered by any group, so everything returned here is genuinely new.
 		newItems := make([]*sqlcv1.V1BatchedQueueItem, 0, len(groupItems))
 		for _, item := range groupItems {
 			if item == nil {
-				continue
-			}
-
-			if _, ok := alreadyBuffered[item.ID]; ok {
 				continue
 			}
 
@@ -574,7 +577,7 @@ func (b *BatchScheduler) maybeStopIfIdle() {
 	}
 
 	// Confirm there are no DB items left for this step at all.
-	rows, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, 1)
+	rows, err := b.repo.ListBatchedQueueItems(b.ctx, b.stepId, nil, 1)
 	if err != nil {
 		b.l.Debug().Err(err).Msg("idle check failed to list batched queue items")
 		return

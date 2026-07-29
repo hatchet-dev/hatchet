@@ -220,9 +220,9 @@ func (p *PubSub) Pub(ctx context.Context, topic msgqueue.Topic, msg *msgqueue.Me
 		return err
 	}
 
-	if len(body) > maxPayloadSize {
+	if len(body) > msgqueue.MaxMessageSize {
 		if len(msg.Payloads) == 1 {
-			return fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", len(body), maxPayloadSize)
+			return fmt.Errorf("message size %d bytes exceeds maximum allowed size of %d bytes", len(body), msgqueue.MaxMessageSize)
 		}
 
 		// split the payloads in half and publish recursively until each chunk is

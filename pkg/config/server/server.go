@@ -520,12 +520,14 @@ type MessageQueueConfigFile struct {
 // are optional overrides which inherit from the durable message queue settings
 // when unset, so existing deployments need zero new configuration.
 type PubSubConfigFile struct {
-	// Kind is "rabbitmq" or "postgres"; empty inherits msgQueue.kind
-	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres"`
+	// Kind is "rabbitmq", "postgres", or "nats"; empty inherits msgQueue.kind
+	Kind string `mapstructure:"kind" json:"kind,omitempty" validate:"omitempty,oneof=rabbitmq postgres nats"`
 
 	RabbitMQ PubSubRabbitMQConfigFile `mapstructure:"rabbitmq" json:"rabbitmq,omitempty"`
 
 	Postgres PubSubPostgresConfigFile `mapstructure:"postgres" json:"postgres,omitempty"`
+
+	NATS PubSubNATSConfigFile `mapstructure:"nats" json:"nats,omitempty"`
 }
 
 type PubSubRabbitMQConfigFile struct {
@@ -556,6 +558,22 @@ type OutboxConfigFile struct {
 	// Expiration is the TTL backstop for staged messages which could not be relayed
 	// (e.g. poison messages); they are deleted after this duration.
 	Expiration time.Duration `mapstructure:"expiration" json:"expiration,omitempty" default:"24h"`
+}
+
+type PubSubNATSConfigFile struct {
+	// URL is comma-separated seed URL(s). Prefer bare hosts (e.g.
+	// nats://nats:4222); put auth in Username/Password so rediscovered
+	// cluster peers authenticate too. URL-embedded user:pass still works for
+	// single-server/dev. Use tls:// for TLS. No durable-MQ inheritance —
+	// NATS is pub/sub only.
+	URL string `mapstructure:"url" json:"url,omitempty"`
+
+	Username string `mapstructure:"username" json:"username,omitempty"`
+	Password string `mapstructure:"password" json:"password,omitempty"`
+
+	// SubjectPrefix is prepended (with a trailing ".") to topic names.
+	// Empty defaults to "hatchet.pubsub".
+	SubjectPrefix string `mapstructure:"subjectPrefix" json:"subjectPrefix,omitempty"`
 }
 
 type PostgresMQConfigFile struct {
@@ -906,7 +924,10 @@ func BindAllEnv(v *viper.Viper) {
 	_ = v.BindEnv("msgQueue.outbox.subscribeBatchSize", "SERVER_MSGQUEUE_OUTBOX_SUBSCRIBE_BATCH_SIZE")
 	_ = v.BindEnv("msgQueue.outbox.pollInterval", "SERVER_MSGQUEUE_OUTBOX_POLL_INTERVAL")
 	_ = v.BindEnv("msgQueue.outbox.expiration", "SERVER_MSGQUEUE_OUTBOX_EXPIRATION")
-	_ = v.BindEnv("runtime.requeueLimit", "SERVER_REQUEUE_LIMIT")
+	_ = v.BindEnv("msgQueue.pubSub.nats.url", "SERVER_MSGQUEUE_PUBSUB_NATS_URL")
+	_ = v.BindEnv("msgQueue.pubSub.nats.username", "SERVER_MSGQUEUE_PUBSUB_NATS_USERNAME")
+	_ = v.BindEnv("msgQueue.pubSub.nats.password", "SERVER_MSGQUEUE_PUBSUB_NATS_PASSWORD")
+	_ = v.BindEnv("msgQueue.pubSub.nats.subjectPrefix", "SERVER_MSGQUEUE_PUBSUB_NATS_SUBJECT_PREFIX")
 	_ = v.BindEnv("runtime.singleQueueLimit", "SERVER_SINGLE_QUEUE_LIMIT")
 	_ = v.BindEnv("runtime.optimisticSchedulingEnabled", "SERVER_OPTIMISTIC_SCHEDULING_ENABLED")
 	_ = v.BindEnv("runtime.optimisticSchedulingSlots", "SERVER_OPTIMISTIC_SCHEDULING_SLOTS")

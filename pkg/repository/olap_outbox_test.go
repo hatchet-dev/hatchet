@@ -32,7 +32,7 @@ type fakeOutbox struct {
 
 func (f *fakeOutbox) AddFlusher(topic string, flusher pgoutbox.Flusher) {}
 
-func (f *fakeOutbox) AddMessages(ctx context.Context, tx pgx.Tx, topic string, msgs []pgoutbox.MessageOpts) error {
+func (f *fakeOutbox) AddMessages(ctx context.Context, tx pgx.Tx, topic string, msgs []pgoutbox.MessageOpts, opts ...pgoutbox.AddOpt) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
