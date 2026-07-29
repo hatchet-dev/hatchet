@@ -859,10 +859,7 @@ func (m *sharedRepository) processEventMatches(ctx context.Context, tx sqlcv1.DB
 
 		initialEntry.InvocationCount = cb.InvocationCount
 
-		if cb.SatisfiedOrder.Valid {
-			satisfiedOrder := cb.SatisfiedOrder.Int64
-			initialEntry.SatisfiedOrder = &satisfiedOrder
-		}
+		initialEntry.SatisfiedOrder = satisfiedOrderPtr(cb.SatisfiedOrder)
 
 		if len(initialEntry.Data) > 0 {
 			payloadsToStore = append(payloadsToStore, StorePayloadOpts{

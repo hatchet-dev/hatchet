@@ -143,10 +143,14 @@ WITH inputs AS (
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
     RETURNING e.*
+), max_satisfied_orders_to_apply AS (
+    SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
+    FROM satisfied_orders_to_apply
+    GROUP BY durable_task_id, durable_task_inserted_at
 ), log_file_updates AS (
     UPDATE v1_durable_event_log_file lf
     SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
-    FROM satisfied_orders_to_apply so
+    FROM max_satisfied_orders_to_apply so
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 

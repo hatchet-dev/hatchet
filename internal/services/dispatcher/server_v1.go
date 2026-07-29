@@ -351,6 +351,7 @@ type orderedRelease struct {
 	// oldestBufferedAt is when bufferedCompletions first became non-empty (zero when
 	// empty), for the gap-timeout backstop.
 	oldestBufferedAt time.Time
+	lastActivityAt time.Time
 }
 
 func (s *durableTaskInvocation) send(resp *contracts.DurableTaskResponse) error {
@@ -377,9 +378,32 @@ func (s *durableTaskInvocation) getRelease(key orderedReleaseKey) *orderedReleas
 		}
 	}
 
-	rel := &orderedRelease{bufferedCompletions: make(map[int64]*contracts.DurableTaskResponse)}
+	rel := &orderedRelease{
+		bufferedCompletions: make(map[int64]*contracts.DurableTaskResponse),
+		lastActivityAt:      time.Now(),
+	}
 	s.releases[key] = rel
 	return rel
+}
+
+func (s *durableTaskInvocation) clearRelease(key orderedReleaseKey) {
+	s.releasesMu.Lock()
+	defer s.releasesMu.Unlock()
+
+	delete(s.releases, key)
+}
+
+func (s *durableTaskInvocation) pruneIdleReleases(idle time.Duration) {
+	s.releasesMu.Lock()
+	defer s.releasesMu.Unlock()
+
+	now := time.Now()
+
+	for key, rel := range s.releases {
+		if len(rel.bufferedCompletions) == 0 && now.Sub(rel.lastActivityAt) > idle {
+			delete(s.releases, key)
+		}
+	}
 }
 
 // deliverOrdered sends an EntryCompleted response in satisfied_order. Completions with
@@ -393,20 +417,20 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 
 	order := *satisfiedOrder
 
+	var toSend []*contracts.DurableTaskResponse
+
 	s.releasesMu.Lock()
-	defer s.releasesMu.Unlock()
 
 	rel := s.getRelease(orderedReleaseKey{taskExternalId: taskExternalId, invocationCount: invocationCount})
+	rel.lastActivityAt = time.Now()
 
 	switch {
 	case order <= rel.maxSatisfiedOrderSentAlready:
 		// already released (e.g. reconnect / worker-status re-delivery); the worker
 		// dedupes by node id, so send it through again.
-		return s.send(resp)
+		toSend = []*contracts.DurableTaskResponse{resp}
 	case order == rel.maxSatisfiedOrderSentAlready+1:
-		if err := s.send(resp); err != nil {
-			return err
-		}
+		toSend = append(toSend, resp)
 		rel.maxSatisfiedOrderSentAlready++
 
 		for {
@@ -415,26 +439,38 @@ func (s *durableTaskInvocation) deliverOrdered(taskExternalId uuid.UUID, invocat
 				break
 			}
 			delete(rel.bufferedCompletions, rel.maxSatisfiedOrderSentAlready+1)
-			if err := s.send(next); err != nil {
-				return err
-			}
+			toSend = append(toSend, next)
 			rel.maxSatisfiedOrderSentAlready++
 		}
 
 		if len(rel.bufferedCompletions) == 0 {
 			rel.oldestBufferedAt = time.Time{}
 		}
-
-		return nil
 	default:
-		if _, exists := rel.bufferedCompletions[order]; !exists {
-			rel.bufferedCompletions[order] = resp
-			if rel.oldestBufferedAt.IsZero() {
-				rel.oldestBufferedAt = time.Now()
-			}
+		if _, exists := rel.bufferedCompletions[order]; exists {
+			s.releasesMu.Unlock()
+			s.l.Error().Msgf(
+				"durable task %s (invocation %d): duplicate satisfied_order %d received while a completion for the same order is already buffered; dropping the newer one",
+				taskExternalId, invocationCount, order,
+			)
+			return nil
 		}
-		return nil
+
+		rel.bufferedCompletions[order] = resp
+		if rel.oldestBufferedAt.IsZero() {
+			rel.oldestBufferedAt = time.Now()
+		}
 	}
+
+	s.releasesMu.Unlock()
+
+	for _, r := range toSend {
+		if err := s.send(r); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // staleReleaseHolds returns the keys of releases whose oldest held completion has been
@@ -1193,6 +1229,7 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 	}
 
 	d.evictStalledOrderedReleases(invocation)
+	invocation.pruneIdleReleases(durableReleaseIdleTTL)
 
 	return nil
 }
@@ -1200,6 +1237,8 @@ func (d *DispatcherServiceImpl) handleWorkerStatus(
 // durableOrderedReleaseGapTimeout bounds how long a held EntryCompleted may wait for a
 // missing lower satisfied_order before the invocation is evicted to restart cleanly.
 const durableOrderedReleaseGapTimeout = 60 * time.Second
+
+const durableReleaseIdleTTL = 24 * time.Hour
 
 // evictStalledOrderedReleases tells the worker to evict any invocation whose ordered
 // release has stalled on a missing predecessor for too long. The periodic worker-status
@@ -1224,6 +1263,8 @@ func (d *DispatcherServiceImpl) evictStalledOrderedReleases(invocation *durableT
 		}); err != nil {
 			d.l.Error().Err(err).Msgf("failed to send server eviction for stalled ordered release on task %s", key.taskExternalId)
 		}
+
+		invocation.clearRelease(key)
 	}
 }
 

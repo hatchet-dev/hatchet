@@ -969,10 +969,14 @@ WITH inputs AS (
       AND e.node_id = inputs.node_id
       AND e.branch_id = inputs.branch_id
     RETURNING e.tenant_id, e.external_id, e.result_payload_external_id, e.child_task_external_id, e.child_task_is_failure, e.child_task_error_message, e.inserted_at, e.id, e.durable_task_id, e.durable_task_inserted_at, e.kind, e.node_id, e.branch_id, e.idempotency_key, e.is_satisfied, e.satisfied_at, e.satisfied_order, e.user_message, e.wait_data
+), max_satisfied_orders_to_apply AS (
+    SELECT durable_task_id, durable_task_inserted_at, MAX(satisfied_order) AS satisfied_order
+    FROM satisfied_orders_to_apply
+    GROUP BY durable_task_id, durable_task_inserted_at
 ), log_file_updates AS (
     UPDATE v1_durable_event_log_file lf
     SET latest_satisfied_order = GREATEST(lf.latest_satisfied_order, so.satisfied_order)
-    FROM satisfied_orders_to_apply so
+    FROM max_satisfied_orders_to_apply so
     WHERE (lf.durable_task_id, lf.durable_task_inserted_at) = (so.durable_task_id, so.durable_task_inserted_at)
 )
 

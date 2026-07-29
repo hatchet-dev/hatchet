@@ -1031,6 +1031,8 @@ func (l *DurableTaskListener) deliverCompletion(resp *v1.DurableTaskResponse) {
 		return
 	}
 
+	l.pruneExpiredCompletionsLocked(time.Now())
+
 	ch, ok := l.pendingCallbacks[key]
 	if ok {
 		delete(l.pendingCallbacks, key)
